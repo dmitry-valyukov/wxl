@@ -6,6 +6,7 @@ add_executable(wxl.core.tests
     event_tests.cpp
     file_tests.cpp
     function_tests.cpp
+    grapheme_tests.cpp
     intrusive_list_tests.cpp
     intrusive_slist_tests.cpp
     module_cleanup_tests.cpp
@@ -29,6 +30,13 @@ target_link_libraries(wxl.core.tests
     PRIVATE
         wxl::core
         wxl::test-support
+)
+
+# GraphemeBreakTest.txt of the Unicode version the grapheme table was
+# generated from; gen-grapheme-table.py writes both.
+target_compile_definitions(wxl.core.tests
+    PRIVATE
+        WXL_CORE_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
 )
 
 wxl_set_target_folders(wxl.core.tests)
