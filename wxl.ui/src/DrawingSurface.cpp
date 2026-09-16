@@ -12,6 +12,8 @@
 #include <dxgi.h>
 #include <inspectable.h>
 
+#include <vector>
+
 #include "DrawingSurface.h"
 #include "Object.impl.h"
 #include "generated/Microsoft.UI.Composition.impl.h"
@@ -23,26 +25,20 @@ namespace {
 namespace composition = winrt::Microsoft::UI::Composition;
 namespace directx = winrt::Microsoft::Graphics::DirectX;
 
-/// The graphics device every drawing surface of this process comes from.
+/// The Direct2D device every drawing surface of this process draws through.
 ///
-/// One, and made once. WinUI gives a thread a single compositor and wxl runs
-/// a single main STA thread, so a second device could only ever be a second
-/// copy of this one -- and each costs a D3D11 device, which is the most
-/// expensive object in the chain.
+/// One, and made once: a D3D11 device is the most expensive object in the
+/// chain, and nothing about it belongs to a compositor -- several graphics
+/// devices sit on this one happily.
 ///
 /// Kept for the whole process, the way impl::StaticsProxy keeps an activation
-/// factory.
-composition::CompositionGraphicsDevice graphics_device(composition::Compositor const& compositor) {
-    // One reference, held raw and on purpose. A cppwinrt object in a static
-    // would be released at exit, in an order nothing here controls and
-    // possibly after the apartment it belongs to is gone; a raw pointer that
-    // is never released cannot be.
-    static ::IInspectable* kept = nullptr;
-    if (kept) {
-        composition::CompositionGraphicsDevice device{nullptr};
-        winrt::copy_from_abi(device, kept);
-        return device;
-    }
+/// factory. The reference is held raw and on purpose: a cppwinrt object in a
+/// static would be released at exit, in an order nothing here controls and
+/// possibly after the apartment it belongs to is gone; a raw pointer that is
+/// never released cannot be.
+ID2D1Device* d2d_device() {
+    static ID2D1Device* kept = nullptr;
+    if (kept) return kept;
 
     // BGRA support is not optional: it is what a D2D device requires of the
     // D3D device underneath it.
@@ -62,12 +58,57 @@ composition::CompositionGraphicsDevice graphics_device(composition::Compositor c
     winrt::check_hresult(
         ::D2D1CreateDevice(d3d.as<IDXGIDevice>().get(), &properties, d2d.put()));
 
+    kept = d2d.detach();
+    return kept;
+}
+
+/// The graphics device *of this compositor*, made once per compositor.
+///
+/// One per compositor, and that is the whole point of the lookup. A graphics
+/// device is made **by** a compositor, and every surface it allocates belongs
+/// to that compositor; hand such a surface to another compositor's
+/// CreateSurfaceBrush and composition refuses it with E_ACCESSDENIED -- which
+/// arrives as a fail-fast, not as an exception a caller could see.
+///
+/// This is not a theoretical case. A wxl::CompositionWindow has two
+/// compositors: the one whose pixels DWM shows for the window itself, on
+/// which the application draws its own scene, and the XAML island's, which
+/// owns every visual a control hangs off ElementCompositionPreview. An
+/// application that draws on both -- a page on the scene, an overlay inside
+/// the island -- comes here twice, and before this each call after the first
+/// got a device belonging to whoever asked first.
+///
+/// The table is tiny by nature: two entries for a window, four for two
+/// windows. Both pointers in it are leaked deliberately, for the reason
+/// d2d_device() gives; the compositor's is kept only as an identity to
+/// compare against, is never called through, and being immortal cannot be a
+/// stale address a later compositor happens to reuse.
+composition::CompositionGraphicsDevice graphics_device(composition::Compositor const& compositor) {
+    struct entry {
+        ::IUnknown* owner;
+        ::IInspectable* device;
+    };
+    static std::vector<entry> kept;
+
+    // COM identity, not the interface pointer at hand: two references to one
+    // compositor through different interfaces are different addresses, and
+    // only IUnknown answers the same one every time.
+    winrt::com_ptr<::IUnknown> identity = compositor.as<::IUnknown>();
+
+    for (entry const& known : kept) {
+        if (known.owner != identity.get()) continue;
+
+        composition::CompositionGraphicsDevice device{nullptr};
+        winrt::copy_from_abi(device, known.device);
+        return device;
+    }
+
     auto const interop = compositor.as<impl::ICompositorInterop>();
     winrt::com_ptr<::IInspectable> made;
-    winrt::check_hresult(interop->CreateGraphicsDevice(d2d.as<::IUnknown>().get(), made.put()));
+    winrt::check_hresult(interop->CreateGraphicsDevice(d2d_device(), made.put()));
 
     auto device = made.as<composition::CompositionGraphicsDevice>();
-    kept = made.detach();
+    kept.push_back({identity.detach(), made.detach()});
     return device;
 }
 
