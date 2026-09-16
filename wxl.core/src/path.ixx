@@ -10,7 +10,7 @@ module;
 export module wxl.core:path;
 
 import :checks;
-import :sta_allocator;
+import :sta_stl;
 import std;
 
 export namespace wxl::core {

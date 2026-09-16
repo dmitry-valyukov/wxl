@@ -14,20 +14,6 @@ export namespace wxl::core {
 template <typename T>
 using sta_allocator = allocator<T, class sta_memory_pool>;
 
-/// Strings whose characters live in the STA pool.
-///
-/// Spelled out here, next to the allocator, because the alternative is every
-/// module writing the same three lines: the type is the same one whoever
-/// declares it, and two spellings of it would only be two names for one thing.
-///
-/// Both are as thread-bound as the pool is: made, grown and destroyed on its
-/// thread, and nowhere else.
-///@{
-using sta_string = std::basic_string<char, std::char_traits<char>, sta_allocator<char>>;
-
-using sta_wstring = std::basic_string<wchar_t, std::char_traits<wchar_t>, sta_allocator<wchar_t>>;
-///@}
-
 /// A pool for many small, short-lived objects on the one STA thread.
 ///
 /// There is one per process and nobody builds it: the instance is a static of

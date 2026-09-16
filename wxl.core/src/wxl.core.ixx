@@ -35,6 +35,7 @@ export import :refcounted;
 export import :semaphore;
 export import :spin_lock;
 export import :sta_allocator;
+export import :sta_stl;
 export import :strings;
 export import :sync_root;
 export import :thread_guard;
