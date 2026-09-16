@@ -1,0 +1,76 @@
+// wxl::Teardown -- what an application returns from wxl_launched, and the exit
+// code it names.
+//
+// A plain executable rather than a gtest: Teardown lives in launch.h, which
+// reaches wxl.core through core.h -- the include-then-import shim an ordinary
+// translation unit uses. gtest's own <ostream>/<coroutine> and that import
+// cannot share one TU (a standard header after `import std` is rejected), so
+// this is built like a sample instead: the standard headers first, launch.h
+// last, and the result reported through the exit code.
+//
+// Three facts: a handler that returns nothing means zero, a handler that
+// returns a number names the code (the unsigned one GetExitCodeProcess hands
+// out included), and an empty Teardown is false and zero.
+
+#include <cstdio>
+#include <utility>
+
+#include "launch.h"
+
+namespace {
+
+int failures = 0;
+
+void check(bool ok, char const* what) {
+    if (!ok) {
+        std::fprintf(stderr, "teardown_test: FAILED -- %s\n", what);
+        ++failures;
+    }
+}
+
+}  // namespace
+
+int main() {
+    {
+        wxl::Teardown const empty;
+        check(!empty, "an empty Teardown is false");
+        check(empty(wxl::Reason::Closed) == 0, "an empty Teardown exits with zero");
+    }
+
+    {
+        int calls = 0;
+        auto seen = wxl::Reason::Closed;
+        wxl::Teardown const teardown = [&](wxl::Reason reason) {
+            ++calls;
+            seen = reason;
+        };
+        check(static_cast<bool>(teardown), "a set Teardown is true");
+        check(teardown(wxl::Reason::Error) == 0, "a handler returning nothing means zero");
+        check(calls == 1, "the handler ran once");
+        check(seen == wxl::Reason::Error, "the handler saw its reason");
+    }
+
+    {
+        wxl::Teardown const teardown = [](wxl::Reason) { return 42; };
+        check(teardown(wxl::Reason::Closed) == 42, "a handler names the exit code");
+    }
+
+    {
+        // The shape Trayed is in: GetExitCodeProcess hands back a DWORD.
+        wxl::Teardown const teardown = [](wxl::Reason) { return static_cast<unsigned long>(3); };
+        check(teardown(wxl::Reason::Closed) == 3, "an unsigned code is taken too");
+    }
+
+    {
+        wxl::Teardown source = [](wxl::Reason) { return 7; };
+        wxl::Teardown target = std::move(source);
+        check(static_cast<bool>(target), "the move target holds the handler");
+        check(!source, "the moved-from source is empty");
+        check(target(wxl::Reason::Closed) == 7, "the moved handler still names its code");
+        target = {};
+        check(!target, "an assigned-away Teardown is empty");
+    }
+
+    if (failures == 0) std::puts("teardown_test: all checks passed");
+    return failures;
+}

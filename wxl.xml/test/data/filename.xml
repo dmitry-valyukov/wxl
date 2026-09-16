@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Entries
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://onixs.biz/fix/scheduler"
+  >
+  <Entry id="SingleLineWithTrailingSpace"/> 
+  <Entry id="SingleLineWithoutTrailingSpace"/>
+  <Entry 
+    id="MultiLineWithTrailingSpace" 
+    /> 
+  <Entry
+    id="MultiLineWithoutTrailingSpace"
+    />
+  <Entry id="WithStructuredEmbeddedEntries">
+	<StructuredEmbedded>
+      Simple Text
+	</StructuredEmbedded>
+  </Entry>
+  <Entry id="WithEmbeddedEntries">
+	<Embedded>Simple Text</Embedded>
+  </Entry>
+</Entries>

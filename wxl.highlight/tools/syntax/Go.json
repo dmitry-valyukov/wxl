@@ -1,0 +1,23 @@
+{
+  "name": "Go",
+  "displayName": "Go",
+  "options": "(?n)",
+  "patterns": [
+    {
+      "name": "kw",
+      "type": "keyword",
+      "prefix": "WordBoundary",
+      "postfix": "WordBoundary",
+      "keywords": [
+        "any", "append", "bool", "break", "byte", "cap", "case", "chan", "clear", "close",
+        "complex", "complex64", "complex128", "const", "continue", "copy", "default", "defer",
+        "delete", "else", "error", "fallthrough", "false", "float32", "float64", "for", "func",
+        "go", "goto", "if", "imag", "import", "int", "int8", "int16", "int32", "int64",
+        "interface", "iota", "len", "make", "map", "max", "min", "new", "nil", "package",
+        "panic", "print", "println", "range", "real", "recover", "return", "rune", "select",
+        "string", "struct", "switch", "true", "type", "uint", "uint8", "uint16", "uint32",
+        "uint64", "uintptr", "var"
+      ]
+    }
+  ]
+}

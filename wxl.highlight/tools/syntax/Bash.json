@@ -1,0 +1,22 @@
+{
+  "name": "Bash",
+  "displayName": "Bash",
+  "options": "(?n)",
+  "patterns": [
+    {
+      "name": "kw",
+      "type": "keyword",
+      "prefix": "WordBoundary",
+      "postfix": "WordBoundary",
+      "keywords": [
+        "alias", "bg", "bind", "break", "builtin", "case", "cd", "command", "continue", "coproc",
+        "declare", "do", "done", "echo", "elif", "else", "esac", "eval", "exec", "exit", "export",
+        "false", "fg", "fi", "for", "function", "getopts", "hash", "if", "in", "jobs", "kill",
+        "let", "local", "mapfile", "popd", "printf", "pushd", "pwd", "read", "readarray",
+        "readonly", "return", "select", "set", "shift", "shopt", "source", "test", "then",
+        "time", "trap", "true", "type", "typeset", "ulimit", "umask", "unalias", "unset",
+        "until", "wait", "while"
+      ]
+    }
+  ]
+}

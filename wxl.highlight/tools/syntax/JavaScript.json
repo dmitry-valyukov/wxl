@@ -1,0 +1,22 @@
+{
+  "name": "JavaScript",
+  "displayName": "JavaScript",
+  "options": "(?n)",
+  "patterns": [
+    {
+      "name": "kw",
+      "type": "keyword",
+      "prefix": "WordBoundary",
+      "postfix": "WordBoundary",
+      "keywords": [
+        "arguments", "as", "async", "await", "break", "case", "catch", "class", "const",
+        "constructor", "continue", "debugger", "default", "delete", "do", "else", "enum",
+        "export", "extends", "false", "finally", "for", "from", "function", "get", "globalThis",
+        "if", "implements", "import", "in", "instanceof", "interface", "let", "new", "null",
+        "of", "package", "private", "protected", "public", "return", "set", "static", "super",
+        "switch", "this", "throw", "true", "try", "typeof", "undefined", "var", "void", "while",
+        "with", "yield", "Infinity", "NaN"
+      ]
+    }
+  ]
+}

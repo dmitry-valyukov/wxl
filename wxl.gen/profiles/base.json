@@ -1,0 +1,684 @@
+{
+    "name": "base",
+    "description": "Baseline WinUI3 surface for wxl: the WinForms-equivalent control set (layout, text, buttons, lists, indication, navigation containers, flyouts/menus), trimmed to the members needed to experiment with Flutter-style declarative UI and Command-based model binding. Window and Application are given from above (hand-written, never generated), so they are deliberately absent.",
+    "extends": [],
+
+    "windowsAppSdk": "2.4.0",
+
+    "packages": [
+        {
+            "id": "Microsoft.WindowsAppSDK.WinUI",
+            "resources": [
+                "lib/native/Microsoft.UI/Themes/generic.xaml"
+            ],
+            "metadata": [
+                "Microsoft.UI.Xaml.winmd",
+                "Microsoft.UI.Text.winmd"
+            ]
+        }
+    ],
+    "windowsMetadata": true,
+
+    "types": {
+        "Microsoft.UI.Xaml.Window": {
+            "comment": "The window is an implicit root with its whole surface, so no member list here. What it is listed for is the property WinUI3 does not have: a minimum size lives on the window's presenter, three hops away, and a declarative UI has to be able to say it in one word.",
+            "syntheticMembers": {
+                "MinSize": {
+                    "type": "Windows.Graphics.SizeInt32",
+                    "function": "impl::set_minimum_size",
+                    "include": "../impl/window_constraints.h"
+                },
+                "Placement": {
+                    "comment": "Where the window was last time and how: ordinary, maximized or full-screen, plus the rectangle it returns to. WinUI3 has none of it -- AppWindow gives Position and Size, and a window closed maximized reports the size of the screen, so remembering that hands the reader a monitor-sized window the moment they leave the maximized state. What has to be kept is Win32's restore rectangle. The value is text because that is what an application writes to its settings and hands back unread; reading it back is wxl::window_placement(), a free function, since a property tag is a way of setting and there is no braced form of asking.",
+                    "type": "String",
+                    "function": "impl::set_window_placement",
+                    "include": "../impl/window_placement.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.UIElement": {
+            "members": [
+                "Visibility",
+                "Opacity",
+                "IsHitTestVisible",
+                "DesiredSize",
+                "Tapped",
+                "DoubleTapped",
+                "RightTapped",
+                "PointerPressed",
+                "PointerReleased",
+                "PointerEntered",
+                "PointerExited",
+                "PointerMoved",
+                "KeyDown",
+                "CharacterReceived",
+                "PreviewKeyDown",
+                "IsTabStop",
+                "KeyUp",
+                "GotFocus",
+                "LostFocus"
+            ],
+            "syntheticMembers": {
+                "ToolTip": {
+                    "comment": "One text, two homes: ToolTipService's hover hint and AutomationProperties.Name, the name a screen reader speaks. Set together deliberately -- the property exists for controls whose face is a glyph rather than a word, and such a control needs naming in both places or it is nameless in one of them.",
+                    "type": "String",
+                    "function": "impl::set_tool_tip",
+                    "include": "../impl/tool_tip.h"
+                },
+                "AutomationName": {
+                    "comment": "The name a screen reader speaks, and nothing else -- the half of ToolTip that carries no hover hint. What needs it is the element whose face is already words but not text: a list row built out of a panel says nothing at all to automation, because a Button's accessible name comes from its content only when that content is a string. A hint on such a row would be noise, so the two are separate properties rather than one.",
+                    "type": "String",
+                    "function": "impl::set_automation_name",
+                    "include": "../impl/automation_name.h"
+                },
+                "Cursor": {
+                    "comment": "The pointer's shape over the element. WinUI keeps it on UIElement.ProtectedCursor, which the metadata marks protected -- but protected is a word for projections, not for the ABI: IUIElementProtected is an ordinary interface any element's object answers QueryInterface for, so the wrapper sets it on a plain Border with no subclass in between. The value is the metadata's own InputSystemCursorShape; a second vocabulary for Arrow, Hand and SizeWestEast would name nothing new.",
+                    "type": "Microsoft.UI.Input.InputSystemCursorShape",
+                    "function": "impl::set_cursor",
+                    "include": "../impl/cursor.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.FrameworkElement": {
+            "members": [
+                "Width",
+                "Height",
+                "MinWidth",
+                "MinHeight",
+                "MaxWidth",
+                "MaxHeight",
+                "ActualWidth",
+                "ActualHeight",
+                "Margin",
+                "HorizontalAlignment",
+                "VerticalAlignment",
+                "Name",
+                "Style",
+                "Tag",
+                "DataContext",
+                "RequestedTheme",
+                "ActualTheme",
+                "ActualThemeChanged",
+                "Loaded",
+                "Unloaded",
+                "SizeChanged",
+                "LayoutUpdated"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Control": {
+            "members": [
+                "Background",
+                "Foreground",
+                "BorderBrush",
+                "BorderThickness",
+                "CornerRadius",
+                "Padding",
+                "FontFamily",
+                "FontSize",
+                "FontWeight",
+                "IsEnabled",
+                "HorizontalContentAlignment",
+                "VerticalContentAlignment",
+                "Focus"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ContentControl": {
+            "members": [
+                "Content"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsControl": {
+            "members": [
+                "ItemsSource",
+                "Items",
+                "DisplayMemberPath"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.Selector": {
+            "members": [
+                "SelectedIndex",
+                "SelectedItem",
+                "SelectionChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Panel": {
+            "members": [
+                "Children",
+                "Background"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.ButtonBase": {
+            "members": [
+                "Command",
+                "CommandParameter",
+                "Click"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.ToggleButton": {
+            "members": [
+                "IsChecked",
+                "IsThreeState",
+                "Checked",
+                "Unchecked",
+                "Indeterminate"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.RangeBase": {
+            "members": [
+                "Value",
+                "Minimum",
+                "Maximum",
+                "ValueChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.SolidColorBrush": {
+            "members": [
+                "Color"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.GradientStop": {
+            "comment": "One colour at one position. GradientStops is the content property of both gradient brushes, so stops are written straight inside the brush.",
+            "members": [
+                "Color",
+                "Offset"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.LinearGradientBrush": {
+            "members": [
+                "GradientStops",
+                "StartPoint",
+                "EndPoint",
+                "MappingMode"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.RadialGradientBrush": {
+            "members": [
+                "GradientStops",
+                "Center",
+                "GradientOrigin",
+                "RadiusX",
+                "RadiusY",
+                "MappingMode"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.Border": {
+            "members": [
+                "Child",
+                "Background",
+                "BorderBrush",
+                "BorderThickness",
+                "CornerRadius",
+                "Padding"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Canvas": {
+            "members": [
+                "SetLeft",
+                "SetTop",
+                "SetZIndex"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Grid": {
+            "comment": "Rows and columns are also written as text -- rowDefinitions = \"2*,*,auto,120\" -- which is what every other framework's grid is written as and what WinUI3 has no property for. The name is the framework's own: the collection stays subscriptable, and the string form is an assignment to the same tag.",
+            "syntheticMembers": {
+                "RowDefinitions": {
+                    "type": "String",
+                    "function": "impl::set_row_definitions",
+                    "include": "../impl/grid_definitions.h"
+                },
+                "ColumnDefinitions": {
+                    "type": "String",
+                    "function": "impl::set_column_definitions",
+                    "include": "../impl/grid_definitions.h"
+                }
+            },
+            "members": [
+                "RowDefinitions",
+                "ColumnDefinitions",
+                "RowSpacing",
+                "ColumnSpacing",
+                "Padding",
+                "SetRow",
+                "SetColumn",
+                "SetRowSpan",
+                "SetColumnSpan"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RowDefinition": {
+            "members": [
+                "Height",
+                "MinHeight"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ColumnDefinition": {
+            "members": [
+                "Width",
+                "MinWidth"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.StackPanel": {
+            "members": [
+                "Orientation",
+                "Spacing",
+                "Padding"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollViewer": {
+            "comment": "ZoomFactor, ViewportWidth and the zoom limits are what a reflowing zoom needs: content laid out at viewport / factor and shown at factor fills the viewport exactly, and the factor has to be read back after a pinch or a Ctrl+wheel the control handled by itself. HorizontalScrollMode is disabled by such a view, since there is nothing to pan to.",
+            "members": [
+                "HorizontalScrollBarVisibility",
+                "VerticalScrollBarVisibility",
+                "HorizontalScrollMode",
+                "ZoomMode",
+                "ZoomFactor",
+                "MinZoomFactor",
+                "MaxZoomFactor",
+                "ViewportWidth",
+                "ChangeView",
+                "ViewChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollViewerViewChangedEventArgs": {
+            "comment": "IsIntermediate tells a zoom still under the fingers from one that has settled -- the one worth writing to settings.",
+            "members": [
+                "IsIntermediate"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.ScrollBar": {
+            "comment": "The scroll viewer's own bar. Listed for its name as much as for its members: seventeen brush keys of the theme dictionaries are named after it, and a type the profile generates is what tells the brush writer that ScrollBarThumbBackgroundThemeBrush belongs to a control rather than starting with a word two other names happen to share.",
+            "members": [
+                "Orientation",
+                "ViewportSize",
+                "IndicatorMode",
+                "Scroll"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.TextBlock": {
+            "members": [
+                "Text",
+                "FontFamily",
+                "FontSize",
+                "FontWeight",
+                "CharacterSpacing",
+                "Foreground",
+                "TextWrapping",
+                "TextAlignment",
+                "TextTrimming",
+                "MaxLines",
+                "Padding"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RichTextBlock": {
+            "comment": "The display side of rich text, and the base under wxl::FormattedBlock (hand-written, wxl.ui/src/FormattedBlock.h). Blocks is deliberately absent: content is filled through FormattedBlock's primitives, whose implementation reaches the Documents family through the cppwinrt projection inside the library -- so Paragraph, Run and the rest never enter the profile's closure.",
+            "members": [
+                "FontFamily",
+                "FontSize",
+                "FontWeight",
+                "CharacterSpacing",
+                "Foreground",
+                "TextWrapping",
+                "TextAlignment",
+                "TextTrimming",
+                "TextIndent",
+                "LineHeight",
+                "MaxLines",
+                "Padding",
+                "IsTextSelectionEnabled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TextBox": {
+            "members": [
+                "Text",
+                "PlaceholderText",
+                "Header",
+                "IsReadOnly",
+                "AcceptsReturn",
+                "TextWrapping",
+                "MaxLength",
+                "TextChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PasswordBox": {
+            "members": [
+                "Password",
+                "PlaceholderText",
+                "Header",
+                "PasswordRevealMode",
+                "MaxLength",
+                "PasswordChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RichEditBox": {
+            "members": [
+                "Document",
+                "PlaceholderText",
+                "IsReadOnly",
+                "TextChanged"
+            ]
+        },
+        "Microsoft.UI.Text.RichEditTextDocument": {
+            "comment": "What Document hands out, and the ways content goes in and out whole: plain or RTF text in one call (SetText with FormatRtf carries bold, italic and embedded math zones inside the string), and a formula as MathML. The math engine behind this is RichEdit's own -- the same build-up engine as Word's. GetRange is the door to piecewise work: a slice of the content whose formatting is set after the fact.",
+            "members": [
+                "SetText",
+                "GetText",
+                "SetMathML",
+                "GetMathML",
+                "SetMathMode",
+                "GetMathMode",
+                "GetRange"
+            ]
+        },
+        "Microsoft.UI.Text.ITextRange": {
+            "comment": "What GetRange hands out: a live slice of the document. CharacterFormat is how formatting is applied to the slice alone -- set properties on it and the text in the range changes, the rest stays.",
+            "members": [
+                "CharacterFormat"
+            ]
+        },
+        "Microsoft.UI.Text.ITextCharacterFormat": {
+            "comment": "The character formatting of a range. Tri-state effects (FormatEffect), not booleans: a range spanning both bold and plain text reports Undefined.",
+            "members": [
+                "Bold",
+                "Italic",
+                "Subscript",
+                "Superscript"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.Button": {
+            "members": [
+                "Flyout"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.CheckBox": {
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.RadioButton": {
+            "members": [
+                "GroupName"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToggleSwitch": {
+            "members": [
+                "IsOn",
+                "Header",
+                "OnContent",
+                "OffContent",
+                "Toggled"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.ComboBox": {
+            "members": [
+                "PlaceholderText",
+                "IsEditable",
+                "IsDropDownOpen",
+                "DropDownOpened",
+                "DropDownClosed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ComboBoxItem": {
+            "comment": "A row of a ComboBox spelled out. Its own members are none: the text it shows is Content, from ContentControl, so `ComboBoxItem { L\"Consolas\" }` is a row -- which is what a ComboBox filled from a list is made of, rather than bare boxed strings.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.ListBox": {
+            "members": [
+                "SelectionMode",
+                "SelectedItems"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ListViewBase": {
+            "members": [
+                "SelectionMode",
+                "IsItemClickEnabled",
+                "SelectedItems",
+                "ScrollIntoView",
+                "ItemClick"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ListView": {
+            "members": []
+        },
+
+        "Microsoft.UI.Xaml.Controls.Image": {
+            "members": [
+                "Source",
+                "Stretch",
+                "ImageOpened",
+                "ImageFailed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ProgressBar": {
+            "members": [
+                "IsIndeterminate",
+                "ShowPaused",
+                "ShowError"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Slider": {
+            "members": [
+                "StepFrequency",
+                "Orientation",
+                "Header"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToolTip": {
+            "members": [
+                "Placement",
+                "PlacementTarget",
+                "IsOpen",
+                "Opened",
+                "Closed"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.TabView": {
+            "members": [
+                "TabItems",
+                "TabItemsSource",
+                "SelectedIndex",
+                "SelectedItem",
+                "TabWidthMode",
+                "IsAddTabButtonVisible",
+                "AddTabButtonClick",
+                "TabCloseRequested",
+                "SelectionChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewItem": {
+            "members": [
+                "Header",
+                "IconSource",
+                "IsClosable",
+                "CloseRequested"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationView": {
+            "members": [
+                "MenuItems",
+                "MenuItemsSource",
+                "SelectedItem",
+                "Header",
+                "PaneTitle",
+                "PaneDisplayMode",
+                "IsPaneOpen",
+                "IsSettingsVisible",
+                "IsBackButtonVisible",
+                "ItemInvoked",
+                "SelectionChanged",
+                "BackRequested"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItemBase": {
+            "members": [
+                "IsSelected"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItem": {
+            "members": [
+                "Icon",
+                "MenuItems"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SelectorBar": {
+            "comment": "A strip of tabs that selects what the rest of the window shows -- the modern shape of the tab bar every other framework calls a NavigationBar or a SegmentedControl. NavigationView cannot stand in for it: its pane is a side rail or a top strip attached to the frame, and an application that wants its tabs at the bottom of the window has nothing else to reach for.",
+            "members": [
+                "Items",
+                "SelectedItem",
+                "SelectionChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SelectorBarItem": {
+            "comment": "One tab: an icon, a word, and whether it is the chosen one.",
+            "members": [
+                "Text",
+                "Icon",
+                "IsSelected"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TreeView": {
+            "members": [
+                "RootNodes",
+                "ItemsSource",
+                "SelectionMode",
+                "SelectedNodes",
+                "ItemInvoked",
+                "Expanding",
+                "Collapsed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TreeViewNode": {
+            "members": [
+                "Content",
+                "Children",
+                "IsExpanded",
+                "HasChildren"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SplitView": {
+            "members": [
+                "Content",
+                "Pane",
+                "IsPaneOpen",
+                "DisplayMode",
+                "PanePlacement",
+                "OpenPaneLength",
+                "CompactPaneLength",
+                "PaneOpened",
+                "PaneClosing"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
+            "members": [
+                "Placement",
+                "ShowAt",
+                "Hide",
+                "Opened",
+                "Closed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Flyout": {
+            "members": [
+                "Content"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MenuFlyout": {
+            "members": [
+                "Items"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MenuFlyoutItem": {
+            "members": [
+                "Text",
+                "Icon",
+                "Command",
+                "CommandParameter",
+                "Click"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MenuFlyoutSubItem": {
+            "members": [
+                "Text",
+                "Icon",
+                "Items"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator": {
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.ToggleMenuFlyoutItem": {
+            "comment": "A MenuFlyoutItem that shows a checkmark: IsChecked is the one thing it adds over its base -- Text, Icon and Click are the base's. What a tray menu draws for a setting that is on.",
+            "members": [
+                "IsChecked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SymbolIcon": {
+            "comment": "The icon of the baseline set, and the one an application should reach for first: it already knows the font -- SymbolThemeFontFamily, the chain 'Segoe Fluent Icons,Segoe MDL2 Assets' -- so nothing but the glyph has to be said. WinRT names that glyph with the Symbol enumeration, and the synthetic member below lets FluentSymbol name it too.",
+            "members": [
+                "Symbol"
+            ],
+            "syntheticMembers": {
+                "Symbol": {
+                    "comment": "The same property, spelled with the other enumeration. Symbol names 197 glyphs, chosen for Windows 8 and living in the E1xx compatibility block; FluentSymbol names all 1533 the documentation of Segoe Fluent Icons carries, E700 and up. Both are code points in the font SymbolIcon already draws with, so this is one property with two vocabularies rather than two ways of doing a thing -- and it is why an icon whose name Symbol never had (QuietHours, Brightness) needs no FontIcon and no font name. The metadata declares one setter; this is the second overload of it, and the generator keeps both because it deduplicates on the signature.",
+                    "cppType": "FluentSymbol",
+                    "cppInclude": "FluentSymbol.h",
+                    "function": "impl::set_fluent_symbol",
+                    "include": "../impl/fluent_symbol.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.IconElement": {
+            "comment": "The base every icon shares, and Foreground is why it is listed: a glyph that marks something -- a star beside a name, a lock, a warning -- is not the same colour as the text it stands next to, and without this an icon can only inherit whatever its parent happens to be.",
+            "members": [
+                "Foreground"
+            ]
+        },
+
+        // Event arguments. These are reached anyway -- an event's signature
+        // names them -- but a type reached that way brings no members of its
+        // own, so what a handler may read out of its args is listed here like
+        // any other surface. Handled is the one that is written rather than
+        // read: an args object is handed to a handler mutably.
+        "Microsoft.UI.Xaml.RoutedEventArgs": {
+            "members": [
+                "OriginalSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.PointerRoutedEventArgs": {
+            "members": [
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.KeyRoutedEventArgs": {
+            "members": [
+                "Key",
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.CharacterReceivedRoutedEventArgs": {
+            "comment": "The character the keyboard produced, already through the layout and the shift state -- which is what typed input is about, and what a VirtualKey is not.",
+            "members": [
+                "Character",
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.TappedRoutedEventArgs": {
+            "members": [
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs": {
+            "members": [
+                "AddedItems",
+                "RemovedItems"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemClickEventArgs": {
+            "members": [
+                "ClickedItem"
+            ]
+        }
+    }
+}

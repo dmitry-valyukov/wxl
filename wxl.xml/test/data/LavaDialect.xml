@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- $Revision: 1.2 $ -->
+<Dialect xmlns="http://onixs.biz/fix/dialects"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://onixs.biz/fix/dialects http://onixs.biz/fix/dialects/dialects-2_4.xsd" name="Lava">
+
+	<!-- comment -->
+    <FIX version="4.2"> 
+		<Message type="N">		
+			<Group numberOfInstancesTag="73">
+				<Field tag="37"/>			
+			</Group>
+		</Message>
+    </FIX>
+    
+    <!-- comment -->
+    <FIX version="4.3">
+		<!-- comment -->
+        <Message type="y">
+			<!-- comment -->
+            <Group numberOfInstancesTag="146">
+				<!-- comment -->
+                <Field tag="64" isRequired="true" />
+            </Group>
+        </Message>
+        
+		<Message type="W">
+			<Group numberOfInstancesTag="268">
+				<Field tag="278"/>
+			</Group>
+			<Field tag="64"/>
+		</Message>
+  
+		<Message type="X">
+			<!-- comment -->
+			<Field tag="55"/>
+			<Field tag="64"/>
+		</Message>
+    </FIX>
+
+  <TestElement>
+    to test 'noAttributs'
+  </TestElement>
+    
+</Dialect>

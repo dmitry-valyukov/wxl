@@ -1,0 +1,16 @@
+{
+  "name": "JSON",
+  "displayName": "JSON",
+  "options": "(?n)",
+  "patterns": [
+    {
+      "name": "kw",
+      "type": "keyword",
+      "prefix": "WordBoundary",
+      "postfix": "WordBoundary",
+      "keywords": [
+        "false", "null", "true"
+      ]
+    }
+  ]
+}

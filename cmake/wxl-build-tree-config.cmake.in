@@ -1,0 +1,71 @@
+# ---- wxl package configuration file (build tree) ----
+#
+# Generated from cmake/wxl-build-tree-config.cmake.in into wxl's own build
+# directory. It makes an un-installed build usable directly:
+#
+#     find_package(wxl CONFIG REQUIRED COMPONENTS core PATHS "<wxl-build-dir>")
+#
+# Same component contract as the installed configuration file, minus the
+# @PACKAGE_INIT@ preamble (there is no relocatable prefix here): components are
+# the wxl-<component>-targets.cmake files written by export(EXPORT ...).
+
+if(NOT DEFINED CMAKE_EXPERIMENTAL_CXX_IMPORT_STD)
+    message(FATAL_ERROR
+        "\n[ERROR]: wxl needs CMake's experimental `import std;` support.\n"
+        "Add this ABOVE project() in your top-level CMakeLists.txt:\n"
+        "\n"
+        "    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD \"@WXL_IMPORT_STD_UUID@\")\n"
+    )
+endif()
+
+#if(CMAKE_GENERATOR MATCHES "Visual Studio")
+#    message(FATAL_ERROR
+#        "\n[ERROR]: wxl cannot be consumed from the Visual Studio generators.\n"
+#        "Use \"Ninja\" or \"Ninja Multi-Config\"; current generator: ${CMAKE_GENERATOR}\n"
+#    )
+#endif()
+
+set(_wxl_requested_components ${wxl_FIND_COMPONENTS})
+if(NOT _wxl_requested_components)
+    file(GLOB _wxl_target_files "${CMAKE_CURRENT_LIST_DIR}/wxl-*-targets.cmake")
+    foreach(_wxl_file IN LISTS _wxl_target_files)
+        cmake_path(GET _wxl_file FILENAME _wxl_name)
+        string(REGEX REPLACE "^wxl-(.+)-targets\\.cmake$" "\\1" _wxl_comp "${_wxl_name}")
+        list(APPEND _wxl_requested_components "${_wxl_comp}")
+    endforeach()
+endif()
+
+foreach(_wxl_comp IN LISTS _wxl_requested_components)
+    set(_wxl_comp_file "${CMAKE_CURRENT_LIST_DIR}/wxl-${_wxl_comp}-targets.cmake")
+    if(EXISTS "${_wxl_comp_file}")
+        include("${_wxl_comp_file}")
+        set(wxl_${_wxl_comp}_FOUND TRUE)
+    else()
+        set(wxl_${_wxl_comp}_FOUND FALSE)
+        set(wxl_NOT_FOUND_MESSAGE
+            "wxl component '${_wxl_comp}' is not present in this build tree")
+    endif()
+endforeach()
+
+include("@WXL_SOURCE_CMAKE_DIR@/wxl_helpers.cmake")
+
+# check_required_components() lives in the @PACKAGE_INIT@ preamble of an
+# installed config, which this file does not have -- so the same rule is spelled
+# out explicitly here.
+foreach(_wxl_comp IN LISTS wxl_FIND_COMPONENTS)
+    if(wxl_FIND_REQUIRED_${_wxl_comp} AND NOT wxl_${_wxl_comp}_FOUND)
+        set(wxl_FOUND FALSE)
+        if(NOT wxl_NOT_FOUND_MESSAGE)
+            set(wxl_NOT_FOUND_MESSAGE
+                "wxl component '${_wxl_comp}' is not present in this build tree")
+        endif()
+        return()
+    endif()
+endforeach()
+
+unset(_wxl_requested_components)
+unset(_wxl_target_files)
+unset(_wxl_comp_file)
+unset(_wxl_comp)
+unset(_wxl_file)
+unset(_wxl_name)

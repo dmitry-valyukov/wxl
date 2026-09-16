@@ -1,0 +1,148 @@
+// What wxl implements on its own side of the boundary.
+//
+// Unlike a profile, this file says nothing about *what* to generate -- it
+// says what the generator must not generate because wxl already has it, and
+// which properties carry a tag of their own. It describes wxl rather than a
+// selection of the WinUI3 API, so it is one shared file that every run reads
+// rather than something a profile repeats.
+{
+    "name": "types",
+    "description": "Типы, которые wxl реализует сам, и свойства с собственным тегом.",
+
+    // Base types assumed to exist already, hand-written in wxl.ui. The
+    // type walk stops here and reports the boundary it stopped at.
+    // IInspectable / Object needs no entry: a WinRT class with no Extends()
+    // is already rooted there.
+    "givenFromAbove": [
+        "Microsoft.UI.Xaml.DependencyObject",
+        "Microsoft.UI.Xaml.DependencyProperty",
+        "Microsoft.UI.Xaml.Application"
+    ],
+
+    // Roots every profile gets whether it lists them or not. A window is not
+    // optional -- no profile can describe an application that has none -- so
+    // requiring every profile to list it would only be a way to get it wrong.
+    // A profile that does list one keeps control of its member surface.
+    "implicitRoots": ["Microsoft.UI.Xaml.Window"],
+
+    // A WinRT type wxl does not wrap, because it already owns something
+    // better. Anything that names a type consults this before the registry
+    // of generated names, or the projection would only half apply.
+    //
+    // "fromString" marks a type a string literal turns into by itself. Such
+    // a type claims no unnamed-argument route: a bare literal already means
+    // the class's own text, and a second reading of it would be an ambiguity
+    // rather than a shorthand.
+    "projectedTypes": [
+
+        // The numerics a composition object is written in. cppwinrt spells
+        // them float2 / float3 / float4x4 -- the only place where the C++
+        // name of a metadata type is not the metadata name, so the generator
+        // has nothing to derive one from. wxl declares the three itself for
+        // the same reason it declares Size and Point, and their conversions
+        // stand beside those in impl/conversions.h.
+        { "type": "Windows.Foundation.Numerics.Vector2", "wxl": "Vector2", "include": "../geometry.h" },
+        { "type": "Windows.Foundation.Numerics.Vector3", "wxl": "Vector3", "include": "../geometry.h" },
+        { "type": "Windows.Foundation.Numerics.Matrix4x4", "wxl": "Matrix4x4", "include": "../geometry.h" },
+        // Plain float aggregates plus real geometry helpers. A generated
+        // wrapper would duplicate them and add a type to every signature
+        // that touches a size.
+        { "type": "Windows.Foundation.Size", "wxl": "Size", "include": "../geometry.h" },
+        { "type": "Windows.Foundation.Point", "wxl": "Point", "include": "../geometry.h" },
+        { "type": "Windows.Foundation.Rect", "wxl": "Rect", "include": "../geometry.h" },
+
+        // The four edges of a box. wxl declares the ABI struct itself so a
+        // value crosses by reinterpretation, and adds the braced forms
+        // declarative UI wants -- {20}, {20, 8}, {1, 2, 3, 4}.
+        { "type": "Microsoft.UI.Xaml.Thickness", "wxl": "Thickness", "include": "../Thickness.h" },
+
+        // The four corners, same arrangement: the ABI struct declared on
+        // wxl's side, plus the one-value form CornerRadius{12}.
+        { "type": "Microsoft.UI.Xaml.CornerRadius", "wxl": "CornerRadius", "include": "../CornerRadius.h" },
+
+        // A behaviourless four-byte aggregate in metadata; wxl's own carries
+        // the literal and named-colour conveniences declarative UI wants.
+        { "type": "Windows.UI.Color", "wxl": "Color", "include": "../Color.h" },
+
+        // WinRT's time types are plain 100ns tick counts. A length of time is
+        // wxl's own core::duration -- same ticks, implicit from any
+        // std::chrono duration (`interval = 16ms` unchanged), and the type
+        // the rest of the library already takes for a timeout.
+        {
+            "type": "Windows.Foundation.TimeSpan",
+            "wxl": "core::duration",
+            "include": "../core.h"
+        },
+        // A *point* in time is wxl::DateTime, which is std::chrono's own
+        // shape -- a system_clock time point counting the 100ns ticks WinRT
+        // counts -- under a name short enough to appear in a signature. It is
+        // deliberately not core::time_stamp: that one reads the monotonic
+        // interrupt-time clock from an unspecified epoch, which is the right
+        // thing for a deadline and the wrong thing for a date somebody picked
+        // in a calendar. The epoch difference (WinRT counts from 1601) is what
+        // conversions.h converts through, and the sentinel that makes the date
+        // optional for free lives beside the alias.
+        {
+            "type": "Windows.Foundation.DateTime",
+            "wxl": "DateTime",
+            "include": "../DateTime.h"
+        },
+
+        // A runtime Uri is a COM object with a parser behind it; a property
+        // that takes one is written as a string literal and nothing else, so
+        // wxl keeps the text and builds the real thing on the way in.
+        { "type": "Windows.Foundation.Uri", "wxl": "Uri", "include": "../Uri.h", "fromString": true },
+
+        // The runtime type is an abstract base -- what a property is given is
+        // a BitmapImage built from a URI -- so a wrapper could express
+        // nothing. wxl keeps the path and builds that bitmap on the way in,
+        // which is what makes `source = L"Assets/logo.png"` the whole of it.
+        {
+            "type": "Microsoft.UI.Xaml.Media.ImageSource",
+            "wxl": "ImageSource",
+            "include": "../ImageSource.h",
+            "fromString": true
+        },
+
+        // A font is a name and nothing else worth reaching.
+        {
+            "type": "Microsoft.UI.Xaml.Media.FontFamily",
+            "wxl": "FontFamily",
+            "include": "../FontFamily.h",
+            "fromString": true
+        },
+
+        // WinRT's nullable box is wxl's nullable in everything but name, and
+        // for most element types it costs nothing over the bare value: the
+        // sentinel beside the type says which value means empty. The metadata
+        // name carries the arity suffix generic types have.
+        { "type": "Windows.Foundation.IReference`1", "wxl": "core::nullable", "include": "../core.h" }
+    ],
+
+    // A property whose own type cannot identify it, and the tag type that
+    // can. The property keeps the type the metadata gives it -- the tag is
+    // only what an unnamed argument is written as, `Margin{20}` -- and the
+    // setter reads the property key out of the tag, so the route costs the
+    // class nothing at all.
+    //
+    // A tag is needed exactly where the type says nothing: three properties
+    // share one Thickness, and two dozen share a bare double.
+    "taggedProperties": [
+        { "property": "Margin", "wxl": "Margin", "value": "Thickness", "include": "../Thickness.h" },
+        { "property": "Padding", "wxl": "Padding", "value": "Thickness", "include": "../Thickness.h" },
+        {
+            "property": "BorderThickness",
+            "wxl": "BorderThickness",
+            "value": "Thickness",
+            "include": "../Thickness.h"
+        },
+        {
+            // Thousandths of an em, and a bare int32 says nothing about which
+            // property it belongs to -- so it gets a tag like the three above,
+            // and needs no include: an int carries no header of its own.
+            "property": "CharacterSpacing",
+            "wxl": "CharacterSpacing",
+            "value": "int32_t"
+        }
+    ]
+}

@@ -1,0 +1,41 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "VCPKG_HOST_TRIPLET": "x64-windows-static-md",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/../build/install"
+      }
+    },
+    {
+      "name": "x64",
+      "displayName": "x64 (vcpkg, x64-windows-static-md)",
+      "inherits": "base"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "x64-debug",
+      "displayName": "x64 Debug",
+      "configurePreset": "x64",
+      "configuration": "Debug"
+    },
+    {
+      "name": "x64-release",
+      "displayName": "x64 Release",
+      "configurePreset": "x64",
+      "configuration": "Release"
+    }
+  ]
+}
