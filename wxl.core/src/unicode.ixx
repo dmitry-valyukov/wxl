@@ -27,6 +27,10 @@ module;
 // text that came from outside. assume_valid() is for text somebody else has
 // already checked -- a document wxl.xml validated whole -- and its name is the
 // word a reader greps for on the day the guarantee turns out to be false.
+//
+// Text assembled piece by piece needs none of the three: a string grows by
+// code points, which it checks are scalar values, and by text that is checked
+// already, and it is cut only between code points.
 
 export module wxl.core:unicode;
 
@@ -293,6 +297,47 @@ constexpr std::size_t floor_code_point_boundary(const std::u16string_view text,
 
 }  // export
 
+namespace impl {
+
+// One code point onto the end of a string of UTF-8 or UTF-16 units, whatever
+// the unit type is called. The callers check that it is a scalar value.
+
+template <typename String>
+void push_utf8(String& out, const char32_t code_point) {
+    using unit = typename String::value_type;
+
+    if (code_point < 0x80) {
+        out.push_back(static_cast<unit>(code_point));
+    } else if (code_point < 0x800) {
+        out.push_back(static_cast<unit>(0xC0u | (code_point >> 6)));
+        out.push_back(static_cast<unit>(0x80u | (code_point & 0x3Fu)));
+    } else if (code_point < 0x10000) {
+        out.push_back(static_cast<unit>(0xE0u | (code_point >> 12)));
+        out.push_back(static_cast<unit>(0x80u | ((code_point >> 6) & 0x3Fu)));
+        out.push_back(static_cast<unit>(0x80u | (code_point & 0x3Fu)));
+    } else {
+        out.push_back(static_cast<unit>(0xF0u | (code_point >> 18)));
+        out.push_back(static_cast<unit>(0x80u | ((code_point >> 12) & 0x3Fu)));
+        out.push_back(static_cast<unit>(0x80u | ((code_point >> 6) & 0x3Fu)));
+        out.push_back(static_cast<unit>(0x80u | (code_point & 0x3Fu)));
+    }
+}
+
+template <typename String>
+void push_utf16(String& out, const char32_t code_point) {
+    using unit = typename String::value_type;
+
+    if (code_point < 0x10000) {
+        out.push_back(static_cast<unit>(code_point));
+    } else {
+        const char32_t rest = code_point - 0x10000;
+        out.push_back(static_cast<unit>(0xD800u + (rest >> 10)));
+        out.push_back(static_cast<unit>(0xDC00u + (rest & 0x3FFu)));
+    }
+}
+
+}  // namespace impl
+
 // ---- The type ----------------------------------------------------------------------
 
 export {
@@ -470,8 +515,13 @@ private:
 };
 
 /// Text known to be well-formed, in a string of its own -- what checked text
-/// becomes when it has to outlive the buffer it arrived in, and what comes back
-/// from a transcoding.
+/// becomes when it has to outlive the buffer it arrived in, what comes back
+/// from a transcoding, and what text is assembled in.
+///
+/// It changes only in ways that keep it well-formed, the way Rust's String
+/// does: it grows by whole code points and by checked text, and it is cut only
+/// between code points. As with any string, a change may move the units, and a
+/// view taken before it is not to be read after.
 template <typename CharT, typename Traits, typename Allocator>
 class basic_text<std::basic_string<CharT, Traits, Allocator>> {
 public:
@@ -509,6 +559,49 @@ public:
     constexpr const CharT* data() const noexcept { return text_.data(); }
     constexpr std::size_t size() const noexcept { return text_.size(); }
     constexpr bool empty() const noexcept { return text_.empty(); }
+
+    /// Room for this many units in all, so that text assembled piece by piece
+    /// grows its buffer once.
+    void reserve(const std::size_t units) { text_.reserve(units); }
+
+    /// Appends one code point, in as many units as the encoding spells it
+    /// with. One that is not a scalar value stops the program, the way a cut
+    /// through a code point does in substr(): it came from the caller's own
+    /// decoding, not from the data.
+    void push_back(const char32_t code_point) {
+        ensure(is_scalar_value(code_point));
+
+        if constexpr (is_utf8)
+            impl::push_utf8(text_, code_point);
+        else
+            impl::push_utf16(text_, code_point);
+    }
+
+    /// A unit is not a code point: a byte of UTF-8 converted to one reads as a
+    /// Latin-1 letter, and half a pair stops the program only once it runs. So
+    /// a unit does not compile.
+    void push_back(char) = delete;
+    void push_back(char8_t) = delete;
+    void push_back(char16_t) = delete;
+    void push_back(wchar_t) = delete;
+
+    /// Appends checked text. Two well-formed texts end to end are well-formed:
+    /// neither ends or begins inside a code point.
+    basic_text& append(const view_type text) {
+        text_.append(text.plain());
+        return *this;
+    }
+
+    basic_text& operator+=(const view_type text) { return append(text); }
+
+    /// Removes `count` units from `at`, as std::basic_string::erase() does, and
+    /// only between code points: both ends are tested the way substr() tests
+    /// a cut, and a cut through a code point stops the program.
+    basic_text& erase(const std::size_t at, const std::size_t count = plain_type::npos) {
+        const view_type removed = static_cast<view_type>(*this).substr(at, count);
+        text_.erase(at, removed.size());
+        return *this;
+    }
 
     std::string_view chars() const noexcept
         requires is_utf8
@@ -685,22 +778,7 @@ inline char* write_utf8(char* out, const u16_view utf16) noexcept {
 template <typename Traits, typename Allocator>
 void append_utf8(std::basic_string<char, Traits, Allocator>& out, char32_t code_point) {
     ensure(is_scalar_value(code_point));
-
-    if (code_point < 0x80) {
-        out.push_back(static_cast<char>(code_point));
-    } else if (code_point < 0x800) {
-        out.push_back(static_cast<char>(0xC0u | (code_point >> 6)));
-        out.push_back(static_cast<char>(0x80u | (code_point & 0x3Fu)));
-    } else if (code_point < 0x10000) {
-        out.push_back(static_cast<char>(0xE0u | (code_point >> 12)));
-        out.push_back(static_cast<char>(0x80u | ((code_point >> 6) & 0x3Fu)));
-        out.push_back(static_cast<char>(0x80u | (code_point & 0x3Fu)));
-    } else {
-        out.push_back(static_cast<char>(0xF0u | (code_point >> 18)));
-        out.push_back(static_cast<char>(0x80u | ((code_point >> 12) & 0x3Fu)));
-        out.push_back(static_cast<char>(0x80u | ((code_point >> 6) & 0x3Fu)));
-        out.push_back(static_cast<char>(0x80u | (code_point & 0x3Fu)));
-    }
+    impl::push_utf8(out, code_point);
 }
 
 /// Appends one code point to a UTF-16 string, as a pair above the basic plane.
@@ -708,14 +786,7 @@ void append_utf8(std::basic_string<char, Traits, Allocator>& out, char32_t code_
 template <typename Traits, typename Allocator>
 void append_utf16(std::basic_string<wchar_t, Traits, Allocator>& out, char32_t code_point) {
     ensure(is_scalar_value(code_point));
-
-    if (code_point < 0x10000) {
-        out.push_back(static_cast<wchar_t>(code_point));
-    } else {
-        const char32_t rest = code_point - 0x10000;
-        out.push_back(static_cast<wchar_t>(0xD800u + (rest >> 10)));
-        out.push_back(static_cast<wchar_t>(0xDC00u + (rest & 0x3FFu)));
-    }
+    impl::push_utf16(out, code_point);
 }
 
 /// Appends the text, transcoded, to a string of any allocator: the size is

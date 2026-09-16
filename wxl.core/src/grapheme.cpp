@@ -179,12 +179,20 @@ std::size_t next_grapheme_boundary(const std::u16string_view text, const std::si
     return next_boundary(text, at);
 }
 
+std::size_t next_grapheme_boundary(const u16_view text, const std::size_t at) noexcept {
+    return next_boundary(text.plain(), at);
+}
+
 std::size_t floor_grapheme_boundary(const std::wstring_view text, const std::size_t at) noexcept {
     return floor_boundary(text, at);
 }
 
 std::size_t floor_grapheme_boundary(const std::u16string_view text, const std::size_t at) noexcept {
     return floor_boundary(text, at);
+}
+
+std::size_t floor_grapheme_boundary(const u16_view text, const std::size_t at) noexcept {
+    return floor_boundary(text.plain(), at);
 }
 
 std::string_view grapheme_unicode_version() noexcept {

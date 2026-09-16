@@ -148,4 +148,14 @@ TEST(grapheme, a_lone_surrogate_is_a_letter_of_its_own) {
     EXPECT_EQ(wxl::core::next_grapheme_boundary(broken, 1), 2u);
 }
 
+TEST(grapheme, checked_text_is_asked_as_it_is) {
+    constexpr wxl::core::u16_view short_i = u"\x0438\x0306" u"x";
+    EXPECT_EQ(wxl::core::next_grapheme_boundary(short_i, 0), 2u);
+    EXPECT_EQ(wxl::core::floor_grapheme_boundary(short_i, 1), 0u);
+
+    const wxl::core::u16_text owned{short_i};
+    EXPECT_EQ(wxl::core::next_grapheme_boundary(owned, 2), 3u);
+    EXPECT_EQ(wxl::core::floor_grapheme_boundary(owned, 3), 3u);
+}
+
 }  // namespace

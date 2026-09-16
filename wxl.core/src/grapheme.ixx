@@ -26,6 +26,7 @@ module;
 
 export module wxl.core:grapheme;
 
+import :unicode;
 import std;
 
 namespace wxl::core {
@@ -66,6 +67,7 @@ private:
 /// functions returned; past the end, the answer is the end.
 std::size_t next_grapheme_boundary(std::wstring_view text, std::size_t at) noexcept;
 std::size_t next_grapheme_boundary(std::u16string_view text, std::size_t at) noexcept;
+std::size_t next_grapheme_boundary(u16_view text, std::size_t at) noexcept;
 
 /// The nearest letter boundary at or before `at` -- the grapheme counterpart of
 /// floor_code_point_boundary(), for a limit counted in units. Walks from the
@@ -73,6 +75,7 @@ std::size_t next_grapheme_boundary(std::u16string_view text, std::size_t at) noe
 /// many times in one text walks with next_grapheme_boundary() instead.
 std::size_t floor_grapheme_boundary(std::wstring_view text, std::size_t at) noexcept;
 std::size_t floor_grapheme_boundary(std::u16string_view text, std::size_t at) noexcept;
+std::size_t floor_grapheme_boundary(u16_view text, std::size_t at) noexcept;
 
 /// The Unicode version the property table was generated from.
 std::string_view grapheme_unicode_version() noexcept;

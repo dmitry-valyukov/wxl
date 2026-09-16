@@ -33,6 +33,18 @@ static_assert(!std::is_convertible_v<std::u8string_view, u8_view>);
 static_assert(std::is_convertible_v<u8_text, u8_view>);
 static_assert(std::is_convertible_v<u16_text, u16_view>);
 
+// A string grows by code points and never by units: half a pair or a stray
+// continuation byte is what the type rules out, so a unit does not compile.
+template <typename Text, typename Unit>
+constexpr bool grows_by = requires(Text text, Unit unit) { text.push_back(unit); };
+
+static_assert(grows_by<u8_text, char32_t>);
+static_assert(grows_by<u16_text, char32_t>);
+static_assert(!grows_by<u8_text, char>);
+static_assert(!grows_by<u8_text, char8_t>);
+static_assert(!grows_by<u16_text, char16_t>);
+static_assert(!grows_by<u16_text, wchar_t>);
+
 // A literal is checked where it is written, so it needs no call at all.
 constexpr u8_view greeting = u8"Здравствуйте, 😀";
 constexpr u16_view wide_greeting = u"Здравствуйте, 😀";
@@ -159,21 +171,102 @@ TEST(basic_text, a_part_is_cut_at_compile_time_too) {
     static_assert(wide.substr(2).size() == 2);  // the surrogate pair, both halves
 }
 
+TEST(basic_text, a_string_grows_by_whole_code_points) {
+    u8_text narrow;
+    u16_text wide;
+
+    for (const char32_t code_point : {U'a', U'ё', U'𠮷', U'😀'}) {
+        narrow.push_back(code_point);
+        wide.push_back(code_point);
+    }
+
+    EXPECT_EQ(narrow.chars(), "aё𠮷😀"sv);
+    EXPECT_EQ(narrow.size(), 11u);  // 1 + 2 + 4 + 4
+    EXPECT_EQ(wide.wchars(), L"aё𠮷😀"sv);
+    EXPECT_EQ(wide.size(), 6u);     // 1 + 1 + a pair + a pair
+}
+
+TEST(basic_text, a_string_grows_by_checked_text) {
+    u16_text title{u"Отцы"};
+    title += u" и ";
+    title.append(wide_greeting.substr(14));
+
+    EXPECT_EQ(title.wchars(), L"Отцы и 😀"sv);
+
+    u8_text line;
+    line.reserve(64);
+    line += greeting.substr(0, 24);
+    line += u8", ";
+    line += u8_text{u8"мир"};
+
+    EXPECT_EQ(line.chars(), "Здравствуйте, мир"sv);
+}
+
+TEST(basic_text, a_string_is_cut_between_code_points) {
+    u8_text text{u8"ёж😀  "};
+
+    // What trimming looks like: the offset found in the plain units, the cut
+    // made on the text.
+    text.erase(text.plain().find_last_not_of(u8' ') + 1);
+    EXPECT_EQ(text.chars(), "ёж😀"sv);
+
+    text.erase(2, 2);
+    EXPECT_EQ(text.chars(), "ё😀"sv);
+
+    u16_text wide{u"ёж😀"};
+    wide.erase(2);
+    EXPECT_EQ(wide.wchars(), L"ёж"sv);
+}
+
 // Cutting a code point in half is the caller's bug -- the offset came from its
 // own walk through text it was handed whole -- so it takes the process down in
 // every build, and to stderr rather than to a dialog that would hang the run.
-void cut_a_character_in_half() {
+void report_failures_to_stderr() {
     _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
     _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+}
+
+void cut_a_character_in_half() {
+    report_failures_to_stderr();
 
     constexpr u8_view text = u8"ёж";
 
     (void)text.substr(1);
 }
 
+void grow_by_half_a_pair() {
+    report_failures_to_stderr();
+
+    u16_text text;
+    text.push_back(char32_t{0xD83D});
+}
+
+void erase_half_a_pair() {
+    report_failures_to_stderr();
+
+    u16_text text{u"ёж😀"};
+    text.erase(3);
+}
+
+void erase_a_middle_byte() {
+    report_failures_to_stderr();
+
+    u8_text text{u8"ёж"};
+    text.erase(0, 1);
+}
+
 TEST(basic_text_death_tests, a_cut_inside_a_code_point_takes_the_process_down) {
     EXPECT_DEATH(cut_a_character_in_half(), "");
+}
+
+TEST(basic_text_death_tests, a_string_refuses_what_is_not_a_code_point) {
+    EXPECT_DEATH(grow_by_half_a_pair(), "");
+}
+
+TEST(basic_text_death_tests, a_string_is_not_erased_through_a_code_point) {
+    EXPECT_DEATH(erase_half_a_pair(), "");
+    EXPECT_DEATH(erase_a_middle_byte(), "");
 }
 
 TEST(basic_text, asking_for_the_encoding_it_already_has_costs_nothing) {
