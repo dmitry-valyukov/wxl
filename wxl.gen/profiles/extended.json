@@ -1,0 +1,272 @@
+{
+    "name": "extended",
+    "description": "Everything in the base profile plus the modern WinUI3 controls with no WinForms counterpart: dialogs, info bars, command/menu bars, pickers, shapes and the richer button family. Exists both as the next step up from base and as the exercise of profile composition -- it adds to base rather than restating it.",
+    "extends": [
+        "base"
+    ],
+
+    "windowsAppSdk": "2.4.0",
+
+    "packages": [
+        {
+            "id": "Microsoft.WindowsAppSDK.InteractiveExperiences",
+            "metadata": [
+                "10.0.18362.0/Microsoft.UI.winmd"
+            ],
+            "comment": "Microsoft.UI.Xaml.winmd only *references* Microsoft.UI.Windowing, .Composition and .Dispatching; without their metadata Window.appWindow, .compositor and .dispatcherQueue are dropped as unresolved. They arrive as bare shells, since a type the walk finds on its own generates no members."
+        }
+    ],
+    "windowsMetadata": true,
+
+    "types": {
+        "Microsoft.UI.Dispatching.DispatcherQueue": {
+            "comment": "The way work reaches the UI thread, and the way the event loop is asked to stop. Reached by the walk through Window.dispatcherQueue, so a root only because a discovered type generates no members.",
+            "members": [
+                "CreateTimer",
+                "EnqueueEventLoopExit",
+                "TryEnqueue",
+                "HasThreadAccess",
+                "ShutdownStarting",
+                "GetForCurrentThread"
+            ]
+        },
+        "Microsoft.UI.Dispatching.DispatcherQueueTimer": {
+            "comment": "Whole surface: what CreateTimer hands back is worth nothing without Interval, IsRepeating, Start/Stop and Tick."
+        },
+        "Microsoft.UI.Windowing.AppWindow": {
+            "comment": "The way a window's position and size are controlled at all: Microsoft.UI.Xaml.Window exposes none of it and hands out an AppWindow instead. The walk already reaches this type through Window.appWindow, but a type it finds on its own generates no members, so it has to be a root to be worth anything.",
+            "members": [
+                "Move",
+                "Resize",
+                "MoveAndResize",
+                "Position",
+                "Size",
+                "ClientSize",
+                "Title",
+                "SetIcon",
+                "Presenter",
+                "SetPresenter",
+                "IsVisible",
+                "IsShownInSwitchers",
+                "Show",
+                "Hide",
+                "Destroy",
+                "Changed",
+                "Closing",
+                "Destroying"
+            ]
+        },
+        "Microsoft.UI.Windowing.OverlappedPresenter": {
+            "comment": "The configuration of an ordinary window, and the only supported place a minimum or maximum size can be said. Create is a static member -- the class has no activatable constructor -- and is reached through the cached statics proxy.",
+            "members": [
+                "Create",
+                "PreferredMinimumWidth",
+                "PreferredMinimumHeight",
+                "PreferredMaximumWidth",
+                "PreferredMaximumHeight",
+                "IsResizable",
+                "IsMaximizable",
+                "IsMinimizable",
+                "IsModal",
+                "IsAlwaysOnTop",
+                "HasBorder",
+                "HasTitleBar",
+                "SetBorderAndTitleBar",
+                "Maximize",
+                "Minimize",
+                "Restore",
+                "State"
+            ]
+        },
+        "Microsoft.UI.Xaml.UIElement": {
+            "comment": "Two members on top of what base asks for, and they only work as a pair: Shadow names what is cast, Translation.Z is what lifts the caster off the page -- a shadow with no elevation is invisible.",
+            "members": [
+                "Shadow",
+                "Translation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.ThemeShadow": {
+            "comment": "The system shadow: blur and darkness are derived from Translation.Z, so a card says only how high it floats. Receivers is left out -- WinUI3 casts onto whatever lies beneath without being told, and the member would put Collection<UIElement> into the Media group, closing an include cycle with Microsoft.UI.Xaml.h that #pragma once resolves into truncated declarations.",
+            "excludeMembers": [
+                "Receivers"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.HyperlinkButton": {
+            "members": [
+                "NavigateUri"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.DropDownButton": {
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.SplitButton": {
+            "members": [
+                "Command",
+                "CommandParameter",
+                "Flyout",
+                "Click"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AppBarButton": {
+            "members": [
+                "Label",
+                "Icon",
+                "IsCompact"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AppBarToggleButton": {
+            "members": [
+                "Label",
+                "Icon",
+                "IsChecked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AppBarSeparator": {
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.CommandBar": {
+            "members": [
+                "PrimaryCommands",
+                "SecondaryCommands",
+                "IsOpen",
+                "DefaultLabelPosition"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MenuBar": {
+            "members": [
+                "Items"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MenuBarItem": {
+            "members": [
+                "Title",
+                "Items"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.ContentDialog": {
+            "members": [
+                "Title",
+                "PrimaryButtonText",
+                "SecondaryButtonText",
+                "CloseButtonText",
+                "DefaultButton",
+                "IsPrimaryButtonEnabled",
+                "ShowAsync",
+                "Hide",
+                "PrimaryButtonClick",
+                "SecondaryButtonClick",
+                "CloseButtonClick",
+                "Opened",
+                "Closed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InfoBar": {
+            "members": [
+                "Title",
+                "Message",
+                "Severity",
+                "IsOpen",
+                "IsClosable",
+                "IsIconVisible",
+                "CloseButtonClick",
+                "Closed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Expander": {
+            "members": [
+                "Content",
+                "Header",
+                "IsExpanded",
+                "ExpandDirection",
+                "Expanding",
+                "Collapsed"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.ProgressRing": {
+            "excludeMembers": [
+                "TemplateSettings"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NumberBox": {
+            "members": [
+                "Value",
+                "Minimum",
+                "Maximum",
+                "SmallChange",
+                "Header",
+                "PlaceholderText",
+                "SpinButtonPlacementMode",
+                "ValueChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBox": {
+            "members": [
+                "Text",
+                "PlaceholderText",
+                "Header",
+                "ItemsSource",
+                "TextChanged",
+                "QuerySubmitted",
+                "SuggestionChosen"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.CalendarDatePicker": {
+            "members": [
+                "Date",
+                "Header",
+                "PlaceholderText",
+                "DateChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.DatePicker": {
+            "members": [
+                "SelectedDate",
+                "Header",
+                "SelectedDateChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TimePicker": {
+            "members": [
+                "SelectedTime",
+                "Header",
+                "SelectedTimeChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.FontIcon": {
+            "comment": "An icon named by a code point in a font the application names itself, which is why it is here and not in the base profile: it is the way out to a font of one's own -- a brand's icon set, a private-use glyph -- at the price of naming that font and trusting the machine to have it. For the system icon set it is no longer needed at all: SymbolIcon takes wxl's FluentSymbol as well as WinRT's Symbol, so every glyph the icon font documents is named there, and the baseline profile alone suffices.",
+            "members": [
+                "Glyph",
+                "FontFamily",
+                "FontSize"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.FlipView": {
+            "comment": "A page at a time, swiped or clicked through. Selection comes from Selector in the base profile, so what is left of its own is the direction it flips in; the type is listed here as much to give the nine FlipViewButton* brush keys of the theme dictionaries a control to belong to.",
+            "members": [
+                "ItemsSource",
+                "UseTouchAnimationsForAllNavigation"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Shapes.Shape": {
+            "members": [
+                "Fill",
+                "Stroke",
+                "StrokeThickness",
+                "Stretch"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Rectangle": {
+            "members": [
+                "RadiusX",
+                "RadiusY"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Ellipse": {
+            "members": []
+        }
+    }
+}

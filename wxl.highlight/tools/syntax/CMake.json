@@ -1,0 +1,37 @@
+{
+  "name": "CMake",
+  "displayName": "CMake",
+  "options": "(?ni)",
+  "patterns": [
+    {
+      "name": "kw",
+      "type": "keyword",
+      "prefix": "WordBoundary",
+      "postfix": "WordBoundary",
+      "keywords": [
+        "add_compile_definitions", "add_compile_options", "add_custom_command",
+        "add_custom_target", "add_definitions", "add_dependencies", "add_executable",
+        "add_library", "add_link_options", "add_subdirectory", "add_test", "and",
+        "aux_source_directory", "block", "break", "cmake_language", "cmake_minimum_required",
+        "cmake_parse_arguments", "cmake_path", "cmake_policy", "configure_file", "continue",
+        "defined", "else", "elseif", "enable_language", "enable_testing", "endblock",
+        "endforeach", "endfunction", "endif", "endmacro", "endwhile", "equal", "execute_process",
+        "exists", "export", "file", "find_file", "find_library", "find_package", "find_path",
+        "find_program", "foreach", "function", "get_cmake_property", "get_directory_property",
+        "get_filename_component", "get_property", "get_source_file_property",
+        "get_target_property", "get_test_property", "greater", "greater_equal", "if", "in",
+        "include", "include_directories", "include_guard", "install", "is_directory", "less",
+        "less_equal", "link_directories", "link_libraries", "list", "macro", "mark_as_advanced",
+        "matches", "math", "message", "not", "option", "or", "project", "remove_definitions",
+        "return", "separate_arguments", "set", "set_directory_properties", "set_property",
+        "set_source_files_properties", "set_target_properties", "set_tests_properties",
+        "site_name", "source_group", "strequal", "string", "target_compile_definitions",
+        "target_compile_features", "target_compile_options", "target_include_directories",
+        "target_link_directories", "target_link_libraries", "target_link_options",
+        "target_precompile_headers", "target_sources", "try_compile", "try_run", "unset",
+        "variable_watch", "version_equal", "version_greater", "version_less", "while",
+        "write_file"
+      ]
+    }
+  ]
+}

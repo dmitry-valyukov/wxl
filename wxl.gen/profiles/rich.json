@@ -1,0 +1,325 @@
+{
+    "name": "rich",
+    "description": "The extended profile plus what an application needs to put its own drawing into a XAML tree and animate it: the composition surface (visuals, brushes, clips, shadows, key-frame animations) reached through ElementCompositionPreview, full-screen presentation, and the display a window happens to be on. Written for the Bukvitsa reader, whose page is drawn glyph by glyph with Direct2D and whose page turn is a flat sheet moved by the compositor -- neither of which any control can do.",
+    "extends": [
+        "extended"
+    ],
+
+    "windowsAppSdk": "2.4.0",
+    "windowsMetadata": true,
+
+    "types": {
+        "Microsoft.UI.Xaml.Media.CompositionTarget": {
+            "comment": "The frame itself, as XAML hands it out: Rendering fires once per composed frame, before the frame is sent on, and Rendered after it has been. Statics only -- the class is never instantiated. What it is for here is the one moment that has no other name: after the framework has built its own composition children for an element, so that a visual of ours can be ordered against them.",
+            "members": [
+                "Rendering",
+                "Rendered"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Hosting.ElementCompositionPreview": {
+            "comment": "The one door between XAML and a visual tree of one's own: GetElementVisual hands out the visual XAML already made for an element (which is what an animation is started on), and SetElementChildVisual grafts ours underneath it. Statics only -- the class is never instantiated.",
+            "members": [
+                "GetElementVisual",
+                "SetElementChildVisual",
+                "GetElementChildVisual",
+                "SetIsTranslationEnabled"
+            ]
+        },
+
+        "Microsoft.UI.Composition.Compositor": {
+            "comment": "Reached by the walk through Window.compositor, so it arrives as a bare shell unless listed here. Everything below is a factory: the compositor is the only place a composition object can come from.",
+            "members": [
+                "CreateContainerVisual",
+                "CreateSpriteVisual",
+                "CreateSurfaceBrush",
+                "CreateColorBrush",
+                "CreateLinearGradientBrush",
+                "CreateColorGradientStop",
+                "CreateInsetClip",
+                "CreateDropShadow",
+                "CreateScalarKeyFrameAnimation",
+                "CreateVector3KeyFrameAnimation",
+                "CreateExpressionAnimation",
+                "CreateScopedBatch",
+                "CreateLinearEasingFunction",
+                "CreateCubicBezierEasingFunction"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionObject": {
+            "comment": "The root of everything the compositor makes, and the only place StartAnimation lives -- without it the animation classes below are objects nobody can run. Properties is what an animated value is seeded through: an element's Translation does not exist until it is inserted there. It also closes a cycle back to this class through a *base* edge (CompositionPropertySet derives from CompositionObject), which is what hoist_bases() in the closure's ordering pass exists to survive -- see solutions.md.",
+            "members": [
+                "StartAnimation",
+                "StopAnimation",
+                "Properties",
+                "Comment",
+                "Compositor"
+            ]
+        },
+
+        "Microsoft.UI.Composition.CompositionPropertySet": {
+            "comment": "The animatable values an object carries beyond its own properties. A XAML element's Translation is the one that matters here: it does not exist until it is inserted, and it is the property to animate instead of Offset, which XAML's own layout owns.",
+            "members": [
+                "InsertVector3",
+                "InsertScalar",
+                "TryGetVector3",
+                "TryGetScalar"
+            ]
+        },
+
+        "Microsoft.UI.Composition.Visual": {
+            "comment": "What a visual is worth is its transform, and the transform is these properties. RotationAngleInDegrees with the default Z axis is a flat turn, which is all a page turn needs; Clip is applied in the visual's own coordinates, before the transform, so an inset clip on a turned sheet yields a turned crop for free.",
+            "members": [
+                "Offset",
+                "Size",
+                "RelativeSizeAdjustment",
+                "RelativeOffsetAdjustment",
+                "Opacity",
+                "IsVisible",
+                "AnchorPoint",
+                "CenterPoint",
+                "Scale",
+                "RotationAngleInDegrees",
+                "RotationAxis",
+                "TransformMatrix",
+                "Clip",
+                "BorderMode"
+            ]
+        },
+        "Microsoft.UI.Composition.ContainerVisual": {
+            "comment": "A visual with children, and the type SetElementChildVisual is normally handed: one graft point, any tree underneath it.",
+            "members": [
+                "Children"
+            ]
+        },
+        "Microsoft.UI.Composition.VisualCollection": {
+            "comment": "The children of a container. Not a vector-shaped property -- it has its own insert-at-top/bottom vocabulary, which is what z-order is said in.",
+            "members": [
+                "InsertAtTop",
+                "InsertAtBottom",
+                "InsertAbove",
+                "InsertBelow",
+                "Remove",
+                "RemoveAll",
+                "Count"
+            ]
+        },
+        "Microsoft.UI.Composition.SpriteVisual": {
+            "comment": "The visual that shows something: a brush over its rectangle, and optionally a shadow cast from it.",
+            "members": [
+                "Brush",
+                "Shadow"
+            ]
+        },
+
+        "Microsoft.UI.Composition.CompositionGraphicsDevice": {
+            "comment": "Where a drawing surface comes from -- but not through metadata. The device is created through ICompositorInterop from a D2D device of one's own, CreateDrawingSurface names two enums of Microsoft.Graphics.DirectX that no profile loads, and the drawing itself is ICompositionDrawingSurfaceInterop::BeginDraw. All three are interop, so the whole chain is hand-written as wxl::DrawingSurface (DrawingSurface.h) and only the event is asked for here: a lost device leaves the visual tree standing and the surfaces empty, and this is how that is learned.",
+            "members": [
+                "RenderingDeviceReplaced"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionDrawingSurface": {
+            "comment": "Listed for its size alone: the drawing itself goes through ICompositionDrawingSurfaceInterop::BeginDraw_Abi, which no metadata describes.",
+            "members": [
+                "Size",
+                "SizeInt32",
+                "Resize"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionSurfaceBrush": {
+            "comment": "What puts a drawn surface on a sprite. Surface is not here: its type is ICompositionSurface, an interface, and wxl wraps classes -- so the brush arrives ready-made from wxl::DrawingSurface::brush() and what is left to say about it is how it fills the sprite.",
+            "members": [
+                "Stretch",
+                "HorizontalAlignmentRatio",
+                "VerticalAlignmentRatio"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionColorBrush": {
+            "members": [
+                "Color"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionLinearGradientBrush": {
+            "comment": "The sheen down a turning page: a gradient whose opacity is animated rather than redrawn.",
+            "members": [
+                "StartPoint",
+                "EndPoint"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionGradientBrush": {
+            "members": [
+                "ColorStops",
+                "ExtendMode",
+                "Offset",
+                "RotationAngleInDegrees",
+                "Scale"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionColorGradientStop": {
+            "members": [
+                "Color",
+                "Offset"
+            ]
+        },
+
+        "Microsoft.UI.Composition.InsetClip": {
+            "comment": "A rectangular crop in the visual's own coordinates -- which is why it turns with the visual instead of staying axis-aligned.",
+            "members": [
+                "LeftInset",
+                "TopInset",
+                "RightInset",
+                "BottomInset"
+            ]
+        },
+        "Microsoft.UI.Composition.DropShadow": {
+            "comment": "What makes a flat sheet read as lifted. Mask takes the sheet's own brush, so the shadow follows the drawn shape rather than the visual's rectangle.",
+            "members": [
+                "BlurRadius",
+                "Color",
+                "Offset",
+                "Opacity",
+                "Mask",
+                "SourcePolicy"
+            ]
+        },
+
+        "Microsoft.UI.Composition.CompositionAnimation": {
+            "members": [
+                "Target",
+                "SetScalarParameter",
+                "SetVector3Parameter",
+                "SetColorParameter",
+                "SetReferenceParameter"
+            ]
+        },
+        "Microsoft.UI.Composition.KeyFrameAnimation": {
+            "comment": "Duration and DelayTime are what a staggered appearance is written with: same animation on every child, delay equal to its index times a step.",
+            "members": [
+                "Duration",
+                "DelayTime",
+                "DelayBehavior",
+                "IterationBehavior",
+                "IterationCount",
+                "StopBehavior",
+                "Direction"
+            ]
+        },
+        "Microsoft.UI.Composition.ScalarKeyFrameAnimation": {
+            "members": [
+                "InsertKeyFrame"
+            ]
+        },
+        "Microsoft.UI.Composition.Vector3KeyFrameAnimation": {
+            "members": [
+                "InsertKeyFrame"
+            ]
+        },
+        "Microsoft.UI.Composition.ExpressionAnimation": {
+            "comment": "A property that is a formula over other objects' properties, evaluated by the compositor every frame -- which is how a visual follows the size of a container the window resizes synchronously in WM_SIZE, without the application hearing about the resize at all. The referenced objects come in through SetReferenceParameter on the base class.",
+            "members": [
+                "Expression"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionEasingFunction": {
+            "comment": "A shell: instances come from the compositor's Create*EasingFunction, and nothing is ever read off one."
+        },
+        "Microsoft.UI.Composition.CompositionScopedBatch": {
+            "comment": "How the end of an animation is learned without polling for it: open a batch, start the animations inside it, close it, and Completed says when the last one finished.",
+            "members": [
+                "End",
+                "Suspend",
+                "Resume",
+                "IsActive",
+                "IsEnded",
+                "Completed"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.TextBlock": {
+            "comment": "One member on top of the text properties base asks for, and it belongs here rather than there because of what it returns: the silhouette of the laid-out glyphs as a composition brush. That is the mask a DropShadow needs to become a glow -- a shadow with no offset, coloured, in the shape of the letters -- and a composition type has no business in a profile that projects no composition.",
+            "members": [
+                "GetAlphaMask"
+            ]
+        },
+        "Microsoft.UI.Xaml.UIElement": {
+            "comment": "On top of what base asks for, three things an application that reaches past the framework needs. The XamlRoot an element hangs in is where the scale between a DIP and a pixel is written down -- everything else in XAML is measured in DIPs and scaled by the framework, but a surface is allocated in pixels and would come out blurry at 150%. ActualSize is the laid-out size in DIPs, which a composition visual has to be told: a visual draws from its owner's corner and does not know its own extent. And pointer capture is what makes a drag a drag: without it the pointer stops being the element's the moment it leaves its bounds, and a divider six pixels wide loses the mouse on the first quick pull. PointerCaptureLost is the other half -- capture ends by itself when a window loses activation or a touch is cancelled, and a drag that only listens for PointerReleased would stay stuck down.",
+            "members": [
+                "XamlRoot",
+                "PointerWheelChanged",
+                "ActualSize",
+                "CapturePointer",
+                "ReleasePointerCapture",
+                "PointerCaptureLost"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.Pointer": {
+            "comment": "Which pointer, as a handle to give back to CapturePointer -- the args carry it and capture takes it, and nothing in between needs to look inside. Listed with no members for exactly that reason: an opaque token is honest about being one.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Input.PointerRoutedEventArgs": {
+            "comment": "Where the pointer was and what it was doing. GetCurrentPoint is the only door to either -- the args themselves carry nothing but Handled, and everything a reader does with a mouse (turn a page by clicking its edge, or by the wheel) is on the other side of it. Pointer names which pointer this is, and is what capture is asked for.",
+            "members": [
+                "GetCurrentPoint",
+                "KeyModifiers",
+                "Pointer"
+            ]
+        },
+        "Microsoft.UI.Input.PointerPoint": {
+            "comment": "One reading of the pointer: where, in the coordinates of the element that was asked.",
+            "members": [
+                "Position",
+                "Properties"
+            ]
+        },
+        "Microsoft.UI.Input.PointerPointProperties": {
+            "comment": "MouseWheelDelta is what turns a page by the wheel. Everything else this class carries (pressure, tilt, the barrel button) belongs to drawing tablets and is left out.",
+            "members": [
+                "MouseWheelDelta",
+                "IsLeftButtonPressed",
+                "IsRightButtonPressed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs": {
+            "comment": "NewValue, which is the whole point of the event: without it a handler has to reach back to the control it came from, and a panel that sets its sliders from the current state cannot tell its own writes from the reader's.",
+            "members": [
+                "NewValue",
+                "OldValue"
+            ]
+        },
+        "Microsoft.UI.Xaml.XamlRoot": {
+            "comment": "The scale, and the event that says it changed. Changed fires when the window moves to a display of another DPI, which is the one moment a surface has to be reallocated -- and it is an event, so nothing has to look at the scale on a timer to notice. Content is the tree the root holds: it is how a handler reaches the whole window from the element that raised the event, which is the only captureless way to set RequestedTheme on everything at once.",
+            "members": [
+                "Content",
+                "RasterizationScale",
+                "Size",
+                "Changed"
+            ]
+        },
+
+        "Microsoft.UI.Windowing.AppWindow": {
+            "comment": "One member added to what extended already asks for: the window's id, which is the only way from a WinUI window to its HWND (GetWindowFromWindowId) and therefore to everything Win32 still owns -- window placement above all.",
+            "members": [
+                "Id"
+            ]
+        },
+        "Microsoft.UI.Windowing.AppWindowPresenter": {
+            "comment": "Kind, and Kind alone. Which presenter a window is under is a *question*, and without it an application that offers a full-screen key has to keep a flag of its own -- which is wrong the moment anything else changes the presenter, wxl restoring a remembered full-screen window included.",
+            "members": [
+                "Kind"
+            ]
+        },
+        "Microsoft.UI.Windowing.DisplayArea": {
+            "comment": "The monitor a window happens to be on, and its work area. The reader needs it twice: to decide whether the text goes in one column or two, and to check that a remembered position still lands on a screen that exists.",
+            "members": [
+                "GetFromWindowId",
+                "GetFromPoint",
+                "GetFromRect",
+                "Primary",
+                "WorkArea",
+                "OuterBounds",
+                "IsPrimary",
+                "DisplayId"
+            ]
+        }
+    }
+}

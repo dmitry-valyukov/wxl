@@ -1,0 +1,78 @@
+@PACKAGE_INIT@
+
+# ---- wxl package configuration file ----
+#
+# Generated from cmake/wxl-config.cmake.in. Loaded by find_package(wxl CONFIG).
+#
+#     find_package(wxl CONFIG REQUIRED COMPONENTS core)   # e.g. the generator
+#     find_package(wxl CONFIG REQUIRED COMPONENTS winui)  # an application
+#     find_package(wxl CONFIG REQUIRED)                   # everything shipped
+#
+# Components are optional in the sense that each is installed on its own; asking
+# for one that is not part of this installation is a clean, explained failure.
+#
+# wxl ships module *interface sources*, not BMIs: built module interfaces are
+# tied to the exact compiler build and flags, so CMake never installs them and
+# the consumer compiles them once in its own build tree.
+
+# `import std;` needs CMake's experimental gate, and it must be open before the
+# consumer's project() call -- far too early for this file to fix, so all it can
+# do is say precisely what is missing.
+if(NOT DEFINED CMAKE_EXPERIMENTAL_CXX_IMPORT_STD)
+    message(FATAL_ERROR
+        "\n[ERROR]: wxl needs CMake's experimental `import std;` support.\n"
+        "Add this ABOVE project() in your top-level CMakeLists.txt:\n"
+        "\n"
+        "    set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD \"@WXL_IMPORT_STD_UUID@\")\n"
+        "\n"
+        "The UUID is tied to a CMake release (this package was built with\n"
+        "CMake @CMAKE_VERSION@); see cmake/wxl_import_std_gate.cmake in wxl.\n"
+    )
+endif()
+
+# Only the Ninja generators can build BMIs for imported targets and support
+# `import std;` (see CMake's cmake-cxxmodules(7) manual).
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+    message(FATAL_ERROR
+        "\n[ERROR]: wxl cannot be consumed from the Visual Studio generators.\n"
+        "Use \"Ninja\" or \"Ninja Multi-Config\"; current generator: ${CMAKE_GENERATOR}\n"
+    )
+endif()
+
+# Components are discovered from the files actually present, so a new component
+# needs no edit here: install(EXPORT) writes wxl-<component>-targets.cmake.
+# (Per-configuration files are named ...-targets-<config>.cmake and do not match.)
+set(_wxl_requested_components ${wxl_FIND_COMPONENTS})
+if(NOT _wxl_requested_components)
+    file(GLOB _wxl_target_files "${CMAKE_CURRENT_LIST_DIR}/wxl-*-targets.cmake")
+    foreach(_wxl_file IN LISTS _wxl_target_files)
+        cmake_path(GET _wxl_file FILENAME _wxl_name)
+        string(REGEX REPLACE "^wxl-(.+)-targets\\.cmake$" "\\1" _wxl_comp "${_wxl_name}")
+        list(APPEND _wxl_requested_components "${_wxl_comp}")
+    endforeach()
+endif()
+
+foreach(_wxl_comp IN LISTS _wxl_requested_components)
+    set(_wxl_comp_file "${CMAKE_CURRENT_LIST_DIR}/wxl-${_wxl_comp}-targets.cmake")
+    if(EXISTS "${_wxl_comp_file}")
+        include("${_wxl_comp_file}")
+        set(wxl_${_wxl_comp}_FOUND TRUE)
+    else()
+        set(wxl_${_wxl_comp}_FOUND FALSE)
+        set(wxl_NOT_FOUND_MESSAGE
+            "wxl component '${_wxl_comp}' is not part of this installation")
+    endif()
+endforeach()
+
+unset(_wxl_requested_components)
+unset(_wxl_target_files)
+unset(_wxl_comp_file)
+unset(_wxl_comp)
+unset(_wxl_file)
+unset(_wxl_name)
+
+# The helpers travel with the package and are made available right away, so a
+# consumer can describe its own module targets in the same style wxl does.
+include("${CMAKE_CURRENT_LIST_DIR}/@WXL_HELPERS_RELATIVE_DIR@/wxl_helpers.cmake")
+
+check_required_components(wxl)

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>wxl.core</id>
+    <version>$version$</version>
+    <authors>wxl</authors>
+    <owners>wxl</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+      wxl.core -- the core library of wxl (Winui Xaml-Less), delivered as C++20
+      module interface sources plus a static library. Consuming projects need no
+      setup beyond the package reference: build/native/wxl.core.props/.targets
+      add the module interfaces to the build, switch the project to
+      /std:c++latest with `import std;` enabled, and link the archive.
+
+      Built module interfaces (.ifc) are intentionally not part of the package --
+      they are tied to the exact MSVC build, so the interfaces are compiled in
+      the consuming project instead (once per project, not per translation unit).
+
+      The package doubles as a CMake package: point CMAKE_PREFIX_PATH at the
+      extracted package directory and use find_package(wxl CONFIG COMPONENTS core).
+    </description>
+    <tags>native nativepackage C++ cpp modules cpp20 winui wxl</tags>
+  </metadata>
+  <files>
+    <!-- MSBuild integration -->
+    <file src="build\native\**" target="build\native" />
+
+    <!-- Staged CMake install tree: include\wxl\*.ixx + headers, lib\*.lib,
+         lib\cmake\wxl\** (so the same package works for CMake consumers). -->
+    <file src="$stage$\**" target="" />
+  </files>
+</package>

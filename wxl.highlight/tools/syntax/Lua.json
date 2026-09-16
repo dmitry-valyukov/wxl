@@ -1,0 +1,21 @@
+{
+  "name": "Lua",
+  "displayName": "Lua",
+  "options": "(?n)",
+  "patterns": [
+    {
+      "name": "kw",
+      "type": "keyword",
+      "prefix": "WordBoundary",
+      "postfix": "WordBoundary",
+      "keywords": [
+        "_ENV", "_G", "and", "assert", "break", "collectgarbage", "coroutine", "debug", "do",
+        "dofile", "else", "elseif", "end", "error", "false", "for", "function", "getmetatable",
+        "goto", "if", "in", "io", "ipairs", "load", "local", "math", "next", "nil", "not", "or",
+        "os", "package", "pairs", "pcall", "print", "rawequal", "rawget", "rawlen", "rawset",
+        "repeat", "require", "return", "select", "self", "setmetatable", "string", "table",
+        "then", "tonumber", "tostring", "true", "type", "until", "while", "xpcall"
+      ]
+    }
+  ]
+}

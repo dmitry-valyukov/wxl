@@ -1,0 +1,25 @@
+{
+  "name": "TypeScript",
+  "displayName": "TypeScript",
+  "options": "(?n)",
+  "patterns": [
+    {
+      "name": "kw",
+      "type": "keyword",
+      "prefix": "WordBoundary",
+      "postfix": "WordBoundary",
+      "keywords": [
+        "abstract", "any", "arguments", "as", "asserts", "async", "await", "bigint", "boolean",
+        "break", "case", "catch", "class", "const", "constructor", "continue", "debugger",
+        "declare", "default", "delete", "do", "else", "enum", "export", "extends", "false",
+        "finally", "for", "from", "function", "get", "globalThis", "if", "implements", "import",
+        "in", "infer", "instanceof", "interface", "is", "keyof", "let", "module", "namespace",
+        "never", "new", "null", "number", "object", "of", "override", "package", "private",
+        "protected", "public", "readonly", "require", "return", "satisfies", "set", "static",
+        "string", "super", "switch", "symbol", "this", "throw", "true", "try", "type", "typeof",
+        "undefined", "unique", "unknown", "var", "void", "while", "with", "yield", "Infinity",
+        "NaN"
+      ]
+    }
+  ]
+}

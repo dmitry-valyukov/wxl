@@ -1,0 +1,100 @@
+# Doxyfile template, filled in by wxl_add_doxygen_site() (cmake/wxl_doxygen.cmake).
+#
+# Only the settings that matter are named here; everything else stays at the
+# defaults of the pinned Doxygen, so an upgrade brings its improvements
+# instead of being frozen out by a copy of the full 400-line stock file.
+
+PROJECT_NAME           = "@DOXY_PROJECT_NAME@"
+PROJECT_BRIEF          = "@DOXY_PROJECT_BRIEF@"
+OUTPUT_DIRECTORY       = "@DOXY_OUTPUT_DIRECTORY@"
+OUTPUT_LANGUAGE        = @DOXY_LANGUAGE@
+
+# ---- Input ----
+#
+# EXTENSION_MAPPING is what makes a module interface unit readable at all:
+# without it Doxygen has no language for .ixx and skips the file. With it,
+# `export module wxl.async;` becomes a module page of its own -- which is the
+# whole reason this tree documents itself with Doxygen and not with any of the
+# post-processors of its XML (solutions.md, "Документация").
+INPUT                  = @DOXY_INPUT@
+FILE_PATTERNS          = *.ixx *.h *.cpp *.md
+EXTENSION_MAPPING      = ixx=C++
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = @DOXY_EXCLUDE_PATTERNS@
+STRIP_FROM_PATH        = @DOXY_STRIP_FROM_PATH@
+
+# An anonymous union inside a private nested class gets a compound of its own
+# even though the class holding it is never emitted -- spsc_queue::block is the
+# live example. In HTML that is a stray page nobody links to; in a tag file it
+# is a compound whose scope is missing, and the site reading that tag stops on
+# it. Nothing is lost by dropping it: an anonymous union has no name to link to.
+EXCLUDE_SYMBOLS        = *__unnamed*
+USE_MDFILE_AS_MAINPAGE = @DOXY_MAINPAGE@
+
+# ---- What gets documented ----
+#
+# EXTRACT_ALL so a type without a comment still appears with its signature:
+# a half-documented tree is the normal state, and a page that lists every
+# member is more useful than one that silently omits the undocumented ones.
+# Private members stay out (EXTRACT_PRIVATE defaults to NO).
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+SORT_MEMBER_DOCS       = NO
+HAVE_DOT               = NO
+
+# ---- Output ----
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+HTML_OUTPUT            = html
+
+# Sidebar tree plus the stock client-side search. FULL_SIDEBAR must stay NO:
+# doxygen-awesome-css is explicitly incompatible with it.
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+SEARCHENGINE           = YES
+
+# HTML_COLORSTYLE = LIGHT is what the theme wants; the light/dark switch is
+# the theme's own toggle, injected into the header (wxl_doxygen.cmake).
+HTML_COLORSTYLE        = LIGHT
+HTML_HEADER            = "@DOXY_HTML_HEADER@"
+HTML_EXTRA_STYLESHEET  = @DOXY_HTML_EXTRA_STYLESHEET@
+HTML_EXTRA_FILES       = @DOXY_HTML_EXTRA_FILES@
+
+# The same URL the patched header imports mermaid from (wxl_doxygen.cmake);
+# rendering is client-side, so nothing else about mermaid is set here.
+MERMAID_JS_URL         = @DOXY_MERMAID_JS_URL@
+
+# ---- Cross-site links ----
+#
+# A tag file is the whole mechanism behind "Буквица links to wxl, wxl knows
+# nothing of Буквица": the producer writes one, the consumer names it with the
+# URL its pages live at, and every mention of wxl::xml::node in the consumer's
+# text turns into a link into the other site.
+GENERATE_TAGFILE       = @DOXY_GENERATE_TAGFILE@
+TAGFILES               = @DOXY_TAGFILES@
+EXTERNAL_GROUPS        = NO
+EXTERNAL_PAGES         = NO
+
+# ---- Diagnostics ----
+#
+# Warnings are fatal. They are never Doxygen being fussy about missing text:
+# with EXTRACT_ALL on, what is left is malformed comments -- a Windows path
+# whose backslash reads as a command, an unclosed <code>, a @param naming an
+# argument that no longer exists. Each one silently corrupts a page, so the
+# build stops rather than shipping it. FAIL_ON_WARNINGS_PRINT prints them all
+# first and only then fails, so one run names every problem.
+#
+# WARN_IF_INCOMPLETE_DOC is the one class turned off. It fires when a comment
+# documents some parameters and not others, and that is the house style, not a
+# defect: a comment here explains the argument that needs explaining and says
+# nothing about the ones whose name is the whole story. Left on, it would demand
+# `\param items the items` on every function that already explains the one
+# parameter worth a sentence. A @param naming an argument that does not exist is
+# a different matter and stays fatal -- that one is always a rename that went
+# half-way.
+QUIET                  = YES
+WARN_LOGFILE           = "@DOXY_WARN_LOGFILE@"
+WARN_IF_INCOMPLETE_DOC = NO
+WARN_AS_ERROR          = FAIL_ON_WARNINGS_PRINT

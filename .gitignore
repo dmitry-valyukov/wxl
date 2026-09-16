@@ -1,0 +1,12 @@
+build/
+generated/
+out/
+.vs/
+.vscode/
+.github/
+.sysprogside/
+
+CMakeUserPresets.json
+
+# MSBuild-вывод проекта wxl.vcxproj: объектники, BMI и tlog.
+wxl/x64/

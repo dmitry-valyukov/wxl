@@ -1,0 +1,11 @@
+wxl_add_gtest(wxl.logging.tests
+    SRC
+        severity_tests.cpp
+        logger_tests.cpp
+        facility_tests.cpp
+        output_tests.cpp
+        file_output_tests.cpp
+        async_logger_tests.cpp
+    DEPS
+        wxl::logging
+)
