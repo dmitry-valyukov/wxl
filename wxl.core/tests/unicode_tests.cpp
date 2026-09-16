@@ -148,6 +148,33 @@ TEST(unicode, broken_utf16_is_named_by_its_offset) {
     EXPECT_TRUE(wxl::core::is_valid_utf16(L"ab\xD83D\xDE00z"));
 }
 
+TEST(unicode, a_cut_steps_back_off_the_second_half_of_a_pair) {
+    // U+1F600 between two letters: the pair takes offsets 1 and 2.
+    const std::wstring_view text = L"a\xD83D\xDE00z";
+
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(text, 0), 0u);
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(text, 1), 1u);
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(text, 2), 1u);
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(text, 3), 3u);
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(text, 4), 4u);
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(text, 100), 4u);
+
+    // A pair at the very start has nothing before it to be confused with.
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(u"\xD83D\xDE00", 1), 0u);
+}
+
+TEST(unicode, a_cut_beside_a_lone_surrogate_stays_put) {
+    const std::wstring lone_low = L"a\xDC00z";
+    const std::wstring low_then_high = L"\xDC00\xD800";
+
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(lone_low, 1), 1u);
+    EXPECT_EQ(wxl::core::floor_code_point_boundary(low_then_high, 1), 1u);
+}
+
+// Constant evaluation answers the same, so a limit known at compile time can
+// be cut at compile time too.
+static_assert(wxl::core::floor_code_point_boundary(u"a\xD83D\xDE00z", 2) == 1);
+
 TEST(unicode, walking_hands_out_position_and_bytes) {
     const std::string text = "a😀б";
 

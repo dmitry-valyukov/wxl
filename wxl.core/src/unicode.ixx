@@ -215,6 +215,20 @@ constexpr nullable<std::size_t> scan_utf16(std::basic_string_view<CharT> text) n
     return {};
 }
 
+/// One step back from the second half of a pair, and nowhere otherwise.
+template <typename CharT>
+constexpr std::size_t floor_utf16_boundary(std::basic_string_view<CharT> text,
+                                           std::size_t at) noexcept {
+    if (at >= text.size()) return text.size();
+
+    if (at == 0 || !is_low_surrogate(static_cast<char32_t>(static_cast<std::uint16_t>(text[at]))))
+        return at;
+
+    const auto before = static_cast<char32_t>(static_cast<std::uint16_t>(text[at - 1]));
+
+    return is_high_surrogate(before) ? at - 1 : at;
+}
+
 }  // namespace impl
 
 export {
@@ -252,6 +266,29 @@ constexpr nullable<std::size_t> find_invalid_utf16(const std::u16string_view tex
 /// Whether the text is UTF-16.
 constexpr bool is_valid_utf16(const std::wstring_view text) noexcept {
     return !impl::scan_utf16(text).has_value();
+}
+
+/// The nearest offset at or before `at` where the text may be cut: `at` itself,
+/// unless it falls between the halves of a surrogate pair, and then the start
+/// of the pair. An offset past the end answers the end.
+///
+/// A limit counted in units -- sixty of them for a hint, a run no longer than
+/// a buffer holds -- lands inside a pair as readily as anywhere else, and
+/// neither half is a character on its own: a font draws a box for it, a
+/// transcoder writes U+FFFD. Stepping back rather than forward keeps the part
+/// before the cut within the limit it was cut to. A lone surrogate has no
+/// partner to stay with, so a cut beside it stays where it was asked for.
+///
+/// Checked text meets the same question in u16_view::substr, which refuses
+/// such a cut instead of moving it: its offsets come from a walk of its own.
+constexpr std::size_t floor_code_point_boundary(const std::wstring_view text,
+                                                const std::size_t at) noexcept {
+    return impl::floor_utf16_boundary(text, at);
+}
+
+constexpr std::size_t floor_code_point_boundary(const std::u16string_view text,
+                                                const std::size_t at) noexcept {
+    return impl::floor_utf16_boundary(text, at);
 }
 
 }  // export
