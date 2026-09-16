@@ -1,3 +1,0 @@
-[submodule "claude"]
-	path = .claude
-	url = ../wxl.claude
