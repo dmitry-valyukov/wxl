@@ -82,6 +82,28 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
 
 }  // namespace
 
+// Version 6 of the common controls, asked for the only way it can be asked
+// for: a manifest dependency on the side-by-side assembly. Without it a
+// process gets the version 5 controls, and the plain Win32 windows an
+// application still puts up -- MessageBox above all -- come up in the
+// Windows 95 look, unthemed, beside a WinUI window that is anything but.
+//
+// Here rather than in every application's app.manifest, and here rather than
+// anywhere else in wxl, for one reason: a `#pragma comment(linker, ...)` is
+// written into this object's .drectve section, and the linker obeys the
+// directives of the objects it actually links -- including one pulled out of
+// a static library, but only if something referenced it. This translation
+// unit defines wWinMain, so every wxl application links it by definition;
+// any other unit here could be left out of some application and take the
+// dependency with it, silently. The directive merges with the manifest an
+// application supplies of its own, so app.manifest stays where it is and
+// says what it said.
+#pragma comment(linker,                                                            \
+                "/manifestdependency:\"type='win32' "                              \
+                "name='Microsoft.Windows.Common-Controls' version='6.0.0.0' "       \
+                "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' "      \
+                "language='*'\"")
+
 int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 #ifndef NDEBUG
     // A failed assert in a windowed application has nowhere to say so: the
