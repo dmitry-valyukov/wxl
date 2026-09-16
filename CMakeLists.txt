@@ -119,8 +119,8 @@ add_subdirectory(wxl.fmt)
 
 # The layer above wxl.core: the future family, the threading machinery, and what
 # is left of the component model built on them -- component and threaded_component.
-# The containers, the hosted half and the apartments had no caller and now wait in
-# .claude/wxl.components; see .claude/TODO/wxl.async.txt.
+# The containers, the hosted half and the apartments had no caller and are kept
+# outside this tree.
 add_subdirectory(wxl.async)
 
 # The log: wxl.core's text_builder formats a line, wxl.async supplies the

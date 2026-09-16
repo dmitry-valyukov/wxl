@@ -21,8 +21,8 @@ module;
 // buffer built on it would never copy itself. It turns out not to matter: a
 // pool that has been used has free lists, a block from a free list has a
 // neighbour behind it, and only the first buffer in a program's life is on
-// top of the bump. The numbers are in solutions.md; the run that produced
-// them is wxl.fmt/benchmarks/text_builder_benchmark.cpp.
+// top of the bump. The run that measures it is
+// wxl.fmt/benchmarks/text_builder_benchmark.cpp.
 //
 // Where the text goes is one question. How the format string is read is
 // another, independent of it: FMT_COMPILE parses the string at compile time

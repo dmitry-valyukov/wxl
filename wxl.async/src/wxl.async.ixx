@@ -37,8 +37,8 @@ export import :turnstile;
 //
 // The rest of it -- the static and dynamic containers, the externally managed component,
 // the hosted half with its apartments, and the IOCP completion port -- has no caller in
-// any built tree and waits in .claude/wxl.components, together with wxl.io, the module it
-// was written for. The survey that established that is in .claude/TODO/wxl.async.txt.
+// any built tree and is kept outside this one, together with wxl.io, the module it
+// was written for.
 export import :component;
 export import :stop_reason;
 export import :system_exception;

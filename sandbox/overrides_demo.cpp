@@ -1,15 +1,15 @@
-// Demonstrates Overrides authoring the way .claude/design.md settles on: the
+// Demonstrates Overrides authoring the way wxl settles on it: the
 // hook (OnDisconnectVisualChildren) lives directly on wxl::impl::UIElement
 // as `protected virtual` (matching the real projection shape, C#:
 // `protected virtual extern void IUIElementOverrides.OnDisconnectVisualChildren();`)
 // -- no separate hooks/mixin type. impl::UIElement *is* the outer COM
 // aggregate identity now too (an earlier, separate UIElementIdentity class
-// was merged into it -- see .claude/design.md): a class authoring a composable
+// was merged into it): a class authoring a composable
 // element derives from wxl::impl::UIElement directly and overrides the
 // hook, ordinary inheritance, no CRTP.
 //
 // This exercises UIElement's own QueryInterface -- the actual "outer
-// identity" mechanism described in .claude/design.md -- rather than reaching
+// identity" mechanism -- rather than reaching
 // the Overrides shim through an internal accessor directly. QueryInterface
 // for IUIElementOverrides is answered with this element's own shim;
 // anything else is forwarded to the wrapped/composed object.
@@ -148,8 +148,7 @@ int main() {
 
     // Wires identity's three sub-mocks to delegate to `element` -- this is
     // the test-only stand-in for what a real CreateInstance(outer, &inner)
-    // call does as part of aggregation activation (see .claude/design.md,
-    // "Still deferred: composable activation proper"). Must happen after
+    // call does as part of aggregation activation. Must happen after
     // `element` exists (its address is what's being delegated to), but the
     // queries element's own constructor already made above aren't affected:
     // those were answered directly by MockIdentity::QueryInterface handing
@@ -173,7 +172,7 @@ int main() {
     // IUIElementProtected explicitly -- this exercises the *whole* 3-hop
     // chain (UIElement -> DependencyObject -> Object) reaching Object's
     // fallback and forwarding to the wrapped/inner object, same mechanism
-    // that answers e.g. IDependencyObject for real (see .claude/design.md).
+    // that answers e.g. IDependencyObject for real.
     std::cout << "-- 3-hop fallback: IUIElementProtected isn't checked at any level, still reaches the inner object --\n";
     void* protectedPtr{};
     HRESULT const hrProtected = element.QueryInterface(__uuidof(IUIElementProtected), &protectedPtr);

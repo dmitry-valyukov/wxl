@@ -11,7 +11,7 @@ namespace wxl {
 // owns its impl::UIElement through this specifically so wxl::UIElement
 // itself has *reference* semantics: copying a wxl::UIElement copies the
 // reference, not the object -- needed to capture a wxl::X by value in
-// event-handler lambdas (see .claude/design.md).
+// event-handler lambdas.
 //
 // Constructing from a raw pointer *adopts* an existing +1 reference (e.g.
 // straight out of `new` or QueryInterface) without an extra AddRef --

@@ -1,7 +1,6 @@
 # ---- Documentation sites, built by CMake ----
 #
-# Doxygen and nothing layered on top of it. The reasoning is written out in
-# solutions.md under "Документация"; the one fact that decides it is that
+# Doxygen and nothing layered on top of it. The one fact that decides it is that
 # wxl.core and wxl.async are C++20 modules, Doxygen 1.18 is the
 # only generator that renders them as modules, and every post-processor of its
 # XML -- m.css, sourcey, moxygen, breathe, doxybook2 -- drops kind="module".

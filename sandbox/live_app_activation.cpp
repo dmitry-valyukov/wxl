@@ -1,5 +1,4 @@
-// Continuation of framework_element_activation.cpp's probe (see
-// .claude/design.md, "Probing real composable activation"): manual
+// Continuation of framework_element_activation.cpp's probe: manual
 // RoGetActivationFactory + CreateInstance from a bare console-style main()
 // got as far as RPC_E_WRONG_THREAD even with a real outer identity and a
 // manually-created DispatcherQueueController. Modeled after
@@ -15,8 +14,8 @@
 // UI-thread context, then exit.
 //
 // Uses real cppwinrt (winrt::) for the Application/OnLaunched scaffolding
-// only -- that's test/host scaffolding, not wxl's own production code (see
-// CLAUDE.md: wxl's own impl:: types never depend on cppwinrt). The actual
+// only -- that's test/host scaffolding, not wxl's own production code
+// (wxl's own impl:: types never depend on cppwinrt). The actual
 // thing under test -- IFrameworkElementFactory::CreateInstance and the
 // blind-aggregation identity check -- is the same raw WinRT COM style as
 // framework_element_activation.cpp, no cppwinrt involved in that part.
@@ -91,8 +90,7 @@ constexpr GUID IID_IDependencyObject = {
 //      (IDependencyObject -- FrameworkElement genuinely implements it,
 //      unlike the mocks in overrides_demo.cpp), then querying *that*
 //      pointer again for IUnknown, must *still* equal `outer`
-//      (second-hop identity -- see .claude/design.md, "Second-hop identity",
-//      this is the real-runtime counterpart of that mock-based test).
+//      (second-hop identity).
 void run_activation_probe() {
     HSTRING className{};
     HRESULT hrClassName = WindowsCreateString(L"Microsoft.UI.Xaml.FrameworkElement", 34, &className);
@@ -121,7 +119,7 @@ void run_activation_probe() {
     }
     std::printf("CreateInstance succeeded -- got a real, aggregated FrameworkElement.\n");
 
-    // `inner` is documented (see .claude/design.md) as the raw, *non-delegating*
+    // `inner` is documented as the raw, *non-delegating*
     // identity -- meant for our own internal use, precisely so we can reach
     // the inner's stock default behavior without recursing back into
     // ourselves. So inner->QueryInterface(IUnknown) is *expected* to answer

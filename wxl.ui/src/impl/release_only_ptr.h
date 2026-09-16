@@ -9,7 +9,7 @@ namespace wxl {
 // job is calling Release() on destruction. Deliberately not a full COM
 // smart pointer: it never calls AddRef/QueryInterface itself, and it isn't
 // copyable -- sharing is handled one level up, by wxl::X wrapping
-// impl::X in a wxl::com_ptr (see .claude/design.md), so the raw interface
+// impl::X in a wxl::com_ptr, so the raw interface
 // pointer inside impl::X never needs its own independent ref-counting
 // story. This is what lets wxl::impl hold bare ABI interfaces (see
 // wxl/abi/*) without depending on winrt::com_ptr or any cppwinrt header.

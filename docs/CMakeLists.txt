@@ -46,10 +46,6 @@ wxl_add_doxygen_site(docs
         # nothing.
         "${PROJECT_SOURCE_DIR}/wxl.ui/src"
     EXCLUDE
-        # CLAUDE.md files are instructions for working on the tree, not pages
-        # about it; next-session-prompt.md is a working note of the same kind.
-        "*/CLAUDE.md"
-        "*/next-session-prompt.md"
         "*/tests/*"
         "*/test/*"
         "*/bench/*"

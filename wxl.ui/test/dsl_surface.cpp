@@ -721,7 +721,7 @@ static_assert(std::is_same_v<decltype(&PointerRoutedEventArgs::getCurrentPoint),
 // CompositionAnimation, which derives from CompositionObject. A closure
 // ordered without regard for that lands the base class in the file after
 // its heirs, and this function is what stops compiling if it ever does
-// again (see solutions.md, "Профиль rich").
+// again.
 //
 // The numerics are the second thing under test: Vector3 and Vector2 are wxl
 // types, not cppwinrt's float3/float2, and a braced literal is the whole of

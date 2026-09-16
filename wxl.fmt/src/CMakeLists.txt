@@ -22,8 +22,7 @@ endif()
 
 # PUBLIC: text_buffer is fmt::basic_memory_buffer and text_builder::format() is
 # a template, so their bodies -- fmt::format_to and the appender -- are
-# compiled in the consumer. Why fmt rather than std::format is in doc/fmt.md
-# and in solutions.md at the root.
+# compiled in the consumer. Why fmt rather than std::format is in doc/fmt.md.
 target_link_libraries(wxl.fmt PUBLIC fmt::fmt)
 
 wxl_set_target_folders(wxl.fmt)

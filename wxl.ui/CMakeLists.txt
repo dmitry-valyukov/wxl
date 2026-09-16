@@ -36,7 +36,7 @@ endif()
 # ---- cppwinrt: the WinUI3 projection headers ----
 # vcpkg's cppwinrt package covers the OS namespaces (winrt/base.h,
 # winrt/Windows.*.h) only; the Microsoft.UI.Xaml.* projection is generated
-# from the WindowsAppSDK metadata and lives in the repo (see .claude/design.md).
+# from the WindowsAppSDK metadata and lives in the repo.
 find_package(cppwinrt CONFIG REQUIRED)
 
 # Relative to this directory, not CMAKE_SOURCE_DIR: wxl.ui builds both
@@ -53,7 +53,7 @@ if(NOT EXISTS "${WXL_CPPWINRT_PROJECTION_DIR}/winrt/Microsoft.UI.Xaml.h")
 endif()
 
 # The Windows App Runtime bootstrapper -- wxl owns its own runtime
-# dependencies (CLAUDE.md, "Fourth constraint"), so this is wired here
+# dependencies, so this is wired here
 # rather than by every consuming application. Declared before the target,
 # since both the include path and the import library below use it.
 set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
@@ -82,7 +82,7 @@ set(WXL_WIN2D_DIR
     CACHE PATH "Win2D (Microsoft.Graphics.Canvas) NuGet package (native runtime DLL)")
 
 add_library(wxl.ui STATIC
-    # Given from above -- never generated, see CLAUDE.md.
+    # Given from above -- never generated.
     src/core.h
     src/Object.h
     src/DateTime.h
@@ -212,8 +212,7 @@ target_include_directories(wxl.ui PUBLIC
 )
 
 # The projection is PRIVATE on purpose: consuming code must never need a
-# winrt header -- that is the whole compile-time argument (CLAUDE.md,
-# "Second headline goal").
+# winrt header -- that is the whole compile-time argument.
 target_include_directories(wxl.ui PRIVATE
     ${WXL_CPPWINRT_PROJECTION_DIR}
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include

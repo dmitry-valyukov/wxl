@@ -7,7 +7,7 @@
 // value, or a null pointer. Handing one over is the only way to set such a
 // property, and cppwinrt's own IReference<T>{value} allocates a fresh object
 // off the CRT heap for every call. Two measurements decided what wxl does
-// instead of that (both written up in solutions.md):
+// instead of that:
 //
 //   * XAML does not keep the box. It unboxes inside the setter and lets go
 //     before returning -- the property store holds a bool, and reading the

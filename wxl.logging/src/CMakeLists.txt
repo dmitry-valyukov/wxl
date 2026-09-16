@@ -32,7 +32,7 @@ set_target_properties(wxl.logging PROPERTIES
 # The asynchronous half is what brings wxl.async in, and it brings it in for
 # everyone importing wxl.logging: partitions are not separately importable. A
 # consumer that wants the log without the component model would need a module
-# of its own, which is written down in TODO.txt and not needed by anybody yet.
+# of its own, which nobody needs yet.
 target_link_libraries(wxl.logging PUBLIC
     wxl::core
     wxl::fmt

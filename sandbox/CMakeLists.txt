@@ -11,9 +11,8 @@ target_link_libraries(wxl-props-sandbox PRIVATE Boost::headers)
 # The Windows App Runtime bootstrapper (MddBootstrap.h / .lib / .dll) --
 # used by wxl/core/bootstrap.cpp to resolve the WinUI3 framework package at
 # process startup, internally, so consuming apps never write bootstrap
-# boilerplate themselves (see .claude/design.md, "Windows App Runtime
-# bootstrap"). Ships in the WindowsAppSDK.Foundation NuGet package, not the
-# top-level metapackage -- see CLAUDE.md for how these caches are laid out.
+# boilerplate themselves. Ships in the WindowsAppSDK.Foundation NuGet package,
+# not the top-level metapackage.
 # 2.3.5 is the Foundation version actually cached alongside the 2.3.2 WinUI
 # metadata wxl already targets (no exact-matching top-level WindowsAppSDK
 # release is cached; Foundation's own versioning is close enough -- the
@@ -46,8 +45,7 @@ add_subdirectory(wxl-core)
 # constructor and its nested UIElementOverrides shim -- see
 # wxl/impl/UIElement.cpp), plus the Windows App Runtime bootstrap glue
 # (wxl/core/bootstrap.cpp). A real winui-srcgen build would produce many such
-# translation units, one compiled library -- see CLAUDE.md, "Second headline
-# goal: compile-time performance". No winrt/cppwinrt dependency; just the
+# translation units, one compiled library. No winrt/cppwinrt dependency; just the
 # Windows SDK's own raw COM headers (<unknwn.h>/<inspectable.h>) plus the
 # WindowsAppSDK bootstrapper's own header (also raw COM/ABI, no cppwinrt).
 add_library(wxl-impl STATIC
@@ -70,9 +68,8 @@ target_compile_definitions(wxl-impl PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX)
 
 # uielement_demo.cpp: wxl::UIElement / wxl::impl::UIElement compiled against
 # a hand-generated *bare* WinRT ABI interface (wxl/abi/Microsoft.UI.Xaml.h)
-# and the real generated PropertyKey/EventKey (../generated) -- see
-# .claude/design.md. Never constructs a live UIElement -- see the comment at
-# the top of uielement_demo.cpp.
+# and the real generated PropertyKey/EventKey (../generated). Never constructs
+# a live UIElement -- see the comment at the top of uielement_demo.cpp.
 add_executable(wxl-uielement-sandbox
     uielement_demo.cpp
 )
@@ -89,8 +86,8 @@ add_executable(wxl-overrides-sandbox
 )
 target_link_libraries(wxl-overrides-sandbox PRIVATE wxl-impl)
 
-# framework_element_activation.cpp: cheap probe (see .claude/design.md,
-# "Second-hop identity") for whether the WinUI3 runtime allows activating a
+# framework_element_activation.cpp: cheap probe for whether the WinUI3 runtime
+# allows activating a
 # real Microsoft.UI.Xaml.FrameworkElement, now going through wxl-impl's own
 # Windows App Runtime bootstrap (wxl::impl::ensure_windows_app_runtime_initialized)
 # instead of raw RoGetActivationFactory with no bootstrap at all. Otherwise
@@ -107,8 +104,8 @@ wxl_copy_runtime_dependencies(wxl-framework-element-activation-sandbox)
 # M:\source\WxlApp1\WxlApp1\main.cpp example, this runs the same
 # CreateInstance + blind-aggregation identity probe from inside a genuine
 # Application::Start/OnLaunched context instead. Real cppwinrt for the
-# App/OnLaunched scaffolding only (test/host code, not wxl itself -- see
-# CLAUDE.md); needs both vcpkg's cppwinrt base runtime headers
+# App/OnLaunched scaffolding only (test/host code, not wxl itself); needs both
+# vcpkg's cppwinrt base runtime headers
 # (winrt/base.h, via Microsoft::CppWinRT) and this repo's own generated
 # WinUI3 projection headers (../generated/cppwinrt, which has
 # winrt/Microsoft.UI.Xaml.h etc. -- vcpkg's cppwinrt package only covers OS
@@ -146,8 +143,7 @@ target_link_libraries(wxl-activation-factory-sandbox PRIVATE
 )
 wxl_copy_runtime_dependencies(wxl-activation-factory-sandbox)
 
-# aggregated_activation_demo.cpp: validates two-phase construction (see
-# .claude/design.md, "Two-phase construction for real aggregated activation")
+# aggregated_activation_demo.cpp: validates two-phase construction
 # against a real, *aggregating* factory -- FrameworkElement's
 # IFrameworkElementFactory::CreateInstance(outer, &inner, &value) -- with
 # our own real wxl::impl::UIElement (default-constructed, then
@@ -170,7 +166,7 @@ wxl_copy_runtime_dependencies(wxl-aggregated-activation-sandbox)
 # framework_element_aggregated_demo.cpp: validates the two-phase
 # construction / on_bind_inspectable() chain-of-responsibility across two
 # real links (wxl::impl::FrameworkElement on top of wxl::impl::UIElement),
-# not just one -- see .claude/design.md, "Checking FrameworkElement".
+# not just one.
 add_executable(wxl-framework-element-aggregated-sandbox
     framework_element_aggregated_demo.cpp
 )
@@ -185,9 +181,9 @@ target_link_libraries(wxl-framework-element-aggregated-sandbox PRIVATE
 )
 wxl_copy_runtime_dependencies(wxl-framework-element-aggregated-sandbox)
 
-# interface_cache_demo.cpp / wxl/impl/interface_cache.cpp: validates the
-# pivot recorded in .claude/design.md ("Pivot: Impl leans on the real cppwinrt
-# projection internally...") -- wxl::Object/ContentControl/ButtonBase/Button
+# interface_cache_demo.cpp / wxl/impl/interface_cache.cpp: validates the design
+# where Impl leans on the real cppwinrt projection internally --
+# wxl::Object/ContentControl/ButtonBase/Button
 # form one ordinary inheritance chain, each level's Impl holding real
 # cppwinrt-projected *interface* smart pointers (IContentControl/
 # IButtonBase/IButton), lazily QueryInterfaced and cached per object.

@@ -11,8 +11,7 @@ namespace wxl {
 // <winrt/base.h> just to name an event subscription token. Only the
 // boundary code that actually talks to cppwinrt converts between the two,
 // via std::bit_cast (see wxl/impl/event_token.h) -- confined to wxl's own
-// implementation, per .claude/design.md's "no WinRT/COM types in the public
-// surface" rule.
+// implementation, per the "no WinRT/COM types in the public surface" rule.
 struct EventToken {
     std::int64_t value{};
 

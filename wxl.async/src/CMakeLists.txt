@@ -33,7 +33,7 @@ wxl_add_module_library(wxl.async STATIC
 
         # What is left of the component model: the base, and threaded_component, the one
         # derivative with callers of its own. The containers, the hosted half and the
-        # apartments wait in .claude/wxl.components -- see .claude/TODO/wxl.async.txt.
+        # apartments are kept outside this tree.
         # system_exception stays because async_file and async_directory throw it.
         component.ixx
         stop_reason.ixx

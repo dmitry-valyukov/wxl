@@ -15,7 +15,7 @@ OUTPUT_LANGUAGE        = @DOXY_LANGUAGE@
 # without it Doxygen has no language for .ixx and skips the file. With it,
 # `export module wxl.async;` becomes a module page of its own -- which is the
 # whole reason this tree documents itself with Doxygen and not with any of the
-# post-processors of its XML (solutions.md, "Документация").
+# post-processors of its XML.
 INPUT                  = @DOXY_INPUT@
 FILE_PATTERNS          = *.ixx *.h *.cpp *.md
 EXTENSION_MAPPING      = ixx=C++

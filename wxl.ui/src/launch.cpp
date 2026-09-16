@@ -111,8 +111,8 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // "abort() has been called" box that names nothing. Sending the report to
     // stderr as well costs nothing and makes a run from a console -- or one
     // whose stderr is redirected, which is how the driver watches it -- say
-    // which check failed. The proper answer, a handler of wxl's own that puts
-    // the text on screen while the graphical phase is up, is in TODO.txt.
+    // which check failed. The proper answer, still to be written, is a handler of
+    // wxl's own that puts the text on screen while the graphical phase is up.
     _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_WNDW);
     _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
     _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_WNDW);

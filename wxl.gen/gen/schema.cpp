@@ -31,7 +31,7 @@ import std;
 // AI note: everything emitted here is also exercised by the test file this
 // same writer produces. A new kind of schema element (a new tag shape, a new
 // member kind) has to be added in both halves below -- schema element and its
-// line of test -- or the coverage rule in CLAUDE.md is broken silently.
+// line of test -- or the test silently stops covering it.
 
 namespace gen {
 namespace {

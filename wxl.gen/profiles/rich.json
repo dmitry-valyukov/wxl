@@ -47,7 +47,7 @@
             ]
         },
         "Microsoft.UI.Composition.CompositionObject": {
-            "comment": "The root of everything the compositor makes, and the only place StartAnimation lives -- without it the animation classes below are objects nobody can run. Properties is what an animated value is seeded through: an element's Translation does not exist until it is inserted there. It also closes a cycle back to this class through a *base* edge (CompositionPropertySet derives from CompositionObject), which is what hoist_bases() in the closure's ordering pass exists to survive -- see solutions.md.",
+            "comment": "The root of everything the compositor makes, and the only place StartAnimation lives -- without it the animation classes below are objects nobody can run. Properties is what an animated value is seeded through: an element's Translation does not exist until it is inserted there. It also closes a cycle back to this class through a *base* edge (CompositionPropertySet derives from CompositionObject), which is what hoist_bases() in the closure's ordering pass exists to survive.",
             "members": [
                 "StartAnimation",
                 "StopAnimation",

@@ -34,8 +34,8 @@ add_executable(wxl.async.tests
     turnstile_tests.cpp
 
     # What is left of the component model here: component itself and threaded_component.
-    # The suites for the containers, the hosted half and the apartments moved with the
-    # code they exercise, to .claude/wxl.components/test.
+    # The suites for the containers, the hosted half and the apartments left the tree
+    # with the code they exercise.
     component_core_tests.cpp
     exception_matrix_helper.cpp
     shared_data_tests.cpp

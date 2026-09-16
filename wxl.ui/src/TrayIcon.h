@@ -17,8 +17,7 @@
 // flyout needs a XamlRoot only a XAML window can give -- so the same window
 // receives the shell's messages (through a subclass) and lends the flyout its
 // root. Held behind a pointer (TrayIcon::Impl in the .cpp) so this header stays
-// clear of the WinUI wrappers. See solutions.md for why it is one window and
-// not two.
+// clear of the WinUI wrappers.
 //
 // The menu is built when it is opened rather than kept, so a checkmark
 // standing for something the application owns is always current and nobody has

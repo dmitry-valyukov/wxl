@@ -157,8 +157,8 @@ protected:
         : base(name, manager, sync_root_arg.get()) {}
 
     /// For apartment_pool, whose constructor takes the desired thread count in the middle.
-    /// Nothing in this binary uses it any more: apartment_pool and its suites wait in
-    /// .claude/wxl.components, whose tests include this header from there.
+    /// Nothing in this binary uses it any more: apartment_pool and its suites are kept
+    /// outside this tree and include this header from there.
     test_component_impl(std::string_view name, size_t thread_count, thread_group * manager)
         : base(name, thread_count, manager) {}
 

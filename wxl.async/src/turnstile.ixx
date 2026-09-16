@@ -11,8 +11,8 @@ export namespace wxl::async {
 /// try_close() is therefore the owner's proof that everyone who went in has come out and
 /// nobody else will get in -- which is what makes it safe to tear the resource down.
 ///
-/// Entering and leaving need not sit in one scope. `task_queue` -- which now waits in
-/// .claude/wxl.components, and is still the clearest example of it -- takes a place at
+/// Entering and leaving need not sit in one scope. `task_queue` -- kept outside this tree
+/// now, and still the clearest example of it -- takes a place at
 /// enqueue() and gives it up when the task has run, so the count is the work still owed
 /// and closing means drained rather than merely empty. The rule that mode carries:
 /// an entry that never leads to an exit is a person who never came out, and the turnstile

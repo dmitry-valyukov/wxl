@@ -7,9 +7,8 @@
 # and wxl.logging's async_output stand on.
 #
 # The rest of the model -- the containers, the hosted half, the apartments, the
-# IOCP port and the task queue -- had no caller in any built tree and now waits
-# in .claude/wxl.components beside wxl.io, the module it was written for. The
-# survey is in .claude/TODO/wxl.async.txt.
+# IOCP port and the task queue -- had no caller in any built tree and is kept
+# outside this one, together with wxl.io, the module it was written for.
 #
 # Built as part of the tree's common top-level project; it has no standalone
 # configuration of its own, because consuming wxl.core means consuming a C++20
