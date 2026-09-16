@@ -13,6 +13,7 @@ wxl_add_module_library(wxl.core STATIC
         event.ixx
         file.ixx
         function.ixx
+        grapheme.ixx
         hevent.ixx
         intrusive_list.ixx
         intrusive_slist.ixx
@@ -52,6 +53,7 @@ wxl_add_module_library(wxl.core STATIC
 
         checks.cpp
         environment.cpp
+        grapheme.cpp
         hevent.cpp
         lightweight_semaphore.cpp
         module_cleanup.cpp

@@ -15,6 +15,7 @@ export import :environment;
 export import :event;
 export import :file;
 export import :function;
+export import :grapheme;
 export import :hevent;
 export import :intrusive_list;
 export import :intrusive_slist;
