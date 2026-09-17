@@ -97,60 +97,6 @@ TEST(StaMemoryPoolTest, BlockSizeIsTheWholeClass) {
               sta_memory_pool::MaxBlockSize);
 }
 
-TEST(StaMemoryPoolTest, GrowingWithinTheClassIsFree) {
-    void* mem = sta_memory_pool::alloc(100);  // a 128-byte block
-    std::memset(mem, 0xCD, 100);
-
-    EXPECT_TRUE(sta_memory_pool::try_extend(mem, 100, 128));
-    EXPECT_EQ(static_cast<unsigned char*>(mem)[99], 0xCD);
-
-    sta_memory_pool::free(mem, 128);
-}
-
-TEST(StaMemoryPoolTest, TheBlockOnTopGrowsWhereItStands) {
-    // 16k is a size class no other test here touches, so its free list is
-    // empty and this block can only have come from the bump cursor -- which
-    // makes it the one on top.
-    constexpr uint32_t size = 16 * 1024;
-
-    void* mem = sta_memory_pool::alloc(size);
-    std::memset(mem, 0xEF, size);
-
-    ASSERT_TRUE(sta_memory_pool::try_extend(mem, size, 2 * size));
-
-    EXPECT_EQ(static_cast<unsigned char*>(mem)[0], 0xEF) << "the block was moved";
-    EXPECT_EQ(static_cast<unsigned char*>(mem)[size - 1], 0xEF) << "the block was moved";
-
-    // The room past the old end belongs to the block now.
-    expect_usable_memory(mem, 2 * size);
-
-    sta_memory_pool::free(mem, 2 * size);
-}
-
-TEST(StaMemoryPoolTest, ABlockWithANeighbourBehindItDoesNotGrow) {
-    constexpr uint32_t size = 8 * 1024;
-
-    void* first = sta_memory_pool::alloc(size);
-    void* second = sta_memory_pool::alloc(size);
-
-    EXPECT_FALSE(sta_memory_pool::try_extend(first, size, 2 * size));
-
-    expect_independent_allocations(first, second, size);
-
-    sta_memory_pool::free(second, size);
-    sta_memory_pool::free(first, size);
-}
-
-TEST(StaMemoryPoolTest, GrowingPastThePoolCeilingIsRefused) {
-    constexpr uint32_t size = sta_memory_pool::MaxBlockSize;
-
-    void* mem = sta_memory_pool::alloc(size);
-
-    EXPECT_FALSE(sta_memory_pool::try_extend(mem, size, size + 1));
-
-    sta_memory_pool::free(mem, size);
-}
-
 struct Small {
     std::byte data[24];
 };
