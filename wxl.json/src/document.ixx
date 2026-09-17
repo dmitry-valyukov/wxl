@@ -49,12 +49,12 @@ public:
     const value& load_file(const std::filesystem::path& path);
 
     /// Дерево последней загрузки, или nullptr до первой.
-    const value* root() const noexcept { return root_; }
+    inline const value* root() const noexcept { return root_; }
 
     /// Файл, которым была названа последняя загрузка; пусто, когда её не
     /// называли. Отсюда сообщение о поломке берёт имя файла -- само место в
     /// документе несёт только строку и колонку.
-    std::string_view file_name() const noexcept { return file_name_; }
+    inline std::string_view file_name() const noexcept { return file_name_; }
 
 private:
     /// Разбирает то, что сейчас лежит в document_.

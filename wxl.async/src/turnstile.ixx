@@ -26,16 +26,16 @@ public:
 
     /// Tries to lock the turnstile shut.
     /// \return true if it is now (or already was) closed.
-    bool try_close() noexcept {
+    inline bool try_close() noexcept {
         ssize_t expected = 0;
         return closed() || inside_.compare_exchange_strong(expected, closed_sentinel);
     }
 
-    bool closed() const noexcept { return inside_.load() < 0; }
+    inline bool closed() const noexcept { return inside_.load() < 0; }
 
     /// \note Do NOT call exit() if this returns false.
     /// \return true if the turnstile let you through.
-    bool try_enter() noexcept {
+    inline bool try_enter() noexcept {
         if (inside_.fetch_add(1) + 1 <= 0) {
             inside_.fetch_sub(1);  // keep inside_ near closed_sentinel
             return false;
@@ -45,7 +45,7 @@ public:
     }
 
     /// Call only after a successful try_enter().
-    void exit() noexcept { inside_.fetch_sub(1); }
+    inline void exit() noexcept { inside_.fetch_sub(1); }
 
 private:
     std::atomic<ssize_t> inside_{0};
@@ -57,15 +57,15 @@ private:
 class turnstile_guard : core::noncopyable
 {
 public:
-    explicit turnstile_guard(turnstile& gate) noexcept
+    inline explicit turnstile_guard(turnstile& gate) noexcept
         : gate_(gate.try_enter() ? &gate : nullptr) {}
 
-    ~turnstile_guard() {
+    inline ~turnstile_guard() {
         if (gate_) gate_->exit();
     }
 
     /// \return true if the turnstile let this guard through; false if it was closed.
-    bool entered() const noexcept { return gate_ != nullptr; }
+    inline bool entered() const noexcept { return gate_ != nullptr; }
 
 private:
     turnstile* gate_;

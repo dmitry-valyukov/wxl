@@ -23,7 +23,7 @@ public:
 
     /// thread_group can be created only on the heap and its lifetime should be managed by
     /// thread_group_ptr.
-    static thread_group_ptr create() { return new thread_group(); }
+    inline static thread_group_ptr create() { return new thread_group(); }
 
     /// \return ID of the main thread.
     static core::thread_id main_thread_id();
@@ -33,7 +33,7 @@ public:
     ///
     /// @throw an exception if cannot register the cleanup function (for example for externally
     /// created thread).
-    static void at_thread_exit(void (*cleanup_func)(void)) {
+    inline static void at_thread_exit(void (*cleanup_func)(void)) {
         at_thread_exit_impl(cleanup_func, nullptr, nullptr);
     }
 
@@ -52,7 +52,9 @@ public:
     ///         exception it threw if it threw one -- the body's only way out, since an
     ///         exception cannot cross a thread boundary by itself. Ignoring the future is
     ///         allowed, and then the exception is dropped with it.
-    future<void> spawn(const thread_proc& thread_proc) { return spawn_named({}, thread_proc); }
+    inline future<void> spawn(const thread_proc& thread_proc) {
+        return spawn_named({}, thread_proc);
+    }
 
     /// \param thread_name is also the debugger-visible name of the OS thread. Checked text,
     ///        so that a name nobody has vouched for is refused here rather than inside the
@@ -64,7 +66,7 @@ public:
     /// @{ Starts a new detached (background) thread.
     ///
     /// @warning Is NOT recommended to use.
-    static future<void> spawn_detached(const thread_proc& thread_proc) {
+    inline static future<void> spawn_detached(const thread_proc& thread_proc) {
         return spawn_detached_named({}, thread_proc);
     }
 
@@ -167,15 +169,15 @@ class thread_scope : public core::noncopyable
 public:
     using thread_proc = thread_group::thread_proc;
 
-    thread_scope() : group_(thread_group::create()) {}
+    inline thread_scope() : group_(thread_group::create()) {}
 
     ~thread_scope();
 
-    thread_group* get() { return group_.get(); }
+    inline thread_group* get() { return group_.get(); }
 
-    thread_group* operator->() { return group_.get(); }
+    inline thread_group* operator->() { return group_.get(); }
 
-    operator thread_group*() { return group_.get(); }
+    inline operator thread_group*() { return group_.get(); }
 
 private:
     thread_group_ptr group_;
@@ -193,10 +195,10 @@ public:
                                           std::forward<t_args>(args)...)) {}
 
     /// Waits for the thread here rather than at the end of the scope.
-    void join() { scope_->join_all(); }
+    inline void join() { scope_->join_all(); }
 
     /// Ready once the thread body has finished; carries the exception it threw, if any.
-    const future<void>& result() const noexcept { return result_; }
+    inline const future<void>& result() const noexcept { return result_; }
 
 private:
     thread_scope scope_;

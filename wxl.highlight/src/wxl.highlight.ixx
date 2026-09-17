@@ -105,7 +105,7 @@ std::span<const language> languages() noexcept;
 /// строкой и остаётся.
 class scanner {
 public:
-    scanner(const language& language, std::wstring_view code) noexcept
+    inline scanner(const language& language, std::wstring_view code) noexcept
         : language_(&language), code_(code) {}
 
     /// Следующий кусок; пусто, когда код кончился.

@@ -116,7 +116,7 @@ public:
 
     /// Kept in the class: it is a call to stop_reason_ptr() and a comparison, so the call
     /// would cost more than the work.
-    bool stop_requested() const { return stop_reason_ptr() != nullptr; }
+    inline bool stop_requested() const { return stop_reason_ptr() != nullptr; }
 
     /// \return the stop ticket that will be ready when the component has stopped.
     /// If its has_value() is true then the component was requested to stop in the usual
@@ -257,11 +257,11 @@ protected:
     ///@{
     /// \return the internal shared state of the component. Callbacks can safely hold
     /// this by reference-counted smart pointer.
-    core::not_null<impl_t> impl() { return impl_.get(); }
+    inline core::not_null<impl_t> impl() { return impl_.get(); }
 
-    core::not_null<const impl_t> impl() const { return impl_.get(); }
+    inline core::not_null<const impl_t> impl() const { return impl_.get(); }
 
-    static core::not_null<impl_t> impl_of(core::not_null<component> c) { return c->impl(); }
+    inline static core::not_null<impl_t> impl_of(core::not_null<component> c) { return c->impl(); }
     ///@}
 
 private:

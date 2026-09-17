@@ -53,7 +53,7 @@ public:
     /// when it dies -- but that death happens on the STA thread.
     [[nodiscard]] awaitable<void> close();
 
-    bool opened() const noexcept { return directory_.opened(); }
+    inline bool opened() const noexcept { return directory_.opened(); }
 
     /// \return whether there is a directory at this path.
     [[nodiscard]] static awaitable<bool> exists(const core::path& path);
@@ -73,7 +73,7 @@ public:
     [[nodiscard]] static awaitable<void> remove(const core::path& path);
 
 private:
-    explicit async_directory(core::directory&& opened) : directory_(std::move(opened)) {}
+    inline explicit async_directory(core::directory&& opened) : directory_(std::move(opened)) {}
 
     core::directory directory_;
 };

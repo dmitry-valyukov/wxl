@@ -561,9 +561,9 @@ struct quiet_nan_sentinel {
 // state is a value the type has of its own and there is nothing to keep
 // beside it.
 struct exception_ptr_sentinel {
-    static std::exception_ptr sentinel() noexcept { return {}; }
+    inline static std::exception_ptr sentinel() noexcept { return {}; }
 
-    static bool is_sentinel(const std::exception_ptr& error) noexcept { return !error; }
+    inline static bool is_sentinel(const std::exception_ptr& error) noexcept { return !error; }
 };
 
 }  // namespace impl

@@ -58,14 +58,14 @@ struct log_entry {
     core::text_builder<> buffer;
 
     /// The line as written, prefix and all.
-    std::string_view text() const noexcept { return buffer.view(); }
+    inline std::string_view text() const noexcept { return buffer.view(); }
 
     /// The line without its prefix.
-    std::string_view message() const noexcept { return text().substr(prefix_size); }
+    inline std::string_view message() const noexcept { return text().substr(prefix_size); }
 
     /// Empties the line, keeping the memory: an entry reused for the next
     /// message allocates nothing after the first one it ever held.
-    void reset() noexcept {
+    inline void reset() noexcept {
         buffer.reset();
         prefix_size = 0;
     }

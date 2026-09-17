@@ -18,7 +18,8 @@ export namespace wxl::xml {
 /// everything else here hands out.
 class exception : public std::runtime_error {
 public:
-    explicit exception(std::string_view message) : std::runtime_error(std::string(message)) {}
+    inline explicit exception(std::string_view message)
+        : std::runtime_error(std::string(message)) {}
 };
 
 /// Thrown when a document does not parse; carries where the parser stopped.
@@ -33,16 +34,16 @@ public:
     /// open, a comment never terminated -- that beginning is the place, rather
     /// than the byte the parser gave up on.
     /// @{
-    std::string_view file_name() const noexcept { return file_name_; }
-    int line() const noexcept { return line_; }
-    int column() const noexcept { return column_; }
+    inline std::string_view file_name() const noexcept { return file_name_; }
+    inline int line() const noexcept { return line_; }
+    inline int column() const noexcept { return column_; }
     /// @}
 
     /// Where in this reader's own sources the document was refused, i.e. which
     /// grammar rule gave up on it. For debugging the reader rather than the
     /// document, which is why it is beside the position above and not instead
     /// of it -- the two answer different questions.
-    const std::source_location& rule() const noexcept { return rule_; }
+    inline const std::source_location& rule() const noexcept { return rule_; }
 
 private:
     // A copy rather than a view: an exception may well outlive the parser that

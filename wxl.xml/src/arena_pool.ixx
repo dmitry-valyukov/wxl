@@ -8,7 +8,7 @@ class arena_pool {
 public:
     static constexpr std::uint32_t block_size = 64 * 1024;
 
-    [[nodiscard]] static std::byte* alloc() noexcept {
+    [[nodiscard]] inline static std::byte* alloc() noexcept {
         core::sta_memory_pool::debug_check_thread();
         return s_alloc_table();
     }

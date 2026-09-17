@@ -20,7 +20,7 @@ export namespace wxl::async {
 class one_shot_event : public core::noncopyable
 {
 public:
-    explicit one_shot_event(bool initial_state = false) noexcept
+    inline explicit one_shot_event(bool initial_state = false) noexcept
         : state_(initial_state), event_obj_(nullptr) {}
 
     ~one_shot_event();
@@ -31,11 +31,11 @@ public:
     /// notification happened and goes on to read whatever the signalling thread published
     /// before it, so this load has to synchronize with signal()'s release. The same load
     /// is wait()'s fast path, which is where it matters most.
-    bool signaled() const { return state_.value(std::memory_order_acquire); }
+    inline bool signaled() const { return state_.value(std::memory_order_acquire); }
 
     /// Fires the notification. Safe to call from several threads at once; the first one
     /// through does the work and the rest return having done nothing.
-    void signal() {
+    inline void signal() {
         if (state_.set()) {  // we are the first.
             set_event();
         }
@@ -44,7 +44,7 @@ public:
     /// Blocks until the notification has fired.
     ///
     /// \note Aborts the process if the underlying OS waitable object cannot be created.
-    void wait() const {
+    inline void wait() const {
         if (already_fired()) return;
 
         wait_event();
@@ -55,7 +55,7 @@ public:
     /// \return \c false only on timeout.
     ///
     /// \note Aborts the process if the underlying OS waitable object cannot be created.
-    bool wait_for(core::duration timeout) const {
+    inline bool wait_for(core::duration timeout) const {
         if (already_fired()) return true;
 
         return wait_event_for(timeout);
@@ -66,7 +66,7 @@ private:
     /// slow one is about to block on.
     ///
     /// \return \c true if the notification has fired, so there is nothing left to wait for.
-    bool already_fired() const {
+    inline bool already_fired() const {
         if (signaled()) return true;
 
         return !event_obj_.load(std::memory_order_acquire) && initialize_event_handle();
@@ -94,7 +94,7 @@ private:
     bool wait_event_for(core::duration timeout) const;
     ///@}
 
-    void set_event() const noexcept {
+    inline void set_event() const noexcept {
         if (handle event = event_obj_.load(std::memory_order_acquire)) set_event(event);
     }
 

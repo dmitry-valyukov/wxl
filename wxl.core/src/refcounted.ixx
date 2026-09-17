@@ -21,15 +21,14 @@ protected:
 
     virtual ~refcounted() noexcept = default;
 
-    size_t ref_count() const noexcept {
+    inline size_t ref_count() const noexcept {
         assume(ref_count_ > 0);
         return ref_count_;
     }
 
-    void add_ref() const noexcept { ++ref_count_; }
+    inline void add_ref() const noexcept { ++ref_count_; }
 
-    WXL_ALWAYS_INLINE
-    void release_ref() const noexcept {
+    inline void release_ref() const noexcept {
         if (--ref_count_ > 0) [[likely]]
             return;
 
@@ -37,12 +36,11 @@ protected:
     }
 
 private:
-    WXL_NO_INLINE
     void delete_this() const noexcept { delete this; }
 
-    friend void intrusive_ptr_add_ref(const refcounted* obj) noexcept { obj->add_ref(); }
+    inline friend void intrusive_ptr_add_ref(const refcounted* obj) noexcept { obj->add_ref(); }
 
-    friend void intrusive_ptr_release(const refcounted* obj) noexcept { obj->release_ref(); }
+    inline friend void intrusive_ptr_release(const refcounted* obj) noexcept { obj->release_ref(); }
 
     mutable size_t ref_count_{1};
 };
@@ -61,16 +59,15 @@ protected:
 
     virtual ~refcounted_mt() noexcept = default;
 
-    size_t ref_count() const noexcept {
+    inline size_t ref_count() const noexcept {
         const size_t count = ref_count_.load(std::memory_order_relaxed);
         assume(count > 0);
         return count;
     }
 
-    void add_ref() const noexcept { ref_count_.fetch_add(1, std::memory_order_relaxed); }
+    inline void add_ref() const noexcept { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
-    WXL_ALWAYS_INLINE
-    void release_ref() const noexcept {
+    inline void release_ref() const noexcept {
         if (ref_count_.fetch_sub(1, std::memory_order_release) > 1) [[likely]]
             return;
 
@@ -79,12 +76,13 @@ protected:
     }
 
 private:
-    WXL_NO_INLINE
     void delete_this() const noexcept { delete this; }
 
-    friend void intrusive_ptr_add_ref(const refcounted_mt* obj) noexcept { obj->add_ref(); }
+    inline friend void intrusive_ptr_add_ref(const refcounted_mt* obj) noexcept { obj->add_ref(); }
 
-    friend void intrusive_ptr_release(const refcounted_mt* obj) noexcept { obj->release_ref(); }
+    inline friend void intrusive_ptr_release(const refcounted_mt* obj) noexcept {
+        obj->release_ref();
+    }
 
     mutable std::atomic<size_t> ref_count_{1};
 };
@@ -108,13 +106,13 @@ private:
 class sta_refcounted : public refcounted
 {
 public:
-    static void* operator new(std::size_t size) { return sta_memory_pool::alloc(size); }
+    inline static void* operator new(std::size_t size) { return sta_memory_pool::alloc(size); }
 
     // Sized, and it has to be: the pool gives back to the size class it took
     // from. The size is the complete object's, because the destructor is
     // virtual and the deleting one the compiler writes knows which object it
     // is freeing.
-    static void operator delete(void* mem, std::size_t size) noexcept {
+    inline static void operator delete(void* mem, std::size_t size) noexcept {
         sta_memory_pool::free(mem, size);
     }
 };

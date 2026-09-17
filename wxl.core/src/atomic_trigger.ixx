@@ -19,25 +19,25 @@ export namespace wxl::core {
 class atomic_trigger
 {
 public:
-    explicit atomic_trigger(bool initial_value = false) noexcept : value_(initial_value) {}
+    inline explicit atomic_trigger(bool initial_value = false) noexcept : value_(initial_value) {}
 
     atomic_trigger(const atomic_trigger&) = delete;
     atomic_trigger& operator=(const atomic_trigger&) = delete;
 
     /// \return `true` if the state was changed (was false, became true).
-    bool set(std::memory_order order = std::memory_order_seq_cst) noexcept {
+    inline bool set(std::memory_order order = std::memory_order_seq_cst) noexcept {
         return !value_.exchange(true, order);
     }
 
     /// Clears the trigger; see read() for the same operation named after its result.
     /// \return `true` if the state was changed (was true, became false).
-    bool reset(std::memory_order order = std::memory_order_seq_cst) noexcept {
+    inline bool reset(std::memory_order order = std::memory_order_seq_cst) noexcept {
         return value_.exchange(false, order);
     }
 
     /// Inverts the state.
     /// \return the new value.
-    bool invert(std::memory_order order = std::memory_order_seq_cst) noexcept {
+    inline bool invert(std::memory_order order = std::memory_order_seq_cst) noexcept {
         // atomic<bool> has no fetch_xor (that's only defined for atomic<Integral>), so
         // the flip is done via a compare_exchange retry loop instead.
         bool old_value = value_.load(std::memory_order_relaxed);
@@ -49,13 +49,13 @@ public:
     /// Consumes the trigger: returns the current value and clears it.
     /// Same operation as reset(), but named for the caller that wants the value --
     /// hence [[nodiscard]], while reset() may be called for the clearing alone.
-    [[nodiscard]] bool read(std::memory_order order = std::memory_order_seq_cst) noexcept {
+    [[nodiscard]] inline bool read(std::memory_order order = std::memory_order_seq_cst) noexcept {
         return value_.exchange(false, order);
     }
 
     /// Returns the current value, without ordering anything by default: an observer
     /// that acts on the answer passes acquire (or stronger) instead.
-    bool value(std::memory_order order = std::memory_order_relaxed) const noexcept {
+    inline bool value(std::memory_order order = std::memory_order_relaxed) const noexcept {
         return value_.load(order);
     }
 

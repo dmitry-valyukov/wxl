@@ -38,7 +38,7 @@ public:
 private:
     struct state;
 
-    explicit document(state* state) noexcept : state_(state) {}
+    inline explicit document(state* state) noexcept : state_(state) {}
 
     state* state_;
 
@@ -58,7 +58,7 @@ public:
     document_builder(const document_builder&) = delete;
     document_builder& operator=(const document_builder&) = delete;
 
-    tree_builder& tree() noexcept { return *tree_; }
+    inline tree_builder& tree() noexcept { return *tree_; }
 
     /// The finished document; the builder is spent.
     document finish() && noexcept;

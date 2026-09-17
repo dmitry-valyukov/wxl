@@ -50,7 +50,7 @@ public:
     // empty one means the library named by --target.
     void add(std::filesystem::path const& path, std::string_view target = {});
 
-    std::vector<std::string> const& files() const noexcept { return files_; }
+    inline std::vector<std::string> const& files() const noexcept { return files_; }
 
     // The files of one target, in the order they were written. An empty
     // `target` asks for the ones that named none.

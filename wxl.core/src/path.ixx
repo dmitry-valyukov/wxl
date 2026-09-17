@@ -56,16 +56,16 @@ public:
 
     path() = default;
 
-    path(view_type text) : text_(text) {}
+    inline path(view_type text) : text_(text) {}
 
-    path(const wchar_t* text) : text_(text) {}
+    inline path(const wchar_t* text) : text_(text) {}
 
     /// What the system is called with. Null-terminated, which is why this class
     /// keeps a string at all rather than a view.
-    const wchar_t* c_str() const noexcept { return text_.c_str(); }
+    inline const wchar_t* c_str() const noexcept { return text_.c_str(); }
 
     /// The text itself -- to store, to show, to put in a message.
-    view_type native() const noexcept { return text_; }
+    inline view_type native() const noexcept { return text_; }
 
     /// The characters, writable, still null-terminated.
     ///
@@ -73,11 +73,11 @@ public:
     /// them: walking it and cutting it short at each separator in turn, which is
     /// how a chain of directories gets created without allocating a string per
     /// level. See `directory::create_all()`, which puts back what it cut.
-    wchar_t* data() noexcept { return text_.data(); }
+    inline wchar_t* data() noexcept { return text_.data(); }
 
-    bool empty() const noexcept { return text_.empty(); }
+    inline bool empty() const noexcept { return text_.empty(); }
 
-    std::size_t size() const noexcept { return text_.size(); }
+    inline std::size_t size() const noexcept { return text_.size(); }
 
     /// Appends one component, with a separator where one is needed.
     ///
@@ -92,7 +92,7 @@ public:
     /// differs from `std::filesystem::path`, which appends a separator and
     /// leaves a path ending in nothing -- a name a program then has to check
     /// for. Here "nothing to add" adds nothing.
-    path& operator/=(view_type component) {
+    inline path& operator/=(view_type component) {
         if (component.empty()) return *this;
 
         ensure(!is_rooted(component) && "path: only a relative component can be appended");
@@ -108,13 +108,13 @@ public:
         return *this;
     }
 
-    friend path operator/(path left, view_type right) {
+    inline friend path operator/(path left, view_type right) {
         left /= right;
         return left;
     }
 
     /// The last component, or the whole path when there is no separator in it.
-    view_type filename() const noexcept {
+    inline view_type filename() const noexcept {
         const std::size_t separator = last_separator();
 
         return separator == view_type::npos ? view_type(text_)
@@ -125,7 +125,7 @@ public:
     /// it. A separator that is the root -- the first character, or the one after
     /// a drive letter -- stays in, because dropping it would turn an absolute
     /// path into a relative one.
-    view_type parent_path() const noexcept {
+    inline view_type parent_path() const noexcept {
         const std::size_t separator = last_separator();
 
         if (separator == view_type::npos) return {};
@@ -139,7 +139,7 @@ public:
     /// Windows compares file names case-insensitively, and a program that needs
     /// that asks the system (`CompareStringOrdinal`) rather than this class,
     /// which has no business knowing the rules of a particular volume.
-    friend bool operator==(const path& left, const path& right) noexcept {
+    inline friend bool operator==(const path& left, const path& right) noexcept {
         return left.text_ == right.text_;
     }
 
@@ -156,7 +156,9 @@ private:
                (is_separator(text.front()) || (text.size() >= 2 && text[1] == L':'));
     }
 
-    std::size_t last_separator() const noexcept { return view_type(text_).find_last_of(L"\\/"); }
+    inline std::size_t last_separator() const noexcept {
+        return view_type(text_).find_last_of(L"\\/");
+    }
 
     string_type text_;
 };
