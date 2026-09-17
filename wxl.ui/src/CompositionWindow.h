@@ -3,6 +3,7 @@
 #include "generated/Microsoft.UI.Composition.h"
 #include "generated/Microsoft.UI.Dispatching.h"
 #include "generated/Microsoft.UI.Input.h"
+#include "generated/Microsoft.UI.Windowing.h"
 #include "generated/Microsoft.UI.Xaml.h"
 #include "generated/Windows.System.Enums.h"
 
@@ -149,6 +150,42 @@ public:
     /// клавиши, щелчки и колесо идут сцене (onKeyDown / onPointer*).
     void hideContent();
 
+    // ---- Заголовок окна: те же три члена, что у Microsoft.UI.Xaml.Window ----
+    //
+    // Window их не реализует сам, а ставит через объекты своего HWND:
+    // AppWindowTitleBar отдаёт полосу заголовка клиентской области и рисует над
+    // ней системные кнопки, InputNonClientPointerSource отвечает Windows, где
+    // таскают окно. У этого окна тот же HWND с островом, и члены делают ровно
+    // то же, так что приложение пишет то же, что писало бы для Window:
+    //
+    //     window.extendsContentIntoTitleBar(true);
+    //     window.setTitleBar(titleBar);
+    //     window.appWindow().titleBar().preferredHeightOption(TitleBarHeightOption::Tall);
+    //
+    // Интерактивные элементы внутри полосы получают ввод, только если над ними
+    // вырезаны области Passthrough; это делает контрол TitleBar.
+
+    /// Как Window.ExtendsContentIntoTitleBar: клиентская область поднимается
+    /// под заголовок, системный заголовок пропадает, кнопки окна остаются --
+    /// их рисует AppWindow поверх содержимого, с прозрачным фоном, чтобы под
+    /// ними была видна своя полоса. Звать до показа окна, иначе системный
+    /// заголовок успеет мелькнуть.
+    void extendsContentIntoTitleBar(bool value);
+    bool extendsContentIntoTitleBar() const;
+
+    /// Как Window.SetTitleBar: элемент становится местом, за которое таскают
+    /// окно (область Caption), и прямоугольник следует за элементом -- за его
+    /// размером, размером окна и масштабом острова. Пустая обёртка убирает
+    /// свой прямоугольник, и остаётся тот, что ставит сам AppWindow: полоса
+    /// во всю ширину высотой кнопок.
+    void setTitleBar(UIElement const& titleBar);
+
+    /// Как Window.AppWindow: объект Windows App SDK над этим же HWND. Через
+    /// него -- то, чему у Window обёртки нет: высота кнопок окна
+    /// (titleBar().preferredHeightOption) и место под ними (leftInset,
+    /// rightInset).
+    AppWindow appWindow() const;
+
     /// Показывает окно. До него окно скрыто, чтобы не мигнуть прозрачностью и
     /// не показать себя раньше, чем встали место и содержимое.
     void activate();
@@ -163,9 +200,10 @@ public:
     ///
     /// Клиентскую, а не оконную: содержимое живёт в ней, и окно, которому
     /// задали пропорции картинки, показало бы её кадрированной ровно на рамку
-    /// с заголовком. Толщину рамки окно спрашивает у Windows по своему стилю и
-    /// DPI своего монитора -- приложению не приходится вычитать клиентскую
-    /// сторону из оконной, чтобы её угадать.
+    /// с заголовком. Толщину рамки окно меряет само, тем же WM_NCCALCSIZE,
+    /// которым Windows получает его клиентскую область, -- так в неё входит и
+    /// заголовок, отданный клиенту (extendsContentIntoTitleBar), и приложению
+    /// не приходится вычитать клиентскую сторону из оконной, чтобы её угадать.
     ///
     /// Одним движением, а не «сначала размер, потом место»: показанное окно
     /// иначе прыгнуло бы дважды.

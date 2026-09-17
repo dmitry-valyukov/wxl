@@ -15,8 +15,14 @@
 #include <winrt/Microsoft.UI.Xaml.Hosting.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Input.h>
+#include <winrt/Microsoft.UI.Windowing.h>
+#include <winrt/Microsoft.UI.Xaml.Media.h>      // GeneralTransform -- прямоугольник полосы заголовка
 #include <winrt/Microsoft.UI.h>
+#include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.UI.h>
+
+#include <cmath>
+#include <vector>
 
 #include <windows.h>
 
@@ -34,6 +40,7 @@
 #include "generated/Microsoft.UI.Composition.impl.h"
 #include "generated/Microsoft.UI.Dispatching.impl.h"
 #include "generated/Microsoft.UI.Input.impl.h"
+#include "generated/Microsoft.UI.Windowing.impl.h"
 #include "generated/Microsoft.UI.Xaml.impl.h"
 
 // Импорт последним: он несёт модульный std, а обычный заголовок после него
@@ -49,12 +56,19 @@ namespace muc = winrt::Microsoft::UI::Composition;
 namespace content = winrt::Microsoft::UI::Content;
 namespace input = winrt::Microsoft::UI::Input;
 namespace mud = winrt::Microsoft::UI::Dispatching;
+namespace windowing = winrt::Microsoft::UI::Windowing;
 namespace xaml = winrt::Microsoft::UI::Xaml;
+
+namespace graphics = winrt::Windows::Graphics;
 
 winrt::Windows::UI::Color asWinrt(Color c) noexcept { return {c.A, c.R, c.G, c.B}; }
 
 winrt::Microsoft::UI::WindowId windowIdOf(HWND hwnd) noexcept {
     return {reinterpret_cast<uint64_t>(hwnd)};
+}
+
+bool sameRect(graphics::RectInt32 const& a, graphics::RectInt32 const& b) noexcept {
+    return a.X == b.X && a.Y == b.Y && a.Width == b.Width && a.Height == b.Height;
 }
 
 // Класс окна -- один на процесс. Без кисти фона и с WM_ERASEBKGND->1:
@@ -96,6 +110,73 @@ struct WindowState {
     std::function<void()> onGeometryChanged;
     std::function<void(SizeInt32, float)> onClientSizeChanged;
 
+    // Заголовок окна -- то же, что держит WindowChrome у Microsoft.UI.Xaml.Window.
+    // AppWindow и источник неклиентского ввода заводятся при первой нужде: окну,
+    // которое заголовок не трогает, они ни к чему.
+    windowing::AppWindow appWindow{nullptr};
+    input::InputNonClientPointerSource nonClient{nullptr};
+    bool extendsContentIntoTitleBar{false};
+    bool captionButtonsTransparent{false};   // прозрачный фон кнопок ставится один раз
+    xaml::FrameworkElement titleBar{nullptr};
+    xaml::FrameworkElement::SizeChanged_revoker titleBarSizeChanged;
+    xaml::XamlRoot titleBarRoot{nullptr};
+    xaml::XamlRoot::Changed_revoker titleBarRootChanged;
+    // Свой прямоугольник среди Caption: его и только его заменяет следующий
+    // пересчёт, а прямоугольники, поставленные другими, остаются.
+    graphics::RectInt32 caption{};
+
+    windowing::AppWindow const& appWindowOf() {
+        if (!appWindow) appWindow = windowing::AppWindow::GetFromWindowId(windowIdOf(hwnd));
+        return appWindow;
+    }
+
+    // Пересчёт Caption -- тот же, что CWindowChrome::OnTitleBarSizeChanged у
+    // Window: на размер элемента, окна и сдвиг окна. Масштаб -- острова
+    // (XamlRoot.RasterizationScale), а не DPI окна, как у Window: остров может
+    // быть увеличен сверх DPI, и прямоугольник в физических пикселях считается
+    // тем масштабом, каким его нарисовали.
+    void updateCaption() {
+        if (!titleBar && caption.Width == 0 && caption.Height == 0) return;
+        if (::IsIconic(hwnd)) return;
+
+        graphics::RectInt32 wanted{};
+        if (extendsContentIntoTitleBar && titleBar) {
+            auto const width = static_cast<float>(titleBar.ActualWidth());
+            auto const height = static_cast<float>(titleBar.ActualHeight());
+            xaml::XamlRoot const root = titleBar.XamlRoot();
+            // Вёрстка ещё не прошла или элемент свёрнут: прежний прямоугольник
+            // остаётся, как у Window, -- пересчитает следующий SizeChanged.
+            if (width == 0 || height == 0 || !root) return;
+
+            if (root != titleBarRoot) {
+                titleBarRoot = root;
+                titleBarRootChanged = root.Changed(
+                    winrt::auto_revoke, [this](xaml::XamlRoot const&, auto&&) { updateCaption(); });
+            }
+
+            winrt::Windows::Foundation::Rect const bounds =
+                titleBar.TransformToVisual(nullptr).TransformBounds({0, 0, width, height});
+            double const scale = root.RasterizationScale();
+            wanted = {static_cast<int32_t>(std::lround(bounds.X * scale)),
+                      static_cast<int32_t>(std::lround(bounds.Y * scale)),
+                      static_cast<int32_t>(std::lround(bounds.Width * scale)),
+                      static_cast<int32_t>(std::lround(bounds.Height * scale))};
+        }
+        if (sameRect(wanted, caption)) return;
+
+        if (!nonClient) nonClient = input::InputNonClientPointerSource::GetForWindowId(windowIdOf(hwnd));
+        winrt::com_array<graphics::RectInt32> const current =
+            nonClient.GetRegionRects(input::NonClientRegionKind::Caption);
+        std::vector<graphics::RectInt32> rects;
+        rects.reserve(current.size() + 1);
+        for (graphics::RectInt32 const& rect : current) {
+            if (!sameRect(rect, caption)) rects.push_back(rect);
+        }
+        if (wanted.Width > 0 && wanted.Height > 0) rects.push_back(wanted);
+        nonClient.SetRegionRects(input::NonClientRegionKind::Caption, rects);
+        caption = wanted;
+    }
+
     void resize(float width, float height) {
         winrt::Windows::Foundation::Numerics::float2 const wh{width, height};
         // Один визуал сцены -- задний. Он корень острова и картинка разом, а
@@ -115,6 +196,32 @@ WindowState* stateOf(HWND hwnd) noexcept {
     return reinterpret_cast<WindowState*>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
 }
 
+// Клиентский прямоугольник, обросший рамкой. Толщину отвечает само окно на
+// WM_NCCALCSIZE -- тем же путём, каким Windows получает его клиентскую область.
+// AdjustWindowRectEx считает рамку по стилю и не знает, что заголовок отдан
+// клиенту (ExtendsContentIntoTitleBar правит ответ на WM_NCCALCSIZE), а стиль и
+// DPI монитора, на котором окно сейчас, ответ учитывает сам. Меряется на
+// нынешнем прямоугольнике окна, у свёрнутого -- на месте, куда оно вернётся.
+RECT withFrame(HWND hwnd, RECT client) noexcept {
+    RECT window{};
+    if (::IsIconic(hwnd)) {
+        WINDOWPLACEMENT placement{};
+        placement.length = sizeof(placement);
+        ::GetWindowPlacement(hwnd, &placement);
+        window = placement.rcNormalPosition;
+    } else {
+        ::GetWindowRect(hwnd, &window);
+    }
+    RECT inner = window;
+    ::SendMessageW(hwnd, WM_NCCALCSIZE, FALSE, reinterpret_cast<LPARAM>(&inner));
+
+    client.left -= inner.left - window.left;
+    client.top -= inner.top - window.top;
+    client.right += window.right - inner.right;
+    client.bottom += window.bottom - inner.bottom;
+    return client;
+}
+
 LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
     WindowState* state = stateOf(hwnd);
     switch (message) {
@@ -123,14 +230,11 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
 
         case WM_GETMINMAXINFO:
             // Нижний предел -- в размерах клиента; переводим в размеры окна
-            // текущим стилем. Сообщение приходит и при создании, до установки
+            // его рамкой. Сообщение приходит и при создании, до установки
             // USERDATA: тогда state == nullptr, предел не наложен -- окну и так
             // задан CW_USEDEFAULT.
             if (state && (state->minSize.width > 0 || state->minSize.height > 0)) {
-                RECT frame{0, 0, state->minSize.width, state->minSize.height};
-                ::AdjustWindowRectEx(&frame,
-                                     static_cast<DWORD>(::GetWindowLongPtrW(hwnd, GWL_STYLE)), FALSE,
-                                     static_cast<DWORD>(::GetWindowLongPtrW(hwnd, GWL_EXSTYLE)));
+                RECT const frame = withFrame(hwnd, {0, 0, state->minSize.width, state->minSize.height});
                 auto* const bounds = reinterpret_cast<MINMAXINFO*>(lparam);
                 bounds->ptMinTrackSize.x = frame.right - frame.left;
                 bounds->ptMinTrackSize.y = frame.bottom - frame.top;
@@ -161,7 +265,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
                     state->onGeometryChanged) {
                     state->onGeometryChanged();
                 }
+                state->updateCaption();
             }
+            break;
+
+        case WM_MOVE:
+            if (state) state->updateCaption();
             break;
 
         case WM_EXITSIZEMOVE:
@@ -471,6 +580,60 @@ void CompositionWindow::hideContent() {
     }
 }
 
+// ---- Заголовок окна ---------------------------------------------------------
+
+void CompositionWindow::extendsContentIntoTitleBar(bool value) {
+    // Флаг до вызова: ExtendsContentIntoTitleBar двигает рамку синхронно, и
+    // WM_SIZE, который приходит изнутри него, уже пересчитывает Caption.
+    state_->extendsContentIntoTitleBar = value;
+
+    windowing::AppWindowTitleBar const titleBar = state_->appWindowOf().TitleBar();
+    titleBar.ExtendsContentIntoTitleBar(value);
+
+    // Под кнопками окна видна своя полоса -- их фон прозрачный. Как у Window,
+    // один раз за жизнь окна: цвет, который приложение поставило позже,
+    // повторное включение не затирает.
+    if (value && !state_->captionButtonsTransparent) {
+        state_->captionButtonsTransparent = true;
+        winrt::Windows::Foundation::IReference<winrt::Windows::UI::Color> const transparent{
+            winrt::Windows::UI::Color{0x00, 0xFF, 0xFF, 0xFF}};
+        titleBar.ButtonBackgroundColor(transparent);
+        titleBar.ButtonInactiveBackgroundColor(transparent);
+    }
+
+    // Рамка пересчитывается сразу: окно, созданное скрытым, иначе показалось
+    // бы с клиентской областью прежнего размера.
+    ::SetWindowPos(state_->hwnd, nullptr, 0, 0, 0, 0,
+                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE |
+                       SWP_FRAMECHANGED);
+    state_->updateCaption();
+}
+
+bool CompositionWindow::extendsContentIntoTitleBar() const {
+    return state_->extendsContentIntoTitleBar;
+}
+
+void CompositionWindow::setTitleBar(UIElement const& titleBar) {
+    WindowState* const st = state_.get();
+    st->titleBarSizeChanged.revoke();
+    st->titleBarRootChanged.revoke();
+    st->titleBarRoot = nullptr;
+    st->titleBar = nullptr;
+
+    if (titleBar) {
+        xaml::UIElement const& raw = *Object::Impl::get_typed<UIElement>(titleBar);
+        st->titleBar = raw.as<xaml::FrameworkElement>();
+        st->titleBarSizeChanged = st->titleBar.SizeChanged(
+            winrt::auto_revoke, [st](winrt::Windows::Foundation::IInspectable const&,
+                                     xaml::SizeChangedEventArgs const&) { st->updateCaption(); });
+    }
+    st->updateCaption();
+}
+
+AppWindow CompositionWindow::appWindow() const {
+    return Object::Impl::wrap<AppWindow>(state_->appWindowOf());
+}
+
 void CompositionWindow::activate() {
     ::ShowWindow(state_->hwnd, SW_SHOW);
     ::UpdateWindow(state_->hwnd);
@@ -489,18 +652,6 @@ RECT workAreaOf(HWND hwnd) noexcept {
     monitor.cbSize = sizeof(monitor);
     ::GetMonitorInfoW(::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor);
     return monitor.rcWork;
-}
-
-// Клиентский прямоугольник, обросший рамкой. Стиль берётся у САМОГО окна, а не
-// из констант создания: в полном экране он другой, и посчитанная по константам
-// рамка обманула бы. DPI -- монитора, на котором окно сейчас: у окна
-// PerMonitorV2 рамка на разных экранах разной толщины.
-RECT withFrame(HWND hwnd, RECT client) noexcept {
-    ::AdjustWindowRectExForDpi(&client, static_cast<DWORD>(::GetWindowLongPtrW(hwnd, GWL_STYLE)),
-                               FALSE,
-                               static_cast<DWORD>(::GetWindowLongPtrW(hwnd, GWL_EXSTYLE)),
-                               ::GetDpiForWindow(hwnd));
-    return client;
 }
 
 }  // namespace

@@ -255,11 +255,18 @@ void logMetrics(const char* when) {
     ::AdjustWindowRectExForDpi(&adjusted, static_cast<DWORD>(::GetWindowLongPtrW(probe->hwnd, GWL_STYLE)), FALSE,
                                static_cast<DWORD>(::GetWindowLongPtrW(probe->hwnd, GWL_EXSTYLE)),
                                ::GetDpiForWindow(probe->hwnd));
-    say("metrics(%s): dpi=%u window=%ldx%ld client=%ldx%ld live-frame=%ldx%ld adjust-frame=%ldx%ld zoomed=%d",
+    // Рамка, которую окно само отвечает на WM_NCCALCSIZE с wParam = FALSE: так
+    // её меряет CompositionWindow, и после ExtendsContentIntoTitleBar ответ
+    // должен совпасть с живой рамкой, а не с AdjustWindowRectEx.
+    RECT asked = window;
+    ::SendMessageW(probe->hwnd, WM_NCCALCSIZE, FALSE, reinterpret_cast<LPARAM>(&asked));
+    say("metrics(%s): dpi=%u window=%ldx%ld client=%ldx%ld live-frame=%ldx%ld adjust-frame=%ldx%ld "
+        "nccalc-frame=%ld,%ld,%ld,%ld zoomed=%d",
         when, ::GetDpiForWindow(probe->hwnd), window.right - window.left, window.bottom - window.top,
         client.right, client.bottom, (window.right - window.left) - client.right,
         (window.bottom - window.top) - client.bottom, (adjusted.right - adjusted.left) - client.right,
-        (adjusted.bottom - adjusted.top) - client.bottom, ::IsZoomed(probe->hwnd) ? 1 : 0);
+        (adjusted.bottom - adjusted.top) - client.bottom, asked.left - window.left, asked.top - window.top,
+        window.right - asked.right, window.bottom - asked.bottom, ::IsZoomed(probe->hwnd) ? 1 : 0);
 
     auto const titleBar = probe->appWindow.TitleBar();
     say("metrics(%s): AppWindowTitleBar extends=%d option=%s Height=%d LeftInset=%d RightInset=%d", when,

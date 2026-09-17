@@ -53,7 +53,20 @@
                 "Destroy",
                 "Changed",
                 "Closing",
-                "Destroying"
+                "Destroying",
+                "TitleBar"
+            ]
+        },
+        "Microsoft.UI.Windowing.AppWindowTitleBar": {
+            "comment": "The window's own title bar, which a XAML window shares with its AppWindow: whether the client area runs up into it, how tall the caption buttons the system draws over that area are, and how much room they take on either side. Window.ExtendsContentIntoTitleBar is a wrapper over the property of the same name here; PreferredHeightOption and the insets have no wrapper at all, so an application reaches them through Window.appWindow. The button colours are left out: they are IReference<Color>, and core::nullable<Color> has no representation yet -- every bit pattern of a Color is a colour, so there is no sentinel to compress the empty state into.",
+            "members": [
+                "ExtendsContentIntoTitleBar",
+                "PreferredHeightOption",
+                "PreferredTheme",
+                "Height",
+                "LeftInset",
+                "RightInset",
+                "ResetToDefault"
             ]
         },
         "Microsoft.UI.Windowing.OverlappedPresenter": {
@@ -185,6 +198,21 @@
             ]
         },
 
+        "Microsoft.UI.Xaml.Controls.TitleBar": {
+            "comment": "The content of a title bar a window has taken over, laid out the way Windows lays it out: headers on either side, content between them, room kept for the caption buttons, a strip that always drags. What makes it more than a Grid is input: it cuts Passthrough regions for everything interactive inside it, so the buttons in a caption still get their clicks, and it dims itself while the window is inactive. It is handed to the window with setTitleBar; neither hiding the system caption nor drawing the caption buttons is its job.",
+            "members": [
+                "LeftHeader",
+                "Content",
+                "RightHeader",
+                "Title",
+                "Subtitle",
+                "IsBackButtonVisible",
+                "IsBackButtonEnabled",
+                "IsPaneToggleButtonVisible",
+                "BackRequested",
+                "PaneToggleRequested"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.ProgressRing": {
             "excludeMembers": [
                 "TemplateSettings"
