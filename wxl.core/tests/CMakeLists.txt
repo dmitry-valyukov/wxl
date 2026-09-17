@@ -18,6 +18,7 @@ add_executable(wxl.core.tests
     refcounted_tests.cpp
     spin_lock_tests.cpp
     sta_allocator_tests.cpp
+    sta_stl_tests.cpp
     strings_tests.cpp
     sync_root_tests.cpp
     thread_heap_tests.cpp

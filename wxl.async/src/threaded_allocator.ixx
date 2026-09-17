@@ -71,7 +71,7 @@ public:
     /// Allocates size bytes. May only be called on the owning thread (the one that called
     /// init()); asserts otherwise.
     ///
-    /// Defined here (not in the .cpp), like sta_memory_pool::alloc()/alloc_impl(), so that a
+    /// Defined here (not in the .cpp), like sta_memory_pool::alloc(), so that a
     /// caller such as operator new -- itself typically inline -- compiles down to exactly the
     /// size check, the pool_index() table lookup, and the one indirect call through
     /// s_alloc_table; there is no separate non-inlined threaded_allocator::alloc() frame for

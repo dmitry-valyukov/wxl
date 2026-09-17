@@ -59,10 +59,10 @@ TEST(StaMemoryPoolTest, DifferentSizeClassesDoNotOverlap) {
 }
 
 TEST(StaMemoryPoolTest, FreeListIsReusedAcrossRepeatedAllocations) {
-    // The first allocation of a size class hits the page bump-allocator;
-    // freeing it switches that class over to the free-list, so looping
-    // exercises both alloc_<N> and pool_<N>::get/put without asserting on
-    // the exact addresses handed back (an implementation detail).
+    // The first allocation of a size class comes off the page cursor and
+    // freeing it switches the class over to its free list, so the loop runs
+    // through bump_alloc and free_list::get/put alike, without asserting on
+    // the addresses handed back.
     for (int i = 0; i < 1000; ++i) {
         void* mem = sta_memory_pool::alloc(24);
         expect_usable_memory(mem, 24);
@@ -71,10 +71,9 @@ TEST(StaMemoryPoolTest, FreeListIsReusedAcrossRepeatedAllocations) {
 }
 
 TEST(StaMemoryPoolTest, LargestPoolClassSizeIsUsable) {
-    // Regression test: requests right up to MaxBlockSize still route
-    // through the pool dispatch tables (s_alloc/s_free) rather than the
-    // raw-heap fallback, and that top size class's table slot must be
-    // populated.
+    // A request of exactly MaxBlockSize still goes through the dispatch
+    // tables rather than the heap, so the slot of the top class has to be
+    // filled.
     void* mem = sta_memory_pool::alloc(sta_memory_pool::MaxBlockSize);
     expect_usable_memory(mem, sta_memory_pool::MaxBlockSize);
     sta_memory_pool::free(mem, sta_memory_pool::MaxBlockSize);

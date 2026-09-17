@@ -33,6 +33,7 @@ wxl_add_module_library(wxl.core STATIC
         semaphore.ixx
         spin_lock.ixx
         sta_allocator.ixx
+        sta_stl.ixx
         strings.ixx
         sync_root.ixx
         thread_guard.ixx
