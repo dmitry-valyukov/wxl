@@ -128,6 +128,8 @@ add_library(wxl.ui STATIC
     src/impl/fluent_symbol.cpp
     src/impl/cursor.h
     src/impl/cursor.cpp
+    src/impl/application_folder.h
+    src/impl/application_folder.cpp
     src/FileDrop.h
     src/FileDrop.cpp
     src/WindowHandle.h

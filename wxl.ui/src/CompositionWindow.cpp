@@ -8,6 +8,7 @@
 // заголовки wxl несут импорт wxl.core, после которого текстовый заголовок MSVC
 // уже видел бы через модуль std. windows.h после winrt: его GetCurrentTime
 // иначе подставился бы в одноимённый метод проекции.
+#include <winrt/Microsoft.Graphics.Canvas.Effects.h>   // Border и Composite -- фон плиткой и цвет под ним
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
@@ -42,6 +43,7 @@
 // window_placement.h несёт обычный <optional> -- он должен встретиться до
 // импорта, иначе MSVC не примет стандартный заголовок после него.
 #include "impl/window_placement.h"
+#include "impl/application_folder.h"
 #include "Object.impl.h"
 #include "generated/Microsoft.UI.Composition.impl.h"
 #include "generated/Microsoft.UI.Dispatching.impl.h"
@@ -58,6 +60,8 @@ namespace wxl {
 
 namespace {
 
+namespace canvas = winrt::Microsoft::Graphics::Canvas;
+namespace effects = winrt::Microsoft::Graphics::Canvas::Effects;
 namespace muc = winrt::Microsoft::UI::Composition;
 namespace content = winrt::Microsoft::UI::Content;
 namespace controls = winrt::Microsoft::UI::Xaml::Controls;
@@ -174,6 +178,17 @@ struct WindowState : core::refcounted {
     // в конструкторе, когда компоновщик готов.
     std::optional<TextureCache> textureCache;
 
+    // Картинка заднего фона в свой размер и то, как она кроет окно. Кисть
+    // задника из неё зависит от DPI экрана и собирается заново, когда окно
+    // переезжает на другой экран.
+    muc::CompositionSurfaceBrush picture{nullptr};
+    BackgroundFill pictureFill{};
+    Color pictureColor{};
+
+    // Номер последней смены фона. Асинхронная загрузка ставит свою картинку,
+    // только если за время загрузки фон никто не сменил.
+    std::uint64_t backgroundChange{0};
+
     // Ввод со сцены (режим чтения без острова): источники ввода её ContentIsland.
     // Источники держим живыми -- на них висят подписки.
     content::ContentIsland sceneIsland{nullptr};
@@ -274,6 +289,97 @@ struct WindowState : core::refcounted {
 
     float scale() const {
         return static_cast<float>(::GetDpiForWindow(hwnd)) / 96.0f * static_cast<float>(zoom);
+    }
+
+    void showPicture(muc::CompositionSurfaceBrush brush, BackgroundFill fill, Color color) {
+        picture = std::move(brush);
+        pictureFill = fill;
+        pictureColor = color;
+        fillPicture();
+    }
+
+    // Кисть задника из картинки. Сцена -- в физических пикселях, поэтому свой
+    // размер картинки (None, плитка) доводится до логического множителем DPI.
+    void fillPicture() {
+        if (!picture) return;
+
+        float const dpi = hwnd ? static_cast<float>(::GetDpiForWindow(hwnd)) / 96.0f : 1.0f;
+
+        picture.StopAnimation(L"CenterPoint");
+        picture.CenterPoint({0.0f, 0.0f});
+        picture.Scale({1.0f, 1.0f});
+        picture.HorizontalAlignmentRatio(0.5f);
+        picture.VerticalAlignmentRatio(0.5f);
+
+        // Композитор принимает источником эффекта только параметр, а не другой
+        // эффект, поэтому свой размер картинке даёт масштаб её же кисти.
+        winrt::Windows::Graphics::Effects::IGraphicsEffectSource shown =
+            muc::CompositionEffectSourceParameter{L"picture"};
+        bool tiled = false;
+
+        switch (pictureFill) {
+            case BackgroundFill::UniformToFill:
+                picture.Stretch(muc::CompositionStretch::UniformToFill);
+                break;
+            case BackgroundFill::Uniform:
+                picture.Stretch(muc::CompositionStretch::Uniform);
+                break;
+            case BackgroundFill::Fill:
+                picture.Stretch(muc::CompositionStretch::Fill);
+                break;
+            case BackgroundFill::None: {
+                // Масштаб вокруг середины задника, а она движется вместе с окном.
+                picture.Stretch(muc::CompositionStretch::None);
+                picture.Scale({dpi, dpi});
+                muc::ExpressionAnimation const centre =
+                    compositor.CreateExpressionAnimation(L"backdrop.Size * 0.5");
+                centre.SetReferenceParameter(L"backdrop", backdrop);
+                picture.StartAnimation(L"CenterPoint", centre);
+                break;
+            }
+            case BackgroundFill::Tile:
+            case BackgroundFill::TileMirrored: {
+                // Повтор за краем картинки считает композитор эффектом Border, и
+                // растяжка окна не стоит ни строчки кода.
+                picture.Stretch(muc::CompositionStretch::None);
+                picture.HorizontalAlignmentRatio(0.0f);
+                picture.VerticalAlignmentRatio(0.0f);
+                picture.Scale({dpi, dpi});
+
+                auto const edge = pictureFill == BackgroundFill::Tile
+                                      ? canvas::CanvasEdgeBehavior::Wrap
+                                      : canvas::CanvasEdgeBehavior::Mirror;
+                effects::BorderEffect tiles;
+                tiles.ExtendX(edge);
+                tiles.ExtendY(edge);
+                tiles.Source(shown);
+                shown = tiles;
+                tiled = true;
+                break;
+            }
+        }
+
+        bool const underlay = pictureColor.A != 0;
+        if (!tiled && !underlay) {
+            backdrop.Brush(picture);
+            return;
+        }
+
+        winrt::Windows::Graphics::Effects::IGraphicsEffect graph{nullptr};
+        if (underlay) {
+            effects::CompositeEffect layers;
+            layers.Sources().Append(muc::CompositionEffectSourceParameter{L"colour"});
+            layers.Sources().Append(shown);
+            graph = layers;
+        } else {
+            graph = shown.as<winrt::Windows::Graphics::Effects::IGraphicsEffect>();
+        }
+
+        muc::CompositionEffectBrush const brush = compositor.CreateEffectFactory(graph).CreateBrush();
+        brush.SetSourceParameter(L"picture", picture);
+        if (underlay)
+            brush.SetSourceParameter(L"colour", compositor.CreateColorBrush(asWinrt(pictureColor)));
+        backdrop.Brush(brush);
     }
 
     ClientSize clientSize() const {
@@ -709,6 +815,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
                                suggested->right - suggested->left, suggested->bottom - suggested->top,
                                SWP_NOZORDER | SWP_NOACTIVATE);
                 state->applyZoom();
+                state->fillPicture();
                 return 0;
             }
             break;
@@ -801,22 +908,20 @@ struct fire_and_forget {
 };
 
 // Асинхронная смена задника: ждёт текстуру из кэша (декод на потоках WinRT) и,
-// вернувшись на UI-поток, ставит её кистью UniformToFill на единственный задний
-// визуал. Состояние держится ручкой, путь -- по значению: корутина владеет
-// обоими через ожидание.
-fire_and_forget swapBackground(core::intrusive_ptr<WindowState> state, std::filesystem::path image) {
-    CompositionDrawingSurface const surface = co_await state->textureCache->getAsync(image);
+// вернувшись на UI-поток, ставит её картинкой фона -- если за время загрузки фон
+// не сменили. Состояние держится ручкой, картинка -- по значению: корутина
+// владеет обоими через ожидание.
+fire_and_forget swapBackground(core::intrusive_ptr<WindowState> state, BackgroundImage image,
+                               std::uint64_t change) {
+    CompositionDrawingSurface const surface = co_await state->textureCache->getAsync(image.path);
+    if (state->backgroundChange != change) co_return;
 
     // Именованные промежутки: обёртка -> сырая поверхность (одно преобразование),
     // сырая поверхность -> ICompositionSurface у CreateSurfaceBrush (второе); в
     // одном выражении их было бы два подряд, чего аргументу не дают.
     muc::CompositionDrawingSurface const& raw =
         *Object::Impl::get_typed<CompositionDrawingSurface>(surface);
-    muc::CompositionSurfaceBrush const brush = state->compositor.CreateSurfaceBrush(raw);
-    brush.Stretch(muc::CompositionStretch::UniformToFill);
-    brush.HorizontalAlignmentRatio(0.5f);
-    brush.VerticalAlignmentRatio(0.5f);
-    state->backdrop.Brush(brush);
+    state->showPicture(state->compositor.CreateSurfaceBrush(raw), image.fill, image.color);
 }
 
 }  // namespace
@@ -840,6 +945,8 @@ float CompositionWindow::rasterizationScale() const {
 }
 
 void CompositionWindow::background(Color color) const {
+    ++state_->backgroundChange;
+    state_->picture = nullptr;
     state_->backdrop.Brush(state_->compositor.CreateColorBrush(asWinrt(color)));
 }
 
@@ -847,19 +954,27 @@ void CompositionWindow::clearBackground() const {
     // Спрайт без кисти ничего не рисует, но остаётся корнем сцены и
     // контейнером визуалов приложения -- дерево не меняется, меняется только
     // то, что у него нет своей заливки.
+    ++state_->backgroundChange;
+    state_->picture = nullptr;
     state_->backdrop.Brush(nullptr);
 }
 
 void CompositionWindow::background(std::filesystem::path const& image) const {
+    background(BackgroundImage{image});
+}
+
+void CompositionWindow::background(BackgroundImage const& image) const {
     // Синхронный декод: первый (стартовый) экран показывается только уже
-    // загруженным -- окно до того скрыто. Смены фона на ходу пойдут асинхронно
-    // через Win2D/TextureCache, отдельным шагом; здесь путь под первую картинку.
+    // загруженным -- окно до того скрыто. Смены фона на ходу идут асинхронно
+    // через Win2D/TextureCache (backgroundAsync).
+    std::filesystem::path const file = impl::beside_application(image.path);
+
     winrt::com_ptr<IWICImagingFactory> wic;
     winrt::check_hresult(::CoCreateInstance(CLSID_WICImagingFactory, nullptr,
                                             CLSCTX_INPROC_SERVER, __uuidof(IWICImagingFactory),
                                             wic.put_void()));
     winrt::com_ptr<IWICBitmapDecoder> decoder;
-    winrt::check_hresult(wic->CreateDecoderFromFilename(image.c_str(), nullptr, GENERIC_READ,
+    winrt::check_hresult(wic->CreateDecoderFromFilename(file.c_str(), nullptr, GENERIC_READ,
                                                         WICDecodeMetadataCacheOnLoad, decoder.put()));
     winrt::com_ptr<IWICBitmapFrameDecode> frame;
     winrt::check_hresult(decoder->GetFrame(0, frame.put()));
@@ -886,18 +1001,12 @@ void CompositionWindow::background(std::filesystem::path const& image) const {
                                                       static_cast<float>(height)));
     });
 
-    // Кисть тянет картинку фиксированного размера на задник во всё окно --
-    // UniformToFill по центру, ровно как обложка на стартовом экране: обрезается
-    // по краю, но не искажается. Обёртку держим именованной: get_typed отдаёт
-    // сырой winrt внутри неё, а не копию, и временная обёртка умерла бы прежде,
-    // чем кисть попадёт на визуал.
+    // Обёртку держим именованной: get_typed отдаёт сырой winrt внутри неё, а не
+    // копию, и временная обёртка умерла бы прежде, чем кисть скопируют.
     CompositionSurfaceBrush wrapped = surface.brush();
-    muc::CompositionSurfaceBrush const& brush =
-        *Object::Impl::get_typed<CompositionSurfaceBrush>(wrapped);
-    brush.Stretch(muc::CompositionStretch::UniformToFill);
-    brush.HorizontalAlignmentRatio(0.5f);
-    brush.VerticalAlignmentRatio(0.5f);
-    state_->backdrop.Brush(brush);
+    ++state_->backgroundChange;
+    state_->showPicture(*Object::Impl::get_typed<CompositionSurfaceBrush>(wrapped), image.fill,
+                        image.color);
 }
 
 void CompositionWindow::background(DrawingSurface const& surface) const {
@@ -910,14 +1019,21 @@ void CompositionWindow::background(DrawingSurface const& surface) const {
     // UniformToFill: поверхность-задник тянется под окно, как картинка-заставка,
     // и в просвете быстрой растяжки кроет окно, а не сквозит.
     brush.Stretch(muc::CompositionStretch::UniformToFill);
+    ++state_->backgroundChange;
+    state_->picture = nullptr;
     state_->backdrop.Brush(brush);
 }
 
 void CompositionWindow::backgroundAsync(std::filesystem::path const& image) const {
+    backgroundAsync(BackgroundImage{image});
+}
+
+void CompositionWindow::backgroundAsync(BackgroundImage const& image) const {
     // Запускаем и забываем: swapBackground сам доведёт себя до конца на UI-потоке
     // и уберёт свой кадр. Кэш держит текстуру, так что тот же путь во второй раз
     // сменит задник уже без загрузки.
-    swapBackground(state_, image);
+    swapBackground(state_, {impl::beside_application(image.path), image.fill, image.color},
+                   ++state_->backgroundChange);
 }
 
 // ---- CompositionWindow ----------------------------------------------------
