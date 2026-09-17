@@ -27,15 +27,17 @@ export namespace wxl::async {
 class completion_counter : core::noncopyable
 {
 public:
-    explicit completion_counter(ssize_t expected = 1) : counter_(expected) { ensure(expected > 0); }
+    inline explicit completion_counter(ssize_t expected = 1) : counter_(expected) {
+        ensure(expected > 0);
+    }
 
     /// The future is resolved once every started operation has completed. Safe to ask for
     /// before or after that happens; a future taken afterwards is already ready.
-    future<void> on_all_completed() const { return completed_promise_.get_future(); }
+    inline future<void> on_all_completed() const { return completed_promise_.get_future(); }
 
     /// Registers one more operation to wait for. The caller must hold a place of its own
     /// while doing so -- see the note on `expected` above.
-    void start_one() {
+    inline void start_one() {
         // One `lock xadd` and a look at what it returned. Landing on 1 means the counter
         // stood at zero, i.e. it has already fired -- and since ensure() does not return,
         // the count left behind never gets a chance to matter.
@@ -45,7 +47,7 @@ public:
     }
 
     /// Retires one operation, resolving the future if it was the last one.
-    void complete_one() {
+    inline void complete_one() {
         // release, not acq_rel: every operation has to publish what it did before it
         // retired, but only one of them ever collects that -- the one that finds zero and
         // resolves the future. Paying for the acquire on every retirement buys nothing.
@@ -75,11 +77,11 @@ private:
 class completion_counter_guard : core::noncopyable
 {
 public:
-    explicit completion_counter_guard(completion_counter& counter) : counter_(counter) {
+    inline explicit completion_counter_guard(completion_counter& counter) : counter_(counter) {
         counter.start_one();
     }
 
-    ~completion_counter_guard() { counter_.complete_one(); }
+    inline ~completion_counter_guard() { counter_.complete_one(); }
 
 private:
     completion_counter& counter_;

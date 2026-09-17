@@ -66,13 +66,13 @@ public:
     void write(const log_entry& entry) override;
 
     /// The directory the files are written to.
-    const std::filesystem::path& directory() const noexcept { return directory_; }
+    inline const std::filesystem::path& directory() const noexcept { return directory_; }
 
     /// The name the caller asked for, without directory or extension.
-    const std::string& stem() const noexcept { return stem_; }
+    inline const std::string& stem() const noexcept { return stem_; }
 
     /// The extension, dot included, or empty.
-    const std::string& extension() const noexcept { return extension_; }
+    inline const std::string& extension() const noexcept { return extension_; }
 
     /// The file being written to right now.
     std::filesystem::path current_path() const;
@@ -106,7 +106,7 @@ protected:
     /// from write() and on_before_first_line() only: it does not take the lock.
     void write_to_file(std::string_view text);
 
-    core::mutex& file_mutex() const noexcept { return mutex_; }
+    inline core::mutex& file_mutex() const noexcept { return mutex_; }
 
 private:
     void open_part(unsigned number);

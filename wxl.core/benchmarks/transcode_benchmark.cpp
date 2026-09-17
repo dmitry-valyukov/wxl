@@ -87,7 +87,7 @@ void compare(std::string_view name, std::string_view utf8, unsigned rounds) {
     // The text is built by the generator above, so it is UTF-8 by
     // construction; what is being timed is the conversion, not the check, and
     // the check is timed separately below.
-    const wxl::core::u8_view checked = wxl::core::assume_valid(utf8);
+    const wxl::core::u8_view checked = wxl::core::unicode::assume_valid(utf8);
     const wxl::core::u16_text utf16_owned = checked.to_utf16();
     const std::wstring utf16(utf16_owned.wchars());
     const wxl::core::u16_view checked_wide = utf16_owned;
@@ -100,7 +100,7 @@ void compare(std::string_view name, std::string_view utf8, unsigned rounds) {
     const double windows_narrow =
         milliseconds(rounds, [&] { sink += windows_to_utf8(utf16).size(); });
 
-    const double checking = milliseconds(rounds, [&] { sink += wxl::core::is_valid_utf8(utf8); });
+    const double checking = milliseconds(rounds, [&] { sink += wxl::core::unicode::is_valid_utf8(utf8); });
 
     std::printf("%-10s %9zu bytes  x%u\n", std::string(name).c_str(), utf8.size(), rounds);
     std::printf("    to utf16   wxl.core %8.2f ms   windows %8.2f ms   %5.2fx\n", ours_wide,

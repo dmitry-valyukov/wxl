@@ -52,52 +52,56 @@ class managed_task
 {
 public:
     struct promise_type {
-        managed_task get_return_object() {
+        inline managed_task get_return_object() {
             return managed_task(std::coroutine_handle<promise_type>::from_promise(*this));
         }
 
         /// The frame, from the pool. The sized form of the deallocation is the one
         /// the compiler calls for a coroutine frame, so the pool gets back the very
         /// size it handed out and never has to be asked to remember it.
-        static void* operator new(std::size_t size) { return core::sta_memory_pool::alloc(size); }
+        inline static void* operator new(std::size_t size) {
+            return core::sta_memory_pool::alloc(size);
+        }
 
-        static void operator delete(void* mem, std::size_t size) noexcept {
+        inline static void operator delete(void* mem, std::size_t size) noexcept {
             core::sta_memory_pool::free(mem, size);
         }
 
-        std::suspend_never initial_suspend() const noexcept { return {}; }
-        std::suspend_always final_suspend() const noexcept { return {}; }
+        inline std::suspend_never initial_suspend() const noexcept { return {}; }
+        inline std::suspend_always final_suspend() const noexcept { return {}; }
 
-        void return_void() const noexcept {}
+        inline void return_void() const noexcept {}
 
-        void unhandled_exception() noexcept { error = std::current_exception(); }
+        inline void unhandled_exception() noexcept { error = std::current_exception(); }
 
         std::exception_ptr error;
     };
 
-    managed_task(managed_task&& other) noexcept : handle_(std::exchange(other.handle_, {})) {}
+    inline managed_task(managed_task&& other) noexcept
+        : handle_(std::exchange(other.handle_, {})) {}
 
-    managed_task& operator=(managed_task&& other) noexcept {
+    inline managed_task& operator=(managed_task&& other) noexcept {
         std::swap(handle_, other.handle_);
         return *this;
     }
 
-    ~managed_task() {
+    inline ~managed_task() {
         if (handle_) handle_.destroy();
     }
 
     /// \return `true` once the coroutine has run to its end, whether by
     ///         reaching it or by leaving through an exception.
-    bool done() const noexcept { return handle_.done(); }
+    inline bool done() const noexcept { return handle_.done(); }
 
     /// \throw whatever left the coroutine. Ask after done().
-    void result() const {
+    inline void result() const {
         if (const std::exception_ptr& error = handle_.promise().error)
             std::rethrow_exception(error);
     }
 
 private:
-    explicit managed_task(std::coroutine_handle<promise_type> handle) noexcept : handle_(handle) {}
+    inline explicit managed_task(std::coroutine_handle<promise_type> handle) noexcept
+        : handle_(handle) {}
 
     std::coroutine_handle<promise_type> handle_;
 };

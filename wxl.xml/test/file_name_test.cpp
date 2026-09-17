@@ -18,7 +18,7 @@ TEST(xml, file_name) {
     document p;
     const node& root = p.load_file(path);
 
-    EXPECT_EQ(p.file_name(), wxl::core::to_utf8(path).chars());
+    EXPECT_EQ(p.file_name(), wxl::core::unicode::to_utf8(path).chars());
 
     const node* entries = root.find("Entries");
     ASSERT_NE(entries, nullptr);

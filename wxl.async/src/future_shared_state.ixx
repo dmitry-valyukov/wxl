@@ -121,20 +121,20 @@ enum class state_id : size_t
 struct state : public core::noncopyable {
     virtual ~state() = default;
 
-    state_id id() const noexcept { return id_; }
+    inline state_id id() const noexcept { return id_; }
 
 protected:
-    explicit state(state_id kind) noexcept : id_(kind) {}
+    inline explicit state(state_id kind) noexcept : id_(kind) {}
 
 private:
     const state_id id_;
 };
 
 struct resolved_state_base : state {
-    const void* raw_data() const noexcept { return this + 1; }
+    inline const void* raw_data() const noexcept { return this + 1; }
 
 protected:
-    explicit resolved_state_base() noexcept : state(state_id::resolved) {}
+    inline explicit resolved_state_base() noexcept : state(state_id::resolved) {}
 };
 
 /// Future's shared state has a value.
@@ -158,9 +158,9 @@ private:
 /// Future's shared state has a void value.
 template <>
 struct resolved_state<void> : state {
-    resolved_state() noexcept : state(state_id::resolved) {}
+    inline resolved_state() noexcept : state(state_id::resolved) {}
 
-    static const resolved_state<void>* from(const state* state) noexcept {
+    inline static const resolved_state<void>* from(const state* state) noexcept {
         assert(state && state->id() == state_id::resolved);
         assert(dynamic_cast<const resolved_state<void>*>(state));
 
@@ -170,10 +170,10 @@ struct resolved_state<void> : state {
 
 /// Future's shared state has an exception.
 struct failed_state : state {
-    explicit failed_state(const std::exception_ptr& ep)
+    inline explicit failed_state(const std::exception_ptr& ep)
         : state(state_id::failed), exception_ptr_(ep) {}
 
-    static const failed_state* from(const state* state) noexcept {
+    inline static const failed_state* from(const state* state) noexcept {
         assert(state && state->id() == state_id::failed);
         assert(dynamic_cast<const failed_state*>(state));
 
@@ -185,9 +185,10 @@ struct failed_state : state {
 
 /// Future is not ready yet.
 struct pending_state : state {
-    explicit pending_state(pending_state* prev) noexcept : state(state_id::pending), prev_(prev) {}
+    inline explicit pending_state(pending_state* prev) noexcept
+        : state(state_id::pending), prev_(prev) {}
 
-    static pending_state* from(state* state) noexcept {
+    inline static pending_state* from(state* state) noexcept {
         assert(state == nullptr || state->id() == state_id::pending);
         assert(state == nullptr || dynamic_cast<const pending_state*>(state));
 
@@ -275,9 +276,10 @@ struct when_ready_pending_state_ex : pending_state {
 };
 
 struct set_exception_func {
-    explicit set_exception_func(future_shared_state* result) noexcept : result_(result) {}
+    inline explicit set_exception_func(future_shared_state* result) noexcept : result_(result) {}
 
-    explicit set_exception_func(const future_shared_state_ptr& result) noexcept : result_(result) {}
+    inline explicit set_exception_func(const future_shared_state_ptr& result) noexcept
+        : result_(result) {}
 
     void operator()(const std::exception_ptr& e) noexcept;
 
@@ -312,33 +314,33 @@ public:
         init_promise
     };
 
-    explicit future_shared_state(future_detail::state* state = nullptr) noexcept
+    inline explicit future_shared_state(future_detail::state* state = nullptr) noexcept
         : state_(state), promise_count_() {}
 
-    explicit future_shared_state(init_promise_tag) noexcept : state_(), promise_count_(1) {}
+    inline explicit future_shared_state(init_promise_tag) noexcept : state_(), promise_count_(1) {}
 
     /// Returns \c true if the Future result is not yet evaluated, otherwise - \c false.
-    bool pending() const noexcept { return pending(state_.load()); }
+    inline bool pending() const noexcept { return pending(state_.load()); }
 
     /// Returns \c true if the Future result has been evaluated to a value (possibly void) or an
     /// exception, otherwise - \c false.
-    bool ready() const noexcept { return !pending(); }
+    inline bool ready() const noexcept { return !pending(); }
 
     /// Returns \c true if the Future result has been evaluated to a value (possibly void),
     /// otherwise - \c false.
-    bool has_value() const noexcept {
+    inline bool has_value() const noexcept {
         const state* const state = state_.load();
         return state && state->id() == state_id::resolved;
     }
 
     /// Returns \c true if the Future result has been evaluated to an exception, otherwise - \c
     /// false.
-    bool has_exception() const noexcept {
+    inline bool has_exception() const noexcept {
         const state* const state = state_.load();
         return state && state->id() == state_id::failed;
     }
 
-    const std::exception_ptr& get_exception_ptr() const {
+    inline const std::exception_ptr& get_exception_ptr() const {
         const state* const state = state_.load();
 
         if (nullptr == state || state->id() != state_id::failed) {
@@ -350,12 +352,12 @@ public:
 
     /// Blocks until the shared state becomes ready. Nothing to report: this call cannot
     /// come back for any other reason.
-    void wait() const {
+    inline void wait() const {
         if (!ready()) event_.wait();
     }
 
     /// Blocks until the shared state becomes ready or \p timeout elapses.
-    future_status wait_for(core::duration timeout) const {
+    inline future_status wait_for(core::duration timeout) const {
         const bool became_ready = ready() || event_.wait_for(timeout);
 
         return became_ready ? future_status::ready : future_status::timeout;
@@ -366,7 +368,7 @@ public:
     ///         another concurrent set_value()/set_exception() call. Since the shared state
     ///         may legitimately be resolved from multiple racing sources (see promise's
     ///         class comment), callers that don't care who won may ignore the result.
-    bool set_value() noexcept {
+    inline bool set_value() noexcept {
         // Owner may be deleted during subsequent calls, so wee need our own pointer.
         future_shared_state_ptr keep_me(this);
 
@@ -397,7 +399,7 @@ public:
     /// Atomically stores the exception pointer into the shared state and makes the state ready.
     /// \return true if this call resolved the state; false if it was already resolved by
     ///         another concurrent set_value()/set_exception() call. May be ignored.
-    bool set_exception(const std::exception_ptr& exception = std::current_exception()) {
+    inline bool set_exception(const std::exception_ptr& exception = std::current_exception()) {
         assert(exception);
 
         if (pending()) {
@@ -414,11 +416,11 @@ public:
         return false;
     }
 
-    bool set_exception(const future_detail::state* failed_state) {
+    inline bool set_exception(const future_detail::state* failed_state) {
         return set_exception(future_detail::failed_state::from(failed_state)->exception_ptr_);
     }
 
-    const state* get() const {
+    inline const state* get() const {
         state* state = state_.load();
 
         if (pending(state)) {
@@ -466,7 +468,7 @@ public:
     bool try_attach_continuation(t_next_pending_state*& new_state, state*& state,
                                  t_callback&& callback, future_shared_state* result) const;
 
-    void increment_promise_count() noexcept { ++promise_count_; }
+    inline void increment_promise_count() noexcept { ++promise_count_; }
 
     void checked_decrement_promise_count();
 
@@ -483,13 +485,13 @@ public:
 protected:
     ~future_shared_state() override;
 
-    static bool pending(const state* state) noexcept {
+    inline static bool pending(const state* state) noexcept {
         return nullptr == state || state_id::pending == state->id();
     }
 
-    static bool ready(const state* state) noexcept { return !pending(state); }
+    inline static bool ready(const state* state) noexcept { return !pending(state); }
 
-    ssize_t decrement_promise_count() { return --promise_count_; }
+    inline ssize_t decrement_promise_count() { return --promise_count_; }
 
     class allocator : public core::noncopyable
     {
@@ -527,7 +529,7 @@ protected:
     }
 
 private:
-    bool resolve(state* new_state) noexcept {
+    inline bool resolve(state* new_state) noexcept {
         using namespace future_detail;
 
         state* const old_state = try_complete(new_state);
@@ -556,7 +558,7 @@ private:
     /// Tries to complete the operation.
     ///
     /// \return the previous state.
-    state* try_complete(state* new_state) noexcept {
+    inline state* try_complete(state* new_state) noexcept {
         assert(new_state);
 
         while (true) {
@@ -569,7 +571,7 @@ private:
         }
     }
 
-    bool ref_cas(state* new_state, state*& old_state) const noexcept {
+    inline bool ref_cas(state* new_state, state*& old_state) const noexcept {
         return state_.compare_exchange_weak(old_state, new_state, std::memory_order_acq_rel,
                                             std::memory_order_acquire);
     }
@@ -876,11 +878,11 @@ void set_value_func<T>::operator()(const T& value) noexcept {
 
 template <>
 struct set_value_func<void> {
-    explicit set_value_func(future_shared_state* result) : result_(result) {}
+    inline explicit set_value_func(future_shared_state* result) : result_(result) {}
 
-    explicit set_value_func(const future_shared_state_ptr& result) : result_(result) {}
+    inline explicit set_value_func(const future_shared_state_ptr& result) : result_(result) {}
 
-    void operator()() const noexcept { result_->set_value(); }
+    inline void operator()() const noexcept { result_->set_value(); }
     future_shared_state_ptr result_;
 };
 

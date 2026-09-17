@@ -23,7 +23,7 @@ public:
 
     void init(size_t heap_size = InitialHeapSize) noexcept;
 
-    bool initialized() noexcept { return heap_ != nullptr; }
+    inline bool initialized() noexcept { return heap_ != nullptr; }
 
     void* alloc(size_t size) noexcept;
 

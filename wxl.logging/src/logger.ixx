@@ -49,18 +49,18 @@ public:
 
     /// The level this logger passes; everything worse than it, and it, go
     /// through. Belongs to the logger's own thread, like the rest of it.
-    severity level() const noexcept { return level_; }
+    inline severity level() const noexcept { return level_; }
 
-    void set_level(severity level) noexcept { level_ = level; }
+    inline void set_level(severity level) noexcept { level_ = level; }
 
-    bool enabled(severity of_message) const noexcept {
+    inline bool enabled(severity of_message) const noexcept {
         return is_enabled(of_message, level_);
     }
 
     /// Both filters in series: the logger's own level and the facility's. The
     /// quieter of the two decides, which is what lets one noisy subsystem be
     /// turned down without touching the logger every other subsystem shares.
-    bool enabled(severity of_message, const facility& where) const noexcept {
+    inline bool enabled(severity of_message, const facility& where) const noexcept {
         return enabled(of_message) && where.enabled(of_message);
     }
 
@@ -168,7 +168,7 @@ public:
     ///@}
 
 protected:
-    explicit base_logger(severity level) noexcept : level_(level) {}
+    inline explicit base_logger(severity level) noexcept : level_(level) {}
 
     /// Hands out the entry the next line is built in, emptied and ready. What
     /// it is differs: the synchronous logger keeps one and reuses it, the
@@ -209,19 +209,19 @@ private:
 class logger final : public base_logger
 {
 public:
-    explicit logger(log_output& output, severity level = severity::info)
+    inline explicit logger(log_output& output, severity level = severity::info)
         : base_logger(level), output_(output) {}
 
-    log_output& output() const noexcept { return output_; }
+    inline log_output& output() const noexcept { return output_; }
 
 protected:
-    log_entry& begin_entry() override {
+    inline log_entry& begin_entry() override {
         entry_.reset();
 
         return entry_;
     }
 
-    void commit_entry(log_entry& entry) override { output_.write(entry); }
+    inline void commit_entry(log_entry& entry) override { output_.write(entry); }
 
 private:
     log_output& output_;

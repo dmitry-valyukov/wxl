@@ -59,7 +59,7 @@ public:
 
     /// Whether the innermost open block is preformatted -- what a tokenizer
     /// asks before deciding how literally to treat its input.
-    bool in_preformatted() const noexcept { return pre_depth_ > 0; }
+    inline bool in_preformatted() const noexcept { return pre_depth_ > 0; }
 
     // ---- the arena ----
 

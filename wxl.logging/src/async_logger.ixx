@@ -99,7 +99,7 @@ public:
     /// lines still inside their window where they are.
     void flush_window();
 
-    core::duration window() const noexcept { return window_; }
+    inline core::duration window() const noexcept { return window_; }
 
 protected:
     void run() override;

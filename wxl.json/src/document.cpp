@@ -189,7 +189,7 @@ core::u8_view parser::read_string() {
         if (c == '"') {
             const std::string_view whole(from, static_cast<std::size_t>(at_ - from));
             ++at_;
-            return core::assume_valid(whole);
+            return core::unicode::assume_valid(whole);
         }
 
         if (c == '\\') break;
@@ -209,7 +209,7 @@ core::u8_view parser::read_string() {
 
         if (c == '"') {
             ++at_;
-            return core::assume_valid(arena_.copy(std::string_view(assembled_)));
+            return core::unicode::assume_valid(arena_.copy(std::string_view(assembled_)));
         }
 
         if (static_cast<unsigned char>(c) < 0x20)
@@ -242,14 +242,14 @@ core::u8_view parser::read_string() {
             // вдвоём эти половины что-то значат. Вторая половина берётся
             // лишь тогда, когда она и правда вторая половина, иначе
             // документ терял бы следующую escape-последовательность.
-            if (core::is_high_surrogate(code) && end_ - at_ >= 6 && at_[0] == '\\' && at_[1] == 'u') {
+            if (core::unicode::is_high_surrogate(code) && end_ - at_ >= 6 && at_[0] == '\\' && at_[1] == 'u') {
                 const char* const pair = at_;
 
                 at_ += 2;
 
                 const char32_t low = read_hex4();
 
-                if (core::is_low_surrogate(low))
+                if (core::unicode::is_low_surrogate(low))
                     code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
                 else
                     at_ = pair;
@@ -258,10 +258,10 @@ core::u8_view parser::read_string() {
             // Половина пары, оставшаяся одна, в UTF-8 не записывается
             // вовсе. Отвергать из-за неё весь документ не за что -- это
             // испорченный символ, а не испорченная грамматика, -- и она
-            // становится U+FFFD, ровно как в wxl::core::repaired.
-            if (core::is_surrogate(code)) code = core::replacement_character;
+            // становится U+FFFD, ровно как в wxl::core::unicode::repaired.
+            if (core::unicode::is_surrogate(code)) code = core::unicode::replacement_character;
 
-            core::append_utf8(assembled_, code);
+            core::unicode::append_utf8(assembled_, code);
             break;
         }
         default: fail("неизвестная escape-последовательность", escape);
@@ -478,7 +478,7 @@ const value& document::load_file(const std::filesystem::path& path) {
     // Имя файла Windows -- просто последовательность 16-битных чисел, и
     // непарный суррогат в ней ничем не запрещён. В сообщение об ошибке оно
     // попадает почищенным, а не как есть.
-    std::string name(core::repaired(path.wstring()).to_utf8().chars());
+    std::string name(core::unicode::repaired(path.wstring()).to_utf8().chars());
 
     std::ifstream file(path, std::ios::binary);
 
@@ -501,7 +501,7 @@ const value& document::parse_source() {
     // редактором, шлёт, и в UTF-8 она не значит ничего, кроме «это UTF-8».
     if (text.starts_with("\xEF\xBB\xBF")) text.remove_prefix(3);
 
-    if (const core::nullable<std::size_t> broken = core::find_invalid_utf8(text)) {
+    if (const core::nullable<std::size_t> broken = core::unicode::find_invalid_utf8(text)) {
         const position at = position_of(text.data(), text.data() + *broken);
 
         throw parsing_exception(file_name_, at.line, at.column, "документ не в UTF-8",

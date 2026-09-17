@@ -16,9 +16,10 @@ class operation_canceled_exception : public std::runtime_error
     using base = std::runtime_error;
 
 public:
-    operation_canceled_exception() : base("Operation was canceled") {}
-    explicit operation_canceled_exception(const char* message) : base(message) {}
-    explicit operation_canceled_exception(std::string_view message) : base(std::string(message)) {}
+    inline operation_canceled_exception() : base("Operation was canceled") {}
+    inline explicit operation_canceled_exception(const char* message) : base(message) {}
+    inline explicit operation_canceled_exception(std::string_view message)
+        : base(std::string(message)) {}
 };
 
 namespace cancellation_detail {
@@ -31,9 +32,9 @@ namespace cancellation_detail {
 class cancellation_state : public core::refcounted_mt
 {
 public:
-    bool canceled() const noexcept { return canceled_.load(std::memory_order_acquire); }
+    inline bool canceled() const noexcept { return canceled_.load(std::memory_order_acquire); }
 
-    void cancel() noexcept { canceled_.store(true, std::memory_order_release); }
+    inline void cancel() noexcept { canceled_.store(true, std::memory_order_release); }
 
 private:
     std::atomic<bool> canceled_{false};
@@ -65,17 +66,17 @@ class cancellation_token
 public:
     cancellation_token() noexcept = default;
 
-    bool is_canceled() const noexcept { return state_ && state_->canceled(); }
+    inline bool is_canceled() const noexcept { return state_ && state_->canceled(); }
 
     /// \throw operation_canceled_exception if cancellation has been requested.
-    void throw_if_canceled() const {
+    inline void throw_if_canceled() const {
         if (is_canceled()) throw operation_canceled_exception();
     }
 
 private:
     friend class cancellation_source;
 
-    explicit cancellation_token(cancellation_detail::cancellation_state* state) noexcept
+    inline explicit cancellation_token(cancellation_detail::cancellation_state* state) noexcept
         : state_(state) {}
 
     cancellation_detail::cancellation_state_ptr state_;
@@ -91,14 +92,13 @@ class cancellation_source
 public:
     /// The reference the state is born with is taken over rather than added
     /// to: objects deriving from refcounted_mt start at a count of one.
-    cancellation_source()
-        : state_(new cancellation_detail::cancellation_state, false) {}
+    inline cancellation_source() : state_(new cancellation_detail::cancellation_state, false) {}
 
-    cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
+    inline cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
 
-    void cancel() noexcept { state_->cancel(); }
+    inline void cancel() noexcept { state_->cancel(); }
 
-    bool is_canceled() const noexcept { return state_->canceled(); }
+    inline bool is_canceled() const noexcept { return state_->canceled(); }
 
 private:
     cancellation_detail::cancellation_state_ptr state_;

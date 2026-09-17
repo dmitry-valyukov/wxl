@@ -194,7 +194,7 @@ void loadSettings(Settings& settings) {
         static_cast<int>(readDword(key, L"Theme", settings.theme.get())), themeNames().size()));
     // The stored title is text from outside -- repaired, not trusted: an odd
     // 16-bit unit in the registry becomes U+FFFD rather than breaking the value.
-    settings.windowTitle.set(wxl::core::repaired(
+    settings.windowTitle.set(wxl::core::unicode::repaired(
         readString(key, L"WindowTitle", std::wstring{settings.windowTitle.get().wchars()})));
 
     ::RegCloseKey(key);

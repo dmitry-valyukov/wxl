@@ -79,12 +79,12 @@ TEST(grapheme, the_conformance_test_is_there) {
     // Every data line of the Unicode 18.0.0 file; a short count means the
     // file went missing or the reader stopped understanding it.
     EXPECT_EQ(conformance().size(), 853u);
-    EXPECT_EQ(wxl::core::grapheme_unicode_version(), "18.0.0");
+    EXPECT_EQ(wxl::core::unicode::grapheme_unicode_version(), "18.0.0");
 }
 
 TEST(grapheme, the_breaker_agrees_with_every_conformance_case) {
     for (const conformance_case& entry : conformance()) {
-        wxl::core::grapheme_breaker breaker;
+        wxl::core::unicode::grapheme_breaker breaker;
 
         for (std::size_t index = 0; index < entry.code_points.size(); ++index) {
             EXPECT_EQ(breaker.breaks_before(entry.code_points[index]), entry.breaks_before[index])
@@ -98,7 +98,7 @@ TEST(grapheme, stepping_over_utf16_finds_every_boundary) {
         std::vector<std::size_t> found{0};
 
         for (std::size_t at = 0; at < entry.text.size();)
-            found.push_back(at = wxl::core::next_grapheme_boundary(entry.text, at));
+            found.push_back(at = wxl::core::unicode::next_grapheme_boundary(entry.text, at));
 
         EXPECT_EQ(found, entry.boundaries) << entry.line;
     }
@@ -112,11 +112,11 @@ TEST(grapheme, the_floor_is_the_last_boundary_not_after_the_offset) {
             for (const std::size_t boundary : entry.boundaries)
                 if (boundary <= at) expected = boundary;
 
-            EXPECT_EQ(wxl::core::floor_grapheme_boundary(entry.text, at), expected)
+            EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(entry.text, at), expected)
                 << "offset " << at << " of: " << entry.line;
         }
 
-        EXPECT_EQ(wxl::core::floor_grapheme_boundary(entry.text, entry.text.size() + 5),
+        EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(entry.text, entry.text.size() + 5),
                   entry.text.size());
     }
 }
@@ -125,37 +125,37 @@ TEST(grapheme, the_letters_a_book_is_made_of) {
     // и with a separate breve, a flag, a family joined by ZWJ, and a
     // Devanagari conjunct: each one letter, and the next letter after it.
     const std::wstring_view short_i = L"\x0438\x0306" L"x";
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(short_i, 0), 2u);
-    EXPECT_EQ(wxl::core::floor_grapheme_boundary(short_i, 1), 0u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(short_i, 0), 2u);
+    EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(short_i, 1), 0u);
 
     const std::wstring_view flags = L"\xD83C\xDDEF\xD83C\xDDF5\xD83C\xDDEB\xD83C\xDDF7";  // JP FR
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(flags, 0), 4u);
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(flags, 4), 8u);
-    EXPECT_EQ(wxl::core::floor_grapheme_boundary(flags, 6), 4u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(flags, 0), 4u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(flags, 4), 8u);
+    EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(flags, 6), 4u);
 
     // MAN ZWJ WOMAN ZWJ GIRL
     const std::wstring_view family = L"\xD83D\xDC68\x200D\xD83D\xDC69\x200D\xD83D\xDC67" L"a";
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(family, 0), 8u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(family, 0), 8u);
 
     // KA VIRAMA SSA
     const std::wstring_view kssa = L"\x0915\x094D\x0937" L"a";
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(kssa, 0), 3u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(kssa, 0), 3u);
 }
 
 TEST(grapheme, a_lone_surrogate_is_a_letter_of_its_own) {
     const std::wstring_view broken = L"a\xDC00" L"b";
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(broken, 0), 1u);
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(broken, 1), 2u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(broken, 0), 1u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(broken, 1), 2u);
 }
 
 TEST(grapheme, checked_text_is_asked_as_it_is) {
     constexpr wxl::core::u16_view short_i = u"\x0438\x0306" u"x";
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(short_i, 0), 2u);
-    EXPECT_EQ(wxl::core::floor_grapheme_boundary(short_i, 1), 0u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(short_i, 0), 2u);
+    EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(short_i, 1), 0u);
 
     const wxl::core::u16_text owned{short_i};
-    EXPECT_EQ(wxl::core::next_grapheme_boundary(owned, 2), 3u);
-    EXPECT_EQ(wxl::core::floor_grapheme_boundary(owned, 3), 3u);
+    EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(owned, 2), 3u);
+    EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(owned, 3), 3u);
 }
 
 }  // namespace

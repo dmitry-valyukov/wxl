@@ -16,7 +16,7 @@ namespace {
 std::string parsed(std::wstring_view input) {
     const html::document doc = rsdn::parse(input);
     const std::wstring wide = html::serialized(doc.root());
-    return std::string(wxl::core::checked(std::wstring_view(wide)).value().to_utf8().chars());
+    return std::string(wxl::core::unicode::checked(std::wstring_view(wide)).value().to_utf8().chars());
 }
 
 TEST(rsdn, inline_formatting) {

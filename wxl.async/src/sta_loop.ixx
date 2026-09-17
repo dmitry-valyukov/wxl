@@ -32,7 +32,7 @@ public:
     sta_signal() = default;
 
     /// The worker's call, at the end of every handover.
-    void set() {
+    inline void set() {
         if (wake_)
             (*wake_)();
         else
@@ -41,7 +41,7 @@ public:
 
     /// The STA side's call, and only in the sleeping shape -- a loop with a
     /// dispatcher behind it has no business blocking the thread that owns it.
-    void wait() {
+    inline void wait() {
         ensure(!wake_ && "sta_loop: a loop driven by a callback never sleeps");
 
         event_.wait();
@@ -60,13 +60,13 @@ public:
     /// lives in the loop's static state, which the pool does not outlive. So
     /// it is handed back while the pool is still standing -- the same thing
     /// wWinMain does with its teardown handler, and for the same reason.
-    void forget_wake() noexcept { wake_.reset(); }
+    inline void forget_wake() noexcept { wake_.reset(); }
 
     /// Whether a callback was given. A sleeping reader is signalled only when
     /// it is really asleep, and a driven one only when it has declared, at the
     /// end of a run_pending(), that it is not looking any more: the channel's
     /// trigger says which, and this says whose declaration it is.
-    bool driven() const noexcept { return static_cast<bool>(wake_); }
+    inline bool driven() const noexcept { return static_cast<bool>(wake_); }
 
 private:
     core::nullable<wake_t> wake_;
@@ -116,12 +116,13 @@ class sta_loop
     class worker : public threaded_component
     {
     public:
-        worker(std::string_view name, thread_group* group) : threaded_component(name, group) {}
+        inline worker(std::string_view name, thread_group* group)
+            : threaded_component(name, group) {}
 
-        ~worker() override { dispose(); }
+        inline ~worker() override { dispose(); }
 
     protected:
-        void run() override {
+        inline void run() override {
             // Built here rather than beside the channels: the reader belongs to
             // the thread that reads, and this is it.
             to_worker_t::reader reader(to_worker_);
@@ -150,7 +151,7 @@ class sta_loop
         /// Closing the channel is what ends run(): it makes the loop above fall
         /// through, and the forced signal wakes the thread if it is asleep in
         /// receive() at that moment.
-        void on_stopping() override {
+        inline void on_stopping() override {
             threaded_component::on_stopping();
 
             to_worker_.close();
@@ -158,7 +159,7 @@ class sta_loop
         }
 
     private:
-        static void execute(async_op* op) {
+        inline static void execute(async_op* op) {
             if (!op->packaged_execute()) return;
 
             // send() signals only when the STA side has said it is not looking:
@@ -198,7 +199,7 @@ public:
     ///
     /// \param worker_name what the worker thread is called in a debugger and in
     ///        a log.
-    static void start(std::string_view worker_name = "sta_loop worker") {
+    inline static void start(std::string_view worker_name = "sta_loop worker") {
         ensure(!worker_ && "sta_loop: the loop is already running");
 
         threads_ = thread_group::create();
@@ -252,7 +253,7 @@ public:
     /// Doing nothing when there is no run is the point rather than an
     /// indulgence: a teardown path has no business knowing how far a startup
     /// path got before it threw.
-    static void stop() {
+    inline static void stop() {
         // TODO: здесь надо продолжать разгребать корутины, которые завершаются.
         // Это ошибка логики.
         if (!worker_) return;
@@ -270,7 +271,7 @@ public:
 
     /// Whether there is a run in progress -- for the infrastructure that starts
     /// and stops it.
-    static bool running() noexcept { return worker_.has_value(); }
+    inline static bool running() noexcept { return worker_.has_value(); }
 
     /// Hands an operation to the worker. The STA thread's call.
     ///
@@ -279,7 +280,7 @@ public:
     /// left to carry the operation and nothing to carry it back with, and a
     /// coroutine that reaches this point was one the caller had promised to
     /// finish before stopping.
-    static void enqueue(core::not_null<async_op> op) { to_worker_.send(op.get()); }
+    inline static void enqueue(core::not_null<async_op> op) { to_worker_.send(op.get()); }
 
     /// Starts an operation whose body is a lambda and returns what the coroutine
     /// awaits.
@@ -319,7 +320,7 @@ public:
     ///
     /// \return `false` on a wakeup with nothing behind it -- the caller loops on a
     ///         condition of its own, as it does with the channel underneath.
-    static bool run_one() {
+    inline static bool run_one() {
         async_op* op = nullptr;
 
         if (!from_worker_reader_.receive(op)) return false;
@@ -333,7 +334,7 @@ public:
 
     /// Runs until the caller's own condition says the work is done -- a task
     /// having finished, usually.
-    static void run_until(auto done) {
+    inline static void run_until(auto done) {
         while (!done()) run_one();
     }
 
@@ -363,7 +364,7 @@ public:
     /// around its own sleep, and this only takes what is there.
     ///
     /// \return how many coroutines were resumed.
-    static std::size_t run_pending() {
+    inline static std::size_t run_pending() {
         std::size_t resumed = 0;
         const bool driven = from_worker_.wakeup().driven();
 

@@ -83,7 +83,7 @@ std::size_t impl::code_point_count(const std::string_view utf8) noexcept {
         at += word_size;
     }
 
-    while (at != end) continuations += is_continuation(*at++) ? 1u : 0u;
+    while (at != end) continuations += unicode::is_continuation(*at++) ? 1u : 0u;
 
     return utf8.size() - continuations;
 }
@@ -144,7 +144,7 @@ std::size_t impl::utf8_size(const std::wstring_view utf16) noexcept {
     while (at != end) {
         const auto value = static_cast<char32_t>(static_cast<std::uint16_t>(*at++));
 
-        bytes += value < 0x80 ? 0u : value < 0x800 ? 1u : is_surrogate(value) ? 1u : 2u;
+        bytes += value < 0x80 ? 0u : value < 0x800 ? 1u : unicode::is_surrogate(value) ? 1u : 2u;
     }
 
     return bytes;
@@ -170,7 +170,7 @@ wchar_t* impl::write_utf16_to(wchar_t* out, const std::string_view utf8) noexcep
 
         if (at == end) break;
 
-        const int size = utf8_sequence_size(*at);
+        const int size = unicode::utf8_sequence_size(*at);
 
         // Not a check of the text -- the caller has vouched for it -- but the
         // one thing that keeps a broken byte from walking the pointer past the
@@ -244,7 +244,7 @@ char* impl::write_utf8_to(char* out, const std::wstring_view utf16) noexcept {
 
         auto code_point = static_cast<char32_t>(static_cast<std::uint16_t>(*at++));
 
-        if (is_high_surrogate(code_point)) {
+        if (unicode::is_high_surrogate(code_point)) {
             ensure(at != end);
 
             const auto low = static_cast<char32_t>(static_cast<std::uint16_t>(*at++));
@@ -270,6 +270,8 @@ char* impl::write_utf8_to(char* out, const std::wstring_view utf16) noexcept {
 
     return out;
 }
+
+namespace unicode {
 
 u16_text repaired(const std::wstring_view utf16) {
     std::u16string result;
@@ -309,5 +311,7 @@ u8_text to_utf8(const std::filesystem::path& path) {
     // that has an answer for a name which is not well-formed.
     return repaired(path.native()).to_utf8();
 }
+
+}  // namespace unicode
 
 }  // namespace wxl::core

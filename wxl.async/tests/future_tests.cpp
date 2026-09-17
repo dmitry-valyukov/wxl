@@ -761,7 +761,7 @@ STRESS_TEST_CASE(future, next_completed_by_value_async_2)
     for (unsigned i = 0; i < thread_count; i++) {
         const std::string name = "nextCompletedByValueAsync_2 # " + std::to_string(i);
 
-        manager->spawn_named(wxl::core::assume_valid(name), next_completed_by_value_async_body,
+        manager->spawn_named(wxl::core::unicode::assume_valid(name), next_completed_by_value_async_body,
                              &enter_barrier, &exit_barrier);
     }
 

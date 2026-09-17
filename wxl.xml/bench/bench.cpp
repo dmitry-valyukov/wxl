@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
             wxl::xml::document p(options);
 
             const auto parse_started = clock::now();
-            const wxl::xml::node& root = p.load(std::move(source), wxl::core::to_utf8(path).chars());
+            const wxl::xml::node& root = p.load(std::move(source), wxl::core::unicode::to_utf8(path).chars());
             times.parse.add(clock::now() - parse_started);
 
             if (round == 0) {

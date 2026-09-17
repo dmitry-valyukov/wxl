@@ -456,7 +456,7 @@ FUTURE_T_TEST_CASE(next_completed_by_value_async)
     for (unsigned i = 0; i < thread_count; i++) {
         const std::string name = "nextCompletedByValueAsync#" + std::to_string(i);
 
-        manager->spawn_named(wxl::core::assume_valid(name), here::next_completed_by_value_async_body,
+        manager->spawn_named(wxl::core::unicode::assume_valid(name), here::next_completed_by_value_async_body,
                              &enter_barrier, &exit_barrier);
     }
 

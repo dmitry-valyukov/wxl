@@ -26,36 +26,36 @@ inline void cpu_pause() noexcept {
 class spin_lock : public noncopyable
 {
 public:
-    explicit spin_lock(std::atomic<ssize_t>& target, bool acquire_lock = true)
+    inline explicit spin_lock(std::atomic<ssize_t>& target, bool acquire_lock = true)
         : target_(target), locked_by_me_(acquire_lock) {
         if (acquire_lock) lock_impl();
     }
 
-    ~spin_lock() {
+    inline ~spin_lock() {
         if (locked_by_me_) {
             assert(target_.load(std::memory_order_relaxed) == 1);
             unlock_impl();
         }
     }
 
-    void lock() {
+    inline void lock() {
         assert(!locked_by_me_);
         lock_impl();
         locked_by_me_ = true;
     }
 
-    bool try_lock(size_t spin_count = 128) {
+    inline bool try_lock(size_t spin_count = 128) {
         assert(!locked_by_me_);
         return (locked_by_me_ = try_lock_impl(spin_count));
     }
 
-    void unlock() {
+    inline void unlock() {
         assert(locked_by_me_);
         unlock_impl();
         locked_by_me_ = false;
     }
 
-    bool locked() const { return locked_by_me_; }
+    inline bool locked() const { return locked_by_me_; }
 
 private:
     void lock_impl() noexcept;

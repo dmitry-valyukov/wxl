@@ -20,7 +20,7 @@ namespace {
 std::string parsed(std::wstring_view input) {
     const document doc = parse(input);
     const std::wstring wide = serialized(doc.root());
-    return std::string(wxl::core::checked(std::wstring_view(wide)).value().to_utf8().chars());
+    return std::string(wxl::core::unicode::checked(std::wstring_view(wide)).value().to_utf8().chars());
 }
 
 TEST(parse, bare_text_stays_bare) {
@@ -121,7 +121,7 @@ TEST(parse, comments_and_declarations_vanish) {
 TEST(parse, utf8_door_matches_wide) {
     const document doc = parse(wxl::core::u8_view(u8"«текст» <b>жирный</b>"));
     const std::wstring wide = serialized(doc.root());
-    EXPECT_EQ(std::string(wxl::core::checked(std::wstring_view(wide)).value().to_utf8().chars()),
+    EXPECT_EQ(std::string(wxl::core::unicode::checked(std::wstring_view(wide)).value().to_utf8().chars()),
               "«текст» <b>жирный</b>");
 }
 
@@ -200,7 +200,7 @@ TEST(parse, tree_owes_the_input_nothing) {
     input.assign(input.size(), L'#');  // scribble over the source
 
     const std::wstring wide = serialized(doc.root());
-    EXPECT_EQ(std::string(wxl::core::checked(std::wstring_view(wide)).value().to_utf8().chars()),
+    EXPECT_EQ(std::string(wxl::core::unicode::checked(std::wstring_view(wide)).value().to_utf8().chars()),
               "<p>живёт <b>дольше</b> входа</p>");
 }
 

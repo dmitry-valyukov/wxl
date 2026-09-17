@@ -44,8 +44,8 @@ public:
     /// \param name The name of this part alone; the full name is built by
     ///             joining the parent's to it with a dot.
     /// \param parent The facility this one is part of, or nullptr for a root.
-    explicit facility(std::string_view name, const facility* parent = nullptr,
-                      severity level = severity::info)
+    inline explicit facility(std::string_view name, const facility* parent = nullptr,
+                             severity level = severity::info)
         : full_name_(parent ? std::string(parent->full_name()) + '.' + std::string(name)
                             : std::string(name)),
           own_size_(name.size()),
@@ -58,24 +58,26 @@ public:
     /// cannot disagree because there is only one string. A name with a dot in
     /// it is stored as given and reads back as given; the dots this class adds
     /// are the ones between the links of the chain.
-    std::string_view name() const noexcept {
+    inline std::string_view name() const noexcept {
         return std::string_view(full_name_).substr(full_name_.size() - own_size_);
     }
 
     /// The whole chain, parents first, dot-separated. This is what a log line
     /// carries.
-    std::string_view full_name() const noexcept { return full_name_; }
+    inline std::string_view full_name() const noexcept { return full_name_; }
 
-    const facility* parent() const noexcept { return parent_; }
+    inline const facility* parent() const noexcept { return parent_; }
 
-    severity level() const noexcept { return level_.load(std::memory_order_relaxed); }
+    inline severity level() const noexcept { return level_.load(std::memory_order_relaxed); }
 
-    void set_level(severity level) noexcept { level_.store(level, std::memory_order_relaxed); }
+    inline void set_level(severity level) noexcept {
+        level_.store(level, std::memory_order_relaxed);
+    }
 
     /// Whether this part of the program is being logged at that level. A
     /// message still has to pass the logger's own level as well -- the two
     /// filters are in series, and the quieter one wins.
-    bool enabled(severity of_message) const noexcept {
+    inline bool enabled(severity of_message) const noexcept {
         return is_enabled(of_message, level());
     }
 

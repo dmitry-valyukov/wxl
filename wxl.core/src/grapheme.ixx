@@ -33,6 +33,8 @@ namespace wxl::core {
 
 export {
 
+namespace unicode {
+
 /// Where letters begin in a stream of code points, fed one at a time.
 ///
 /// A state machine rather than a function of two neighbours, because three of
@@ -79,6 +81,8 @@ std::size_t floor_grapheme_boundary(u16_view text, std::size_t at) noexcept;
 
 /// The Unicode version the property table was generated from.
 std::string_view grapheme_unicode_version() noexcept;
+
+}  // namespace unicode
 
 }  // export
 

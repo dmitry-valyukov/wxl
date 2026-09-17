@@ -110,13 +110,13 @@ public:
     /// Two instances are equal when they refer to the same shared state; operator!= is
     /// synthesized from this one. Comparing the pointers needs no state definition, so this one
     /// can stay here.
-    friend bool operator==(const task_tree& l, const task_tree& r) noexcept {
+    inline friend bool operator==(const task_tree& l, const task_tree& r) noexcept {
         return l.state() == r.state();
     }
 
     /// Diagnostics only, and the reason no std::formatter comes with it: a specialization of one
     /// would be attached to this module, which is not allowed.
-    friend std::ostream& operator<<(std::ostream& s, const task_tree& value) {
+    inline friend std::ostream& operator<<(std::ostream& s, const task_tree& value) {
         return s << "task_tree(" << value.state() << ")";
     }
 
@@ -181,7 +181,7 @@ public:
 
     /// Marks the task as succeeded (if \c error is empty) or as failed (if \c error is \e not
     /// empty).
-    void set_succeeded_or_failed(const std::exception_ptr& error) {
+    inline void set_succeeded_or_failed(const std::exception_ptr& error) {
         if (error)
             set_failed(error);
         else

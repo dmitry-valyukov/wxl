@@ -29,12 +29,12 @@ public:
     ~mutex();
 
     /// True if the calling thread currently owns the mutex.
-    bool is_synchronized() const {
+    inline bool is_synchronized() const {
         return th_id_.load(std::memory_order_relaxed) == current_thread_id();
     }
 
     /// Releases the mutex. Must be called by the owning thread only.
-    void release() {
+    inline void release() {
         assert(is_synchronized());
 
         th_id_.store(0, std::memory_order_release);
@@ -43,21 +43,21 @@ public:
     }
 
     /// Blocks until the mutex is acquired.
-    void acquire() {
+    inline void acquire() {
         if (try_acquire()) [[likely]]
             return;
         acquire_slow();
     }
 
     /// Blocks until the mutex is acquired or \p timeout elapses. Returns false only on timeout.
-    bool try_acquire_for(duration timeout) {
+    inline bool try_acquire_for(duration timeout) {
         if (try_acquire()) [[likely]]
             return true;
         return acquire_slow(timeout);
     }
 
     /// Non-blocking acquire: returns false immediately if not currently free.
-    bool try_acquire() {
+    inline bool try_acquire() {
         thread_id expected = 0;
         return th_id_.compare_exchange_strong(expected, current_thread_id(),
                                               std::memory_order_acquire, std::memory_order_relaxed);
@@ -85,12 +85,12 @@ public:
     ~recursive_mutex();
 
     /// True if the calling thread currently owns the mutex.
-    bool is_synchronized() const {
+    inline bool is_synchronized() const {
         return th_id_.load(std::memory_order_relaxed) == current_thread_id();
     }
 
     /// Releases one level of ownership. Must be called by the owning thread only.
-    void release() {
+    inline void release() {
         assert(is_synchronized());
 
         if (--recursion_count_ > 0) [[unlikely]]
@@ -103,7 +103,7 @@ public:
 
     /// Blocks until the mutex is acquired. Re-entrant: the owning thread may call this
     /// again without blocking, and must call release() the same number of times.
-    void acquire() {
+    inline void acquire() {
         if (try_acquire()) [[likely]]
             return;
         acquire_slow();
@@ -112,14 +112,14 @@ public:
     /// Blocks until the mutex is acquired or \p timeout elapses. Returns false only on timeout.
     /// Re-entrant: the owning thread may call this again without blocking, and must call
     /// release() the same number of times.
-    bool try_acquire_for(duration timeout) {
+    inline bool try_acquire_for(duration timeout) {
         if (try_acquire()) [[likely]]
             return true;
         return acquire_slow(timeout);
     }
 
     /// Non-blocking acquire: returns false immediately if owned by another thread.
-    bool try_acquire() {
+    inline bool try_acquire() {
         const thread_id self = current_thread_id();
 
         if (th_id_.load(std::memory_order_relaxed) == self) {

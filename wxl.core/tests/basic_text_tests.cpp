@@ -11,8 +11,8 @@ import wxl.core;
 
 using namespace std::string_view_literals;
 
-using wxl::core::assume_valid;
-using wxl::core::checked;
+using wxl::core::unicode::assume_valid;
+using wxl::core::unicode::checked;
 using wxl::core::u16_text;
 using wxl::core::u16_view;
 using wxl::core::u8_text;
@@ -63,7 +63,7 @@ std::wstring with_unit(std::wstring_view before, unsigned code_unit, std::wstrin
 /// The same text with U+FFFD where the broken unit was.
 std::string replaced(std::string_view before, std::string_view after) {
     std::string text(before);
-    wxl::core::append_utf8(text, wxl::core::replacement_character);
+    wxl::core::unicode::append_utf8(text, wxl::core::unicode::replacement_character);
     text.append(after);
     return text;
 }
@@ -80,14 +80,14 @@ TEST(basic_text, a_literal_is_checked_where_it_is_written) {
     // No call, no optional, nothing to forget: the conversion happened in the
     // compiler, and a mis-encoded literal would not have got this far.
     EXPECT_EQ(greeting.chars(), "Здравствуйте, 😀"sv);
-    EXPECT_EQ(wxl::core::code_point_count(greeting), 15u);
+    EXPECT_EQ(wxl::core::unicode::code_point_count(greeting), 15u);
 
     EXPECT_EQ(wide_greeting.wchars(), L"Здравствуйте, 😀"sv);
 
     // And the check really is a check -- the same walk the run-time door does.
-    static_assert(!wxl::core::find_invalid_utf8(u8"Съешь ещё"sv).has_value());
-    static_assert(wxl::core::find_invalid_utf8(std::string_view("ab\x80z")).has_value());
-    static_assert(wxl::core::checked(u8"привет"sv).has_value());
+    static_assert(!wxl::core::unicode::find_invalid_utf8(u8"Съешь ещё"sv).has_value());
+    static_assert(wxl::core::unicode::find_invalid_utf8(std::string_view("ab\x80z")).has_value());
+    static_assert(wxl::core::unicode::checked(u8"привет"sv).has_value());
 }
 
 TEST(basic_text, checked_accepts_utf8_and_hands_the_text_back) {
@@ -95,7 +95,7 @@ TEST(basic_text, checked_accepts_utf8_and_hands_the_text_back) {
 
     ASSERT_TRUE(text.has_value());
     EXPECT_EQ(*text, "Съешь ещё этих мягких булок"sv);
-    EXPECT_EQ(wxl::core::code_point_count(*text), 27u);
+    EXPECT_EQ(wxl::core::unicode::code_point_count(*text), 27u);
 }
 
 TEST(basic_text, checked_refuses_broken_utf8) {
@@ -297,7 +297,7 @@ TEST(basic_text, a_string_owns_its_text_and_still_answers_as_a_view) {
 
     // Implicitly, because the guarantee travels with it: this call takes a
     // u8_view and gets one without anybody writing a conversion.
-    EXPECT_EQ(wxl::core::code_point_count(owned), 12u);
+    EXPECT_EQ(wxl::core::unicode::code_point_count(owned), 12u);
 
     const u8_view view = owned;
 
@@ -322,14 +322,14 @@ TEST(basic_text, a_lone_surrogate_becomes_a_replacement_character) {
     // same text writes ED B0 80, which no reader of UTF-8 accepts, and drops
     // the tail as well -- the size pass counts a surrogate half as one unit of
     // a pair that is not there.
-    const u8_text bytes = wxl::core::repaired(with_unit(L"a", 0xDC00, L"z")).to_utf8();
+    const u8_text bytes = wxl::core::unicode::repaired(with_unit(L"a", 0xDC00, L"z")).to_utf8();
 
     EXPECT_EQ(bytes, replaced("a", "z"));
-    EXPECT_FALSE(wxl::core::find_invalid_utf8(bytes.chars()).has_value());
+    EXPECT_FALSE(wxl::core::unicode::find_invalid_utf8(bytes.chars()).has_value());
 }
 
 TEST(basic_text, a_lone_high_surrogate_at_the_end_is_replaced_too) {
-    const u8_text bytes = wxl::core::repaired(with_unit(L"a", 0xD800, L"")).to_utf8();
+    const u8_text bytes = wxl::core::unicode::repaired(with_unit(L"a", 0xD800, L"")).to_utf8();
 
     EXPECT_EQ(bytes, replaced("a", ""));
 }
@@ -338,13 +338,13 @@ TEST(basic_text, repairing_leaves_well_formed_text_alone) {
     const std::wstring pair = with_unit(with_unit(L"a", 0xD83D, L""), 0xDE00, L"z");
 
     for (const std::wstring_view text : {L"привет"sv, std::wstring_view(pair), L""sv})
-        EXPECT_EQ(wxl::core::repaired(text), assume_valid(text).plain());
+        EXPECT_EQ(wxl::core::unicode::repaired(text), assume_valid(text).plain());
 }
 
 TEST(basic_text, a_path_is_utf8_whatever_the_code_page) {
     const std::filesystem::path path = L"m:/wxl/тест.xml";
 
-    EXPECT_EQ(wxl::core::to_utf8(path), "m:/wxl/тест.xml"sv);
+    EXPECT_EQ(wxl::core::unicode::to_utf8(path), "m:/wxl/тест.xml"sv);
 }
 
 }  // namespace

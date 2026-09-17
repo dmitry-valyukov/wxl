@@ -36,9 +36,9 @@ public:
 class null_output final : public log_output
 {
 public:
-    std::string_view id() const noexcept override { return "null"; }
+    inline std::string_view id() const noexcept override { return "null"; }
 
-    void write(const log_entry&) override {}
+    inline void write(const log_entry&) override {}
 
     /// The one every such logger can share: it holds nothing and forgets
     /// everything, so a second instance would be indistinguishable.
@@ -59,7 +59,7 @@ public:
 class multicast_output : public log_output
 {
 public:
-    std::string_view id() const noexcept override { return "multicast"; }
+    inline std::string_view id() const noexcept override { return "multicast"; }
 
     /// Adds an end-point. Subscribing the same output twice is a mistake in the
     /// caller, and is refused as one.
@@ -80,7 +80,7 @@ protected:
     /// that already holds it and is flushing a batch of lines through.
     void write_unlocked(const log_entry& entry);
 
-    core::mutex& outputs_mutex() const noexcept { return mutex_; }
+    inline core::mutex& outputs_mutex() const noexcept { return mutex_; }
 
 private:
     mutable core::mutex mutex_;

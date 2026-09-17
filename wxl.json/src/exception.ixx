@@ -17,7 +17,8 @@ export namespace wxl::json {
 /// остальное здесь.
 class exception : public std::runtime_error {
 public:
-    explicit exception(std::string_view message) : std::runtime_error(std::string(message)) {}
+    inline explicit exception(std::string_view message)
+        : std::runtime_error(std::string(message)) {}
 };
 
 /// Документ не разобрался; несёт место, на котором разбор остановился.
@@ -33,21 +34,21 @@ public:
     /// кавычки, объект без закрывающей скобки, -- местом названо начало, а
     /// не байт, на котором разбор сдался: искать надо там.
     /// @{
-    std::string_view file_name() const noexcept { return file_name_; }
-    int line() const noexcept { return line_; }
-    int column() const noexcept { return column_; }
+    inline std::string_view file_name() const noexcept { return file_name_; }
+    inline int line() const noexcept { return line_; }
+    inline int column() const noexcept { return column_; }
     /// @}
 
     /// Чем документ не угодил, одной строкой и по-русски: «ожидалась
     /// запятая или »}«». Место говорит, куда смотреть, а это -- что там
     /// не так.
-    std::string_view reason() const noexcept { return reason_; }
+    inline std::string_view reason() const noexcept { return reason_; }
 
     /// Где в исходниках самого читателя документ был отвергнут, то есть
     /// какое правило грамматики на нём сдалось. Это для отладки читателя, а
     /// не документа, -- потому и рядом с местом, а не вместо него: вопросы
     /// разные.
-    const std::source_location& rule() const noexcept { return rule_; }
+    inline const std::source_location& rule() const noexcept { return rule_; }
 
 private:
     // Копия, а не вид: исключение вполне переживает разбор, который его

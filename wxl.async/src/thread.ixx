@@ -15,9 +15,9 @@ export namespace wxl::async {
 class thread
 {
 public:
-    static core::thread_id current_thread_id() noexcept { return core::current_thread_id(); }
+    inline static core::thread_id current_thread_id() noexcept { return core::current_thread_id(); }
 
-    static core::thread_id self() noexcept { return core::current_thread_id(); }
+    inline static core::thread_id self() noexcept { return core::current_thread_id(); }
 
     /// Index of the processor the calling thread is currently running on.
     static int current_processor_number() noexcept;
@@ -25,7 +25,7 @@ public:
     /// Suspends the calling thread for the given number of milliseconds.
     static void sleep(size_t milliseconds);
 
-    static void sleep(core::duration timeout) {
+    inline static void sleep(core::duration timeout) {
         sleep(static_cast<size_t>(timeout.total_milliseconds()));
     }
 

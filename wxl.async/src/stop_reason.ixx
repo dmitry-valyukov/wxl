@@ -9,36 +9,25 @@ export namespace wxl::async {
 class stop_reason
 {
 public:
-    static stop_reason stop_requested() {
-        return stop_reason();
-    }
+    inline static stop_reason stop_requested() { return stop_reason(); }
 
     /// \return A stop_reason holding a cached operation_canceled_exception.
     static const stop_reason abort();
 
-    stop_reason(const std::exception_ptr & error = std::exception_ptr()) noexcept
-        : error_(error)
-    {}
+    inline stop_reason(const std::exception_ptr& error = std::exception_ptr()) noexcept
+        : error_(error) {}
 
-    stop_reason(std::string_view reason)
-        : error_(std::make_exception_ptr(std::runtime_error(std::string(reason))))
-    {}
+    inline stop_reason(std::string_view reason)
+        : error_(std::make_exception_ptr(std::runtime_error(std::string(reason)))) {}
 
-    stop_reason(const char * reason)
-        : error_(std::make_exception_ptr(std::runtime_error(reason)))
-    {}
+    inline stop_reason(const char* reason)
+        : error_(std::make_exception_ptr(std::runtime_error(reason))) {}
 
-    const std::exception_ptr & error() const {
-        return error_;
-    }
+    inline const std::exception_ptr& error() const { return error_; }
 
-    bool stopped_by_request() const {
-        return !error_;
-    }
+    inline bool stopped_by_request() const { return !error_; }
 
-    bool stopped_due_to_error() const {
-        return !!error_;
-    }
+    inline bool stopped_due_to_error() const { return !!error_; }
 
     template<class t_exception>
     static stop_reason from(const t_exception & ex) {

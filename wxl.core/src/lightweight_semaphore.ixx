@@ -19,14 +19,12 @@ export namespace wxl::core {
 class lightweight_semaphore : public noncopyable
 {
 public:
-    explicit lightweight_semaphore(int32_t initial_count)
-        : counter_(initial_count)
-        , sema_(0)
-    {
+    inline explicit lightweight_semaphore(int32_t initial_count)
+        : counter_(initial_count), sema_(0) {
         assert(initial_count >= 0);
     }
 
-    void acquire() {
+    inline void acquire() {
         if(counter_.fetch_sub(1, std::memory_order_acquire) > 0)
             return;
 
@@ -34,14 +32,14 @@ public:
     }
 
     /// Blocks until a permit is acquired or \p timeout elapses. Returns false only on timeout.
-    bool try_acquire_for(duration timeout) {
+    inline bool try_acquire_for(duration timeout) {
         if(counter_.fetch_sub(1, std::memory_order_acquire) > 0)
             return true;
 
         return acquire_slow(timeout);
     }
 
-    bool try_acquire() {
+    inline bool try_acquire() {
         int32_t counter = counter_.load(std::memory_order_relaxed);
 
         while(counter > 0) {
@@ -53,7 +51,7 @@ public:
         return false;
     }
 
-    void release() {
+    inline void release() {
         if(counter_.fetch_add(1, std::memory_order_release) < 0)
             sema_.release();
     }

@@ -32,10 +32,14 @@ struct MemberFilter {
     Kind kind = Kind::None;
     std::set<std::string> names;
 
-    static MemberFilter all() { return {Kind::All, {}}; }
-    static MemberFilter none() { return {Kind::None, {}}; }
-    static MemberFilter allow(std::set<std::string> names) { return {Kind::Allow, std::move(names)}; }
-    static MemberFilter deny(std::set<std::string> names) { return {Kind::Deny, std::move(names)}; }
+    inline static MemberFilter all() { return {Kind::All, {}}; }
+    inline static MemberFilter none() { return {Kind::None, {}}; }
+    inline static MemberFilter allow(std::set<std::string> names) {
+        return {Kind::Allow, std::move(names)};
+    }
+    inline static MemberFilter deny(std::set<std::string> names) {
+        return {Kind::Deny, std::move(names)};
+    }
 
     bool allows(std::string_view name) const;
 

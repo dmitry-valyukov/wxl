@@ -88,10 +88,10 @@ template <typename CharT>
 char32_t decode(const std::basic_string_view<CharT> text, std::size_t& at) noexcept {
     const auto unit = static_cast<char32_t>(static_cast<std::uint16_t>(text[at++]));
 
-    if (is_high_surrogate(unit) && at < text.size()) {
+    if (unicode::is_high_surrogate(unit) && at < text.size()) {
         const auto next = static_cast<char32_t>(static_cast<std::uint16_t>(text[at]));
 
-        if (is_low_surrogate(next)) {
+        if (unicode::is_low_surrogate(next)) {
             ++at;
             return 0x10000 + ((unit - 0xD800) << 10) + (next - 0xDC00);
         }
@@ -104,7 +104,7 @@ template <typename CharT>
 std::size_t next_boundary(const std::basic_string_view<CharT> text, std::size_t at) noexcept {
     if (at >= text.size()) return text.size();
 
-    grapheme_breaker breaker;
+    unicode::grapheme_breaker breaker;
     breaker.breaks_before(decode(text, at));
 
     while (at < text.size()) {
@@ -122,7 +122,7 @@ template <typename CharT>
 std::size_t floor_boundary(const std::basic_string_view<CharT> text, const std::size_t at) noexcept {
     if (at >= text.size()) return text.size();
 
-    grapheme_breaker breaker;
+    unicode::grapheme_breaker breaker;
     std::size_t letter = 0;
 
     for (std::size_t position = 0; position <= at;) {
@@ -137,6 +137,8 @@ std::size_t floor_boundary(const std::basic_string_view<CharT> text, const std::
 }
 
 }  // namespace
+
+namespace unicode {
 
 bool grapheme_breaker::breaks_before(const char32_t code_point) noexcept {
     const std::uint8_t properties = properties_of(code_point);
@@ -198,5 +200,7 @@ std::size_t floor_grapheme_boundary(const u16_view text, const std::size_t at) n
 std::string_view grapheme_unicode_version() noexcept {
     return grapheme_table_version;
 }
+
+}  // namespace unicode
 
 }  // namespace wxl::core

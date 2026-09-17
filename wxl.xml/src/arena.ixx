@@ -43,9 +43,11 @@ public:
     /// One arena per parse, and parses repeat -- a chat feed parses per
     /// message -- so the arena itself comes out of the STA pool, the way
     /// wxl.html's per-parse state does.
-    static void* operator new(std::size_t size) { return core::sta_memory_pool::alloc(size); }
+    inline static void* operator new(std::size_t size) {
+        return core::sta_memory_pool::alloc(size);
+    }
 
-    static void operator delete(void* ptr, std::size_t size) noexcept {
+    inline static void operator delete(void* ptr, std::size_t size) noexcept {
         core::sta_memory_pool::free(ptr, size);
     }
 
@@ -83,7 +85,7 @@ public:
     /// Copies text into the arena and hands back the view over the copy. The
     /// arena never moves what it has handed out, so that view stays put for
     /// the tree's whole life.
-    std::string_view copy(const std::string_view text) {
+    inline std::string_view copy(const std::string_view text) {
         if (text.empty()) [[unlikely]]
             return {};
 
@@ -94,7 +96,7 @@ public:
 
     /// Room for `count` bytes, uninitialised, for a caller that writes them
     /// itself.
-    std::span<char> chars(const std::size_t count) {
+    inline std::span<char> chars(const std::size_t count) {
         if (count == 0) [[unlikely]]
             return {};
 

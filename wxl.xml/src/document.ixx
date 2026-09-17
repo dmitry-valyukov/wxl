@@ -32,7 +32,7 @@ std::string read_file(const std::filesystem::path& path);
 /// hiding behind a pointer, because there is nothing left to hide.
 class document {
 public:
-    explicit document(const options& opts = {}) : options_(opts) {}
+    inline explicit document(const options& opts = {}) : options_(opts) {}
 
     document(const document&) = delete;
     document& operator=(const document&) = delete;
@@ -61,15 +61,15 @@ public:
     const node& load_file(const std::filesystem::path& path);
 
     /// The tree of the last load, or nullptr before the first one.
-    const node* root() const noexcept { return root_element_; }
+    inline const node* root() const noexcept { return root_element_; }
 
     /// The file the last load was given, empty when it was not named. This is
     /// where a diagnostic about a node gets the file to name: the node itself
     /// carries only the line and the column.
-    std::string_view file_name() const noexcept { return file_name_; }
+    inline std::string_view file_name() const noexcept { return file_name_; }
 
     /// The version the XML declaration announced; "1.0" when it did not.
-    core::u8_view xml_version() const noexcept { return xml_version_; }
+    inline core::u8_view xml_version() const noexcept { return xml_version_; }
 
 private:
     /// Parses whatever document_ now holds.

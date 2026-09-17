@@ -8,9 +8,9 @@ export namespace wxl::core {
 class traceable
 {
 public:
-    explicit traceable(std::string_view name) noexcept : name_(name) {}
+    inline explicit traceable(std::string_view name) noexcept : name_(name) {}
 
-    const std::string& name() const noexcept { return name_; }
+    inline const std::string& name() const noexcept { return name_; }
 
 private:
     std::string name_;
