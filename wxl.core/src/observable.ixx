@@ -78,6 +78,36 @@ public:
 
     bool remove_change(cookie_t cookie) { return changed_.remove(cookie); }
 
+    /// Follows other fields: whenever any of the sources changes, `fn` -- the
+    /// last argument -- is called with the current values of all of them and
+    /// the result becomes this field's value. It is computed once right here
+    /// too, so the field is in step from the moment it follows rather than
+    /// from the first change after.
+    ///
+    /// The watches live on the sources and point back at this field, so it has
+    /// to be there whenever a source changes -- as it is when all of them are
+    /// fields of one model. They are application watches, which unbind()
+    /// leaves alone. `fn` runs inside a watcher and so must not throw.
+    ///
+    /// Returns the field itself, so its own watch can follow in one expression:
+    ///
+    ///     answer.follow(va, vb, vc, solve).on_change(show);
+    template <class... Args>
+        requires (sizeof...(Args) >= 2)
+    observable& follow(Args&&... args) {
+        auto wire = [this]<std::size_t... I>(std::index_sequence<I...>, auto sources_and_fn) {
+            auto recompute = [this, fn = std::get<sizeof...(I)>(std::move(sources_and_fn)),
+                              ...sources = &std::get<I>(sources_and_fn)]() noexcept {
+                set(fn(sources->get()...));
+            };
+            recompute();
+            (std::get<I>(sources_and_fn).on_change([recompute](auto const&) noexcept { recompute(); }), ...);
+        };
+        wire(std::make_index_sequence<sizeof...(Args) - 1>{},
+             std::forward_as_tuple(std::forward<Args>(args)...));
+        return *this;
+    }
+
     /// Watches for changes on behalf of a binding, the field keeping the watch
     /// rather than handing a cookie back. This is not a convenience over
     /// on_change: a binding's model->control watch *owns the control* -- it

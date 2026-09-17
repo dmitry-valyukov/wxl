@@ -66,7 +66,7 @@ public:
               BorderThickness{1},
               dsl::shadow = ThemeShadow{},
               dsl::translation = {0.0f, 0.0f, 32.0f},
-              Padding{16},
+              Padding{24},
               std::forward<Setters>(setters)...,
           } {}
 

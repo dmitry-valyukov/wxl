@@ -52,13 +52,16 @@ export namespace wxl::core {
 template <typename T>
 bool try_parse(std::string_view text, T& result) noexcept {
     T value{};
+    const char * first = text.data();
+    const char * last = first + text.size();
+    const std::from_chars_result ok {last, std::errc{}};
 
-    const auto [stop, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+    if(std::from_chars(first, last, value) == ok) [[likely]] {
+        result = value;
+        return true;
+    }
 
-    if (error != std::errc{} || stop != text.data() + text.size()) return false;
-
-    result = value;
-    return true;
+    return false;
 }
 
 /// A number and whatever follows it -- the shape a length, a duration or a
