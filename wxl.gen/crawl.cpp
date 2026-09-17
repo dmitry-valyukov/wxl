@@ -351,6 +351,19 @@ struct Crawler {
                         result.property_names.insert(member.name);
                     }
                 }
+                if (auto const setters = profiles.setter_methods.find(full_name(type));
+                    setters != profiles.setter_methods.end()) {
+                    for (auto&& setter : setters->second) {
+                        TypeDef const value_type =
+                            setter.type.empty() ? TypeDef{} : db.find(setter.type);
+                        if (value_type) {
+                            depend(type, value_type);
+                            enqueue(value_type);
+                        }
+                        result.setter_methods[type].push_back({setter, value_type});
+                        result.property_names.insert(setter.method.substr(3));
+                    }
+                }
             }
 
             // Static members are filtered by what the profile said about
@@ -730,6 +743,14 @@ Closure crawl(ProfileSet const& raw_profiles, cache const& db) {
     crawler.split_interfaces();
     crawler.collect_attached();
     crawler.order();
+
+    // The keys of the members wxl's hand-written classes add to the vocabulary
+    // (types.json): the walk meets none of them, and the key enums are flat.
+    for (auto&& property : type_map().hand_written_properties) {
+        crawler.result.property_names.insert(property.name);
+    }
+    crawler.result.event_names.insert(type_map().hand_written_events.begin(),
+                                      type_map().hand_written_events.end());
 
     return std::move(crawler.result);
 }

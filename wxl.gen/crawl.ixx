@@ -85,6 +85,18 @@ struct Closure {
     // and the DSL exactly like the real ones; only the body differs.
     std::map<md::TypeDef, std::vector<Synthetic>> synthetic;
 
+    // A method a profile writes as a tag (see profile.h), with the class it
+    // narrows the value to resolved -- empty when it keeps the parameter's own
+    // type. The narrowed class is pulled into the closure the way a synthetic
+    // member's type is.
+    struct Setter {
+        SetterMethod declaration;
+        md::TypeDef type;
+    };
+
+    // Per class: the methods written as tags on it.
+    std::map<md::TypeDef, std::vector<Setter>> setter_methods;
+
     // Per class: the attached properties its statics declare. In metadata an
     // attached property is nothing but a Set<X>(element, value) / Get<X>
     // pair on the statics interface -- Grid.SetRow, Canvas.SetLeft -- and the

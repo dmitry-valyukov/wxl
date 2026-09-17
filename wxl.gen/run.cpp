@@ -118,6 +118,7 @@ Model build_model(Closure const& closure) {
     model.statics_of = closure.statics;
     model.factories_of = closure.factories;
     model.synthetic_of = closure.synthetic;
+    model.setter_methods_of = closure.setter_methods;
     model.attached_of = closure.attached;
     model.members = closure.members;
     model.property_names = closure.property_names;

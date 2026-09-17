@@ -78,6 +78,22 @@ struct SyntheticMember {
     std::string cpp_include;  // "FluentSymbol.h"
 };
 
+// A method WinRT declares that is a setter in all but name: one argument, no
+// result -- Window.SetTitleBar(UIElement). Only a property gets a tag, so such a
+// method can be called and never written in braces; a profile that names it
+// here gives it one, under the name without "Set" (`titleBar = ...`), whose
+// setter calls the method. The method itself stays as it is.
+//
+// `type` narrows the value to a class of the metadata more specific than the
+// parameter -- TitleBar where the method takes any UIElement -- and with a
+// definite class to build, the tag also takes the braces that build one:
+// `titleBar = { leftHeader = ..., content = ... }`. Empty keeps the parameter's
+// own type and the ordinary assignment.
+struct SetterMethod {
+    std::string method;  // "SetTitleBar", spelled as metadata spells it
+    std::string type;    // "Microsoft.UI.Xaml.Controls.TitleBar", or empty
+};
+
 // One NuGet package a profile draws metadata from. `metadata` names the
 // .winmd files to read out of `metadata_dir` inside the package; when it's
 // empty, every .winmd found there is read.
@@ -118,6 +134,7 @@ struct Profile {
     std::vector<PackageRef> packages;
     std::map<std::string, MemberFilter> types;  // "Microsoft.UI.Xaml.Controls.Button" -> filter
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // by the same type name
+    std::map<std::string, std::vector<SetterMethod>> setter_methods;  // by the same type name
     MemberFilter discovered = MemberFilter::none();
     bool windows_metadata = false;
 };
@@ -150,10 +167,25 @@ struct TypeMap {
         std::string include;        // header defining that value type
     };
 
+    // A property of a class wxl writes by hand -- CompositionWindow's zoom --
+    // which no metadata declares and which the builder syntax is still to
+    // write in braces. The dispatch behind a tag is a template on the object,
+    // so the key and the tag are all it takes; the class declares the member.
+    struct HandWrittenProperty {
+        std::string name;        // "Zoom", as metadata would spell it
+        std::string value_type;  // "double" -- the braced form's type, under namespace wxl
+        std::string include;     // header defining that type, or empty
+    };
+
     std::set<std::string> given_from_above;
     std::set<std::string> implicit_roots;
     std::vector<Projection> projections;
     std::vector<Tag> tags;
+
+    // The same for events -- CompositionWindow's ClientSizeChanged: a key, an
+    // `on...` tag, and an EventAdder calling the class's add_on.../remove_on....
+    std::vector<HandWrittenProperty> hand_written_properties;
+    std::set<std::string> hand_written_events;
 };
 
 // Reads profiles/types.json. Throws std::runtime_error naming the file on
@@ -175,6 +207,7 @@ struct ProfileSet {
     std::vector<std::filesystem::path> resources;  // XAML dictionaries to read
     std::map<std::string, MemberFilter> types;     // roots of the walk
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // properties wxl adds
+    std::map<std::string, std::vector<SetterMethod>> setter_methods;  // methods written as tags
     MemberFilter discovered = MemberFilter::none();
 };
 

@@ -144,5 +144,19 @@
             "wxl": "CharacterSpacing",
             "value": "int32_t"
         }
-    ]
+    ],
+
+    // The vocabulary of the classes wxl writes by hand, where no metadata
+    // declares it. A tag dispatches through a template on the object, so a
+    // key and a tag are all a member of such a class needs to be written in
+    // braces; the class itself declares the member. CompositionWindow is the
+    // one so far: how much its whole content is enlarged, the client size it
+    // took (physical pixels and the scale they are divided by, straight from
+    // WM_SIZE), and the moment its place changed.
+    "handWrittenMembers": {
+        "properties": [
+            { "property": "Zoom", "value": "double" }
+        ],
+        "events": ["ClientSizeChanged", "GeometryChanged"]
+    }
 }

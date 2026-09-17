@@ -173,6 +173,12 @@ declaration declare(Schema::Class const& owner, Schema::Member const& member,
         return {std::move(nested), std::format("{}Tag", member.key)};
     }
 
+    if (member.braced) {
+        return {{},
+                std::format("::wxl::BracedProperty<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
+                            member.key, qualified(member.type), owner.name)};
+    }
+
     return {{}, property_anchor(member.key, member.type, owner.name)};
 }
 

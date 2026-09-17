@@ -152,6 +152,15 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
             continue;
         }
 
+        // A class the tag builds from braces as well as takes built:
+        // `titleBar = { leftHeader = ..., content = ... }`. Only with a
+        // definite type -- a disagreement leaves nothing to build.
+        if (dsl.braced.count(name) && !value_type.empty()) {
+            std::print(file, "inline constexpr BracedProperty<PropertyKey::{}, {}> {};\n", name,
+                       value_type, member_name(name));
+            continue;
+        }
+
         // A property whose declarations disagree on the type gets no
         // definite one, and with it no braced form -- `void` leaves only
         // the deduced assignment.

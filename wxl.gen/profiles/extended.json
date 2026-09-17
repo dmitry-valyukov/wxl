@@ -53,7 +53,36 @@
                 "Destroy",
                 "Changed",
                 "Closing",
-                "Destroying"
+                "Destroying",
+                "TitleBar"
+            ]
+        },
+        "Microsoft.UI.Xaml.Window": {
+            "comment": "Everything base asks for, plus SetTitleBar written as a tag. It is a method in WinRT -- one argument, nothing handed back -- so without this it could be called and never written in braces. Narrowed to the TitleBar control, which is what a title bar with anything interactive in it has to be (it cuts the Passthrough regions), and which lets the tag build one from braces: `titleBar = { leftHeader = ..., content = ... }`. Window.SetTitleBar needs the element to stand in the window's content, so on this window the tag names an element placed there.",
+            "setterMethods": {
+                "SetTitleBar": {
+                    "type": "Microsoft.UI.Xaml.Controls.TitleBar"
+                }
+            }
+        },
+        "Microsoft.UI.Windowing.AppWindowTitleBar": {
+            "comment": "The window's own title bar, which a XAML window shares with its AppWindow: whether the client area runs up into it, how tall the caption buttons the system draws over that area are, and how much room they take on either side. Window.ExtendsContentIntoTitleBar is a wrapper over the property of the same name here; PreferredHeightOption and the insets have no wrapper at all, so an application reaches them through Window.appWindow. The button colours are IReference<Color>, nullable<Color> on this side, and an empty one hands the colour back to the system.",
+            "members": [
+                "ExtendsContentIntoTitleBar",
+                "PreferredHeightOption",
+                "PreferredTheme",
+                "Height",
+                "LeftInset",
+                "RightInset",
+                "ButtonBackgroundColor",
+                "ButtonForegroundColor",
+                "ButtonHoverBackgroundColor",
+                "ButtonHoverForegroundColor",
+                "ButtonPressedBackgroundColor",
+                "ButtonPressedForegroundColor",
+                "ButtonInactiveBackgroundColor",
+                "ButtonInactiveForegroundColor",
+                "ResetToDefault"
             ]
         },
         "Microsoft.UI.Windowing.OverlappedPresenter": {
@@ -185,6 +214,21 @@
             ]
         },
 
+        "Microsoft.UI.Xaml.Controls.TitleBar": {
+            "comment": "The content of a title bar a window has taken over, laid out the way Windows lays it out: headers on either side, content between them, room kept for the caption buttons, a strip that always drags. What makes it more than a Grid is input: it cuts Passthrough regions for everything interactive inside it, so the buttons in a caption still get their clicks, and it dims itself while the window is inactive. It is handed to the window with setTitleBar; neither hiding the system caption nor drawing the caption buttons is its job.",
+            "members": [
+                "LeftHeader",
+                "Content",
+                "RightHeader",
+                "Title",
+                "Subtitle",
+                "IsBackButtonVisible",
+                "IsBackButtonEnabled",
+                "IsPaneToggleButtonVisible",
+                "BackRequested",
+                "PaneToggleRequested"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.ProgressRing": {
             "excludeMembers": [
                 "TemplateSettings"

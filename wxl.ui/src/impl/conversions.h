@@ -187,6 +187,13 @@ WinRT to_reference(std::optional<bool> const& value, Convert) {
     return value ? WinRT{bool_reference(*value)} : WinRT{nullptr};
 }
 
+// The other types with no spare value -- a Color, whose every bit pattern is a
+// colour -- are std::optional too, and box like the compressed ones.
+template <typename WinRT, typename T, typename Convert>
+WinRT to_reference(std::optional<T> const& value, Convert convert) {
+    return value ? WinRT{convert(*value)} : WinRT{nullptr};
+}
+
 // Coming out, the element type is named by the caller, so the alias works
 // here where it could not above.
 template <typename T, typename WinRT, typename Convert>

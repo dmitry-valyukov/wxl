@@ -522,11 +522,20 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
     auto out = open_output(path);
 
     auto includes = file_includes(ns, classes, group_of, /*impl_side=*/false);
+    // The classes a narrowed setter names are announced rather than included.
+    // Such a class is routinely built on this very group -- Window.titleBar
+    // takes a TitleBar, whose header includes this one for FrameworkElement --
+    // and a declaration taking a reference needs the name alone.
+    std::set<std::string> announced;
     for (auto&& info : classes) {
         for (auto&& member : info.members) {
             if (!member.returns_void) {
                 includes.insert(member.result.public_includes.begin(),
                                 member.result.public_includes.end());
+            }
+            if (member.braced) {
+                announced.insert(member.params.front().type.value_type);
+                continue;
             }
             for (auto&& param : member.params) {
                 includes.insert(param.type.public_includes.begin(),
@@ -578,6 +587,9 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
         for (auto&& info : classes) {
             std::print(out, "class {};\n", info.name);
         }
+    }
+    for (auto&& name : announced) {
+        std::print(out, "class {};\n", name);
     }
 
     for (auto&& info : classes) {
@@ -1126,7 +1138,9 @@ struct runtime_class_name_of<{}::{}> {{
                 member.is_static
                     ? std::format("impl::Statics<{}>->{}({})", member.statics_interface,
                                   member.winrt_name, arguments)
-                    : std::format("get<&Impl::{}>().{}({})", member.field, member.winrt_name,
+                    : std::format("get<&Impl::{}>().{}({})", member.field,
+                                  member.method_call.empty() ? member.winrt_name
+                                                             : member.method_call,
                                   arguments);
 
             std::print(out, "\n{} {{\n    {}{};\n}}\n", signature,
@@ -1377,6 +1391,57 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
             }
         }
 
+        // The methods a profile writes as tags. Each becomes a property setter
+        // beside the method it calls, and only a method that is a setter in
+        // all but name qualifies: one argument, nothing handed back, an
+        // instance to call it on.
+        if (auto const setters = model.setter_methods_of.find(info.type);
+            setters != model.setter_methods_of.end()) {
+            for (auto&& [declaration, value_type] : setters->second) {
+                auto const method =
+                    std::find_if(info.members.begin(), info.members.end(), [&](auto&& member) {
+                        return member.kind == member_info::Kind::Forward &&
+                               member.winrt_name == declaration.method;
+                    });
+                if (method == info.members.end()) {
+                    skipped.push_back({declaration.method,
+                                       "setter method: the class declares no such method, or "
+                                       "the profile filtered it out"});
+                    continue;
+                }
+                if (method->is_static || !method->returns_void || method->params.size() != 1 ||
+                    method->is_property_setter) {
+                    skipped.push_back({declaration.method,
+                                       "setter method: not a method taking one argument and "
+                                       "returning nothing"});
+                    continue;
+                }
+
+                member_info setter = *method;
+                setter.winrt_name = declaration.method.substr(3);
+                setter.name = member_name(setter.winrt_name);
+                setter.method_call = declaration.method;
+                setter.is_property_setter = true;
+                if (!declaration.type.empty()) {
+                    auto use = value_type ? map_type(value_type, index)
+                                          : TypeUse{.reason = std::format(
+                                                        "no type {} in the metadata",
+                                                        declaration.type)};
+                    if (!use.supported || !use.is_wrapper) {
+                        skipped.push_back(
+                            {declaration.method,
+                             std::format("setter method: {}",
+                                         use.supported ? declaration.type + " is not a class"
+                                                       : use.reason)});
+                        continue;
+                    }
+                    setter.params.front().type = std::move(use);
+                    setter.braced = true;
+                }
+                info.members.push_back(std::move(setter));
+            }
+        }
+
         // Two interfaces of one class can declare the same name (a revision
         // interface restating a member of the one it supersedes); C++ would
         // see a redeclaration, so the first one wins.
@@ -1529,6 +1594,10 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
             } else {
                 klass.members.push_back({Schema::Member::Kind::Property, member.winrt_name,
                                          member.name, value.value_type});
+                klass.members.back().braced = member.braced;
+            }
+            if (member.braced) {
+                dsl.braced.insert(member.winrt_name);
             }
 
             // A property whose type belongs to it alone is unambiguous as an
@@ -1685,6 +1754,23 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
             dsl.enumerators.emplace(name, enum_members(type));
         }
     }
+
+    // The vocabulary of the classes wxl writes by hand (types.json): no
+    // metadata declares it, and the dispatch behind a tag is a template on the
+    // object, so a key and a tag are all such a member needs. A generated class
+    // that declares the same name with another type leaves no definite one.
+    for (auto&& property : type_map().hand_written_properties) {
+        auto [it, inserted] =
+            dsl.property_value_type.emplace(property.name, property.value_type);
+        if (!inserted && it->second != property.value_type) {
+            it->second.clear();
+        }
+        if (!property.include.empty()) {
+            dsl.includes.insert(property.include);
+        }
+    }
+    dsl.events.insert(type_map().hand_written_events.begin(),
+                      type_map().hand_written_events.end());
 
     write_dsl(out, dsl, emitted);
 
