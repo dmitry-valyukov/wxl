@@ -217,5 +217,5 @@ wxl::Teardown wxl_launched() {
     appWindow.resize({860, 720});
     window.activate();
 
-    return [window](Reason) {};
+    return [window](TeardownReason) {};
 }

@@ -42,5 +42,5 @@ wxl::Teardown wxl_launched() {
     window->activate();
 
     // Захват окна держит его живым столько, сколько работает приложение.
-    return [window](Reason) {};
+    return [window](TeardownReason) {};
 }

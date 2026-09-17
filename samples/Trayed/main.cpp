@@ -923,7 +923,7 @@ wxl::Teardown wxl_launched() {
     auto const app = std::make_shared<Trayed>(commandLineTail());
     app->start();
 
-    return [app](wxl::Reason) {
+    return [app](wxl::TeardownReason) {
         app->stop();
         return app->exitCode();
     };

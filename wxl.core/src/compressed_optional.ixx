@@ -18,6 +18,14 @@ template <typename X>
 concept is_std_optional =
     requires { []<typename W>(const std::optional<W>&) {}(std::declval<const X&>()); };
 
+/// std::optional or compressed_optional: a type whose default value is "nothing". Told by the
+/// template rather than by members, because std::expected has the same members and a default
+/// that holds a value.
+template <typename X>
+concept optional_like = is_std_optional<X> || requires {
+    []<typename W, sentinel<W> S>(const compressed_optional<W, S>&) {}(std::declval<const X&>());
+};
+
 namespace impl {
 
 // The default answer, for a type that has not named a spare value of its own:
@@ -118,8 +126,7 @@ public:
         requires(!std::is_same_v<std::remove_cvref_t<U>, compressed_optional>) &&
                 (!std::is_same_v<std::remove_cvref_t<U>, std::in_place_t>) &&
                 (!std::is_same_v<std::remove_cvref_t<U>, std::nullopt_t>) &&
-                (!requires { typename std::remove_cvref_t<U>::sentinel_provider_type; }) &&
-                (!is_std_optional<U>) && std::is_constructible_v<T, U>
+                (!optional_like<U>) && std::is_constructible_v<T, U>
     constexpr explicit(!std::is_convertible_v<U, T>)
         compressed_optional(U&& value) noexcept(std::is_nothrow_constructible_v<T, U>)
         : value_(std::forward<U>(value)) {}
@@ -189,8 +196,7 @@ public:
     template <typename U = T>
         requires(!std::is_same_v<std::remove_cvref_t<U>, compressed_optional>) &&
                 (!std::is_same_v<std::remove_cvref_t<U>, std::nullopt_t>) &&
-                (!requires { typename std::remove_cvref_t<U>::sentinel_provider_type; }) &&
-                (!is_std_optional<U>) && std::is_constructible_v<T, U> &&
+                (!optional_like<U>) && std::is_constructible_v<T, U> &&
                 std::is_assignable_v<T&, std::decay_t<U>>
     constexpr compressed_optional& operator=(U&& value) noexcept(
         std::is_nothrow_assignable_v<T&, U>) {
