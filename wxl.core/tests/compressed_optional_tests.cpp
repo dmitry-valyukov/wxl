@@ -202,4 +202,13 @@ static_assert(DoubleNaNConst::is_sentinel(DoubleNaNConst::sentinel()),
               "сентинел провайдера обязан узнаваться в compile-time");
 static_assert(!DoubleNaNConst::is_sentinel(5.5), "обычное число — не сентинел");
 
+// optional_like узнаёт два шаблона по имени, а не по членам: у std::expected те же
+// члены, но по умолчанию он держит значение.
+static_assert(optional_like<std::optional<int>>);
+static_assert(optional_like<nullable<int>>);
+static_assert(optional_like<nullable<bool>>);
+static_assert(optional_like<compressed_optional<double, DoubleNaNConst>&>);
+static_assert(!optional_like<int>);
+static_assert(!optional_like<std::expected<int, int>>);
+
 }  // namespace

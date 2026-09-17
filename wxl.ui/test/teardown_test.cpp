@@ -8,9 +8,9 @@
 // this is built like a sample instead: the standard headers first, launch.h
 // last, and the result reported through the exit code.
 //
-// Three facts: a handler that returns nothing means zero, a handler that
-// returns a number names the code (the unsigned one GetExitCodeProcess hands
-// out included), and an empty Teardown is false and zero.
+// Three facts: a handler that returns nothing names no code, a handler that
+// returns a number names it (the unsigned one GetExitCodeProcess hands out
+// included), and an empty Teardown is false.
 
 #include <cstdio>
 #include <utility>
@@ -34,7 +34,6 @@ int main() {
     {
         wxl::Teardown const empty;
         check(!empty, "an empty Teardown is false");
-        check(empty(wxl::Reason::Closed) == 0, "an empty Teardown exits with zero");
     }
 
     {
@@ -45,20 +44,20 @@ int main() {
             seen = reason;
         };
         check(static_cast<bool>(teardown), "a set Teardown is true");
-        check(teardown(wxl::Reason::Error) == 0, "a handler returning nothing means zero");
+        check(!(*teardown)(wxl::Reason::Error), "a handler returning nothing names no code");
         check(calls == 1, "the handler ran once");
         check(seen == wxl::Reason::Error, "the handler saw its reason");
     }
 
     {
         wxl::Teardown const teardown = [](wxl::Reason) { return 42; };
-        check(teardown(wxl::Reason::Closed) == 42, "a handler names the exit code");
+        check((*teardown)(wxl::Reason::Closed) == 42, "a handler names the exit code");
     }
 
     {
         // The shape Trayed is in: GetExitCodeProcess hands back a DWORD.
         wxl::Teardown const teardown = [](wxl::Reason) { return static_cast<unsigned long>(3); };
-        check(teardown(wxl::Reason::Closed) == 3, "an unsigned code is taken too");
+        check((*teardown)(wxl::Reason::Closed) == 3, "an unsigned code is taken too");
     }
 
     {
@@ -66,7 +65,7 @@ int main() {
         wxl::Teardown target = std::move(source);
         check(static_cast<bool>(target), "the move target holds the handler");
         check(!source, "the moved-from source is empty");
-        check(target(wxl::Reason::Closed) == 7, "the moved handler still names its code");
+        check((*target)(wxl::Reason::Closed) == 7, "the moved handler still names its code");
         target = {};
         check(!target, "an assigned-away Teardown is empty");
     }

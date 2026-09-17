@@ -179,7 +179,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // say, or with no handler at all, exits with zero.
     int exitCode = 0;
     if (teardownHandler) {
-        exitCode = teardownHandler(reason);
+        exitCode = (*teardownHandler)(reason).value_or(0);
         teardownHandler = {};
     }
 

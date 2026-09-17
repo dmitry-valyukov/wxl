@@ -42,19 +42,22 @@ concept void_result = requires {
 template <class F, class R, class... Args>
 struct invocable_t<F, R(Args...) noexcept>
     : std::bool_constant<
-          std::is_nothrow_invocable_r_v<R, F&, Args...> &&
-          (!std::is_void_v<R> || void_result<F, Args...>)> {
+          (std::is_nothrow_invocable_r_v<R, F&, Args...> &&
+           (!std::is_void_v<R> || void_result<F, Args...>)) ||
+          (optional_like<R> && std::is_nothrow_invocable_v<F&, Args...> &&
+           void_result<F, Args...>)> {
 };
 
 template <class F, class R, class... Args>
 struct invocable_t<F, R(Args...)>
     : std::bool_constant<
-          std::is_invocable_r_v<R, F&, Args...> &&
-          // is_invocable_r<void, ...> is happy with any result -- to it, void means "the
-          // result is discardable". func_body is stricter: it wraps the call in
-          // `return fn_(...)`, and a void function cannot return a value. So a void
-          // signature here asks for a void result.
-          (!std::is_void_v<R> || void_result<F, Args...>)> {
+          (std::is_invocable_r_v<R, F&, Args...> &&
+           // is_invocable_r<void, ...> is happy with any result -- to it, void means "the
+           // result is discardable". func_body is stricter: it wraps the call in
+           // `return fn_(...)`, and a void function cannot return a value. So a void
+           // signature here asks for a void result.
+           (!std::is_void_v<R> || void_result<F, Args...>)) ||
+          (optional_like<R> && void_result<F, Args...>)> {
 };
 
 }  // namespace impl
@@ -66,6 +69,9 @@ struct invocable_t<F, R(Args...)>
  * subscribed to is declared anyway -- `event<void(int)>`, `function<void(int)>` -- and
  * because an argument list says nothing about the result. At the point of use it reads
  * `template <invocable<void(int)> F>`.
+ *
+ * A signature whose result is optional_like -- `std::optional<int>(Reason)` -- takes a
+ * callable that returns nothing as well, and a call to it answers with the empty value.
  *
  * The value of it is where the error appears: a callable of the wrong shape handed to
  * func_body::create() breaks inside the wrapper it generates, several frames away from the
@@ -136,7 +142,12 @@ public:
             Fn fn_;
             explicit impl(Fn value) : fn_(std::move(value)) {}
             R operator()(T... args) noexcept(NX) override {
-                return fn_(std::forward<T>(args)...);
+                if constexpr (std::is_void_v<R> || !void_result<Fn, T...>) {
+                    return fn_(std::forward<T>(args)...);
+                } else {
+                    fn_(std::forward<T>(args)...);
+                    return R{};
+                }
             }
         };
 
