@@ -1212,14 +1212,15 @@ static_assert(alignof(Color) == 1);
 static_assert(offsetof(Color, A) == 0 && offsetof(Color, R) == 1 && offsetof(Color, G) == 2
               && offsetof(Color, B) == 3);
 
-// CSS hex puts alpha last; the number puts it first.
-static_assert(ARGB{"#dff9f9d8"} == ARGB{0xD8DFF9F9});
-static_assert(ARGB{"#102030"} == ARGB{0xFF102030});
-static_assert(ARGB{"#aBc"} == ARGB{0xFFAABBCC});
-static_assert(ARGB{"#1234"} == ARGB{0x44112233});
+// CSS hex puts alpha last, so it is RGBA and never ARGB.
+static_assert(RGBA{"#dff9f9d8"} == ARGB{0xD8DFF9F9});
+static_assert(RGBA{"#102030"} == ARGB{0xFF102030});
+static_assert(RGBA{"#aBc"} == ARGB{0xFFAABBCC});
+static_assert(RGBA{"#1234"} == ARGB{0x44112233});
+static_assert(!std::is_constructible_v<ARGB, char const (&)[10]>);
 
 [[maybe_unused]] void colour_literals() {
-    Border hex{background = ARGB{"#dff9f9d8"}};
+    Border hex{background = RGBA{"#dff9f9d8"}};
     (void)hex;
 }
 

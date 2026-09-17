@@ -244,8 +244,9 @@ struct solid_color_brush : Color {
 
 // A property that takes a brush takes a colour as well, as CSS does:
 // `background = ARGB{0xFF101215}` is a solid brush of that colour. Only the
-// syntax says so -- Color itself converts to nothing. ARGB has an overload of
-// its own, or the deduced assignment would take it before Color could.
+// syntax says so -- Color itself converts to nothing. ARGB and RGBA have
+// overloads of their own, or the deduced assignment would take them before
+// Color could.
 template <PropertyKey key, typename Owner>
 struct Property<key, Brush, Owner> : impl::PropertyTag<key, Owner> {
     using impl::PropertyTag<key, Owner>::operator=;
@@ -257,6 +258,10 @@ struct Property<key, Brush, Owner> : impl::PropertyTag<key, Owner> {
     }
 
     constexpr SetterOp<key, impl::solid_color_brush, Owner> operator=(ARGB color) const {
+        return {{color}};
+    }
+
+    constexpr SetterOp<key, impl::solid_color_brush, Owner> operator=(RGBA color) const {
         return {{color}};
     }
 };

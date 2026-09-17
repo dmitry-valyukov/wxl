@@ -34,12 +34,14 @@ struct ARGB : Color {
     constexpr ARGB(uint8_t alpha, uint8_t red, uint8_t green, uint8_t blue) noexcept {
         A=alpha; R=red; G=green; B=blue;
     }
+};
 
-    /// CSS hex notation, the form an editor's colour picker reads and writes:
-    /// "#RGB", "#RGBA", "#RRGGBB" or "#RRGGBBAA" -- alpha last, as in CSS.
-    /// Read at compile time, so anything else fails the build.
+/// A colour in CSS hex notation, the form an editor's colour picker reads and
+/// writes: "#RGB", "#RGBA", "#RRGGBB" or "#RRGGBBAA". Alpha comes last, which
+/// is why this is not ARGB. Read at compile time, so anything else fails the build.
+struct RGBA : Color {
     template <std::size_t Size>
-    consteval explicit ARGB(char const (&css)[Size]) {
+    consteval explicit RGBA(char const (&css)[Size]) {
         std::size_t const digits = Size - 2;
         if (css[0] != '#' || css[Size - 1] != '\0'
             || (digits != 3 && digits != 4 && digits != 6 && digits != 8))
