@@ -177,5 +177,5 @@ wxl::Teardown wxl_launched() {
     updateThemeButton(themeButton);
 
     // Capturing the window instance extends its lifetime for the duration of the application.
-    return [window](Reason) {};
+    return [window](TeardownReason) {};
 }

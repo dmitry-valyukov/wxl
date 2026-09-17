@@ -70,8 +70,8 @@ struct invocable_t<F, R(Args...)>
  * because an argument list says nothing about the result. At the point of use it reads
  * `template <invocable<void(int)> F>`.
  *
- * A signature whose result is optional_like -- `std::optional<int>(Reason)` -- takes a
- * callable that returns nothing as well, and a call to it answers with the empty value.
+ * A signature whose result is optional_like -- `std::optional<int>(int)` -- takes a callable
+ * that returns nothing as well, and a call to it answers with the empty value.
  *
  * The value of it is where the error appears: a callable of the wrong shape handed to
  * func_body::create() breaks inside the wrapper it generates, several frames away from the

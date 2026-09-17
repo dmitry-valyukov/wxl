@@ -38,34 +38,36 @@ int main() {
 
     {
         int calls = 0;
-        auto seen = wxl::Reason::Closed;
-        wxl::Teardown const teardown = [&](wxl::Reason reason) {
+        auto seen = wxl::TeardownReason::Closed;
+        wxl::Teardown const teardown = [&](wxl::TeardownReason reason) {
             ++calls;
             seen = reason;
         };
         check(static_cast<bool>(teardown), "a set Teardown is true");
-        check(!(*teardown)(wxl::Reason::Error), "a handler returning nothing names no code");
+        check(!(*teardown)(wxl::TeardownReason::Error), "a handler returning nothing names no code");
         check(calls == 1, "the handler ran once");
-        check(seen == wxl::Reason::Error, "the handler saw its reason");
+        check(seen == wxl::TeardownReason::Error, "the handler saw its reason");
     }
 
     {
-        wxl::Teardown const teardown = [](wxl::Reason) { return 42; };
-        check((*teardown)(wxl::Reason::Closed) == 42, "a handler names the exit code");
+        wxl::Teardown const teardown = [](wxl::TeardownReason) { return 42; };
+        check((*teardown)(wxl::TeardownReason::Closed) == 42, "a handler names the exit code");
     }
 
     {
         // The shape Trayed is in: GetExitCodeProcess hands back a DWORD.
-        wxl::Teardown const teardown = [](wxl::Reason) { return static_cast<unsigned long>(3); };
-        check((*teardown)(wxl::Reason::Closed) == 3, "an unsigned code is taken too");
+        wxl::Teardown const teardown = [](wxl::TeardownReason) {
+            return static_cast<unsigned long>(3);
+        };
+        check((*teardown)(wxl::TeardownReason::Closed) == 3, "an unsigned code is taken too");
     }
 
     {
-        wxl::Teardown source = [](wxl::Reason) { return 7; };
+        wxl::Teardown source = [](wxl::TeardownReason) { return 7; };
         wxl::Teardown target = std::move(source);
         check(static_cast<bool>(target), "the move target holds the handler");
         check(!source, "the moved-from source is empty");
-        check((*target)(wxl::Reason::Closed) == 7, "the moved handler still names its code");
+        check((*target)(wxl::TeardownReason::Closed) == 7, "the moved handler still names its code");
         target = {};
         check(!target, "an assigned-away Teardown is empty");
     }

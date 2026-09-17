@@ -245,5 +245,5 @@ wxl::Teardown wxl_launched() {
     mainWindow.activate();
 
     // Продлеваем жизнь модели
-    return [calcKeeper](Reason) {};
+    return [calcKeeper](TeardownReason) {};
 }

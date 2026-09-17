@@ -17,7 +17,7 @@ namespace wxl {
 // handler is given, because it is the one thing that changes what such a
 // handler does: state worth saving on a normal close is usually not worth
 // writing over good state on the way out of a failure.
-enum class Reason {
+enum class TeardownReason {
     Closed,  // the application closed normally
     Error,   // it is going down because of a failure
 };
@@ -29,7 +29,7 @@ enum class Reason {
 // nothing leaves it at zero; one that hosts another program hands on what that
 // program said. The code is a std::optional<int> rather than a nullable<int>,
 // which spends INT_MIN on its empty state, because an exit code may be any int.
-using Teardown = core::nullable<core::function<std::optional<int>(Reason)>>;
+using Teardown = core::nullable<core::function<std::optional<int>(TeardownReason)>>;
 
 }  // namespace wxl
 
@@ -48,11 +48,11 @@ using Teardown = core::nullable<core::function<std::optional<int>(Reason)>>;
 //     wxl::Teardown wxl_launched() {
 //         auto window = wxl::Window{ /* ... */ };
 //         window.activate();
-//         return [window](wxl::Reason) {};
+//         return [window](wxl::TeardownReason) {};
 //     }
 //
 // A handler that returns an int names the process's exit code -- how a
 // program hosting another one hands on what that one said:
 //
-//     return [app](wxl::Reason) { app->stop(); return app->exitCode(); };
+//     return [app](wxl::TeardownReason) { app->stop(); return app->exitCode(); };
 wxl::Teardown wxl_launched();

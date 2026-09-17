@@ -150,13 +150,13 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
     winrt::init_apartment(winrt::apartment_type::single_threaded);
 
-    auto reason = wxl::Reason::Closed;
+    auto reason = wxl::TeardownReason::Closed;
     try {
         // Returns when the application exits; OnLaunched above runs inside.
         winrt::Microsoft::UI::Xaml::Application::Start(
             [](auto&&) { winrt::make<App>(); });
     } catch (...) {
-        reason = wxl::Reason::Error;
+        reason = wxl::TeardownReason::Error;
     }
     wxl::impl::set_application_launched(false);
 
