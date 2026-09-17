@@ -90,6 +90,30 @@ struct ClientSize {
     float scale;
 };
 
+/// Как картинка заднего фона кроет окно. Свой размер картинки -- в логических
+/// пикселях: на экране 150 % она крупнее в физических и мельче не становится.
+enum class BackgroundFill {
+    UniformToFill,  ///< всё окно, пропорции целы: обрезана по краям, по центру
+    Uniform,        ///< вся картинка, пропорции целы: поля по сторонам, по центру
+    Fill,           ///< всё окно, пропорции теряются
+    None,           ///< своего размера, по центру
+    Tile,           ///< своего размера, плиткой от левого верхнего угла
+    TileMirrored,   ///< плиткой, где каждая вторая копия отражена и швы сходятся
+};
+
+/// Картинка заднего фона: файл, то, как она кроет окно, и цвет под ней.
+/// Относительный путь ищется рядом с исполняемым файлом, как источник Image:
+///
+///     background = BackgroundImage{u"Assets/paper.png", BackgroundFill::Tile}
+///
+/// Цвет виден там, где картинка окна не кроет (None, Uniform), и сквозь её
+/// прозрачные места. Прозрачный по умолчанию -- и там окно сквозит.
+struct BackgroundImage {
+    std::filesystem::path path;
+    BackgroundFill fill = BackgroundFill::UniformToFill;
+    Color color{};
+};
+
 class CompositionWindow {
 public:
     /// Заводит окно: класс без кисти фона, WS_EX_NOREDIRECTIONBITMAP, свой
@@ -138,7 +162,10 @@ public:
     void clearBackground() const;
 
     /// Задний фон -- картинкой из файла. wxl декодирует её (WIC) в
-    /// композиторную поверхность; путь абсолютный.
+    /// композиторную поверхность синхронно: первый экран показывается уже с
+    /// ней. Путь -- как у BackgroundImage; без способа картинка кроет окно
+    /// UniformToFill.
+    void background(BackgroundImage const& image) const;
     void background(std::filesystem::path const& image) const;
 
     /// Задний фон -- готовой поверхностью: так подаётся уже нарисованное,
@@ -148,7 +175,9 @@ public:
     /// Задний фон -- картинкой, загруженной асинхронно (Win2D/TextureCache):
     /// декод идёт на потоках WinRT, задник сменится, когда картинка готова, а
     /// UI не подвисает. Под смену фона на ходу; первый (стартовый) экран ставит
-    /// синхронный background(path). Запускается и забывается.
+    /// синхронный background(path). Запускается и забывается; фон, поставленный
+    /// позже, загрузка не перебивает.
+    void backgroundAsync(BackgroundImage const& image) const;
     void backgroundAsync(std::filesystem::path const& image) const;
 
     /// Куда приложение цепляет визуалы страницы -- над задним фоном, под

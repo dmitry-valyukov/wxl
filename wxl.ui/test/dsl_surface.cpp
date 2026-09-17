@@ -318,6 +318,16 @@ using namespace wxl::dsl;
     CompositionWindow routed{built, page};
     CompositionWindow const legacy{L"App", SizeInt32{820, 560}};
 
+    // The scene's background is a tag as well: a colour, or a picture with the
+    // way it covers the window and the colour under it.
+    CompositionWindow const tiled{
+        background = BackgroundImage{L"Assets/paper.png", BackgroundFill::TileMirrored},
+        page,
+    };
+    CompositionWindow const coloured{background = ARGB{0xFF202020}};
+    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, ARGB{0xFF000000}});
+    (void)coloured;
+
     auto const closeLater = [window] { window.close(); };
     (void)closeLater;
     window.zoom(window.zoom() * 1.1);
