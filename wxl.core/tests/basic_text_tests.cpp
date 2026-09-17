@@ -20,13 +20,22 @@ using wxl::core::u8_view;
 
 namespace {
 
-// What the type is for: text cannot be called checked by accident, and checked
-// text cannot become plain text by accident either. Both are compile-time
-// properties, so both are asserted at compile time.
+// What the type is for: text cannot be called checked by accident. The way out
+// costs nothing, since dropping a guarantee breaks nothing: checked text is
+// plain char or wchar_t text whenever that is what is asked for.
 static_assert(!std::is_constructible_v<u8_view, std::u8string_view>);
 static_assert(!std::is_constructible_v<u8_view, std::string_view>);
 static_assert(!std::is_convertible_v<u8_view, std::u8string_view>);
 static_assert(!std::is_convertible_v<std::u8string_view, u8_view>);
+
+static_assert(std::is_convertible_v<u8_view, std::string_view>);
+static_assert(std::is_convertible_v<u8_view, std::string>);
+static_assert(std::is_convertible_v<u8_text, std::string_view>);
+static_assert(std::is_convertible_v<u8_text, std::string>);
+static_assert(std::is_convertible_v<u16_view, std::wstring_view>);
+static_assert(std::is_convertible_v<u16_view, std::wstring>);
+static_assert(std::is_convertible_v<u16_text, std::wstring_view>);
+static_assert(std::is_convertible_v<u16_text, std::wstring>);
 
 // A string that owns its text answers as a view of the same text, and the view
 // is safe as well -- which is what lets checked text be passed on.
@@ -122,9 +131,8 @@ TEST(basic_text, checked_reads_both_spellings_of_the_same_bytes) {
     EXPECT_EQ(checked(L"привет"sv)->wchars(), checked(u"привет"sv)->wchars());
 }
 
-TEST(basic_text, comparing_is_the_one_thing_that_needs_no_unwrapping) {
-    // What keeps `node.name() == "section"` reading the way it always did: a
-    // comparison answers with a bool, so no guarantee can leak out of it.
+TEST(basic_text, comparing_needs_no_unwrapping) {
+    // What keeps `node.name() == "section"` reading the way it always did.
     EXPECT_TRUE(greeting == "Здравствуйте, 😀"sv);
     EXPECT_FALSE(greeting == "нет"sv);
     EXPECT_TRUE(wide_greeting == L"Здравствуйте, 😀"sv);
@@ -133,6 +141,32 @@ TEST(basic_text, comparing_is_the_one_thing_that_needs_no_unwrapping) {
 
     EXPECT_TRUE(owned == "Здравствуйте, 😀"sv);
     EXPECT_TRUE(u8_view(owned) == greeting);
+    EXPECT_TRUE(owned == greeting);
+    EXPECT_TRUE(greeting == owned);
+
+    const u16_text wide_owned{wide_greeting};
+
+    EXPECT_TRUE(wide_owned == wide_greeting);
+    EXPECT_TRUE(wide_greeting == wide_owned);
+}
+
+TEST(basic_text, checked_text_is_plain_text_where_plain_text_is_asked_for) {
+    const auto narrow = [](std::string_view text) { return text.size(); };
+    const auto wide = [](std::wstring_view text) { return text.size(); };
+
+    const u8_text owned{greeting};
+    const u16_text wide_owned{wide_greeting};
+
+    EXPECT_EQ(narrow(greeting), greeting.size());
+    EXPECT_EQ(narrow(owned), owned.size());
+    EXPECT_EQ(wide(wide_greeting), wide_greeting.size());
+    EXPECT_EQ(wide(wide_owned), wide_owned.size());
+
+    const std::string copied = greeting;
+    const std::wstring wide_copied = wide_owned;
+
+    EXPECT_EQ(copied, "Здравствуйте, 😀"sv);
+    EXPECT_EQ(wide_copied, L"Здравствуйте, 😀"sv);
 }
 
 TEST(basic_text, the_text_is_borrowed_and_not_copied) {

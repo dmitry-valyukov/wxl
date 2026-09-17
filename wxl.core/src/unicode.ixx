@@ -18,9 +18,11 @@ module;
 //
 // The units underneath are char8_t and char16_t, the two types whose whole job
 // is to name an encoding. Nothing else in the tree speaks them and nothing has
-// to: chars(), wchars() and c_str() hand back the ordinary std::string_view,
-// std::wstring_view and const wchar_t* that fmt, the file APIs and Windows
-// take, so the reinterpretation lives here instead of at every boundary.
+// to: checked text converts on its own to the ordinary std::string_view and
+// std::string, std::wstring_view and std::wstring that fmt, the file APIs and
+// Windows take, so the reinterpretation lives here instead of at every
+// boundary. chars(), wchars() and c_str() say the same where a conversion
+// cannot be deduced.
 //
 // Three doors in and no others. A literal is checked where it is written --
 // u8"..." and u"..." convert on their own, at compile time. checked() walks
@@ -390,8 +392,8 @@ public:
 
     static_assert(is_utf8 || is_utf16,
                   "basic_text holds char8_t or char16_t: the units whose type names the "
-                  "encoding. chars(), wchars() and c_str() are how it reaches the rest of "
-                  "the world");
+                  "encoding. It reaches the rest of the world as std::string_view or "
+                  "std::wstring_view, on its own");
 
     /// Empty text is well-formed in every encoding, so the default is as valid
     /// as anything else.
@@ -468,6 +470,32 @@ public:
         requires is_utf16
     {
         return std::wstring_view(reinterpret_cast<const wchar_t*>(text_.data()), text_.size());
+    }
+
+    /// Plain text on its own. Leaving the guarantee breaks nothing, so it is
+    /// written as nothing; only the way in is spelled out.
+    operator std::string_view() const noexcept
+        requires is_utf8
+    {
+        return chars();
+    }
+
+    operator std::wstring_view() const noexcept
+        requires is_utf16
+    {
+        return wchars();
+    }
+
+    operator std::string() const
+        requires is_utf8
+    {
+        return std::string(chars());
+    }
+
+    operator std::wstring() const
+        requires is_utf16
+    {
+        return std::wstring(wchars());
     }
 
     /// The text in that encoding. Asking for the one it is already in costs
@@ -628,6 +656,30 @@ public:
         return std::wstring_view(reinterpret_cast<const wchar_t*>(text_.data()), text_.size());
     }
 
+    operator std::string_view() const noexcept
+        requires is_utf8
+    {
+        return chars();
+    }
+
+    operator std::wstring_view() const noexcept
+        requires is_utf16
+    {
+        return wchars();
+    }
+
+    operator std::string() const
+        requires is_utf8
+    {
+        return std::string(chars());
+    }
+
+    operator std::wstring() const
+        requires is_utf16
+    {
+        return std::wstring(wchars());
+    }
+
     /// Null-terminated, for the calls that take a pointer and no length --
     /// which is most of Windows. std::basic_string keeps the terminator, so
     /// this is the same guarantee its own c_str() gives, read as the character
@@ -665,6 +717,14 @@ public:
         requires is_utf16;
 
     bool operator==(const basic_text&) const = default;
+
+    /// A view and a string compare directly rather than through one of the
+    /// plain conversions, which would all fit equally well. A template, so that
+    /// a literal is not also taken as a view here.
+    template <std::same_as<view_type> View>
+    bool operator==(const View& other) const noexcept {
+        return static_cast<view_type>(*this) == other;
+    }
 
     bool operator==(std::basic_string_view<CharT, Traits> other) const noexcept {
         return std::basic_string_view<CharT, Traits>(text_) == other;
