@@ -34,6 +34,40 @@ struct ARGB : Color {
     constexpr ARGB(uint8_t alpha, uint8_t red, uint8_t green, uint8_t blue) noexcept {
         A=alpha; R=red; G=green; B=blue;
     }
+
+    /// CSS hex notation, the form an editor's colour picker reads and writes:
+    /// "#RGB", "#RGBA", "#RRGGBB" or "#RRGGBBAA" -- alpha last, as in CSS.
+    /// Read at compile time, so anything else fails the build.
+    template <std::size_t Size>
+    consteval explicit ARGB(char const (&css)[Size]) {
+        std::size_t const digits = Size - 2;
+        if (css[0] != '#' || css[Size - 1] != '\0'
+            || (digits != 3 && digits != 4 && digits != 6 && digits != 8))
+            not_css_hex();
+
+        bool const doubled = digits <= 4;
+        auto const channel = [&css, doubled](std::size_t at) {
+            return doubled ? static_cast<uint8_t>(hex(css[1 + at]) * 17)
+                           : static_cast<uint8_t>(hex(css[1 + 2 * at]) * 16 + hex(css[2 + 2 * at]));
+        };
+
+        R = channel(0);
+        G = channel(1);
+        B = channel(2);
+        A = digits == 4 || digits == 8 ? channel(3) : uint8_t{255};
+    }
+
+private:
+    static constexpr int hex(char const digit) {
+        if (digit >= '0' && digit <= '9') return digit - '0';
+        if (digit >= 'a' && digit <= 'f') return digit - 'a' + 10;
+        if (digit >= 'A' && digit <= 'F') return digit - 'A' + 10;
+        not_css_hex();
+        return 0;
+    }
+
+    // Never defined: reaching it while the literal is read is the compile error.
+    static void not_css_hex();
 };
 
 inline static constexpr struct {
