@@ -106,8 +106,8 @@ private:
     static alloc_fn s_alloc_table[TableSize];
     static free_fn s_free_table[TableSize];
 
-    template <unsigned Log2Size>
-    struct free_list;
+    template <unsigned N>
+    struct pool_;
 
     /// Out of line, so the failure path stays out of every caller.
     static void* checked_malloc(size_t size) noexcept;
