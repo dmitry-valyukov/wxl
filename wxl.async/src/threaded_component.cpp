@@ -72,7 +72,7 @@ void threaded_component::on_starting() {
 
         // The component's name is its own -- given in the source or built by the
         // program, never read from anywhere -- so there is nothing here to check.
-        const core::u8_view thread_name = core::assume_valid(name());
+        const core::u8_view thread_name = core::unicode::assume_valid(name());
 
         if (thread_group* group = impl()->group_.get())
             group->spawn_named(thread_name, run_func);

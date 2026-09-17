@@ -59,7 +59,7 @@ public:
     /// \param thread_name is also the debugger-visible name of the OS thread. Checked text,
     ///        so that a name nobody has vouched for is refused here rather than inside the
     ///        thread that was started with it: u8"reader io" needs no call at all, and a name
-    ///        built at run time goes through wxl::core::checked() where it is built.
+    ///        built at run time goes through wxl::core::unicode::checked() where it is built.
     future<void> spawn_named(core::u8_view thread_name, const thread_proc& thread_proc);
     /// @}
 

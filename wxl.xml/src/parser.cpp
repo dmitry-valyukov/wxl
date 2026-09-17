@@ -261,7 +261,7 @@ void parser::add_text(const std::string_view piece, const char* const position,
     const line_column at = place(position);
 
     xml::node* const created = arena_.create<xml::node>(node_type::text, qualified_name{}, at.line, at.column);
-    created->set_value(core::assume_valid(piece));
+    created->set_value(core::unicode::assume_valid(piece));
     parent.add_child(*created);
 }
 
@@ -293,7 +293,7 @@ core::u8_view parser::namespace_for(const std::string_view prefix) const noexcep
     // Backwards: the innermost declaration of a prefix is the one in force.
     for (const namespace_binding& binding : scopes_ | std::views::reverse)
         if (binding.prefix == prefix)
-            return core::assume_valid(binding.uri);
+            return core::unicode::assume_valid(binding.uri);
 
     if (prefix == xml_prefix)
         return xml_namespace;
@@ -312,7 +312,7 @@ core::u8_view parser::namespace_for(const std::string_view prefix) const noexcep
 qualified_name parser::resolve(const std::string_view qualified,
                                         const bool is_attribute) const noexcept {
     const std::size_t colon = qualified.find(':');
-    const core::u8_view name = core::assume_valid(qualified);
+    const core::u8_view name = core::unicode::assume_valid(qualified);
 
     if (colon == std::string_view::npos) {
         if (is_attribute) {
@@ -374,7 +374,7 @@ bool parser::parse_number(char32_t& number) noexcept {
     for (char c = peek(); is_digit(c); c = peek()) {
         // Saturating rather than wrapping: the caller refuses a code point
         // this large, and it must not become a small one on the way there.
-        if (number <= wxl::core::max_code_point)
+        if (number <= wxl::core::unicode::max_code_point)
             number = number * 10 + static_cast<char32_t>(c - '0');
 
         advance();
@@ -390,7 +390,7 @@ bool parser::parse_hex_number(char32_t& number) noexcept {
     number = 0;
 
     for (char c = peek(); is_hex_digit(c); c = peek()) {
-        if (number <= wxl::core::max_code_point)
+        if (number <= wxl::core::unicode::max_code_point)
             number = number * 16 + hex_digit_value(c);
 
         advance();
@@ -465,7 +465,7 @@ bool parser::parse_xml_declaration() {
     if (!parse_version_info(version))
         syntax_error();
 
-    xml_version_ = core::assume_valid(version);
+    xml_version_ = core::unicode::assume_valid(version);
 
     parse_encoding_decl();                                    // optional
     parse_standalone_declaration();                           // optional
@@ -722,14 +722,14 @@ std::string_view parser::parse_reference_text() {
         syntax_error(opening);
     }
 
-    if (!parse_char(';') || code_point > wxl::core::max_code_point ||
-        wxl::core::is_surrogate(code_point))
+    if (!parse_char(';') || code_point > wxl::core::unicode::max_code_point ||
+        wxl::core::unicode::is_surrogate(code_point))
         syntax_error(opening);
 
     // Four bytes at the most, which a string holds without allocating; the
     // arena is what makes the copy last as long as the tree pointing at it.
     std::string bytes;
-    wxl::core::append_utf8(bytes, code_point);
+    wxl::core::unicode::append_utf8(bytes, code_point);
 
     return arena_.copy(bytes);
 }
@@ -888,7 +888,7 @@ node* parser::parse_start_tag(std::size_t& scope_mark) {
     attributes_.reserve(raw_attributes_.size());
 
     for (const raw_attribute& attribute : raw_attributes_)
-        attributes_.emplace_back(resolve(attribute.name, true), core::assume_valid(attribute.value));
+        attributes_.emplace_back(resolve(attribute.name, true), core::unicode::assume_valid(attribute.value));
 
     el->set_attributes(arena_.copy(std::span<const attribute>(attributes_)));
     return el;
@@ -1022,7 +1022,7 @@ node* parser::parse_element() {
 
                     xml::node* const created =
                         arena_.create<xml::node>(node_type::comment, qualified_name{}, at.line, at.column);
-                    created->set_value(core::assume_valid(comment));
+                    created->set_value(core::unicode::assume_valid(comment));
                     f.el->add_child(*created);
                 }
             } else if (std::string_view cdata; parse_cdata(cdata)) {

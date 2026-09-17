@@ -28,7 +28,7 @@ std::wstring load(std::wstring const& path) {
     std::string_view view = bytes;
     if (view.starts_with("\xEF\xBB\xBF")) view.remove_prefix(3);
 
-    const std::optional<core::u8_view> checked = core::checked(view);
+    const std::optional<core::u8_view> checked = core::unicode::checked(view);
     if (!checked) return L"Файл не в UTF-8: " + path;
     return std::wstring{checked->to_utf16().wchars()};
 }

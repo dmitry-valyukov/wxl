@@ -166,7 +166,7 @@ TEST(json, a_surrogate_pair_is_one_character) {
 
 TEST(json, half_a_pair_left_alone_becomes_the_replacement_character) {
     // Испорчен символ, а не грамматика, -- документ читается, символ
-    // становится U+FFFD, как в wxl::core::repaired.
+    // становится U+FFFD, как в wxl::core::unicode::repaired.
     EXPECT_EQ(chars(*parsed(R"("\ud83d")")), "�");
     EXPECT_EQ(chars(*parsed(R"("\ude00")")), "�");
 
