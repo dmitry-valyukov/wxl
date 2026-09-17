@@ -42,13 +42,11 @@ using Teardown = core::nullable<core::function<std::optional<int>(TeardownReason
 //
 // It runs once everything is up, so the declarative UI goes straight into it,
 // and what it returns is what wxl calls on the way down (it may be empty).
-// The returned handler is also what keeps the window alive: capture it there,
-// and it lives exactly as long as the application does.
 //
 //     wxl::Teardown wxl_launched() {
 //         auto window = wxl::Window{ /* ... */ };
 //         window.activate();
-//         return [window](wxl::TeardownReason) {};
+//         return {};
 //     }
 //
 // A handler that returns an int names the process's exit code -- how a

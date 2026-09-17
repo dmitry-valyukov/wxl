@@ -452,6 +452,5 @@ wxl::Teardown wxl_launched() {
     appWindow.resize({1560, 940});
     window.activate();
 
-    // Capturing the window is what keeps it alive for the run.
-    return [window](TeardownReason) {};
+    return {};
 }

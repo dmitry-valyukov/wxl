@@ -1,7 +1,5 @@
 #pragma once
 
-#include <memory>
-
 #include "ui.h"
 #include "Panels.h"
 #include "CompositionWindow.h"

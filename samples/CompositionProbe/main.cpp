@@ -11,14 +11,12 @@ using namespace wxl;
 using namespace wxl::dsl;
 
 wxl::Teardown wxl_launched() {
-    // Окно move-only (владеет своим HWND и островами), поэтому держим в
-    // shared_ptr: Teardown должен захватить его копируемым.
-    auto window = std::make_shared<CompositionWindow>(L"Проба своего окна", SizeInt32{720, 520});
+    CompositionWindow const window{L"Проба своего окна", SizeInt32{720, 520}};
 
     // Задний фон сцены -- визуал композитора, тёмно-бирюзовый: любой белый
     // просвет на нём кричал бы. (Картинкой -- тот же background, синхронно
     // перегрузкой от path или на ходу backgroundAsync через Win2D.)
-    window->background(ARGB{0x1E, 0x3A, 0x3A});
+    window.background(ARGB{0x1E, 0x3A, 0x3A});
 
     // Оснастка приходит островом поверх сцены: прозрачный грид во всё окно с
     // карточкой по центру. Сквозь прозрачные места острова видна сцена под ним.
@@ -37,10 +35,9 @@ wxl::Teardown wxl_launched() {
             },
         },
     };
-    window->content(chrome);
+    window.content(chrome);
 
-    window->activate();
+    window.activate();
 
-    // Захват окна держит его живым столько, сколько работает приложение.
-    return [window](TeardownReason) {};
+    return {};
 }
