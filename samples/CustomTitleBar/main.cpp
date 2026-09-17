@@ -7,13 +7,11 @@
 // zoom enlarges the whole island -- bar, caption buttons and content -- the way
 // a browser zooms a page.
 
-#include "aliases.h"
 #include "CompositionWindow.h"
 #include "Panels.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/brushes.h"
 #include "launch.h"
+#include "ui.h"
 
 using namespace wxl;
 using namespace wxl::dsl;

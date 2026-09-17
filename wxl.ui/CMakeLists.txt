@@ -94,6 +94,7 @@ add_library(wxl.ui STATIC
     src/HaloEffect.h
     src/impl/event_waits.h
     src/aliases.h
+    src/ui.h
     src/Collection.h
     src/Collection.impl.h
     src/Color.h

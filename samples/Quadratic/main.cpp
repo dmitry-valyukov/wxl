@@ -8,11 +8,8 @@
 #include "Bind.h"
 #include "Card.h"
 #include "CompositionWindow.h"
-#include "aliases.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/styles.h"
 #include "launch.h"
+#include "ui.h"
 
 using namespace wxl;
 using namespace wxl::dsl;
