@@ -966,6 +966,26 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
     (void)literal;
 }
 
+// A colour written for a brush is a solid brush of that colour -- in the
+// syntax only: the setter itself still takes a brush and nothing else.
+inline constexpr Preset tinted{background = colors.white, borderBrush = Color{255, 0, 0, 0}};
+
+[[maybe_unused]] void colours_for_brushes() {
+    Border scrim{background = ARGB{0xA0E0E0D0}, tinted};
+    TextBlock ink{foreground = ARGB{0xFF2C3A1C}};
+    Button swatch{borderBrush = colors.gray, background = Color{255, 0, 0, 0}};
+    Apply{scrim, background = colors.transparent};
+
+    (void)ink;
+    (void)swatch;
+}
+
+template <typename Value>
+concept background_takes = requires(Border const& border, Value value) { border.background(value); };
+
+static_assert(!std::is_convertible_v<Color, Brush>);
+static_assert(!background_takes<Color> && !background_takes<ARGB>);
+
 // A hand-written wrapper is read from a sender like any generated control.
 // EventHandler adapts a handler that names the concrete type, and it does so
 // through try_as, which builds the wrapper from an Impl -- so the protected
@@ -1191,6 +1211,18 @@ static_assert(sizeof(Color) == 4);
 static_assert(alignof(Color) == 1);
 static_assert(offsetof(Color, A) == 0 && offsetof(Color, R) == 1 && offsetof(Color, G) == 2
               && offsetof(Color, B) == 3);
+
+// CSS hex puts alpha last, so it is RGBA and never ARGB.
+static_assert(RGBA{"#dff9f9d8"} == ARGB{0xD8DFF9F9});
+static_assert(RGBA{"#102030"} == ARGB{0xFF102030});
+static_assert(RGBA{"#aBc"} == ARGB{0xFFAABBCC});
+static_assert(RGBA{"#1234"} == ARGB{0x44112233});
+static_assert(!std::is_constructible_v<ARGB, char const (&)[10]>);
+
+[[maybe_unused]] void colour_literals() {
+    Border hex{background = RGBA{"#dff9f9d8"}};
+    (void)hex;
+}
 
 // What a string parameter takes. Every spelling of UTF-16 the code has --
 // and the wxl::wstring a getter hands back, so a value read off one control

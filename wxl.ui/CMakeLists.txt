@@ -120,6 +120,7 @@ add_library(wxl.ui STATIC
     src/impl/hresult.h
     src/impl/hresult.cpp
     src/impl/member.h
+    src/impl/member.cpp
     src/geometry.h
     src/impl/bootstrap.h
     src/impl/bootstrap.cpp
