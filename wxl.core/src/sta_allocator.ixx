@@ -43,11 +43,6 @@ public:
         return std::max(1u << (32 - pool_index(size)), MinBlockSize);
     }
 
-    /// Grows a block in place. True if it now holds new_size bytes, and then it is freed with
-    /// new_size. That works when its class is already wide enough, or when it is the last block
-    /// the page cursor handed out and the page still has room behind it.
-    static bool try_extend(void* mem, uint32_t size, uint32_t new_size) noexcept;
-
     inline static void* alloc(size_t size) {
         debug_check_thread();
         const auto size32 = static_cast<uint32_t>(size);
@@ -106,8 +101,8 @@ private:
     static alloc_fn s_alloc_table[TableSize];
     static free_fn s_free_table[TableSize];
 
-    template <unsigned Log2Size>
-    struct free_list;
+    template <unsigned N>
+    struct pool_;
 
     /// Out of line, so the failure path stays out of every caller.
     static void* checked_malloc(size_t size) noexcept;

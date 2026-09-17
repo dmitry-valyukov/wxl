@@ -16,9 +16,9 @@ module;
 // point the standard left out.
 //
 // A buffer of our own was ruled out by measurement. The pool underneath wxl
-// keeps a bump cursor, so a block that is the last one handed out can grow
-// where it stands -- sta_memory_pool::try_extend() does exactly that -- and a
-// buffer built on it would never copy itself. It turns out not to matter: a
+// keeps a bump cursor, so a block that is the last one handed out could grow
+// where it stands, and a buffer built on that would never copy itself. It
+// turns out not to matter: a
 // pool that has been used has free lists, a block from a free list has a
 // neighbour behind it, and only the first buffer in a program's life is on
 // top of the bump. The run that measures it is

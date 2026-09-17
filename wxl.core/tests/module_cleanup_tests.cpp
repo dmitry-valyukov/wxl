@@ -3,10 +3,9 @@
 import std;
 import wxl.core;
 
-// module_cleanup is process-global and one-shot: the first time it winds down
-// -- here driven explicitly by run_now() -- it fires every registered cleanup
-// once and latches, so any registration afterwards runs immediately instead of
-// being deferred. That is why each test below lives in its own process (which
+// module_cleanup is process-global and one-shot: run_now() fires every
+// registered cleanup once and latches, so any registration afterwards runs
+// immediately instead of being deferred. That is why each test below lives in its own process (which
 // gtest_discover_tests gives): once one has called run_now(), no later
 // registration in the same process could observe deferral again.
 

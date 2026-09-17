@@ -34,12 +34,9 @@ namespace {
 wxl::core::nullable<Style> style_cache[std::size(style_names)];
 wxl::core::nullable<Brush> brush_cache[3][std::size(brush_names)];
 
-// Release the cached wrappers before the STA pool their Impls come from is
-// torn down. The pool's destructor drives these cleanups (a resource, at
-// normal priority) and only then frees its pages, so a slot still holding a
-// wrapper is never released against memory already returned to the OS --
-// which is what these static tables' own destruction, at process exit past
-// the pool, would otherwise do.
+// The cached wrappers are released by the cleanup run at the end of wWinMain,
+// after the application's Teardown handler, and not left to the destruction
+// of these tables, which comes after it in an order this file does not control.
 wxl::core::module_cleanup const clear_caches{+[] {
                                                 for (auto& slot : style_cache) slot.reset();
                                                 for (auto& row : brush_cache)

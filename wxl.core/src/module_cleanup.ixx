@@ -5,8 +5,8 @@ import std;
 
 export namespace wxl::core {
 
-/// Registers a callback that runs once, the first time any module_cleanup instance is
-/// destroyed or the process starts terminating -- whichever happens first.
+/// Registers a callback that runs once, when run_now() is called. An instance stays
+/// registered until then, so it has to outlive that call.
 ///
 /// Callbacks are grouped into three ordering categories (first/normal/last); every
 /// callback in one category runs, in LIFO registration order, before any callback in
@@ -35,8 +35,6 @@ public:
         init(nullptr, reinterpret_cast<cleanup_func1*>(func), arg, p);
     }
 
-    ~module_cleanup();
-
     inline static bool process_is_terminating() {
         return s_process_is_terminating.load(std::memory_order_acquire);
     }
@@ -45,9 +43,9 @@ public:
     /// normal, then last), exactly once for the process -- later calls do
     /// nothing. After it returns the shutdown latch is set, so a cleanup
     /// registered afterwards runs at once on registration instead of being
-    /// deferred. wxl calls this from ~sta_memory_pool: a resource that cached
-    /// objects allocated from the pool registers a cleanup and has it run
-    /// while the pool's pages are still mapped, before the pool frees them.
+    /// deferred. A wxl application calls it in one place, at the end of
+    /// wWinMain, after its Teardown handler; a program that never calls it
+    /// never runs its cleanups.
     inline static void run_now() noexcept { execute_at_exit(); }
 
 private:
@@ -55,8 +53,6 @@ private:
     void call_cleanup() const;
 
     static void execute_at_exit();
-
-    struct process_exit_guard;
 
     static std::atomic<bool> s_process_is_terminating;
 
