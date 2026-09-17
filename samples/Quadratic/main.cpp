@@ -167,7 +167,7 @@ wxl::Teardown wxl_launched() {
             StackPanel {
                 orientation.horizontal,
                 spacing = 10,
-                TextBlock {math, u"D² ="},
+                TextBlock {math, u"D ="},
                 TextBox {result, text = Bind{eq->discriminant}},
             },
 
