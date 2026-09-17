@@ -455,5 +455,5 @@ wxl::Teardown wxl_launched() {
     window.activate();
 
     // Capturing the window is what keeps it alive for the run.
-    return [window](Reason) {};
+    return [window](TeardownReason) {};
 }

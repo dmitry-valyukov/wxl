@@ -307,6 +307,34 @@ static_assert(std::is_constructible_v<function<void(int)>, decltype([](int) {})>
 static_assert(!std::is_constructible_v<function<void(int)>, decltype([](std::string) {})>);
 static_assert(!std::is_constructible_v<function<void(int) noexcept>, decltype([](int) {})>);
 
+// A result that can be empty takes a callable that returns nothing; one that
+// cannot be empty does not.
+static_assert(std::is_constructible_v<function<std::optional<int>(int)>, decltype([](int) {})>);
+static_assert(std::is_constructible_v<function<nullable<int>(int)>, decltype([](int) {})>);
+static_assert(std::is_constructible_v<function<std::optional<int>(int) noexcept>,
+                                      decltype([](int) noexcept {})>);
+static_assert(!std::is_constructible_v<function<std::optional<int>(int) noexcept>,
+                                       decltype([](int) {})>);
+static_assert(!std::is_constructible_v<function<int(int)>, decltype([](int) {})>);
+
+TEST(FunctionTest, AnOptionalResultTakesAValueAnOptionalOrNothing) {
+    function<std::optional<int>(int)> const value = [](int n) { return n * 2; };
+    function<std::optional<int>(int)> const maybe = [](int n) -> std::optional<int> {
+        if (n < 0) return std::nullopt;
+        return n;
+    };
+    int calls = 0;
+    function<std::optional<int>(int)> const nothing = [&calls](int) { ++calls; };
+    function<nullable<int>(int)> const nothing_nullable = [](int) {};
+
+    EXPECT_EQ(value(21), 42);
+    EXPECT_EQ(maybe(-1), std::nullopt);
+    EXPECT_EQ(maybe(7), 7);
+    EXPECT_EQ(nothing(1), std::nullopt);
+    EXPECT_EQ(calls, 1);
+    EXPECT_FALSE(nothing_nullable(1).has_value());
+}
+
 // The one way left to call nothing: dereference a nullable that is empty
 // without having asked. That is a mistake in the program, not a case to handle
 // -- there is no result to invent and nothing sensible to do -- so it names the

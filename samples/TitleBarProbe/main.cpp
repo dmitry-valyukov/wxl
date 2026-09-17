@@ -794,7 +794,7 @@ wxl::Teardown wxl_launched() {
     logMetrics("shown");
     logWindows();
 
-    return [](wxl::Reason) {
+    return [](wxl::TeardownReason) {
         say("teardown");
         if (logFile) std::fclose(logFile);
     };

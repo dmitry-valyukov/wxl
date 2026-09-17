@@ -143,22 +143,4 @@ void* sta_memory_pool::checked_malloc(size_t size) noexcept {
     return mem;
 }
 
-bool sta_memory_pool::try_extend(void* mem, unsigned size, unsigned new_size) noexcept {
-    debug_check_thread();
-
-    if (size > MaxBlockSize || new_size > MaxBlockSize) return false;
-
-    const unsigned capacity = block_size(size);
-
-    if (new_size <= capacity) return true;
-
-    const unsigned growth = block_size(new_size) - capacity;
-
-    if (static_cast<std::byte*>(mem) + capacity != s_cursor || s_cursor + growth > s_end)
-        return false;
-
-    s_cursor += growth;
-    return true;
-}
-
 }  // namespace wxl::core
