@@ -17,6 +17,7 @@
 // below. This header therefore stays the same size whatever the profile
 // generates.
 
+#include "../Color.h"
 #include "../Object.h"
 #include "../TaggedValue.h"
 #include "../event_token.h"
@@ -227,6 +228,37 @@ struct Property : impl::PropertyTag<key, Owner> {
 template <PropertyKey key, typename Owner>
 struct Property<key, void, Owner> : impl::PropertyTag<key, Owner> {
     using impl::PropertyTag<key, Owner>::operator=;
+};
+
+class Brush;
+
+namespace impl {
+
+// A solid brush written as its colour. It is still a Color, so a setter that
+// takes a colour itself -- CompositionWindow's background -- gets the colour.
+struct solid_color_brush : Color {
+    operator Brush() const;
+};
+
+}  // namespace impl
+
+// A property that takes a brush takes a colour as well, as CSS does:
+// `background = ARGB{0xFF101215}` is a solid brush of that colour. Only the
+// syntax says so -- Color itself converts to nothing. ARGB has an overload of
+// its own, or the deduced assignment would take it before Color could.
+template <PropertyKey key, typename Owner>
+struct Property<key, Brush, Owner> : impl::PropertyTag<key, Owner> {
+    using impl::PropertyTag<key, Owner>::operator=;
+
+    constexpr SetterOp<key, Brush, Owner> operator=(Brush value) const { return {std::move(value)}; }
+
+    constexpr SetterOp<key, impl::solid_color_brush, Owner> operator=(Color color) const {
+        return {{color}};
+    }
+
+    constexpr SetterOp<key, impl::solid_color_brush, Owner> operator=(ARGB color) const {
+        return {{color}};
+    }
 };
 
 // An event tag, written `On` + the metadata name -- OnClick, OnPointerPressed

@@ -966,6 +966,26 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
     (void)literal;
 }
 
+// A colour written for a brush is a solid brush of that colour -- in the
+// syntax only: the setter itself still takes a brush and nothing else.
+inline constexpr Preset tinted{background = colors.white, borderBrush = Color{255, 0, 0, 0}};
+
+[[maybe_unused]] void colours_for_brushes() {
+    Border scrim{background = ARGB{0xA0E0E0D0}, tinted};
+    TextBlock ink{foreground = ARGB{0xFF2C3A1C}};
+    Button swatch{borderBrush = colors.gray, background = Color{255, 0, 0, 0}};
+    Apply{scrim, background = colors.transparent};
+
+    (void)ink;
+    (void)swatch;
+}
+
+template <typename Value>
+concept background_takes = requires(Border const& border, Value value) { border.background(value); };
+
+static_assert(!std::is_convertible_v<Color, Brush>);
+static_assert(!background_takes<Color> && !background_takes<ARGB>);
+
 // A hand-written wrapper is read from a sender like any generated control.
 // EventHandler adapts a handler that names the concrete type, and it does so
 // through try_as, which builds the wrapper from an Impl -- so the protected
