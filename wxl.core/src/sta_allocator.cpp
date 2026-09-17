@@ -126,13 +126,7 @@ sta_memory_pool::sta_memory_pool() {
     alloc_page();
 }
 
-// Cached wrappers in static storage are released by the CRT after this runs, and a release reads a
-// count that lives in these pages. So the registered cleanups run first, dropping those references
-// while the memory is still there. The pool is not a cleanup itself: the walk reads each cell's
-// link after calling it, and a cell may live in the pool.
 sta_memory_pool::~sta_memory_pool() {
-    module_cleanup::run_now();
-
     for (void* page : s_pages) ::VirtualFree(page, 0, MEM_RELEASE);
 
     s_pages.clear();

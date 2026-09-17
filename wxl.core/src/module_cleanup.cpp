@@ -22,8 +22,6 @@ std::atomic<module_cleanup*>& stack_by_priority(module_cleanup::priority p) {
 
 std::atomic<bool> module_cleanup::s_process_is_terminating{false};
 
-module_cleanup::~module_cleanup() { execute_at_exit(); }
-
 void module_cleanup::init(cleanup_func* f, cleanup_func1* f1, void* arg, priority p) {
     assert(f || f1);
     cleanup_func_ = f;
@@ -78,9 +76,5 @@ void module_cleanup::execute_at_exit() {
         }
     }
 }
-
-struct module_cleanup::process_exit_guard {
-    ~process_exit_guard() { module_cleanup::execute_at_exit(); }
-} s_process_exit_guard;
 
 }  // namespace wxl::core
