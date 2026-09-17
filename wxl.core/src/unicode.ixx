@@ -84,6 +84,13 @@ char* write_utf8_to(char* out, std::wstring_view utf16) noexcept;
 
 export {
 
+/// Unicode itself: code points and their encodings, checks and conversions,
+/// letters. The names are the plain words of the subject -- checked, repaired,
+/// code_points -- and a namespace of their own keeps them from taking the same
+/// words from the code that uses them. The text types stay in wxl::core, where
+/// they are the vocabulary of every signature.
+namespace unicode {
+
 /// The largest code point Unicode defines.
 inline constexpr char32_t max_code_point = 0x10FFFF;
 
@@ -148,6 +155,8 @@ constexpr int utf8_sequence_size(char byte) noexcept {
     return 0;
 }
 
+}  // namespace unicode
+
 // ---- Checking text that came from outside ------------------------------------------
 
 }  // export
@@ -172,7 +181,7 @@ constexpr nullable<std::size_t> scan_utf8(std::basic_string_view<CharT> text) no
 
         if (at == text.size()) break;
 
-        const int size = utf8_sequence_size(static_cast<char>(text[at]));
+        const int size = unicode::utf8_sequence_size(static_cast<char>(text[at]));
 
         if (size == 0 || text.size() - at < static_cast<std::size_t>(size)) return at;
 
@@ -188,7 +197,7 @@ constexpr nullable<std::size_t> scan_utf8(std::basic_string_view<CharT> text) no
 
         if (size == 1) code_point = static_cast<unsigned char>(text[at]);
 
-        if (code_point < smallest_for[size] || !is_scalar_value(code_point)) return at;
+        if (code_point < smallest_for[size] || !unicode::is_scalar_value(code_point)) return at;
 
         at += static_cast<std::size_t>(size);
     }
@@ -203,15 +212,15 @@ constexpr nullable<std::size_t> scan_utf16(std::basic_string_view<CharT> text) n
     for (std::size_t at = 0; at != text.size(); ++at) {
         const auto unit = static_cast<char32_t>(static_cast<std::uint16_t>(text[at]));
 
-        if (!is_surrogate(unit)) continue;
+        if (!unicode::is_surrogate(unit)) continue;
 
         // A pair, or nothing: a low surrogate on its own has no first half to
         // belong to, and a high one at the very end has no second.
-        if (!is_high_surrogate(unit) || at + 1 == text.size()) return at;
+        if (!unicode::is_high_surrogate(unit) || at + 1 == text.size()) return at;
 
         const auto next = static_cast<char32_t>(static_cast<std::uint16_t>(text[at + 1]));
 
-        if (!is_low_surrogate(next)) return at;
+        if (!unicode::is_low_surrogate(next)) return at;
 
         ++at;
     }
@@ -225,17 +234,19 @@ constexpr std::size_t floor_utf16_boundary(std::basic_string_view<CharT> text,
                                            std::size_t at) noexcept {
     if (at >= text.size()) return text.size();
 
-    if (at == 0 || !is_low_surrogate(static_cast<char32_t>(static_cast<std::uint16_t>(text[at]))))
+    if (at == 0 || !unicode::is_low_surrogate(static_cast<char32_t>(static_cast<std::uint16_t>(text[at]))))
         return at;
 
     const auto before = static_cast<char32_t>(static_cast<std::uint16_t>(text[at - 1]));
 
-    return is_high_surrogate(before) ? at - 1 : at;
+    return unicode::is_high_surrogate(before) ? at - 1 : at;
 }
 
 }  // namespace impl
 
 export {
+
+namespace unicode {
 
 /// The offset of the first unit that breaks UTF-8, or nothing if the whole text
 /// is UTF-8. Over-long forms, surrogates and anything above U+10FFFF count as
@@ -294,6 +305,8 @@ constexpr std::size_t floor_code_point_boundary(const std::u16string_view text,
                                                 const std::size_t at) noexcept {
     return impl::floor_utf16_boundary(text, at);
 }
+
+}  // namespace unicode
 
 }  // export
 
@@ -506,9 +519,9 @@ private:
             return true;
 
         if constexpr (is_utf8)
-            return !is_continuation(static_cast<char>(text_[at]));
+            return !unicode::is_continuation(static_cast<char>(text_[at]));
         else
-            return !is_low_surrogate(text_[at]);
+            return !unicode::is_low_surrogate(text_[at]);
     }
 
     plain_type text_;
@@ -569,7 +582,7 @@ public:
     /// through a code point does in substr(): it came from the caller's own
     /// decoding, not from the data.
     void push_back(const char32_t code_point) {
-        ensure(is_scalar_value(code_point));
+        ensure(unicode::is_scalar_value(code_point));
 
         if constexpr (is_utf8)
             impl::push_utf8(text_, code_point);
@@ -672,6 +685,8 @@ public:
 private:
     plain_type text_;
 };
+
+namespace unicode {
 
 /// Text somebody else has already checked: a document wxl.xml validated before
 /// its grammar walked it, a name the file system spelled and the program has
@@ -907,6 +922,8 @@ public:
 private:
     std::string_view text_;
 };
+
+}  // namespace unicode
 
 // ---- The transcoding methods -------------------------------------------------------
 //

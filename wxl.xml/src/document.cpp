@@ -50,12 +50,12 @@ std::string read_file(const std::filesystem::path& path) {
     core::file source = core::file::open_read(path.c_str());
 
     if (!source.opened())
-        throw exception(std::format("cannot open {}", wxl::core::to_utf8(path).chars()));
+        throw exception(std::format("cannot open {}", wxl::core::unicode::to_utf8(path).chars()));
 
     const core::nullable<std::uint64_t> size = source.size();
 
     if (!size)
-        throw exception(std::format("cannot measure {}", wxl::core::to_utf8(path).chars()));
+        throw exception(std::format("cannot measure {}", wxl::core::unicode::to_utf8(path).chars()));
 
     std::string bytes;
 
@@ -68,7 +68,7 @@ std::string read_file(const std::filesystem::path& path) {
                                });
 
     if (bytes.size() != *size)
-        throw exception(std::format("cannot read {}", wxl::core::to_utf8(path).chars()));
+        throw exception(std::format("cannot read {}", wxl::core::unicode::to_utf8(path).chars()));
 
     return bytes;
 }
@@ -128,7 +128,7 @@ const node& document::load(std::istream& source, const std::string_view file_nam
 }
 
 const node& document::load_file(const std::filesystem::path& path) {
-    return load(read_file(path), wxl::core::to_utf8(path).chars());
+    return load(read_file(path), wxl::core::unicode::to_utf8(path).chars());
 }
 
 }  // namespace wxl::xml
