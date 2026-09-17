@@ -34,10 +34,10 @@ public:
     /// exactly one thing to check.
     file() = default;
 
-    file(file&& other) noexcept
+    inline file(file&& other) noexcept
         : handle_(std::exchange(other.handle_, INVALID_HANDLE_VALUE)) {}
 
-    file& operator=(file&& other) noexcept {
+    inline file& operator=(file&& other) noexcept {
         std::swap(handle_, other.handle_);
         return *this;
     }
@@ -45,7 +45,7 @@ public:
     file(const file&) = delete;
     file& operator=(const file&) = delete;
 
-    ~file() { close(); }
+    inline ~file() { close(); }
 
     /// Opens an existing file for reading.
     ///
@@ -60,7 +60,7 @@ public:
     ///        of a path it already has, on the thread where that path lives.
     /// \return the file, opened or not -- ask opened(), and ask the system
     ///         (`GetLastError`) why not, before anything else is called.
-    static file open_read(const wchar_t* path) noexcept {
+    inline static file open_read(const wchar_t* path) noexcept {
         return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                   nullptr, OPEN_EXISTING,
                                   FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
@@ -72,15 +72,15 @@ public:
     /// is whole.
     ///
     /// \param path as in open_read(): the characters, not a `path`.
-    static file create(const wchar_t* path) noexcept {
+    inline static file create(const wchar_t* path) noexcept {
         return file(::CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                                   FILE_ATTRIBUTE_NORMAL, nullptr));
     }
 
-    bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
+    inline bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
 
     /// The file's length, or none when it cannot be had.
-    nullable<std::uint64_t> size() const noexcept {
+    inline nullable<std::uint64_t> size() const noexcept {
         LARGE_INTEGER length{};
 
         if (!opened() || !::GetFileSizeEx(handle_, &length)) return {};
@@ -94,7 +94,7 @@ public:
     ///
     /// It loops because one `ReadFile` is bounded by what a DWORD holds and a
     /// file is not.
-    std::size_t read(std::span<std::byte> into) noexcept {
+    inline std::size_t read(std::span<std::byte> into) noexcept {
         std::size_t done = 0;
 
         while (opened() && done != into.size()) {
@@ -112,7 +112,7 @@ public:
 
     /// Writes the whole buffer, in the same chunks and for the same reason.
     /// \return how much went out; less than asked for means the system refused.
-    std::size_t write(std::span<const std::byte> from) noexcept {
+    inline std::size_t write(std::span<const std::byte> from) noexcept {
         std::size_t done = 0;
 
         while (opened() && done != from.size()) {
@@ -139,18 +139,18 @@ public:
     /// Not a nicety: a file that is about to be renamed over another one has to
     /// be on the disk first, or a power cut leaves the rename done and the
     /// content not.
-    bool flush() noexcept { return opened() && ::FlushFileBuffers(handle_) != 0; }
+    inline bool flush() noexcept { return opened() && ::FlushFileBuffers(handle_) != 0; }
 
-    void close() noexcept {
+    inline void close() noexcept {
         if (opened()) ::CloseHandle(std::exchange(handle_, INVALID_HANDLE_VALUE));
     }
 
     /// For the calls this class does not wrap -- and it wraps only what this
     /// tree asks for.
-    HANDLE native_handle() const noexcept { return handle_; }
+    inline HANDLE native_handle() const noexcept { return handle_; }
 
 private:
-    explicit file(HANDLE handle) noexcept : handle_(handle) {}
+    inline explicit file(HANDLE handle) noexcept : handle_(handle) {}
 
     /// A gigabyte: comfortably inside a DWORD, and round.
     static constexpr std::size_t chunk_limit = 0x4000'0000;

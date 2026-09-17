@@ -32,9 +32,11 @@ public:
     /// belongs. The destructor is virtual, so `delete` through this base reaches
     /// the most derived type's deallocation and hands the pool the size it
     /// actually gave out.
-    static void* operator new(std::size_t size) { return core::sta_memory_pool::alloc(size); }
+    inline static void* operator new(std::size_t size) {
+        return core::sta_memory_pool::alloc(size);
+    }
 
-    static void operator delete(void* mem, std::size_t size) noexcept {
+    inline static void operator delete(void* mem, std::size_t size) noexcept {
         core::sta_memory_pool::free(mem, size);
     }
 
@@ -49,7 +51,7 @@ public:
     ///         when that fires. Which means this is not called once per operation:
     ///         a socket that has taken only part of a message is executed again,
     ///         and a body has to be written knowing it.
-    bool packaged_execute() noexcept {
+    inline bool packaged_execute() noexcept {
         try {
             return execute();
         } catch (...) {
@@ -62,7 +64,7 @@ public:
     /// from await_suspend() -- that is, after the op may already be sitting in the
     /// return channel, and before anything can take it out of there, because taking
     /// it out is the same thread's job.
-    void suspend(std::coroutine_handle<> coro) noexcept { coro_ = coro; }
+    inline void suspend(std::coroutine_handle<> coro) noexcept { coro_ = coro; }
 
     /// The STA thread's call: gives control back to the coroutine that awaited this
     /// op.
@@ -70,15 +72,15 @@ public:
     /// \warning The op is gone by the time this returns. The coroutine resumes
     ///          inside its co_await, and the awaitable holding the op -- and the op
     ///          with it -- is destroyed as that expression ends.
-    void resume() const { coro_.resume(); }
+    inline void resume() const { coro_.resume(); }
 
-    bool has_exception() const noexcept { return error_ != nullptr; }
+    inline bool has_exception() const noexcept { return error_ != nullptr; }
 
 protected:
     /// The work itself, on the worker thread. \see packaged_execute().
     virtual bool execute() = 0;
 
-    void rethrow_if_failed() const {
+    inline void rethrow_if_failed() const {
         if (error_) std::rethrow_exception(error_);
     }
 
@@ -119,7 +121,7 @@ template <>
 class async_op_t<void> : public async_op
 {
 public:
-    void take_result() { rethrow_if_failed(); }
+    inline void take_result() { rethrow_if_failed(); }
 };
 
 /// The simple case: the body is a lambda or a functor, and the result is whatever

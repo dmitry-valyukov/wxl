@@ -835,7 +835,7 @@ u8_text to_utf8(const std::filesystem::path& path);
 /// work out a second time.
 class code_points {
 public:
-    explicit code_points(u8_view utf8) noexcept : text_(utf8.chars()) {}
+    inline explicit code_points(u8_view utf8) noexcept : text_(utf8.chars()) {}
 
     class iterator {
     public:
@@ -874,7 +874,7 @@ public:
         /// Well-formed in its own right: a whole sequence is a whole sequence
         /// wherever it is cut out of, which is why the guarantee travels with
         /// it instead of stopping here.
-        u8_view sequence() const noexcept {
+        inline u8_view sequence() const noexcept {
             return assume_valid(
                 text_.substr(at_, static_cast<std::size_t>(utf8_sequence_size(text_[at_]))));
         }
@@ -902,7 +902,7 @@ public:
     constexpr iterator begin() const noexcept { return iterator(text_, 0); }
     constexpr iterator end() const noexcept { return iterator(text_, text_.size()); }
 
-    u8_view text() const noexcept { return assume_valid(text_); }
+    inline u8_view text() const noexcept { return assume_valid(text_); }
 
 private:
     std::string_view text_;

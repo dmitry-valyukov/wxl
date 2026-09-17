@@ -25,25 +25,25 @@ public:
     /// scheduled with some non-trivial overhead and near-certain loss of cache efficiency.
     ///
     /// @throw std::logic_error if this instance does not refer to a shared state.
-    bool is_ready() const { return checked_state()->ready(); }
+    inline bool is_ready() const { return checked_state()->ready(); }
 
     /// Returns \c true if the asynchronous result associated with this future has a stored
     /// exception, \c false otherwise.
     ///
     /// @throw std::logic_error if this instance does not refer to a shared state.
-    bool has_exception() const { return checked_state()->has_exception(); }
+    inline bool has_exception() const { return checked_state()->has_exception(); }
 
     /// Returns \c true if the asynchronous result associated with this future has a stored value,
     /// \c false otherwise.
     ///
     /// @throw std::logic_error if this instance does not refer to a shared state.
-    bool has_value() const { return checked_state()->has_value(); }
+    inline bool has_value() const { return checked_state()->has_value(); }
 
     /// Returns the stored exception.
     ///
     /// @throw std::logic_error if this instance does not refer to a shared state.
     /// @throw std::logic_error if the operation has *not* finished with an error.
-    const std::exception_ptr& get_exception_ptr() const {
+    inline const std::exception_ptr& get_exception_ptr() const {
         return checked_state()->get_exception_ptr();
     }
 
@@ -54,9 +54,11 @@ public:
     /// use is for each thread that waits on the same shared state to have a \e copy of a future.
     ///
     /// \throw std::logic_error if this instance does not refer to a shared state.
-    void wait() const { checked_state()->wait(); }
+    inline void wait() const { checked_state()->wait(); }
 
-    future_status wait_for(core::duration timeout) const { return checked_state()->wait_for(timeout); }
+    inline future_status wait_for(core::duration timeout) const {
+        return checked_state()->wait_for(timeout);
+    }
     ///@}
 
 protected:
@@ -66,21 +68,21 @@ protected:
 
     future_base(const future_base&) = default;
 
-    future_base(future_base&& other) noexcept : base(std::move(other)) {}
+    inline future_base(future_base&& other) noexcept : base(std::move(other)) {}
 
-    future_base& operator=(const future_base& other)  // Copy assign
+    inline future_base& operator=(const future_base& other)  // Copy assign
     {
         base::operator=(other);
         return *this;
     }
 
-    future_base& operator=(future_base&& other) noexcept  // Move assign
+    inline future_base& operator=(future_base&& other) noexcept  // Move assign
     {
         base::operator=(std::move(other));
         return *this;
     }
 
-    explicit future_base(const future_shared_state* state) noexcept
+    inline explicit future_base(const future_shared_state* state) noexcept
         : shared_state_holder<const future_shared_state>(state) {}
 
 private:
@@ -92,13 +94,13 @@ private:
 class future_accessor
 {
 public:
-    static const future_shared_state* state_of(const future_base& f) { return f.state(); }
+    inline static const future_shared_state* state_of(const future_base& f) { return f.state(); }
 
-    static const future_shared_state* checked_state_of(const future_base& f) {
+    inline static const future_shared_state* checked_state_of(const future_base& f) {
         return f.checked_state();
     }
 
-    static const future_shared_state* checked(const future_shared_state* state) {
+    inline static const future_shared_state* checked(const future_shared_state* state) {
         if (state) return state;
 
         throw_invalid_future();
@@ -522,7 +524,7 @@ public:
     ///         another concurrent set_value()/set_exception() call. May be ignored.
     ///
     /// \exception std:logic_exception if there is no shared state.
-    bool set_exception(const std::exception_ptr& error) {
+    inline bool set_exception(const std::exception_ptr& error) {
         return checked_state()->set_exception(error);
     }
 
@@ -530,15 +532,15 @@ protected:
     using base = shared_state_holder<future_shared_state>;
 
     /// Copy constructor.
-    promise_base(const promise_base& other) : base(other) {
+    inline promise_base(const promise_base& other) : base(other) {
         if (future_shared_state* state = other.state()) state->increment_promise_count();
     }
 
     /// Move constructor.
-    promise_base(promise_base&& other) noexcept : base(std::move(other)) {}
+    inline promise_base(promise_base&& other) noexcept : base(std::move(other)) {}
 
     /// Copy assignmnet.
-    promise_base& operator=(const promise_base& other) {
+    inline promise_base& operator=(const promise_base& other) {
         future_shared_state* const my_state = state();
         future_shared_state* const other_state = other.state();
 
@@ -554,7 +556,7 @@ protected:
     }
 
     /// Move assignmnet.
-    promise_base& operator=(promise_base&& other) noexcept {
+    inline promise_base& operator=(promise_base&& other) noexcept {
         future_shared_state* const my_state = state();
 
         if (my_state) my_state->checked_decrement_promise_count();
@@ -563,17 +565,17 @@ protected:
         return *this;
     }
 
-    explicit promise_base(future_shared_state* state)
+    inline explicit promise_base(future_shared_state* state)
         : shared_state_holder<future_shared_state>(state) {
         if (state) state->increment_promise_count();
     }
 
-    promise_base(future_shared_state* state, future_shared_state::init_promise_tag)
+    inline promise_base(future_shared_state* state, future_shared_state::init_promise_tag)
         : shared_state_holder<future_shared_state>(state) {
         assert(state);
     }
 
-    ~promise_base() {
+    inline ~promise_base() {
         if (future_shared_state* state = base::state()) {
             state->checked_decrement_promise_count();
         }
@@ -647,35 +649,35 @@ class promise<void> : public future_detail::promise_base
     using init_tag = future_shared_state::init_promise_tag;
 
 public:
-    promise() noexcept : base(new future_shared_state(init_tag()), init_tag()) {}
+    inline promise() noexcept : base(new future_shared_state(init_tag()), init_tag()) {}
 
     promise(const promise<void>&) = default;
 
-    promise(promise<void>&& other) noexcept  // Move ctor
+    inline promise(promise<void>&& other) noexcept  // Move ctor
         : base(std::move(other)) {}
 
-    promise<void>& operator=(const promise<void>& other) {  // Copy assign
+    inline promise<void>& operator=(const promise<void>& other) {  // Copy assign
         base::operator=(other);
         return *this;
     }
 
-    promise<void>& operator=(promise<void>&& other) noexcept {  // Move assign
+    inline promise<void>& operator=(promise<void>&& other) noexcept {  // Move assign
         base::operator=(std::move(other));
         return *this;
     }
 
     /// \return true if this call resolved the state; false if it was already resolved by
     ///         another concurrent set_value()/set_exception() call. May be ignored.
-    bool set_value() { return checked_state()->set_value(); }
+    inline bool set_value() { return checked_state()->set_value(); }
 
-    future<void> get_future() const { return future<void>(checked_state()); }
+    inline future<void> get_future() const { return future<void>(checked_state()); }
 
-    void swap(promise<void>& other) { promise_base::swap(other); }
+    inline void swap(promise<void>& other) { promise_base::swap(other); }
 
-    static promise<void> invalid_promise() { return promise(nullptr); }
+    inline static promise<void> invalid_promise() { return promise(nullptr); }
 
 private:
-    explicit promise(future_shared_state* dummy) : promise_base(dummy) {}
+    inline explicit promise(future_shared_state* dummy) : promise_base(dummy) {}
 };
 
 // future utils.

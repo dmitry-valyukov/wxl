@@ -59,18 +59,20 @@ template <>
 class not_null<const void>
 {
 public:
-    explicit not_null(const void* ptr) : ptr_(ptr) { ensure(ptr && "not_null was given a null pointer"); }
+    inline explicit not_null(const void* ptr) : ptr_(ptr) {
+        ensure(ptr && "not_null was given a null pointer");
+    }
 
     template <class T2>
     not_null(const not_null<T2>& ptr) : ptr_(ptr.get()) {}
 
-    [[nodiscard]] const void* get() const noexcept {
+    [[nodiscard]] inline const void* get() const noexcept {
         const void* tmp = ptr_;
         assume(tmp);
         return tmp;
     }
 
-    explicit operator const void*() const noexcept { return get(); }
+    inline explicit operator const void*() const noexcept { return get(); }
 
 private:
     const void* const ptr_;

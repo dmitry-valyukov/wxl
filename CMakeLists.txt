@@ -47,11 +47,6 @@ set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 # grammar sits in one translation unit and there is nothing across a boundary
 # to inline. Executables come out within a percent either way.
 #
-# One thing does lose by this: mpsc_queue's bulk push-and-drain, 6.8-7.2
-# against 6.3-6.4 ns per item, which is atomic_trigger::reset() staying a call
-# instead of folding into a single xchg. That is the one place whole-program
-# optimization earned anything here, and it does not pay for the rest.
-#
 # What it costs is plain: a /GL object carries an intermediate representation
 # instead of machine code, so the build tree grows by an order of magnitude --
 # the static libraries of this tree go from 42 MB to 1.7 GB, wxl.ui.lib

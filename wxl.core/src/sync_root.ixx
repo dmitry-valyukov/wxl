@@ -38,9 +38,9 @@ using sync_root_holder = not_null<intrusive_ptr<sync_root>>;
 class sync_root_guard : public noncopyable
 {
 public:
-    explicit sync_root_guard(not_null<sync_root> root) : sync_root_(root), g_(*root) {}
+    inline explicit sync_root_guard(not_null<sync_root> root) : sync_root_(root), g_(*root) {}
 
-    explicit sync_root_guard(const sync_root_holder& sync_root)
+    inline explicit sync_root_guard(const sync_root_holder& sync_root)
         : sync_root_(sync_root.get()), g_(*sync_root.get()) {}
 
 private:
@@ -53,17 +53,18 @@ private:
 class unlockable_sync_root_guard : public noncopyable
 {
 public:
-    explicit unlockable_sync_root_guard(not_null<sync_root> root, bool acquire_lock = true)
+    inline explicit unlockable_sync_root_guard(not_null<sync_root> root, bool acquire_lock = true)
         : sync_root_(root), g_(*root, acquire_lock) {}
 
-    explicit unlockable_sync_root_guard(const sync_root_holder& sync_root, bool acquire_lock = true)
+    inline explicit unlockable_sync_root_guard(const sync_root_holder& sync_root,
+                                               bool acquire_lock = true)
         : sync_root_(sync_root.get()), g_(*sync_root.get(), acquire_lock) {}
 
-    void lock() { g_.lock(); }
+    inline void lock() { g_.lock(); }
 
-    bool try_lock() { return g_.try_lock(); }
+    inline bool try_lock() { return g_.try_lock(); }
 
-    void unlock() { g_.unlock(); }
+    inline void unlock() { g_.unlock(); }
 
 private:
     sync_root_holder const sync_root_;
@@ -95,7 +96,7 @@ public:
 
     virtual ~synchronized_();
 
-    not_null<core::sync_root> sync_root() const { return sync_root_.get(); }
+    inline not_null<core::sync_root> sync_root() const { return sync_root_.get(); }
 
     /// Usual guard.
     class guard : public sync_root::guard
@@ -103,11 +104,11 @@ public:
         using base = sync_root::guard;
 
     public:
-        explicit guard(not_null<const synchronized_> self) : base(*self->sync_root()) {}
+        inline explicit guard(not_null<const synchronized_> self) : base(*self->sync_root()) {}
 
-        explicit guard(const synchronized_& self) : base(*self.sync_root()) {}
+        inline explicit guard(const synchronized_& self) : base(*self.sync_root()) {}
 
-        explicit guard(not_null<core::sync_root> sync_root) : base(*sync_root) {}
+        inline explicit guard(not_null<core::sync_root> sync_root) : base(*sync_root) {}
     };
 
     /// Simple guard
@@ -116,13 +117,13 @@ public:
         using base = sync_root::guard;
 
     public:
-        explicit lock_guard(not_null<const synchronized_> self, bool acquire_lock = true)
+        inline explicit lock_guard(not_null<const synchronized_> self, bool acquire_lock = true)
             : base(*self->sync_root(), acquire_lock) {}
 
-        explicit lock_guard(const synchronized_& self, bool acquire_lock = true)
+        inline explicit lock_guard(const synchronized_& self, bool acquire_lock = true)
             : base(*self.sync_root(), acquire_lock) {}
 
-        explicit lock_guard(not_null<core::sync_root> sync_root, bool acquire_lock = true)
+        inline explicit lock_guard(not_null<core::sync_root> sync_root, bool acquire_lock = true)
             : base(*sync_root, acquire_lock) {}
     };
 
@@ -132,13 +133,15 @@ public:
         using base = sync_root::unlockable_guard;
 
     public:
-        explicit unlockable_guard(not_null<const synchronized_> self, bool acquire_lock = true)
+        inline explicit unlockable_guard(not_null<const synchronized_> self,
+                                         bool acquire_lock = true)
             : base(*self->sync_root(), acquire_lock) {}
 
-        explicit unlockable_guard(const synchronized_& self, bool acquire_lock = true)
+        inline explicit unlockable_guard(const synchronized_& self, bool acquire_lock = true)
             : base(*self.sync_root(), acquire_lock) {}
 
-        explicit unlockable_guard(not_null<core::sync_root> sync_root, bool acquire_lock = true)
+        inline explicit unlockable_guard(not_null<core::sync_root> sync_root,
+                                         bool acquire_lock = true)
             : base(*sync_root, acquire_lock) {}
     };
 
@@ -146,26 +149,28 @@ public:
     class safe_guard : public sync_root_guard
     {
     public:
-        explicit safe_guard(not_null<const synchronized_> self) : sync_root_guard(self->sync_root()) {}
+        inline explicit safe_guard(not_null<const synchronized_> self)
+            : sync_root_guard(self->sync_root()) {}
 
-        explicit safe_guard(const synchronized_& self) : sync_root_guard(self.sync_root()) {}
+        inline explicit safe_guard(const synchronized_& self) : sync_root_guard(self.sync_root()) {}
 
     private:
-        explicit safe_guard(not_null<core::sync_root> root) : sync_root_guard(root) {}
+        inline explicit safe_guard(not_null<core::sync_root> root) : sync_root_guard(root) {}
     };
 
     /// This guard can hold the ownership of sync_root when synchronized_ is destroyed.
     class safe_lock_guard : public unlockable_sync_root_guard
     {
     public:
-        explicit safe_lock_guard(not_null<const synchronized_> self, bool acquire_lock = true)
+        inline explicit safe_lock_guard(not_null<const synchronized_> self,
+                                        bool acquire_lock = true)
             : unlockable_sync_root_guard(self->sync_root(), acquire_lock) {}
 
-        explicit safe_lock_guard(const synchronized_& self, bool acquire_lock = true)
+        inline explicit safe_lock_guard(const synchronized_& self, bool acquire_lock = true)
             : unlockable_sync_root_guard(self.sync_root(), acquire_lock) {}
 
     private:
-        explicit safe_lock_guard(not_null<core::sync_root> root, bool acquire_lock = true)
+        inline explicit safe_lock_guard(not_null<core::sync_root> root, bool acquire_lock = true)
             : unlockable_sync_root_guard(root, acquire_lock) {}
     };
 
@@ -173,19 +178,21 @@ public:
     class safe_unlockable_guard : public unlockable_sync_root_guard
     {
     public:
-        explicit safe_unlockable_guard(not_null<const synchronized_> self, bool acquire_lock = true)
+        inline explicit safe_unlockable_guard(not_null<const synchronized_> self,
+                                              bool acquire_lock = true)
             : unlockable_sync_root_guard(self->sync_root(), acquire_lock) {}
 
-        explicit safe_unlockable_guard(const synchronized_& self, bool acquire_lock = true)
+        inline explicit safe_unlockable_guard(const synchronized_& self, bool acquire_lock = true)
             : unlockable_sync_root_guard(self.sync_root(), acquire_lock) {}
 
     private:
-        explicit safe_unlockable_guard(not_null<core::sync_root> root, bool acquire_lock = true)
+        inline explicit safe_unlockable_guard(not_null<core::sync_root> root,
+                                              bool acquire_lock = true)
             : unlockable_sync_root_guard(root, acquire_lock) {}
     };
 
 protected:
-    bool is_synchronized() const { return sync_root()->is_synchronized(); }
+    inline bool is_synchronized() const { return sync_root()->is_synchronized(); }
 
 private:
     auto_sync_root_holder const sync_root_;

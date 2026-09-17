@@ -33,13 +33,13 @@ struct default_allocator {
 class pool_access_policy_elements_dispose_mt
 {
 public:
-    bool try_enter() noexcept { return pool_access_.try_enter(); }
+    inline bool try_enter() noexcept { return pool_access_.try_enter(); }
 
-    void exit() noexcept { return pool_access_.exit(); }
+    inline void exit() noexcept { return pool_access_.exit(); }
 
-    bool try_close() noexcept { return pool_access_.try_close(); }
+    inline bool try_close() noexcept { return pool_access_.try_close(); }
 
-    bool closed() const noexcept { return pool_access_.closed(); }
+    inline bool closed() const noexcept { return pool_access_.closed(); }
 
     template <class policy>
     static void ensure_begin_dispose_supported() noexcept {}
@@ -56,9 +56,9 @@ class pool_access_policy_elements_dispose_st
 public:
     static constexpr bool try_enter() noexcept { return true; }
 
-    static void exit() noexcept {}
+    inline static void exit() noexcept {}
 
-    static bool try_close() noexcept {
+    inline static bool try_close() noexcept {
         assert(false);
         return true;
     }

@@ -140,7 +140,7 @@ public:
     /// на таком счёте таблица проигрывает подряд лежащим именам.
     /// Одноимённых полей JSON не запрещает; отвечает первое, как читают
     /// все.
-    const value* find(std::string_view field) const noexcept {
+    inline const value* find(std::string_view field) const noexcept {
         for (const value& member : members())
             if (member.name_ == field) return &member;
 

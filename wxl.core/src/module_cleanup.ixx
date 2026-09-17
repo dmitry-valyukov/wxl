@@ -26,7 +26,7 @@ public:
 
     using enum priority;
 
-    explicit module_cleanup(cleanup_func* func, priority p = cleanup_normal) {
+    inline explicit module_cleanup(cleanup_func* func, priority p = cleanup_normal) {
         init(func, nullptr, nullptr, p);
     }
 
@@ -37,7 +37,7 @@ public:
 
     ~module_cleanup();
 
-    static bool process_is_terminating() {
+    inline static bool process_is_terminating() {
         return s_process_is_terminating.load(std::memory_order_acquire);
     }
 
@@ -48,7 +48,7 @@ public:
     /// deferred. wxl calls this from ~sta_memory_pool: a resource that cached
     /// objects allocated from the pool registers a cleanup and has it run
     /// while the pool's pages are still mapped, before the pool frees them.
-    static void run_now() noexcept { execute_at_exit(); }
+    inline static void run_now() noexcept { execute_at_exit(); }
 
 private:
     void init(cleanup_func* f, cleanup_func1* f1, void* arg, priority p);

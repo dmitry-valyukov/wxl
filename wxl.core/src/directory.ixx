@@ -39,12 +39,12 @@ public:
 
     directory() = default;
 
-    directory(directory&& other) noexcept
+    inline directory(directory&& other) noexcept
         : handle_(std::exchange(other.handle_, INVALID_HANDLE_VALUE)),
           found_(other.found_),
           pending_(std::exchange(other.pending_, false)) {}
 
-    directory& operator=(directory&& other) noexcept {
+    inline directory& operator=(directory&& other) noexcept {
         std::swap(handle_, other.handle_);
         std::swap(found_, other.found_);
         std::swap(pending_, other.pending_);
@@ -54,7 +54,7 @@ public:
     directory(const directory&) = delete;
     directory& operator=(const directory&) = delete;
 
-    ~directory() { close(); }
+    inline ~directory() { close(); }
 
     /// Starts an enumeration.
     ///
@@ -64,7 +64,7 @@ public:
     ///        Filtering by the system beats filtering by us: the names we never
     ///        see cost nothing.
     /// \return the enumeration, started or not -- ask opened().
-    static directory open(const wchar_t* pattern) noexcept {
+    inline static directory open(const wchar_t* pattern) noexcept {
         directory result;
 
         // The newer of the two: FindExInfoBasic asks the system not to look up
@@ -79,14 +79,14 @@ public:
         return result;
     }
 
-    bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
+    inline bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
 
     /// The next name, or `false` when there are none left.
     ///
     /// "." and ".." never come out: every caller of a directory listing has to
     /// drop them, and a listing that hands them over only makes each caller
     /// remember the same two names.
-    bool next(entry& out) noexcept {
+    inline bool next(entry& out) noexcept {
         while (opened()) {
             if (!std::exchange(pending_, false) && !::FindNextFileW(handle_, &found_)) return false;
 
@@ -104,7 +104,7 @@ public:
         return false;
     }
 
-    void close() noexcept {
+    inline void close() noexcept {
         if (opened()) ::FindClose(std::exchange(handle_, INVALID_HANDLE_VALUE));
 
         pending_ = false;
@@ -112,7 +112,7 @@ public:
 
     /// \return `true` if there is a directory at this path. A file there is not
     ///         a directory, and answers `false`.
-    static bool exists(const wchar_t* path) noexcept {
+    inline static bool exists(const wchar_t* path) noexcept {
         const DWORD attributes = ::GetFileAttributesW(path);
 
         return attributes != INVALID_FILE_ATTRIBUTES &&
@@ -125,7 +125,7 @@ public:
     ///         having been there before. "Make sure it exists" is what every
     ///         caller in this tree means, and a separate answer for "it already
     ///         was" would only be thrown away at each of them.
-    static bool create(const wchar_t* path) noexcept {
+    inline static bool create(const wchar_t* path) noexcept {
         return ::CreateDirectoryW(path, nullptr) != 0 ||
                ::GetLastError() == ERROR_ALREADY_EXISTS;
     }
@@ -138,7 +138,7 @@ public:
     ///        this one takes a `path&` rather than characters -- the alternative
     ///        is a fresh string per level, and this runs where allocating is
     ///        least welcome.
-    static bool create_all(path& p) noexcept {
+    inline static bool create_all(path& p) noexcept {
         wchar_t* const text = p.data();
 
         if (p.empty()) return false;
@@ -162,7 +162,9 @@ public:
     /// Removes an empty directory. A directory with anything in it stays, and
     /// the answer is `false`: emptying it first is a decision, and not this
     /// function's to make.
-    static bool remove(const wchar_t* path) noexcept { return ::RemoveDirectoryW(path) != 0; }
+    inline static bool remove(const wchar_t* path) noexcept {
+        return ::RemoveDirectoryW(path) != 0;
+    }
 
 private:
     /// How much of the path is root -- the part create_all() must not try to
@@ -173,7 +175,7 @@ private:
     /// the root runs to the end of the share: neither `\\server` nor a bare
     /// `\\server\` is something `CreateDirectoryW` will make, and a books folder
     /// watched on a network share is written exactly this way.
-    static std::size_t root_length(const path& p) noexcept {
+    inline static std::size_t root_length(const path& p) noexcept {
         const std::wstring_view text = p.native();
 
         if (text.size() >= 2 && text[1] == L':')

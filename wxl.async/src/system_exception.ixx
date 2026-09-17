@@ -22,7 +22,7 @@ public:
                               int err_code = static_cast<int>(::GetLastError()));
 
     /// Код, который вернула система.
-    int err_code() const noexcept { return err_code_; }
+    inline int err_code() const noexcept { return err_code_; }
 
 private:
     int err_code_;

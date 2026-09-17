@@ -57,7 +57,7 @@ public:
 
     /// \return The allocator owning the calling thread, or nullptr if init() was never called
     ///         on this thread.
-    static threaded_allocator* current() noexcept { return s_current; }
+    inline static threaded_allocator* current() noexcept { return s_current; }
 
     /// size is classified by pool_index(size) alone (no header adjustment): each class's own
     /// bump_alloc<N>() already knows its class's total block size (user capacity plus the header)
@@ -76,7 +76,7 @@ public:
     /// size check, the pool_index() table lookup, and the one indirect call through
     /// s_alloc_table; there is no separate non-inlined threaded_allocator::alloc() frame for
     /// every allocation to pay for on top of that.
-    static void* alloc(size_t size) {
+    inline static void* alloc(size_t size) {
         threaded_allocator* self = current();
         assert(self && "threaded_allocator::alloc: no allocator initialized on this thread");
         assert(size >= 1 && size <= MaxBlockSize &&
@@ -98,7 +98,7 @@ public:
     /// classes N=2/1/0 onto bump_alloc<3>: a block alloc() handed out for e.g. a 2-byte request
     /// physically came from (and must go back onto) class 3's free list, not a nonexistent
     /// class-1 one.
-    static void free(void* mem, size_t size) {
+    inline static void free(void* mem, size_t size) {
         std::byte* block = static_cast<std::byte*>(mem) - sizeof(void*);
         threaded_allocator* owner = *reinterpret_cast<threaded_allocator**>(block);
         const uint32_t idx = std::min(pool_index(static_cast<uint32_t>(size)), SmallestClassIndex);
@@ -114,7 +114,7 @@ public:
     /// \return The number of pages ever committed via VirtualAlloc for this allocator.
     ///         Diagnostic only (e.g. for benchmarks confirming how much the deferred-reclaim
     ///         path is actually cutting down on fresh page allocation).
-    size_t page_count() const noexcept { return pages_.size(); }
+    inline size_t page_count() const noexcept { return pages_.size(); }
 
 private:
     explicit threaded_allocator(uint32_t page_size) noexcept;
@@ -160,14 +160,14 @@ private:
     // from another static data member's initializer.
     static constexpr uint32_t SmallestClassIndex = std::countl_zero((1u << 3) - 1u);
 
-    void* pop_free_list(uint32_t idx) noexcept {
+    inline void* pop_free_list(uint32_t idx) noexcept {
         void* node = free_lists_[idx];
         if (node) [[likely]]
             free_lists_[idx] = *static_cast<void**>(node);
         return node;
     }
 
-    void push_free_list(uint32_t idx, void* node) noexcept {
+    inline void push_free_list(uint32_t idx, void* node) noexcept {
         *static_cast<void**>(node) = free_lists_[idx];
         free_lists_[idx] = node;
     }

@@ -67,26 +67,28 @@ public:
     struct promise_type {
         /// The frame, from the pool -- the same reasoning as `managed_task`: a
         /// small object made and unmade on the one thread, over and over.
-        static void* operator new(std::size_t size) { return core::sta_memory_pool::alloc(size); }
+        inline static void* operator new(std::size_t size) {
+            return core::sta_memory_pool::alloc(size);
+        }
 
-        static void operator delete(void* mem, std::size_t size) noexcept {
+        inline static void operator delete(void* mem, std::size_t size) noexcept {
             core::sta_memory_pool::free(mem, size);
         }
 
-        task get_return_object() const noexcept { return {}; }
+        inline task get_return_object() const noexcept { return {}; }
 
         /// Starts where it is called, like `managed_task`: whatever the body
         /// does before its first co_await has happened by the time the call
         /// returns, so a subscription made there is already live.
-        std::suspend_never initial_suspend() const noexcept { return {}; }
+        inline std::suspend_never initial_suspend() const noexcept { return {}; }
 
         /// And releases itself at the end. This is the whole difference from
         /// `managed_task`, whose frame stays for its owner to read.
-        std::suspend_never final_suspend() const noexcept { return {}; }
+        inline std::suspend_never final_suspend() const noexcept { return {}; }
 
-        void return_void() const noexcept {}
+        inline void return_void() const noexcept {}
 
-        void unhandled_exception() const noexcept {
+        inline void unhandled_exception() const noexcept {
             const std::exception_ptr error = std::current_exception();
 
             try {

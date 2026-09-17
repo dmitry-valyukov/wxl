@@ -2,22 +2,11 @@
 
 // The only header a module interface partition needs in its global module
 // fragment for the language-level plumbing that cannot travel through
-// `import`: preprocessor macros (assert/assume/ensure, always-inline
-// attributes) and the C fixed-width / size types the code spells unqualified.
+// `import`: preprocessor macros (assert/assume/ensure) and the C fixed-width
+// and size types the code spells unqualified.
 #include <cassert>
 #include <stddef.h>
 #include <stdint.h>
-
-#if defined(__has_cpp_attribute) && __has_cpp_attribute(gnu::always_inline)
-#define WXL_ALWAYS_INLINE [[gnu::always_inline]] inline
-#define WXL_NO_INLINE [[gnu::noinline]]
-#elif defined(_MSC_VER)
-#define WXL_NO_INLINE __declspec(noinline)
-#define WXL_ALWAYS_INLINE __forceinline
-#else
-#define WXL_NO_INLINE
-#define WXL_ALWAYS_INLINE inline
-#endif
 
 #if (defined(__SIZE_WIDTH__) && __SIZE_WIDTH__ == 64) ||                          \
     (defined(__INTPTR_WIDTH__) && __INTPTR_WIDTH__ == 64) || defined(_M_AMD64) || \

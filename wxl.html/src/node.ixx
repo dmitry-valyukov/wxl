@@ -115,26 +115,26 @@ using attribute_span = std::span<const attribute_t>;
 class node : public core::intrusive_slist_node<node> {
 public:
     /// An element (or the root).
-    explicit node(tag_t tag, attribute_span attributes = {}) noexcept
+    inline explicit node(tag_t tag, attribute_span attributes = {}) noexcept
         : attributes_(attributes), tag_(tag) {}
 
     /// A text node: whitespace already collapsed, entities already decoded,
     /// and a zero right after the view -- see the header comment.
-    explicit node(std::wstring_view text) noexcept : value_(text), tag_(tag_t::text) {}
+    inline explicit node(std::wstring_view text) noexcept : value_(text), tag_(tag_t::text) {}
 
-    tag_t tag() const noexcept { return tag_; }
-    bool is_text() const noexcept { return tag_ == tag_t::text; }
-    bool is_element() const noexcept { return tag_ != tag_t::text; }
+    inline tag_t tag() const noexcept { return tag_; }
+    inline bool is_text() const noexcept { return tag_ == tag_t::text; }
+    inline bool is_element() const noexcept { return tag_ != tag_t::text; }
 
     /// What a text node holds; an element answers empty.
     constexpr std::wstring_view value() const noexcept { return value_; }
 
-    const node* parent() const noexcept { return parent_; }
+    inline const node* parent() const noexcept { return parent_; }
 
     /// The children, in document order.
-    const node_list& children() const noexcept { return children_; }
+    inline const node_list& children() const noexcept { return children_; }
 
-    attribute_span attributes() const noexcept { return attributes_; }
+    inline attribute_span attributes() const noexcept { return attributes_; }
 
     /// The text of that attribute; empty when the element does not carry it.
     ///
@@ -144,7 +144,7 @@ public:
     /// `!x || x->empty()`. What is left of the distinction is `attribute()`
     /// below, for the caller that really is asking whether the element
     /// carries the thing at all.
-    std::wstring_view attribute_str(attr_t name) const noexcept {
+    inline std::wstring_view attribute_str(attr_t name) const noexcept {
         for (const attribute_t& candidate : attributes_) {
             if (candidate.name() == name) return candidate.value();
         }
@@ -153,7 +153,7 @@ public:
 
     /// The attribute itself, when the element carries it -- for the caller to
     /// whom its presence is the question and its text is not the answer.
-    core::nullable<const attribute_t> attribute(attr_t name) const noexcept {
+    inline core::nullable<const attribute_t> attribute(attr_t name) const noexcept {
         for (const attribute_t& candidate : attributes_) {
             if (candidate.name() == name) return &candidate;
         }
@@ -162,7 +162,7 @@ public:
 
     /// Links `child` in as the last child. The parser's tool, public only
     /// because the parser lives in another translation unit of this module.
-    void append_child(node& child) noexcept {
+    inline void append_child(node& child) noexcept {
         children_.push_back(core::not_null<node>(&child));
         child.parent_ = this;
     }

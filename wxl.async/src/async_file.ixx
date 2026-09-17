@@ -76,10 +76,10 @@ public:
     /// quick. So a coroutine that has just written something says so here.
     [[nodiscard]] awaitable<void> close();
 
-    bool opened() const noexcept { return file_.opened(); }
+    inline bool opened() const noexcept { return file_.opened(); }
 
 private:
-    explicit async_file(core::file&& opened) : file_(std::move(opened)) {}
+    inline explicit async_file(core::file&& opened) : file_(std::move(opened)) {}
 
     core::file file_;
 };

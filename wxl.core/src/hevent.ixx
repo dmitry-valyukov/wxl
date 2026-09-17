@@ -32,7 +32,7 @@ public:
     /// \return \c false only on timeout.
     bool wait_for(duration timeout) const;
 
-    HANDLE handle() const noexcept { return handle_; }
+    inline HANDLE handle() const noexcept { return handle_; }
 };
 
 }  // export namespace wxl::core

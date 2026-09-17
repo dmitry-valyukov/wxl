@@ -15,12 +15,14 @@ export namespace wxl::async {
 class barrier : public core::noncopyable
 {
 public:
-    explicit barrier(size_t initial_count) : counter_(initial_count) { assert(initial_count); }
+    inline explicit barrier(size_t initial_count) : counter_(initial_count) {
+        assert(initial_count);
+    }
 
-    ~barrier() { assert(counter_.load() == 0); }
+    inline ~barrier() { assert(counter_.load() == 0); }
 
     /// The calling thread waits until initial_count threads have entered.
-    void enter() {
+    inline void enter() {
         // local copy to make sure the shared state is safe to use until we leave this method.
         future<void> ready_signal = ready_promise_.get_future();
 

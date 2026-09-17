@@ -13,16 +13,16 @@ export namespace wxl::core {
 class timeout_timer
 {
 public:
-    explicit timeout_timer(duration timeout) : timeout_timer(time_stamp::now(), timeout) {}
+    inline explicit timeout_timer(duration timeout) : timeout_timer(time_stamp::now(), timeout) {}
 
     /// Counts from \p start rather than from the current moment: the deadline is then one
     /// the caller already knows, which is also what makes the countdown checkable without
     /// asking the clock anything.
-    timeout_timer(time_stamp start, duration timeout) : deadline_(start + timeout) {}
+    inline timeout_timer(time_stamp start, duration timeout) : deadline_(start + timeout) {}
 
-    duration remaining() const { return remaining(time_stamp::now()); }
+    inline duration remaining() const { return remaining(time_stamp::now()); }
 
-    duration remaining(time_stamp now) const {
+    inline duration remaining(time_stamp now) const {
         if (now >= deadline_) return duration::zero();
 
         return duration(deadline_ - now);
