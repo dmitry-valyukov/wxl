@@ -53,5 +53,5 @@ wxl::Teardown wxl_launched() {
     window.centreWithClientSize({960, 600});
     window.activate();
 
-    return [window](TeardownReason) {};
+    return {};
 }
