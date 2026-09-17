@@ -16,10 +16,8 @@
 
 #include "Settings.h"
 
-#include "aliases.h"
 #include "Panels.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include "ui.h"
 
 #include "Bind.h"
 #include "WindowFit.h"

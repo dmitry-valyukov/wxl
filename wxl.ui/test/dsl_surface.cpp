@@ -9,7 +9,6 @@
 // Nothing here runs: the WinUI3 runtime is not up in a test, and activating
 // a real control without it fails. This is about the syntax and the types.
 
-#include "aliases.h"
 #include "BbBlock.h"
 #include "Bind.h"
 #include "event_awaitable.h"
@@ -23,13 +22,11 @@
 #include "ThemeBrush.h"
 #include "Panels.h"
 #include "UiThread.h"
+#include "ui.h"
 #include "generated/Microsoft.UI.Dispatching.h"
-#include "generated/Members.h"
 #include "generated/schema.h"
 #include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Hosting.h"
-#include "generated/styles.h"
 #include "generated/brushes.h"
 
 namespace {
