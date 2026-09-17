@@ -42,6 +42,7 @@
 // Перед Object.impl.h: тот тянет import wxl.core (модульный std), а
 // window_placement.h несёт обычный <optional> -- он должен встретиться до
 // импорта, иначе MSVC не примет стандартный заголовок после него.
+#include "impl/window_frame.h"
 #include "impl/window_placement.h"
 #include "impl/application_folder.h"
 #include "Object.impl.h"
@@ -1344,6 +1345,16 @@ void CompositionWindow::fullScreen(bool on) const {
                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     }
     state_->fullScreen = on;
+}
+
+void CompositionWindow::darkFrame(bool on) const { impl::frame_dark(state_->hwnd, on); }
+
+void CompositionWindow::captionColor(Color caption, Color text) const {
+    // DWM берёт COLORREF -- 0x00BBGGRR, без альфы.
+    auto const colorref = [](Color color) {
+        return static_cast<uint32_t>(color.R | (color.G << 8) | (color.B << 16));
+    };
+    impl::frame_caption(state_->hwnd, colorref(caption), colorref(text));
 }
 
 void CompositionWindow::close() const {

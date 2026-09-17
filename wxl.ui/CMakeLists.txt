@@ -137,6 +137,8 @@ add_library(wxl.ui STATIC
     src/WindowHandle.h
     src/WindowPlacement.h
     src/impl/window_placement.h
+    src/impl/window_frame.cpp
+    src/impl/window_frame.h
     src/WindowPlacement.cpp
     src/WindowBackdrop.h
     src/WindowBackdrop.cpp
@@ -268,6 +270,9 @@ target_link_libraries(wxl.ui
         # CreateDispatcherQueueController, for the system compositor a
         # WindowShade hosts on its own overlay window -- see WindowShade.cpp.
         coremessaging.lib
+        # DwmSetWindowAttribute: the dark frame and the caption colour of a
+        # CompositionWindow follow the application's theme.
+        dwmapi.lib
 )
 
 if(EXISTS "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")
