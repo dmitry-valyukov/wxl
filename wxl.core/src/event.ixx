@@ -11,10 +11,12 @@ namespace wxl::core {
  * The machinery of an `event`, keyed on the signature already taken apart into result and
  * arguments. It is not named directly: the `event<...>` a caller writes derives from it. A
  * signature can be written with or without `noexcept` -- `event<void(int)>` and
- * `event<void(int) noexcept>` are two spellings that land on the same `basic_event<void, int>`
- * -- and this is where the one implementation of both lives.
+ * `event<void(int) noexcept>` are two spellings that land on the same `basic_event` -- and
+ * this is where the one implementation of both lives. `Base` is the node the callback is
+ * linked into the list by, and with it where the node is allocated: the STA pool for an
+ * `event`, the ordinary heap for an `event_mt`.
  */
-template <class R, class... Args>
+template <template <class> class Base, class R, class... Args>
 class basic_event
 {
     static_assert(std::is_void_v<R>,
@@ -27,7 +29,7 @@ public:
     /// contract: a callback fired out of a list has nobody to throw to, so the event only
     /// holds functions whose operator() promises not to. This holds however the signature
     /// of the event itself was spelled -- the `noexcept` on the callback is not optional.
-    using func_t = impl::func_body<R(Args...) noexcept, intrusive_slist_node>;
+    using func_t = impl::func_body<R(Args...) noexcept, Base>;
 
     ~basic_event() { clear(); }
 
@@ -119,14 +121,28 @@ export namespace wxl::core {
  * callback -- `remove` is what it is for -- and it stays valid until that callback goes,
  * by `remove`, by `clear`, or with the event itself. The callbacks belong to the event: it
  * destroys them in all three cases.
+ *
+ * An `event` belongs to the STA thread: its nodes come from `sta_memory_pool`, so they are
+ * added, fired and removed on that thread and inside the pool's life, the way a `function`'s
+ * body is. A list that another thread swaps out and fires -- a component's stop callbacks --
+ * is an `event_mt`, whose nodes stay on the ordinary heap. The two are otherwise the same.
  */
 template <class Signature>
 class event;
 
 template <class R, class... Args>
-class event<R(Args...)> : public basic_event<R, Args...> {};
+class event<R(Args...)> : public basic_event<sta_intrusive_slist_node, R, Args...> {};
 
 template <class R, class... Args>
-class event<R(Args...) noexcept> : public basic_event<R, Args...> {};
+class event<R(Args...) noexcept> : public basic_event<sta_intrusive_slist_node, R, Args...> {};
+
+template <class Signature>
+class event_mt;
+
+template <class R, class... Args>
+class event_mt<R(Args...)> : public basic_event<intrusive_slist_node, R, Args...> {};
+
+template <class R, class... Args>
+class event_mt<R(Args...) noexcept> : public basic_event<intrusive_slist_node, R, Args...> {};
 
 }  // export namespace wxl::core

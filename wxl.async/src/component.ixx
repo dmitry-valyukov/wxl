@@ -267,8 +267,8 @@ protected:
 private:
     /// The callback objects the two subscribe_ templates build out of what they are given.
     ///@{
-    using on_started_callback = core::event<void()>::func_t;
-    using on_stopped_callback = core::event<void(const stop_reason &)>::func_t;
+    using on_started_callback = core::event_mt<void()>::func_t;
+    using on_stopped_callback = core::event_mt<void(const stop_reason &)>::func_t;
     ///@}
 
     /// The same subscription, of a callback that is already built -- where the two templates

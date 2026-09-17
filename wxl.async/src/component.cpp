@@ -262,7 +262,7 @@ void component::on_started() {
     // Fired out of a list of its own: a component starts once, so the callbacks are called
     // and gone, and one that unsubscribes from inside the call finds an event with nothing
     // in it rather than the list it is being walked through.
-    core::event<void()> callbacks;
+    core::event_mt<void()> callbacks;
     callbacks.swap(impl()->on_started_);
     callbacks.fire();
 }
@@ -406,7 +406,7 @@ void component::on_stopped() {
 
     const stop_reason reason(*my_impl->stop_reason_ptr());
 
-    core::event<void(const stop_reason&)> callbacks;
+    core::event_mt<void(const stop_reason&)> callbacks;
     callbacks.swap(my_impl->on_stopped_);
 
     // The component can be deleted in here, which is why the state was taken above: nothing
