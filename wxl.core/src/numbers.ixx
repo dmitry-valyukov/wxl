@@ -20,6 +20,7 @@ module;
 export module wxl.core:numbers;
 
 import :checks;
+import :unicode;
 import std;
 
 namespace wxl::core::impl {
@@ -169,6 +170,12 @@ std::wstring to_wstring(T value) {
     std::wstring result;
     append_number(result, value);
     return result;
+}
+
+/// Checked text without the check: every character of a number is ASCII.
+template <typename T>
+u16_text to_u16(T value) {
+    return u16_text{unicode::assume_valid(to_wstring(value))};
 }
 
 /// The unit a byte count was scaled into, in steps of 1024 -- the steps

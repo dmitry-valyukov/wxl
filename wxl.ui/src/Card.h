@@ -60,7 +60,7 @@ public:
         requires impl::setter_pack<Card, Setters...>
     explicit Card(Setters&&... setters)
         : Border{
-              CornerRadius{8},
+              CornerRadius{12},
               dsl::background = dsl::brushes.Card.BackgroundFillColor.Default,
               dsl::borderBrush = dsl::brushes.Card.StrokeColorDefault,
               BorderThickness{1},

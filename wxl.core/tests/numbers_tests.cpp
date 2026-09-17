@@ -138,6 +138,8 @@ TEST(numbers, printing_a_point_is_a_point) {
     EXPECT_EQ(wxl::core::to_string(42), "42");
     EXPECT_EQ(wxl::core::to_wstring(1.5), L"1.5");
     EXPECT_EQ(wxl::core::to_wstring(-7), L"-7");
+    EXPECT_EQ(wxl::core::to_u16(-2.5), u"-2.5");
+    EXPECT_EQ(wxl::core::to_u16(64), u"64");
 }
 
 TEST(numbers, printing_round_trips) {
