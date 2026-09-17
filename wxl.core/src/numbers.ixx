@@ -157,25 +157,25 @@ void append_fixed(std::basic_string<CharT, Traits, Allocator>& out, double value
     append_number(out, value, std::chars_format::fixed, precision);
 }
 
-/// The number as text of its own.
-template <typename T>
-std::string to_string(T value) {
+/// The number as text of its own, in whatever format std::to_chars is given.
+template <typename T, typename... Format>
+std::string to_string(T value, Format... format) {
     std::string result;
-    append_number(result, value);
+    append_number(result, value, format...);
     return result;
 }
 
-template <typename T>
-std::wstring to_wstring(T value) {
+template <typename T, typename... Format>
+std::wstring to_wstring(T value, Format... format) {
     std::wstring result;
-    append_number(result, value);
+    append_number(result, value, format...);
     return result;
 }
 
 /// Checked text without the check: every character of a number is ASCII.
-template <typename T>
-u16_text to_u16(T value) {
-    return u16_text{unicode::assume_valid(to_wstring(value))};
+template <typename T, typename... Format>
+u16_text to_u16(T value, Format... format) {
+    return u16_text{unicode::assume_valid(to_wstring(value, format...))};
 }
 
 /// The unit a byte count was scaled into, in steps of 1024 -- the steps

@@ -142,6 +142,15 @@ TEST(numbers, printing_a_point_is_a_point) {
     EXPECT_EQ(wxl::core::to_u16(64), u"64");
 }
 
+TEST(numbers, printing_in_the_format_asked_for) {
+    const comma_locale comma;
+
+    EXPECT_EQ(wxl::core::to_string(2.0 / 3.0, std::chars_format::fixed, 2), "0.67");
+    EXPECT_EQ(wxl::core::to_wstring(255, 16), L"ff");
+    EXPECT_EQ(wxl::core::to_u16(-0.2 - 1e-16, std::chars_format::general, 12), u"-0.2");
+    EXPECT_EQ(wxl::core::to_u16(1.0 / 3.0, std::chars_format::general, 12), u"0.333333333333");
+}
+
 TEST(numbers, printing_round_trips) {
     for (const double value : {0.1, 1.0 / 3.0, 1e300, -2.5e-17}) {
         double back = 0;
