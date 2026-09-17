@@ -59,6 +59,10 @@ struct Model {
     // hand-written function as the body.
     std::map<md::TypeDef, std::vector<Closure::Synthetic>> synthetic_of;
 
+    // Per class: the methods a profile writes as tags (see profile.h). Emitted
+    // as a property setter beside the method, whose body calls the method.
+    std::map<md::TypeDef, std::vector<Closure::Setter>> setter_methods_of;
+
     // Per class: the attached properties its statics declare (see crawl.h).
     // The tag is written on the child, the call goes to the owner.
     std::map<md::TypeDef, std::vector<std::string>> attached_of;

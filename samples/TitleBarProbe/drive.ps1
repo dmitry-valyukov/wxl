@@ -9,6 +9,7 @@
 #
 # Команды: wait <мс>; move <x> <y>; click|dblclick|rclick <x> <y>; down; up;
 # drag <x> <y> <dx> <dy>; shot <файл> [поле]; invoke <имя>; tree; altspace; esc;
+# ctrlkey <виртуальный код, hex> -- клавиша с Ctrl, например ctrlkey BB (плюс);
 # restore; rect; alive.
 param(
     [string]$Exe = 'build\x64\samples\TitleBarProbe\Debug\sample.titlebar-probe.exe',
@@ -102,6 +103,7 @@ try {
             'tree' { Tree }
             'altspace' { [Probe.Native]::keybd_event(0x12, 0, 0, [IntPtr]::Zero); [Probe.Native]::keybd_event(0x20, 0, 0, [IntPtr]::Zero); [Probe.Native]::keybd_event(0x20, 0, 2, [IntPtr]::Zero); [Probe.Native]::keybd_event(0x12, 0, 2, [IntPtr]::Zero) }
             'esc' { [Probe.Native]::keybd_event(0x1B, 0, 0, [IntPtr]::Zero); [Probe.Native]::keybd_event(0x1B, 0, 2, [IntPtr]::Zero) }
+            'ctrlkey' { $vk = [byte][Convert]::ToInt32($parts[1], 16); [Probe.Native]::keybd_event(0x11, 0, 0, [IntPtr]::Zero); [Probe.Native]::keybd_event($vk, 0, 0, [IntPtr]::Zero); [Probe.Native]::keybd_event($vk, 0, 2, [IntPtr]::Zero); [Probe.Native]::keybd_event(0x11, 0, 2, [IntPtr]::Zero) }
             'rect' { $r = New-Object Probe.Native+RECT; [Probe.Native]::GetWindowRect($hwnd, [ref]$r) | Out-Null; "window $($r.Left),$($r.Top) $($r.Right - $r.Left)x$($r.Bottom - $r.Top)" }
             'restore' { [Probe.Native]::PostMessageW($hwnd, 0x112, [IntPtr]0xF120, [IntPtr]::Zero) | Out-Null }
             'alive' { $proc.Refresh(); "alive=$(-not $proc.HasExited)" }

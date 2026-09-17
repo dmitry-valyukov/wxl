@@ -222,6 +222,49 @@ std::vector<SyntheticMember> read_synthetic_members(value const& entry,
     return members;
 }
 
+// The methods a profile writes as tags. Keyed by the method's own name, each
+// an object that may narrow the value to a more specific class of the
+// metadata. Whether the method exists, takes one argument and returns nothing
+// is the class writer's to check: only it has read the signatures.
+std::vector<SetterMethod> read_setter_methods(value const& entry,
+                                              std::filesystem::path const& source,
+                                              std::string_view type_name) {
+    value const* const listed = entry.find("setterMethods");
+    if (!listed) {
+        return {};
+    }
+    if (!listed->is_object()) {
+        fail(source, std::format("type '{}': 'setterMethods' must be an object keyed by method "
+                                 "name",
+                                 type_name));
+    }
+
+    std::vector<SetterMethod> methods;
+    for (value const& definition : listed->members()) {
+        std::string const name{definition.name().chars()};
+        if (!definition.is_object()) {
+            fail(source, std::format("type '{}': setter method '{}' must be an object", type_name,
+                                     name));
+        }
+        if (!name.starts_with("Set") || name.size() == 3) {
+            fail(source, std::format("type '{}': setter method '{}' has no name after 'Set' to "
+                                     "give its tag",
+                                     type_name, name));
+        }
+        SetterMethod method{name, {}};
+        if (value const* const type = definition.find("type")) {
+            if (!type->is_string()) {
+                fail(source, std::format("type '{}': setter method '{}': 'type' must be a string",
+                                         type_name, name));
+            }
+            method.type = text(*type);
+        }
+        methods.push_back(std::move(method));
+    }
+    std::ranges::sort(methods, {}, &SetterMethod::method);
+    return methods;
+}
+
 PackageRef read_package(value const& entry, std::filesystem::path const& source) {
     if (!entry.is_object() || !entry.find("id")) {
         fail(source, "every 'packages' entry must be an object with an 'id'");
@@ -444,6 +487,9 @@ Profile load_profile(std::filesystem::path const& path) {
             if (auto added = read_synthetic_members(entry, path, name); !added.empty()) {
                 profile.synthetic.emplace(name, std::move(added));
             }
+            if (auto setters = read_setter_methods(entry, path, name); !setters.empty()) {
+                profile.setter_methods.emplace(name, std::move(setters));
+            }
         }
     }
 
@@ -521,6 +567,17 @@ struct ProfileLoader {
                         return existing.name == member.name;
                     })) {
                     known.push_back(member);
+                }
+            }
+        }
+        // Setter methods compose the same way, by the method's name.
+        for (auto&& [name, setters] : profile.setter_methods) {
+            auto& known = result.setter_methods[name];
+            for (auto&& setter : setters) {
+                if (std::none_of(known.begin(), known.end(), [&](SetterMethod const& existing) {
+                        return existing.method == setter.method;
+                    })) {
+                    known.push_back(setter);
                 }
             }
         }
@@ -715,6 +772,29 @@ TypeMap load_type_map(std::filesystem::path const& path) {
                                 required_string(entry, path, "wxl", "tagged property"),
                                 required_string(entry, path, "value", "tagged property"),
                                 string_or(entry, path, "include", {})});
+        }
+    }
+
+    if (value const* const members = document.find("handWrittenMembers")) {
+        if (!members->is_object()) {
+            fail(path, "'handWrittenMembers' must be an object");
+        }
+        if (value const* const array = members->find("properties")) {
+            if (!array->is_array()) {
+                fail(path, "'handWrittenMembers.properties' must be an array");
+            }
+            for (value const& entry : array->elements()) {
+                if (!entry.is_object()) {
+                    fail(path, "every hand-written property must be an object");
+                }
+                map.hand_written_properties.push_back(
+                    {required_string(entry, path, "property", "hand-written property"),
+                     required_string(entry, path, "value", "hand-written property"),
+                     string_or(entry, path, "include", {})});
+            }
+        }
+        if (value const* const events = members->find("events")) {
+            map.hand_written_events = read_string_set(*events, path, "handWrittenMembers.events");
         }
     }
     return map;

@@ -11,17 +11,23 @@
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
-#include <winrt/Microsoft.UI.Xaml.Controls.h>   // Grid -- одноразовый элемент под chromeCompositor()
-#include <winrt/Microsoft.UI.Xaml.Hosting.h>
-#include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Input.h>
 #include <winrt/Microsoft.UI.Windowing.h>
-#include <winrt/Microsoft.UI.Xaml.Media.h>      // GeneralTransform -- прямоугольник полосы заголовка
+#include <winrt/Microsoft.UI.Xaml.Automation.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>   // ButtonBase::Click -- команда кнопки окна для UI Automation
+#include <winrt/Microsoft.UI.Xaml.Controls.h>
+#include <winrt/Microsoft.UI.Xaml.Hosting.h>
+#include <winrt/Microsoft.UI.Xaml.Markup.h>
+#include <winrt/Microsoft.UI.Xaml.Media.h>
+#include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.h>
+#include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.UI.Xaml.Interop.h>    // xaml_typename -- геометрия значка кнопки окна из строки
 #include <winrt/Windows.UI.h>
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include <windows.h>
@@ -54,12 +60,12 @@ namespace {
 
 namespace muc = winrt::Microsoft::UI::Composition;
 namespace content = winrt::Microsoft::UI::Content;
+namespace controls = winrt::Microsoft::UI::Xaml::Controls;
+namespace graphics = winrt::Windows::Graphics;
 namespace input = winrt::Microsoft::UI::Input;
 namespace mud = winrt::Microsoft::UI::Dispatching;
 namespace windowing = winrt::Microsoft::UI::Windowing;
 namespace xaml = winrt::Microsoft::UI::Xaml;
-
-namespace graphics = winrt::Windows::Graphics;
 
 winrt::Windows::UI::Color asWinrt(Color c) noexcept { return {c.A, c.R, c.G, c.B}; }
 
@@ -75,10 +81,81 @@ bool sameRect(graphics::RectInt32 const& a, graphics::RectInt32 const& b) noexce
 // поверхности перенаправления нет, белому взяться неоткуда.
 constexpr wchar_t kClassName[] = L"wxl.CompositionWindow";
 
+// Подписчики одного события окна. Обработчик снимают и изнутри вызова -- так
+// уходит ожидание корутины, дождавшейся события, -- поэтому вызов идёт по
+// индексу с копией обработчика в руках, а снятые места вычищаются, когда
+// никто не вызывается.
+template <typename Args>
+class handler_list {
+public:
+    EventToken add(EventHandler<Args> handler) {
+        entries_.push_back({++last_, std::move(handler)});
+        return {last_};
+    }
+
+    void remove(EventToken token) {
+        for (entry& each : entries_) {
+            if (each.token == token.value) {
+                each.token = 0;
+                each.handler = nullptr;
+            }
+        }
+        if (firing_ == 0) compact();
+    }
+
+    void fire(EventArgsRef<Args> args) {
+        ++firing_;
+        Object const sender = Object::Impl::empty<Object>();
+        for (std::size_t at = 0; at < entries_.size(); ++at) {
+            if (!entries_[at].handler) continue;
+            EventHandler<Args> const handler = entries_[at].handler;
+            handler(sender, args);
+        }
+        if (--firing_ == 0) compact();
+    }
+
+private:
+    struct entry {
+        std::int64_t token;
+        EventHandler<Args> handler;
+    };
+
+    void compact() {
+        std::erase_if(entries_, [](entry const& each) { return !each.handler; });
+    }
+
+    std::vector<entry> entries_;
+    std::int64_t last_ = 0;
+    int firing_ = 0;
+};
+
+// Строка системного меню окна -- «&Свернуть», «&Закрыть\tAlt+F4» -- без
+// ускорителя и клавиш: ею кнопки окна называют себя для UI Automation на языке
+// Windows, не заводя своих строк.
+std::wstring systemMenuText(HWND hwnd, UINT command) {
+    wchar_t text[128] = {};
+    int const length =
+        ::GetMenuStringW(::GetSystemMenu(hwnd, FALSE), command, text, 128, MF_BYCOMMAND);
+    std::wstring name;
+    for (int at = 0; at < length && text[at] != L'\t'; ++at) {
+        if (text[at] != L'&') name += text[at];
+    }
+    return name;
+}
+
+// Где у элемента, видимого поверх фона, свойство фона: у контрола, панели и
+// рамки оно своё. Под кнопками окна -- тот же фон, что у заголовка рядом.
+xaml::DependencyProperty backgroundPropertyOf(xaml::FrameworkElement const& element) {
+    if (element.try_as<controls::Control>()) return controls::Control::BackgroundProperty();
+    if (element.try_as<controls::Panel>()) return controls::Panel::BackgroundProperty();
+    if (element.try_as<controls::Border>()) return controls::Border::BackgroundProperty();
+    return nullptr;
+}
+
 }  // namespace
 
 // Общее состояние окна: сырой winrt внутри, обёртки -- только на границе.
-struct WindowState {
+struct WindowState : core::refcounted {
     HWND hwnd{nullptr};
     muc::Compositor compositor{nullptr};
     // Один визуал на всю сцену: он и корень острова, и задний фон (картинка или
@@ -86,7 +163,6 @@ struct WindowState {
     muc::SpriteVisual backdrop{nullptr};
     content::DesktopAttachedSiteBridge sceneBridge{nullptr};
     xaml::Hosting::DesktopWindowXamlSource chrome{nullptr};   // оснастка островом
-    std::function<void()> onClosed;
     std::function<void(std::filesystem::path)> onFileDrop;
 
     SizeInt32 minSize{};                // нижний предел клиента (WM_GETMINMAXINFO)
@@ -98,83 +174,90 @@ struct WindowState {
     // в конструкторе, когда компоновщик готов.
     std::optional<TextureCache> textureCache;
 
-    // Ввод со сцены (режим чтения без острова): источники ввода её ContentIsland
-    // и обработчики читалки. Источники держим живыми -- на них висят подписки.
+    // Ввод со сцены (режим чтения без острова): источники ввода её ContentIsland.
+    // Источники держим живыми -- на них висят подписки.
     content::ContentIsland sceneIsland{nullptr};
     input::InputPointerSource pointerInput{nullptr};   // указатель сцены; клавиатура -- через WndProc
-    std::function<void(VirtualKey)> onKeyDown;
-    std::function<void(PointerPoint const&)> onPointerPressed;
-    std::function<void(PointerPoint const&)> onPointerMoved;
-    std::function<void(PointerPoint const&)> onPointerReleased;
-    std::function<void(PointerPoint const&)> onPointerWheel;
-    std::function<void()> onGeometryChanged;
-    std::function<void(SizeInt32, float)> onClientSizeChanged;
 
-    // Заголовок окна -- то же, что держит WindowChrome у Microsoft.UI.Xaml.Window.
+    handler_list<Object> closed;
+    handler_list<Object> geometryChanged;
+    handler_list<ClientSize> clientSizeChanged;
+    handler_list<VirtualKey> keyDown;
+    handler_list<PointerPoint> pointerPressed;
+    handler_list<PointerPoint> pointerMoved;
+    handler_list<PointerPoint> pointerReleased;
+    handler_list<PointerPoint> pointerWheelChanged;
+
+    // Увеличение острова и то, как его понимает OverrideScale моста:
+    // документация называет его и масштабом вместо масштаба окна, и множителем к
+    // нему, так что это меряется на деле (applyZoom) и запоминается.
+    double zoom{1.0};
+    bool zoomApplied{false};
+
+    // Раскладка острова: корень в две строки -- заголовок с кнопками окна и под
+    // ним содержимое приложения. Заводится вместе с островом.
+    controls::Grid root{nullptr};
+    controls::Grid bar{nullptr};                 // строка заголовка: элемент | кнопки окна
+    controls::StackPanel captionButtons{nullptr};
+    controls::Button minimizeButton{nullptr};
+    controls::Button maximizeButton{nullptr};
+    controls::Button closeButton{nullptr};
+    xaml::UIElement page{nullptr};               // содержимое приложения
+
+    // Заголовок окна -- то, что у Microsoft.UI.Xaml.Window держит WindowChrome.
     // AppWindow и источник неклиентского ввода заводятся при первой нужде: окну,
     // которое заголовок не трогает, они ни к чему.
     windowing::AppWindow appWindow{nullptr};
+    // Подписки на неклиентский ввод -- токенами, а не auto_revoke: отзыватель
+    // берёт у источника слабую ссылку, а InputNonClientPointerSource слабых
+    // ссылок не даёт, и подписка с ним падает нарушением доступа.
     input::InputNonClientPointerSource nonClient{nullptr};
+    winrt::event_token regionsChanged{};
+    winrt::event_token captionEntered{};
+    winrt::event_token captionExited{};
+    winrt::event_token captionPressed{};
+    winrt::event_token captionReleased{};
     bool extendsContentIntoTitleBar{false};
-    bool captionButtonsTransparent{false};   // прозрачный фон кнопок ставится один раз
+    bool captionButtonsTransparent{false};   // прозрачный фон системных кнопок ставится один раз
+    // Высота системных кнопок до того, как их сменили свои, -- её возвращают,
+    // когда заголовок-элемент убран.
+    std::optional<windowing::TitleBarHeightOption> systemButtonsHeight;
+
     xaml::FrameworkElement titleBar{nullptr};
     xaml::FrameworkElement::SizeChanged_revoker titleBarSizeChanged;
-    xaml::XamlRoot titleBarRoot{nullptr};
-    xaml::XamlRoot::Changed_revoker titleBarRootChanged;
+    std::int64_t titleBarVisibility{0};
+    xaml::DependencyProperty titleBarBackgroundProperty{nullptr};
+    std::int64_t titleBarBackground{0};
+    xaml::XamlRoot xamlRoot{nullptr};
+    winrt::event_token xamlRootChanged{};
     // Свой прямоугольник среди Caption: его и только его заменяет следующий
     // пересчёт, а прямоугольники, поставленные другими, остаются.
     graphics::RectInt32 caption{};
+    bool ownButtonRegions{false};
+    bool regionsQueued{false};
 
-    windowing::AppWindow const& appWindowOf() {
-        if (!appWindow) appWindow = windowing::AppWindow::GetFromWindowId(windowIdOf(hwnd));
-        return appWindow;
-    }
-
-    // Пересчёт Caption -- тот же, что CWindowChrome::OnTitleBarSizeChanged у
-    // Window: на размер элемента, окна и сдвиг окна. Масштаб -- острова
-    // (XamlRoot.RasterizationScale), а не DPI окна, как у Window: остров может
-    // быть увеличен сверх DPI, и прямоугольник в физических пикселях считается
-    // тем масштабом, каким его нарисовали.
-    void updateCaption() {
-        if (!titleBar && caption.Width == 0 && caption.Height == 0) return;
-        if (::IsIconic(hwnd)) return;
-
-        graphics::RectInt32 wanted{};
-        if (extendsContentIntoTitleBar && titleBar) {
-            auto const width = static_cast<float>(titleBar.ActualWidth());
-            auto const height = static_cast<float>(titleBar.ActualHeight());
-            xaml::XamlRoot const root = titleBar.XamlRoot();
-            // Вёрстка ещё не прошла или элемент свёрнут: прежний прямоугольник
-            // остаётся, как у Window, -- пересчитает следующий SizeChanged.
-            if (width == 0 || height == 0 || !root) return;
-
-            if (root != titleBarRoot) {
-                titleBarRoot = root;
-                titleBarRootChanged = root.Changed(
-                    winrt::auto_revoke, [this](xaml::XamlRoot const&, auto&&) { updateCaption(); });
+    // Заголовок-элемент переживает окно, если его держит приложение, -- его
+    // обратные вызовы указывают сюда и снимаются вместе с состоянием.
+    //
+    // Состояние может умирать и после того, как XAML уже закрыт: ручку окна
+    // держит обработчик в дереве острова, и последней её отпускает сам остров,
+    // уходя вместе с приложением. Тогда снимать подписки уже не с кого -- вызов
+    // бросает, а из деструктора исключению идти некуда.
+    ~WindowState() {
+        try {
+            dropTitleBar();
+            if (xamlRoot) xamlRoot.Changed(xamlRootChanged);
+            if (nonClient) {
+                nonClient.RegionsChanged(regionsChanged);
+                nonClient.PointerEntered(captionEntered);
+                nonClient.PointerExited(captionExited);
+                nonClient.PointerPressed(captionPressed);
+                nonClient.PointerReleased(captionReleased);
             }
-
-            winrt::Windows::Foundation::Rect const bounds =
-                titleBar.TransformToVisual(nullptr).TransformBounds({0, 0, width, height});
-            double const scale = root.RasterizationScale();
-            wanted = {static_cast<int32_t>(std::lround(bounds.X * scale)),
-                      static_cast<int32_t>(std::lround(bounds.Y * scale)),
-                      static_cast<int32_t>(std::lround(bounds.Width * scale)),
-                      static_cast<int32_t>(std::lround(bounds.Height * scale))};
+        } catch (winrt::hresult_error const& error) {
+            ::OutputDebugStringW((L"wxl::CompositionWindow: подписки не сняты: " +
+                                  std::wstring{error.message()} + L"\n").c_str());
         }
-        if (sameRect(wanted, caption)) return;
-
-        if (!nonClient) nonClient = input::InputNonClientPointerSource::GetForWindowId(windowIdOf(hwnd));
-        winrt::com_array<graphics::RectInt32> const current =
-            nonClient.GetRegionRects(input::NonClientRegionKind::Caption);
-        std::vector<graphics::RectInt32> rects;
-        rects.reserve(current.size() + 1);
-        for (graphics::RectInt32 const& rect : current) {
-            if (!sameRect(rect, caption)) rects.push_back(rect);
-        }
-        if (wanted.Width > 0 && wanted.Height > 0) rects.push_back(wanted);
-        nonClient.SetRegionRects(input::NonClientRegionKind::Caption, rects);
-        caption = wanted;
     }
 
     void resize(float width, float height) {
@@ -187,6 +270,352 @@ struct WindowState {
             chrome.SiteBridge().MoveAndResize(
                 {0, 0, static_cast<int32_t>(width), static_cast<int32_t>(height)});
         }
+    }
+
+    float scale() const {
+        return static_cast<float>(::GetDpiForWindow(hwnd)) / 96.0f * static_cast<float>(zoom);
+    }
+
+    ClientSize clientSize() const {
+        RECT client{};
+        ::GetClientRect(hwnd, &client);
+        return {{client.right, client.bottom}, scale()};
+    }
+
+    windowing::AppWindow const& appWindowOf() {
+        if (!appWindow) appWindow = windowing::AppWindow::GetFromWindowId(windowIdOf(hwnd));
+        return appWindow;
+    }
+
+    input::InputNonClientPointerSource const& nonClientOf() {
+        if (!nonClient) {
+            nonClient = input::InputNonClientPointerSource::GetForWindowId(windowIdOf(hwnd));
+            // AppWindow переписывает Minimize, Maximize и Close своими
+            // прямоугольниками на каждое перемещение и активацию -- свои ставятся
+            // снова. Событие приходит и на запись тех же чисел; пересчёт
+            // сравнивает, прежде чем писать, иначе цикл.
+            regionsChanged = nonClient.RegionsChanged([this](auto&&, auto&&) {
+                if (ownButtonRegions) queueRegions();
+            });
+            // Над областью кнопки указатель у неклиентского ввода, не у XAML:
+            // состояния кнопок ставятся отсюда.
+            captionEntered = nonClient.PointerEntered(
+                [this](auto&&, input::NonClientPointerEventArgs const& args) {
+                    showCaptionState(args.RegionKind(), L"PointerOver");
+                });
+            captionExited = nonClient.PointerExited(
+                [this](auto&&, input::NonClientPointerEventArgs const& args) {
+                    showCaptionState(args.RegionKind(), L"Normal");
+                });
+            captionPressed = nonClient.PointerPressed(
+                [this](auto&&, input::NonClientPointerEventArgs const& args) {
+                    showCaptionState(args.RegionKind(), L"Pressed");
+                });
+            captionReleased = nonClient.PointerReleased(
+                [this](auto&&, input::NonClientPointerEventArgs const& args) {
+                    showCaptionState(args.RegionKind(), L"PointerOver");
+                });
+        }
+        return nonClient;
+    }
+
+    // ---- Остров ----
+
+    void ensureIsland() {
+        if (chrome) return;
+        chrome = xaml::Hosting::DesktopWindowXamlSource{};
+        chrome.Initialize(windowIdOf(hwnd));
+
+        root = controls::Grid{};
+        for (auto const height : {xaml::GridLengthHelper::Auto(),
+                                  xaml::GridLengthHelper::FromValueAndType(1, xaml::GridUnitType::Star)}) {
+            controls::RowDefinition row;
+            row.Height(height);
+            root.RowDefinitions().Append(row);
+        }
+        root.Loaded([this](auto&&, auto&&) { watchXamlRoot(); });
+        chrome.Content(root);
+
+        RECT client{};
+        ::GetClientRect(hwnd, &client);
+        chrome.SiteBridge().MoveAndResize({0, 0, client.right, client.bottom});
+        applyZoom();
+    }
+
+    // Смена масштаба острова -- DPI или увеличение -- меняет прямоугольники в
+    // физических пикселях, а логический размер элементов остаётся, и
+    // SizeChanged не придёт.
+    void watchXamlRoot() {
+        xaml::XamlRoot const current = root ? root.XamlRoot() : nullptr;
+        if (!current || current == xamlRoot) return;
+        if (xamlRoot) xamlRoot.Changed(xamlRootChanged);
+        xamlRoot = current;
+        xamlRootChanged = current.Changed([this](auto&&, auto&&) { queueRegions(); });
+    }
+
+    void applyZoom() {
+        if (!chrome || (zoom == 1.0 && !zoomApplied)) return;
+        zoomApplied = true;
+        content::DesktopChildSiteBridge const bridge = chrome.SiteBridge();
+        content::ContentSiteView const view = bridge.SiteView();
+        float const parent = view.ParentScale();
+        float const wanted = parent * static_cast<float>(zoom);
+        bridge.OverrideScale(wanted);
+        // Документация называет OverrideScale и масштабом, заменяющим масштаб
+        // окна, и множителем к нему. На экране 100 % разницы нет; на другом
+        // видно по итогу, и множитель ставится заново.
+        float const got = view.RasterizationScale();
+        if (std::abs(got - wanted) > 0.001f && std::abs(got - wanted * parent) <= 0.001f) {
+            bridge.OverrideScale(static_cast<float>(zoom));
+        }
+    }
+
+    void showPage(xaml::UIElement const& element) {
+        ensureIsland();
+        if (page) {
+            uint32_t at = 0;
+            if (root.Children().IndexOf(page, at)) root.Children().RemoveAt(at);
+        }
+        page = element;
+        if (page) {
+            controls::Grid::SetRow(page.as<xaml::FrameworkElement>(), 1);
+            root.Children().Append(page);
+        }
+        chrome.SiteBridge().Show();
+    }
+
+    // ---- Заголовок и кнопки окна ----
+
+    controls::Button captionButton(wchar_t const* geometry, UINT command) {
+        bool const close = command == SC_CLOSE;
+        controls::Button button;
+        auto const resources = xaml::Application::Current().Resources();
+        auto const resource = [&resources](wchar_t const* key) {
+            return resources.Lookup(winrt::box_value(winrt::hstring{key}));
+        };
+        button.Style(resource(L"WindowCaptionButton").as<xaml::Style>());
+        // Значок стиль берёт из Content геометрией; у «развернуть» -- из своих
+        // состояний WindowStateNormal и WindowStateMaximized.
+        if (geometry) {
+            button.Content(xaml::Markup::XamlBindingHelper::ConvertValue(
+                winrt::xaml_typename<xaml::Media::Geometry>(), winrt::box_value(winrt::hstring{geometry})));
+        }
+        // Красные кисти закрытия в словарях тем есть, но состояния
+        // CloseButtonPointerOver и CloseButtonPressed берут общие кисти кнопок --
+        // у кнопки закрытия они подменены своими ресурсами.
+        if (close) {
+            for (auto const& [target, source] :
+                 {std::pair{L"WindowCaptionButtonBackgroundPointerOver", L"CloseButtonBackgroundPointerOver"},
+                  std::pair{L"WindowCaptionButtonStrokePointerOver", L"CloseButtonStrokePointerOver"},
+                  std::pair{L"WindowCaptionButtonBackgroundPressed", L"CloseButtonBackgroundPressed"},
+                  std::pair{L"WindowCaptionButtonStrokePressed", L"CloseButtonStrokePressed"}}) {
+                button.Resources().Insert(winrt::box_value(winrt::hstring{target}), resource(source));
+            }
+        }
+        // Высота -- строки заголовка: стиль ставит свою, она снимается.
+        button.Height(std::numeric_limits<double>::quiet_NaN());
+        button.VerticalAlignment(xaml::VerticalAlignment::Stretch);
+        // Мышь над кнопкой -- у области окна, и команду по щелчку Windows
+        // выполняет сама; до XAML щелчок не доходит, иначе команда пришла бы
+        // дважды. Click остаётся UI Automation: нажатие кнопки читалкой экрана
+        // отдаёт ту же системную команду.
+        button.IsHitTestVisible(false);
+        button.Click([this, command](auto&&, auto&&) {
+            if (!hwnd) return;
+            UINT const given = command == SC_MAXIMIZE && ::IsZoomed(hwnd) ? SC_RESTORE : command;
+            ::PostMessageW(hwnd, WM_SYSCOMMAND, given, 0);
+        });
+        return button;
+    }
+
+    void ensureBar() {
+        if (bar) return;
+        bar = controls::Grid{};
+        for (auto const width : {xaml::GridLengthHelper::FromValueAndType(1, xaml::GridUnitType::Star),
+                                 xaml::GridLengthHelper::Auto()}) {
+            controls::ColumnDefinition column;
+            column.Width(width);
+            bar.ColumnDefinitions().Append(column);
+        }
+        controls::Grid::SetRow(bar, 0);
+        root.Children().Append(bar);
+
+        captionButtons = controls::StackPanel{};
+        captionButtons.Orientation(controls::Orientation::Horizontal);
+        captionButtons.VerticalAlignment(xaml::VerticalAlignment::Stretch);
+        controls::Grid::SetColumn(captionButtons, 1);
+
+        minimizeButton = captionButton(L"M 0 0 L 10 0", SC_MINIMIZE);
+        maximizeButton = captionButton(nullptr, SC_MAXIMIZE);
+        closeButton = captionButton(L"M 0 0 L 9 9 M 9 0 L 0 9", SC_CLOSE);
+        xaml::Automation::AutomationProperties::SetName(minimizeButton, systemMenuText(hwnd, SC_MINIMIZE));
+        xaml::Automation::AutomationProperties::SetName(closeButton, systemMenuText(hwnd, SC_CLOSE));
+        maximizeButton.Loaded([this](auto&&, auto&&) { showMaximized(); });
+        for (controls::Button const& button : {minimizeButton, maximizeButton, closeButton}) {
+            captionButtons.Children().Append(button);
+        }
+        captionButtons.SizeChanged([this](auto&&, auto&&) { queueRegions(); });
+        bar.Children().Append(captionButtons);
+    }
+
+    void showCaptionState(input::NonClientRegionKind kind, std::wstring_view state) {
+        controls::Button button{nullptr};
+        switch (kind) {
+            case input::NonClientRegionKind::Minimize: button = minimizeButton; break;
+            case input::NonClientRegionKind::Maximize: button = maximizeButton; break;
+            case input::NonClientRegionKind::Close: button = closeButton; break;
+            default: return;
+        }
+        if (!button) return;
+        std::wstring name{state};
+        if (kind == input::NonClientRegionKind::Close && name != L"Normal") name = L"CloseButton" + name;
+        xaml::VisualStateManager::GoToState(button, name, false);
+    }
+
+    void showMaximized() {
+        if (!maximizeButton || !hwnd) return;
+        bool const maximized = ::IsZoomed(hwnd) != 0;
+        xaml::VisualStateManager::GoToState(
+            maximizeButton, maximized ? L"WindowStateMaximized" : L"WindowStateNormal", false);
+        xaml::Automation::AutomationProperties::SetName(
+            maximizeButton, systemMenuText(hwnd, maximized ? SC_RESTORE : SC_MAXIMIZE));
+    }
+
+    void dropTitleBar() {
+        if (!titleBar) return;
+        titleBarSizeChanged.revoke();
+        titleBar.UnregisterPropertyChangedCallback(xaml::UIElement::VisibilityProperty(), titleBarVisibility);
+        if (titleBarBackgroundProperty) {
+            titleBar.UnregisterPropertyChangedCallback(titleBarBackgroundProperty, titleBarBackground);
+        }
+        uint32_t at = 0;
+        if (bar.Children().IndexOf(titleBar, at)) bar.Children().RemoveAt(at);
+        titleBar = nullptr;
+        titleBarBackgroundProperty = nullptr;
+    }
+
+    void setTitleBar(xaml::FrameworkElement const& element) {
+        ensureIsland();
+        dropTitleBar();
+        if (element) {
+            ensureBar();
+            titleBar = element;
+            controls::Grid::SetColumn(titleBar, 0);
+            bar.Children().InsertAt(0, titleBar);
+
+            titleBarSizeChanged = titleBar.SizeChanged(winrt::auto_revoke, [this](auto&&, auto&&) { queueRegions(); });
+            titleBarVisibility = titleBar.RegisterPropertyChangedCallback(
+                xaml::UIElement::VisibilityProperty(), [this](auto&&, auto&&) { updateCaptionMode(); });
+            titleBarBackgroundProperty = backgroundPropertyOf(titleBar);
+            if (titleBarBackgroundProperty) {
+                titleBarBackground = titleBar.RegisterPropertyChangedCallback(
+                    titleBarBackgroundProperty, [this](auto&&, auto&&) { copyTitleBarBackground(); });
+            }
+            copyTitleBarBackground();
+        }
+        updateCaptionMode();
+    }
+
+    void copyTitleBarBackground() {
+        if (!captionButtons) return;
+        captionButtons.Background(titleBarBackgroundProperty
+                                      ? titleBar.GetValue(titleBarBackgroundProperty).try_as<xaml::Media::Brush>()
+                                      : nullptr);
+    }
+
+    // Чьи кнопки окна сейчас: свои -- пока клиентская область под заголовком и
+    // заголовок-элемент виден; иначе системные, как у Window.
+    void updateCaptionMode() {
+        bool const ownButtons = extendsContentIntoTitleBar && titleBar &&
+                                titleBar.Visibility() == xaml::Visibility::Visible;
+        if (bar) {
+            bar.Visibility(titleBar ? xaml::Visibility::Visible : xaml::Visibility::Collapsed);
+            captionButtons.Visibility(ownButtons ? xaml::Visibility::Visible : xaml::Visibility::Collapsed);
+        }
+        if (extendsContentIntoTitleBar) {
+            windowing::AppWindowTitleBar const system = appWindowOf().TitleBar();
+            if (titleBar) {
+                if (!systemButtonsHeight) systemButtonsHeight = system.PreferredHeightOption();
+                system.PreferredHeightOption(windowing::TitleBarHeightOption::Collapsed);
+            } else if (systemButtonsHeight) {
+                system.PreferredHeightOption(*systemButtonsHeight);
+                systemButtonsHeight.reset();
+            }
+        }
+        queueRegions();
+    }
+
+    // Пересчёт после вёрстки: и размер элемента, и размер окна приходят раньше,
+    // чем XAML их разложил.
+    void queueRegions() {
+        if (regionsQueued || !hwnd) return;
+        regionsQueued = true;
+        core::intrusive_ptr<WindowState> const self{this};
+        mud::DispatcherQueue::GetForCurrentThread().TryEnqueue(
+            mud::DispatcherQueuePriority::Low, [self] { self->updateRegions(); });
+    }
+
+    graphics::RectInt32 physicalRectOf(xaml::FrameworkElement const& element) const {
+        auto const width = static_cast<float>(element.ActualWidth());
+        auto const height = static_cast<float>(element.ActualHeight());
+        xaml::XamlRoot const elementRoot = element.XamlRoot();
+        if (width == 0 || height == 0 || !elementRoot) return {};
+        winrt::Windows::Foundation::Rect const bounds =
+            element.TransformToVisual(nullptr).TransformBounds({0, 0, width, height});
+        // Масштаб острова, а не DPI окна, как у Window: остров увеличен сверх
+        // DPI, и прямоугольник в физических пикселях считается тем масштабом,
+        // каким его нарисовали.
+        double const factor = elementRoot.RasterizationScale();
+        return {static_cast<int32_t>(std::lround(bounds.X * factor)),
+                static_cast<int32_t>(std::lround(bounds.Y * factor)),
+                static_cast<int32_t>(std::lround(bounds.Width * factor)),
+                static_cast<int32_t>(std::lround(bounds.Height * factor))};
+    }
+
+    void updateRegions() {
+        regionsQueued = false;
+        if (!hwnd || ::IsIconic(hwnd)) return;
+        watchXamlRoot();
+
+        bool const own = extendsContentIntoTitleBar && titleBar &&
+                         titleBar.Visibility() == xaml::Visibility::Visible;
+
+        // Caption -- как CWindowChrome::SetDragRegion у Window: убирается свой
+        // прежний прямоугольник, ставится новый, чужие остаются.
+        graphics::RectInt32 const wanted = own ? physicalRectOf(titleBar) : graphics::RectInt32{};
+        if (!sameRect(wanted, caption) && (own || caption.Width != 0 || caption.Height != 0)) {
+            winrt::com_array<graphics::RectInt32> const current =
+                nonClientOf().GetRegionRects(input::NonClientRegionKind::Caption);
+            std::vector<graphics::RectInt32> rects;
+            rects.reserve(current.size() + 1);
+            for (graphics::RectInt32 const& rect : current) {
+                if (!sameRect(rect, caption)) rects.push_back(rect);
+            }
+            if (wanted.Width > 0 && wanted.Height > 0) rects.push_back(wanted);
+            nonClient.SetRegionRects(input::NonClientRegionKind::Caption, rects);
+            caption = wanted;
+        }
+
+        if (!own) {
+            if (ownButtonRegions) {
+                for (auto const kind : {input::NonClientRegionKind::Minimize, input::NonClientRegionKind::Maximize,
+                                        input::NonClientRegionKind::Close}) {
+                    nonClient.ClearRegionRects(kind);
+                }
+                ownButtonRegions = false;
+            }
+            return;
+        }
+
+        ownButtonRegions = true;
+        auto const apply = [this](input::NonClientRegionKind kind, graphics::RectInt32 rect) {
+            winrt::com_array<graphics::RectInt32> const current = nonClientOf().GetRegionRects(kind);
+            if (current.size() == 1 && sameRect(current[0], rect)) return;
+            nonClient.SetRegionRects(kind, {rect});
+        };
+        apply(input::NonClientRegionKind::Minimize, physicalRectOf(minimizeButton));
+        apply(input::NonClientRegionKind::Maximize, physicalRectOf(maximizeButton));
+        apply(input::NonClientRegionKind::Close, physicalRectOf(closeButton));
     }
 };
 
@@ -251,31 +680,42 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
                 // возьмётся за вёрстку: перекладывать дерево можно здесь, а из
                 // SizeChanged самого XAML -- уже нельзя, оно приходит изнутри
                 // прохода вёрстки.
-                if (state->onClientSizeChanged) {
-                    state->onClientSizeChanged(
-                        {static_cast<int32_t>(LOWORD(lparam)),
-                         static_cast<int32_t>(HIWORD(lparam))},
-                        static_cast<float>(::GetDpiForWindow(hwnd)) / 96.0f);
-                }
+                state->clientSizeChanged.fire(
+                    {{static_cast<int32_t>(LOWORD(lparam)), static_cast<int32_t>(HIWORD(lparam))},
+                     state->scale()});
                 // Максимизация и восстановление меняют место без перетаскивания
                 // (WM_EXITSIZEMOVE не придёт) -- отмечаем их здесь. Растяжка за
                 // рамку тоже сюда попадает, но сохранение места отложено, так что
                 // лишние отметки во время тяги схлопнутся в одну запись.
-                if ((wparam == SIZE_MAXIMIZED || wparam == SIZE_RESTORED) &&
-                    state->onGeometryChanged) {
-                    state->onGeometryChanged();
+                if (wparam == SIZE_MAXIMIZED || wparam == SIZE_RESTORED) {
+                    state->geometryChanged.fire(Object::Impl::empty<Object>());
                 }
-                state->updateCaption();
+                state->showMaximized();
+                state->queueRegions();
             }
             break;
 
         case WM_MOVE:
-            if (state) state->updateCaption();
+            if (state) state->queueRegions();
+            break;
+
+        case WM_DPICHANGED:
+            // Окно PerMonitorV2 само встаёт в прямоугольник, предложенный под
+            // новый DPI, а увеличение острова пересчитывается от масштаба нового
+            // экрана.
+            if (state) {
+                auto const* const suggested = reinterpret_cast<RECT const*>(lparam);
+                ::SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
+                               suggested->right - suggested->left, suggested->bottom - suggested->top,
+                               SWP_NOZORDER | SWP_NOACTIVATE);
+                state->applyZoom();
+                return 0;
+            }
             break;
 
         case WM_EXITSIZEMOVE:
             // Конец перетаскивания рамки: и сдвиг, и растяжка кончаются здесь.
-            if (state && state->onGeometryChanged) state->onGeometryChanged();
+            if (state) state->geometryChanged.fire(Object::Impl::empty<Object>());
             return 0;
 
         case WM_KEYDOWN:
@@ -283,9 +723,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             // которого перехватывает InputSite острова). Отдаём код клавиши
             // обёрткой wxl -- тем же VirtualKey, что раздаёт XAML. Не return 0:
             // пусть DefWindowProc довершит своё (WM_CHAR, системные клавиши).
-            if (state && state->onKeyDown) {
-                state->onKeyDown(static_cast<VirtualKey>(static_cast<int32_t>(wparam)));
-            }
+            if (state) state->keyDown.fire(static_cast<VirtualKey>(static_cast<int32_t>(wparam)));
             break;
 
         case WM_DROPFILES:
@@ -301,7 +739,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
 
         case WM_CLOSE:
             // Приложению есть что сохранить по дороге -- место чтения, геометрию.
-            if (state && state->onClosed) state->onClosed();
+            if (state) state->closed.fire(Object::Impl::empty<Object>());
             ::DestroyWindow(hwnd);
             return 0;
 
@@ -310,6 +748,16 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             // Application::Start возвращается и отрабатывает Teardown.
             xaml::Application::Current().Exit();
             return 0;
+
+        case WM_NCDESTROY:
+            // Последнее сообщение окна: оно отпускает своё состояние. Живут ещё
+            // ручки -- состояние остаётся им, без окна под собой.
+            if (state) {
+                ::SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+                state->hwnd = nullptr;
+                intrusive_ptr_release(state);
+            }
+            break;
     }
     return ::DefWindowProcW(hwnd, message, wparam, lparam);
 }
@@ -354,8 +802,9 @@ struct fire_and_forget {
 
 // Асинхронная смена задника: ждёт текстуру из кэша (декод на потоках WinRT) и,
 // вернувшись на UI-поток, ставит её кистью UniformToFill на единственный задний
-// визуал. Путь по значению -- корутина владеет им через ожидание.
-fire_and_forget swapBackground(WindowState* state, std::filesystem::path image) {
+// визуал. Состояние держится ручкой, путь -- по значению: корутина владеет
+// обоими через ожидание.
+fire_and_forget swapBackground(core::intrusive_ptr<WindowState> state, std::filesystem::path image) {
     CompositionDrawingSurface const surface = co_await state->textureCache->getAsync(image);
 
     // Именованные промежутки: обёртка -> сырая поверхность (одно преобразование),
@@ -382,30 +831,26 @@ ContainerVisual CompositionWindow::contentVisual() const {
     return Object::Impl::wrap<ContainerVisual>(state_->backdrop);
 }
 
-SizeInt32 CompositionWindow::clientSize() const {
-    RECT client{};
-    ::GetClientRect(state_->hwnd, &client);
-    return {client.right, client.bottom};
-}
+SizeInt32 CompositionWindow::clientSize() const { return state_->clientSize().size; }
 
 float CompositionWindow::rasterizationScale() const {
     // DPI окна, а не системного: окно может стоять на мониторе с другим
     // масштабом, и физические пиксели поверхности считаются по нему.
-    return static_cast<float>(::GetDpiForWindow(state_->hwnd)) / 96.0f;
+    return state_->scale();
 }
 
-void CompositionWindow::background(Color color) {
+void CompositionWindow::background(Color color) const {
     state_->backdrop.Brush(state_->compositor.CreateColorBrush(asWinrt(color)));
 }
 
-void CompositionWindow::clearBackground() {
+void CompositionWindow::clearBackground() const {
     // Спрайт без кисти ничего не рисует, но остаётся корнем сцены и
     // контейнером визуалов приложения -- дерево не меняется, меняется только
     // то, что у него нет своей заливки.
     state_->backdrop.Brush(nullptr);
 }
 
-void CompositionWindow::background(std::filesystem::path const& image) {
+void CompositionWindow::background(std::filesystem::path const& image) const {
     // Синхронный декод: первый (стартовый) экран показывается только уже
     // загруженным -- окно до того скрыто. Смены фона на ходу пойдут асинхронно
     // через Win2D/TextureCache, отдельным шагом; здесь путь под первую картинку.
@@ -455,7 +900,7 @@ void CompositionWindow::background(std::filesystem::path const& image) {
     state_->backdrop.Brush(brush);
 }
 
-void CompositionWindow::background(DrawingSurface const& surface) {
+void CompositionWindow::background(DrawingSurface const& surface) const {
     // Обёртку держим именованной: get_typed отдаёт сырой winrt внутри неё, а не
     // копию, а временная обёртка surface.brush() умерла бы концом выражения --
     // и ссылка повисла бы. (Цвет и картинку выше это правило тоже касается.)
@@ -468,26 +913,25 @@ void CompositionWindow::background(DrawingSurface const& surface) {
     state_->backdrop.Brush(brush);
 }
 
-void CompositionWindow::backgroundAsync(std::filesystem::path const& image) {
+void CompositionWindow::backgroundAsync(std::filesystem::path const& image) const {
     // Запускаем и забываем: swapBackground сам доведёт себя до конца на UI-потоке
     // и уберёт свой кадр. Кэш держит текстуру, так что тот же путь во второй раз
     // сменит задник уже без загрузки.
-    swapBackground(state_.get(), image);
+    swapBackground(state_, image);
 }
 
 // ---- CompositionWindow ----------------------------------------------------
 
-CompositionWindow::CompositionWindow(std::wstring_view title, SizeInt32 minSize)
-    : state_{std::make_unique<WindowState>()} {
-    state_->minSize = minSize;
-
+CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     ensureClass();
 
-    std::wstring const caption{title};
-    state_->hwnd = ::CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP, kClassName, caption.c_str(),
-                                     WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-                                     CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr,
-                                     ::GetModuleHandleW(nullptr), nullptr);
+    state_->hwnd = ::CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP, kClassName, L"", WS_OVERLAPPEDWINDOW,
+                                     CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+                                     nullptr, nullptr, ::GetModuleHandleW(nullptr), nullptr);
+    // Своя ссылка окна на состояние -- до WM_NCDESTROY: оконная процедура
+    // находит его по USERDATA, и отпущенная последняя ручка не освободит его
+    // под живым окном.
+    intrusive_ptr_add_ref(state_.get());
     ::SetWindowLongPtrW(state_->hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state_.get()));
 
     // Сцена: свой Microsoft.UI-композитор и один задний визуал -- он же корень
@@ -508,30 +952,25 @@ CompositionWindow::CompositionWindow(std::wstring_view title, SizeInt32 minSize)
     // (WM_KEYDOWN -- проверено пробой), а указатель перехватывает InputSite
     // острова, и его берём через InputPointerSource острова. InputKeyboardSource
     // не заводим: его GetForIsland на attached-острове падал AV, а клавиатуре он
-    // и не нужен. Подписки простые, без auto_revoke: источник живёт в state_
-    // столько же, сколько окно, а окно -- до выхода приложения; st валиден, пока
-    // источник не отпущен.
+    // и не нужен. Подписки простые, без auto_revoke: источник живёт в состоянии
+    // столько же, сколько оно само.
     WindowState* const st = state_.get();
     st->pointerInput = input::InputPointerSource::GetForIsland(st->sceneIsland);
     st->pointerInput.PointerPressed(
         [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
-            if (st->onPointerPressed)
-                st->onPointerPressed(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
+            st->pointerPressed.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
     st->pointerInput.PointerMoved(
         [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
-            if (st->onPointerMoved)
-                st->onPointerMoved(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
+            st->pointerMoved.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
     st->pointerInput.PointerReleased(
         [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
-            if (st->onPointerReleased)
-                st->onPointerReleased(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
+            st->pointerReleased.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
     st->pointerInput.PointerWheelChanged(
         [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
-            if (st->onPointerWheel)
-                st->onPointerWheel(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
+            st->pointerWheelChanged.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
 
     RECT client{};
@@ -539,60 +978,71 @@ CompositionWindow::CompositionWindow(std::wstring_view title, SizeInt32 minSize)
     state_->resize(static_cast<float>(client.right), static_cast<float>(client.bottom));
 }
 
+CompositionWindow::CompositionWindow(std::wstring_view title, SizeInt32 minSize) : CompositionWindow() {
+    this->title(title);
+    this->minSize(minSize);
+}
+
 CompositionWindow::~CompositionWindow() = default;
+CompositionWindow::CompositionWindow(CompositionWindow const&) noexcept = default;
 CompositionWindow::CompositionWindow(CompositionWindow&&) noexcept = default;
+CompositionWindow& CompositionWindow::operator=(CompositionWindow const&) noexcept = default;
 CompositionWindow& CompositionWindow::operator=(CompositionWindow&&) noexcept = default;
 
-void CompositionWindow::content(UIElement const& chrome) {
-    xaml::UIElement const& raw = *Object::Impl::get_typed<UIElement>(chrome);
-    if (!state_->chrome) {
-        state_->chrome = xaml::Hosting::DesktopWindowXamlSource{};
-        state_->chrome.Initialize(windowIdOf(state_->hwnd));
+void CompositionWindow::content(UIElement const& chrome) const {
+    if (!chrome) {
+        state_->showPage(nullptr);
+        return;
     }
-    state_->chrome.Content(raw);
-    RECT client{};
-    ::GetClientRect(state_->hwnd, &client);
-    state_->chrome.SiteBridge().MoveAndResize({0, 0, client.right, client.bottom});
-    state_->chrome.SiteBridge().Show();
+    xaml::UIElement const& raw = *Object::Impl::get_typed<UIElement>(chrome);
+    state_->showPage(raw);
 }
 
 UIElement CompositionWindow::content() const {
-    xaml::UIElement current{nullptr};
-    if (state_->chrome) current = state_->chrome.Content();
-    return Object::Impl::wrap<UIElement>(current);
+    return Object::Impl::wrap<UIElement>(state_->page);
 }
 
 Compositor CompositionWindow::chromeCompositor() const {
     // Композитор XAML-потока: его отдаёт хэндофф-визуал любого элемента. На потоке
     // XAML он один -- тот же, на котором окажется содержимое, показанное через
     // content(). Берём у одноразового Grid.
-    xaml::Controls::Grid const probe;
+    controls::Grid const probe;
     return Object::Impl::wrap<Compositor>(
         xaml::Hosting::ElementCompositionPreview::GetElementVisual(probe).Compositor());
 }
 
-void CompositionWindow::hideContent() {
+void CompositionWindow::hideContent() const {
     // Прячем остров и снимаем с него содержимое: в режиме чтения ввод должен
     // идти сцене, а пустой, но показанный остров перехватывал бы его над собой.
     if (state_->chrome) {
-        state_->chrome.Content(nullptr);
+        state_->showPage(nullptr);
         state_->chrome.SiteBridge().Hide();
     }
 }
 
+void CompositionWindow::zoom(double value) const {
+    if (value <= 0 || value == state_->zoom) return;
+    state_->zoom = value;
+    state_->applyZoom();
+    state_->clientSizeChanged.fire(state_->clientSize());
+    state_->queueRegions();
+}
+
+double CompositionWindow::zoom() const { return state_->zoom; }
+
 // ---- Заголовок окна ---------------------------------------------------------
 
-void CompositionWindow::extendsContentIntoTitleBar(bool value) {
+void CompositionWindow::extendsContentIntoTitleBar(bool value) const {
     // Флаг до вызова: ExtendsContentIntoTitleBar двигает рамку синхронно, и
-    // WM_SIZE, который приходит изнутри него, уже пересчитывает Caption.
+    // WM_SIZE, который приходит изнутри него, уже пересчитывает области.
     state_->extendsContentIntoTitleBar = value;
 
     windowing::AppWindowTitleBar const titleBar = state_->appWindowOf().TitleBar();
     titleBar.ExtendsContentIntoTitleBar(value);
 
-    // Под кнопками окна видна своя полоса -- их фон прозрачный. Как у Window,
-    // один раз за жизнь окна: цвет, который приложение поставило позже,
-    // повторное включение не затирает.
+    // Под системными кнопками окна видна своя полоса -- их фон прозрачный. Как
+    // у Window, один раз за жизнь окна: цвет, который приложение поставило
+    // позже, повторное включение не затирает.
     if (value && !state_->captionButtonsTransparent) {
         state_->captionButtonsTransparent = true;
         winrt::Windows::Foundation::IReference<winrt::Windows::UI::Color> const transparent{
@@ -606,40 +1056,49 @@ void CompositionWindow::extendsContentIntoTitleBar(bool value) {
     ::SetWindowPos(state_->hwnd, nullptr, 0, 0, 0, 0,
                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE |
                        SWP_FRAMECHANGED);
-    state_->updateCaption();
+    state_->updateCaptionMode();
 }
 
 bool CompositionWindow::extendsContentIntoTitleBar() const {
     return state_->extendsContentIntoTitleBar;
 }
 
-void CompositionWindow::setTitleBar(UIElement const& titleBar) {
-    WindowState* const st = state_.get();
-    st->titleBarSizeChanged.revoke();
-    st->titleBarRootChanged.revoke();
-    st->titleBarRoot = nullptr;
-    st->titleBar = nullptr;
-
-    if (titleBar) {
-        xaml::UIElement const& raw = *Object::Impl::get_typed<UIElement>(titleBar);
-        st->titleBar = raw.as<xaml::FrameworkElement>();
-        st->titleBarSizeChanged = st->titleBar.SizeChanged(
-            winrt::auto_revoke, [st](winrt::Windows::Foundation::IInspectable const&,
-                                     xaml::SizeChangedEventArgs const&) { st->updateCaption(); });
+void CompositionWindow::titleBar(UIElement const& value) const {
+    if (!value) {
+        state_->setTitleBar(nullptr);
+        return;
     }
-    st->updateCaption();
+    xaml::UIElement const& raw = *Object::Impl::get_typed<UIElement>(value);
+    state_->setTitleBar(raw.as<xaml::FrameworkElement>());
 }
 
 AppWindow CompositionWindow::appWindow() const {
     return Object::Impl::wrap<AppWindow>(state_->appWindowOf());
 }
 
-void CompositionWindow::activate() {
+// ---- Само окно ----------------------------------------------------------------
+
+void CompositionWindow::title(string_param value) const {
+    std::wstring const text{value.wide()};
+    ::SetWindowTextW(state_->hwnd, text.c_str());
+}
+
+wstring CompositionWindow::title() const {
+    int const length = ::GetWindowTextLengthW(state_->hwnd);
+    wstring text(static_cast<std::size_t>(length) + 1, L'\0');
+    ::GetWindowTextW(state_->hwnd, reinterpret_cast<wchar_t*>(text.data()), length + 1);
+    text.resize(static_cast<std::size_t>(length));
+    return text;
+}
+
+void CompositionWindow::minSize(SizeInt32 const& value) const { state_->minSize = value; }
+
+void CompositionWindow::activate() const {
     ::ShowWindow(state_->hwnd, SW_SHOW);
     ::UpdateWindow(state_->hwnd);
 }
 
-void CompositionWindow::resize(SizeInt32 size) {
+void CompositionWindow::resize(SizeInt32 size) const {
     ::SetWindowPos(state_->hwnd, nullptr, 0, 0, size.width, size.height,
                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOOWNERZORDER);
 }
@@ -656,7 +1115,7 @@ RECT workAreaOf(HWND hwnd) noexcept {
 
 }  // namespace
 
-void CompositionWindow::centreWithClientSize(SizeInt32 client) {
+void CompositionWindow::centreWithClientSize(SizeInt32 client) const {
     RECT const frame = withFrame(state_->hwnd, {0, 0, client.width, client.height});
 
     int const width = frame.right - frame.left;
@@ -686,7 +1145,7 @@ DispatcherQueue CompositionWindow::dispatcherQueue() const {
     return Object::Impl::wrap<DispatcherQueue>(mud::DispatcherQueue::GetForCurrentThread());
 }
 
-void CompositionWindow::placement(std::wstring_view saved) {
+void CompositionWindow::placement(std::wstring_view saved) const {
     // Та же строка, что у генерируемого Window; разбор формата и подгонку к
     // сегодняшним мониторам берём общими -- impl::parse_placement и
     // fit_placement_to_displays из WindowPlacement.cpp.
@@ -741,7 +1200,7 @@ std::wstring CompositionWindow::placement() const {
 
 bool CompositionWindow::fullScreen() const { return state_->fullScreen; }
 
-void CompositionWindow::fullScreen(bool on) {
+void CompositionWindow::fullScreen(bool on) const {
     if (on == state_->fullScreen) {
         return;
     }
@@ -771,43 +1230,107 @@ void CompositionWindow::fullScreen(bool on) {
     state_->fullScreen = on;
 }
 
-void CompositionWindow::close() {
+void CompositionWindow::close() const {
     // PostMessage, а не Send: закрытие встаёт в очередь, как системный крестик,
-    // и разбирается тем же WM_CLOSE (onClosed -> DestroyWindow -> WM_DESTROY).
+    // и разбирается тем же WM_CLOSE (Closed -> DestroyWindow -> WM_DESTROY).
     ::PostMessageW(state_->hwnd, WM_CLOSE, 0, 0);
 }
 
-void CompositionWindow::onClosed(std::function<void()> handler) {
-    state_->onClosed = std::move(handler);
-}
-
-void CompositionWindow::acceptFileDrops(std::function<void(std::filesystem::path)> handler) {
+void CompositionWindow::acceptFileDrops(std::function<void(std::filesystem::path)> handler) const {
     state_->onFileDrop = std::move(handler);
     ::DragAcceptFiles(state_->hwnd, TRUE);
 }
 
-void CompositionWindow::onKeyDown(std::function<void(VirtualKey)> handler) {
-    state_->onKeyDown = std::move(handler);
+// ---- События ----------------------------------------------------------------
+
+EventToken CompositionWindow::add_onClosed(EventHandler<Object> const& handler) const {
+    return state_->closed.add(handler);
 }
-void CompositionWindow::onPointerPressed(std::function<void(PointerPoint const&)> handler) {
-    state_->onPointerPressed = std::move(handler);
+void CompositionWindow::remove_onClosed(EventToken token) const { state_->closed.remove(token); }
+
+EventToken CompositionWindow::add_onGeometryChanged(EventHandler<Object> const& handler) const {
+    return state_->geometryChanged.add(handler);
 }
-void CompositionWindow::onPointerMoved(std::function<void(PointerPoint const&)> handler) {
-    state_->onPointerMoved = std::move(handler);
-}
-void CompositionWindow::onPointerReleased(std::function<void(PointerPoint const&)> handler) {
-    state_->onPointerReleased = std::move(handler);
-}
-void CompositionWindow::onPointerWheel(std::function<void(PointerPoint const&)> handler) {
-    state_->onPointerWheel = std::move(handler);
+void CompositionWindow::remove_onGeometryChanged(EventToken token) const {
+    state_->geometryChanged.remove(token);
 }
 
-void CompositionWindow::onGeometryChanged(std::function<void()> handler) {
-    state_->onGeometryChanged = std::move(handler);
+EventToken CompositionWindow::add_onClientSizeChanged(EventHandler<ClientSize> const& handler) const {
+    return state_->clientSizeChanged.add(handler);
+}
+void CompositionWindow::remove_onClientSizeChanged(EventToken token) const {
+    state_->clientSizeChanged.remove(token);
 }
 
-void CompositionWindow::onClientSizeChanged(std::function<void(SizeInt32, float)> handler) {
-    state_->onClientSizeChanged = std::move(handler);
+EventToken CompositionWindow::add_onKeyDown(EventHandler<VirtualKey> const& handler) const {
+    return state_->keyDown.add(handler);
+}
+void CompositionWindow::remove_onKeyDown(EventToken token) const { state_->keyDown.remove(token); }
+
+EventToken CompositionWindow::add_onPointerPressed(EventHandler<PointerPoint> const& handler) const {
+    return state_->pointerPressed.add(handler);
+}
+void CompositionWindow::remove_onPointerPressed(EventToken token) const {
+    state_->pointerPressed.remove(token);
+}
+
+EventToken CompositionWindow::add_onPointerMoved(EventHandler<PointerPoint> const& handler) const {
+    return state_->pointerMoved.add(handler);
+}
+void CompositionWindow::remove_onPointerMoved(EventToken token) const {
+    state_->pointerMoved.remove(token);
+}
+
+EventToken CompositionWindow::add_onPointerReleased(EventHandler<PointerPoint> const& handler) const {
+    return state_->pointerReleased.add(handler);
+}
+void CompositionWindow::remove_onPointerReleased(EventToken token) const {
+    state_->pointerReleased.remove(token);
+}
+
+EventToken CompositionWindow::add_onPointerWheelChanged(EventHandler<PointerPoint> const& handler) const {
+    return state_->pointerWheelChanged.add(handler);
+}
+void CompositionWindow::remove_onPointerWheelChanged(EventToken token) const {
+    state_->pointerWheelChanged.remove(token);
+}
+
+void CompositionWindow::onClosed(std::function<void()> handler) const {
+    add_onClosed([handler = std::move(handler)](Object const&, Object const&) { handler(); });
+}
+
+void CompositionWindow::onGeometryChanged(std::function<void()> handler) const {
+    add_onGeometryChanged([handler = std::move(handler)](Object const&, Object const&) { handler(); });
+}
+
+void CompositionWindow::onClientSizeChanged(std::function<void(SizeInt32, float)> handler) const {
+    add_onClientSizeChanged([handler = std::move(handler)](Object const&, ClientSize const& client) {
+        handler(client.size, client.scale);
+    });
+}
+
+void CompositionWindow::onKeyDown(std::function<void(VirtualKey)> handler) const {
+    add_onKeyDown([handler = std::move(handler)](Object const&, VirtualKey const& key) { handler(key); });
+}
+
+void CompositionWindow::onPointerPressed(std::function<void(PointerPoint const&)> handler) const {
+    add_onPointerPressed(
+        [handler = std::move(handler)](Object const&, PointerPoint const& point) { handler(point); });
+}
+
+void CompositionWindow::onPointerMoved(std::function<void(PointerPoint const&)> handler) const {
+    add_onPointerMoved(
+        [handler = std::move(handler)](Object const&, PointerPoint const& point) { handler(point); });
+}
+
+void CompositionWindow::onPointerReleased(std::function<void(PointerPoint const&)> handler) const {
+    add_onPointerReleased(
+        [handler = std::move(handler)](Object const&, PointerPoint const& point) { handler(point); });
+}
+
+void CompositionWindow::onPointerWheel(std::function<void(PointerPoint const&)> handler) const {
+    add_onPointerWheelChanged(
+        [handler = std::move(handler)](Object const&, PointerPoint const& point) { handler(point); });
 }
 
 }  // namespace wxl

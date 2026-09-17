@@ -47,3 +47,17 @@ inline static constexpr struct {
 } colors;
 
 }  // namespace wxl
+
+namespace wxl::core {
+
+// A colour with nothing set -- the button colours of a title bar, which WinRT
+// boxes as IReference<Color> so that "not set" can hand the choice back to the
+// system. Every bit pattern of the four bytes is a colour, transparent black
+// included, so there is no sentinel to compress the empty state into, and
+// nullable<Color> is std::optional<Color>, the way bool's is.
+template <>
+struct optional_selector<wxl::Color> {
+    using nullable = std::optional<wxl::Color>;
+};
+
+}  // namespace wxl::core

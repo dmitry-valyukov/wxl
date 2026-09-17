@@ -1,5 +1,6 @@
 add_subdirectory(Calculator)
 add_subdirectory(CompositionProbe)
+add_subdirectory(CustomTitleBar)
 add_subdirectory(HelloHere)
 add_subdirectory(HtmlView)
 add_subdirectory(TitleBarProbe)

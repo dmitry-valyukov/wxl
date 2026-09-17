@@ -71,6 +71,15 @@ struct member_info {
     // this hand-written function, taking the object and the value, instead
     // of a hop into the projection.
     std::string synthetic_call;
+
+    // A property setter made out of a method a profile names (see profile.h):
+    // the member is spelled as the property, `titleBar`, and its body calls
+    // this method of the projection, `SetTitleBar`.
+    std::string method_call;
+
+    // Its value is a class narrower than the method's parameter, named by
+    // the profile -- which is what lets the tag build one from braces.
+    bool braced = false;
 };
 
 // What a member cannot be generated for, so the trimming stays visible

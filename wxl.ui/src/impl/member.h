@@ -580,7 +580,44 @@ void apply_argument(Obj const& object, Arg&& argument) {
     }
 }
 
+// The value of a braced tag: an object of the class, either handed over built
+// or built right here from the braces the tag was assigned.
+//
+// A class of its own because the braces cannot reach the class's constructor
+// directly. `titleBar = { leftHeader = ... }` copy-list-initialises the
+// parameter, and the constructor taking setters is explicit -- which it has to
+// stay, or every function taking a wrapper would accept braces too. This type's
+// constructors are not explicit and exist only as a tag's parameter. It adds
+// no data, so it is the object itself, and the setter it reaches takes it as
+// one.
+template <typename T>
+struct braced : T {
+    braced(T const& built) : T{built} {}
+
+    template <typename... Setters>
+        requires(sizeof...(Setters) > 0) && setter_pack<T, Setters...>
+    braced(Setters&&... setters) : T{std::forward<Setters>(setters)...} {}
+};
+
 }  // namespace impl
+
+// A property tag whose value is a class it can also build from braces:
+//
+//     Window { titleBar = { leftHeader = back, content = path } }
+//
+// says what `titleBar = TitleBar { leftHeader = back, content = path }` says,
+// the class being known from the property. Only a property declared with such a
+// class gets this tag -- a profile narrows a setter method to one (see
+// wxl.gen/profile.ixx). A built object, or anything that converts to one, still
+// goes through the deduced assignment every tag has.
+template <PropertyKey key, typename Value, typename Owner = void>
+struct BracedProperty : impl::PropertyTag<key, Owner> {
+    using impl::PropertyTag<key, Owner>::operator=;
+
+    SetterOp<key, impl::braced<Value>, Owner> operator=(impl::braced<Value> value) const {
+        return {std::move(value)};
+    }
+};
 
 // A preset: the constructor arguments themselves, kept in a variable and worn
 // by as many objects as you like.
@@ -813,6 +850,8 @@ template <EventKey key, typename Setter, typename Owner>
 inline constexpr bool describes<SettersEventOp<key, Setter, Owner>> = true;
 template <PropertyKey key, typename Value, typename Owner>
 inline constexpr bool describes<Property<key, Value, Owner>> = true;
+template <PropertyKey key, typename Value, typename Owner>
+inline constexpr bool describes<BracedProperty<key, Value, Owner>> = true;
 template <EventKey key, typename Owner>
 inline constexpr bool describes<Event<key, Owner>> = true;
 template <typename... Setters>

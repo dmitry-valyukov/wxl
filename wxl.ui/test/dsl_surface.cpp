@@ -14,6 +14,7 @@
 #include "Bind.h"
 #include "event_awaitable.h"
 #include "Card.h"
+#include "CompositionWindow.h"
 #include "DrawingSurface.h"
 #include "FormattedBlock.h"
 #include "HtmlBlock.h"
@@ -273,6 +274,56 @@ using namespace wxl::dsl;
     presenter.preferredMaximumWidth({});
     window.appWindow().setPresenter(presenter);
     (void)width;
+}
+
+// A method written as a tag: Window.SetTitleBar takes one argument and hands
+// nothing back, and the profile narrows it to the TitleBar control -- so the
+// tag takes one built, builds one from braces, and a lone TitleBar inside the
+// window's braces is routed to it by type. The button colours are nullable:
+// empty hands the colour back to the system.
+[[maybe_unused]] void window_title_bar(Window const& window, TitleBar const& built) {
+    Window assigned{extendsContentIntoTitleBar = true, titleBar = built};
+    Window braced{
+        extendsContentIntoTitleBar = true,
+        titleBar = {leftHeader = TextBlock{L"App"}, rightHeader = Button{L"Sign in"}},
+    };
+    Window routed{built};
+    window.titleBar(built);
+
+    AppWindowTitleBar const bar = window.appWindow().titleBar();
+    bar.preferredHeightOption(TitleBarHeightOption::Tall);
+    bar.buttonBackgroundColor(colors.transparent);
+    bar.buttonHoverBackgroundColor({});
+    core::nullable<Color> const background = bar.buttonBackgroundColor();
+    (void)background;
+}
+
+// wxl's own window written the same way: a handle, so every member is const
+// and the tags apply to it; its title bar is placed by the window itself, so
+// it is built right in the braces; its own events take the same tags, and a
+// copy captured by a lambda is the same window.
+[[maybe_unused]] void composition_window(TitleBar const& built, Grid const& page) {
+    CompositionWindow window{
+        title = L"App",
+        minSize = {820, 560},
+        extendsContentIntoTitleBar = true,
+        titleBar = {leftHeader = TextBlock{L"App"}, rightHeader = Button{L"Sign in"}},
+        zoom = 1.25,
+        onClosed = [] {},
+        onGeometryChanged = [] {},
+        onClientSizeChanged = [](Object const&, ClientSize const& client) { (void)client.scale; },
+        onKeyDown = [](Object const&, VirtualKey const& key) { (void)key; },
+        page,
+    };
+    CompositionWindow routed{built, page};
+    CompositionWindow const legacy{L"App", SizeInt32{820, 560}};
+
+    auto const closeLater = [window] { window.close(); };
+    (void)closeLater;
+    window.zoom(window.zoom() * 1.1);
+    window.appWindow().title(legacy.title());
+    auto sizes = wxl::on_event<EventKey::ClientSizeChanged>(window);
+    (void)sizes;
 }
 
 // The even stack: children claim a star row (column) apiece instead of

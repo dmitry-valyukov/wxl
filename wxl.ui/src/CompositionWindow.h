@@ -4,15 +4,18 @@
 #include "generated/Microsoft.UI.Dispatching.h"
 #include "generated/Microsoft.UI.Input.h"
 #include "generated/Microsoft.UI.Windowing.h"
+#include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.h"
 #include "generated/Windows.System.Enums.h"
 
 #include "Color.h"
 #include "DrawingSurface.h"
+#include "events.h"
+#include "string_param.h"
+#include "impl/member.h"
 
 #include <filesystem>
 #include <functional>
-#include <memory>
 #include <string>
 #include <string_view>
 
@@ -38,6 +41,22 @@
 //     прозрачным, во всё окно. Списки, поля, диалоги -- всё, чем силён WinUI,
 //     остаётся на нём; сквозь прозрачные места острова видна сцена под ним.
 //
+// Окно -- ручка к общему состоянию, как всякая обёртка wxl: копия смотрит в то
+// же окно, все члены const, и лямбда захватывает окно по значению. Поэтому оно
+// и пишется в скобках, как контрол:
+//
+//     CompositionWindow window{
+//         title = L"Беседка",
+//         minSize = {820, 560},
+//         extendsContentIntoTitleBar = true,
+//         titleBar = {leftHeader = ..., content = ..., rightHeader = ...},
+//         onClosed = [] { ... },
+//         page,
+//     };
+//
+// Само окно Windows держит своё состояние до WM_NCDESTROY: отпущенная последняя
+// ручка не освобождает его под живым окном.
+//
 // Окно не самостоятельное приложение: его создают внутри уже поднятого wxl
 // (`wxl_launched`), на его STA-потоке и его цикле сообщений. Ни загрузчика, ни
 // своего RunEventLoop здесь нет -- всё это принадлежит `launch`.
@@ -60,22 +79,41 @@ struct HWND__;
 namespace wxl {
 
 // Общее состояние окна: HWND, острова, визуалы сцены, обработчики. Определено в
-// CompositionWindow.cpp; окно смотрит в него и им владеет.
+// CompositionWindow.cpp; окно смотрит в него и делит его с копиями.
 struct WindowState;
+
+/// Что приносит ClientSizeChanged: клиентская область в физических пикселях и
+/// масштаб, которым их делят, чтобы получить логические, -- DPI экрана с
+/// увеличением окна (`zoom`) в нём.
+struct ClientSize {
+    SizeInt32 size;
+    float scale;
+};
 
 class CompositionWindow {
 public:
     /// Заводит окно: класс без кисти фона, WS_EX_NOREDIRECTIONBITMAP, свой
-    /// композитор, цель на HWND и прозрачный XAML-остров во весь клиент. Окно
-    /// создаётся скрытым -- показывает его activate(), после того как
-    /// приложение поставило фон и оснастку.
-    CompositionWindow(std::wstring_view title, SizeInt32 minSize);
-    ~CompositionWindow();
+    /// композитор, цель на HWND. Окно создаётся скрытым -- показывает его
+    /// activate(), после того как приложение поставило фон и оснастку.
+    CompositionWindow();
 
+    /// То же с именем и нижним пределом клиентской области.
+    CompositionWindow(std::wstring_view title, SizeInt32 minSize);
+
+    /// Окно в скобках декларативного синтаксиса: свойства, события и
+    /// безымянные аргументы -- содержимое и заголовок -- применяются по порядку.
+    template <typename... Setters>
+        requires(sizeof...(Setters) > 0) && impl::setter_pack<CompositionWindow, Setters...> &&
+                (impl::applicable_to<Setters, CompositionWindow> && ...)
+    explicit CompositionWindow(Setters&&... setters) : CompositionWindow() {
+        (impl::apply_argument(*this, std::forward<Setters>(setters)), ...);
+    }
+
+    ~CompositionWindow();
+    CompositionWindow(CompositionWindow const&) noexcept;
     CompositionWindow(CompositionWindow&&) noexcept;
+    CompositionWindow& operator=(CompositionWindow const&) noexcept;
     CompositionWindow& operator=(CompositionWindow&&) noexcept;
-    CompositionWindow(CompositionWindow const&) = delete;
-    CompositionWindow& operator=(CompositionWindow const&) = delete;
 
     // ---- Сцена: задний фон и страница на композиторе окна ----
     //
@@ -90,51 +128,59 @@ public:
 
     /// Задний фон -- ровным цветом темы. Ставит кисть на ЕДИНСТВЕННЫЙ задний
     /// визуал, вытесняя прежнюю: правило одного задника выходит само.
-    void background(Color color);
+    void background(Color color) const;
 
     /// Задний фон снят вовсе: визуалы приложения на contentVisual() кроют окно
     /// целиком, и красить под ними нечего -- даже ровный цвет был бы лишней
     /// заливкой на каждом кадре. Обязанность приложения -- не оставить ни
     /// одного непокрытого пикселя (окно сквозит на рабочий стол) и при уходе с
     /// такого экрана вернуть фон тем же кадром.
-    void clearBackground();
+    void clearBackground() const;
 
     /// Задний фон -- картинкой из файла. wxl декодирует её (WIC) в
     /// композиторную поверхность; путь абсолютный.
-    void background(std::filesystem::path const& image);
+    void background(std::filesystem::path const& image) const;
 
     /// Задний фон -- готовой поверхностью: так подаётся уже нарисованное,
     /// например изогнутый снимок обложки или свёрстанная страница книги.
-    void background(DrawingSurface const& surface);
+    void background(DrawingSurface const& surface) const;
 
     /// Задний фон -- картинкой, загруженной асинхронно (Win2D/TextureCache):
     /// декод идёт на потоках WinRT, задник сменится, когда картинка готова, а
     /// UI не подвисает. Под смену фона на ходу; первый (стартовый) экран ставит
     /// синхронный background(path). Запускается и забывается.
-    void backgroundAsync(std::filesystem::path const& image);
+    void backgroundAsync(std::filesystem::path const& image) const;
 
     /// Куда приложение цепляет визуалы страницы -- над задним фоном, под
     /// островом. Контейнер во всё окно, ресайзится вместе с ним.
     ContainerVisual contentVisual() const;
 
-    /// Размер клиентской области окна в физических пикселях и масштаб экрана
-    /// (DPI/96) -- то, что XamlRoot давал острову, но взятое у самого окна.
+    /// Размер клиентской области окна в физических пикселях и масштаб, которым
+    /// их делят на логические: DPI экрана (DPI/96) с увеличением окна (`zoom`).
     /// Страница живёт задником окна (сценой), не в острове, поэтому и меру берёт
     /// отсюда: острова при автооткрытии на старте ещё нет, спрашивать не у кого.
     SizeInt32 clientSize() const;
     float rasterizationScale() const;
 
+    // ---- Оснастка: XAML-остров поверх сцены ----
+
     /// XAML-оснастка островом поверх сцены -- по требованию: оглавление,
     /// настройки, визард обложки, витрина. Ставит содержимое острова и
     /// показывает его; пока остров показан, ввод идёт ему. В режиме чтения
     /// острова нет вовсе (hideContent), и ввод идёт со сцены -- см. onKeyDown и
-    /// onPointer* ниже.
-    void content(UIElement const& chrome);
+    /// onPointer* ниже. Если у окна есть заголовок (`titleBar`), содержимое
+    /// стоит под ним.
+    void content(UIElement const& chrome) const;
 
-    /// Что сейчас в острове -- или пусто, если оснастки нет (режим чтения).
-    /// Читалке нужно, чтобы спросить у показанного экрана его XamlRoot: размер и
-    /// масштаб, под которые готовить страницу до показа.
+    /// Что сейчас в острове под заголовком -- или пусто, если оснастки нет
+    /// (режим чтения). Читалке нужно, чтобы спросить у показанного экрана его
+    /// XamlRoot: размер и масштаб, под которые готовить страницу до показа.
     UIElement content() const;
+
+    /// Безымянный элемент в скобках окна -- его содержимое; безымянный
+    /// TitleBar -- его заголовок, как у генерируемого Window.
+    void setPositional(UIElement const& value) const { content(value); }
+    void setPositional(TitleBar const& value) const { titleBar(value); }
 
     /// Композитор XAML-острова -- тот, на котором строят визуалы экраны,
     /// показанные через content(). НЕ сценовый: сцена под островом живёт на
@@ -148,52 +194,72 @@ public:
 
     /// Прячет XAML-остров: режим чтения. Скрытый остров ввод не перехватывает --
     /// клавиши, щелчки и колесо идут сцене (onKeyDown / onPointer*).
-    void hideContent();
+    void hideContent() const;
 
-    // ---- Заголовок окна: те же три члена, что у Microsoft.UI.Xaml.Window ----
+    /// Увеличение всего острова -- заголовка, кнопок окна, панелей и страниц
+    /// разом, как масштаб страницы в браузере: элементы крупнее, а логическая
+    /// ширина окна меньше, и вёрстка переливается под неё. 1 -- как задал
+    /// экран; DPI экрана остаётся в множителе и при переезде окна на другой
+    /// монитор. Сцена под островом не увеличивается: она в физических пикселях.
+    void zoom(double value) const;
+    double zoom() const;
+
+    // ---- Заголовок окна ----
     //
-    // Window их не реализует сам, а ставит через объекты своего HWND:
-    // AppWindowTitleBar отдаёт полосу заголовка клиентской области и рисует над
-    // ней системные кнопки, InputNonClientPointerSource отвечает Windows, где
-    // таскают окно. У этого окна тот же HWND с островом, и члены делают ровно
-    // то же, так что приложение пишет то же, что писало бы для Window:
+    // Как у Microsoft.UI.Xaml.Window: extendsContentIntoTitleBar отдаёт полосу
+    // заголовка клиентской области, заголовок -- элемент, за который таскают
+    // окно. В отличие от Window, элемент ставит на место само окно -- строкой
+    // над содержимым, -- поэтому он и пишется прямо в скобках окна:
     //
-    //     window.extendsContentIntoTitleBar(true);
-    //     window.setTitleBar(titleBar);
-    //     window.appWindow().titleBar().preferredHeightOption(TitleBarHeightOption::Tall);
+    //     titleBar = {leftHeader = ..., content = ..., rightHeader = ...}
     //
-    // Интерактивные элементы внутри полосы получают ввод, только если над ними
-    // вырезаны области Passthrough; это делает контрол TitleBar.
+    // Кнопки окна рядом с ним рисует тоже окно, в XAML: встроенным стилем
+    // WindowCaptionButton, высотой полосы заголовка и с её масштабом --
+    // системные кнопки AppWindow увеличению острова не следуют. Всё
+    // системное поведение у них своё: раскладки Windows 11 над «развернуть»,
+    // подсказки, команды по щелчку -- их дают области Minimize, Maximize и
+    // Close. Интерактивные элементы внутри полосы получают ввод, только если
+    // над ними вырезаны области Passthrough; это делает контрол TitleBar.
 
     /// Как Window.ExtendsContentIntoTitleBar: клиентская область поднимается
-    /// под заголовок, системный заголовок пропадает, кнопки окна остаются --
-    /// их рисует AppWindow поверх содержимого, с прозрачным фоном, чтобы под
-    /// ними была видна своя полоса. Звать до показа окна, иначе системный
-    /// заголовок успеет мелькнуть.
-    void extendsContentIntoTitleBar(bool value);
+    /// под заголовок, системный заголовок пропадает. Пока заголовка-элемента
+    /// нет, кнопки окна системные, как у Window; с ним -- свои. Звать до
+    /// показа окна, иначе системный заголовок успеет мелькнуть.
+    void extendsContentIntoTitleBar(bool value) const;
     bool extendsContentIntoTitleBar() const;
 
-    /// Как Window.SetTitleBar: элемент становится местом, за которое таскают
-    /// окно (область Caption), и прямоугольник следует за элементом -- за его
-    /// размером, размером окна и масштабом острова. Пустая обёртка убирает
-    /// свой прямоугольник, и остаётся тот, что ставит сам AppWindow: полоса
-    /// во всю ширину высотой кнопок.
-    void setTitleBar(UIElement const& titleBar);
+    /// Заголовок окна: элемент встаёт строкой над содержимым, рядом -- кнопки
+    /// окна его высоты, а сам он становится местом, за которое таскают окно
+    /// (область Caption, следом за его размером, размером окна и масштабом).
+    /// Элемент не должен стоять в другом дереве. Пустая обёртка убирает
+    /// заголовок; скрытый (Collapsed) заголовок прячет и кнопки.
+    void titleBar(UIElement const& value) const;
 
-    /// Как Window.AppWindow: объект Windows App SDK над этим же HWND. Через
-    /// него -- то, чему у Window обёртки нет: высота кнопок окна
-    /// (titleBar().preferredHeightOption) и место под ними (leftInset,
-    /// rightInset).
+    /// То же под именем Window.SetTitleBar.
+    void setTitleBar(UIElement const& value) const { titleBar(value); }
+
+    /// Как Window.AppWindow: объект Windows App SDK над этим же HWND -- место,
+    /// размер, значок и представление окна.
     AppWindow appWindow() const;
+
+    // ---- Само окно ----
+
+    /// Текст окна: его Windows показывает на панели задач и в Alt+Tab.
+    void title(string_param value) const;
+    wstring title() const;
+
+    /// Нижний предел клиентской области -- в пикселях клиента, рамку окно
+    /// прибавляет само.
+    void minSize(SizeInt32 const& value) const;
 
     /// Показывает окно. До него окно скрыто, чтобы не мигнуть прозрачностью и
     /// не показать себя раньше, чем встали место и содержимое.
-    void activate();
+    void activate() const;
 
     /// Задать размер окна, не трогая положения: начальный размер до
     /// восстановления запомненного места (иначе окно открылось бы системным
     /// CW_USEDEFAULT).
-    void resize(SizeInt32 size);
+    void resize(SizeInt32 size) const;
 
     /// Ставит окно посреди своего экрана, дав ему клиентскую область ровно
     /// такого размера.
@@ -207,7 +273,7 @@ public:
     ///
     /// Одним движением, а не «сначала размер, потом место»: показанное окно
     /// иначе прыгнуло бы дважды.
-    void centreWithClientSize(SizeInt32 client);
+    void centreWithClientSize(SizeInt32 client) const;
 
     /// Наибольшая клиентская область, какая помещается на экране этого окна:
     /// рабочая область монитора (без панели задач) за вычетом рамки.
@@ -228,56 +294,79 @@ public:
     /// Запомненное место окна (та же строка, что у генерируемого Window): при
     /// восстановлении проверяются мониторы, при отсутствии строки не делается
     /// ничего.
-    void placement(std::wstring_view saved);
+    void placement(std::wstring_view saved) const;
     std::wstring placement() const;
 
     /// Полноэкранный режим -- на своём HWND через Win32 (стиль и рамка), а не
     /// через presenter WinUI, которого у своего окна нет.
     bool fullScreen() const;
-    void fullScreen(bool on);
+    void fullScreen(bool on) const;
 
-    /// Закрывает окно, как системный крестик -- через WM_CLOSE, так что onClosed
+    /// Закрывает окно, как системный крестик -- через WM_CLOSE, так что Closed
     /// успевает сохранить, а следом приложение гаснет. Для «Выйти из читалки».
-    void close();
+    void close() const;
+
+    /// Книга, брошенная в окно (DragAcceptFiles/WM_DROPFILES): путь к файлу.
+    void acceptFileDrops(std::function<void(std::filesystem::path)> handler) const;
+
+    // ---- События ----
+    //
+    // Пары add_on.../remove_on..., как у генерируемых обёрток: в скобках окна
+    // они пишутся тегами (`onClosed = ...`), а on_event<EventKey::...>(window)
+    // делает каждое ожидаемым в корутине. Отправитель -- пустой Object: окно не
+    // объект WinRT; обработчик без аргументов или с одними аргументами события
+    // его не видит. Все зовутся на интерфейсном потоке.
 
     /// Закрытие окна: приложению есть что сохранить по дороге (место чтения,
     /// геометрию). Зовётся до разрушения.
-    void onClosed(std::function<void()> handler);
-
-    /// Книга, брошенная в окно (DragAcceptFiles/WM_DROPFILES): путь к файлу.
-    void acceptFileDrops(std::function<void(std::filesystem::path)> handler);
-
-    // ---- Ввод со сцены (режим чтения, XAML-острова нет) ----
-    //
-    // У чистой сцены ввод расщеплён: указатель перехватывает InputSite острова
-    // (верхний WndProc его не видит) -- его берём через InputPointerSource, -- а
-    // клавиатура доходит до WndProc (WM_KEYDOWN). wxl сводит оба в эти
-    // обработчики; они получают те же обёртки, что раздаёт XAML (VirtualKey,
-    // PointerPoint), поэтому тела обработчиков страницы переносятся почти как
-    // есть. Все зовутся на интерфейсном потоке.
-    void onKeyDown(std::function<void(VirtualKey)> handler);
-    void onPointerPressed(std::function<void(PointerPoint const&)> handler);
-    void onPointerMoved(std::function<void(PointerPoint const&)> handler);
-    void onPointerReleased(std::function<void(PointerPoint const&)> handler);
-    void onPointerWheel(std::function<void(PointerPoint const&)> handler);
+    EventToken add_onClosed(EventHandler<Object> const& handler) const;
+    void remove_onClosed(EventToken token) const;
 
     /// Место окна сменилось -- двигали, растягивали, максимизировали или
-    /// восстановили. Под отложенное сохранение места. Зовётся на интерфейсном
-    /// потоке.
-    void onGeometryChanged(std::function<void()> handler);
+    /// восстановили. Под отложенное сохранение места.
+    EventToken add_onGeometryChanged(EventHandler<Object> const& handler) const;
+    void remove_onGeometryChanged(EventToken token) const;
 
-    /// Клиентская область сменила размер: физические пиксели и масштаб экрана
-    /// (DPI/96), которым их делят, чтобы получить логические.
+    /// Клиентская область сменила размер или масштаб (ClientSize).
     ///
     /// Зовётся прямо из WM_SIZE -- то есть **до** того, как XAML начнёт
     /// считать вёрстку, и синхронно с тем, как двигаются сцена и мост
     /// острова. Это и есть место, где приложение перестраивает раскладку под
     /// новую ширину: то же самое из `FrameworkElement::SizeChanged` пришло бы
-    /// уже изнутри прохода вёрстки, а править дерево оттуда нельзя.
-    void onClientSizeChanged(std::function<void(SizeInt32 client, float scale)> handler);
+    /// уже изнутри прохода вёрстки, а править дерево оттуда нельзя. Смена
+    /// увеличения (`zoom`) зовёт его тоже: логическая ширина от неё меняется.
+    EventToken add_onClientSizeChanged(EventHandler<ClientSize> const& handler) const;
+    void remove_onClientSizeChanged(EventToken token) const;
+
+    // Ввод со сцены (режим чтения, XAML-острова нет). У чистой сцены ввод
+    // расщеплён: указатель перехватывает InputSite острова (верхний WndProc
+    // его не видит) -- его берём через InputPointerSource, -- а клавиатура
+    // доходит до WndProc (WM_KEYDOWN). Окно сводит оба в эти события; они
+    // приносят те же обёртки, что раздаёт XAML (VirtualKey, PointerPoint).
+    EventToken add_onKeyDown(EventHandler<VirtualKey> const& handler) const;
+    void remove_onKeyDown(EventToken token) const;
+    EventToken add_onPointerPressed(EventHandler<PointerPoint> const& handler) const;
+    void remove_onPointerPressed(EventToken token) const;
+    EventToken add_onPointerMoved(EventHandler<PointerPoint> const& handler) const;
+    void remove_onPointerMoved(EventToken token) const;
+    EventToken add_onPointerReleased(EventHandler<PointerPoint> const& handler) const;
+    void remove_onPointerReleased(EventToken token) const;
+    EventToken add_onPointerWheelChanged(EventHandler<PointerPoint> const& handler) const;
+    void remove_onPointerWheelChanged(EventToken token) const;
+
+    // Те же события одним вызовом, как их подписывали до тегов: обработчик
+    // добавляется и остаётся до конца жизни окна.
+    void onClosed(std::function<void()> handler) const;
+    void onGeometryChanged(std::function<void()> handler) const;
+    void onClientSizeChanged(std::function<void(SizeInt32 client, float scale)> handler) const;
+    void onKeyDown(std::function<void(VirtualKey)> handler) const;
+    void onPointerPressed(std::function<void(PointerPoint const&)> handler) const;
+    void onPointerMoved(std::function<void(PointerPoint const&)> handler) const;
+    void onPointerReleased(std::function<void(PointerPoint const&)> handler) const;
+    void onPointerWheel(std::function<void(PointerPoint const&)> handler) const;
 
 private:
-    std::unique_ptr<WindowState> state_;
+    core::intrusive_ptr<WindowState> state_;
 };
 
 }  // namespace wxl
