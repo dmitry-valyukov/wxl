@@ -6,9 +6,12 @@
 #include <charconv>
 
 #include "Bind.h"
+#include "Card.h"
 #include "aliases.h"
 #include "generated/Members.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
+#include "generated/brushes.h"
+#include "generated/styles.h"
 #include "launch.h"
 
 using namespace wxl;
@@ -141,49 +144,63 @@ wxl::Teardown wxl_launched() {
 
     auto window = Window {
         title = u"WXL Quadratic",
-        minSize = {640, 260},
+        minSize = {720, 340},
 
-        content = StackPanel {
-            Padding {28, 24},
-            spacing = 20,
+        content = Grid {
+            background = brushes.SolidBackgroundFillColor.Base,
 
-            StackPanel {
-                orientation.horizontal,
-                spacing = 10,
+            Card {
+                hAlign.center,
+                vAlign.center,
+                Margin {16},
+                Padding {28, 20, 28, 28},
 
-                TextBox {
-                    coefficient,
-                    placeholderText = u"a",
-                    text = Bind{eq->a},
-                    onLoaded = [](TextBox const& box) { box.focus(FocusState::Programmatic); },
+                StackPanel {
+                    spacing = 20,
+
+                    TextBlock {styles.TextBlock.Subtitle, u"Решение квадратного уравнения"},
+
+                    StackPanel {
+                        orientation.horizontal,
+                        spacing = 10,
+
+                        TextBox {
+                            coefficient,
+                            placeholderText = u"a",
+                            text = Bind{eq->a},
+                            onLoaded = [](TextBox const& box) {
+                                box.focus(FocusState::Programmatic);
+                            },
+                        },
+                        TextBlock {math, u"· x² +"},
+                        TextBox {coefficient, placeholderText = u"b", text = Bind{eq->b}},
+                        TextBlock {math, u"· x +"},
+                        TextBox {coefficient, placeholderText = u"c", text = Bind{eq->c}},
+                        TextBlock {math, u"= 0"},
+                    },
+
+                    StackPanel {
+                        orientation.horizontal,
+                        spacing = 10,
+                        TextBlock {math, u"D ="},
+                        TextBox {result, text = Bind{eq->discriminant}},
+                    },
+
+                    StackPanel {
+                        orientation.horizontal,
+                        spacing = 10,
+                        TextBlock {math, u"x₁ ="},
+                        TextBox {result, text = Bind{eq->x1}},
+                        TextBlock {math, u",", Margin {0, 0, 16, 0}},
+                        TextBlock {math, u"x₂ ="},
+                        TextBox {result, text = Bind{eq->x2}},
+                    },
                 },
-                TextBlock {math, u"· x² +"},
-                TextBox {coefficient, placeholderText = u"b", text = Bind{eq->b}},
-                TextBlock {math, u"· x +"},
-                TextBox {coefficient, placeholderText = u"c", text = Bind{eq->c}},
-                TextBlock {math, u"= 0"},
-            },
-
-            StackPanel {
-                orientation.horizontal,
-                spacing = 10,
-                TextBlock {math, u"D ="},
-                TextBox {result, text = Bind{eq->discriminant}},
-            },
-
-            StackPanel {
-                orientation.horizontal,
-                spacing = 10,
-                TextBlock {math, u"x₁ ="},
-                TextBox {result, text = Bind{eq->x1}},
-                TextBlock {math, u",", Margin {0, 0, 16, 0}},
-                TextBlock {math, u"x₂ ="},
-                TextBox {result, text = Bind{eq->x2}},
             },
         },
     };
 
-    window.appWindow().resize({700, 260});
+    window.appWindow().resize({760, 360});
     window.activate();
 
     // Окно и модель живут, пока жив обработчик
