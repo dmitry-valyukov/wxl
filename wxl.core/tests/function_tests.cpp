@@ -235,10 +235,10 @@ TEST(FunctionTest, TakesItsBodyFromTheStaPool) {
         << "the body came from the CRT heap rather than from sta_memory_pool";
 }
 
-// And the probe would have noticed. The same body under another base -- the
-// one an event links into its list -- stays on the ordinary heap on purpose:
-// an event is fired from whatever thread the program has, and the pool belongs
-// to one.
+// And the probe would have noticed. The same body under the plain node base --
+// the one an event_mt links into its list -- stays on the ordinary heap: that
+// list is swapped and fired from whichever thread stops a component, and the
+// pool belongs to one thread.
 TEST(FunctionTest, TheProbeNoticesABodyFromTheOrdinaryHeap) {
     _CrtMemState before{}, after{}, difference{};
 
@@ -250,6 +250,24 @@ TEST(FunctionTest, TheProbeNoticesABodyFromTheOrdinaryHeap) {
     EXPECT_NE(0, _CrtMemDifference(&difference, &before, &after));
 
     delete node.get();
+}
+
+// An event of the STA thread -- observable's watches, the bindings -- links
+// the same body through sta_intrusive_slist_node, and that node comes from
+// the pool like function's body does.
+TEST(FunctionTest, AnEventNodeComesFromTheStaPool) {
+    _CrtMemState before{}, after{}, difference{};
+
+    wxl::core::event<void()> warm;
+    warm.add([payload = std::array<char, 64>{}]() noexcept { (void)payload; });
+
+    wxl::core::event<void()> held;
+    _CrtMemCheckpoint(&before);
+    held.add([payload = std::array<char, 64>{}]() noexcept { (void)payload; });
+    _CrtMemCheckpoint(&after);
+
+    EXPECT_EQ(0, _CrtMemDifference(&difference, &before, &after))
+        << "the event node came from the CRT heap rather than from sta_memory_pool";
 }
 
 #endif

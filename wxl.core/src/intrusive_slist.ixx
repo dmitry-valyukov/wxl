@@ -7,6 +7,7 @@ export module wxl.core:intrusive_slist;
 import :checks;
 import :not_null;
 import :noncopyable;
+import :sta_allocator;
 import std;
 
 export namespace wxl::core {
@@ -27,6 +28,23 @@ using cookie_t = not_null<const void>;
 template <class Node>
 struct intrusive_slist_node : public noncopyable {
     Node* next_{};
+};
+
+/// The same link for a node that lives in the STA pool: allocated and freed there, on the
+/// pool's thread and inside its life. What `event` links its callbacks with.
+template <class Node>
+struct sta_intrusive_slist_node : public intrusive_slist_node<Node> {
+    inline static void* operator new(std::size_t size) {
+        return sta_memory_pool::alloc(size);
+    }
+
+    // Sized, and it has to be: the pool gives back to the size class it took
+    // from. The size is the complete object's, because the destructor is
+    // virtual and the deleting one the compiler writes knows which object it
+    // is freeing.
+    inline static void operator delete(void* mem, std::size_t size) noexcept {
+        sta_memory_pool::free(mem, size);
+    }
 };
 
 /**

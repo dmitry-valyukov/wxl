@@ -73,8 +73,8 @@ private:
     /// The lifecycle callbacks. They live in the state, like every other field of a
     /// component: the state is the half that a callback is allowed to hold on to, and the
     /// half that outlives the component object itself.
-    core::event<void()> on_started_;
-    core::event<void(const stop_reason&)> on_stopped_;
+    core::event_mt<void()> on_started_;
+    core::event_mt<void(const stop_reason&)> on_stopped_;
 
     friend class component;
 };
