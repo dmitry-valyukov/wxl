@@ -182,5 +182,10 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         exitCode = teardownHandler(reason);
         teardownHandler = {};
     }
+
+    // The one place wxl runs what it registered through module_cleanup: after
+    // the handler, which may still use what those cleanups release, and before
+    // static destruction, whose order nothing here controls.
+    wxl::core::module_cleanup::run_now();
     return exitCode;
 }
