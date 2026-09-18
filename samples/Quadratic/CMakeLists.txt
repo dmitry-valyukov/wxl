@@ -11,7 +11,7 @@ wxl_set_target_folders(sample.quadratic)
 
 # Иконка приложения -- в самом exe: её показывает Проводник, её же wxl
 # ставит окну, и копировать .ico рядом не нужно.
-wxl_target_icon(sample.quadratic Assets/x2.ico)
+wxl_target_icon(sample.quadratic app.ico)
 
 target_link_libraries(sample.quadratic PRIVATE wxl::ui)
 
@@ -31,12 +31,10 @@ else()
         "sample.quadratic will fail to start until it is beside the executable.")
 endif()
 
-# Картинка фона ищется рядом с исполняемым файлом -- папка Assets копируется при
-# каждой сборке: её правка -- не повод перелинковывать.
-add_custom_command(TARGET sample.quadratic POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/Assets" "$<TARGET_FILE_DIR:sample.quadratic>/Assets"
-    COMMENT "Копирование ресурсов примера рядом с sample.quadratic")
+# Картинка фона ищется рядом с исполняемым файлом. Каждый файл папки --
+# выход сборки со своей зависимостью, поэтому правка картинки доезжает до
+# exe и без перелинковки.
+wxl_target_assets(sample.quadratic Assets)
 
 # CompositionWindow держит кэш текстур Win2D, и без его DLL рядом окно не
 # поднимается.

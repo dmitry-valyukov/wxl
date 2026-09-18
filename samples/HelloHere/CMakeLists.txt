@@ -13,7 +13,7 @@ add_executable(sample.hello WIN32
 
 wxl_set_target_folders(sample.hello)
 
-wxl_target_icon(sample.hello Assets/WinUl-logo.ico)
+wxl_target_icon(sample.hello app.ico)
 
 target_link_libraries(sample.hello PRIVATE wxl::ui)
 
