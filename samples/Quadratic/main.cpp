@@ -54,21 +54,28 @@ static Answer solve(opt_double va, opt_double vb, opt_double vc) {
         double a = *va, b = *vb, c = *vc;
 
         if (a == 0) {
-            if (b != 0) return {none, to_string(-c / b), none};
-            if (c == 0) return {none, u16_text{u"ℝ"}, none};
+            if (b != 0)
+                return {none, to_string(-c / b), none};
+
+            if (c == 0)
+                return {none, u16_text{u"ℝ"}, none};
+
             return {none, u16_text{u"∅"}, none};
         }
 
         double const d = b * b - 4 * a * c;
 
         if (d < 0) {
+            // Комплексные корни
             double const real = -b / (2 * a);
             double const imaginary = std::sqrt(-d) / (2 * std::abs(a));
             return {to_string(d), to_string(real, -imaginary), to_string(real, imaginary)};
         }
 
+        // Формула Мюллера для сохранения точности
         double const q = -0.5 * (b + std::copysign(std::sqrt(d), b));
         double const first = q / a;
+        // Теорема Виета
         double const second = q == 0 ? first : c / q;
         return {to_string(d), to_string(std::min(first, second)), to_string(std::max(first, second))};
     }
@@ -80,47 +87,46 @@ static Answer solve(opt_double va, opt_double vb, opt_double vc) {
 // коэффициента пересчитывает ответы, пока все три читаются как числа.
 class Equation : public noncopyable
 {
-    observable<std::optional<double>> va, vb, vc;
+    observable<opt_double> va, vb, vc;
     observable<Answer> answer;
 
 public:
-    observable<u16_text> a, b, c;
-    observable<u16_text> D, x1, x2;
+    observable<u16_text> a, b, c, D, x1, x2;
 
     Equation() {
         va.follow(a, to_double);
-        vb.follow(b, to_double);
+        vb.follow(b, to_double);    // текст → число
         vc.follow(c, to_double);
 
-        answer
+        answer                      // три числа → ответ
             .follow(va, vb, vc, solve)
             .on_change([this](Answer const& answer) noexcept {
                 D.set(answer.D);
-                x1.set(answer.x1);
+                x1.set(answer.x1);  // ответ → три текста
                 x2.set(answer.x2);
             });
     }
 };
 
-auto const common = Preset {
-    FontWeight {600},
-    hAlign.center,
-};
-
-auto const txt = Preset {
-    common,
-    styles.TextBlock.Subtitle,
-};
-
-auto const input = Preset {
-    common,
+const Preset common {
     fontSize = 18,
+    hAlign.center,
+    vAlign.center,
+};
+
+const Preset txt {
+    common, // Пресеты могут вкладываться друг в друга
+    FontWeight {600},
+    foreground = colors.blue,
+};
+
+const Preset input {
+    common,
     width = 200,
 };
 
-auto const output = Preset {
+const Preset output {
     common,
-    fontSize = 18,
     width = 300,
     isReadOnly = true,
 };
@@ -128,7 +134,7 @@ auto const output = Preset {
 }  // namespace
 
 wxl::Teardown wxl_launched() {
-    // Время жизни модели надо будет продлить
+    // Время жизни модели требуется продлить
     auto const model = std::make_shared<Equation>();
     Equation & eq = *model;
 
@@ -143,7 +149,8 @@ wxl::Teardown wxl_launched() {
                 spacing = 32,
                 TextBlock {
                     u"Решение квадратного уравнения",
-                    txt,
+                    styles.TextBlock.Subtitle,
+                    hAlign.center,
                 },
                 StackPanel {
                     orientation.horizontal,
@@ -152,8 +159,8 @@ wxl::Teardown wxl_launched() {
                         input,
                         placeholderText = u"a",
                         text = Bind {eq.a},
-                        onLoaded = [](TextBox const& box) {
-                            box.focus(FocusState::Programmatic);
+                        onLoaded = [](TextBox const& control) {
+                            control.focus(FocusState::Programmatic);
                         },
                     },
                     TextBlock {txt, u"· x² +"},
@@ -198,7 +205,7 @@ wxl::Teardown wxl_launched() {
         }
     };
 
-    window.appWindow().resize({920, 400});
+    window.appWindow().resize({1380, 800});
     window.activate();
 
     // Продлеваем время жизни модели
