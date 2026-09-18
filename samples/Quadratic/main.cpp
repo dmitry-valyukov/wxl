@@ -205,7 +205,9 @@ wxl::Teardown wxl_launched() {
         }
     };
 
-    window.appWindow().resize({1380, 800});
+    auto appWindow = window.appWindow();
+    appWindow.setIcon(u"Assets/x2.ico");
+    appWindow.resize({1380, 800});
     window.activate();
 
     // Продлеваем время жизни модели
