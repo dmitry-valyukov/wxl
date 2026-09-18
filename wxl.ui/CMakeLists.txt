@@ -122,6 +122,8 @@ add_library(wxl.ui STATIC
     src/impl/member.h
     src/impl/member.cpp
     src/geometry.h
+    src/impl/app_icon.h
+    src/impl/app_icon.cpp
     src/impl/bootstrap.h
     src/impl/bootstrap.cpp
     src/impl/window_constraints.h

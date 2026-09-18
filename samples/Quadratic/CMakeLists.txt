@@ -9,6 +9,10 @@ add_executable(sample.quadratic WIN32
 
 wxl_set_target_folders(sample.quadratic)
 
+# Иконка приложения -- в самом exe: её показывает Проводник, её же wxl
+# ставит окну, и копировать .ico рядом не нужно.
+wxl_target_icon(sample.quadratic Assets/x2.ico)
+
 target_link_libraries(sample.quadratic PRIVATE wxl::ui)
 
 # Загрузчик Windows App Runtime ищет пакет платформы при старте и должен лежать
