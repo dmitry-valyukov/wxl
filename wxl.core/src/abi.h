@@ -8,14 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if (defined(__SIZE_WIDTH__) && __SIZE_WIDTH__ == 64) ||                          \
-    (defined(__INTPTR_WIDTH__) && __INTPTR_WIDTH__ == 64) || defined(_M_AMD64) || \
-    defined(_M_ARM64)
-#define PLATFORM_64BIT
-#else
-#define PLATFORM_32BIT
-#endif
-
 // POSIX signed counterpart of size_t; MSVC only provides the uppercase SSIZE_T
 // (via <basetsd.h>, pulled in by windows.h). Spelled via ptrdiff_t here so that
 // partitions which never touch the Windows API don't have to include it.
