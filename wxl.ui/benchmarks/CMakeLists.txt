@@ -12,22 +12,13 @@
 # reason a sample does: unpackaged, no WinUI3 class activates until the
 # framework package is resolved.
 
-set(_wxl_scene_bootstrap_dll
-    "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/runtimes/win-x64/native/Microsoft.WindowsAppRuntime.Bootstrap.dll")
-
 function(_wxl_scene_benchmark target)
     wxl_set_target_folders(${target})
 
-    if(EXISTS "${_wxl_scene_bootstrap_dll}")
-        add_custom_command(TARGET ${target} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_wxl_scene_bootstrap_dll}" "$<TARGET_FILE_DIR:${target}>"
-            COMMENT "Copying the Windows App Runtime bootstrapper beside ${target}")
-    else()
-        message(WARNING
-            "No Microsoft.WindowsAppRuntime.Bootstrap.dll at ${_wxl_scene_bootstrap_dll}; "
-            "${target} will fail to start until it is beside the executable.")
-    endif()
+    # The bootstrapper and Win2D, from wxl itself: the benchmark declares its
+    # own target rather than going through wxl_add_executable(), so it asks
+    # for the runtime by hand -- and by the same call.
+    wxl_target_runtime(${target})
 endfunction()
 
 # ---- The declarative half ----
@@ -74,9 +65,10 @@ target_link_libraries(wxl.ui.scene-winrt-benchmark PRIVATE
     runtimeobject.lib
 )
 
-if(EXISTS "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")
-    target_link_libraries(wxl.ui.scene-winrt-benchmark PRIVATE
-        "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")
+# The same imported target wxl.ui links: this benchmark stands beside wxl
+# rather than on it, but the bootstrapper it needs is the very same one.
+if(TARGET wxl.winappsdk.bootstrap)
+    target_link_libraries(wxl.ui.scene-winrt-benchmark PRIVATE wxl.winappsdk.bootstrap)
 endif()
 
 # It imports nothing, so there is nothing to scan for -- and scanning would

@@ -241,7 +241,6 @@ wxl::Teardown wxl_launched() {
 
     auto appWindow = mainWindow.appWindow();
     appWindow.resize({420, 560});
-    appWindow.setIcon(u"Assets/Calc.ico");
     mainWindow.activate();
 
     // Продлеваем жизнь модели

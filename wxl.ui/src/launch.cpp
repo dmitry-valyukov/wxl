@@ -20,6 +20,7 @@
 #include <iostream>
 
 #include "impl/activation_factory.h"
+#include "impl/app_icon.h"
 #include "impl/bootstrap.h"
 #include "impl/event_waits.h"
 #include "launch.h"
@@ -62,6 +63,11 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
             winrt::Microsoft::UI::Xaml::Controls::XamlControlsResources{});
 
         teardownHandler = wxl_launched();
+
+        // The application has built and shown its windows by now, so this
+        // is the moment a window that carries no icon can be given the one
+        // in the executable -- see impl/app_icon.h.
+        wxl::impl::apply_application_icon();
     }
 
     // A control building its own template asks the application to resolve the
