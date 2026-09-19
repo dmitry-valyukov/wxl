@@ -9,7 +9,6 @@
 
 wxl_add_executable(sample.hello
     main.cpp
-    app.manifest
 )
 
 # The icon travels inside the executable: the shell shows it, and wxl puts it

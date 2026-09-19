@@ -6,5 +6,4 @@
 
 wxl_add_executable(sample.custom-titlebar
     main.cpp
-    app.manifest
 )

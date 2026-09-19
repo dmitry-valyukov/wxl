@@ -4,7 +4,6 @@
 
 wxl_add_executable(sample.quadratic
     main.cpp
-    app.manifest
 )
 
 # Иконка приложения -- в самом exe: её показывает Проводник, её же wxl

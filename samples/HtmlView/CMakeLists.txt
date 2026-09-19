@@ -4,7 +4,6 @@
 
 wxl_add_executable(sample.htmlview
     main.cpp
-    app.manifest
 )
 
 # The sample markup rides along as assets, straight from wxl.html/sample --

@@ -11,7 +11,6 @@ wxl_add_executable(sample.calc
     Calc.h
     Calc.cpp
     main.cpp
-    app.manifest
 )
 
 # An image path carrying no scheme is resolved next to the executable, so the

@@ -7,7 +7,6 @@
 # cppwinrt напрямую.
 wxl_add_executable(sample.titlebar-probe
     main.cpp
-    app.manifest
 )
 
 target_include_directories(sample.titlebar-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})

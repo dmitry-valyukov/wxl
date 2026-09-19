@@ -87,11 +87,24 @@ function(wxl_set_target_folders target)
     list(REMOVE_DUPLICATES _all_files)
 
     # --- ЧАСТЬ 3: Группировка файлов по папкам диска (Магия TREE) ---
+    # Файл цели может лежать и вне её каталога -- общий манифест из cmake/,
+    # сгенерированный скрипт ресурсов, копия ассета. TREE такой файл не
+    # принимает и обрывает настройку, поэтому чужие складываются отдельной
+    # группой, а деревом строятся только свои.
     set(_abs_files "")
+    set(_foreign_files "")
     foreach(_file IN LISTS _all_files)
         cmake_path(ABSOLUTE_PATH _file BASE_DIRECTORY "${_target_dir}" NORMALIZE OUTPUT_VARIABLE _abs_file)
-        if(EXISTS "${_abs_file}")
+        if(NOT EXISTS "${_abs_file}")
+            continue()
+        endif()
+
+        cmake_path(IS_PREFIX _target_dir "${_abs_file}" NORMALIZE _is_own)
+
+        if(_is_own)
             list(APPEND _abs_files "${_abs_file}")
+        else()
+            list(APPEND _foreign_files "${_abs_file}")
         endif()
     endforeach()
 
@@ -102,6 +115,10 @@ function(wxl_set_target_folders target)
 
     # Идеально строит дерево исходников в IDE напрямую от корня проекта
     source_group(TREE "${_target_dir}" FILES ${_abs_files})
+
+    if(_foreign_files)
+        source_group("wxl" FILES ${_foreign_files})
+    endif()
 
 
     # --- ЧАСТЬ 4: Перехват .cmake файлов с сохранением структуры папок ---

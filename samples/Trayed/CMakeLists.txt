@@ -16,7 +16,6 @@ wxl_add_executable(sample.trayed
     Settings.cpp
     settings_window.h
     settings_window.cpp
-    app.manifest
 )
 
 # comctl32 for SetWindowSubclass: the settings window (a wxl/WinUI window) is

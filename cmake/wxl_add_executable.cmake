@@ -70,11 +70,23 @@ endfunction()
 # of application here -- it links wxl::ui and nothing else of wxl, it takes its
 # place in the IDE tree, and what wxl needs at run time lands beside it.
 #
+# The manifest comes with it -- wxl_app.manifest beside this file, one for
+# every application, because what it declares is the library's requirement
+# and not the application's business. An application that passes a manifest
+# of its own keeps it and gets no second one: two of them with different
+# identities do not merge, and the link fails.
+#
 # What belongs to one application and not to all of them is said after this
 # call, on the target it made: another library, an icon (wxl_target_icon), a
 # folder shipped beside the executable (wxl_target_assets).
 function(wxl_add_executable target)
-    add_executable(${target} WIN32 ${ARGN})
+    set(_sources ${ARGN})
+
+    if(NOT _sources MATCHES "\.manifest(;|$)")
+        list(APPEND _sources "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/wxl_app.manifest")
+    endif()
+
+    add_executable(${target} WIN32 ${_sources})
 
     target_link_libraries(${target} PRIVATE wxl::ui)
 
