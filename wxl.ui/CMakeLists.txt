@@ -277,9 +277,36 @@ target_link_libraries(wxl.ui
         dwmapi.lib
 )
 
+# The bootstrapper as a target, not as a path to its import library: then
+# CMake knows the DLL behind it, and $<TARGET_RUNTIME_DLLS> of an application
+# names it without the application knowing where the SDK lies. GLOBAL, so the
+# name reaches the directories where applications are declared; PUBLIC,
+# because the DLL has to reach their folders and not only wxl's link line.
 if(EXISTS "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")
-    target_link_libraries(wxl.ui PRIVATE
-        "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")
+    add_library(wxl.winappsdk.bootstrap SHARED IMPORTED GLOBAL)
+    set_target_properties(wxl.winappsdk.bootstrap PROPERTIES
+        IMPORTED_LOCATION
+            "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/runtimes/win-x64/native/Microsoft.WindowsAppRuntime.Bootstrap.dll"
+        IMPORTED_IMPLIB
+            "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")
+
+    target_link_libraries(wxl.ui PUBLIC wxl.winappsdk.bootstrap)
+else()
+    message(WARNING
+        "No Microsoft.WindowsAppRuntime.Bootstrap.lib at ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}; "
+        "applications built on wxl will fail to start.")
+endif()
+
+# Win2D activates by name at run time and carries no import library, so
+# nothing links it and CMake cannot learn about it on its own. wxl names it
+# here, and wxl_target_runtime() puts it beside whoever links wxl.
+if(EXISTS "${WXL_WIN2D_DIR}/runtimes/win-x64/native/Microsoft.Graphics.Canvas.dll")
+    set_property(TARGET wxl.ui APPEND PROPERTY WXL_RUNTIME_FILES
+        "${WXL_WIN2D_DIR}/runtimes/win-x64/native/Microsoft.Graphics.Canvas.dll")
+else()
+    message(WARNING
+        "No Microsoft.Graphics.Canvas.dll at ${WXL_WIN2D_DIR}; a CompositionWindow "
+        "will fault while building its shared CanvasDevice.")
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "src" REGULAR_EXPRESSION "src/.*")

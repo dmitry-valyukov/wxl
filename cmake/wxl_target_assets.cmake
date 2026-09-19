@@ -45,7 +45,7 @@ function(wxl_target_assets target folder)
             OUTPUT "${_copy}"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_root}/${_file}" "${_copy}"
             DEPENDS "${_root}/${_file}"
-            COMMENT "Копирование ${_name}/${_file} рядом с ${target}"
+            COMMENT "Copying ${_name}/${_file} beside ${target}"
             VERBATIM)
 
         list(APPEND _copies "${_copy}")
