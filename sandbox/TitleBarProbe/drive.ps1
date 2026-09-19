@@ -1,10 +1,10 @@
-# Водит sample.titlebar-probe настоящей мышью: запускает с ключами, двигает и жмёт
+# Водит sandbox.titlebar-probe настоящей мышью: запускает с ключами, двигает и жмёт
 # в клиентских координатах окна, снимает область экрана вокруг окна (так в кадр
 # попадают системные подсказки и раскладки Windows 11) и нажимает кнопки тела
 # окна через UI Automation. Мышь -- системная, поэтому на время прогона экран
 # занят.
 #
-#   pwsh -File samples\TitleBarProbe\drive.ps1 -ProbeArgs "--buttons own --zoom 1.5" `
+#   pwsh -File sandbox\TitleBarProbe\drive.ps1 -ProbeArgs "--buttons own --zoom 1.5" `
 #        -Do "wait 4000; move 980 36; wait 2000; shot hover-max.png 60"
 #
 # Команды: wait <мс>; move <x> <y>; click|dblclick|rclick <x> <y>; down; up;
@@ -13,7 +13,7 @@
 # ctrlwheel <x> <y> <шаг колеса, 120 -- щелчок> -- колесо с Ctrl;
 # restore; rect; alive.
 param(
-    [string]$Exe = 'build\x64\samples\TitleBarProbe\Debug\sample.titlebar-probe.exe',
+    [string]$Exe = 'build\x64\sandbox\TitleBarProbe\Debug\sandbox.titlebar-probe.exe',
     [string]$ProbeArgs = '',
     [string]$Do = 'wait 3000; shot start.png',
     [string]$ShotDir = '.',
