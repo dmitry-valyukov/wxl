@@ -1,5 +1,5 @@
-// Continuation of framework_element_activation.cpp's probe: manual
-// RoGetActivationFactory + CreateInstance from a bare console-style main()
+// Continuation of an earlier probe: manual RoGetActivationFactory +
+// CreateInstance from a bare console-style main()
 // got as far as RPC_E_WRONG_THREAD even with a real outer identity and a
 // manually-created DispatcherQueueController. Modeled after
 // M:\source\WxlApp1\WxlApp1\main.cpp (an existing, working unpackaged
@@ -33,8 +33,8 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 
-#include <wxl/core/bootstrap.h>
-#include <wxl/core/hresult.h>
+#include <impl/bootstrap.h>
+#include <impl/hresult.h>
 
 #include <cstdio>
 
@@ -43,10 +43,8 @@ using namespace winrt::Microsoft::UI::Xaml;
 
 namespace {
 
-// Same bare ABI declaration and throwaway outer identity as
-// framework_element_activation.cpp -- duplicated rather than shared, since
-// both files are disposable probing code, not wxl itself (see that file's
-// own header comment).
+// The ABI declaration and the throwaway outer identity are written out here
+// rather than taken from anywhere: this is probing code, not wxl itself.
 struct __declspec(uuid("BD3F2272-3EFA-5F92-B759-90B1CC3E784C"))
     __declspec(novtable) IFrameworkElementFactory : ::IInspectable {
     virtual HRESULT __stdcall CreateInstance(
@@ -88,8 +86,8 @@ constexpr GUID IID_IDependencyObject = {
 //      (first-hop identity).
 //   2. querying inner for some *other* real interface it implements
 //      (IDependencyObject -- FrameworkElement genuinely implements it,
-//      unlike the mocks in overrides_demo.cpp), then querying *that*
-//      pointer again for IUnknown, must *still* equal `outer`
+//      unlike the mocks in the Overrides recipe beside this one), then
+//      querying *that* pointer again for IUnknown, must *still* equal `outer`
 //      (second-hop identity).
 void run_activation_probe() {
     HSTRING className{};
@@ -172,7 +170,10 @@ struct App : ApplicationT<App> {
 } // namespace
 
 int main() {
-    init_apartment();
+    // Однопоточная квартира: XAML живёт только в STA, а init_apartment() без
+    // аргумента входит в многопоточную -- Application::Start на ней падает.
+    // Та же строка стоит в собственном запуске wxl (wxl.ui/src/launch.cpp).
+    init_apartment(apartment_type::single_threaded);
 
     try {
         wxl::impl::ensure_windows_app_runtime_initialized();
