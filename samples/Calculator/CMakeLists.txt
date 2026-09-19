@@ -13,6 +13,10 @@ wxl_add_executable(sample.calc
     main.cpp
 )
 
+# The icon travels inside the executable: the shell shows it, and wxl puts it
+# on the window, so nothing has to be copied for it.
+wxl_target_icon(sample.calc app.ico)
+
 # An image path carrying no scheme is resolved next to the executable, so the
 # assets have to be there. Each file is an output of the build with a
 # dependency of its own, so editing one copies it and nothing else.
