@@ -70,11 +70,14 @@ endfunction()
 # of application here -- it links wxl::ui and nothing else of wxl, it takes its
 # place in the IDE tree, and what wxl needs at run time lands beside it.
 #
-# The manifest comes with it -- wxl_app.manifest beside this file, one for
-# every application, because what it declares is the library's requirement
-# and not the application's business. An application that passes a manifest
-# of its own keeps it and gets no second one: two of them with different
-# identities do not merge, and the link fails.
+# The manifest comes with it, generated from wxl_app.manifest.in beside this
+# file: what it declares is the library's requirement rather than the
+# application's business, and the one thing that differs between applications
+# -- the name in the assembly identity -- is the target's own name, which is
+# known right here. Nobody writes or edits a manifest for an application.
+#
+# An application that passes a manifest of its own keeps it and gets no second
+# one: two of them with different identities do not merge, and the link fails.
 #
 # What belongs to one application and not to all of them is said after this
 # call, on the target it made: another library, an icon (wxl_target_icon), a
@@ -83,7 +86,16 @@ function(wxl_add_executable target)
     set(_sources ${ARGN})
 
     if(NOT _sources MATCHES "\.manifest(;|$)")
-        list(APPEND _sources "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/wxl_app.manifest")
+        set(WXL_APP_NAME "${target}")
+        set(_manifest "${CMAKE_CURRENT_BINARY_DIR}/${target}.manifest")
+
+        # configure_file(), not file(CONFIGURE): it puts the template into the
+        # configure dependencies by itself, so editing the template rebuilds the
+        # build files instead of being quietly ignored.
+        configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/wxl_app.manifest.in"
+                       "${_manifest}" @ONLY)
+
+        list(APPEND _sources "${_manifest}")
     endif()
 
     add_executable(${target} WIN32 ${_sources})

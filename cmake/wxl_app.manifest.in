@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The manifest of an application built on wxl, one for all of them.
+<!-- The manifest of an application built on wxl, written once for all of
+     them and generated for each: the only thing an application puts in it is
+     its own name, and wxl_add_executable() knows that already.
 
      What it says is required by the library, not by the application: an
      unpackaged WinUI3 process has to name the Windows it was tested against,
@@ -10,13 +12,12 @@
      this (version 6 of the common controls) already travels, from a
      #pragma comment(linker, ...) in wxl.ui/src/launch.cpp.
 
-     wxl_add_executable() gives this file to every application it declares. An
-     application with reasons of its own passes a manifest in its sources, and
-     then this one steps aside: two manifests with different identities do not
-     merge, and the link fails outright ("Values of attribute name not equal
-     in different manifest snippets"). -->
+     An application with reasons of its own passes a manifest in its sources,
+     and then this one steps aside: two manifests with different identities do
+     not merge, and the link fails outright ("Values of attribute name not
+     equal in different manifest snippets"). -->
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="1.0.0.0" name="wxl.application"/>
+  <assemblyIdentity version="1.0.0.0" name="@WXL_APP_NAME@"/>
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
