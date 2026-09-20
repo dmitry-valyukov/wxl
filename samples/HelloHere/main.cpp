@@ -170,7 +170,6 @@ wxl::Teardown wxl_launched() {
 
     auto appWindow = window.appWindow();
     appWindow.resize({800, 600});
-    appWindow.setIcon(L"Assets/WinUl-logo.ico");
     window.activate();
 
     currentTheme = themeButton.actualTheme();

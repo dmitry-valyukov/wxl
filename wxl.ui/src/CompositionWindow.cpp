@@ -879,6 +879,15 @@ void ensureClass() {
         // IDC_ARROW без UNICODE -- LPSTR, а LoadCursorW хочет LPCWSTR; значение
         // (номер ресурса в указателе) для A/W одно.
         wc.hCursor = ::LoadCursorW(nullptr, reinterpret_cast<LPCWSTR>(IDC_ARROW));
+        // Иконка приложения -- ресурс 1, тот же, что показывает оболочка:
+        // окно получает её от класса, а не ставит себе само. Нет ресурса --
+        // нет и иконки, как было.
+        wc.hIcon = static_cast<HICON>(::LoadImageW(wc.hInstance, MAKEINTRESOURCEW(1),
+                                                  IMAGE_ICON, ::GetSystemMetrics(SM_CXICON),
+                                                  ::GetSystemMetrics(SM_CYICON), LR_SHARED));
+        wc.hIconSm = static_cast<HICON>(::LoadImageW(wc.hInstance, MAKEINTRESOURCEW(1),
+                                                    IMAGE_ICON, ::GetSystemMetrics(SM_CXSMICON),
+                                                    ::GetSystemMetrics(SM_CYSMICON), LR_SHARED));
         wc.hbrBackground = nullptr;   // без классовой кисти -- белому взяться неоткуда
         ::RegisterClassExW(&wc);
         return true;

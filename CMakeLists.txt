@@ -144,7 +144,11 @@ add_subdirectory(wxl.rsdn)
 add_subdirectory(wxl.gen)
 add_subdirectory(wxl.ui)
 add_subdirectory(samples)
-#add_subdirectory(sandbox)
+
+# Песочница: пробы механизмов WinUI, каждая -- отдельное приложение. Собирается
+# вместе со всем: рецепт, который никто не компилирует, тихо отстаёт от дерева
+# -- эта папка так и простояла закомментированной, пока её цели не рассыпались.
+add_subdirectory(sandbox)
 
 # The documentation site. An option because configuring it reaches the network
 # once per build tree -- for the theme, and for Doxygen itself when the host has

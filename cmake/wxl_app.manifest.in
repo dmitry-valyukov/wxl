@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The manifest of an application built on wxl, written once for all of
+     them and generated for each: the only thing an application puts in it is
+     its own name, and wxl_add_executable() knows that already.
+
+     What it says is required by the library, not by the application: an
+     unpackaged WinUI3 process has to name the Windows it was tested against,
+     or the framework refuses to consider it a current-Windows one, and it has
+     to declare that it handles per-monitor DPI itself, or its window is
+     bitmap-stretched on a scaled display. Neither can be said from code: a
+     linker directive adds dependencies only, which is how the other half of
+     this (version 6 of the common controls) already travels, from a
+     #pragma comment(linker, ...) in wxl.ui/src/launch.cpp.
+
+     An application with reasons of its own passes a manifest in its sources,
+     and then this one steps aside: two manifests with different identities do
+     not merge, and the link fails outright ("Values of attribute name not
+     equal in different manifest snippets"). -->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="@WXL_APP_NAME@"/>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <maxversiontested Id="10.0.22621.0"/>
+      <!-- Windows 10 and 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+</assembly>
