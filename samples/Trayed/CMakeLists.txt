@@ -1,14 +1,13 @@
-# Trayed -- a program hosted in a console of ours, managed from the tray.
+# Trayed -- чужая программа, живущая в нашей консоли и управляемая из трея.
 #
-# It links wxl::ui like the other samples, and for the same reason: wxl owns
-# the entry point. There is no XAML in it at all -- the console is the window
-# and the icon is the interface -- but wWinMain, the Windows App Runtime and
-# the STA memory pool all still come from the library, and wxl_launched() is
-# still where the application starts.
+# Линкует wxl::ui, как и остальные примеры, и по той же причине: точка входа
+# принадлежит wxl. XAML в нём нет вовсе -- консоль служит окном, а значок
+# интерфейсом, -- но wWinMain, Windows App Runtime и пул памяти STA всё равно
+# берутся из библиотеки, и начинается приложение всё так же в wxl_launched().
 #
-# The GUI subsystem is what makes wxl's own wWinMain the entry point -- and
-# what makes the console it allocates its own rather than one it was started
-# from.
+# Подсистема GUI -- то, что делает точкой входа собственный wWinMain wxl, и
+# то, из-за чего выделенная консоль оказывается своей, а не той, из которой
+# программу запустили.
 
 wxl_add_executable(sample.trayed
     main.cpp
@@ -18,6 +17,7 @@ wxl_add_executable(sample.trayed
     settings_window.cpp
 )
 
-# comctl32 for SetWindowSubclass: the settings window (a wxl/WinUI window) is
-# subclassed so its close button hides it rather than ending the application.
+# comctl32 ради SetWindowSubclass: окно настроек (окно wxl/WinUI) подменяет
+# оконную процедуру, чтобы его кнопка закрытия прятала окно, а не завершала
+# приложение.
 target_link_libraries(sample.trayed PRIVATE comctl32)
