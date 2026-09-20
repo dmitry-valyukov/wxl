@@ -1,7 +1,7 @@
 @echo off
 rem Собирает примеры wxl в Release и запускает выбранный из списка.
 rem Цель samples/all — только примеры и то, на чём они держатся: ни тесты,
-rem ни документация не собираются.
+rem ни документация, ни песочница не собираются.
 setlocal EnableExtensions EnableDelayedExpansion
 
 rem Текст меню в этом файле в UTF-8, поэтому кодовая страница консоли на
@@ -17,12 +17,10 @@ set "blank=0"
 rem Чем занят каждый пример — по имени его папки. Папка без строки здесь
 rem попадёт в список с именем исполняемого файла вместо пояснения.
 set "about.Calculator=калькулятор на пресетах и градиентных кистях"
-set "about.CompositionProbe=проба своего окна: сцена композитора и остров XAML"
 set "about.CustomTitleBar=свой заголовок окна и масштаб всего острова"
 set "about.HelloHere=весь интерфейс одной функцией, переключение темы"
 set "about.HtmlView=показ разметки HTML, BB и RSDN одним блоком"
 set "about.Quadratic=квадратное уравнение на observable-полях"
-set "about.TitleBarProbe=проба заголовка окна на своём HWND, с журналом"
 set "about.Trayed=консоль чужой программы в своём окне, из трея"
 
 echo Сборка примеров, Release...
@@ -42,10 +40,12 @@ if errorlevel 1 (
     goto :quit
 )
 
+rem Список — по папкам примеров в дереве, а не по каталогу сборки: выхлоп
+rem примера, уехавшего в песочницу, остаётся там до очистки и в меню не нужен.
 :menu
 set "count=0"
-for /d %%d in ("%SAMPLES%\*") do (
-    for %%f in ("%%~fd\Release\*.exe") do (
+for /d %%d in ("%ROOT%samples\*") do (
+    for %%f in ("%SAMPLES%\%%~nxd\Release\*.exe") do (
         set /a count+=1
         set "exe[!count!]=%%~ff"
         set "what=!about.%%~nxd!"
