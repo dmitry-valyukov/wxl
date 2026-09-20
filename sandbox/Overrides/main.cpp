@@ -15,8 +15,8 @@
 // anything else is forwarded to the wrapped/composed object.
 //
 // wxl::impl::UIElement's constructor QueryInterfaces for IUIElement/
-// IUIElementProtected/IUIElementOverrides for real, so exercising it here
-// (rather than just compiling it, like uielement_demo.cpp) needs *something*
+// IUIElementProtected/IUIElementOverrides for real, so running it here
+// (rather than merely compiling it) needs *something*
 // answering those calls -- there's no live XAML app in this sandbox. The
 // mocks below are test-only stand-ins: minimal, non-realistic COM objects
 // (their sub-interfaces don't share one COM identity the way a real
