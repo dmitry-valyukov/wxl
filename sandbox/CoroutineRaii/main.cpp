@@ -5,6 +5,12 @@
 // между Debug и Release здесь повторится, дело в компиляторе, а если нет —
 // искать надо в библиотеке.
 //
+// Два подозрения разведены по отдельным случаям, чтобы не спутать их между
+// собой: что возвращает final_suspend() (suspend_never, как у самовладеющей
+// корутины, или suspend_always, как у той, что держит владелец) и через какую
+// ручку зовут destroy() — типизированную coroutine_handle<promise_type> или
+// стёртую coroutine_handle<>.
+//
 // Каждая проверка печатает строку; код возврата — число провалившихся.
 
 #include <coroutine>
@@ -16,7 +22,7 @@ int failures = 0;
 
 void check(const char* what, bool ok) {
     if (!ok) ++failures;
-    std::printf("%-58s %s\n", what, ok ? "да" : "НЕТ");
+    std::printf("%-64s %s\n", what, ok ? "да" : "НЕТ");
 }
 
 // То, чьё уничтожение видно снаружи: то же, что Trace в тестах wxl.async.
@@ -28,13 +34,14 @@ struct Trace {
     ~Trace() { *released = true; }
 };
 
-// Ожидатель, который отдаёт наружу ручку собственной корутины и на этом
-// приостанавливает её.
+// Ожидатель, отдающий наружу ручку собственной корутины: тип ручки — параметр,
+// поэтому один и тот же ожидатель даёт и стёртую, и типизированную.
+template <class Handle>
 struct capture {
-    std::coroutine_handle<>* out;
+    Handle* out;
 
     bool await_ready() const noexcept { return false; }
-    void await_suspend(std::coroutine_handle<> waiter) const noexcept { *out = waiter; }
+    void await_suspend(Handle waiter) const noexcept { *out = waiter; }
     void await_resume() const noexcept {}
 };
 
@@ -93,19 +100,32 @@ struct owned {
     std::coroutine_handle<promise_type> handle;
 };
 
-self_owning waits_then_finishes(std::coroutine_handle<>& out, bool* released) {
+using self_owning_handle = std::coroutine_handle<self_owning::promise_type>;
+using owned_handle = std::coroutine_handle<owned::promise_type>;
+
+self_owning self_owning_erased(std::coroutine_handle<>& out, bool* released) {
     const Trace trace{released};
-    co_await capture{&out};
+    co_await capture<std::coroutine_handle<>>{&out};
 }
 
-self_owning_counted waits_then_finishes_counted(std::coroutine_handle<>& out, bool* released) {
+self_owning self_owning_typed(self_owning_handle& out, bool* released) {
     const Trace trace{released};
-    co_await capture{&out};
+    co_await capture<self_owning_handle>{&out};
 }
 
-owned waits_then_finishes_owned(std::coroutine_handle<>& out, bool* released) {
+self_owning_counted self_owning_counted_erased(std::coroutine_handle<>& out, bool* released) {
     const Trace trace{released};
-    co_await capture{&out};
+    co_await capture<std::coroutine_handle<>>{&out};
+}
+
+owned owned_erased(std::coroutine_handle<>& out, bool* released) {
+    const Trace trace{released};
+    co_await capture<std::coroutine_handle<>>{&out};
+}
+
+owned owned_typed(owned_handle& out, bool* released) {
+    const Trace trace{released};
+    co_await capture<owned_handle>{&out};
 }
 
 }  // namespace
@@ -116,7 +136,7 @@ int main() {
         std::coroutine_handle<> waiter;
         bool released = false;
 
-        waits_then_finishes(waiter, &released);
+        self_owning_erased(waiter, &released);
         check("сам себе хозяин: приостановился", static_cast<bool>(waiter));
         check("сам себе хозяин: до resume деструктор не звали", !released);
 
@@ -124,17 +144,52 @@ int main() {
         check("сам себе хозяин: resume довёл тело и отпустил локальное", released);
     }
 
-    // 2. Приостановленный кадр сносят: живые локальные объекты обязаны
-    // уничтожиться и здесь — на этом держится всякий RAII в корутине.
     {
         std::coroutine_handle<> waiter;
         bool released = false;
 
-        waits_then_finishes(waiter, &released);
-        check("сам себе хозяин: приостановился", static_cast<bool>(waiter));
+        owned_erased(waiter, &released);
+        waiter.resume();
+        check("с владельцем: resume довёл тело и отпустил локальное", released);
+    }
 
+    // 2. Приостановленный кадр сносят: живые локальные объекты обязаны
+    // уничтожиться и здесь — на этом держится всякий RAII в корутине.
+    // Четыре случая: обе формы на обеих ручках.
+    {
+        std::coroutine_handle<> waiter;
+        bool released = false;
+
+        self_owning_erased(waiter, &released);
         waiter.destroy();
-        check("сам себе хозяин: destroy отпустил локальное", released);
+        check("сам себе хозяин, ручка без типа: destroy отпустил локальное", released);
+    }
+
+    {
+        self_owning_handle waiter;
+        bool released = false;
+
+        self_owning_typed(waiter, &released);
+        waiter.destroy();
+        check("сам себе хозяин, ручка с типом: destroy отпустил локальное", released);
+    }
+
+    {
+        std::coroutine_handle<> waiter;
+        bool released = false;
+
+        owned_erased(waiter, &released);
+        waiter.destroy();
+        check("с владельцем, ручка без типа: destroy отпустил локальное", released);
+    }
+
+    {
+        owned_handle waiter;
+        bool released = false;
+
+        owned_typed(waiter, &released);
+        waiter.destroy();
+        check("с владельцем, ручка с типом: destroy отпустил локальное", released);
     }
 
     // 3. То же со своим operator new — и видно, выделялся ли кадр.
@@ -142,34 +197,11 @@ int main() {
         std::coroutine_handle<> waiter;
         bool released = false;
 
-        waits_then_finishes_counted(waiter, &released);
+        self_owning_counted_erased(waiter, &released);
         waiter.destroy();
         check("свой operator new: destroy отпустил локальное", released);
         check("свой operator new: кадр выделялся", allocations == 1);
         check("свой operator new: кадр освобождён", deallocations == 1);
-    }
-
-    // 4. Форма с владельцем: кадр остаётся после конца тела, сносит его
-    // владелец — деструкторы локальных объектов должны отработать раньше.
-    {
-        std::coroutine_handle<> waiter;
-        bool released = false;
-
-        const owned task = waits_then_finishes_owned(waiter, &released);
-        waiter.resume();
-        check("с владельцем: resume довёл тело и отпустил локальное", released);
-        check("с владельцем: кадр дожил до владельца", task.handle && task.handle.done());
-        task.handle.destroy();
-    }
-
-    // 5. Форма с владельцем, снос на приостановке.
-    {
-        std::coroutine_handle<> waiter;
-        bool released = false;
-
-        const owned task = waits_then_finishes_owned(waiter, &released);
-        task.handle.destroy();
-        check("с владельцем: destroy на приостановке отпустил локальное", released);
     }
 
     std::printf("\nпровалов: %d\n", failures);
