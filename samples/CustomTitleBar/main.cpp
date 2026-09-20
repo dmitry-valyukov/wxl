@@ -2,11 +2,11 @@
 //
 // The title bar is built right inside the window's braces: the window places
 // it above the content, draws the caption buttons beside it at the height of
-// the bar, and hands Windows the rectangles to drag by and to click. The
-// window is a handle, so the zoom buttons below capture it by value, and the
-// zoom enlarges the whole island -- bar, caption buttons and content -- the way
-// a browser zooms a page.
+// the bar, and hands Windows the rectangles to drag by and to click. The zoom
+// below enlarges the whole island -- bar, caption buttons and content -- the
+// way a browser zooms a page.
 
+#include "Bind.h"
 #include "CompositionWindow.h"
 #include "Panels.h"
 #include "generated/brushes.h"
@@ -14,7 +14,29 @@
 #include "ui.h"
 
 using namespace wxl;
+using namespace wxl::core;
 using namespace wxl::dsl;
+
+namespace {
+
+u16_text percent(double factor) {
+    u16_text text = to_u16(factor * 100, std::chars_format::fixed, 0);
+    text += u" %";
+    return text;
+}
+
+// The zoom as two fields: the number the buttons set, and the caption that
+// follows it. Bind hands a property the field's own type and converts nothing,
+// so the turn from number to text is made here, by follow, and the TextBlock
+// is bound to the text.
+struct Zoom {
+    observable<double> factor{1.0};
+    observable<u16_text> caption;
+
+    Zoom() { caption.follow(factor, percent); }
+};
+
+}  // namespace
 
 wxl::Teardown wxl_launched() {
     CompositionWindow const window{
@@ -29,11 +51,10 @@ wxl::Teardown wxl_launched() {
         },
     };
 
-    TextBlock const zoomText{L"100 %", vAlign.center, Margin{12, 0, 0, 0}};
-    auto const zoomTo = [window, zoomText](double value) {
-        window.zoom(value);
-        zoomText.text(std::format(L"{:.0f} %", window.zoom() * 100));
-    };
+    // The window is a handle, so the one watcher that zooms it captures it by
+    // value; the buttons below hold the model and never see the window.
+    auto const zoom = std::make_shared<Zoom>();
+    zoom->factor.on_change([window](double const& value) noexcept { window.zoom(value); });
 
     window.content(StackPanel{
         Margin{24},
@@ -42,10 +63,10 @@ wxl::Teardown wxl_launched() {
         StackPanel{
             orientation.horizontal,
             spacing = 8.0,
-            Button{L"Крупнее", onClick = [window, zoomTo] { zoomTo(window.zoom() * 1.25); }},
-            Button{L"Мельче", onClick = [window, zoomTo] { zoomTo(window.zoom() / 1.25); }},
-            Button{L"100 %", onClick = [zoomTo] { zoomTo(1.0); }},
-            zoomText,
+            Button{L"Крупнее", onClick = [zoom] { zoom->factor.set(zoom->factor.get() * 1.25); }},
+            Button{L"Мельче", onClick = [zoom] { zoom->factor.set(zoom->factor.get() / 1.25); }},
+            Button{L"100 %", onClick = [zoom] { zoom->factor.set(1.0); }},
+            TextBlock{vAlign.center, Margin{12, 0, 0, 0}, text = Bind{zoom->caption}},
         },
     });
 
@@ -53,5 +74,5 @@ wxl::Teardown wxl_launched() {
     window.centreWithClientSize({960, 600});
     window.activate();
 
-    return {};
+    return [zoom](TeardownReason) {};
 }
