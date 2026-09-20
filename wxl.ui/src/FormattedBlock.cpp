@@ -5,6 +5,7 @@
 // included after that import is one the compiler has already seen through
 // the std module.
 #include <winrt/Microsoft.UI.Text.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Documents.h>
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
@@ -315,16 +316,27 @@ namespace {
 
 namespace xaml = winrt::Microsoft::UI::Xaml;
 
-// The width the text area offers: the block's own less its padding, and
-// each element then loses the margin of the paragraph it sits in. Before
-// the first layout there is no width yet -- the SizeChanged that follows
-// does the fitting. Without wrapping the width goes back to "auto": an
-// InlineUIContainer arranges its child at the child's desired size, and
-// that natural width is exactly what an unwrapped line has.
-void refit(xaml::Controls::RichTextBlock const& block, wide_elements const& wide) {
-    const bool wrapping = block.TextWrapping() != xaml::TextWrapping::NoWrap;
+// The width the text area offers: the layout slot the parent gave the
+// block, less its margin and padding, and each element then loses the
+// margin of the paragraph it sits in. Not ActualWidth: a RichTextBlock
+// arranges itself at the width of its text, so under a short line it
+// reports that line, and an element fitted to it would pin the block there.
+// Before the first layout there is no slot yet -- the LayoutUpdated that
+// follows does the fitting.
+double text_area(xaml::Controls::RichTextBlock const& block) {
+    const double slot = xaml::Controls::Primitives::LayoutInformation::GetLayoutSlot(block).Width;
+    const xaml::Thickness margin = block.Margin();
     const xaml::Thickness padding = block.Padding();
-    const double area = block.ActualWidth() - padding.Left - padding.Right;
+    return slot - margin.Left - margin.Right - padding.Left - padding.Right;
+}
+
+// Without wrapping the width goes back to "auto": an InlineUIContainer
+// arranges its child at the child's desired size, and that natural width is
+// exactly what an unwrapped line has.
+void refit(xaml::Controls::RichTextBlock const& block, wide_elements& wide) {
+    const bool wrapping = block.TextWrapping() != xaml::TextWrapping::NoWrap;
+    const double area = text_area(block);
+    wide.area = area;
     for (wide_elements::entry const& entry : wide.entries) {
         if (!wrapping && entry.width == WideWidth::WhileWrapping) {
             entry.element.Width(std::numeric_limits<double>::quiet_NaN());
@@ -357,9 +369,14 @@ void FormattedBlock::appendWideElement(FrameworkElement const& element, WideWidt
                                     margin.Left + margin.Right + paragraph.TextIndent(), width});
     if (!self->wideHooked_) {
         self->wideHooked_ = true;
-        block.SizeChanged([weak = winrt::make_weak(block), wide = self->wide_](auto const&,
-                                                                                auto const&) {
-            if (auto strong = weak.get()) refit(strong, *wide);
+        // LayoutUpdated rather than SizeChanged: a block pinned by its own
+        // wide elements keeps its size while the slot around it grows, so
+        // SizeChanged would never come. The pass is cheap when the slot
+        // has not moved.
+        block.LayoutUpdated([weak = winrt::make_weak(block), wide = self->wide_](auto const&,
+                                                                                  auto const&) {
+            auto strong = weak.get();
+            if (strong && text_area(strong) != wide->area) refit(strong, *wide);
         });
     }
     refit(block, *self->wide_);

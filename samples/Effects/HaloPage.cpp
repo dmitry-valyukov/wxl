@@ -1,9 +1,8 @@
-// Страница эффекта Halo: описание сверху, примеры слева, исходник показанного
-// примера справа. Все три части прокручиваются сами по себе.
+// Страница эффекта Halo: описание, примеры и их исходники. Раскладка страницы
+// общая у всех эффектов (Showcase.cpp); здесь только то, что своё у Halo.
 //
 // Код примера лежит литералом непосредственно над самим примером: правка
-// одного видна рядом с другим. Форматировать его не понадобилось — [code=cpp]
-// разбирает RsdnBlock, подложку даёт <pre> темы, подсветку — wxl.highlight.
+// одного видна рядом с другим.
 
 #include "Pages.h"
 
@@ -23,7 +22,7 @@ constexpr const wchar_t* description = LR"HTML(
 окне, чего декларативное дерево сказать не может.</p>
 <p>Пишется он там, где ему место: в скобках самого элемента.</p>
 <pre>TextBlock {
-    L"0",
+    u"0",
     fontSize = 48,
     HaloEffect { color = ARGB{0xFF5C8A20}, blurRadius = 14.0f },
 }</pre>
@@ -48,14 +47,6 @@ constexpr const wchar_t* description = LR"HTML(
 
 // ---- Примеры --------------------------------------------------------------
 
-// Пример: подпись, живой показ и его исходник. Литерал кода стоит рядом с
-// кодом, который он показывает.
-struct Sample {
-    const wchar_t* title;
-    const wchar_t* code;
-    FrameworkElement (*build)();
-};
-
 // Табло калькулятора: тёмно-зелёное свечение на оливковой подложке LCD.
 constexpr const wchar_t* lcdCode = LR"CODE(
 Border {
@@ -70,12 +61,13 @@ Border {
         GradientStop {ARGB{0xFFA6B287}, offset = 1.0},
     },
     TextBlock {
-        L"1234.56",
-        fontFamily = L"Assets/digitalism.ttf#Digitalism",
+        u"1234.56",
+        fontFamily = u"Assets/digitalism.ttf#Digitalism",
         fontSize = 44,
         FontWeight {600},
         CharacterSpacing {75},
         textAlignment.right,
+        vAlign.center,
         foreground = ARGB{0xFF2C3A1C},
         HaloEffect {color = ARGB{0xFF5C8A20}, blurRadius = 14.0f},
     },
@@ -95,12 +87,13 @@ FrameworkElement lcd() {
             GradientStop {ARGB{0xFFA6B287}, offset = 1.0},
         },
         TextBlock {
-            L"1234.56",
-            fontFamily = L"Assets/digitalism.ttf#Digitalism",
+            u"1234.56",
+            fontFamily = u"Assets/digitalism.ttf#Digitalism",
             fontSize = 44,
             FontWeight {600},
             CharacterSpacing {75},
             textAlignment.right,
+            vAlign.center,
             foreground = ARGB{0xFF2C3A1C},
             HaloEffect {color = ARGB{0xFF5C8A20}, blurRadius = 14.0f},
         },
@@ -111,10 +104,11 @@ FrameworkElement lcd() {
 constexpr const wchar_t* ledCode = LR"CODE(
 // Общий вид разряда: и погашенного, и горящего.
 auto const segment = Preset {
-    fontFamily = L"Assets/digitalism.ttf#Digitalism",
+    fontFamily = u"Assets/digitalism.ttf#Digitalism",
     fontSize = 44,
     CharacterSpacing {75},
     textAlignment.right,
+    vAlign.center,
 };
 
 Border {
@@ -126,11 +120,11 @@ Border {
     Grid {
         // Погашенные сегменты просвечивают под живыми — этим индикатор и
         // отличается от надписи.
-        TextBlock {L"88:88", segment, foreground = ARGB{0x14FF4A00}},
+        TextBlock {u"88:88", segment, foreground = ARGB{0x14FF4A00}},
 
         // Два ореола на одном элементе: тугое ядро и широкий разлёт.
         TextBlock {
-            L"12:34",
+            u"12:34",
             segment,
             foreground = ARGB{0xFFFFD9A0},
             HaloEffect {color = ARGB{0xFFFF3B00}, blurRadius = 7.0f},
@@ -142,10 +136,11 @@ Border {
 
 FrameworkElement led() {
     auto const segment = Preset {
-        fontFamily = L"Assets/digitalism.ttf#Digitalism",
+        fontFamily = u"Assets/digitalism.ttf#Digitalism",
         fontSize = 44,
         CharacterSpacing {75},
         textAlignment.right,
+        vAlign.center,
     };
 
     return Border {
@@ -157,11 +152,11 @@ FrameworkElement led() {
         Grid {
             // Погашенные сегменты просвечивают под живыми — этим индикатор и
             // отличается от надписи.
-            TextBlock {L"88:88", segment, foreground = ARGB{0x14FF4A00}},
+            TextBlock {u"88:88", segment, foreground = ARGB{0x14FF4A00}},
 
             // Два ореола на одном элементе: тугое ядро и широкий разлёт.
             TextBlock {
-                L"12:34",
+                u"12:34",
                 segment,
                 foreground = ARGB{0xFFFFD9A0},
                 HaloEffect {color = ARGB{0xFFFF3B00}, blurRadius = 7.0f},
@@ -178,7 +173,7 @@ Border {
     Padding {24, 20},
     background = ARGB{0xFF080B10},
     TextBlock {
-        L"wxl",
+        u"wxl",
         fontSize = 56,
         FontWeight {700},
         CharacterSpacing {80},
@@ -195,7 +190,7 @@ FrameworkElement glow() {
         Padding {24, 20},
         background = ARGB{0xFF080B10},
         TextBlock {
-            L"wxl",
+            u"wxl",
             fontSize = 56,
             FontWeight {700},
             CharacterSpacing {80},
@@ -206,113 +201,146 @@ FrameworkElement glow() {
     };
 }
 
-// Ореол на размеченном тексте — этого ещё нет.
-constexpr const wchar_t* markupCode = LR"CODE(
-// TODO: need to implement.
-//
-// Ореол носит всё, что умеет отдать альфу своих глифов:
-//
-//     requires { element.getAlphaMask(); }
-//
-// У HtmlBlock этого пока нет: RichTextBlock.GetAlphaMask в профиль не входит.
+// Неоновая вывеска из фигур: ореол носит и фигура, не только текст.
+constexpr const wchar_t* shapesCode = LR"CODE(
+Border {
+    CornerRadius {8},
+    Padding {24, 22},
+    background = ARGB{0xFF0B0714},
+    StackPanel {
+        orientation.horizontal,
+        spacing = 28.0,
+        hAlign.center,
+
+        // Кольцо и бокал в нём: светятся обводка кольца и линии картинки.
+        Grid {
+            Ellipse {
+                width = 86,
+                height = 86,
+                stroke = ARGB{0xFFB8FBFF},
+                strokeThickness = 4.0,
+                HaloEffect {color = ARGB{0xFF00C8FF}, blurRadius = 18.0f},
+            },
+            Image {
+                source = u"Assets/Coctail.png",
+                width = 50,
+                height = 50,
+                HaloEffect {color = ARGB{0xFF00C8FF}, blurRadius = 10.0f},
+            },
+        },
+
+        // Рамка со скруглением и надпись в ней: ореол носят оба, каждый
+        // свой.
+        Grid {
+            Rectangle {
+                width = 230,
+                height = 86,
+                radiusX = 16,
+                radiusY = 16,
+                stroke = ARGB{0xFFFFC4F6},
+                strokeThickness = 4.0,
+                HaloEffect {color = ARGB{0xFFFF2BD6}, blurRadius = 18.0f},
+            },
+            TextBlock {
+                u"Night Club",
+                fontFamily = u"Assets/neonderthaw.ttf#NeonDerthaw",
+                fontSize = 40,
+                renderTransformOrigin = {0.5, 0.5},
+                renderTransform = RotateTransform {angle = -8.0},
+                hAlign.center,
+                vAlign.center,
+                foreground = ARGB{0xFFFFE8FB},
+                HaloEffect {color = ARGB{0xFFFF2BD6}, blurRadius = 14.0f},
+            },
+        },
+
+        // Залитая лампочка: два ореола, ядро и разлёт.
+        Ellipse {
+            width = 28,
+            height = 28,
+            vAlign.center,
+            fill = ARGB{0xFFFFF6B0},
+            HaloEffect {color = ARGB{0xFFFFC400}, blurRadius = 12.0f},
+            HaloEffect {color = ARGB{0xFFFF7A00}, blurRadius = 36.0f},
+        },
+    },
+}
 )CODE";
 
-FrameworkElement markup() {
+FrameworkElement shapes() {
     return Border {
         CornerRadius {8},
-        Padding {18, 14},
-        background = ARGB{0xFF1A1206},
-        borderBrush = ARGB{0xFF6B4A12},
-        BorderThickness {1},
-        TextBlock {
-            L"TODO: need to implement.",
-            fontSize = 16,
-            FontWeight {600},
-            foreground = ARGB{0xFFE8C980},
+        Padding {24, 22},
+        background = ARGB{0xFF0B0714},
+        StackPanel {
+            orientation.horizontal,
+            spacing = 28.0,
+            hAlign.center,
+
+            // Кольцо и бокал в нём: светятся обводка кольца и линии картинки.
+            Grid {
+                Ellipse {
+                    width = 86,
+                    height = 86,
+                    stroke = ARGB{0xFFB8FBFF},
+                    strokeThickness = 4.0,
+                    HaloEffect {color = ARGB{0xFF00C8FF}, blurRadius = 18.0f},
+                },
+                Image {
+                    source = u"Assets/Coctail.png",
+                    width = 50,
+                    height = 50,
+                    HaloEffect {color = ARGB{0xFF00C8FF}, blurRadius = 10.0f},
+                },
+            },
+
+            // Рамка со скруглением и надпись в ней: ореол носят оба, каждый
+            // свой.
+            Grid {
+                Rectangle {
+                    width = 230,
+                    height = 86,
+                    radiusX = 16,
+                    radiusY = 16,
+                    stroke = ARGB{0xFFFFC4F6},
+                    strokeThickness = 4.0,
+                    HaloEffect {color = ARGB{0xFFFF2BD6}, blurRadius = 18.0f},
+                },
+                TextBlock {
+                    u"Night Club",
+                    fontFamily = u"Assets/neonderthaw.ttf#NeonDerthaw",
+                    fontSize = 40,
+                    renderTransformOrigin = {0.5, 0.5},
+                    renderTransform = RotateTransform {angle = -8.0},
+                    hAlign.center,
+                    vAlign.center,
+                    foreground = ARGB{0xFFFFE8FB},
+                    HaloEffect {color = ARGB{0xFFFF2BD6}, blurRadius = 14.0f},
+                },
+            },
+
+            // Залитая лампочка: два ореола, ядро и разлёт.
+            Ellipse {
+                width = 28,
+                height = 28,
+                vAlign.center,
+                fill = ARGB{0xFFFFF6B0},
+                HaloEffect {color = ARGB{0xFFFFC400}, blurRadius = 12.0f},
+                HaloEffect {color = ARGB{0xFFFF7A00}, blurRadius = 36.0f},
+            },
         },
     };
 }
 
-constexpr Sample samples[] = {
-    {L"Как в калькуляторе: табло LCD", lcdCode, &lcd},
-    {L"Светодиодный семисегментный индикатор", ledCode, &led},
-    {L"Просто светящаяся надпись", glowCode, &glow},
-    {L"HaloEffect на HtmlBlock", markupCode, &markup},
+constexpr effects::Sample samples[] = {
+    {u"Как в калькуляторе: табло LCD", lcdCode, &lcd},
+    {u"Светодиодный семисегментный индикатор", ledCode, &led},
+    {u"Просто светящаяся надпись", glowCode, &glow},
+    {u"Неоновая вывеска из фигур", shapesCode, &shapes},
 };
-
-// Код для правой половины. Разметка RSDN берёт тело [code] буквально, так что
-// экранировать в нём нечего; язык включает подсветку wxl.highlight.
-std::wstring codeMarkup(const wchar_t* code) {
-    std::wstring_view body{code};
-    while (!body.empty() && (body.front() == L'\n' || body.front() == L'\r')) {
-        body.remove_prefix(1);
-    }
-    while (!body.empty() && (body.back() == L'\n' || body.back() == L'\r')) {
-        body.remove_suffix(1);
-    }
-    return L"[code=cpp]" + std::wstring{body} + L"[/code]";
-}
 
 }  // namespace
 
 wxl::FrameworkElement effects::haloPage() {
-    // Правая половина: исходник того примера, чью кнопку нажали последней.
-    auto code = RsdnBlock {
-        isTextSelectionEnabled = true,
-        Margin {16, 12},
-        L"[i]Нажмите «Показать код» под любым примером.[/i]",
-    };
-
-    auto left = StackPanel {
-        spacing = 16.0,
-        Margin {16, 12},
-    };
-
-    for (auto const& sample : samples) {
-        left.children().append(Card {
-            Padding {16},
-            StackPanel {
-                spacing = 10.0,
-                TextBlock {
-                    sample.title,
-                    fontSize = 16,
-                    FontWeight {600},
-                },
-                sample.build(),
-                Button {
-                    content = L"Показать код",
-                    toolTip = L"Показать справа исходник этого примера",
-                    hAlign.left,
-                    onClick = [code, text = sample.code] { code.rsdn(codeMarkup(text)); },
-                },
-            },
-        });
-    }
-
-    return Grid {
-        rowDefinitions = L"2*,3*",
-
-        ScrollViewer {
-            row = 0,
-            content = HtmlBlock {
-                isTextSelectionEnabled = true,
-                Margin {20, 14},
-                description,
-            },
-        },
-
-        Border {
-            row = 1,
-            BorderThickness {0, 1, 0, 0},
-            borderBrush = brushes.Card.StrokeColorDefault,
-            Columns {
-                ScrollViewer {content = left},
-                Border {
-                    BorderThickness {1, 0, 0, 0},
-                    borderBrush = brushes.Card.StrokeColorDefault,
-                    ScrollViewer {content = code},
-                },
-            },
-        },
-    };
+    return showcase(description, samples);
 }

@@ -23,7 +23,8 @@
                 "GetElementVisual",
                 "SetElementChildVisual",
                 "GetElementChildVisual",
-                "SetIsTranslationEnabled"
+                "SetIsTranslationEnabled",
+                "GetPointerPositionPropertySet"
             ]
         },
 
@@ -241,15 +242,43 @@
                 "GetAlphaMask"
             ]
         },
+        "Microsoft.UI.Xaml.Controls.Image": {
+            "comment": "The same silhouette again: an image's alpha mask is the outline of whatever is opaque in it, so a transparent icon glows along its own lines.",
+            "members": [
+                "GetAlphaMask"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Shape": {
+            "comment": "The same silhouette as TextBlock's, for the same reason: a shape's alpha mask is what lets a DropShadow glow along its stroke and fill.",
+            "members": [
+                "GetAlphaMask"
+            ]
+        },
         "Microsoft.UI.Xaml.UIElement": {
-            "comment": "On top of what base asks for, three things an application that reaches past the framework needs. The XamlRoot an element hangs in is where the scale between a DIP and a pixel is written down -- everything else in XAML is measured in DIPs and scaled by the framework, but a surface is allocated in pixels and would come out blurry at 150%. ActualSize is the laid-out size in DIPs, which a composition visual has to be told: a visual draws from its owner's corner and does not know its own extent. And pointer capture is what makes a drag a drag: without it the pointer stops being the element's the moment it leaves its bounds, and a divider six pixels wide loses the mouse on the first quick pull. PointerCaptureLost is the other half -- capture ends by itself when a window loses activation or a touch is cancelled, and a drag that only listens for PointerReleased would stay stuck down.",
+            "comment": "On top of what base asks for, the things an application that reaches past the framework needs, a render transform for turning an element without moving its layout, and RasterizationScale -- the extra density XAML draws an element and its children at, so that one about to be scaled up by the compositor stays crisp. The XamlRoot an element hangs in is where the scale between a DIP and a pixel is written down -- everything else in XAML is measured in DIPs and scaled by the framework, but a surface is allocated in pixels and would come out blurry at 150%. ActualSize is the laid-out size in DIPs, which a composition visual has to be told: a visual draws from its owner's corner and does not know its own extent. And pointer capture is what makes a drag a drag: without it the pointer stops being the element's the moment it leaves its bounds, and a divider six pixels wide loses the mouse on the first quick pull. PointerCaptureLost is the other half -- capture ends by itself when a window loses activation or a touch is cancelled, and a drag that only listens for PointerReleased would stay stuck down.",
             "members": [
                 "XamlRoot",
                 "PointerWheelChanged",
                 "ActualSize",
                 "CapturePointer",
                 "ReleasePointerCapture",
-                "PointerCaptureLost"
+                "PointerCaptureLost",
+                "RasterizationScale",
+                "RenderTransform",
+                "RenderTransformOrigin"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.RotateTransform": {
+            "comment": "A turn drawn after layout: the element keeps the place it was measured for and is only painted rotated, about RenderTransformOrigin -- relative to its own size, so the centre is {0.5, 0.5} whatever that size turns out to be. Its composition visual turns with it, and whatever an effect hung there turns too.",
+            "members": [
+                "Angle"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.ScaleTransform": {
+            "comment": "A scale drawn after layout, like RotateTransform. Unlike a composition visual's Scale, XAML re-rasterizes the content at the final scale once the transform stops changing, so a ScaleTransform held still is what a scaled element looks like at its crispest -- the reference the Effects sample compares MagnifyEffect against.",
+            "members": [
+                "ScaleX",
+                "ScaleY"
             ]
         },
         "Microsoft.UI.Xaml.Input.Pointer": {

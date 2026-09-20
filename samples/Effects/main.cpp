@@ -1,119 +1,129 @@
-// Витрина эффектов wxl: наверху панель навигации со стрелкой назад, под ней
-// список эффектов, и он же подменяется страницей выбранного эффекта.
+// Витрина эффектов wxl: одно окно, слева список эффектов, справа страница
+// выбранного.
 //
 // Переключение — одна строка: `host.child(...)`. Ни `Frame`, ни `Page`, ни
-// стека навигации здесь нет и не нужно — экрана всего два, список и
-// страница, и стрелка возвращает на первый. Что такое страница и почему она
+// стека навигации здесь нет и не нужно — показана всегда ровно одна
+// страница, и список рядом с ней. Что такое страница и почему она
 // `FrameworkElement`, сказано в Pages.h.
 
 #include "Pages.h"
+
+#include <memory>
+#include <vector>
 
 using namespace wxl;
 using namespace wxl::dsl;
 
 namespace {
 
-// Каталог: имя на кнопке и в заголовке, пояснение в подсказке и функция,
-// строящая страницу. Новый эффект — строка здесь и свой .cpp.
+// Каталог: имя на кнопке и в полосе над страницей, пояснение в подсказке и
+// функция, строящая страницу. Новый эффект — строка здесь и свой .cpp.
 struct Effect {
-    const wchar_t* name;
-    const wchar_t* about;
+    const char16_t* name;
+    const char16_t* about;
     effects::Page page;
 };
 
 constexpr Effect catalogue[] = {
-    {L"Halo Effect",
-     L"Свечение вокруг глифов: тень без смещения, вырезанная по альфе текста",
+    {u"Halo Effect",
+     u"Свечение вокруг глифов: тень без смещения, вырезанная по альфе текста",
      &effects::haloPage},
+    {u"Magnify Effect",
+     u"Элемент растёт под указателем, тем больше, чем ближе тот к центру",
+     &effects::magnifyPage},
 };
-
-constexpr const wchar_t* listTitle = L"Эффекты";
 
 }  // namespace
 
 wxl::Teardown wxl_launched() {
-    // Переменная названа не `title`: тег `title` пишется ниже в скобках окна,
-    // и локальное имя перекрыло бы его.
-    auto heading = TextBlock {
-        listTitle,
-        styles.TextBlock.Subtitle,
-        vAlign.center,
-    };
+    // Правая часть окна: полоса с именем эффекта и под ней его страница. При
+    // выборе меняются текст полосы и единственный ребёнок `host`, и больше
+    // ничего.
+    auto heading = TextBlock {styles.TextBlock.Subtitle};
+    auto host = Border {row = 1};
 
-    // Список живёт всё время работы: стрелка возвращает тот же объект, а не
-    // строит его заново.
+    // Кнопки списка, чтобы выбранную отличать от прочих: она одна в стиле
+    // Accent.
+    auto buttons = std::make_shared<std::vector<Button>>();
+
     auto list = StackPanel {
         spacing = 8.0,
-        Margin {24},
-        hAlign.left,
-        width = 320,
+        Margin {16},
     };
 
-    // Прокрутка списка — один объект на всё время работы, а не свежий на
-    // каждый возврат: у показанного элемента уже есть родитель, и второго
-    // фреймворк ему не даёт.
-    auto listView = ScrollViewer {content = list};
-
-    // Область под панелью. Меняется её единственный ребёнок, и больше ничего.
-    auto host = Border {
-        row = 1,
-        listView,
+    auto const show = [heading, host, buttons](std::size_t index) {
+        // Стили -- разные типы, по одному на ресурс, так что не тернарным
+        // оператором.
+        for (std::size_t i = 0; i < buttons->size(); ++i) {
+            if (i == index) {
+                (*buttons)[i].style(styles.Button.Accent);
+            } else {
+                (*buttons)[i].style(styles.Button.Default);
+            }
+        }
+        heading.text(catalogue[index].name);
+        host.child(catalogue[index].page());
     };
 
-    auto back = Button {
-        content = SymbolIcon {symbol = FluentSymbol::Back},
-        toolTip = L"Назад, к списку эффектов",
-        vAlign.center,
-        Margin {0, 0, 12, 0},
-        visibility.collapsed,
-        // Кнопка приходит обработчику отправителем, поэтому не захватывается:
-        // захват замкнул бы её на саму себя.
-        onClick = [host, heading, listView](Button const& self) {
-            heading.text(listTitle);
-            self.visibility(Visibility::Collapsed);
-            host.child(listView);
-        },
-    };
-
-    for (auto const& effect : catalogue) {
-        list.children().append(Button {
-            content = effect.name,
-            toolTip = effect.about,
+    for (std::size_t i = 0; i < std::size(catalogue); ++i) {
+        auto button = Button {
+            content = catalogue[i].name,
+            toolTip = catalogue[i].about,
             hAlign.stretch,
             horizontalContentAlignment = HorizontalAlignment::Left,
-            Padding {16, 10},
-            onClick = [host, heading, back, effect] {
-                heading.text(effect.name);
-                back.visibility(Visibility::Visible);
-                host.child(effect.page());
-            },
-        });
+            Padding {14, 8},
+            onClick = [show, i] { show(i); },
+        };
+        buttons->push_back(button);
+        list.children().append(button);
     }
 
     auto window = Window {
-        title = L"wxl — эффекты",
-        minSize = {720, 520},
+        title = u"wxl — эффекты",
+        minSize = {1000, 560},
         Grid {
-            rowDefinitions = L"auto,*",
+            columnDefinitions = u"340,*",
             background = brushes.SolidBackgroundFillColor.Base,
+
+            // Слева: заголовок полосой и под ним список.
             Border {
-                row = 0,
-                background = brushes.SolidBackgroundFillColor.Secondary,
+                column = 0,
                 borderBrush = brushes.Card.StrokeColorDefault,
-                BorderThickness {0, 0, 0, 1},
-                Padding {12, 8},
-                StackPanel {
-                    orientation.horizontal,
-                    back,
-                    heading,
+                BorderThickness {0, 0, 1, 0},
+                Grid {
+                    rowDefinitions = u"auto,*",
+                    Border {
+                        row = 0,
+                        background = brushes.SolidBackgroundFillColor.Secondary,
+                        borderBrush = brushes.Card.StrokeColorDefault,
+                        BorderThickness {0, 0, 0, 1},
+                        Padding {12, 8},
+                        TextBlock {u"Эффекты", styles.TextBlock.Subtitle},
+                    },
+                    ScrollViewer {row = 1, content = list},
                 },
             },
-            host,
+            // Справа: имя эффекта полосой и под ним его страница.
+            Grid {
+                column = 1,
+                rowDefinitions = u"auto,*",
+                Border {
+                    row = 0,
+                    background = brushes.SolidBackgroundFillColor.Secondary,
+                    borderBrush = brushes.Card.StrokeColorDefault,
+                    BorderThickness {0, 0, 0, 1},
+                    Padding {12, 8},
+                    heading,
+                },
+                host,
+            },
         },
     };
 
+    show(0);
+
     auto appWindow = window.appWindow();
-    appWindow.resize({1100, 760});
+    appWindow.resize({1440, 820});
     window.activate();
 
     return {};

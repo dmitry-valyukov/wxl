@@ -133,6 +133,7 @@ if(WXL_INSTALL)
             ${WXL_CMAKE_SCRIPT_DIR}/wxl_add_module_library.cmake
             ${WXL_CMAKE_SCRIPT_DIR}/wxl_target_folders.cmake
             ${WXL_CMAKE_SCRIPT_DIR}/wxl_add_gtest.cmake
+            ${WXL_CMAKE_SCRIPT_DIR}/wxl_copy_assets.cmake
         DESTINATION "${WXL_CMAKE_DIR}/${WXL_HELPERS_RELATIVE_DIR}"
     )
 

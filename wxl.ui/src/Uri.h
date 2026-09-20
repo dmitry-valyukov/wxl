@@ -25,6 +25,9 @@ public:
 
     Uri(wchar_t const* text) noexcept : Uri(std::wstring_view{text}) {}
 
+    Uri(std::u16string_view text) noexcept : text_(text.data(), text.size()) {}
+    Uri(char16_t const* text) noexcept : Uri(std::u16string_view{text}) {}
+
     // The reinterpret_cast is between wchar_t and char16_t, the same 16-bit
     // code unit on Windows differing only in type.
     std::wstring_view text() const noexcept {
