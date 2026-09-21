@@ -12,36 +12,50 @@
 // `FrameworkElement` — наименьшее, что умеет раскладываться, и ровно то, что
 // принимает `Border::child`.
 //
-// Новый эффект — свой .cpp с такой же функцией, строка в `Pages.h` и строка
-// в каталоге `main.cpp`. Раскладку страницы он не пишет: описание и примеры
+// Новый эффект — свой .cpp с такой же функцией, папка сниппетов в
+// `Snippets/`, строка в `Pages.h` и строка в каталоге `main.cpp`. Раскладку страницы он не пишет: описание и примеры
 // отдаются в `showcase`.
 
 #include "pch.h"
 
 #include <span>
+#include <string_view>
 
 namespace effects {
 
 // Что кладут в каталог: функция, строящая страницу заново на каждый показ.
 using Page = wxl::FrameworkElement (*)();
 
-// Пример на странице эффекта: подпись, живой показ и его исходник. Исходник —
-// разметка для RsdnBlock, а тот принимает только `std::wstring_view`.
+// Кусок исходника примера: байты файла из Snippets/<эффект>/, вшитые в exe.
+// Тот же файл включён по #include в функцию, которая строит пример, так что
+// справа показано ровно то, что работает слева. Байты — `X.embed`, который
+// CMake делает из `X.h` (`X.h.embed`, embed.cmake): это ровно то, что вернул
+// бы `#embed "X.h"`, а #embed MSVC 14.51 пока не знает. char8_t, потому что байты
+// идут числами 0..255, а `char` старше 127 в фигурных скобках — сужение.
+using Snippet = std::u8string_view;
+
+template <std::size_t N>
+constexpr Snippet snippet(const char8_t (&bytes)[N]) {
+    return Snippet{bytes, N};
+}
+
+// Пример на странице эффекта: подпись, исходник и живой показ. Исходник — до
+// трёх кусков, по файлу на кусок: подготовка (переменные, лямбды) и само
+// выражение; справа они идут подряд через пустую строку.
 struct Sample {
     const char16_t* title;
-    const wchar_t* code;
+    Snippet code[3];
     wxl::FrameworkElement (*build)();
 };
 
-// Страница эффекта: описание разметкой HTML сверху, примеры слева, исходник
+// Страница эффекта: описание разметкой HTML сверху (Snippets/<эффект>/page.html), примеры слева, исходник
 // показанного примера справа (Showcase.cpp).
-wxl::FrameworkElement showcase(const wchar_t* description, std::span<const Sample> samples);
+wxl::FrameworkElement showcase(Snippet description, std::span<const Sample> samples);
 
 // Halo Effect — свечение вокруг глифов (HaloPage.cpp).
 wxl::FrameworkElement haloPage();
 
-// Magnify Effect — элемент растёт под указателем, тем больше, чем ближе тот к
-// центру (MagnifyPage.cpp).
+// Magnify Effect — элемент растёт или сжимается под указателем (MagnifyPage.cpp).
 wxl::FrameworkElement magnifyPage();
 
 }  // namespace effects

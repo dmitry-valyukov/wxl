@@ -11,23 +11,51 @@ using namespace wxl::dsl;
 
 namespace {
 
-// Код для правой половины. Разметка RSDN берёт тело [code] буквально, так что
-// экранировать в нём нечего; язык включает подсветку wxl.highlight.
-std::wstring codeMarkup(const wchar_t* code) {
-    std::wstring_view body{code};
-    while (!body.empty() && (body.front() == L'\n' || body.front() == L'\r')) {
+// Текст сниппета: из UTF-8 в UTF-16, без BOM, без CR (git на Windows мог
+// отдать файл с CRLF) и без пустых строк по краям.
+std::wstring snippetText(effects::Snippet bytes) {
+    auto const checked = core::unicode::checked(bytes);
+    if (!checked) {
+        return {};
+    }
+    std::wstring wide = checked->to_utf16();
+    std::erase(wide, L'\r');
+    std::wstring_view body{wide};
+    if (body.starts_with(L'\uFEFF')) {
         body.remove_prefix(1);
     }
-    while (!body.empty() && (body.back() == L'\n' || body.back() == L'\r')) {
+    while (!body.empty() && body.front() == L'\n') {
+        body.remove_prefix(1);
+    }
+    while (!body.empty() && body.back() == L'\n') {
         body.remove_suffix(1);
     }
-    return L"[code=cpp]" + std::wstring{body} + L"[/code]";
+    return std::wstring{body};
+}
+
+// Код для правой половины: куски сниппета подряд через пустую строку.
+// Разметка RSDN берёт тело [code] буквально, так что экранировать в нём
+// нечего; язык включает подсветку wxl.highlight.
+std::wstring codeMarkup(std::span<const effects::Snippet> parts) {
+    std::wstring joined;
+    for (auto const part : parts) {
+        if (part.empty()) {
+            continue;
+        }
+        if (!joined.empty()) {
+            joined += L"\n\n";
+        }
+        joined += snippetText(part);
+    }
+    return L"[code=cpp]" + joined + L"[/code]";
 }
 
 }  // namespace
 
-wxl::FrameworkElement effects::showcase(const wchar_t* description,
+wxl::FrameworkElement effects::showcase(Snippet description,
                                         std::span<const Sample> samples) {
+    auto const html = snippetText(description);
+
     // Правая половина: исходник того примера, чью кнопку нажали последней.
     auto code = RsdnBlock {
         isTextSelectionEnabled = true,
@@ -55,7 +83,7 @@ wxl::FrameworkElement effects::showcase(const wchar_t* description,
                     content = u"Показать код",
                     toolTip = u"Показать справа исходник этого примера",
                     hAlign.left,
-                    onClick = [code, text = sample.code] { code.rsdn(codeMarkup(text)); },
+                    onClick = [code, text = codeMarkup(sample.code)] { code.rsdn(text); },
                 },
             },
         });
@@ -73,7 +101,7 @@ wxl::FrameworkElement effects::showcase(const wchar_t* description,
                 content = HtmlBlock {
                     isTextSelectionEnabled = true,
                     Margin {20, 14},
-                    description,
+                    std::wstring_view{html},
                 },
             },
         },
