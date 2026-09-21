@@ -243,10 +243,9 @@ struct solid_color_brush : Color {
 }  // namespace impl
 
 // A property that takes a brush takes a colour as well, as CSS does:
-// `background = ARGB{0xFF101215}` is a solid brush of that colour. Only the
-// syntax says so -- Color itself converts to nothing. ARGB and RGBA have
-// overloads of their own, or the deduced assignment would take them before
-// Color could.
+// `background = rgb(16, 18, 21)` is a solid brush of that colour. Only the
+// syntax says so -- Color itself converts to nothing. RGBA has an overload
+// of its own, or the deduced assignment would take it before Color could.
 template <PropertyKey key, typename Owner>
 struct Property<key, Brush, Owner> : impl::PropertyTag<key, Owner> {
     using impl::PropertyTag<key, Owner>::operator=;
@@ -254,10 +253,6 @@ struct Property<key, Brush, Owner> : impl::PropertyTag<key, Owner> {
     constexpr SetterOp<key, Brush, Owner> operator=(Brush value) const { return {std::move(value)}; }
 
     constexpr SetterOp<key, impl::solid_color_brush, Owner> operator=(Color color) const {
-        return {{color}};
-    }
-
-    constexpr SetterOp<key, impl::solid_color_brush, Owner> operator=(ARGB color) const {
         return {{color}};
     }
 
@@ -734,7 +729,7 @@ Preset(Setters&&...) -> Preset<std::decay_t<Setters>...>;
 
 // A template: the description of an object, built where it is applied.
 //
-//     background = Template<SolidColorBrush>{ARGB{0xFF101215}}
+//     background = Template<SolidColorBrush>{rgb(16, 18, 21)}
 //     Grid { Template<Border>{cardLook, TextBlock{L"inside"}} }
 //     auto const brush = ink.build();
 //

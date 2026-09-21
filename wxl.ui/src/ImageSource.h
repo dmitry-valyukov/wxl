@@ -28,6 +28,8 @@ public:
     ImageSource(Uri source) noexcept : source_(std::move(source)) {}
     ImageSource(std::wstring_view text) noexcept : source_(text) {}
     ImageSource(wchar_t const* text) noexcept : source_(text) {}
+    ImageSource(std::u16string_view text) noexcept : source_(text) {}
+    ImageSource(char16_t const* text) noexcept : source_(text) {}
 
     Uri const& source() const noexcept { return source_; }
 

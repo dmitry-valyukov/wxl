@@ -47,7 +47,7 @@ private:
 };
 
 // The elements that follow the width of the text area (appendWideElement),
-// shared with the block's SizeChanged closure the way the handler boxes
+// shared with the block's LayoutUpdated closure the way the handler boxes
 // are shared: the closure holds the list, never the Impl.
 class wide_elements : public core::sta_refcounted {
 public:
@@ -58,6 +58,7 @@ public:
     };
 
     std::vector<entry, core::sta_allocator<entry>> entries;
+    double area = 0;  // the text area width the entries were last fitted to
 };
 
 class FormattedBlock::Impl : public base_t::Impl {
@@ -91,7 +92,7 @@ public:
     core::intrusive_ptr<handler_box<ErrorHandler>> onError_{new handler_box<ErrorHandler>,
                                                             /*add_ref=*/false};
 
-    // The wide elements, and whether the SizeChanged that refits them is
+    // The wide elements, and whether the LayoutUpdated that refits them is
     // subscribed yet -- once, on the first of them.
     core::intrusive_ptr<wide_elements> wide_{new wide_elements, /*add_ref=*/false};
     bool wideHooked_ = false;

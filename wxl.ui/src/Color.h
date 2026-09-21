@@ -5,12 +5,11 @@
 // wxl::Color -- given from above, projected onto Windows.UI.Color rather
 // than generated from it (see wxl.gen/gen/projection.cpp).
 //
-// The metadata type is a bare four-byte aggregate with no behaviour at all,
-// so a generated copy of it would be strictly worse than a hand-written one
-// that carries the conveniences declarative UI code actually wants: literal
-// construction from 0xAARRGGBB, the handful of named colors, and a
-// layout guaranteed to match the ABI struct so it can be passed straight
-// through.
+// The metadata type is a bare four-byte aggregate, and so is this one: no
+// constructor, so it stays an aggregate and travels in a register. What
+// declarative code writes is the CSS forms around it -- rgb(), rgba() and
+// RGBA{"#RRGGBBAA"} -- each read at compile time, and a handful of named
+// colours.
 
 namespace wxl {
 
@@ -22,23 +21,33 @@ struct Color {
     friend constexpr bool operator==(Color, Color) noexcept = default;
 };
 
-struct ARGB : Color {
-    constexpr ARGB() noexcept : ARGB(255, 0, 0, 0) {}
+namespace impl {
+// Never defined: reaching one while a colour is read is the compile error.
+void rgb_channel_out_of_0_255();
+void rgba_alpha_out_of_0_1();
 
-    constexpr explicit ARGB(uint32_t argb)
-        : ARGB((argb >> 24) & 0xFF, (argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF) {}
+consteval uint8_t channel(int value) {
+    if (value < 0 || value > 255) rgb_channel_out_of_0_255();
+    return static_cast<uint8_t>(value);
+}
+}  // namespace impl
 
-    constexpr ARGB(uint8_t red, uint8_t green, uint8_t blue) noexcept
-        : ARGB(255, red, green, blue) {}
+/// A colour in CSS function notation, opaque: rgb(131, 50, 50). Read at
+/// compile time, so a channel outside 0..255 fails the build.
+consteval Color rgb(int red, int green, int blue) {
+    return {255, impl::channel(red), impl::channel(green), impl::channel(blue)};
+}
 
-    constexpr ARGB(uint8_t alpha, uint8_t red, uint8_t green, uint8_t blue) noexcept {
-        A=alpha; R=red; G=green; B=blue;
-    }
-};
+/// The same with alpha as CSS writes it, a fraction: rgba(131, 50, 50, 0.2).
+consteval Color rgba(int red, int green, int blue, double alpha) {
+    if (alpha < 0.0 || alpha > 1.0) impl::rgba_alpha_out_of_0_1();
+    return {static_cast<uint8_t>(alpha * 255.0 + 0.5), impl::channel(red), impl::channel(green),
+            impl::channel(blue)};
+}
 
 /// A colour in CSS hex notation, the form an editor's colour picker reads and
 /// writes: "#RGB", "#RGBA", "#RRGGBB" or "#RRGGBBAA". Alpha comes last, which
-/// is why this is not ARGB. Read at compile time, so anything else fails the build.
+/// is why the type says RGBA. Read at compile time, so anything else fails the build.
 struct RGBA : Color {
     template <std::size_t Size>
     consteval explicit RGBA(char const (&css)[Size]) {
@@ -73,13 +82,13 @@ private:
 };
 
 inline static constexpr struct {
-    inline static constexpr ARGB transparent{0};
-    inline static constexpr ARGB black{0, 0, 0};
-    inline static constexpr ARGB white{255, 255, 255};
-    inline static constexpr ARGB red{255, 0, 0};
-    inline static constexpr ARGB green{0, 128, 0};
-    inline static constexpr ARGB blue{0, 0, 255};
-    inline static constexpr ARGB gray{128, 128, 128};
+    inline static constexpr Color transparent = rgba(0, 0, 0, 0);
+    inline static constexpr Color black = rgb(0, 0, 0);
+    inline static constexpr Color white = rgb(255, 255, 255);
+    inline static constexpr Color red = rgb(255, 0, 0);
+    inline static constexpr Color green = rgb(0, 128, 0);
+    inline static constexpr Color blue = rgb(0, 0, 255);
+    inline static constexpr Color gray = rgb(128, 128, 128);
 } colors;
 
 }  // namespace wxl

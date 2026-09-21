@@ -236,20 +236,54 @@
         },
 
         "Microsoft.UI.Xaml.Controls.TextBlock": {
-            "comment": "One member on top of the text properties base asks for, and it belongs here rather than there because of what it returns: the silhouette of the laid-out glyphs as a composition brush. That is the mask a DropShadow needs to become a glow -- a shadow with no offset, coloured, in the shape of the letters -- and a composition type has no business in a profile that projects no composition.",
+            "comment": "On top of the text properties base asks for, two members. GetAlphaMask belongs here rather than there because of what it returns: the silhouette of the laid-out glyphs as a composition brush. That is the mask a DropShadow needs to become a glow -- a shadow with no offset, coloured, in the shape of the letters -- and a composition type has no business in a profile that projects no composition. TextLineBounds trims the line box to the glyphs: by default it spans the font's ascent and descent, room for accents above and descenders below, so centring the box does not centre digits or capitals; Tight cuts it from cap height to baseline.",
+            "members": [
+                "GetAlphaMask",
+                "TextLineBounds"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Grid": {
+            "comment": "A grid draws a background of its own and can round its corners, so a panel of keys can be its own housing instead of sitting inside a Border that only exists to paint and round it.",
+            "members": [
+                "CornerRadius"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Image": {
+            "comment": "The same silhouette again: an image's alpha mask is the outline of whatever is opaque in it, so a transparent icon glows along its own lines.",
+            "members": [
+                "GetAlphaMask"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Shape": {
+            "comment": "The same silhouette as TextBlock's, for the same reason: a shape's alpha mask is what lets a DropShadow glow along its stroke and fill.",
             "members": [
                 "GetAlphaMask"
             ]
         },
         "Microsoft.UI.Xaml.UIElement": {
-            "comment": "On top of what base asks for, three things an application that reaches past the framework needs. The XamlRoot an element hangs in is where the scale between a DIP and a pixel is written down -- everything else in XAML is measured in DIPs and scaled by the framework, but a surface is allocated in pixels and would come out blurry at 150%. ActualSize is the laid-out size in DIPs, which a composition visual has to be told: a visual draws from its owner's corner and does not know its own extent. And pointer capture is what makes a drag a drag: without it the pointer stops being the element's the moment it leaves its bounds, and a divider six pixels wide loses the mouse on the first quick pull. PointerCaptureLost is the other half -- capture ends by itself when a window loses activation or a touch is cancelled, and a drag that only listens for PointerReleased would stay stuck down.",
+            "comment": "On top of what base asks for, the things an application that reaches past the framework needs and a render transform, which turns or scales an element without moving its layout -- and which XAML draws at, so an element scaled through it stays crisp. The XamlRoot an element hangs in is where the scale between a DIP and a pixel is written down -- everything else in XAML is measured in DIPs and scaled by the framework, but a surface is allocated in pixels and would come out blurry at 150%. ActualSize is the laid-out size in DIPs, which a composition visual has to be told: a visual draws from its owner's corner and does not know its own extent. And pointer capture is what makes a drag a drag: without it the pointer stops being the element's the moment it leaves its bounds, and a divider six pixels wide loses the mouse on the first quick pull. PointerCaptureLost is the other half -- capture ends by itself when a window loses activation or a touch is cancelled, and a drag that only listens for PointerReleased would stay stuck down.",
             "members": [
                 "XamlRoot",
                 "PointerWheelChanged",
                 "ActualSize",
                 "CapturePointer",
                 "ReleasePointerCapture",
-                "PointerCaptureLost"
+                "PointerCaptureLost",
+                "RenderTransform",
+                "RenderTransformOrigin"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.RotateTransform": {
+            "comment": "A turn drawn after layout: the element keeps the place it was measured for and is only painted rotated, about RenderTransformOrigin -- relative to its own size, so the centre is {0.5, 0.5} whatever that size turns out to be. Its composition visual turns with it, and whatever an effect hung there turns too.",
+            "members": [
+                "Angle"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.ScaleTransform": {
+            "comment": "A scale drawn after layout, like RotateTransform. Unlike a composition visual's Scale, XAML re-rasterizes the content at the final scale once the transform stops changing, so a ScaleTransform held still is what a scaled element looks like at its crispest -- the reference the Effects sample compares MagnifyEffect against.",
+            "members": [
+                "ScaleX",
+                "ScaleY"
             ]
         },
         "Microsoft.UI.Xaml.Input.Pointer": {
@@ -290,8 +324,8 @@
             "comment": "The scale, and the event that says it changed. Changed fires when the window moves to a display of another DPI, which is the one moment a surface has to be reallocated -- and it is an event, so nothing has to look at the scale on a timer to notice. Content is the tree the root holds: it is how a handler reaches the whole window from the element that raised the event, which is the only captureless way to set RequestedTheme on everything at once.",
             "members": [
                 "Content",
-                "RasterizationScale",
                 "Size",
+                "RasterizationScale",
                 "Changed"
             ]
         },

@@ -25,6 +25,13 @@ using namespace wxl::dsl;
 
 namespace {
 
+// The shared scene keeps its colours as packed 0xAARRGGBB numbers, because
+// the WinRT side of the benchmark reads the same table.
+constexpr Color packed(uint32_t argb) {
+    return {static_cast<uint8_t>(argb >> 24), static_cast<uint8_t>(argb >> 16),
+            static_cast<uint8_t>(argb >> 8), static_cast<uint8_t>(argb)};
+}
+
 // One card: a titled panel of ten controls. A function rather than the body
 // of the repeat below, so that the twelve cards are twelve calls to one piece
 // of compiled code -- which is what the loop on the winrt side is too.
@@ -32,8 +39,8 @@ Border card(int index, bench::CardText const& text) {
     return Border {
         row = index / bench::columns,
         column = index % bench::columns,
-        background = SolidColorBrush {ARGB{bench::cardBackground}},
-        borderBrush = SolidColorBrush {ARGB{bench::cardBorder}},
+        background = SolidColorBrush {packed(bench::cardBackground)},
+        borderBrush = SolidColorBrush {packed(bench::cardBorder)},
         BorderThickness {1},
         CornerRadius {8},
         Padding {10},
@@ -45,7 +52,7 @@ Border card(int index, bench::CardText const& text) {
                 text.title,
                 fontSize = 15.0,
                 FontWeight {600},
-                foreground = SolidColorBrush {ARGB{bench::titleInk}},
+                foreground = SolidColorBrush {packed(bench::titleInk)},
                 Margin {0, 0, 0, 4},
             },
             Button {
@@ -98,7 +105,7 @@ Border card(int index, bench::CardText const& text) {
             TextBlock {
                 bench::caption,
                 fontSize = 12.0,
-                foreground = SolidColorBrush {ARGB{bench::captionInk}},
+                foreground = SolidColorBrush {packed(bench::captionInk)},
                 textWrapping.wrap,
             },
         },
@@ -114,11 +121,11 @@ Grid page(std::array<bench::CardText, bench::cards> const& texts) {
         rowDefinitions = u"auto,*",
         rowSpacing = 12.0,
         Padding {12},
-        background = SolidColorBrush {ARGB{bench::pageBackground}},
+        background = SolidColorBrush {packed(bench::pageBackground)},
 
         Border {
             row = 0,
-            background = SolidColorBrush {ARGB{bench::headerBackground}},
+            background = SolidColorBrush {packed(bench::headerBackground)},
             CornerRadius {6},
             Padding {12, 8},
             StackPanel {
@@ -128,13 +135,13 @@ Grid page(std::array<bench::CardText, bench::cards> const& texts) {
                     bench::headerTitle,
                     fontSize = 20.0,
                     FontWeight {600},
-                    foreground = SolidColorBrush {ARGB{bench::titleInk}},
+                    foreground = SolidColorBrush {packed(bench::titleInk)},
                     vAlign.center,
                 },
                 TextBlock {
                     bench::headerNote,
                     fontSize = 13.0,
-                    foreground = SolidColorBrush {ARGB{bench::captionInk}},
+                    foreground = SolidColorBrush {packed(bench::captionInk)},
                     vAlign.center,
                 },
             },
@@ -247,7 +254,7 @@ std::vector<SolidColorBrush> inkPalette() {
     std::vector<SolidColorBrush> palette;
     palette.reserve(bench::paletteSize);
     for (int i = 0; i < bench::paletteSize; ++i) {
-        palette.push_back(SolidColorBrush{ARGB{bench::palette[i]}});
+        palette.push_back(SolidColorBrush{packed(bench::palette[i])});
     }
     return palette;
 }
