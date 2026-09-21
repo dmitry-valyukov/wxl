@@ -99,7 +99,7 @@ protected:
 // a light hairline to give the edge back.
 //
 // The scrim is neutral on purpose. A page whose picture has a colour of its
-// own tints it in one line -- `background = SolidColorBrush{ARGB{...}}` --
+// own tints it in one line -- `background = SolidColorBrush{rgb(...)}` --
 // the way the book reader warms it to the brown of its own cover art.
 //
 // The ink on it is the dark theme's ink, whatever theme the window wears:
@@ -116,8 +116,8 @@ public:
     explicit OverlayCard(Setters&&... setters)
         : Border{
               CornerRadius{12},
-              dsl::background = SolidColorBrush{ARGB{0x6C1A1A1A}},
-              dsl::borderBrush = SolidColorBrush{ARGB{0x33FFFFFF}},
+              dsl::background = SolidColorBrush{RGBA{"#1A1A1A6C"}},
+              dsl::borderBrush = SolidColorBrush{rgba(255, 255, 255, 0.2)},
               BorderThickness{1},
               dsl::shadow = ThemeShadow{},
               dsl::translation = {0.0f, 0.0f, 32.0f},

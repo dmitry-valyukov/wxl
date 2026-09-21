@@ -91,6 +91,7 @@ add_library(wxl.ui STATIC
     src/events.h
     src/event_awaitable.h
     src/BevelEffect.h
+    src/BevelEffect.cpp
     src/HaloEffect.h
     src/MagnifyEffect.h
     src/MagnifyEffect.cpp

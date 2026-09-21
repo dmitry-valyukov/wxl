@@ -109,15 +109,15 @@ using namespace wxl::dsl;
     markup.registerStyle(L"quote", {.text = {.italic = true},
                                     .block = {.margin = Thickness{24, 4, 0, 4}}});
     markup.registerStyles({
-        {L"warn", {.text = {.color = ARGB{0xFFC0392B}, .bold = true}}},
-        {L"note", {.text = {.color = ARGB{0xFF606060}}}},
+        {L"warn", {.text = {.color = rgb(192, 57, 43), .bold = true}}},
+        {L"note", {.text = {.color = rgb(96, 96, 96)}}},
     });
     markup.onLink([](std::wstring_view) {});
     markup.onError([](HtmlError const&) {});
-    markup.theme(HtmlTheme{.quoteColor = {ARGB{0xFF808080}},
+    markup.theme(HtmlTheme{.quoteColor = {rgb(128, 128, 128)},
                            .preRadius = 6,
                            .preElevation = 24,
-                           .preBackground = ARGB{0xFFF2F2F2},
+                           .preBackground = rgb(242, 242, 242),
                            .listIndent = 32});
     markup.baseDirectory(LR"(C:\docs)");
     markup.append(L"<p style=\"note\">дописано <i>куском</i></p>");
@@ -321,8 +321,8 @@ using namespace wxl::dsl;
         background = BackgroundImage{L"Assets/paper.png", BackgroundFill::TileMirrored},
         page,
     };
-    CompositionWindow const coloured{background = ARGB{0xFF202020}};
-    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, ARGB{0xFF000000}});
+    CompositionWindow const coloured{background = rgb(32, 32, 32)};
+    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, rgb(0, 0, 0)});
     (void)coloured;
 
     auto const closeLater = [window] { window.close(); };
@@ -490,8 +490,8 @@ namespace library_presets {
 
     Border built{background = RadialGradientBrush{
                      glow,
-                     GradientStop{ARGB{0x333333B4}, offset = 0.0},
-                     GradientStop{ARGB{0x20202087}, offset = 1.0},
+                     GradientStop{rgba(51, 51, 180, 0.2), offset = 0.0},
+                     GradientStop{RGBA{"#20208720"}, offset = 1.0},
                  }};
 
     Border given{background = Template<RadialGradientBrush>{glow}};
@@ -511,30 +511,30 @@ namespace library_presets {
         radiusY = 1.3,
     };
 
-    auto const glowing = [shape](uint32_t centre, uint32_t edge) {
+    auto const glowing = [shape](Color centre, Color edge) {
         return Template<RadialGradientBrush>{
             shape,
-            GradientStop{ARGB{centre}, offset = 0.0},
-            GradientStop{ARGB{edge}, offset = 1.0},
+            GradientStop{centre, offset = 0.0},
+            GradientStop{edge, offset = 1.0},
         };
     };
 
-    Border keypad{background = glowing(0x333333B4, 0x20202087)};
-    Border display{background = glowing(0xFFDCE8B4, 0xFFA6B287)};
+    Border keypad{background = glowing(RGBA{"#333333B4"}, RGBA{"#20202087"})};
+    Border display{background = glowing(rgb(220, 232, 180), rgb(166, 178, 135))};
 }
 
 // A template assigned to a property is the object that property asks for, and
 // always that: it is built and set, never applied to the object on the left.
 // `build()` is the same step, said out loud; wearing is the preset's form.
 [[maybe_unused]] void template_as_the_value() {
-    auto const ink = Template<SolidColorBrush>{color = ARGB{0xFF7C8768}};
+    auto const ink = Template<SolidColorBrush>{color = rgb(124, 135, 104)};
 
     Border given{borderBrush = ink};
 
     SolidColorBrush const brush = ink.build();
     Border same{borderBrush = brush};
 
-    constexpr Preset inkLook{color = ARGB{0xFF7C8768}};
+    constexpr Preset inkLook{color = rgb(124, 135, 104)};
     SolidColorBrush worn{inkLook};
 }
 
@@ -929,7 +929,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
         hAlign.right,
         vAlign.top,
         Margin{0, 64, 72, 0},
-        background = SolidColorBrush{ARGB{0x6C1C1208}},
+        background = SolidColorBrush{RGBA{"#1C12086C"}},
         content,
     };
 
@@ -959,7 +959,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
 [[maybe_unused]] void themed_brushes() {
     Border follows{background = brushes.Card.BackgroundFillColor.Default};
     TextBlock pinned{foreground = brushes.Text.FillColor.Primary(ElementTheme::Dark)};
-    Border literal{background = SolidColorBrush{ARGB{0x6C1A1A1A}}};
+    Border literal{background = SolidColorBrush{RGBA{"#1A1A1A6C"}}};
 
     (void)follows;
     (void)pinned;
@@ -971,8 +971,8 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
 inline constexpr Preset tinted{background = colors.white, borderBrush = Color{255, 0, 0, 0}};
 
 [[maybe_unused]] void colours_for_brushes() {
-    Border scrim{background = ARGB{0xA0E0E0D0}, tinted};
-    TextBlock ink{foreground = ARGB{0xFF2C3A1C}};
+    Border scrim{background = RGBA{"#E0E0D0A0"}, tinted};
+    TextBlock ink{foreground = rgb(44, 58, 28)};
     Button swatch{borderBrush = colors.gray, background = Color{255, 0, 0, 0}};
     Apply{scrim, background = colors.transparent};
 
@@ -984,7 +984,7 @@ template <typename Value>
 concept background_takes = requires(Border const& border, Value value) { border.background(value); };
 
 static_assert(!std::is_convertible_v<Color, Brush>);
-static_assert(!background_takes<Color> && !background_takes<ARGB>);
+static_assert(!background_takes<Color>);
 
 // A hand-written wrapper is read from a sender like any generated control.
 // EventHandler adapts a handler that names the concrete type, and it does so
@@ -1044,17 +1044,17 @@ static_assert(!background_takes<Color> && !background_takes<ARGB>);
 [[maybe_unused]] void theme_brushes_go_in_the_braces() {
     Button{
         content = L"Go",
-        background = SolidColorBrush{ARGB{0xFF101215}},
-        ThemeBrush{L"ButtonBackgroundPointerOver", SolidColorBrush{ARGB{0xFF1B1F25}}},
+        background = SolidColorBrush{rgb(16, 18, 21)},
+        ThemeBrush{L"ButtonBackgroundPointerOver", SolidColorBrush{rgb(27, 31, 37)}},
     };
 
     auto const look = Preset{
-        ThemeBrush{L"ButtonBackgroundPressed", SolidColorBrush{ARGB{0xFF090A0C}}},
+        ThemeBrush{L"ButtonBackgroundPressed", SolidColorBrush{rgb(9, 10, 12)}},
     };
 
     Button const button{look};
 
-    Apply{button, ThemeBrush{L"ButtonForegroundPointerOver", SolidColorBrush{ARGB{0xFFFFFFFF}}}};
+    Apply{button, ThemeBrush{L"ButtonForegroundPointerOver", SolidColorBrush{rgb(255, 255, 255)}}};
 
     static_assert(!std::invocable<ThemeBrush, SolidColorBrush const&>);
 }
@@ -1212,12 +1212,20 @@ static_assert(alignof(Color) == 1);
 static_assert(offsetof(Color, A) == 0 && offsetof(Color, R) == 1 && offsetof(Color, G) == 2
               && offsetof(Color, B) == 3);
 
-// CSS hex puts alpha last, so it is RGBA and never ARGB.
-static_assert(RGBA{"#dff9f9d8"} == ARGB{0xD8DFF9F9});
-static_assert(RGBA{"#102030"} == ARGB{0xFF102030});
-static_assert(RGBA{"#aBc"} == ARGB{0xFFAABBCC});
-static_assert(RGBA{"#1234"} == ARGB{0x44112233});
-static_assert(!std::is_constructible_v<ARGB, char const (&)[10]>);
+// CSS hex puts alpha last; Color itself is A, R, G, B.
+static_assert(RGBA{"#dff9f9d8"} == Color{0xD8, 0xDF, 0xF9, 0xF9});
+static_assert(RGBA{"#102030"} == Color{0xFF, 0x10, 0x20, 0x30});
+static_assert(RGBA{"#aBc"} == Color{0xFF, 0xAA, 0xBB, 0xCC});
+static_assert(RGBA{"#1234"} == Color{0x44, 0x11, 0x22, 0x33});
+
+// The CSS functions: alpha is a fraction, rounded to the nearest byte.
+static_assert(rgb(131, 50, 50) == Color{255, 131, 50, 50});
+static_assert(rgba(131, 50, 50, 0.2) == Color{51, 131, 50, 50});
+static_assert(rgba(0, 0, 0, 0) == colors.transparent);
+static_assert(rgba(255, 255, 255, 1.0) == colors.white);
+
+// Color is a bare aggregate, the way it crosses the ABI.
+static_assert(std::is_aggregate_v<Color> && std::is_trivially_copyable_v<Color> && sizeof(Color) == 4);
 
 [[maybe_unused]] void colour_literals() {
     Border hex{background = RGBA{"#dff9f9d8"}};
@@ -1361,6 +1369,37 @@ struct probe_task {
             std::rethrow_exception(*got.error());
         }
     }
+}
+
+// BevelEffect -- written by hand, so its schema lines are too.
+[[maybe_unused]] void BevelEffect_strokeThickness_assigned(::wxl::BevelEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::strokeThickness = value);
+}
+[[maybe_unused]] void BevelEffect_blurRadius_assigned(::wxl::BevelEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::blurRadius = value);
+}
+[[maybe_unused]] void BevelEffect_offset_assigned(::wxl::BevelEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::offset = value);
+}
+[[maybe_unused]] void BevelEffect_margin_assigned(::wxl::BevelEffect const& object, ::wxl::Thickness value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::margin = value);
+}
+[[maybe_unused]] void BevelEffect_margin_braced(::wxl::BevelEffect const& object) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::margin = {1, 2});
+}
+[[maybe_unused]] void BevelEffect_cornerRadius_assigned(::wxl::BevelEffect const& object, ::wxl::CornerRadius value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::cornerRadius = value);
+}
+// The bare forms the braces take: two colours, lit side first, a tagged
+// margin and a corner radius by its own type.
+[[maybe_unused]] void BevelEffect_bare(::wxl::BevelEffect const& object) {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    BevelEffect const raised{rgba(255, 255, 255, 0.27), rgba(0, 0, 0, 0.38),
+                             strokeThickness = 2, blurRadius = 1, offset = 2, Margin{1}, CornerRadius{6}};
+    Button const key{u"=", raised};
+    (void)object;
+    (void)key;
 }
 
 // MagnifyEffect -- written by hand, so its schema lines are too.

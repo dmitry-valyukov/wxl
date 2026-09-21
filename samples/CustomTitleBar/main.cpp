@@ -70,7 +70,7 @@ wxl::Teardown wxl_launched() {
         },
     });
 
-    window.background(ARGB{0xFF, 0xF3, 0xF3, 0xF3});
+    window.background(rgb(243, 243, 243));
     window.centreWithClientSize({960, 600});
     window.activate();
 

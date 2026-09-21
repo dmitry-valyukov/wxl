@@ -80,7 +80,7 @@ void write_styles(Output const& out, Model const& model,
 // brushes.h / brush_names.h -- the framework's named brushes as a path,
 // `brushes.Card.BackgroundFillColorDefault`. From the same dictionaries as
 // the styles, and theme-resolved at lookup, which is what a hard-coded
-// ARGB in application code can never be. The model comes in because a brush
+// colour in application code can never be. The model comes in because a brush
 // key names no target of its own: which control a key belongs to is guessed,
 // and a type the profile generated is the stronger of the two guesses.
 void write_brushes(Output const& out, Model const& model,

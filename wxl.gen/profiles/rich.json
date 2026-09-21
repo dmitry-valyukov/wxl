@@ -242,6 +242,12 @@
                 "TextLineBounds"
             ]
         },
+        "Microsoft.UI.Xaml.Controls.Grid": {
+            "comment": "A grid draws a background of its own and can round its corners, so a panel of keys can be its own housing instead of sitting inside a Border that only exists to paint and round it.",
+            "members": [
+                "CornerRadius"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.Image": {
             "comment": "The same silhouette again: an image's alpha mask is the outline of whatever is opaque in it, so a transparent icon glows along its own lines.",
             "members": [

@@ -2,22 +2,17 @@
 Border {
     CornerRadius {10},
     Padding {24, 20},
-    background = ARGB{0xFF4A4F57},
+    background = rgb(74, 79, 87),
     StackPanel {
         spacing = 16.0,
 
-        // BevelEffect: перелом цвета точно в двух углах при любой ширине.
+        // BevelEffect: резкий перелом точно в двух углах при любой ширине.
         Border {
             height = 64,
             CornerRadius {6},
             BorderThickness {4},
-            background = ARGB{0xFFB4B4B4},
-            BevelEffect {
-                {0xFFFFFFFF, 0.0},
-                {0xFFFFFFFF, 0.4999},
-                {0xFF3C3C3C, 0.5001},
-                {0xFF3C3C3C, 1.0},
-            },
+            background = rgb(180, 180, 180),
+            BevelEffect {rgb(255, 255, 255), rgb(60, 60, 60), strokeThickness = 4, blurRadius = 0},
             TextBlock {u"BevelEffect", hAlign.center, vAlign.center},
         },
 
@@ -27,14 +22,14 @@ Border {
             height = 64,
             CornerRadius {6},
             BorderThickness {4},
-            background = ARGB{0xFFB4B4B4},
+            background = rgb(180, 180, 180),
             borderBrush = LinearGradientBrush {
                 startPoint = Point{0, 0},
                 endPoint = Point{1, 1},
-                GradientStop {ARGB{0xFFFFFFFF}, offset = 0.0},
-                GradientStop {ARGB{0xFFFFFFFF}, offset = 0.4999},
-                GradientStop {ARGB{0xFF3C3C3C}, offset = 0.5001},
-                GradientStop {ARGB{0xFF3C3C3C}, offset = 1.0},
+                GradientStop {rgb(255, 255, 255), offset = 0.0},
+                GradientStop {rgb(255, 255, 255), offset = 0.4999},
+                GradientStop {rgb(60, 60, 60), offset = 0.5001},
+                GradientStop {rgb(60, 60, 60), offset = 1.0},
             },
             TextBlock {u"LinearGradientBrush {0, 0} — {1, 1}", hAlign.center, vAlign.center},
         },

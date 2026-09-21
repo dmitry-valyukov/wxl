@@ -6,7 +6,7 @@
 //     TextBlock {
 //         u"0",
 //         fontSize = 48,
-//         HaloEffect { blurRadius = 14.0f, color = ARGB{0xFF5C8A20} },
+//         HaloEffect { blurRadius = 14.0f, color = rgb(92, 138, 32) },
 //     }
 //
 // A shadow whose offset is zero is a halo, and the shape it takes is whatever
