@@ -24,7 +24,7 @@
 #include "UiThread.h"
 #include "ui.h"
 #include "generated/Microsoft.UI.Dispatching.h"
-#include "generated/schema.h"
+#include "schema.h"
 #include "generated/Microsoft.UI.Composition.h"
 #include "generated/Microsoft.UI.Xaml.Hosting.h"
 #include "generated/brushes.h"
@@ -1362,4 +1362,25 @@ struct probe_task {
         }
     }
 }
+
+// MagnifyEffect -- written by hand, so its schema lines are too.
+[[maybe_unused]] void MagnifyEffect_scale_assigned(::wxl::MagnifyEffect const& object, ::wxl::Size value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::scale = value);
+}
+[[maybe_unused]] void MagnifyEffect_scale_braced(::wxl::MagnifyEffect const& object) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::scale = {1.3, 1.1});
+}
+[[maybe_unused]] void MagnifyEffect_maximum_assigned(::wxl::MagnifyEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::maximum = value);
+}
+[[maybe_unused]] void MagnifyEffect_minimum_assigned(::wxl::MagnifyEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::minimum = value);
+}
+[[maybe_unused]] void MagnifyEffect_duration_assigned(::wxl::MagnifyEffect const& object, ::wxl::core::duration value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::duration = value);
+}
+[[maybe_unused]] void MagnifyEffect_delayTime_assigned(::wxl::MagnifyEffect const& object, ::wxl::core::duration value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::delayTime = value);
+}
+
 }  // namespace

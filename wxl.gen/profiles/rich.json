@@ -23,8 +23,7 @@
                 "GetElementVisual",
                 "SetElementChildVisual",
                 "GetElementChildVisual",
-                "SetIsTranslationEnabled",
-                "GetPointerPositionPropertySet"
+                "SetIsTranslationEnabled"
             ]
         },
 
@@ -255,7 +254,7 @@
             ]
         },
         "Microsoft.UI.Xaml.UIElement": {
-            "comment": "On top of what base asks for, the things an application that reaches past the framework needs, a render transform for turning an element without moving its layout, and RasterizationScale -- the extra density XAML draws an element and its children at, so that one about to be scaled up by the compositor stays crisp. The XamlRoot an element hangs in is where the scale between a DIP and a pixel is written down -- everything else in XAML is measured in DIPs and scaled by the framework, but a surface is allocated in pixels and would come out blurry at 150%. ActualSize is the laid-out size in DIPs, which a composition visual has to be told: a visual draws from its owner's corner and does not know its own extent. And pointer capture is what makes a drag a drag: without it the pointer stops being the element's the moment it leaves its bounds, and a divider six pixels wide loses the mouse on the first quick pull. PointerCaptureLost is the other half -- capture ends by itself when a window loses activation or a touch is cancelled, and a drag that only listens for PointerReleased would stay stuck down.",
+            "comment": "On top of what base asks for, the things an application that reaches past the framework needs and a render transform, which turns or scales an element without moving its layout -- and which XAML draws at, so an element scaled through it stays crisp. The XamlRoot an element hangs in is where the scale between a DIP and a pixel is written down -- everything else in XAML is measured in DIPs and scaled by the framework, but a surface is allocated in pixels and would come out blurry at 150%. ActualSize is the laid-out size in DIPs, which a composition visual has to be told: a visual draws from its owner's corner and does not know its own extent. And pointer capture is what makes a drag a drag: without it the pointer stops being the element's the moment it leaves its bounds, and a divider six pixels wide loses the mouse on the first quick pull. PointerCaptureLost is the other half -- capture ends by itself when a window loses activation or a touch is cancelled, and a drag that only listens for PointerReleased would stay stuck down.",
             "members": [
                 "XamlRoot",
                 "PointerWheelChanged",
@@ -263,7 +262,6 @@
                 "CapturePointer",
                 "ReleasePointerCapture",
                 "PointerCaptureLost",
-                "RasterizationScale",
                 "RenderTransform",
                 "RenderTransformOrigin"
             ]
@@ -319,8 +317,8 @@
             "comment": "The scale, and the event that says it changed. Changed fires when the window moves to a display of another DPI, which is the one moment a surface has to be reallocated -- and it is an event, so nothing has to look at the scale on a timer to notice. Content is the tree the root holds: it is how a handler reaches the whole window from the element that raised the event, which is the only captureless way to set RequestedTheme on everything at once.",
             "members": [
                 "Content",
-                "RasterizationScale",
                 "Size",
+                "RasterizationScale",
                 "Changed"
             ]
         },

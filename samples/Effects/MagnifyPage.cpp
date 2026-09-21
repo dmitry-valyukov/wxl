@@ -15,35 +15,44 @@ namespace {
 
 constexpr const wchar_t* description = LR"HTML(
 <h2>Magnify Effect — рост под указателем</h2>
-<p>Элемент растёт, когда над ним указатель, и тем сильнее, чем ближе тот к
-центру. Внутри овала с пропорциями элемента и вдвое меньшего — до
-<code>maxScale</code>, так что целиться надо в область, а не в точку; от овала
-к краям масштаб плавно спадает до обычного. Пишется в скобках самого
-элемента.</p>
+<p>Элемент растёт, пока над ним указатель: до масштаба из числа и обратно,
+за постоянное время. Число меньше 1 — элемент под указателем сжимается.
+Пишется в скобках самого элемента.</p>
 <pre>Button {
     u"Наведи на меня",
-    MagnifyEffect {1.2f},
+    MagnifyEffect {1.2},
 }</pre>
-<p><b>На потоке интерфейса не выполняется ничего.</b> XAML сам держит
-положение указателя над элементом в наборе свойств композиции
-(<code>GetPointerPositionPropertySet</code>), а выражение на визуале элемента
-пересчитывает его в масштаб — кадр за кадром, внутри композитора, без
-обработчика <code>PointerMoved</code> и без прохода раскладки.</p>
-<p>Масштаб и его центр — свойства визуала, а не раскладки: соседи не
-сдвигаются, и элемент сохраняет место, под которое его измерили.</p>
-<p>Уйдя, указатель оставляет в наборе последнее положение, поэтому выражение
-умножается на собственный вес наведения эффекта: он плавно поднимается до 1
-на <code>PointerEntered</code> и опускается до 0 на <code>PointerExited</code>,
-и элемент возвращается к размеру, а не застывает там, где указатель пересёк
-край.</p>
-<p><b>Чётко и в увеличенном виде.</b> Масштаб визуала растягивает то, что
-XAML уже нарисовал, и текст с иконками при росте мылится. Поэтому, пока
-указатель над элементом, его <code>RasterizationScale</code> поднят до
-<code>maxScale</code>: XAML один раз перерисовывает элемент и детей настолько
-же плотнее, а композитор этот растр только сжимает. Обратно к 1 он
-возвращается, когда элемент уже сжался, — в покое элемент нарисован в родном
-разрешении.</p>
-<p>Эффекты складываются: бокал ниже носит и ореол, и рост — ореол растёт
+<p><b>Движение считает композитор.</b> Показанный масштаб — это число в
+наборе свойств визуала, которое ведёт ключевая анимация, а визуал читает его
+выражением. Ни замеров, ни прохода раскладки на кадр; UI-потока касаются
+только два события указателя. Масштаб — свойство визуала, а не раскладки:
+соседи не сдвигаются, и элемент сохраняет место, под которое его измерили.</p>
+<p><b>Чёткость там, где движение кончается.</b> Масштаб визуала растягивает
+уже нарисованное, а масштаб, применённый самим XAML (<code>ScaleTransform</code>
+в <code>RenderTransform</code>), XAML и рисует — штрихи букв ложатся на
+пиксели. Поэтому масштаб разделён надвое: база, в которой рисует XAML, и
+масштаб визуала, делённый на неё. При наведении база сразу становится
+конечным масштабом, а визуал стартует с обратной ему величины, так что
+размер на экране не меняется, и растёт ровно до 1 — в конце это чистая
+отрисовка XAML. При уходе наоборот, и в покое элемент снова нарисован один к
+одному. Пересчёт пикселей остаётся только в начале движения.</p>
+<p>Кроме короткой записи, эффект настраивается теми же тегами, что и
+остальной словарь: <code>scale</code> (число или <code>Size</code> по осям),
+<code>maximum</code> и <code>minimum</code> — дальние точки, куда движение
+заходит перед тем, как вернуться: <code>maximum</code> — при наведении,
+<code>minimum</code> — при уходе указателя. Без них движение одно: 140 мс
+при наведении и 180 при уходе; с ними это первая фаза, а за ней более
+медленный возврат — 200 и 220 мс. <code>duration</code> — длина первой фазы, <code>delayTime</code> —
+задержка перед ростом. Эффект — ручка, как любая обёртка: один, построенный
+заранее, носит вся панель инструментов ниже, и анимации у кнопок общие.</p>
+<p>У панели пик 1.35 и дно 0.95; бокал, наоборот, при наведении сжимается:
+<code>MagnifyEffect {0.8, maximum = 0.7, minimum = 1.2}</code> — ныряет до 0.7
+и встаёт на 0.8, а при уходе подпрыгивает до 1.2 и возвращается к 1. У первой
+кнопки перелёта нет — с ней сравнивается эталон.</p>
+<p>Зависимость масштаба от расстояния до центра пробовали и убрали: событий
+мыши приходит несколько штук на проход, размер между ними прыгал, и оставалось
+неподвижное промежуточное состояние, где чёткости быть не может.</p>
+<p>Эффекты складываются: бокал ниже носит и ореол, и масштаб — ореол меняется
 вместе с ним.</p>
 )HTML";
 
@@ -65,7 +74,7 @@ StackPanel {
         u"Наведи на меня",
         width = 170,
         height = 50,
-        MagnifyEffect {1.2f},
+        MagnifyEffect {1.2},
     },
 
     // Эталон с той же надписью: увеличен на те же 1.2 всегда. XAML перерисовывает
@@ -93,7 +102,7 @@ FrameworkElement button() {
             u"Наведи на меня",
             width = 170,
             height = 50,
-            MagnifyEffect {1.2f},
+            MagnifyEffect {1.2},
         },
 
         // Эталон с той же надписью: увеличен на те же 1.2 всегда. XAML перерисовывает
@@ -109,14 +118,18 @@ FrameworkElement button() {
     };
 }
 
-// Панель инструментов: у каждой кнопки свой рост.
+// Панель инструментов: у каждой кнопки свой цвет, а эффект один на всех.
 constexpr const wchar_t* toolbarCode = LR"CODE(
-auto const tool = [](FluentSymbol glyph) {
+// Один эффект на всю панель: копии — это тот же эффект, и анимации у
+// всех кнопок общие.
+auto const pop = MagnifyEffect {1.2, maximum = 1.35, minimum = 0.95};
+
+auto const tool = [pop](FluentSymbol glyph, ARGB tint) {
     return Button {
-        content = SymbolIcon {symbol = glyph},
+        content = SymbolIcon {symbol = glyph, foreground = tint},
         width = 52,
         height = 52,
-        MagnifyEffect {1.2f},
+        pop,
     };
 };
 
@@ -124,21 +137,25 @@ StackPanel {
     orientation.horizontal,
     spacing = 22.0,
     hAlign.center,
-    tool(FluentSymbol::Home),
-    tool(FluentSymbol::Mail),
-    tool(FluentSymbol::Camera),
-    tool(FluentSymbol::MusicNote),
-    tool(FluentSymbol::Globe),
+    tool(FluentSymbol::Home, ARGB{0xFF0F6CBD}),
+    tool(FluentSymbol::Mail, ARGB{0xFFD83B01}),
+    tool(FluentSymbol::Camera, ARGB{0xFF8764B8}),
+    tool(FluentSymbol::MusicNote, ARGB{0xFFE3008C}),
+    tool(FluentSymbol::Globe, ARGB{0xFF107C10}),
 }
 )CODE";
 
 FrameworkElement toolbar() {
-    auto const tool = [](FluentSymbol glyph) {
+    // Один эффект на всю панель: копии — это тот же эффект, и анимации у
+    // всех кнопок общие.
+    auto const pop = MagnifyEffect {1.2, maximum = 1.35, minimum = 0.95};
+
+    auto const tool = [pop](FluentSymbol glyph, ARGB tint) {
         return Button {
-            content = SymbolIcon {symbol = glyph},
+            content = SymbolIcon {symbol = glyph, foreground = tint},
             width = 52,
             height = 52,
-            MagnifyEffect {1.2f},
+            pop,
         };
     };
 
@@ -147,15 +164,15 @@ FrameworkElement toolbar() {
         spacing = 22.0,
         hAlign.center,
         Margin {0, 20},
-        tool(FluentSymbol::Home),
-        tool(FluentSymbol::Mail),
-        tool(FluentSymbol::Camera),
-        tool(FluentSymbol::MusicNote),
-        tool(FluentSymbol::Globe),
+        tool(FluentSymbol::Home, ARGB{0xFF0F6CBD}),
+        tool(FluentSymbol::Mail, ARGB{0xFFD83B01}),
+        tool(FluentSymbol::Camera, ARGB{0xFF8764B8}),
+        tool(FluentSymbol::MusicNote, ARGB{0xFFE3008C}),
+        tool(FluentSymbol::Globe, ARGB{0xFF107C10}),
     };
 }
 
-// Неоновый бокал: ореол и рост на одной картинке.
+// Неоновый бокал: ореол и сжатие под указателем на одной картинке.
 constexpr const wchar_t* neonCode = LR"CODE(
 Border {
     CornerRadius {8},
@@ -166,7 +183,7 @@ Border {
         width = 72,
         height = 72,
         HaloEffect {color = ARGB{0xFF00C8FF}, blurRadius = 12.0f},
-        MagnifyEffect {1.2f},
+        MagnifyEffect {0.8, maximum = 0.7, minimum = 1.2},
     },
 }
 )CODE";
@@ -181,7 +198,7 @@ FrameworkElement neon() {
             width = 72,
             height = 72,
             HaloEffect {color = ARGB{0xFF00C8FF}, blurRadius = 12.0f},
-            MagnifyEffect {1.2f},
+            MagnifyEffect {0.8, maximum = 0.7, minimum = 1.2},
         },
     };
 }
@@ -189,7 +206,7 @@ FrameworkElement neon() {
 constexpr effects::Sample samples[] = {
     {u"Слева с эффектом, справа эталон ×1.2", buttonCode, &button},
     {u"Панель инструментов", toolbarCode, &toolbar},
-    {u"Неоновый бокал: ореол и рост вместе", neonCode, &neon},
+    {u"Неоновый бокал: ореол и сжатие вместе", neonCode, &neon},
 };
 
 }  // namespace

@@ -120,7 +120,7 @@ Border {
     Grid {
         // Погашенные сегменты просвечивают под живыми — этим индикатор и
         // отличается от надписи.
-        TextBlock {u"88:88", segment, foreground = ARGB{0x14FF4A00}},
+        TextBlock {u"88:88", segment, foreground = ARGB{0x1BFF4A00}},
 
         // Два ореола на одном элементе: тугое ядро и широкий разлёт.
         TextBlock {
@@ -152,7 +152,7 @@ FrameworkElement led() {
         Grid {
             // Погашенные сегменты просвечивают под живыми — этим индикатор и
             // отличается от надписи.
-            TextBlock {u"88:88", segment, foreground = ARGB{0x14FF4A00}},
+            TextBlock {u"88:88", segment, foreground = ARGB{0x1BFF4A00}},
 
             // Два ореола на одном элементе: тугое ядро и широкий разлёт.
             TextBlock {
