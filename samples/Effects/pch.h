@@ -4,7 +4,7 @@
 // готовые панели и карточка, два блока разметки (описание — HTML, код —
 // RSDN с подсветкой), фигуры и сами эффекты.
 //
-// HaloEffect.h идёт последним: он единственный здесь несёт `import`, а
+// BevelEffect.h и HaloEffect.h идут последними: они несут `import`, а
 // заголовок после импорта должен быть уже разобран.
 
 #include "ui.h"
@@ -16,4 +16,5 @@
 #include "generated/brushes.h"
 #include "generated/Microsoft.UI.Xaml.Shapes.h"
 #include "MagnifyEffect.h"
+#include "BevelEffect.h"
 #include "HaloEffect.h"

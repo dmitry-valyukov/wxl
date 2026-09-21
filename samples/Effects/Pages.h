@@ -55,6 +55,9 @@ wxl::FrameworkElement showcase(Snippet description, std::span<const Sample> samp
 // Halo Effect — свечение вокруг глифов (HaloPage.cpp).
 wxl::FrameworkElement haloPage();
 
+// Bevel Effect — скошенная кромка, светлая и тёмная по диагонали (BevelPage.cpp).
+wxl::FrameworkElement bevelPage();
+
 // Magnify Effect — элемент растёт или сжимается под указателем (MagnifyPage.cpp).
 wxl::FrameworkElement magnifyPage();
 

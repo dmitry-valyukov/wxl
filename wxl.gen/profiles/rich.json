@@ -236,9 +236,10 @@
         },
 
         "Microsoft.UI.Xaml.Controls.TextBlock": {
-            "comment": "One member on top of the text properties base asks for, and it belongs here rather than there because of what it returns: the silhouette of the laid-out glyphs as a composition brush. That is the mask a DropShadow needs to become a glow -- a shadow with no offset, coloured, in the shape of the letters -- and a composition type has no business in a profile that projects no composition.",
+            "comment": "On top of the text properties base asks for, two members. GetAlphaMask belongs here rather than there because of what it returns: the silhouette of the laid-out glyphs as a composition brush. That is the mask a DropShadow needs to become a glow -- a shadow with no offset, coloured, in the shape of the letters -- and a composition type has no business in a profile that projects no composition. TextLineBounds trims the line box to the glyphs: by default it spans the font's ascent and descent, room for accents above and descenders below, so centring the box does not centre digits or capitals; Tight cuts it from cap height to baseline.",
             "members": [
-                "GetAlphaMask"
+                "GetAlphaMask",
+                "TextLineBounds"
             ]
         },
         "Microsoft.UI.Xaml.Controls.Image": {

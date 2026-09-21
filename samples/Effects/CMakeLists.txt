@@ -33,6 +33,7 @@ add_executable(sample.effects WIN32
     Showcase.cpp
     HaloPage.cpp
     MagnifyPage.cpp
+    BevelPage.cpp
     ${_effects_snippets}
     ${_effects_embedded}
     embed.cmake
