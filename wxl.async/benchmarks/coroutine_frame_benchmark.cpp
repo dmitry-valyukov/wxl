@@ -19,6 +19,14 @@
 //      arrive through a field of some erased type, and `core::function::create` is
 //      a `new` of its own. Read the line as a lower bound that is out of reach, not
 //      as what a pool would cost.
+//   5. the first three again while other threads churn the process heap. A GUI
+//      thread never has that heap to itself: the application's own workers allocate
+//      and free while it runs, and a block freed on one thread was as likely as not
+//      allocated on another. The rows from the ordinary allocator then pay for the
+//      heap's shared state; the rows from the pool do not, because those threads
+//      never touch it -- and they double as the control: whatever they lose under
+//      the same load is the machine (a lower clock with every core busy), not the
+//      allocator.
 //
 // Every run also reports how many frames actually reached an allocator, and that is
 // not decoration. The compiler may elide the allocation whenever it can prove the
@@ -32,9 +40,14 @@
 // optimiser will not open, which leaves nowhere to put it but the heap. That is also
 // the truth in the real scheme, where the handle goes into a channel and comes back
 // from another thread.
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <coroutine>
 #include <cstdio>
+#include <new>
+#include <thread>
+#include <vector>
 
 import wxl.core;
 
@@ -179,6 +192,72 @@ __declspec(noinline) fresh_task eternal_worker() {
     }
 }
 
+/// Other threads at the process heap, for as long as this object lives. Each one
+/// allocates a small block, touches it, and hands it to its neighbour through a
+/// mailbox, freeing whatever it finds there: its own block from the round before if
+/// the neighbour was slow, the neighbour's if it was quick. So the heap sees frees
+/// from the allocating thread and from another one both, which is what a real
+/// application's workers give it. Sizes walk 16..512, the classes a frame lands in.
+/// None of this touches sta_memory_pool: that is the point of the comparison.
+class heap_churn
+{
+public:
+    explicit heap_churn(unsigned threads) : mailboxes_(threads) {
+        for (unsigned i = 0; i < threads; ++i)
+            threads_.emplace_back([this, i, threads] { churn(i, threads); });
+    }
+
+    ~heap_churn() { stop(); }
+
+    /// Stops the threads and returns how many blocks went through the heap
+    /// meanwhile -- proof that the churn was there, printed beside the rows.
+    unsigned long long stop() {
+        if (!threads_.empty()) {
+            stop_.store(true, std::memory_order_relaxed);
+
+            for (std::thread& thread : threads_) thread.join();
+
+            threads_.clear();
+
+            for (mailbox& box : mailboxes_) ::operator delete(box.slot.exchange(nullptr));
+        }
+
+        return rounds_.load(std::memory_order_relaxed);
+    }
+
+private:
+    /// One per thread, on a line of its own: the mailboxes are what the threads
+    /// share, and sharing a line between them would measure that instead of the heap.
+    struct alignas(64) mailbox {
+        std::atomic<void*> slot{nullptr};
+    };
+
+    void churn(unsigned i, unsigned n) {
+        mailbox& give = mailboxes_[(i + 1) % n];
+        mailbox& take = mailboxes_[i];
+        std::size_t size = 16;
+        unsigned long long done = 0;
+
+        while (!stop_.load(std::memory_order_relaxed)) {
+            void* const fresh = ::operator new(size);
+            *static_cast<volatile char*>(fresh) = 1;
+
+            ::operator delete(give.slot.exchange(fresh, std::memory_order_acq_rel));
+            ::operator delete(take.slot.exchange(nullptr, std::memory_order_acq_rel));
+
+            size = size < 512 ? size * 2 : 16;
+            ++done;
+        }
+
+        rounds_.fetch_add(done, std::memory_order_relaxed);
+    }
+
+    std::atomic<bool> stop_{false};
+    std::atomic<unsigned long long> rounds_{0};
+    std::vector<mailbox> mailboxes_;
+    std::vector<std::thread> threads_;
+};
+
 struct measurement {
     double ns = 0;                  ///< per job
     unsigned long long frames = 0;  ///< frames the allocator was asked for
@@ -288,6 +367,30 @@ int main() {
     const measurement pooled_wide = run_pooled_wide(count);
     const measurement eternal = run_eternal(count);
 
+    // The same again with the heap busy. One core is left to the thread being
+    // measured; the rest churn, up to eight of them.
+    const unsigned cores = std::thread::hardware_concurrency();
+    const unsigned churners = cores > 1 ? std::min(8u, cores - 1) : 1;
+
+    measurement fresh_busy, pooled_busy, wide_busy, pooled_wide_busy;
+    unsigned long long churned = 0;
+
+    {
+        heap_churn churn(churners);
+
+        run_fresh(count / 10);
+        run_pooled(count / 10);
+        run_fresh_wide(count / 10);
+        run_pooled_wide(count / 10);
+
+        fresh_busy = run_fresh(count);
+        pooled_busy = run_pooled(count);
+        wide_busy = run_fresh_wide(count);
+        pooled_wide_busy = run_pooled_wide(count);
+
+        churned = churn.stop();
+    }
+
     std::printf("%-36s %10s %12s %12s %10s\n", "one job", "ns", "vs eternal", "frames/job",
                 "frame, B");
     report("a fresh coroutine (new/delete)", fresh, eternal, count);
@@ -295,6 +398,13 @@ int main() {
     report("a fresh coroutine, 1K of locals", wide, eternal, count);
     report("a pooled coroutine, 1K of locals", pooled_wide, eternal, count);
     report("an eternal coroutine, resumed", eternal, eternal, count);
+
+    std::printf("\n%u thread(s) churning the heap meanwhile (%llu blocks through it):\n",
+                churners, churned);
+    report("a fresh coroutine (new/delete)", fresh_busy, eternal, count);
+    report("a fresh coroutine (sta pool)", pooled_busy, eternal, count);
+    report("a fresh coroutine, 1K of locals", wide_busy, eternal, count);
+    report("a pooled coroutine, 1K of locals", pooled_wide_busy, eternal, count);
 
     return 0;
 }
