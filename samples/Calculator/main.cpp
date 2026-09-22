@@ -22,43 +22,59 @@ namespace {
         };
     }
 
-    // Смещение цветовых каналов на заданную величину с зажатием в диапазоне 0..255
-    constexpr Color tweakColor(Color color, int by) {
-        auto const channel = [by](uint8_t value) {
-            int const moved = value + by;
-            return static_cast<uint8_t>(moved < 0 ? 0 : moved > 255 ? 255 : moved);
-        };
+    // Тона «вдавленной» клавиши: ядро, кромка и её светлый край
+    struct Dip {
+        Color core, rim, edge;
+    };
 
-        return {color.A, channel(color.R), channel(color.G), channel(color.B)};
+    // Полный набор тонов клавиши: покой, наведение, нажатие. Все производные
+    // тона — сдвиг светлоты исходных в OKLCH, вычисленный компилятором, так
+    // что набор целиком константа, а на старте только собираются кисти.
+    struct KeyFace {
+        Color ink, inkPressed;
+        Dip rest, hover, pressed;
+    };
+
+    consteval Dip dip(Color core, Color rim) {
+        return {core, rim, lightness(rim, 0.06)};
+    }
+
+    consteval KeyFace keyFace(Color ink, Color core, Color rim) {
+        return {
+            ink, lightness(ink, -0.15),
+            dip(core, rim),
+            dip(lightness(core, 0.06), lightness(rim, 0.06)),
+            dip(lightness(core, -0.03), lightness(rim, -0.05)),
+        };
     }
 
     // Эффект «вдавленной» в панель клавиши
-    Template<RadialGradientBrush> createDipTemplate(Color core, Color rim) {
+    Template<RadialGradientBrush> createDipTemplate(Dip const& tones) {
         return {
             center = {0.5, 0.5},
             gradientOrigin = {0.1, 0.1},
             radiusX = 1.85,
             radiusY = 1.15,
-            GradientStop {core, offset = 0.0},
-            GradientStop {rim, offset = 0.75},
-            GradientStop {tweakColor(rim, 18), offset = 1.0},
+            GradientStop {tones.core, offset = 0.0},
+            GradientStop {tones.rim, offset = 0.75},
+            GradientStop {tones.edge, offset = 1.0},
         };
     }
 
     // Настройка стилей кнопки и её состояний (PointerOver, Pressed) через словарь тем
-    auto createKeyFacePreset(Color ink, Color core, Color rim) {
+    auto createKeyFacePreset(KeyFace const& face) {
         return Preset{
-            foreground = SolidColorBrush {ink},
-            background = createDipTemplate(core, rim),
+            foreground = SolidColorBrush {face.ink},
+            background = createDipTemplate(face.rest),
 
-            ThemeBrush {u"ButtonBackgroundPointerOver", createDipTemplate(tweakColor(core, 20), tweakColor(rim, 20)).build()},
-            ThemeBrush {u"ButtonBackgroundPressed", createDipTemplate(tweakColor(core, -5), tweakColor(rim, -12)).build()},
-            ThemeBrush {u"ButtonForegroundPointerOver", SolidColorBrush {ink}},
-            ThemeBrush {u"ButtonForegroundPressed", SolidColorBrush {tweakColor(ink, -40)}},
-            ThemeBrush {u"ButtonBorderBrushPointerOver", SolidColorBrush {rgb(0, 0, 0)}},
-            ThemeBrush {u"ButtonBorderBrushPressed", SolidColorBrush {rgb(0, 0, 0)}},
+            ThemeBrush {u"ButtonBackgroundPointerOver", createDipTemplate(face.hover).build()},
+            ThemeBrush {u"ButtonBackgroundPressed", createDipTemplate(face.pressed).build()},
+            ThemeBrush {u"ButtonForegroundPointerOver", SolidColorBrush {face.ink}},
+            ThemeBrush {u"ButtonForegroundPressed", SolidColorBrush {face.inkPressed}},
+            ThemeBrush {u"ButtonBorderBrushPointerOver", SolidColorBrush {colors.black}},
+            ThemeBrush {u"ButtonBorderBrushPressed", SolidColorBrush {colors.black}},
 
-            borderBrush = SolidColorBrush {rgb(0, 0, 0)},
+            borderBrush = SolidColorBrush {colors.black},
             BorderThickness {1},
             CornerRadius {6},
 
@@ -67,6 +83,11 @@ namespace {
             verticalContentAlignment = VerticalAlignment::Stretch,
         };
     }
+
+    // Палитры трёх видов клавиш: чернила, ядро (с прозрачностью) и кромка
+    constexpr KeyFace numericKey  = keyFace(rgb(237, 239, 242), RGBA{"#26282BEE"}, rgb(70, 74, 81));
+    constexpr KeyFace actionKey   = keyFace(rgb(204, 217, 245), RGBA{"#1D263AEE"}, rgb(50, 70, 119));
+    constexpr KeyFace terminalKey = keyFace(rgb(255, 227, 180), RGBA{"#4A2C17EE"}, rgb(182, 100, 29));
 
     // Кант для псевдообъёма: блик слева сверху, тень справа снизу. Рисует его
     // композитор поверх собственной обводки элемента.
@@ -103,9 +124,9 @@ wxl::Teardown wxl_launched() {
     auto const rim = BevelEffect {rimLight, rimShade, Margin {1}, offset = 2};
 
     // Стили для различных типов клавиш
-    auto const numericKeyStyle  = createKeyFacePreset(rgb(237, 239, 242), RGBA{"#26282BEE"}, rgb(70, 74, 81));
-    auto const actionKeyStyle   = createKeyFacePreset(rgb(204, 217, 245), RGBA{"#1D263AEE"}, rgb(50, 70, 119));
-    auto const terminalKeyStyle = createKeyFacePreset(rgb(255, 227, 180), RGBA{"#4A2C17EE"}, rgb(182, 100, 29));
+    auto const numericKeyStyle  = createKeyFacePreset(numericKey);
+    auto const actionKeyStyle   = createKeyFacePreset(actionKey);
+    auto const terminalKeyStyle = createKeyFacePreset(terminalKey);
 
     auto selectKeyPreset = [&](char16_t key) {
         return calculator::isNumeric(key)  ? numericKeyStyle

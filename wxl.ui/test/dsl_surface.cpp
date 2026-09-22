@@ -1224,6 +1224,16 @@ static_assert(rgba(131, 50, 50, 0.2) == Color{51, 131, 50, 50});
 static_assert(rgba(0, 0, 0, 0) == colors.transparent);
 static_assert(rgba(255, 255, 255, 1.0) == colors.white);
 
+// lightness() moves along OKLCH L: the ends are black and white, a zero step
+// is the identity, equal steps either way from a grey land symmetric greys,
+// and alpha rides along.
+static_assert(lightness(colors.black, 1.0) == colors.white);
+static_assert(lightness(colors.white, -1.0) == colors.black);
+static_assert(lightness(rgb(131, 50, 50), 0.0) == rgb(131, 50, 50));
+static_assert(lightness(colors.gray, 0.2) == rgb(189, 189, 189));
+static_assert(lightness(colors.gray, -0.2) == rgb(72, 72, 72));
+static_assert(lightness(rgba(30, 20, 200, 0.5), -0.1).A == 128);
+
 // Color is a bare aggregate, the way it crosses the ABI.
 static_assert(std::is_aggregate_v<Color> && std::is_trivially_copyable_v<Color> && sizeof(Color) == 4);
 
