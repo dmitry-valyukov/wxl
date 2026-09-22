@@ -4,15 +4,15 @@
 тела корутины — и когда её возобновляют до конца, и когда приостановленный
 кадр сносят `coroutine_handle::destroy()`.
 
-Повод — два красных теста в `wxl.async` (`TaskTest.ReleasesItselfWhenTheBodyEnds`
-и `TaskTest.ADestroyedFrameStillLetsGoOfWhatItHeld`): в Release оба видят, что
+Повод — два красных теста в `wxl.async` (`DetachedTaskTest.ReleasesItselfWhenTheBodyEnds`
+и `DetachedTaskTest.ADestroyedFrameStillLetsGoOfWhatItHeld`): в Release оба видят, что
 локальный объект тела не отпущен.
 
 Проба намеренно ни с чем не связана: ни библиотеки дерева, ни его модулей,
 только `<coroutine>` и консольный вывод. Так разделяются два объяснения —
 поведение компилятора и что-то наше. Формы корутин повторяют обе, что есть в
-`wxl.async`: «сам себе хозяин» (оба конца `suspend_never`, как `task`) и
-«с владельцем» (`final_suspend` — `suspend_always`, как `managed_task`);
+`wxl.async`: «сам себе хозяин» (оба конца `suspend_never`, как `detached_task`) и
+«с владельцем» (`final_suspend` — `suspend_always`, как `task`);
 третий случай — свой `operator new` у промиса, который заодно показывает,
 выделялся ли кадр вообще.
 

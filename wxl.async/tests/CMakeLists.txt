@@ -9,6 +9,7 @@ string(REPLACE "/Ob0" "/Ob1" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 add_executable(wxl.async.tests
     bump_buffer_tests.cpp
     completion_counter_tests.cpp
+    detached_task_tests.cpp
     drain_stack_tests.cpp
     future_tests.cpp
     future_tests_t.cpp
@@ -23,7 +24,6 @@ add_executable(wxl.async.tests
     spsc_queue_tests.cpp
     sta_loop_tests.cpp
     countdown_event_tests.cpp
-    managed_task_tests.cpp
     task_tests.cpp
     task_tree_core_tests.cpp
     task_tree_tests.cpp

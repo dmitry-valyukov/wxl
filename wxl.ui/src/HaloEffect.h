@@ -69,7 +69,7 @@ private:
     // not, and this one outlives the expression that started it. Both are
     // handles -- a reference count each.
     template <typename Obj>
-    static async::task wear(Obj element, shape_t shape) {
+    static async::detached_task wear(Obj element, shape_t shape) {
         auto const visual = ElementCompositionPreview::getElementVisual(element);
         auto const children = visual.try_as<ContainerVisual>().children();
 

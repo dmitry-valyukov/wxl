@@ -446,7 +446,7 @@ summary summarize(std::vector<double> samples) {
 }
 
 template <class loop_t, op_home where>
-managed_task ping_pong(loop_t& loop, int count, latency_samples& samples, int& remaining) {
+task ping_pong(loop_t& loop, int count, latency_samples& samples, int& remaining) {
     for (int i = 0; i < count; ++i) {
         const bench_clock::time_point sent = bench_clock::now();
         const bench_clock::time_point seen =
@@ -461,7 +461,7 @@ managed_task ping_pong(loop_t& loop, int count, latency_samples& samples, int& r
 }
 
 template <class loop_t, op_home where>
-managed_task fan_task(loop_t& loop, int count, std::uint64_t& sum, int& remaining) {
+task fan_task(loop_t& loop, int count, std::uint64_t& sum, int& remaining) {
     for (int i = 0; i < count; ++i)
         sum += co_await start<where>(loop, [i] { return static_cast<std::uint64_t>(i); });
 
@@ -471,7 +471,7 @@ managed_task fan_task(loop_t& loop, int count, std::uint64_t& sum, int& remainin
 /// The file, read the way async_file reads it: open, chunks until empty, close -- each a
 /// round trip. The buffer lives outside so the frame stays the size of a real one.
 template <class loop_t>
-managed_task read_file(loop_t& loop, const wchar_t* path, std::span<std::byte> buffer, std::size_t& total,
+task read_file(loop_t& loop, const wchar_t* path, std::span<std::byte> buffer, std::size_t& total,
                int& chunks, latency_samples& samples, int& remaining) {
     wxl::core::file f =
         co_await loop.async_call([path] { return wxl::core::file::open_read(path); });
@@ -524,7 +524,7 @@ ping_result ping_pong_round(loop_t& loop, int count) {
     int remaining = 1;
 
     const bench_clock::time_point started = bench_clock::now();
-    managed_task t = ping_pong<loop_t, where>(loop, count, samples, remaining);
+    task t = ping_pong<loop_t, where>(loop, count, samples, remaining);
     loop.run_until([&] { return remaining == 0; });
     const double per_op = nanoseconds(bench_clock::now() - started).count() / count;
 
@@ -538,7 +538,7 @@ double fan_out_round(loop_t& loop, int tasks, int count) {
     const std::uint64_t expected =
         static_cast<std::uint64_t>(tasks) * (static_cast<std::uint64_t>(count) * (count - 1) / 2);
 
-    std::vector<managed_task> running;
+    std::vector<task> running;
     running.reserve(static_cast<std::size_t>(tasks));
     std::uint64_t sum = 0;
     int remaining = tasks;
@@ -553,7 +553,7 @@ double fan_out_round(loop_t& loop, int tasks, int count) {
     const double per_op =
         nanoseconds(bench_clock::now() - started).count() / (double(tasks) * count);
 
-    for (managed_task& t : running) t.result();
+    for (task& t : running) t.result();
 
     if (sum != expected) std::printf("  fan-out: checksum mismatch\n");
 
@@ -565,7 +565,7 @@ double fan_out_round(loop_t& loop, int tasks, int count) {
 /// so what is left is the machinery itself -- the send, the op, the resume.
 template <class loop_t, op_home where>
 double fan_out_hot_round(loop_t& loop, int tasks, int count) {
-    std::vector<managed_task> running;
+    std::vector<task> running;
     running.reserve(static_cast<std::size_t>(tasks));
     std::uint64_t sum = 0;
     int remaining = tasks;
@@ -581,7 +581,7 @@ double fan_out_hot_round(loop_t& loop, int tasks, int count) {
     const double per_op =
         nanoseconds(bench_clock::now() - started).count() / (double(tasks) * count);
 
-    for (managed_task& t : running) t.result();
+    for (task& t : running) t.result();
 
     return per_op;
 }
@@ -601,7 +601,7 @@ file_result file_round(loop_t& loop, const wchar_t* path, std::size_t chunk) {
     int remaining = 1;
 
     const bench_clock::time_point started = bench_clock::now();
-    managed_task t = read_file<loop_t>(loop, path, buffer, total, chunks, samples, remaining);
+    task t = read_file<loop_t>(loop, path, buffer, total, chunks, samples, remaining);
     loop.run_until([&] { return remaining == 0; });
     const double per_chunk = nanoseconds(bench_clock::now() - started).count() / chunks;
 
@@ -645,7 +645,7 @@ template <class loop_t>
 driven_result driven_round(loop_t& loop, bool coalesced, int tasks, int count) {
     loop.reset_counts();
 
-    std::vector<managed_task> running;
+    std::vector<task> running;
     running.reserve(static_cast<std::size_t>(tasks));
     std::uint64_t sum = 0;
     int remaining = tasks;
@@ -669,7 +669,7 @@ driven_result driven_round(loop_t& loop, bool coalesced, int tasks, int count) {
     const double per_op =
         nanoseconds(bench_clock::now() - started).count() / (double(tasks) * count);
 
-    for (managed_task& t : running) t.result();
+    for (task& t : running) t.result();
 
     // Leave the trigger the way the sleeping shape expects to find it.
     if (coalesced) loop.from_worker().disarm();

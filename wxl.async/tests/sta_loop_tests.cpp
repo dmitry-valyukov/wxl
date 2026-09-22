@@ -13,11 +13,11 @@ using namespace wxl::async;
 
 namespace {
 
-managed_task add_up(int count, int& sum) {
+task add_up(int count, int& sum) {
     for (int i = 1; i <= count; ++i) sum += co_await sta_loop::async_call([i] { return i; });
 }
 
-managed_task throws_from_the_worker(std::string& message) {
+task throws_from_the_worker(std::string& message) {
     try {
         co_await sta_loop::async_call([] { throw std::runtime_error("from the worker"); });
         message = "no exception";
@@ -27,7 +27,7 @@ managed_task throws_from_the_worker(std::string& message) {
 }
 
 /// Reads back, from the worker itself, which COM apartment it stands in.
-managed_task worker_apartment(APTTYPE& out) {
+task worker_apartment(APTTYPE& out) {
     out = co_await sta_loop::async_call([] {
         APTTYPE type = APTTYPE_CURRENT;
         APTTYPEQUALIFIER qualifier = APTTYPEQUALIFIER_NONE;
@@ -66,7 +66,7 @@ private:
     std::thread::id& ran_on_;
 };
 
-managed_task run_sum_op(int& out, std::thread::id& ran_on) {
+task run_sum_op(int& out, std::thread::id& ran_on) {
     // Spelled as the base: `async_run` deduces R from the pointer it is given,
     // and deduction does not see through a derived class.
     std::unique_ptr<async_op_t<int>> op = std::make_unique<sum_op>(20, 22, ran_on);
@@ -109,7 +109,7 @@ private:
 
 TEST(StaLoopTest, RunsACoroutineToItsEnd) {
     int sum = 0;
-    managed_task work = add_up(10, sum);
+    task work = add_up(10, sum);
 
     sta_loop::run_until([&] { return work.done(); });
     work.result();
@@ -119,7 +119,7 @@ TEST(StaLoopTest, RunsACoroutineToItsEnd) {
 
 TEST(StaLoopTest, CarriesAnExceptionBackToTheCoAwait) {
     std::string message;
-    managed_task work = throws_from_the_worker(message);
+    task work = throws_from_the_worker(message);
 
     sta_loop::run_until([&] { return work.done(); });
     work.result();
@@ -132,7 +132,7 @@ TEST(StaLoopTest, TheWorkerThreadIsAComMtaApartment) {
     // say -- and winrt needs COM up on the thread. thread_group brings every
     // worker up as MTA; this reads that back from the worker itself.
     APTTYPE type = APTTYPE_CURRENT;
-    managed_task work = worker_apartment(type);
+    task work = worker_apartment(type);
 
     sta_loop::run_until([&] { return work.done(); });
     work.result();
@@ -153,9 +153,9 @@ TEST(StaLoopTest, RunPendingTakesWhateverHasPiledUp) {
     // without waiting for what has not.
     int first = 0, second = 0, third = 0;
 
-    managed_task a = add_up(1, first);
-    managed_task b = add_up(1, second);
-    managed_task c = add_up(1, third);
+    task a = add_up(1, first);
+    task b = add_up(1, second);
+    task c = add_up(1, third);
 
     while (!(a.done() && b.done() && c.done())) {
         sta_loop::run_one();
@@ -175,7 +175,7 @@ TEST(StaLoopTest, RunsAnOperationWrittenAsAClass) {
     int sum = 0;
     std::thread::id ran_on;
 
-    managed_task work = run_sum_op(sum, ran_on);
+    task work = run_sum_op(sum, ran_on);
 
     sta_loop::run_until([&] { return work.done(); });
     work.result();

@@ -56,14 +56,14 @@ inline ::testing::Environment* const driven_env =
 
 /// One operation whose body says, on the worker, that it has run -- so a test can wait
 /// for a whole burst to have been executed before it lets the STA side look.
-managed_task counted_operation(std::latch& executed, int& out) {
+task counted_operation(std::latch& executed, int& out) {
     out = co_await sta_loop::async_call([&executed] {
         executed.count_down();
         return 1;
     });
 }
 
-managed_task failing_operation(std::string& message) {
+task failing_operation(std::string& message) {
     try {
         co_await sta_loop::async_call([] { throw std::runtime_error("from the worker"); });
         message = "no exception";
@@ -72,13 +72,13 @@ managed_task failing_operation(std::string& message) {
     }
 }
 
-bool all_done(const std::vector<managed_task>& work) {
-    return std::all_of(work.begin(), work.end(), [](const managed_task& t) { return t.done(); });
+bool all_done(const std::vector<task>& work) {
+    return std::all_of(work.begin(), work.end(), [](const task& t) { return t.done(); });
 }
 
 /// Drains the way an application's callback does: run_pending() on every post, until
 /// the work is done.
-void drain_until_done(const std::vector<managed_task>& work) {
+void drain_until_done(const std::vector<task>& work) {
     while (!all_done(work)) {
         dispatcher().wait_for_a_post();
         sta_loop::run_pending();
@@ -107,7 +107,7 @@ TEST(StaLoopDrivenTest, ABurstFinishedBeforeTheStaSideLooksCostsOneCallbackNotOn
     const int posts_before = dispatcher().posts();
     std::latch executed(burst);
     int results[burst]{};
-    std::vector<managed_task> work;
+    std::vector<task> work;
 
     for (int i = 0; i < burst; ++i) work.push_back(counted_operation(executed, results[i]));
 
@@ -115,7 +115,7 @@ TEST(StaLoopDrivenTest, ABurstFinishedBeforeTheStaSideLooksCostsOneCallbackNotOn
 
     drain_until_done(work);
 
-    for (managed_task& t : work) t.result();
+    for (task& t : work) t.result();
     for (const int r : results) EXPECT_EQ(r, 1);
 
     const int posts = dispatcher().posts() - posts_before;
@@ -137,7 +137,7 @@ TEST(StaLoopDrivenTest, TheTriggerIsArmedAgainAfterEveryDrain) {
         const int posts_before = dispatcher().posts();
         std::latch executed(1);
         int result = 0;
-        std::vector<managed_task> work;
+        std::vector<task> work;
 
         work.push_back(counted_operation(executed, result));
 
@@ -154,7 +154,7 @@ TEST(StaLoopDrivenTest, TheTriggerIsArmedAgainAfterEveryDrain) {
 
 TEST(StaLoopDrivenTest, AnExceptionFromTheWorkerArrivesAtTheCoAwait) {
     std::string message;
-    std::vector<managed_task> work;
+    std::vector<task> work;
 
     work.push_back(failing_operation(message));
 

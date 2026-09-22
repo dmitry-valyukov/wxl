@@ -289,6 +289,14 @@ public:
     /// before there is a coroutine to name. That is safe for one reason only: the
     /// thread that would resume the coroutine is the STA thread, and it is here,
     /// inside this call, and cannot be in run_one() at the same time.
+    ///
+    /// Sent from here rather than from await_suspend() on purpose: the work starts
+    /// at the call, so `auto a = f.read(x); auto b = g.read(y); co_await a;
+    /// co_await b;` has both in the worker's queue before either is waited on. That
+    /// is also why the op is a block of its own rather than a member of the awaiter:
+    /// an awaiter in the frame can only send once its address is final, and the
+    /// variant that does so measured 20 ns more per operation on the floor, not
+    /// less (sta_loop_benchmark.cpp, "in the frame"), against 2 ns for the block.
     template <class Fn>
     [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> async_call(Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;

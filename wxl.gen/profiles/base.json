@@ -101,6 +101,7 @@
                 "ActualThemeChanged",
                 "Loaded",
                 "Unloaded",
+                "IsLoaded",
                 "SizeChanged",
                 "LayoutUpdated"
             ]

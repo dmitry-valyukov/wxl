@@ -1,72 +1,64 @@
 export module wxl.async:task;
 
-import :cancellation;
 import wxl.core;
 import std;
 
 export namespace wxl::async {
 
-/// What a coroutine nobody holds does with an exception nobody can catch.
+/// A coroutine somebody holds: it is handed back to its caller to be kept,
+/// swept and read.
 ///
-/// It is a bare function pointer rather than a `core::function` on purpose:
-/// this is set once by an application, if at all, and a handler that had to
-/// be allocated would be allocated from a pool that may already be going
-/// away by the time it is needed.
-using task_failure_handler = void (*)(std::exception_ptr) noexcept;
-
-/// The handler, settable by the application. The default ends the process,
-/// which is the same answer cppwinrt gives and the only honest one by
-/// default: the exception has escaped a coroutine that nobody is waiting on,
-/// so there is nowhere left to report it and nobody to decide what the
-/// program should do instead.
-inline task_failure_handler& on_task_failure() noexcept {
-    static task_failure_handler handler = [](std::exception_ptr error) noexcept {
-        // Named before the process goes, because the alternative is what this
-        // replaced: a bare "abort() has been called" that says nothing about
-        // which coroutine failed or why. Ending is still the only honest
-        // answer -- nobody is waiting on this one, so there is nobody to
-        // decide anything else -- but ending silently is not.
-        try {
-            std::rethrow_exception(error);
-        } catch (const std::exception& what) {
-            std::cerr << "wxl: a task failed with nobody to tell: " << what.what() << '\n';
-        } catch (...) {
-            std::cerr << "wxl: a task failed with a foreign exception and nobody to tell\n";
-        }
-
-        std::cerr.flush();
-        std::terminate();
-    };
-    return handler;
-}
-
-/// A coroutine that owns itself: nothing is returned to hold, and the frame
-/// is released the moment the body ends.
+/// That is the whole difference from `detached_task`, which owns itself and
+/// answers to nobody. Here the caller keeps what comes back -- the Reader's
+/// `Io` keeps them in a vector and sweeps the finished ones -- because there
+/// is something to read at the end, and, while an operation of this module is
+/// in flight, because there is something the worker still points at.
 ///
-/// This is the ordinary one, and it has the ordinary name for the same reason
-/// every other framework gives it that name -- it is what almost all code
-/// writes. A loop watching a button has no result and no reader, and making
-/// the caller keep it alive would turn a hundred such loops into a hundred
-/// entries in a container somebody has to maintain. Where there *is* something
-/// to hold and read, the type is `managed_task`, and it says so.
+/// It starts running the moment it is called (initial_suspend is
+/// suspend_never), on the calling thread: an asynchronous operation is created
+/// where the caller stands, and everything between two co_awaits runs there and
+/// nowhere else. What each co_await does with the work in between -- send it to
+/// another thread, or merely give the thread back to its own event loop -- is
+/// the awaitable's business, not this one's. So what sets it apart from
+/// `detached_task` is ownership, not where the work goes.
 ///
-/// **The price is a contract: it has to end.** Nobody holds it, so nobody can
-/// stop it; the only way out is through the body, which means every
-/// suspension in it must be on something that can end. wxl's event waits can:
-/// they are registered while suspended, and going down tells all of them at
-/// once (see wxl.ui's impl/event_waits.h). An awaitable with no way to
-/// finish would strand this frame for the life of the process, silently.
+/// At the end the coroutine does not disappear (final_suspend is
+/// suspend_always): the frame is what the owner asks done() and takes the
+/// exception from. The frame is destroyed by the task, and what that
+/// means while the coroutine is still suspended depends on what it is
+/// suspended on.
 ///
-/// Cancellation is therefore not a failure here but the ordinary end, and is
-/// swallowed. Anything else goes to on_task_failure(), because by then there
-/// is no caller left to give it to -- rethrowing would carry it out of a
-/// resume, which for an event wait means out through a COM delegate.
+/// **Dropping an unfinished one is safe only where the awaitable can take
+/// itself back.** Destroying the frame destroys its locals and the awaiter it
+/// stands in, and nothing else happens: nobody is resumed, and no result is
+/// ever taken. For an awaitable that is one end of a subscription on this same
+/// thread -- wxl.ui's event proxy, whose awaiter unhooks in its destructor
+/// -- that is the ordinary way such a coroutine is stopped, and the only one:
+/// an endless loop over an event has no other end. For the asynchronous
+/// operations in this module it is a use-after-free, because the worker holds
+/// the frame's own async_op borrowed through the channel and will write into
+/// it after the frame is gone. So one awaiting those must be held until
+/// done(), and one awaiting only events on its own thread may be let go
+/// whenever its owner is.
+///
+/// **The frame comes from sta_memory_pool.** It is exactly what that pool is
+/// for -- a small object, made and unmade on the one thread, over and over --
+/// and it means the thread this coroutine belongs to has to be the pool's
+/// thread, with the pool built before the first coroutine and outliving the
+/// last. That is not a restriction this type adds: everything else in this
+/// scheme is allocated there too, and a coroutine on any other thread would
+/// have nowhere to put its operations anyway.
 class task
 {
 public:
     struct promise_type {
-        /// The frame, from the pool -- the same reasoning as `managed_task`: a
-        /// small object made and unmade on the one thread, over and over.
+        inline task get_return_object() {
+            return task(std::coroutine_handle<promise_type>::from_promise(*this));
+        }
+
+        /// The frame, from the pool. The sized form of the deallocation is the one
+        /// the compiler calls for a coroutine frame, so the pool gets back the very
+        /// size it handed out and never has to be asked to remember it.
         inline static void* operator new(std::size_t size) {
             return core::sta_memory_pool::alloc(size);
         }
@@ -75,33 +67,43 @@ public:
             core::sta_memory_pool::free(mem, size);
         }
 
-        inline task get_return_object() const noexcept { return {}; }
-
-        /// Starts where it is called, like `managed_task`: whatever the body
-        /// does before its first co_await has happened by the time the call
-        /// returns, so a subscription made there is already live.
         inline std::suspend_never initial_suspend() const noexcept { return {}; }
-
-        /// And releases itself at the end. This is the whole difference from
-        /// `managed_task`, whose frame stays for its owner to read.
-        inline std::suspend_never final_suspend() const noexcept { return {}; }
+        inline std::suspend_always final_suspend() const noexcept { return {}; }
 
         inline void return_void() const noexcept {}
 
-        inline void unhandled_exception() const noexcept {
-            const std::exception_ptr error = std::current_exception();
+        inline void unhandled_exception() noexcept { error = std::current_exception(); }
 
-            try {
-                std::rethrow_exception(error);
-            } catch (const operation_canceled_exception&) {
-                // The ordinary end, not a failure: something this coroutine
-                // was waiting for is never going to happen, and letting the
-                // body unwind is how it was told.
-            } catch (...) {
-                on_task_failure()(error);
-            }
-        }
+        std::exception_ptr error;
     };
+
+    inline task(task&& other) noexcept
+        : handle_(std::exchange(other.handle_, {})) {}
+
+    inline task& operator=(task&& other) noexcept {
+        std::swap(handle_, other.handle_);
+        return *this;
+    }
+
+    inline ~task() {
+        if (handle_) handle_.destroy();
+    }
+
+    /// \return `true` once the coroutine has run to its end, whether by
+    ///         reaching it or by leaving through an exception.
+    inline bool done() const noexcept { return handle_.done(); }
+
+    /// \throw whatever left the coroutine. Ask after done().
+    inline void result() const {
+        if (const std::exception_ptr& error = handle_.promise().error)
+            std::rethrow_exception(error);
+    }
+
+private:
+    inline explicit task(std::coroutine_handle<promise_type> handle) noexcept
+        : handle_(handle) {}
+
+    std::coroutine_handle<promise_type> handle_;
 };
 
 }  // export namespace wxl::async

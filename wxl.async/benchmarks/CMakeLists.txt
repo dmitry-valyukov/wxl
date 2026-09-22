@@ -42,3 +42,21 @@ add_executable(wxl.async.wake-latency-benchmark wake_latency_benchmark.cpp)
 target_link_libraries(wxl.async.wake-latency-benchmark PRIVATE wxl::async synchronization)
 
 wxl_set_target_folders(wxl.async.wake-latency-benchmark)
+
+# The loop against the native scheme: the same round trip written the WinRT way --
+# resume_background() out, resume_foreground(DispatcherQueue) back, and the
+# IAsyncOperation a framework call is -- beside sta_loop in its driven shape, on one
+# real DispatcherQueue pumped by the STA thread. coremessaging.lib is the OS queue
+# itself (CreateDispatcherQueueController); runtimeobject.lib is what the cppwinrt
+# base links against. The two macros are the ones wxl.ui sets: the projection
+# headers bring windows.h with them.
+find_package(cppwinrt CONFIG REQUIRED)
+
+add_executable(wxl.async.winrt-coroutine-benchmark winrt_coroutine_benchmark.cpp)
+
+target_compile_definitions(wxl.async.winrt-coroutine-benchmark PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+
+target_link_libraries(wxl.async.winrt-coroutine-benchmark
+    PRIVATE wxl::async Microsoft::CppWinRT coremessaging.lib runtimeobject.lib)
+
+wxl_set_target_folders(wxl.async.winrt-coroutine-benchmark)

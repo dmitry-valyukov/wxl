@@ -286,6 +286,14 @@ struct Event {
     }
 
     constexpr RemoveEventOp<key, Owner> operator-=(EventToken token) const { return {token}; }
+
+    // Awaited rather than handled: `co_await onClick(button)` is the same
+    // subscription on_event<key>(button) makes, reached through the tag the
+    // braces already use. Defined in event_awaitable.h, which is where the
+    // wait lives, so a call without that header fails naming this line.
+    template <typename Obj>
+        requires std::derived_from<Obj, Object>
+    auto operator()(Obj const& source) const;
 };
 
 // A repeated child: `[](repeat<20> i) { return Button { ... }; }` inside a
