@@ -139,7 +139,7 @@ public:
         // Nothing of ours is touched after end(): it may have run the
         // coroutine to its end, and this object with it.
         if constexpr (impl::unloadable_source<Source>) {
-            unloaded_ = EventAdder<EventKey::Unloaded>::add(source_.object, [this] {
+            unloaded_ = impl::EventAdder<EventKey::Unloaded>::add(source_.object, [this] {
                 if (!source_.object.isLoaded()) end();
             });
         }
@@ -155,7 +155,7 @@ public:
     ~event_awaitable() {
         try {
             if constexpr (impl::unloadable_source<Source>) {
-                EventAdder<EventKey::Unloaded>::remove(source_.object, unloaded_);
+                impl::EventAdder<EventKey::Unloaded>::remove(source_.object, unloaded_);
             }
 
             source_.remove(token_);
