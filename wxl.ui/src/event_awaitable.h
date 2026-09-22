@@ -37,9 +37,14 @@
 // point of it: args.handled(true) means something only while the framework is
 // still inside the call.
 //
-// **A wait can end without the event happening**: the application is going
-// down, and impl/event_waits.h says so to everyone suspended. There are two
-// ways to hear it, and the difference is written at the point of waiting:
+// **A wait can end without the event happening**: the element has left the
+// tree -- its window closed, a page was navigated away from -- and every
+// wait on it ends there, while the message loop is still turning; or the
+// application is going down, and impl/event_waits.h says so to everyone
+// still suspended. An element can come back (Loaded), so a coroutine that
+// is to live with the element is started from Loaded and ends with
+// Unloaded, over and over. There are two ways to hear the end, and the
+// difference is written at the point of waiting:
 //
 //     KeyRoutedEventArgs& args = co_await keys;        // throws
 //     auto const got = co_await keys.next();           // answers
@@ -57,6 +62,20 @@
 #include "impl/member.h"
 
 namespace wxl {
+
+class FrameworkElement;
+
+namespace impl {
+
+// A source naming an element of the tree -- one that can be unloaded. A
+// wait on anything else (a type's own event, a Window) ends only with the
+// application.
+template <typename Source>
+concept unloadable_source = requires(Source const& source) {
+    requires std::derived_from<std::remove_cvref_t<decltype(source.object)>, FrameworkElement>;
+};
+
+}  // namespace impl
 
 // The subscription, and the thing a coroutine awaits.
 //
@@ -111,6 +130,19 @@ public:
                 // waiting_event::deliver.
                 deliver();
         }});
+
+        // The element leaving the tree ends the wait, and does so while the
+        // message loop still turns, so the coroutine may answer with a
+        // co_await of its own. IsLoaded is asked rather than assumed: Unloaded
+        // says the element left the tree, not that it is still out of it,
+        // and one moved between parents may be back by the time this runs.
+        // Nothing of ours is touched after end(): it may have run the
+        // coroutine to its end, and this object with it.
+        if constexpr (impl::unloadable_source<Source>) {
+            unloaded_ = EventAdder<EventKey::Unloaded>::add(source_.object, [this] {
+                if (!source_.object.isLoaded()) end();
+            });
+        }
     }
 
     // Unsubscribing can be refused, and a destructor may not pass that on.
@@ -122,6 +154,10 @@ public:
     // the cancellation that stopped the coroutine is still in flight.
     ~event_awaitable() {
         try {
+            if constexpr (impl::unloadable_source<Source>) {
+                EventAdder<EventKey::Unloaded>::remove(source_.object, unloaded_);
+            }
+
             source_.remove(token_);
         } catch (...) {
         }
@@ -213,6 +249,9 @@ private:
     Source source_;
     EventToken token_;
 
+    // The Unloaded subscription of an element source; unused for the rest.
+    EventToken unloaded_;
+
     // What the waiter is about to be given: set only inside the call that
     // hands the args over.
     std::remove_reference_t<args_ref_t>* args_ = nullptr;
@@ -292,6 +331,18 @@ event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(Obj const& source
 template <typename Add, typename Remove>
 event_awaitable<impl::type_event<Add, Remove>> on_event(Add add, Remove remove) {
     return event_awaitable<impl::type_event<Add, Remove>>{{add, remove}};
+}
+
+/// The keyed wait through its tag: `onClick(button)` is `on_event<EventKey::Click>(button)`.
+/// A schema tag names the class too, and that is checked here like every other
+/// use of one.
+template <EventKey key, typename Owner>
+template <typename Obj>
+    requires std::derived_from<Obj, Object>
+auto Event<key, Owner>::operator()(Obj const& source) const {
+    impl::check_owner<Owner, Obj>();
+
+    return on_event<key>(source);
 }
 
 }  // namespace wxl

@@ -4,19 +4,13 @@ using namespace wxl;
 using namespace wxl::dsl;
 
 namespace {
-    // Базовая форма радиального градиента для эффекта свечения: константа,
-    // выложенная компилятором, ничего не выполняется на старте
-    constexpr Preset glowPreset{
-        center = {0.33, 0.33},
-        gradientOrigin = {0.33, 0.33},
-        radiusX = 1.3,
-        radiusY = 1.3,
-    };
-
     // Шаблон фона панели калькулятора: кисть строится при применении
-    Template<RadialGradientBrush> createBackgroundTemplate(Color centerColor, Color edgeColor) {
+    Template<RadialGradientBrush> backgroundTemplate(Color centerColor, Color edgeColor) {
         return {
-            glowPreset,
+            center = {0.33, 0.33},
+            gradientOrigin = {0.33, 0.33},
+            radiusX = 1.3,
+            radiusY = 1.3,
             GradientStop {centerColor, offset = 0.0},
             GradientStop {edgeColor, offset = 1.0},
         };
@@ -33,7 +27,7 @@ namespace {
     }
 
     // Эффект «вдавленной» в панель клавиши
-    Template<RadialGradientBrush> createDipTemplate(Color core, Color rim) {
+    Template<RadialGradientBrush> dipTemplate(Color core, Color rim) {
         return {
             center = {0.5, 0.5},
             gradientOrigin = {0.1, 0.1},
@@ -46,13 +40,13 @@ namespace {
     }
 
     // Настройка стилей кнопки и её состояний (PointerOver, Pressed) через словарь тем
-    auto createKeyFacePreset(Color ink, Color core, Color rim) {
+    auto keyFacePreset(Color ink, Color core, Color rim) {
         return Preset{
             foreground = SolidColorBrush {ink},
-            background = createDipTemplate(core, rim),
+            background = dipTemplate(core, rim),
 
-            ThemeBrush {u"ButtonBackgroundPointerOver", createDipTemplate(tweakColor(core, 20), tweakColor(rim, 20)).build()},
-            ThemeBrush {u"ButtonBackgroundPressed", createDipTemplate(tweakColor(core, -5), tweakColor(rim, -12)).build()},
+            ThemeBrush {u"ButtonBackgroundPointerOver", dipTemplate(tweakColor(core, 20), tweakColor(rim, 20)).build()},
+            ThemeBrush {u"ButtonBackgroundPressed", dipTemplate(tweakColor(core, -5), tweakColor(rim, -12)).build()},
             ThemeBrush {u"ButtonForegroundPointerOver", SolidColorBrush {ink}},
             ThemeBrush {u"ButtonForegroundPressed", SolidColorBrush {tweakColor(ink, -40)}},
             ThemeBrush {u"ButtonBorderBrushPointerOver", SolidColorBrush {rgb(0, 0, 0)}},
@@ -103,9 +97,9 @@ wxl::Teardown wxl_launched() {
     auto const rim = BevelEffect {rimLight, rimShade, Margin {1}, offset = 2};
 
     // Стили для различных типов клавиш
-    auto const numericKeyStyle  = createKeyFacePreset(rgb(237, 239, 242), RGBA{"#26282BEE"}, rgb(70, 74, 81));
-    auto const actionKeyStyle   = createKeyFacePreset(rgb(204, 217, 245), RGBA{"#1D263AEE"}, rgb(50, 70, 119));
-    auto const terminalKeyStyle = createKeyFacePreset(rgb(255, 227, 180), RGBA{"#4A2C17EE"}, rgb(182, 100, 29));
+    auto const numericKeyStyle  = keyFacePreset(rgb(237, 239, 242), RGBA{"#26282BEE"}, rgb(70, 74, 81));
+    auto const actionKeyStyle   = keyFacePreset(rgb(204, 217, 245), RGBA{"#1D263AEE"}, rgb(50, 70, 119));
+    auto const terminalKeyStyle = keyFacePreset(rgb(255, 227, 180), RGBA{"#4A2C17EE"}, rgb(182, 100, 29));
 
     auto selectKeyPreset = [&](char16_t key) {
         return calculator::isNumeric(key)  ? numericKeyStyle
@@ -122,7 +116,7 @@ wxl::Teardown wxl_launched() {
             requestedTheme = ElementTheme::Dark,
             BevelEffect {rimLight, rimShade, strokeThickness = 1},
             isTabStop = true,
-            background = createBackgroundTemplate(RGBA{"#23236495"}, RGBA{"#10102795"}),
+            background = backgroundTemplate(RGBA{"#23236495"}, RGBA{"#10102795"}),
             BorderThickness {1},
             CornerRadius {6},
 
@@ -154,7 +148,7 @@ wxl::Teardown wxl_launched() {
                 Border {
                     row = 0,
                     columnSpan = 4,
-                    background = createBackgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
+                    background = backgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
                     BorderThickness {2},
                     // Табло вдавлено: тот же кант с цветами в обратном порядке.
                     BevelEffect {rimShade, rimLight},
