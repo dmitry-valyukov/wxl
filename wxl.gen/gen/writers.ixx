@@ -153,7 +153,10 @@ struct Dsl {
 // give up wherever two classes disagree.
 struct Schema {
     struct Member {
-        enum class Kind { Property, Collection, Event };
+        // Bound: a property that exists on this class as a binding target
+        // alone -- no setter, a hand-written pair in impl/binding.h reads it
+        // off the control -- so its anchor takes Bind forms and nothing else.
+        enum class Kind { Property, Collection, Event, Bound };
 
         Kind kind = Kind::Property;
         std::string key;   // the PropertyKey / EventKey enumerator
@@ -175,6 +178,10 @@ struct Schema {
 
         // The tag builds its value from braces too (see Dsl::braced).
         bool braced = false;
+
+        // Bound only: "input", "output" or "both" -- which Bind form the
+        // pair takes, and so which one the test line writes.
+        std::string direction;
     };
 
     struct Class {

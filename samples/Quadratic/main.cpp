@@ -31,7 +31,7 @@ struct Answer {
     u16_text D, x1, x2;
 };
 
-// Пустое поле NumberBox — это NaN
+// Пустое поле NumberBox — это NaN, и текст, который числом ещё не стал, — тоже.
 constexpr double blank = std::numeric_limits<double>::quiet_NaN();
 
 // Корни через q = −(b + sign(b)·√D)/2 как q/a и c/q: без вычитания близких чисел,
@@ -140,7 +140,7 @@ wxl::Teardown wxl_launched() {
                     NumberBox {
                         input,
                         placeholderText = u"a",
-                        value = BindInput {eq.a},
+                        intermediateValue = BindInput {eq.a},
                         onLoaded = [](NumberBox const& control) {
                             control.focus(FocusState::Programmatic);
                         },
@@ -149,13 +149,13 @@ wxl::Teardown wxl_launched() {
                     NumberBox {
                         input,
                         placeholderText = u"b",
-                        value = BindInput {eq.b},
+                        intermediateValue = BindInput {eq.b},
                     },
                     TextBlock {txt, u"· x +"},
                     NumberBox {
                         input,
                         placeholderText = u"c",
-                        value = BindInput {eq.c},
+                        intermediateValue = BindInput {eq.c},
                     },
                     TextBlock {txt, u"= 0"},
                 },

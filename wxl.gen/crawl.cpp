@@ -749,6 +749,9 @@ Closure crawl(ProfileSet const& raw_profiles, cache const& db) {
     for (auto&& property : type_map().hand_written_properties) {
         crawler.result.property_names.insert(property.name);
     }
+    for (auto&& member : type_map().bound_members) {
+        crawler.result.property_names.insert(member.name);
+    }
     crawler.result.event_names.insert(type_map().hand_written_events.begin(),
                                       type_map().hand_written_events.end());
 

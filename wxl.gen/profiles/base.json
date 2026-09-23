@@ -461,7 +461,8 @@
             "members": [
                 "StepFrequency",
                 "Orientation",
-                "Header"
+                "Header",
+                "IntermediateValue"
             ]
         },
         "Microsoft.UI.Xaml.Controls.ToolTip": {
