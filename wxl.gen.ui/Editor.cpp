@@ -94,12 +94,23 @@ public:
             if (name.empty()) {
                 continue;
             }
+            // Показываются только классы, структуры и перечисления; пространство,
+            // где их нет, не показывается вовсе.
+            auto const shown = members.classes.size() + members.structs.size() + members.enums.size();
+            if (shown == 0) {
+                continue;
+            }
             Namespace& space = namespaces_.emplace_back();
             space.name = name;
-            space.types.reserve(members.types.size());
-            for (auto&& [type_name, def] : members.types) {
-                space.types.push_back({def});
+            space.types.reserve(shown);
+            // Списки кэша, а не категория типа: атрибуты — тоже классы, а
+            // контракты — структуры, и кэш держит их отдельно.
+            for (auto const* kind : {&members.classes, &members.structs, &members.enums}) {
+                for (auto&& def : *kind) {
+                    space.types.push_back({def});
+                }
             }
+            std::ranges::sort(space.types, {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
         }
 
         for (auto&& [type, filter] : editor_.data_->profile.types) {
