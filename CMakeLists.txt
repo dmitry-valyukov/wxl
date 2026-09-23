@@ -146,6 +146,9 @@ add_subdirectory(wxl.gen.common)
 add_subdirectory(wxl.gen)
 add_subdirectory(wxl.ui)
 
+# Визуальный редактор профилей wxl.gen -- приложение на wxl.ui.
+add_subdirectory(wxl.gen.ui)
+
 add_subdirectory(samples)
 
 # Песочница: пробы механизмов WinUI, каждая -- отдельное приложение. Собирается
