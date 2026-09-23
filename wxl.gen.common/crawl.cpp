@@ -85,24 +85,24 @@ TypeDef resolve_interface(coded_index<TypeDefOrRef> const& ref) {
     return winmd::reader::find(ref);
 }
 
-// Every member name a type declares itself, plus -- for a class -- the
-// members of the interfaces it implements directly, since that's where
-// WinRT actually declares a class's instance members.
-std::set<std::string> declared_members(TypeDef const& type) {
-    std::set<std::string> names;
-
-    auto const collect = [&names](TypeDef const& source) {
+// Every member a type declares itself, plus -- for a class -- the members of
+// the interfaces it implements directly, since that's where WinRT actually
+// declares a class's instance members. Handed to `visit` by kind and name, a
+// name as often as it is declared.
+template <typename Visit>
+void visit_declared_members(TypeDef const& type, Visit&& visit) {
+    auto const collect = [&visit](TypeDef const& source) {
         for (auto&& property : source.PropertyList()) {
             if (!is_dependency_property_accessor(property)) {
-                names.insert(std::string(property.Name()));
+                visit(MemberKind::Property, property.Name());
             }
         }
         for (auto&& event : source.EventList()) {
-            names.insert(std::string(event.Name()));
+            visit(MemberKind::Event, event.Name());
         }
         for (auto&& method : source.MethodList()) {
             if (is_plain_method(method)) {
-                names.insert(std::string(method.Name()));
+                visit(MemberKind::Method, method.Name());
             }
         }
     };
@@ -115,6 +115,13 @@ std::set<std::string> declared_members(TypeDef const& type) {
             }
         }
     }
+}
+
+std::set<std::string> declared_members(TypeDef const& type) {
+    std::set<std::string> names;
+    visit_declared_members(type, [&names](MemberKind, std::string_view name) {
+        names.insert(std::string(name));
+    });
     return names;
 }
 
@@ -704,6 +711,24 @@ struct Crawler {
 
 bool is_given_from_above(TypeDef const& type) {
     return type && type_map().given_from_above.count(full_name(type)) != 0;
+}
+
+DeclaredMembers declared_members_of(TypeDef const& type) {
+    DeclaredMembers members;
+    visit_declared_members(type, [&members](MemberKind kind, std::string_view name) {
+        switch (kind) {
+            case MemberKind::Property: members.properties.push_back(name); break;
+            case MemberKind::Method: members.methods.push_back(name); break;
+            case MemberKind::Event: members.events.push_back(name); break;
+        }
+    });
+    // A method overloaded by arity is declared once per overload, and a
+    // profile names it once.
+    for (auto* names : {&members.properties, &members.methods, &members.events}) {
+        std::ranges::sort(*names);
+        names->erase(std::ranges::unique(*names).begin(), names->end());
+    }
+    return members;
 }
 
 Closure crawl(ProfileSet const& raw_profiles, cache const& db) {
