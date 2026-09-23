@@ -133,13 +133,18 @@ wxl::Teardown wxl_launched() {
         title = u"WXL Calculator",
         minSize = {320, 420},
 
-        content = Border {
+        // Корпус — сама сетка клавиш: фон, кант и фокус надеты прямо на неё.
+        content = Grid {
             requestedTheme = ElementTheme::Dark,
             BevelEffect {rimLight, rimShade, strokeThickness = 1},
             isTabStop = true,
             background = backgroundTemplate(rgba(35, 35, 100, 0.584), rgba(16, 16, 39, 0.584)),
-            BorderThickness {1},
             CornerRadius {6},
+            Padding {16},
+            rowSpacing = 8,
+            columnSpacing = 8,
+            rowDefinitions = u"auto,*,*,*,*,*",
+            columnDefinitions = u"*,*,*,*",
 
             // Перехват текстового ввода символов
             onCharacterReceived = [calc](Object const&, CharacterReceivedRoutedEventArgs& args) {
@@ -156,84 +161,69 @@ wxl::Teardown wxl_launched() {
                 args.handled(true);
             },
 
-            onLoaded = [](Border const& keypad) { keypad.focus(FocusState::Programmatic); },
+            onLoaded = [](Grid const& keypad) { keypad.focus(FocusState::Programmatic); },
 
-            Grid {
-                Padding {16},
-                rowSpacing = 8,
-                columnSpacing = 8,
-                rowDefinitions = u"auto,*,*,*,*,*",
-                columnDefinitions = u"*,*,*,*",
+            // Табло: вдавлено тем же кантом с цветами в обратном порядке, поверх
+            // тёмной обводки самого элемента.
+            Border {
+                row = 0,
+                columnSpan = 4,
+                background = backgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
+                borderBrush = rgba(51, 51, 51, 0.753),
+                BorderThickness {3},
+                BevelEffect {rimShade, rimLight},
+                CornerRadius {10},
+                Padding {14, 8, 14, 0},
+                Margin {0, 4, 0, 12},
 
-                // Экранная подложка
-                Border {
-                    row = 0,
-                    columnSpan = 4,
-                    background = backgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
-                    BorderThickness {2},
-                    // Табло вдавлено: тот же кант с цветами в обратном порядке.
-                    BevelEffect {rimShade, rimLight},
-                    CornerRadius {10},
-                    Padding {0},
-                    Margin {0, 4, 0, 12},
+                Grid {
+                    rowDefinitions = u"auto,*",
 
-                    Border {
-                        BorderThickness {2},
-                        borderBrush = SolidColorBrush {rgba(51, 51, 51, 0.753)},
-                        CornerRadius {9},
-                        Margin {-1},
-                        Padding {14, 8, 14, 0},
+                    // Верхняя строка: текущее выражение (формула)
+                    TextBlock {
+                        lcdDisplayPreset,
+                        row = 0,
+                        fontSize = 28,
+                        CharacterSpacing {100},
+                        text = Bind{calc->expression},
+                    },
 
-                        Grid {
-                            rowDefinitions = u"auto,*",
-
-                            // Верхняя строка: текущее выражение (формула)
-                            TextBlock {
-                                lcdDisplayPreset,
-                                row = 0,
-                                fontSize = 28,
-                                CharacterSpacing {100},
-                                text = Bind{calc->expression},
-                            },
-
-                            // Нижняя строка: главное табло (число)
-                            TextBlock {
-                                lcdDisplayPreset,
-                                row = 1,
-                                Margin {0, 8, 0, -4},
-                                fontSize = 64,
-                                textWrapping.wrap,
-                                CharacterSpacing {75},
-                                text = Bind{calc->display},
-                            },
-                        },
+                    // Нижняя строка: главное табло (число)
+                    TextBlock {
+                        lcdDisplayPreset,
+                        row = 1,
+                        Margin {0, 8, 0, -4},
+                        fontSize = 64,
+                        textWrapping.wrap,
+                        CharacterSpacing {75},
+                        text = Bind{calc->display},
                     },
                 },
+            },
 
-                // Генерация сетки кнопок через compile-time фолд над строковым литералом
-                [&](iterate<u"C÷×√"
-                            u"789-"
-                            u"456+"
-                            u"123%"
-                            u"±0.="> key) {
-                    return Button {
-                        fontSize = 26,
-                        FontWeight {600},
-                        selectKeyPreset(key.value),
-                        hAlign.stretch, vAlign.stretch,
-                        row = key.index / 4 + 1,
-                        column = key.index % 4,
-                        onClick = [calc, symbol = key.value] { calc->press(symbol); },
+            // Генерация сетки кнопок через compile-time фолд над строковым литералом
+            [&](iterate<u"C÷×√"
+                        u"789-"
+                        u"456+"
+                        u"123%"
+                        u"±0.="> key) {
+                return Button {
+                    fontSize = 26,
+                    FontWeight {600},
+                    selectKeyPreset(key.value),
+                    hAlign.stretch, vAlign.stretch,
+                    row = key.index / 4 + 1,
+                    column = key.index % 4,
+                    onClick = [calc, symbol = key.value] { calc->press(symbol); },
 
-                        rim,
-                        content = TextBlock {
-                            key.text(),
-                            hAlign.center,
-                            vAlign.center,
-                            HaloEffect {color = rgb(43, 27, 0), blurRadius = 8.0f},
-                        },
-                    };
-                },
+                    rim,
+                    content = TextBlock {
+                        key.text(),
+                        hAlign.center,
+                        vAlign.center,
+                        HaloEffect {color = rgb(43, 27, 0), blurRadius = 8.0f},
+                    },
+                };
             },
         },
     };
