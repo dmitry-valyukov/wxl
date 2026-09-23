@@ -21,16 +21,18 @@ namespace md = winmd::reader;
 
 namespace {
 
-// Значки строк: знаки размера 20 шрифта Fluent UI System Icons
+// Значки строк: знаки размера 16 шрифта Fluent UI System Icons
 // (Assets/FluentSystemIcons-Regular.ttf), коды — из его
-// FluentSystemIcons-Regular.json.
-constexpr char32_t namespaceIcon = 0xF122;    // ic_fluent_app_folder_20_regular
-constexpr char32_t classIcon = 0xF133;        // ic_fluent_apps_20_regular
-constexpr char32_t structIcon = 0xF465;       // ic_fluent_group_20_regular
-constexpr char32_t enumIcon = 0xF4ED;         // ic_fluent_list_20_regular
-constexpr char32_t propertyIcon = 0xEE86;     // ic_fluent_wrench_20_regular
-constexpr char32_t methodIcon = 0xF335;       // ic_fluent_cube_20_regular
-constexpr char32_t eventIcon = 0xE618;        // ic_fluent_flash_20_regular
+// FluentSystemIcons-Regular.json; у group размера 16 нет, он 20-й. Заливка —
+// тёмный край, светлая середина.
+using wxl::rgb;
+constexpr RowIcon namespaceIcon {0xE058, rgb(13, 71, 161), rgb(128, 222, 234)};  // app_folder: сине-голубой
+constexpr RowIcon classIcon {0xF132, rgb(109, 55, 16), rgb(255, 167, 38)};       // apps: коричнево-оранжевый
+constexpr RowIcon structIcon {0xF465, rgb(27, 94, 32), rgb(255, 204, 170)};      // group: зелёно-персиковый
+constexpr RowIcon enumIcon {0xE779, rgb(74, 20, 140), rgb(186, 104, 200)};       // list: фиолетовый
+constexpr RowIcon propertyIcon {0xEE85, rgb(66, 66, 66), rgb(189, 189, 189)};    // wrench: серый
+constexpr RowIcon methodIcon {0xF334, rgb(49, 27, 146), rgb(209, 196, 233)};     // cube: тёмно-светло-фиолетовый
+constexpr RowIcon eventIcon {0xE617, rgb(230, 81, 0), rgb(255, 235, 59)};        // flash: оранжево-жёлтый
 
 std::u16string to_u16(std::string_view utf8) {
     std::wstring wide;
@@ -94,7 +96,7 @@ struct Editor::Data {
 // Тип в левом дереве; адрес постоянен, пока жив редактор.
 struct TypeEntry {
     md::TypeDef def;
-    char32_t icon = 0;
+    RowIcon const* icon = nullptr;
     bool listed = false;
 };
 
@@ -117,9 +119,9 @@ public:
             space.types.reserve(shown);
             // Списки кэша, а не категория типа: атрибуты — тоже классы, а
             // контракты — структуры, и кэш держит их отдельно.
-            for (auto&& [kind, icon] : {std::pair {&members.classes, classIcon},
-                                        std::pair {&members.structs, structIcon},
-                                        std::pair {&members.enums, enumIcon}}) {
+            for (auto&& [kind, icon] : {std::pair {&members.classes, &classIcon},
+                                        std::pair {&members.structs, &structIcon},
+                                        std::pair {&members.enums, &enumIcon}}) {
                 for (auto&& def : *kind) {
                     space.types.push_back({def, icon});
                 }
@@ -141,7 +143,7 @@ public:
         auto const [space, type] = locate(index);
         if (type == npos) {
             return {.text = space->name,
-                    .icon = namespaceIcon,
+                    .icon = &namespaceIcon,
                     .expander = space->expanded ? Expander::Expanded : Expander::Collapsed};
         }
 
@@ -302,7 +304,7 @@ private:
 
     struct Group {
         std::string_view title;
-        char32_t icon = 0;
+        RowIcon const* icon = nullptr;
         std::vector<std::string_view> names;
         bool expanded = true;
 
@@ -332,9 +334,9 @@ private:
     Editor& editor_;
     TypeEntry& entry_;
     std::string const name_;
-    std::array<Group, 3> groups_ {Group {"Properties", propertyIcon},
-                                  Group {"Methods", methodIcon},
-                                  Group {"Events", eventIcon}};
+    std::array<Group, 3> groups_ {Group {"Properties", &propertyIcon},
+                                  Group {"Methods", &methodIcon},
+                                  Group {"Events", &eventIcon}};
 };
 
 void TypesModel::invoke(uint32_t index) {

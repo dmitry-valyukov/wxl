@@ -98,10 +98,10 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         },
     };
 
-    // Знаки размера 20 и кегль 20: знак ложится на свою сетку без масштаба.
+    // Знаки размера 16 и кегль 16: знак ложится на свою сетку без масштаба.
     Apply {row.icon,
         fontFamily = FontFamily {u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
-        fontSize = 20.0,
+        fontSize = 16.0,
         vAlign.center,
         Margin {4, 0, 0, 0},
     };
@@ -136,6 +136,24 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
     };
 
     return row;
+}
+
+Brush const& VirtualTree::iconBrush(RowIcon const& icon) {
+    for (auto const& [known, brush] : fills_) {
+        if (known == &icon) {
+            return brush;
+        }
+    }
+
+    // Радиус 0.5 доходит до краёв знака: светлая середина, тёмный край.
+    return fills_.emplace_back(&icon, RadialGradientBrush {
+        center = {0.5, 0.5},
+        gradientOrigin = {0.5, 0.5},
+        radiusX = 0.5,
+        radiusY = 0.5,
+        GradientStop {icon.inner, offset = 0.0},
+        GradientStop {icon.outer, offset = 1.0},
+    }).second;
 }
 
 void VirtualTree::model(intrusive_ptr<TreeModel> value) {
@@ -218,8 +236,9 @@ void VirtualTree::render() {
         row.check.isChecked(data.check == Check::Checked);
 
         glyph_.clear();
-        if (data.icon != 0) {
-            core::unicode::append_utf16(glyph_, data.icon);
+        if (data.icon) {
+            core::unicode::append_utf16(glyph_, data.icon->glyph);
+            row.icon.foreground(iconBrush(*data.icon));
         }
         row.icon.text(std::wstring_view {glyph_});
 

@@ -13,8 +13,10 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "Color.h"
 #include "ui.h"
 
 namespace editor {
@@ -22,14 +24,22 @@ namespace editor {
 enum class Expander : uint8_t { None, Collapsed, Expanded };
 enum class Check : uint8_t { None, Unchecked, Checked };
 
+// Значок строки: знак шрифта Fluent UI System Icons (Assets) и его радиальная
+// заливка — светлая середина, тёмный край. Модели держат значки постоянными,
+// дерево строит по кисти на значок и узнаёт его по адресу.
+struct RowIcon {
+    char32_t glyph;
+    wxl::Color outer;
+    wxl::Color inner;
+};
+
 // Строка, как её показывает дерево. Текст — UTF-8 модели; дерево читает его
 // сразу, до следующего обращения к модели.
 struct TreeRow {
     std::string_view text;
     uint16_t depth = 0;
 
-    // Значок — код знака в шрифте Fluent UI System Icons (Assets); 0 — без значка.
-    char32_t icon = 0;
+    RowIcon const* icon = nullptr;
 
     Expander expander = Expander::None;
     Check check = Check::None;
@@ -85,6 +95,7 @@ private:
     void render();
     void updateBar();
     uint32_t size() const { return model_ ? model_->size() : 0; }
+    wxl::Brush const& iconBrush(RowIcon const& icon);
 
     // Номер строки модели в ячейке пула; ячейки начинаются за запасом сверху.
     uint32_t first() const { return top_ < reserve_ ? 0 : top_ - reserve_; }
@@ -97,6 +108,7 @@ private:
     wxl::StackPanel rows_;
     wxl::ScrollBar bar_;
     std::vector<Row> pool_;
+    std::vector<std::pair<RowIcon const*, wxl::Brush>> fills_;
     std::wstring text_;
     std::wstring glyph_;
 
