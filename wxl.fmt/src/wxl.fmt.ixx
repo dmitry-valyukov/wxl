@@ -1,4 +1,5 @@
-// wxl.fmt -- the buffer text is assembled in, and fmt pointed at it.
+// wxl.fmt -- the buffer text is assembled in, fmt pointed at it, and format(),
+// which answers with checked text in one call.
 //
 // Its own module and not a partition of wxl.core for one reason: fmt. The
 // buffer is fmt::basic_memory_buffer and the builder's format() is a template
@@ -16,3 +17,4 @@ export module wxl.fmt;
 
 export import :text_buffer;
 export import :text_builder;
+export import :format;

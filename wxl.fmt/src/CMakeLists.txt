@@ -4,6 +4,9 @@ wxl_add_module_library(wxl.fmt STATIC
 
         text_buffer.ixx
         text_builder.ixx
+        format.ixx
+    SRC
+        format.cpp
 )
 
 add_library(wxl::fmt ALIAS wxl.fmt)
@@ -24,5 +27,8 @@ endif()
 # a template, so their bodies -- fmt::format_to and the appender -- are
 # compiled in the consumer. Why fmt rather than std::format is in doc/fmt.md.
 target_link_libraries(wxl.fmt PUBLIC fmt::fmt)
+
+# format() answers with u16_text, so the interface names a type from wxl.core.
+target_link_libraries(wxl.fmt PUBLIC wxl::core)
 
 wxl_set_target_folders(wxl.fmt)

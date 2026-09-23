@@ -7,24 +7,26 @@
 #include "launch.h"
 #include "ui.h"
 
+import wxl.fmt;
+
 using namespace wxl;
 using namespace wxl::core;
 using namespace wxl::dsl;
 
 namespace {
 
+// Девять значащих цифр: дискриминант и корни в одной точности.
 u16_text to_string(double value) {
-    return to_u16(value, std::chars_format::general, 9);
+    return format(u"{:.9g}", value);
 }
 
 u16_text to_string(double real, double imaginary) {
-    u16_text text = to_string(real);
-    if (imaginary < 0)
-        text += u" − j·";
-    else
-        text += u" + j·";
-    text += to_string(std::abs(imaginary));
-    return text;
+    return format(
+        u"{:.9g}{}j·{:.9g}",
+        real,
+        std::array<u16_view, 2>{u" + ", u" - "}[std::signbit(imaginary)],
+        std::abs(imaginary)
+    );
 }
 
 struct Answer {

@@ -7,8 +7,8 @@
 #include <fmt/compile.h>
 #include <fmt/format.h>
 
-// wxl.core does not re-export wxl.core: nothing in its interface names a type
-// from it, so the allocator a buffer runs on is the caller's own import.
+// wxl.fmt imports wxl.core without re-exporting it, so the allocator a buffer
+// runs on is the caller's own import.
 import wxl.core;
 import wxl.fmt;
 
