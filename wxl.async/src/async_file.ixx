@@ -57,6 +57,16 @@ public:
     /// \return how much was read; zero at the end of the file.
     [[nodiscard]] awaitable<std::size_t> read(std::span<std::byte> into);
 
+    /// The same read into an array of byte-sized elements -- `char buffer[N]`
+    /// as readily as `std::byte` -- so a caller whose buffer is text does not
+    /// spell `as_writable_bytes` at every call. Any one-byte trivially
+    /// copyable type but `bool`, which is a byte that must not hold 2.
+    template <class T, std::size_t N>
+        requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
+    [[nodiscard]] awaitable<std::size_t> read(T (&into)[N]) {
+        return read(std::as_writable_bytes(std::span{into}));
+    }
+
     /// \throw system_exception if less went out than was asked for.
     [[nodiscard]] awaitable<std::size_t> write(std::span<const std::byte> from);
 

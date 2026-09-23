@@ -13,7 +13,7 @@ namespace {
 
 /// The coroutine the whole scheme exists for: opening and reading a file
 /// without a single blocking call on the thread it is written on.
-managed_task read_all(path file_path, std::string& out, std::thread::id& worker_thread) {
+task read_all(path file_path, std::string& out, std::thread::id& worker_thread) {
     // Proof, from inside the coroutine, that the other side of the loop really
     // is another thread -- and the shortest possible use of async_call.
     worker_thread =
@@ -27,9 +27,19 @@ managed_task read_all(path file_path, std::string& out, std::thread::id& worker_
         out.append(reinterpret_cast<const char*>(buffer), n);
 }
 
+/// The same through a character buffer: the array overload of read() spells
+/// the byte view itself, and what comes out appends without a cast.
+task read_all_as_text(path file_path, std::string& out) {
+    async_file f = co_await async_file::open_read(file_path);
+
+    char buffer[1024];
+
+    while (const std::size_t n = co_await f.read(buffer)) out.append(buffer, n);
+}
+
 /// The same, for a file that is not there: the failure happens on the worker
 /// thread and is caught here, at the co_await, as an ordinary exception.
-managed_task open_and_catch(path file_path, std::string& message) {
+task open_and_catch(path file_path, std::string& message) {
     try {
         co_await async_file::open_read(file_path);
         message = "no exception";
@@ -40,7 +50,7 @@ managed_task open_and_catch(path file_path, std::string& message) {
 
 /// The writing half, through the same machinery: create, write, flush, close,
 /// and then read the whole thing back and compare.
-managed_task write_then_read_back(path file_path, std::string_view content,
+task write_then_read_back(path file_path, std::string_view content,
                           std::string& got, std::uint64_t& reported_size) {
     {
         async_file out = co_await async_file::create(file_path);
@@ -99,7 +109,7 @@ protected:
                   content.size());
     }
 
-    void run(managed_task work) {
+    void run(task work) {
         sta_loop::run_until([&] { return work.done(); });
 
         work.result();
@@ -123,6 +133,18 @@ TEST_F(AsyncFileTest, ReadsAFileInACoroutine) {
     EXPECT_EQ(got, content);
     EXPECT_NE(worker_thread, std::thread::id{});
     EXPECT_NE(worker_thread, std::this_thread::get_id());
+}
+
+TEST_F(AsyncFileTest, ReadsIntoACharacterBuffer) {
+    const std::string content = test_content();
+
+    given_a_file(L"text.bin", content);
+
+    std::string got;
+
+    run(read_all_as_text(root_ / L"text.bin", got));
+
+    EXPECT_EQ(got, content);
 }
 
 TEST_F(AsyncFileTest, ReadsAnEmptyFileAsNothingAtAll) {
@@ -167,7 +189,7 @@ TEST_F(AsyncFileTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
     std::string got;
     std::thread::id worker_thread;
 
-    managed_task work = read_all(path(root_.native()) / L"brief.bin", got, worker_thread);
+    task work = read_all(path(root_.native()) / L"brief.bin", got, worker_thread);
 
     run(std::move(work));
 

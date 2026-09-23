@@ -11,6 +11,7 @@ wxl_add_module_library(wxl.async STATIC
         cancellation.ixx
         completion_counter.ixx
         countdown_event.ixx
+        detached_task.ixx
         drain_stack.ixx
         future.ixx
         future_shared_state.ixx
@@ -23,7 +24,6 @@ wxl_add_module_library(wxl.async STATIC
         spsc_queue.ixx
         spsc_queue_reference_implementation.ixx
         sta_loop.ixx
-        managed_task.ixx
         task.ixx
         task_tree.ixx
         thread.ixx

@@ -4,19 +4,13 @@ using namespace wxl;
 using namespace wxl::dsl;
 
 namespace {
-    // Базовая форма радиального градиента для эффекта свечения: константа,
-    // выложенная компилятором, ничего не выполняется на старте
-    constexpr Preset glowPreset{
-        center = {0.33, 0.33},
-        gradientOrigin = {0.33, 0.33},
-        radiusX = 1.3,
-        radiusY = 1.3,
-    };
-
     // Шаблон фона панели калькулятора: кисть строится при применении
-    Template<RadialGradientBrush> createBackgroundTemplate(Color centerColor, Color edgeColor) {
+    Template<RadialGradientBrush> backgroundTemplate(Color centerColor, Color edgeColor) {
         return {
-            glowPreset,
+            center = {0.33, 0.33},
+            gradientOrigin = {0.33, 0.33},
+            radiusX = 1.3,
+            radiusY = 1.3,
             GradientStop {centerColor, offset = 0.0},
             GradientStop {edgeColor, offset = 1.0},
         };
@@ -49,7 +43,7 @@ namespace {
     }
 
     // Эффект «вдавленной» в панель клавиши
-    Template<RadialGradientBrush> createDipTemplate(Dip const& tones) {
+    Template<RadialGradientBrush> dipTemplate(Dip const& tones) {
         return {
             center = {0.5, 0.5},
             gradientOrigin = {0.1, 0.1},
@@ -62,13 +56,13 @@ namespace {
     }
 
     // Настройка стилей кнопки и её состояний (PointerOver, Pressed) через словарь тем
-    auto createKeyFacePreset(KeyFace const& face) {
+    auto keyFacePreset(KeyFace const& face) {
         return Preset{
             foreground = SolidColorBrush {face.ink},
-            background = createDipTemplate(face.rest),
+            background = dipTemplate(face.rest),
 
-            ThemeBrush {u"ButtonBackgroundPointerOver", createDipTemplate(face.hover).build()},
-            ThemeBrush {u"ButtonBackgroundPressed", createDipTemplate(face.pressed).build()},
+            ThemeBrush {u"ButtonBackgroundPointerOver", dipTemplate(face.hover).build()},
+            ThemeBrush {u"ButtonBackgroundPressed", dipTemplate(face.pressed).build()},
             ThemeBrush {u"ButtonForegroundPointerOver", SolidColorBrush {face.ink}},
             ThemeBrush {u"ButtonForegroundPressed", SolidColorBrush {face.inkPressed}},
             ThemeBrush {u"ButtonBorderBrushPointerOver", SolidColorBrush {colors.black}},
@@ -124,9 +118,9 @@ wxl::Teardown wxl_launched() {
     auto const rim = BevelEffect {rimLight, rimShade, Margin {1}, offset = 2};
 
     // Стили для различных типов клавиш
-    auto const numericKeyStyle  = createKeyFacePreset(numericKey);
-    auto const actionKeyStyle   = createKeyFacePreset(actionKey);
-    auto const terminalKeyStyle = createKeyFacePreset(terminalKey);
+    auto const numericKeyStyle  = keyFacePreset(numericKey);
+    auto const actionKeyStyle   = keyFacePreset(actionKey);
+    auto const terminalKeyStyle = keyFacePreset(terminalKey);
 
     auto selectKeyPreset = [&](char16_t key) {
         return calculator::isNumeric(key)  ? numericKeyStyle
@@ -143,7 +137,7 @@ wxl::Teardown wxl_launched() {
             requestedTheme = ElementTheme::Dark,
             BevelEffect {rimLight, rimShade, strokeThickness = 1},
             isTabStop = true,
-            background = createBackgroundTemplate(RGBA{"#23236495"}, RGBA{"#10102795"}),
+            background = backgroundTemplate(RGBA{"#23236495"}, RGBA{"#10102795"}),
             BorderThickness {1},
             CornerRadius {6},
 
@@ -175,7 +169,7 @@ wxl::Teardown wxl_launched() {
                 Border {
                     row = 0,
                     columnSpan = 4,
-                    background = createBackgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
+                    background = backgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
                     BorderThickness {2},
                     // Табло вдавлено: тот же кант с цветами в обратном порядке.
                     BevelEffect {rimShade, rimLight},

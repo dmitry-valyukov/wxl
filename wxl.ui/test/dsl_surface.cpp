@@ -1370,6 +1370,16 @@ struct probe_task {
             co_await on_event(button, &Button::add_onClick, &Button::remove_onClick);
         static_cast<void>(again);
 
+        // The same wait through the tag the braces use -- `onClick = handler`
+        // to handle, `onClick(button)` to await -- and through the schema,
+        // which also checks that a Button is what the tag was declared on.
+        static_assert(std::is_same_v<decltype(onClick(button)),
+                                     decltype(on_event<EventKey::Click>(button))>);
+        RoutedEventArgs& tagged = co_await onClick(button);
+        static_cast<void>(tagged);
+        RoutedEventArgs& owned = co_await schema::Button::onClick(button);
+        static_cast<void>(owned);
+
         // The answering form, for a body that must let nothing escape. An
         // empty error side is a plain cancellation; a full one carries what
         // went wrong, so nothing is lost by not throwing.

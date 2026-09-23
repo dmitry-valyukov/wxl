@@ -131,7 +131,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // which is not a std::exception and would otherwise be reported as
     // "a foreign exception" and nothing more. This unit knows the projection,
     // so it is the one that can say what happened.
-    wxl::async::on_task_failure() = [](std::exception_ptr error) noexcept {
+    wxl::async::on_detached_task_failure() = [](std::exception_ptr error) noexcept {
         try {
             std::rethrow_exception(error);
         } catch (winrt::hresult_error const& failure) {

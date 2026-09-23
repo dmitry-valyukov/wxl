@@ -242,7 +242,7 @@ target_link_libraries(wxl.ui
     PUBLIC
         wxl::core
         # Public because a consumer writes coroutines of its own the moment it
-        # awaits an event, and async::task is what one of those returns. An
+        # awaits an event, and async::detached_task is what one of those returns. An
         # application still links wxl::ui and nothing else.
         wxl::async
     PRIVATE

@@ -51,7 +51,7 @@ int allocations = 0;
 int deallocations = 0;
 
 // Корутина, которая сама себе хозяин: оба конца suspend_never, кадр
-// освобождается, как только тело кончилось. Это форма wxl::async::task.
+// освобождается, как только тело кончилось. Это форма wxl::async::detached_task.
 struct self_owning {
     struct promise_type {
         self_owning get_return_object() const noexcept { return {}; }
@@ -84,7 +84,7 @@ struct self_owning_counted {
 };
 
 // Корутина, которую держит вызывающий: в конце она остаётся приостановленной,
-// и кадр сносит владелец. Это форма wxl::async::managed_task.
+// и кадр сносит владелец. Это форма wxl::async::task.
 struct owned {
     struct promise_type {
         owned get_return_object() noexcept {

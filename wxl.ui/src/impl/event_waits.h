@@ -3,7 +3,7 @@
 // Every wait on an event that is in flight right now, in one list -- and the
 // two-phase ending that list exists for.
 //
-// A coroutine waiting on an event is held by nothing: it is not a managed_task
+// A coroutine waiting on an event is held by nothing: it is not a task
 // somebody keeps, it is a frame suspended inside a subscription. That is what
 // makes it pleasant to write and what makes ending it a problem, because
 // there is no handle to let go of. This is the answer: a wait puts itself in
