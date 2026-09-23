@@ -8,11 +8,11 @@ module;
 //
 // The result is checked text, and no scan earns that: the format string is a
 // literal fmt has already checked against the arguments at compile time, and
-// the arguments are numbers, whose text is ASCII, or text checked before.
-// Nothing else is accepted -- a raw u16string_view or a single unit would
-// carry its own well-formedness into the result unseen, so it does not
-// compile. Text from outside goes through checked() first, and arrives here
-// as a u16_view.
+// the arguments are numbers, real or complex, whose text is ASCII, or text
+// checked before. Nothing else is accepted -- a raw u16string_view or a
+// single unit would carry its own well-formedness into the result unseen, so
+// it does not compile. Text from outside goes through checked() first, and
+// arrives here as a u16_view.
 
 export module wxl.fmt:format;
 
@@ -34,7 +34,47 @@ concept number_argument = std::is_arithmetic_v<T> && !std::same_as<T, char> &&
                           !std::same_as<T, char16_t> && !std::same_as<T, char32_t>;
 
 template <typename T>
+struct is_complex : std::false_type {};
+
+template <number_argument T>
+struct is_complex<std::complex<T>> : std::true_type {};
+
+}  // namespace impl
+
+}  // namespace wxl::core
+
+/// A complex number as (re+imi), the spec of a number applied to both parts:
+/// {:.9g} on a root prints nine digits of each. Always in this shape, so a
+/// real root still reads as a complex one.
+namespace fmt {
+
+template <wxl::core::impl::number_argument T, typename Char>
+struct formatter<std::complex<T>, Char> : formatter<T, Char> {
+    template <typename Context>
+    auto format(const std::complex<T>& value, Context& ctx) const -> typename Context::iterator {
+        using part = formatter<T, Char>;
+        auto out = ctx.out();
+        *out++ = Char('(');
+        ctx.advance_to(out);
+        out = part::format(value.real(), ctx);
+        *out++ = Char(std::signbit(value.imag()) ? '-' : '+');
+        ctx.advance_to(out);
+        out = part::format(std::abs(value.imag()), ctx);
+        *out++ = Char('i');
+        *out++ = Char(')');
+        return out;
+    }
+};
+
+}  // namespace fmt
+
+namespace wxl::core {
+
+namespace impl {
+
+template <typename T>
 concept format_argument = number_argument<std::remove_cvref_t<T>> ||
+                          is_complex<std::remove_cvref_t<T>>::value ||
                           u16_argument<std::remove_cvref_t<T>>;
 
 /// What fmt sees of an argument: the number itself, checked text as its view.
@@ -83,12 +123,12 @@ export {
 /// Formats numbers and checked text into checked UTF-16 -- the text a
 /// control shows:
 ///
-///     format(u"{:.9g}{}j·{:.9g}", real, sign, std::abs(imaginary))
+///     format(u"{:.9g}", root)   // double or std::complex<double> alike
 ///
 /// The format string is a literal, checked against the arguments at compile
-/// time. The arguments are numbers and u16_view or u16_text; anything else
-/// does not compile, since the result promises to be well-formed and copies
-/// its arguments as they are.
+/// time. The arguments are numbers, real or std::complex, and u16_view or
+/// u16_text; anything else does not compile, since the result promises to be
+/// well-formed and copies its arguments as they are.
 template <impl::format_argument... Args>
 u16_text format(fmt::basic_format_string<char16_t, std::type_identity_t<impl::plain_t<Args>>...> form,
                 const Args&... args) {

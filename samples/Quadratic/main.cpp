@@ -15,18 +15,9 @@ using namespace wxl::dsl;
 
 namespace {
 
-// Девять значащих цифр: дискриминант и корни в одной точности.
-u16_text to_string(double value) {
+// Девять значащих цифр — у double и у обеих частей complex одинаково.
+u16_text to_string(auto value) {
     return format(u"{:.9g}", value);
-}
-
-u16_text to_string(double real, double imaginary) {
-    return format(
-        u"{:.9g}{}j·{:.9g}",
-        real,
-        std::array<u16_view, 2>{u" + ", u" - "}[std::signbit(imaginary)],
-        std::abs(imaginary)
-    );
 }
 
 struct Answer {
@@ -55,20 +46,23 @@ static Answer solve(double a, double b, double c) {
     }
 
     double const d = b * b - 4 * a * c;
+    std::complex<double> first, second;
 
     if (d < 0) {
-        // Комплексные корни
-        double const real = -b / (2 * a);
-        double const imaginary = std::sqrt(-d) / (2 * std::abs(a));
-        return {to_string(d), to_string(real, -imaginary), to_string(real, imaginary)};
+        // Комплексные корни — сопряжённая пара
+        second = {-b / (2 * a), std::sqrt(-d) / (2 * std::abs(a))};
+        first = std::conj(second);
+    } else {
+        // Формула Мюллера для сохранения точности
+        double const q = -0.5 * (b + std::copysign(std::sqrt(d), b));
+        double const one = q / a;
+        // Теорема Виета
+        double const other = q == 0 ? one : c / q;
+        first = std::min(one, other);
+        second = std::max(one, other);
     }
 
-    // Формула Мюллера для сохранения точности
-    double const q = -0.5 * (b + std::copysign(std::sqrt(d), b));
-    double const first = q / a;
-    // Теорема Виета
-    double const second = q == 0 ? first : c / q;
-    return {to_string(d), to_string(std::min(first, second)), to_string(std::max(first, second))};
+    return {to_string(d), to_string(first), to_string(second)};
 }
 
 // Коэффициенты пишут поля ввода, ответы показывают поля вывода. Любая правка

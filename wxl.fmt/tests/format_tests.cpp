@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <complex>
 #include <string_view>
 
 #include <fmt/compile.h>
@@ -43,6 +44,12 @@ TEST(format, a_result_longer_than_the_buffer_inside) {
     EXPECT_EQ(text.plain().back(), u'1');
 }
 
+TEST(format, a_complex_number_takes_the_spec_on_both_parts) {
+    EXPECT_EQ(wxl::core::format(u"{:.3g}", std::complex{1.0, -2.5}).plain(), u"(1-2.5i)"sv);
+    EXPECT_EQ(wxl::core::format(u"{:.9g}", std::complex{-1.0 / 11, 2.0 / 3}).plain(),
+              u"(-0.0909090909+0.666666667i)"sv);
+}
+
 // Only what is known to be well-formed goes in: raw text and single units do
 // not compile, whatever they happen to hold.
 template <typename T>
@@ -52,6 +59,7 @@ static_assert(formats<int>);
 static_assert(formats<double>);
 static_assert(formats<u16_view>);
 static_assert(formats<u16_text>);
+static_assert(formats<std::complex<double>>);
 static_assert(!formats<std::u16string_view>);
 static_assert(!formats<const char16_t*>);
 static_assert(!formats<char16_t>);
