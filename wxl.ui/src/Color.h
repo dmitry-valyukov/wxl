@@ -7,9 +7,8 @@
 //
 // The metadata type is a bare four-byte aggregate, and so is this one: no
 // constructor, so it stays an aggregate and travels in a register. What
-// declarative code writes is the CSS forms around it -- rgb(), rgba() and
-// RGBA{"#RRGGBBAA"} -- each read at compile time, and a handful of named
-// colours.
+// declarative code writes is the CSS functions around it -- rgb() and rgba(),
+// each read at compile time -- and a handful of named colours.
 
 namespace wxl {
 
@@ -29,9 +28,6 @@ namespace error {
 consteval void color_component_must_be_within_0_to_255();
 consteval void color_alpha_must_be_within_0_to_1();
 consteval void color_lightness_delta_must_be_within_minus_1_to_1();
-// Not consteval: RGBA's constructor is, but the digit reader it calls is a
-// plain constexpr function, and a consteval call inside one is refused.
-void color_hex_must_be_rgb_rgba_rrggbb_or_rrggbbaa();
 }  // namespace error
 
 // One test for the three: a negative component sets the sign bit of the OR,
@@ -55,39 +51,6 @@ consteval Color rgba(int red, int green, int blue, double alpha) {
     return {static_cast<uint8_t>(alpha * 255.0 + 0.5), static_cast<uint8_t>(red),
             static_cast<uint8_t>(green), static_cast<uint8_t>(blue)};
 }
-
-/// A colour in CSS hex notation, the form an editor's colour picker reads and
-/// writes: "#RGB", "#RGBA", "#RRGGBB" or "#RRGGBBAA". Alpha comes last, which
-/// is why the type says RGBA. Read at compile time, so anything else fails the build.
-struct RGBA : Color {
-    template <std::size_t Size>
-    consteval explicit RGBA(char const (&css)[Size]) {
-        std::size_t const digits = Size - 2;
-        if (css[0] != '#' || css[Size - 1] != '\0'
-            || (digits != 3 && digits != 4 && digits != 6 && digits != 8))
-            error::color_hex_must_be_rgb_rgba_rrggbb_or_rrggbbaa();
-
-        bool const doubled = digits <= 4;
-        auto const channel = [&css, doubled](std::size_t at) {
-            return doubled ? static_cast<uint8_t>(hex(css[1 + at]) * 17)
-                           : static_cast<uint8_t>(hex(css[1 + 2 * at]) * 16 + hex(css[2 + 2 * at]));
-        };
-
-        R = channel(0);
-        G = channel(1);
-        B = channel(2);
-        A = digits == 4 || digits == 8 ? channel(3) : uint8_t{255};
-    }
-
-private:
-    static constexpr int hex(char const digit) {
-        if (digit >= '0' && digit <= '9') return digit - '0';
-        if (digit >= 'a' && digit <= 'f') return digit - 'a' + 10;
-        if (digit >= 'A' && digit <= 'F') return digit - 'A' + 10;
-        error::color_hex_must_be_rgb_rgba_rrggbb_or_rrggbbaa();
-        return 0;
-    }
-};
 
 namespace impl {
 

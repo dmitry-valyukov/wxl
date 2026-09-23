@@ -491,7 +491,7 @@ namespace library_presets {
     Border built{background = RadialGradientBrush{
                      glow,
                      GradientStop{rgba(51, 51, 180, 0.2), offset = 0.0},
-                     GradientStop{RGBA{"#20208720"}, offset = 1.0},
+                     GradientStop{rgba(32, 32, 135, 0.125), offset = 1.0},
                  }};
 
     Border given{background = Template<RadialGradientBrush>{glow}};
@@ -519,7 +519,7 @@ namespace library_presets {
         };
     };
 
-    Border keypad{background = glowing(RGBA{"#333333B4"}, RGBA{"#20202087"})};
+    Border keypad{background = glowing(rgba(51, 51, 51, 0.706), rgba(32, 32, 32, 0.53))};
     Border display{background = glowing(rgb(220, 232, 180), rgb(166, 178, 135))};
 }
 
@@ -929,7 +929,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
         hAlign.right,
         vAlign.top,
         Margin{0, 64, 72, 0},
-        background = SolidColorBrush{RGBA{"#1C12086C"}},
+        background = SolidColorBrush{rgba(28, 18, 8, 0.424)},
         content,
     };
 
@@ -959,7 +959,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
 [[maybe_unused]] void themed_brushes() {
     Border follows{background = brushes.Card.BackgroundFillColor.Default};
     TextBlock pinned{foreground = brushes.Text.FillColor.Primary(ElementTheme::Dark)};
-    Border literal{background = SolidColorBrush{RGBA{"#1A1A1A6C"}}};
+    Border literal{background = SolidColorBrush{rgba(26, 26, 26, 0.424)}};
 
     (void)follows;
     (void)pinned;
@@ -971,7 +971,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
 inline constexpr Preset tinted{background = colors.white, borderBrush = Color{255, 0, 0, 0}};
 
 [[maybe_unused]] void colours_for_brushes() {
-    Border scrim{background = RGBA{"#E0E0D0A0"}, tinted};
+    Border scrim{background = rgba(224, 224, 208, 0.627), tinted};
     TextBlock ink{foreground = rgb(44, 58, 28)};
     Button swatch{borderBrush = colors.gray, background = Color{255, 0, 0, 0}};
     Apply{scrim, background = colors.transparent};
@@ -1212,12 +1212,6 @@ static_assert(alignof(Color) == 1);
 static_assert(offsetof(Color, A) == 0 && offsetof(Color, R) == 1 && offsetof(Color, G) == 2
               && offsetof(Color, B) == 3);
 
-// CSS hex puts alpha last; Color itself is A, R, G, B.
-static_assert(RGBA{"#dff9f9d8"} == Color{0xD8, 0xDF, 0xF9, 0xF9});
-static_assert(RGBA{"#102030"} == Color{0xFF, 0x10, 0x20, 0x30});
-static_assert(RGBA{"#aBc"} == Color{0xFF, 0xAA, 0xBB, 0xCC});
-static_assert(RGBA{"#1234"} == Color{0x44, 0x11, 0x22, 0x33});
-
 // The CSS functions: alpha is a fraction, rounded to the nearest byte.
 static_assert(rgb(131, 50, 50) == Color{255, 131, 50, 50});
 static_assert(rgba(131, 50, 50, 0.2) == Color{51, 131, 50, 50});
@@ -1236,11 +1230,6 @@ static_assert(lightness(rgba(30, 20, 200, 0.5), -0.1).A == 128);
 
 // Color is a bare aggregate, the way it crosses the ABI.
 static_assert(std::is_aggregate_v<Color> && std::is_trivially_copyable_v<Color> && sizeof(Color) == 4);
-
-[[maybe_unused]] void colour_literals() {
-    Border hex{background = RGBA{"#dff9f9d8"}};
-    (void)hex;
-}
 
 // What a string parameter takes. Every spelling of UTF-16 the code has --
 // and the wxl::wstring a getter hands back, so a value read off one control

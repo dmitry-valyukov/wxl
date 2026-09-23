@@ -79,9 +79,9 @@ namespace {
     }
 
     // Палитры трёх видов клавиш: чернила, ядро (с прозрачностью) и кромка
-    constexpr KeyFace numericKey  = keyFace(rgb(237, 239, 242), RGBA{"#26282BEE"}, rgb(70, 74, 81));
-    constexpr KeyFace actionKey   = keyFace(rgb(204, 217, 245), RGBA{"#1D263AEE"}, rgb(50, 70, 119));
-    constexpr KeyFace terminalKey = keyFace(rgb(255, 227, 180), RGBA{"#4A2C17EE"}, rgb(182, 100, 29));
+    constexpr KeyFace numericKey  = keyFace(rgb(237, 239, 242), rgba(38, 40, 43, 0.933), rgb(70, 74, 81));
+    constexpr KeyFace actionKey   = keyFace(rgb(204, 217, 245), rgba(29, 38, 58, 0.933), rgb(50, 70, 119));
+    constexpr KeyFace terminalKey = keyFace(rgb(255, 227, 180), rgba(74, 44, 23, 0.933), rgb(182, 100, 29));
 
     // Кант для псевдообъёма: блик слева сверху, тень справа снизу. Рисует его
     // композитор поверх собственной обводки элемента.
@@ -137,7 +137,7 @@ wxl::Teardown wxl_launched() {
             requestedTheme = ElementTheme::Dark,
             BevelEffect {rimLight, rimShade, strokeThickness = 1},
             isTabStop = true,
-            background = backgroundTemplate(RGBA{"#23236495"}, RGBA{"#10102795"}),
+            background = backgroundTemplate(rgba(35, 35, 100, 0.584), rgba(16, 16, 39, 0.584)),
             BorderThickness {1},
             CornerRadius {6},
 
@@ -179,7 +179,7 @@ wxl::Teardown wxl_launched() {
 
                     Border {
                         BorderThickness {2},
-                        borderBrush = SolidColorBrush {RGBA{"#333333C0"}},
+                        borderBrush = SolidColorBrush {rgba(51, 51, 51, 0.753)},
                         CornerRadius {9},
                         Margin {-1},
                         Padding {14, 8, 14, 0},
