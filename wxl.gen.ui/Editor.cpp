@@ -21,6 +21,17 @@ namespace md = winmd::reader;
 
 namespace {
 
+// Значки строк: знаки размера 20 шрифта Fluent UI System Icons
+// (Assets/FluentSystemIcons-Regular.ttf), коды — из его
+// FluentSystemIcons-Regular.json.
+constexpr char32_t namespaceIcon = 0xF122;    // ic_fluent_app_folder_20_regular
+constexpr char32_t classIcon = 0xF133;        // ic_fluent_apps_20_regular
+constexpr char32_t structIcon = 0xF465;       // ic_fluent_group_20_regular
+constexpr char32_t enumIcon = 0xF4ED;         // ic_fluent_list_20_regular
+constexpr char32_t propertyIcon = 0xEE86;     // ic_fluent_wrench_20_regular
+constexpr char32_t methodIcon = 0xF335;       // ic_fluent_cube_20_regular
+constexpr char32_t eventIcon = 0xE618;        // ic_fluent_flash_20_regular
+
 std::u16string to_u16(std::string_view utf8) {
     std::wstring wide;
     if (auto const text = wxl::core::unicode::checked(utf8)) {
@@ -83,6 +94,7 @@ struct Editor::Data {
 // Тип в левом дереве; адрес постоянен, пока жив редактор.
 struct TypeEntry {
     md::TypeDef def;
+    char32_t icon = 0;
     bool listed = false;
 };
 
@@ -105,9 +117,11 @@ public:
             space.types.reserve(shown);
             // Списки кэша, а не категория типа: атрибуты — тоже классы, а
             // контракты — структуры, и кэш держит их отдельно.
-            for (auto const* kind : {&members.classes, &members.structs, &members.enums}) {
+            for (auto&& [kind, icon] : {std::pair {&members.classes, classIcon},
+                                        std::pair {&members.structs, structIcon},
+                                        std::pair {&members.enums, enumIcon}}) {
                 for (auto&& def : *kind) {
-                    space.types.push_back({def});
+                    space.types.push_back({def, icon});
                 }
             }
             std::ranges::sort(space.types, {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
@@ -126,13 +140,17 @@ public:
     TreeRow row(uint32_t index) const override {
         auto const [space, type] = locate(index);
         if (type == npos) {
-            return {space->name, 0,
-                    space->expanded ? Expander::Expanded : Expander::Collapsed, Check::None};
+            return {.text = space->name,
+                    .icon = namespaceIcon,
+                    .expander = space->expanded ? Expander::Expanded : Expander::Collapsed};
         }
 
         TypeEntry const& entry = space->types[type];
-        return {entry.def.TypeName(), 1, Expander::None,
-                entry.listed ? Check::Checked : Check::Unchecked, entry.def == selected_};
+        return {.text = entry.def.TypeName(),
+                .depth = 1,
+                .icon = entry.icon,
+                .check = entry.listed ? Check::Checked : Check::Unchecked,
+                .selected = entry.def == selected_};
     }
 
     void toggleExpanded(uint32_t index) override {
@@ -243,15 +261,18 @@ public:
     TreeRow row(uint32_t index) const override {
         auto const [group, member] = locate(index);
         if (member == npos) {
-            return {group->title, 0,
-                    group->names.empty() ? Expander::None
-                    : group->expanded    ? Expander::Expanded
-                                         : Expander::Collapsed,
-                    Check::None};
+            return {.text = group->title,
+                    .icon = group->icon,
+                    .expander = group->names.empty() ? Expander::None
+                                : group->expanded    ? Expander::Expanded
+                                                     : Expander::Collapsed};
         }
 
         std::string_view const name = group->names[member];
-        return {name, 1, Expander::None, allows(name) ? Check::Checked : Check::Unchecked};
+        return {.text = name,
+                .depth = 1,
+                .icon = group->icon,
+                .check = allows(name) ? Check::Checked : Check::Unchecked};
     }
 
     void toggleExpanded(uint32_t index) override {
@@ -281,6 +302,7 @@ private:
 
     struct Group {
         std::string_view title;
+        char32_t icon = 0;
         std::vector<std::string_view> names;
         bool expanded = true;
 
@@ -310,7 +332,9 @@ private:
     Editor& editor_;
     TypeEntry& entry_;
     std::string const name_;
-    std::array<Group, 3> groups_ {Group {"Properties"}, Group {"Methods"}, Group {"Events"}};
+    std::array<Group, 3> groups_ {Group {"Properties", propertyIcon},
+                                  Group {"Methods", methodIcon},
+                                  Group {"Events", eventIcon}};
 };
 
 void TypesModel::invoke(uint32_t index) {

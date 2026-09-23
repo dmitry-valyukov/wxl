@@ -27,6 +27,10 @@ enum class Check : uint8_t { None, Unchecked, Checked };
 struct TreeRow {
     std::string_view text;
     uint16_t depth = 0;
+
+    // Значок — код знака в шрифте Fluent UI System Icons (Assets); 0 — без значка.
+    char32_t icon = 0;
+
     Expander expander = Expander::None;
     Check check = Check::None;
 
@@ -70,6 +74,7 @@ private:
         wxl::Border indent;
         wxl::TextBlock glyph;
         wxl::CheckBox check;
+        wxl::TextBlock icon;
         wxl::TextBlock text;
     };
 
@@ -93,6 +98,7 @@ private:
     wxl::ScrollBar bar_;
     std::vector<Row> pool_;
     std::wstring text_;
+    std::wstring glyph_;
 
     wxl::core::intrusive_ptr<TreeModel> model_;
     uint32_t top_ = 0;

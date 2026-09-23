@@ -98,9 +98,17 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         },
     };
 
+    // Знаки размера 20 и кегль 20: знак ложится на свою сетку без масштаба.
+    Apply {row.icon,
+        fontFamily = FontFamily {u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
+        fontSize = 20.0,
+        vAlign.center,
+        Margin {4, 0, 0, 0},
+    };
+
     Apply {row.text,
         vAlign.center,
-        Margin {4, 0, 12, 0},
+        Margin {6, 0, 12, 0},
     };
 
     Apply {row.panel,
@@ -123,6 +131,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         row.indent,
         row.glyph,
         row.check,
+        row.icon,
         row.text,
     };
 
@@ -207,6 +216,12 @@ void VirtualTree::render() {
                                                              : std::u16string_view{});
         row.check.visibility(data.check == Check::None ? Visibility::Collapsed : Visibility::Visible);
         row.check.isChecked(data.check == Check::Checked);
+
+        glyph_.clear();
+        if (data.icon != 0) {
+            core::unicode::append_utf16(glyph_, data.icon);
+        }
+        row.icon.text(std::wstring_view {glyph_});
 
         text_.clear();
         if (auto const utf8 = core::unicode::checked(data.text)) {
