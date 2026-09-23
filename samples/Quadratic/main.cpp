@@ -31,7 +31,7 @@ struct Answer {
     u16_text D, x1, x2;
 };
 
-// Пустое поле NumberBox — это NaN: коэффициент без числа ответа не даёт.
+// Пустое поле NumberBox — это NaN
 constexpr double blank = std::numeric_limits<double>::quiet_NaN();
 
 // Корни через q = −(b + sign(b)·√D)/2 как q/a и c/q: без вычитания близких чисел,
