@@ -686,7 +686,7 @@ struct braced : T {
 // says what `titleBar = TitleBar { leftHeader = back, content = path }` says,
 // the class being known from the property. Only a property declared with such a
 // class gets this tag -- a profile narrows a setter method to one (see
-// wxl.gen/profile.ixx). A built object, or anything that converts to one, still
+// wxl.gen.common/profile.h). A built object, or anything that converts to one, still
 // goes through the deduced assignment every tag has.
 template <PropertyKey key, typename Value, typename Owner = void>
 struct BracedProperty : impl::PropertyTag<key, Owner> {

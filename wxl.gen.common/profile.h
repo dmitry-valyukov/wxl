@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <filesystem>
 #include <map>
@@ -13,10 +13,6 @@ module;
 // the profile documentation. Profiles are plain JSON with comments,
 // read by wxl.json; nothing here exposes the reader, so only
 // profile.cpp imports it.
-
-export module wxl.gen:profile;
-
-export {
 
 // Which members of a type participate in generation -- and therefore in
 // the dependency walk, since a member that isn't generated can't drag its
@@ -259,5 +255,3 @@ std::vector<Symbol> load_symbol_names(std::filesystem::path const& path);
 // Installs the names for the run, the way use_type_map() installs the map.
 void use_symbol_names(std::vector<Symbol> names);
 std::vector<Symbol> const& symbol_names();
-
-}  // export

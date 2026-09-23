@@ -1,4 +1,4 @@
-module wxl.gen;
+#include "wxl.gen.h"
 
 import std;
 

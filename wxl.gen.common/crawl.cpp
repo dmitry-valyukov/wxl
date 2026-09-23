@@ -1,13 +1,11 @@
-module;
-
 #include <format>
 #include <print>
 
-module wxl.gen;
+#include "crawl.h"
 
 import std;
 
-using namespace md;
+using namespace winmd::reader;
 
 namespace {
 
@@ -65,7 +63,7 @@ bool is_dependency_property_accessor(Property const& property) {
     if (!ref || ref->type() == TypeDefOrRef::TypeSpec) {
         return false;
     }
-    auto const resolved = md::find(*ref);
+    auto const resolved = winmd::reader::find(*ref);
     return resolved && resolved.TypeNamespace() == "Microsoft.UI.Xaml" &&
            resolved.TypeName() == "DependencyProperty";
 }
@@ -84,7 +82,7 @@ TypeDef resolve_interface(coded_index<TypeDefOrRef> const& ref) {
     if (!ref || ref.type() == TypeDefOrRef::TypeSpec) {
         return {};
     }
-    return md::find(ref);
+    return winmd::reader::find(ref);
 }
 
 // Every member name a type declares itself, plus -- for a class -- the
@@ -250,12 +248,12 @@ struct Crawler {
         }
         if (ref.type() == TypeDefOrRef::TypeSpec) {
             // A generic instantiation used directly as a type reference
-            // (e.g. implementing IVector<Brush>); md::find()
+            // (e.g. implementing IVector<Brush>); winmd::reader::find()
             // doesn't resolve TypeSpec, so unpack it by hand.
             visit_generic_inst(ref.TypeSpec().Signature().GenericTypeInst(), source);
             return;
         }
-        auto const resolved = md::find(ref);
+        auto const resolved = winmd::reader::find(ref);
         depend(source, resolved);
         enqueue(resolved);
     }
@@ -567,7 +565,7 @@ struct Crawler {
         if (!extends || extends.type() == TypeDefOrRef::TypeSpec) {
             return {};
         }
-        return md::find(extends);
+        return winmd::reader::find(extends);
     }
 
     // Post-order DFS over the recorded edges: a type is appended only

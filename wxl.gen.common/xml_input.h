@@ -5,15 +5,8 @@
 #include <utility>
 #include <vector>
 
-// The generator's XML side, deliberately outside module wxl.gen.
-//
-// The reader is wxl::xml, and it stands on wxl.core -- a module built with
-// `import std;`. winmd_reader.h, which the :md partition includes, brings the
-// standard library in as headers instead, and MSVC cannot hold both views of
-// it inside one module: a unit that reaches the std module through a BMI and
-// header-std through another dies with C1116 on <stop_token>. An ordinary
-// translation unit can hold both, so the reader is reached from one, and the
-// generator sees only the plain declarations below.
+// The generator's XML side. The reader is wxl::xml, imported by xml_input.cpp
+// alone; the profiles and the writers see only the plain declarations below.
 //
 // Nothing here interprets what it reads: a caller gets the document's own
 // strings and decides what they mean.
