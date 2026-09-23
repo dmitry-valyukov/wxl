@@ -1,0 +1,337 @@
+// Метаданные и профиль — только здесь: crawl.h приносит winmd_reader.h вместе с
+// <windows.h> в нужном порядке, а окно видит одни модели деревьев.
+#include "crawl.h"
+#include "profile.h"
+
+#include "Editor.h"
+
+#include <algorithm>
+#include <array>
+#include <format>
+#include <map>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+namespace editor {
+
+using wxl::core::intrusive_ptr;
+namespace md = winmd::reader;
+
+namespace {
+
+std::u16string to_u16(std::string_view utf8) {
+    std::wstring wide;
+    if (auto const text = wxl::core::unicode::checked(utf8)) {
+        wxl::core::unicode::append_utf16(wide, *text);
+    }
+    return {wide.begin(), wide.end()};
+}
+
+// Отметка члена в фильтре типа. Тип, которого в профиле нет, входит в него со
+// списком из одного этого члена; у «всех членов» снятая отметка делает список
+// запрещающим; разрешающий и запрещающий списки просто пополняются и худеют.
+void mark_member(std::map<std::string, MemberFilter>& types, std::string const& type,
+                 std::string_view member, bool on) {
+    std::string const name {member};
+    auto const found = types.find(type);
+    if (found == types.end()) {
+        if (on) {
+            types.emplace(type, MemberFilter::allow({name}));
+        }
+        return;
+    }
+
+    MemberFilter& filter = found->second;
+    switch (filter.kind) {
+        case MemberFilter::Kind::All:
+        case MemberFilter::Kind::None:
+            filter = on ? MemberFilter::all() : MemberFilter::deny({name});
+            break;
+        case MemberFilter::Kind::Allow:
+            if (on) {
+                filter.names.insert(name);
+            } else {
+                filter.names.erase(name);
+            }
+            break;
+        case MemberFilter::Kind::Deny:
+            if (on) {
+                filter.names.erase(name);
+                if (filter.names.empty()) {
+                    filter = MemberFilter::all();
+                }
+            } else {
+                filter.names.insert(name);
+            }
+            break;
+    }
+}
+
+}  // namespace
+
+struct Editor::Data {
+    Data(Profile own, std::vector<std::string> const& files)
+        : profile(std::move(own)), db(files) {}
+
+    // Отметки — то, что говорит сам файл, без профилей, которые он продолжает.
+    Profile profile;
+    md::cache db;
+};
+
+// Тип в левом дереве; адрес постоянен, пока жив редактор.
+struct TypeEntry {
+    md::TypeDef def;
+    bool listed = false;
+};
+
+class TypesModel final : public TreeModel {
+public:
+    explicit TypesModel(Editor& editor) : editor_(editor) {
+        auto const& db = editor_.data_->db;
+        for (auto&& [name, members] : db.namespaces()) {
+            if (name.empty()) {
+                continue;
+            }
+            Namespace& space = namespaces_.emplace_back();
+            space.name = name;
+            space.types.reserve(members.types.size());
+            for (auto&& [type_name, def] : members.types) {
+                space.types.push_back({def});
+            }
+        }
+
+        for (auto&& [type, filter] : editor_.data_->profile.types) {
+            if (TypeEntry* entry = find(type)) {
+                entry->listed = true;
+            }
+        }
+        recount();
+    }
+
+    uint32_t size() const override { return size_; }
+
+    TreeRow row(uint32_t index) const override {
+        auto const [space, type] = locate(index);
+        if (type == npos) {
+            return {space->name, 0,
+                    space->expanded ? Expander::Expanded : Expander::Collapsed, Check::None};
+        }
+
+        TypeEntry const& entry = space->types[type];
+        return {entry.def.TypeName(), 1, Expander::None,
+                entry.listed ? Check::Checked : Check::Unchecked, entry.def == selected_};
+    }
+
+    void toggleExpanded(uint32_t index) override {
+        auto const [space, type] = locate(index);
+        if (type == npos) {
+            space->expanded = !space->expanded;
+            recount();
+        }
+    }
+
+    void toggleChecked(uint32_t index) override {
+        auto const [space, type] = locate(index);
+        if (type == npos) {
+            return;
+        }
+
+        TypeEntry& entry = space->types[type];
+        auto& types = editor_.data_->profile.types;
+        std::string const name = full_name(entry.def);
+        if (entry.listed) {
+            types.erase(name);
+        } else {
+            types.emplace(name, MemberFilter::all());
+        }
+        entry.listed = !entry.listed;
+        editor_.revision.set(editor_.revision.get() + 1);
+    }
+
+    void invoke(uint32_t index) override;
+
+private:
+    static constexpr uint32_t npos = UINT32_MAX;
+
+    struct Namespace {
+        std::string_view name;
+        std::vector<TypeEntry> types;
+        bool expanded = false;
+        uint32_t start = 0;  // номер строки самого пространства среди видимых
+    };
+
+    static std::string full_name(md::TypeDef const& type) {
+        return std::format("{}.{}", type.TypeNamespace(), type.TypeName());
+    }
+
+    void recount() {
+        uint32_t start = 0;
+        for (Namespace& space : namespaces_) {
+            space.start = start;
+            start += 1 + (space.expanded ? static_cast<uint32_t>(space.types.size()) : 0);
+        }
+        size_ = start;
+    }
+
+    // Пространство имён видимой строки и номер типа в нём; npos — строка самого
+    // пространства.
+    std::pair<Namespace*, uint32_t> locate(uint32_t index) const {
+        auto const after = std::ranges::upper_bound(namespaces_, index, {}, &Namespace::start);
+        auto* space = const_cast<Namespace*>(&*std::prev(after));
+        return {space, index == space->start ? npos : index - space->start - 1};
+    }
+
+    TypeEntry* find(std::string_view full) {
+        auto const dot = full.rfind('.');
+        if (dot == std::string_view::npos) {
+            return nullptr;
+        }
+        auto const space_name = full.substr(0, dot);
+        auto const type_name = full.substr(dot + 1);
+
+        auto const space = std::ranges::lower_bound(namespaces_, space_name, {}, &Namespace::name);
+        if (space == namespaces_.end() || space->name != space_name) {
+            return nullptr;
+        }
+        auto const type = std::ranges::lower_bound(
+            space->types, type_name, {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
+        if (type == space->types.end() || type->def.TypeName() != type_name) {
+            return nullptr;
+        }
+        return &*type;
+    }
+
+    Editor& editor_;
+    std::vector<Namespace> namespaces_;
+    uint32_t size_ = 0;
+    md::TypeDef selected_;
+};
+
+class MembersModel final : public TreeModel {
+public:
+    MembersModel(Editor& editor, TypeEntry& entry)
+        : editor_(editor),
+          entry_(entry),
+          name_(std::format("{}.{}", entry.def.TypeNamespace(), entry.def.TypeName())) {
+        auto declared = declared_members_of(entry.def);
+        groups_[0].names = std::move(declared.properties);
+        groups_[1].names = std::move(declared.methods);
+        groups_[2].names = std::move(declared.events);
+    }
+
+    uint32_t size() const override {
+        uint32_t size = 0;
+        for (Group const& group : groups_) {
+            size += 1 + group.shown();
+        }
+        return size;
+    }
+
+    TreeRow row(uint32_t index) const override {
+        auto const [group, member] = locate(index);
+        if (member == npos) {
+            return {group->title, 0,
+                    group->names.empty() ? Expander::None
+                    : group->expanded    ? Expander::Expanded
+                                         : Expander::Collapsed,
+                    Check::None};
+        }
+
+        std::string_view const name = group->names[member];
+        return {name, 1, Expander::None, allows(name) ? Check::Checked : Check::Unchecked};
+    }
+
+    void toggleExpanded(uint32_t index) override {
+        auto const [group, member] = locate(index);
+        if (member == npos) {
+            group->expanded = !group->expanded;
+        }
+    }
+
+    void toggleChecked(uint32_t index) override {
+        auto const [group, member] = locate(index);
+        if (member == npos) {
+            return;
+        }
+
+        std::string_view const name = group->names[member];
+        auto& types = editor_.data_->profile.types;
+        mark_member(types, name_, name, !allows(name));
+        entry_.listed = types.contains(name_);
+        editor_.revision.set(editor_.revision.get() + 1);
+    }
+
+    void invoke(uint32_t) override {}
+
+private:
+    static constexpr uint32_t npos = UINT32_MAX;
+
+    struct Group {
+        std::string_view title;
+        std::vector<std::string_view> names;
+        bool expanded = true;
+
+        uint32_t shown() const { return expanded ? static_cast<uint32_t>(names.size()) : 0; }
+    };
+
+    bool allows(std::string_view member) const {
+        auto const& types = editor_.data_->profile.types;
+        auto const found = types.find(name_);
+        return found != types.end() && found->second.allows(member);
+    }
+
+    std::pair<Group*, uint32_t> locate(uint32_t index) const {
+        for (Group const& group : groups_) {
+            if (index == 0) {
+                return {const_cast<Group*>(&group), npos};
+            }
+            --index;
+            if (index < group.shown()) {
+                return {const_cast<Group*>(&group), index};
+            }
+            index -= group.shown();
+        }
+        return {const_cast<Group*>(&groups_.back()), npos};
+    }
+
+    Editor& editor_;
+    TypeEntry& entry_;
+    std::string const name_;
+    std::array<Group, 3> groups_ {Group {"Properties"}, Group {"Methods"}, Group {"Events"}};
+};
+
+void TypesModel::invoke(uint32_t index) {
+    auto const [space, type] = locate(index);
+    if (type == npos) {
+        return;
+    }
+
+    TypeEntry& entry = space->types[type];
+    selected_ = entry.def;
+    editor_.typeName.set(to_u16(full_name(entry.def)));
+    editor_.members.set(intrusive_ptr<TreeModel> {new MembersModel {editor_, entry}, /*add_ref=*/false});
+}
+
+Editor::Editor() = default;
+Editor::~Editor() = default;
+
+intrusive_ptr<Editor> Editor::open(std::filesystem::path const& profile) {
+    intrusive_ptr<Editor> editor {new Editor {}, /*add_ref=*/false};
+
+    auto const resolved = resolve_profiles({profile}, default_nuget_root());
+    std::vector<std::string> files;
+    files.reserve(resolved.metadata.size());
+    for (auto&& file : resolved.metadata) {
+        files.push_back(file.string());
+    }
+
+    editor->data_ = std::make_unique<Data>(load_profile(profile), files);
+    editor->types_ = intrusive_ptr<TreeModel> {new TypesModel {*editor}, /*add_ref=*/false};
+    auto const file = profile.filename().wstring();
+    editor->profileName.set(std::u16string {file.begin(), file.end()});
+    return editor;
+}
+
+}  // namespace editor
