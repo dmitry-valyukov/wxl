@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <filesystem>
 #include <map>
@@ -6,16 +6,13 @@ module;
 #include <string>
 #include <vector>
 
+#include "md.h"
+
 // Output side of winui-srcgen: everything that turns the discovered type
 // closure into C++ sources under `Output::dir`. The metadata walk itself
 // (wxl.gen.common's crawl.h) knows nothing about file layout or C++ syntax --
 // it only hands over the Model below; the individual writers live in
-// gen/*.cpp, declared in gen/writers.ixx.
-
-export module wxl.gen:generate;
-
-import :md;
-export {
+// gen/*.cpp, declared in gen/writers.h.
 
 // What the metadata walk discovered, already grouped by category. The
 // generator does its own further filtering (EventArgs classes are picked
@@ -90,4 +87,3 @@ struct Output {
 void write_all(Output const& out, Model const& model,
                std::vector<std::filesystem::path> const& resource_dictionaries);
 
-}  // export

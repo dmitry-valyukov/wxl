@@ -2,10 +2,9 @@
 # (wxl.gen.ui) share: the profiles and the metadata walk they describe.
 #
 # Headers, not a module. The walk hands back winmd's own types, and each
-# consumer takes the reader directly -- the generator includes these headers
-# in its :winmd partition. Imported from another module instead, winmd's
-# TypeDef stays incomplete for MSVC 14.51 and 14.52 (C2079 on
-# EnumDefinition::m_typedef).
+# consumer includes the reader directly, through crawl.h. Imported from
+# another module instead, winmd's TypeDef stays incomplete for MSVC 14.51 and
+# 14.52 (C2079 on EnumDefinition::m_typedef).
 #
 # The .cpp files are ordinary translation units that still import std and
 # wxl's modules, hence the module-library helper: it scans them for imports.

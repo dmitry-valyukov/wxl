@@ -1,8 +1,11 @@
-module;
+#pragma once
 
 #include <set>
 #include <string>
 #include <vector>
+
+#include "gen/types.h"
+#include "md.h"
 
 // One member of a wrapped type, read off the interface that declares it.
 //
@@ -13,11 +16,7 @@ module;
 // public boundary and which members a profile let through are the same
 // question in both, so it is answered once, here.
 
-export module wxl.gen:members;
-
-import :types;
-import :md;
-export namespace gen {
+namespace gen {
 
 struct param_info {
     std::string name;

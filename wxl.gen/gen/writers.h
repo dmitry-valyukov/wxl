@@ -1,4 +1,4 @@
-module;
+#pragma once
 
 #include <filesystem>
 #include <map>
@@ -7,10 +7,10 @@ module;
 #include <utility>
 #include <vector>
 
-// In the global module fragment on purpose: the XML reader is an ordinary
-// header shared with non-module code, so the type must stay a global-module
-// entity -- a second declaration inside the module would be a different
-// entity of the same name. Callers include it the same way.
+#include "gen/emit.h"
+#include "gen/types.h"
+#include "generate.h"
+#include "md.h"
 #include "xml_input.h"
 
 // One entry point per kind of generated artefact; each lives in its own
@@ -22,13 +22,7 @@ module;
 // CMakeLists writer consumes) -- and, where one writer's output is another's
 // input, that too, in between.
 
-export module wxl.gen:writers;
-
-import :emit;
-import :generate;
-import :types;
-import :md;
-export namespace gen {
+namespace gen {
 
 // PropertyKey.h / EventKey.h -- the flat key enums the builder syntax
 // uses for named-argument-style assignment.

@@ -1,9 +1,8 @@
 #include <format>
 #include <print>
 
+#include "wxl.gen.h"
 #include "xml_input.h"
-
-import wxl.gen;
 
 import std;
 

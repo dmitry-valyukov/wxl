@@ -1,6 +1,8 @@
-module;
+#pragma once
 
 #include <span>
+
+#include "md.h"
 
 // The two questions the type map answers for the writers: does wxl already
 // own an equivalent of this WinRT type, and does this property carry a tag
@@ -11,10 +13,7 @@ module;
 // that names a type must consult project_type() *before* falling back to
 // the registry of generated names, or the projection would only half apply.
 
-export module wxl.gen:projection;
-
-import :md;
-export namespace gen {
+namespace gen {
 
 // The projection for `type`, or nullptr if wxl generates a wrapper for it
 // like any other type.

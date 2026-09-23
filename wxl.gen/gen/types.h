@@ -1,9 +1,11 @@
-module;
+#pragma once
 
 #include <map>
 #include <set>
 #include <string>
 #include <string_view>
+
+#include "md.h"
 
 // How a WinRT type crosses wxl's public boundary.
 //
@@ -18,10 +20,7 @@ module;
 // representable types grows (collections, delegates and generics are the
 // ones still missing).
 
-export module wxl.gen:types;
-
-import :md;
-export namespace gen {
+namespace gen {
 
 // Where a generated type can be found: its flat wxl name and the public
 // header declaring it. Built by the class writer, which is the only place

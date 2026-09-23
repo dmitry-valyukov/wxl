@@ -1,7 +1,9 @@
-module;
+#pragma once
 
 #include <string>
 #include <vector>
+
+#include "md.h"
 
 // What the generator knows about one metadata type, in one place: the names
 // it is written under, what it derives from, the interfaces it implements,
@@ -17,10 +19,7 @@ module;
 // over the cppwinrt projection, and because interoperating with that
 // projection stays useful once they are not.
 
-export module wxl.gen:metadata;
-
-import :md;
-export namespace gen {
+namespace gen {
 
 struct type_facts {
     std::string metadata_name;  // "Microsoft.UI.Xaml.Media.SystemBackdrop"

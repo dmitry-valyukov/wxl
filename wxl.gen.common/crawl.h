@@ -5,6 +5,15 @@
 #include <string>
 #include <vector>
 
+// winmd_reader.h includes <windows.h> as it is, and its min/max macros then
+// break std::min/std::max in whatever is included after -- wxl's geometry.h
+// among them. Included here first, with NOMINMAX, <windows.h> leaves the
+// reader's own include nothing to define.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 #include <winmd_reader.h>
 
 #include "profile.h"
@@ -14,7 +23,7 @@
 // profiles are the *roots* of the walk, and each type's member filter
 // bounds what that walk follows (a member that isn't generated can't drag
 // its parameter/return types in). Knows nothing about C++ output; that's
-// the generator's :generate.
+// the generator's generate.h.
 
 // Types "given from above": already written by hand in wxl.ui, so the
 // walk records them as a boundary and never expands their members. Which

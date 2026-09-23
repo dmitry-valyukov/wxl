@@ -1,13 +1,9 @@
-module;
-
 #include <format>
 #include <ostream>
 #include <print>
 
-// The XML reader lives outside this module; see xml_input.h.
+#include "wxl.gen.h"
 #include "xml_input.h"
-
-module wxl.gen;
 
 import std;
 
