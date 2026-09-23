@@ -22,6 +22,7 @@ add_executable(wxl.async.tests
     async_file_tests.cpp
     spsc_channel_tests.cpp
     spsc_queue_tests.cpp
+    sta_loop_abandon_tests.cpp
     sta_loop_tests.cpp
     countdown_event_tests.cpp
     task_tests.cpp

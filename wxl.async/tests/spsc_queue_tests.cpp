@@ -331,3 +331,76 @@ TYPED_TEST(SpscQueueTest, WorksWithTheSmallestPossibleGeometry) {
     int value = -1;
     EXPECT_FALSE(reader.read(value));
 }
+
+/// Looking ahead is spsc_queue's own -- the reference implementation is kept to measure
+/// the handover against, and nothing looks ahead in it -- so these are plain tests.
+TEST(SpscQueueLookAheadTest, WalksWhatWasPublishedAndTakesNothing) {
+    spsc_queue<int, 4> queue;
+    spsc_queue<int, 4>::reader reader(queue);
+
+    // Ten elements over blocks of four: the walk crosses two links.
+    for (int i = 0; i < 10; ++i) queue.write(i);
+
+    auto at = reader.look_ahead();
+
+    for (int i = 0; i < 10; ++i) {
+        int* const seen = reader.peek(at);
+
+        ASSERT_NE(seen, nullptr);
+        EXPECT_EQ(*seen, i);
+    }
+
+    EXPECT_EQ(reader.peek(at), nullptr);
+
+    // Nothing was taken: reading starts where it would have started anyway.
+    int out = -1;
+
+    for (int i = 0; i < 10; ++i) {
+        ASSERT_TRUE(reader.read(out));
+        EXPECT_EQ(out, i);
+    }
+
+    EXPECT_FALSE(reader.read(out));
+}
+
+TEST(SpscQueueLookAheadTest, AWalkStoppedAtTheEndGoesOnOnceMoreIsPublished) {
+    spsc_queue<int, 4> queue;
+    spsc_queue<int, 4>::reader reader(queue);
+
+    auto at = reader.look_ahead();
+
+    EXPECT_EQ(reader.peek(at), nullptr);
+
+    // Stopped exactly at the end of a full block, and at an empty one, the walk picks up
+    // what the writer adds after it.
+    for (int i = 0; i < 4; ++i) queue.write(i);
+
+    for (int i = 0; i < 4; ++i) ASSERT_NE(reader.peek(at), nullptr);
+
+    EXPECT_EQ(reader.peek(at), nullptr);
+
+    queue.write(4);
+
+    int* const next = reader.peek(at);
+
+    ASSERT_NE(next, nullptr);
+    EXPECT_EQ(*next, 4);
+}
+
+TEST(SpscQueueLookAheadTest, AWalkStartsWhereReadingHasGotTo) {
+    spsc_queue<int, 4> queue;
+    spsc_queue<int, 4>::reader reader(queue);
+
+    for (int i = 0; i < 6; ++i) queue.write(i);
+
+    int out = -1;
+
+    for (int i = 0; i < 5; ++i) ASSERT_TRUE(reader.read(out));
+
+    auto at = reader.look_ahead();
+    int* const next = reader.peek(at);
+
+    ASSERT_NE(next, nullptr);
+    EXPECT_EQ(*next, 5);
+    EXPECT_EQ(reader.peek(at), nullptr);
+}

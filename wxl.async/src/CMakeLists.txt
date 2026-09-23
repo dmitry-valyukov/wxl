@@ -47,6 +47,7 @@ wxl_add_module_library(wxl.async STATIC
         future.cpp
         future_shared_state.cpp
         one_shot_event.cpp
+        sta_loop.cpp
         task_tree.cpp
         thread.cpp
         thread_group.cpp

@@ -8,7 +8,7 @@ import std;
 namespace wxl::async {
 
 awaitable<async_file> async_file::open_read(const core::path& path) {
-    return sta_loop::async_call([path] {
+    return sta_loop::async_call(orphanable, [path] {
         core::file opened = core::file::open_read(path.c_str());
 
         if (!opened.opened()) throw system_exception("CreateFileW");
@@ -18,7 +18,7 @@ awaitable<async_file> async_file::open_read(const core::path& path) {
 }
 
 awaitable<async_file> async_file::create(const core::path& path) {
-    return sta_loop::async_call([path] {
+    return sta_loop::async_call(orphanable, [path] {
         core::file created = core::file::create(path.c_str());
 
         if (!created.opened()) throw system_exception("CreateFileW");

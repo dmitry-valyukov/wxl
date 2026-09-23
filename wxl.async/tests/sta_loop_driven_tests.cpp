@@ -72,6 +72,97 @@ task failing_operation(std::string& message) {
     }
 }
 
+/// What a read below saw and did, kept outside the operation: a given-up operation is
+/// deleted by the loop whenever its turn comes, and the test looks afterwards.
+struct probe {
+    hevent gate{true};
+    hevent started{true};
+    std::atomic<bool> frame_alive{false};
+    std::atomic<int> ran{0};
+    std::atomic<int> ran_with_frame_alive{0};
+    std::atomic<int> canceled{0};
+    std::atomic<int> alive{0};
+};
+
+/// Alive while the frame is; opens the gate on the way out, so that a loop which let the
+/// frame go first fails the test rather than leaving the worker asleep.
+class frame_witness
+{
+public:
+    explicit frame_witness(probe& p) : p_(p) { p_.frame_alive = true; }
+
+    ~frame_witness() {
+        p_.frame_alive = false;
+        p_.gate.set();
+    }
+
+private:
+    probe& p_;
+};
+
+/// A read held at a gate, writing into the frame if the frame is there; cancelling it
+/// opens the gate, the way CancelIoEx completes a read the kernel is holding.
+class gated_read : public async_op_t<std::size_t>
+{
+public:
+    gated_read(probe& p, std::span<std::byte> into) : p_(p), into_(into) { ++p_.alive; }
+
+    ~gated_read() override { --p_.alive; }
+
+protected:
+    bool execute() override {
+        p_.started.set();
+        p_.gate.wait();
+
+        ++p_.ran;
+
+        if (p_.frame_alive) {
+            ++p_.ran_with_frame_alive;
+            std::ranges::fill(into_, std::byte{42});
+        }
+
+        set_value(into_.size());
+        return true;
+    }
+
+    void on_cancel() noexcept override {
+        ++p_.canceled;
+        p_.gate.set();
+    }
+
+private:
+    probe& p_;
+    std::span<std::byte> into_;
+};
+
+awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into) {
+    return sta_loop::async_run(std::unique_ptr<async_op_t<std::size_t>>(new gated_read(p, into)));
+}
+
+/// Two reads out, the first awaited one fails, the frame unwinds with the second on the
+/// worker -- inside run_pending(), which is where a GUI thread resumes its coroutines.
+task first_fails_second_in_flight(probe& p) {
+    frame_witness witness(p);
+    std::byte second_buf[64]{};
+
+    auto a = sta_loop::async_call([] { throw std::runtime_error("the first read failed"); });
+    auto b = start_read(p, second_buf);
+
+    co_await a;
+    co_await b;
+}
+
+task reads_into_its_frame(probe& p) {
+    frame_witness witness(p);
+    std::byte buf[64]{};
+
+    co_await start_read(p, buf);
+}
+
+task returns_seven(int& out) {
+    out = co_await sta_loop::async_call([] { return 7; });
+}
+
 bool all_done(const std::vector<task>& work) {
     return std::all_of(work.begin(), work.end(), [](const task& t) { return t.done(); });
 }
@@ -162,4 +253,51 @@ TEST(StaLoopDrivenTest, AnExceptionFromTheWorkerArrivesAtTheCoAwait) {
     work.front().result();
 
     EXPECT_EQ(message, "from the worker");
+}
+
+TEST(StaLoopDrivenTest, AFrameUnwindingInsideRunPendingWaitsInPlaceNotThroughTheDispatcher) {
+    // The unwinding happens inside run_pending(), on a thread whose only way back to its
+    // dispatcher is to return -- which it cannot do until the worker has let go of the
+    // frame. So the handover it waits for has to wake it in place: a callback posted to
+    // the dispatcher instead would leave this test asleep for good.
+    probe p;
+    std::vector<task> work;
+
+    work.push_back(first_fails_second_in_flight(p));
+    p.started.wait();
+
+    drain_until_done(work);
+
+    EXPECT_THROW(work.front().result(), std::runtime_error);
+    EXPECT_EQ(p.canceled.load(), 1);
+    EXPECT_EQ(p.ran_with_frame_alive.load(), 1) << "the worker wrote into a frame that was gone";
+    EXPECT_EQ(p.alive.load(), 0);
+}
+
+TEST(StaLoopDrivenTest, GivingUpAnOperationOutsideRunPendingKeepsTheCallbackTheLoopOwes) {
+    // Dropped between two drains, where the trigger is armed: the next handover owes the
+    // dispatcher a callback. The wait takes that debt over -- it has to, or the handovers it
+    // waits for would go to a dispatcher nobody is running -- and must pay it on the way
+    // out, or the operation queued behind the read comes back to nobody.
+    probe p;
+    int seven = 0;
+    std::vector<task> others;
+    const int posts_before = dispatcher().posts();
+
+    {
+        task dropped = reads_into_its_frame(p);
+
+        p.started.wait();
+        others.push_back(returns_seven(seven));
+    }
+
+    EXPECT_EQ(p.canceled.load(), 1);
+    EXPECT_EQ(p.ran_with_frame_alive.load(), 1) << "the worker wrote into a frame that was gone";
+
+    drain_until_done(others);
+    others.front().result();
+
+    EXPECT_EQ(seven, 7);
+    EXPECT_GE(dispatcher().posts() - posts_before, 1);
+    EXPECT_EQ(p.alive.load(), 0);
 }

@@ -18,6 +18,10 @@ export namespace wxl::async {
 /// reach a co_await as an exception. Which loop is neither asked nor told --
 /// see `sta_loop::instance()`.
 ///
+/// The same split between what may be left to finish alone and what is waited
+/// for: opening, exists(), create_all() and remove() own what they touch and are
+/// orphanable; next() and close() borrow this object.
+///
 /// A listing is worth having asynchronous even more than a file is. A directory
 /// on a network share, or one with tens of thousands of names in it, keeps
 /// `FindNextFileW` busy for as long as it likes, and a reader that watches

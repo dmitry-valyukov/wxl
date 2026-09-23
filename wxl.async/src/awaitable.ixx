@@ -10,23 +10,38 @@ export namespace wxl::async {
 ///
 /// It is the operation's owner -- a plain unique_ptr, because there is exactly one
 /// owner and it is known: the coroutine frame that awaits it. The channels between
-/// the two threads carry the same pointer borrowed, and nothing there outlives the
-/// co_await, so there is nothing for a reference count to arbitrate.
+/// the two threads carry the same pointer borrowed.
+///
+/// **It is an ordinary object, and every use of it is a legal one**: awaited at once,
+/// awaited after others started later, moved, or never awaited at all. Going away with
+/// the operation still out gives the operation up (`async_op::abandon`): the operation
+/// is asked to cancel, and unless it is orphanable, this waits until the worker has let
+/// go of it -- so a frame unwinding past a read into its own buffer is gone only once
+/// nobody writes there, the way it would be on an ordinary stack.
 template <class R>
 class awaitable
 {
 public:
     explicit awaitable(std::unique_ptr<async_op_t<R>> op) noexcept : op_(std::move(op)) {}
 
-    /// Always suspends, even when the worker has already finished.
-    ///
-    /// It is not an optimisation left undone. The operation is handed to the worker
-    /// the moment it is created, so by the time the co_await is reached it may
-    /// already be sitting in the return channel; and the only thing that takes it
-    /// out of there is this very thread's loop, which resumes whatever coroutine
-    /// the op names. Answering "ready" here would leave that entry with no
-    /// coroutine to name.
-    bool await_ready() const noexcept { return false; }
+    awaitable(awaitable&&) noexcept = default;
+
+    awaitable& operator=(awaitable&& other) noexcept {
+        if (this != &other) {
+            give_up();
+            op_ = std::move(other.op_);
+        }
+
+        return *this;
+    }
+
+    ~awaitable() { give_up(); }
+
+    /// Ready only once the loop has taken the operation out of the return channel --
+    /// which happens when it came back before anybody awaited it. An operation that is
+    /// merely finished may still be sitting in the channel, and the loop, finding it
+    /// there, would hand it to a coroutine that is no longer waiting for it.
+    bool await_ready() const noexcept { return op_->delivered(); }
 
     void await_suspend(std::coroutine_handle<> coro) noexcept { op_->suspend(coro); }
 
@@ -36,6 +51,12 @@ public:
     R await_resume() { return op_->take_result(); }
 
 private:
+    /// A delivered operation is the awaitable's alone, and goes with it; one still out
+    /// is given up, and deleted by whoever meets it in the return channel.
+    void give_up() noexcept {
+        if (op_ && !op_->delivered()) async_op::abandon(op_.release());
+    }
+
     std::unique_ptr<async_op_t<R>> op_;
 };
 

@@ -8,7 +8,7 @@ import std;
 namespace wxl::async {
 
 awaitable<async_directory> async_directory::open(const core::path& pattern) {
-    return sta_loop::async_call([pattern] {
+    return sta_loop::async_call(orphanable, [pattern] {
         core::directory opened = core::directory::open(pattern.c_str());
 
         if (!opened.opened()) throw system_exception("FindFirstFileExW");
@@ -37,17 +37,17 @@ awaitable<void> async_directory::close() {
 
 awaitable<bool> async_directory::exists(const core::path& path) {
     return sta_loop::async_call(
-        [path] { return core::directory::exists(path.c_str()); });
+        orphanable, [path] { return core::directory::exists(path.c_str()); });
 }
 
 awaitable<void> async_directory::create_all(const core::path& p) {
-    return sta_loop::async_call([copy = p]() mutable {
+    return sta_loop::async_call(orphanable, [copy = p]() mutable {
         if (!core::directory::create_all(copy)) throw system_exception("CreateDirectoryW");
     });
 }
 
 awaitable<void> async_directory::remove(const core::path& path) {
-    return sta_loop::async_call([path] {
+    return sta_loop::async_call(orphanable, [path] {
         if (!core::directory::remove(path.c_str())) throw system_exception("RemoveDirectoryW");
     });
 }

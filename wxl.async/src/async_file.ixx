@@ -28,6 +28,13 @@ export namespace wxl::async {
 /// **Which loop is not asked and cannot be told**: there is one, it is the STA
 /// thread's, and `sta_loop::instance()` is where these calls find it.
 ///
+/// **Giving an operation up.** Opening and creating own everything they touch,
+/// so an awaitable that goes away before them leaves them to finish alone
+/// (`orphanable`): the file, if they get as far as opening one, is closed when
+/// the loop deletes the operation. Everything else borrows this object and the
+/// caller's buffer, and an awaitable giving one of those up waits until the
+/// worker has let go.
+///
 /// **The path is copied into the operation, and that is deliberate.** Borrowing
 /// it looks free and is a trap: the operation is handed to the worker inside the
 /// call that starts it, and by the time the coroutine's caller has finished the

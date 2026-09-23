@@ -28,18 +28,16 @@ export namespace wxl::async {
 /// means while the coroutine is still suspended depends on what it is
 /// suspended on.
 ///
-/// **Dropping an unfinished one is safe only where the awaitable can take
-/// itself back.** Destroying the frame destroys its locals and the awaiter it
-/// stands in, and nothing else happens: nobody is resumed, and no result is
-/// ever taken. For an awaitable that is one end of a subscription on this same
-/// thread -- wxl.ui's event proxy, whose awaiter unhooks in its destructor
-/// -- that is the ordinary way such a coroutine is stopped, and the only one:
-/// an endless loop over an event has no other end. For the asynchronous
-/// operations in this module it is a use-after-free, because the worker holds
-/// the frame's own async_op borrowed through the channel and will write into
-/// it after the frame is gone. So one awaiting those must be held until
-/// done(), and one awaiting only events on its own thread may be let go
-/// whenever its owner is.
+/// **Dropping an unfinished one takes back whatever it waits for.**
+/// Destroying the frame destroys its locals and the awaiter it stands in, and
+/// nothing else happens: nobody is resumed, and no result is ever taken. For
+/// an awaitable that is one end of a subscription on this same thread --
+/// wxl.ui's event proxy, whose awaiter unhooks in its destructor -- that is
+/// the ordinary way such a coroutine is stopped, and the only one: an endless
+/// loop over an event has no other end. For the asynchronous operations in
+/// this module the awaitable gives its operation up (`async_op::abandon`),
+/// and the destruction waits, on this thread, until the worker has let go of
+/// the frame -- as long as the operation takes to finish or be cancelled.
 ///
 /// **The frame comes from sta_memory_pool.** It is exactly what that pool is
 /// for -- a small object, made and unmade on the one thread, over and over --

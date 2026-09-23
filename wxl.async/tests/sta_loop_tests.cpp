@@ -220,3 +220,21 @@ TEST(StaSignalTest, ASleepingSignalIsReleasedByTheHandover) {
     // event is what makes a wakeup mean "look again".
     signal.wait();
 }
+
+TEST(StaSignalTest, AHeldSignalWakesTheWaiterAndStillCallsBack) {
+    // Held for a wait in place, a driven signal sets the event for the waiter -- and calls
+    // back regardless: the handover may have taken a trigger armed before the hold, by a
+    // drain that has returned to its dispatcher and is owed this callback.
+    fake_dispatcher dispatcher;
+    sta_signal signal;
+
+    signal.wake_with([&dispatcher]() noexcept { dispatcher.poke(); });
+    signal.hold();
+    signal.set();
+    signal.release();
+
+    EXPECT_EQ(dispatcher.pokes(), 1) << "a held signal swallowed the callback";
+
+    // Already set, so this returns rather than sleeping.
+    signal.wait_held();
+}
