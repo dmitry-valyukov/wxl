@@ -560,8 +560,9 @@ namespace library_presets {
 
 // A binding written on a property. Which way it runs is the property's: one
 // way where the control only shows, both ways where it writes the property
-// itself -- decided by the pair in impl/binding.h, not by a mode. The model is
-// one refcounted object whose observables are its fields, not handles.
+// itself -- decided by the pair in impl/binding.h, not by a mode. BindInput and
+// BindOutput name one half of it outright. The model is one refcounted object
+// whose observables are its fields, not handles.
 namespace {
 struct BoundModel : core::sta_refcounted {
     core::observable<std::u16string> title{u"WXL"};
@@ -581,6 +582,19 @@ struct BoundModel : core::sta_refcounted {
     ToggleSwitch{isOn = Bind{model->busy}};      // two ways, named
     ToggleSwitch{Bind{model->busy}};             // two ways, by the data's type
     ComboBox{selectedIndex = Bind{model->row}};
+
+    // The halves, named: output is the one-way path chosen outright, pair or
+    // no pair; input is the pair's other half and takes only a pair.
+    TextBox{text = BindOutput{model->name}};     // the box shows the field; what is typed stays in the box
+    TextBlock{text = BindOutput{model->title}};  // no pair here, and none needed
+    TextBox{text = BindInput{model->name}};      // the field takes what is typed; nothing written back
+    ToggleSwitch{isOn = BindInput{model->busy}};
+    ComboBox{selectedIndex = BindInput{model->row}};
+    NumberBox{value = BindOutput{model->row}};
+
+    // And unnamed, by the data's type, the way Bind{} goes.
+    ToggleSwitch{BindInput{model->busy}};
+    ToggleSwitch{BindOutput{model->busy}};
 }
 
 // Copy construction must not be hijacked by the variadic constructor -- the

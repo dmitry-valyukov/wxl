@@ -1,7 +1,8 @@
 #pragma once
 
-// The winrt-free face of two-way binding: what Bind{} calls, declared here and
-// defined in binding.cpp where the projection is allowed.
+// The winrt-free face of the binding pairs: what Bind{}, BindInput{} and
+// BindOutput{} call, declared here and defined in binding.cpp where the
+// projection is allowed.
 //
 // One pair per property a control writes itself, with the event that says so.
 // This is the only table binding needs: a property the control does not write
@@ -9,6 +10,9 @@
 // in member.h), and has no entry here. The set is hand-written for now -- the
 // controls a settings dialog reaches for -- and is where the generator will
 // one day emit an entry per such property.
+//
+// A pair runs both ways unless `direction` keeps one: input is the control ->
+// field half alone, output the field -> control half alone.
 //
 // Declared with wrapper types and observables and no winrt, so Bind.h (and the
 // application that includes it) never sees the projection.
@@ -27,50 +31,68 @@ class TextBox;
 namespace wxl::impl {
 
 /// ToggleSwitch.isOn <-> observable<bool>, under Toggled.
-void apply_bind(ToggleSwitch const& control, core::observable<bool>& model);
+void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
+                bind_direction direction = bind_direction::both);
 
 /// ComboBox.selectedIndex <-> observable<int>, under SelectionChanged -- the
 /// chosen row, by position.
-void apply_bind(ComboBox const& control, core::observable<int>& model);
+void apply_bind(ComboBox const& control, core::observable<int>& model,
+                bind_direction direction = bind_direction::both);
 
 /// NumberBox.value <-> observable<int>, under ValueChanged -- the number,
 /// rounded to whole.
-void apply_bind(NumberBox const& control, core::observable<int>& model);
+void apply_bind(NumberBox const& control, core::observable<int>& model,
+                bind_direction direction = bind_direction::both);
+
+/// NumberBox.value <-> observable<double>, under ValueChanged -- the number
+/// as the box holds it, NaN while the box is empty.
+void apply_bind(NumberBox const& control, core::observable<double>& model,
+                bind_direction direction = bind_direction::both);
 
 /// TextBox.text <-> observable<u16_text>, under TextChanged -- validated
 /// UTF-16, repaired on the way in.
-void apply_bind(TextBox const& control, core::observable<core::u16_text>& model);
+void apply_bind(TextBox const& control, core::observable<core::u16_text>& model,
+                bind_direction direction = bind_direction::both);
 
 // The same pairs by property, for the named form `isOn = Bind{...}`. A
 // specialisation is what tells bind_property that this property is the
-// control's to write, and so bound both ways; every other (property, control)
-// meets the empty primary in member.h and is bound one way.
+// control's to write, and so bound both ways -- or the one way asked for;
+// every other (property, control) meets the empty primary in member.h and is
+// bound one way, from the field.
 
 template <>
 struct TwoWayBinder<PropertyKey::IsOn, ToggleSwitch> {
-    static void bind(ToggleSwitch const& control, core::observable<bool>& model) {
-        apply_bind(control, model);
+    static void bind(ToggleSwitch const& control, core::observable<bool>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
     }
 };
 
 template <>
 struct TwoWayBinder<PropertyKey::SelectedIndex, ComboBox> {
-    static void bind(ComboBox const& control, core::observable<int>& model) {
-        apply_bind(control, model);
+    static void bind(ComboBox const& control, core::observable<int>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
     }
 };
 
 template <>
 struct TwoWayBinder<PropertyKey::Value, NumberBox> {
-    static void bind(NumberBox const& control, core::observable<int>& model) {
-        apply_bind(control, model);
+    static void bind(NumberBox const& control, core::observable<int>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+    static void bind(NumberBox const& control, core::observable<double>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
     }
 };
 
 template <>
 struct TwoWayBinder<PropertyKey::Text, TextBox> {
-    static void bind(TextBox const& control, core::observable<core::u16_text>& model) {
-        apply_bind(control, model);
+    static void bind(TextBox const& control, core::observable<core::u16_text>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
     }
 };
 

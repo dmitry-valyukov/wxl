@@ -27,79 +27,61 @@ u16_text to_string(double real, double imaginary) {
     return text;
 }
 
-std::optional<double> to_double(const u16_text & wstr)  {
-    sta_string str;
-    unicode::append_utf8(str, wstr);
-    // try_parse парсит в локали C
-    std::replace(str.begin(), str.end(), ',', '.');
-    double value;
-    if (!try_parse(str, value))
-        return std::nullopt;
-
-    return value;
-};
-
 struct Answer {
     u16_text D, x1, x2;
 };
 
-using opt_double = std::optional<double>;
+// Пустое поле NumberBox — это NaN: коэффициент без числа ответа не даёт.
+constexpr double blank = std::numeric_limits<double>::quiet_NaN();
 
 // Корни через q = −(b + sign(b)·√D)/2 как q/a и c/q: без вычитания близких чисел,
 // которое съедает точность меньшего по модулю корня. При a = 0 уравнение линейное.
-static Answer solve(opt_double va, opt_double vb, opt_double vc) {
+static Answer solve(double a, double b, double c) {
     u16_text const none{u"—"};
 
-    if(va && vb && vc) {
-        double a = *va, b = *vb, c = *vc;
+    if (std::isnan(a) || std::isnan(b) || std::isnan(c))
+        return {none, none, none};
 
-        if (a == 0) {
-            if (b != 0)
-                return {none, to_string(-c / b), none};
+    if (a == 0) {
+        if (b != 0)
+            return {none, to_string(-c / b), none};
 
-            if (c == 0)
-                return {none, u16_text{u"ℝ"}, none};
+        if (c == 0)
+            return {none, u16_text{u"ℝ"}, none};
 
-            return {none, u16_text{u"∅"}, none};
-        }
-
-        double const d = b * b - 4 * a * c;
-
-        if (d < 0) {
-            // Комплексные корни
-            double const real = -b / (2 * a);
-            double const imaginary = std::sqrt(-d) / (2 * std::abs(a));
-            return {to_string(d), to_string(real, -imaginary), to_string(real, imaginary)};
-        }
-
-        // Формула Мюллера для сохранения точности
-        double const q = -0.5 * (b + std::copysign(std::sqrt(d), b));
-        double const first = q / a;
-        // Теорема Виета
-        double const second = q == 0 ? first : c / q;
-        return {to_string(d), to_string(std::min(first, second)), to_string(std::max(first, second))};
+        return {none, u16_text{u"∅"}, none};
     }
 
-    return {none, none, none};
+    double const d = b * b - 4 * a * c;
+
+    if (d < 0) {
+        // Комплексные корни
+        double const real = -b / (2 * a);
+        double const imaginary = std::sqrt(-d) / (2 * std::abs(a));
+        return {to_string(d), to_string(real, -imaginary), to_string(real, imaginary)};
+    }
+
+    // Формула Мюллера для сохранения точности
+    double const q = -0.5 * (b + std::copysign(std::sqrt(d), b));
+    double const first = q / a;
+    // Теорема Виета
+    double const second = q == 0 ? first : c / q;
+    return {to_string(d), to_string(std::min(first, second)), to_string(std::max(first, second))};
 }
 
 // Коэффициенты пишут поля ввода, ответы показывают поля вывода. Любая правка
-// коэффициента пересчитывает ответы, пока все три читаются как числа.
+// коэффициента пересчитывает ответы, пока все три — числа.
 class Equation : public noncopyable
 {
-    observable<opt_double> va, vb, vc;
     observable<Answer> answer;
 
 public:
-    observable<u16_text> a, b, c, D, x1, x2;
+    observable<double> a{blank}, b{blank}, c{blank};
+    observable<u16_text> D, x1, x2;
 
     Equation() {
-        va.follow(a, to_double);
-        vb.follow(b, to_double);    // текст → число
-        vc.follow(c, to_double);
-
         answer                      // три числа → ответ
-            .follow(va, vb, vc, solve)
+            .follow(a, b, c, solve)
             .on_change([this](Answer const& answer) noexcept {
                 D.set(answer.D);
                 x1.set(answer.x1);  // ответ → три текста
@@ -155,25 +137,25 @@ wxl::Teardown wxl_launched() {
                 StackPanel {
                     orientation.horizontal,
                     spacing = 10,
-                    TextBox {
+                    NumberBox {
                         input,
                         placeholderText = u"a",
-                        text = Bind {eq.a},
-                        onLoaded = [](TextBox const& control) {
+                        value = BindInput {eq.a},
+                        onLoaded = [](NumberBox const& control) {
                             control.focus(FocusState::Programmatic);
                         },
                     },
                     TextBlock {txt, u"· x² +"},
-                    TextBox {
+                    NumberBox {
                         input,
                         placeholderText = u"b",
-                        text = Bind {eq.b},
+                        value = BindInput {eq.b},
                     },
                     TextBlock {txt, u"· x +"},
-                    TextBox {
+                    NumberBox {
                         input,
                         placeholderText = u"c",
-                        text = Bind {eq.c},
+                        value = BindInput {eq.c},
                     },
                     TextBlock {txt, u"= 0"},
                 },
@@ -183,7 +165,7 @@ wxl::Teardown wxl_launched() {
                     TextBlock {txt, u"D ="},
                     TextBox {
                         output,
-                        text = Bind {eq.D},
+                        text = BindOutput {eq.D},
                     },
                 },
                 StackPanel {
@@ -192,13 +174,13 @@ wxl::Teardown wxl_launched() {
                     TextBlock {txt, u"x₁ ="},
                     TextBox {
                         output,
-                        text = Bind {eq.x1},
+                        text = BindOutput {eq.x1},
                     },
                     TextBlock {txt, u",", Margin {0, 0, 16, 0}},
                     TextBlock {txt, u"x₂ ="},
                     TextBox {
                         output,
-                        text = Bind {eq.x2},
+                        text = BindOutput {eq.x2},
                     },
                 },
             },

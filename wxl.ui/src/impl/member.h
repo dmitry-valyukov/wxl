@@ -61,9 +61,9 @@ struct PropertySetter;
 
 // A property the control writes itself, paired with the event that says so.
 // Specialised in impl/binding.h per (property, control) with a static
-// `bind(control, field)`. The primary is empty on purpose: `text = Bind{...}`
-// on a TextBlock, which has no such pair, finds no bind() here and is bound
-// one way by bind_property below.
+// `bind(control, field, direction)`. The primary is empty on purpose:
+// `text = Bind{...}` on a TextBlock, which has no such pair, finds no bind()
+// here and is bound one way by bind_property below.
 template <PropertyKey key, typename Obj>
 struct TwoWayBinder {};
 
@@ -96,18 +96,33 @@ constexpr void check_owner() {
 
 }  // namespace impl
 
-// A binding written on the right of the `=`: `text = Bind{field}`. Defined in
+// A binding written on the right of the `=`: `text = Bind{field}`, or
+// `BindInput{field}` / `BindOutput{field}` for one half of it. Defined in
 // Bind.h; named here so that SetterOp can tell one from a value.
 template <class T>
 struct Bind;
+template <class T>
+struct BindInput;
+template <class T>
+struct BindOutput;
 
 namespace impl {
+
+// Which way a binding runs, seen from the field: input is what the control
+// writes into it, output what it shows on the control.
+enum class bind_direction { both, input, output };
 
 template <typename T>
 inline constexpr bool is_bind = false;
 
 template <typename T>
 inline constexpr bool is_bind<Bind<T>> = true;
+
+template <typename T>
+inline constexpr bool is_bind<BindInput<T>> = true;
+
+template <typename T>
+inline constexpr bool is_bind<BindOutput<T>> = true;
 
 // `property = Bind{field}`: the field's value now, and every value after.
 //
@@ -117,11 +132,21 @@ inline constexpr bool is_bind<Bind<T>> = true;
 // control, as it must to write to it; the control holds nothing back, so the
 // ownership runs one way and ends with the field. Nothing is generated for a
 // one-way binding: every settable property already has the one thing it needs.
-template <PropertyKey key, typename Obj, typename T>
+//
+// BindOutput takes that one-way path whatever the property, pair or no pair:
+// it is the path chosen, not fallen back on. BindInput is the pair's other
+// half and has nothing without one -- a property the control never writes has
+// no event to hear it under.
+template <PropertyKey key, bind_direction direction, typename Obj, typename T>
 void bind_property(Obj const& object, core::observable<T>& model) {
-    if constexpr (requires { TwoWayBinder<key, Obj>::bind(object, model); }) {
-        TwoWayBinder<key, Obj>::bind(object, model);
+    if constexpr (direction != bind_direction::output
+                  && requires { TwoWayBinder<key, Obj>::bind(object, model, direction); }) {
+        TwoWayBinder<key, Obj>::bind(object, model, direction);
     } else {
+        static_assert(direction != bind_direction::input,
+                      "wxl: BindInput names a property this control never writes itself, so there "
+                      "is no event to read it under. Only a property with a pair in impl/binding.h "
+                      "takes BindInput; every settable property takes Bind or BindOutput.");
         PropertySetter<key>::set(object, model.get());
         model.watch_for_binding(
             [object](T const& value) noexcept { PropertySetter<key>::set(object, value); });
@@ -144,7 +169,7 @@ struct SetterOp {
     void operator()(Obj const& object) const {
         impl::check_owner<Owner, Obj>();
         if constexpr (impl::is_bind<T>) {
-            impl::bind_property<key>(object, *value_.model);
+            impl::bind_property<key, T::direction>(object, *value_.model);
         } else {
             impl::PropertySetter<key>::set(object, value_);
         }

@@ -1,5 +1,6 @@
-// Two-way binding, the winrt side: a control property <-> an observable field,
-// wired so that nothing holds the model and nothing outlives what it points at.
+// The binding pairs, the winrt side: a control property <-> an observable
+// field, both ways or the one asked for, wired so that nothing holds the model
+// and nothing outlives what it points at.
 //
 // The projection and the Windows headers come first, and with them the standard
 // library they pull in: the wxl headers below carry the wxl.core import, and a
@@ -20,9 +21,9 @@
 namespace wxl::impl {
 namespace {
 
-// The control-side half of a two-way binding, and the reason its handler may
+// The control-side half of a binding pair, and the reason its handler may
 // hold the field by bare address. The guard lives inside the field's own watch
-// (bind_two_way below), so it goes when the watch does -- with the field, or
+// (bind_pair below), so it goes when the watch does -- with the field, or
 // through unbind() -- and takes the handler off the control first. Nothing is
 // ever left on a control that could write to a field that is gone.
 //
@@ -49,13 +50,18 @@ struct handler_guard {
     }
 };
 
-// The shape shared by every two-way binding, whatever the control and the
-// value: the event that says the control wrote the property, and two little
+// The shape shared by every binding pair, whatever the control and the value:
+// the event that says the control wrote the property, and two little
 // operations for how the property is read and written.
 //
 //  - `set` writes the field's value into the control. It runs once at the start
 //    so the control opens showing the value, and again on every change.
 //  - `get` reads the value back out for the control -> field direction.
+//
+// Asked for one direction, the pair keeps that half alone: input adds the
+// handler and writes the control never, output writes the control and hears
+// it never. The watch stays either way, with nothing to write for input, since
+// it is what holds the guard.
 //
 // The control -> field handler names the control as its sender and the field
 // by address, so it holds neither: the sender is read rather than captured,
@@ -69,46 +75,70 @@ struct handler_guard {
 // No re-entry guard: writing the control fires its change event, which writes
 // the same value back, and observable::set says nothing when nothing changed.
 template <EventKey key, class Control, class T, class Get, class Set>
-void bind_two_way(Control const& control, core::observable<T>& model, Get get, Set set) {
+void bind_pair(Control const& control, core::observable<T>& model, bind_direction direction,
+               Get get, Set set) {
     using Args = typename EventAdder<key>::template args_t<Control>;
 
-    set(control, model.get());
+    bool const shows = direction != bind_direction::input;
+    bool const edits = direction != bind_direction::output;
 
-    EventToken const token = EventAdder<key>::add(
-        control, [&model, get](Control const& sender, Args&) { model.set(get(sender)); });
+    if (shows) set(control, model.get());
 
-    model.watch_for_binding(
-        [guard = handler_guard<key, Control>{control, token}, set](T const& value) noexcept {
+    EventToken token;
+    if (edits) {
+        token = EventAdder<key>::add(
+            control, [&model, get](Control const& sender, Args&) { model.set(get(sender)); });
+    }
+
+    handler_guard<key, Control> guard{control, token};
+    if (shows) {
+        model.watch_for_binding([guard = std::move(guard), set](T const& value) noexcept {
             set(guard.control, value);
         });
+    } else {
+        model.watch_for_binding([guard = std::move(guard)](T const&) noexcept {});
+    }
 }
 
 }  // namespace
 
-void apply_bind(ToggleSwitch const& control, core::observable<bool>& model) {
-    bind_two_way<EventKey::Toggled>(
-        control, model,                                     //
+void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::Toggled>(
+        control, model, direction,                          //
         [](ToggleSwitch const& c) { return c.isOn(); },     // get
         [](ToggleSwitch const& c, bool v) { c.isOn(v); });  // set
 }
 
-void apply_bind(ComboBox const& control, core::observable<int>& model) {
-    bind_two_way<EventKey::SelectionChanged>(
-        control, model,                                             //
+void apply_bind(ComboBox const& control, core::observable<int>& model, bind_direction direction) {
+    bind_pair<EventKey::SelectionChanged>(
+        control, model, direction,                                  //
         [](ComboBox const& c) { return c.selectedIndex(); },        // get
         [](ComboBox const& c, int v) { c.selectedIndex(v); });      // set
 }
 
-void apply_bind(NumberBox const& control, core::observable<int>& model) {
-    bind_two_way<EventKey::ValueChanged>(
-        control, model,                                                  //
+void apply_bind(NumberBox const& control, core::observable<int>& model, bind_direction direction) {
+    bind_pair<EventKey::ValueChanged>(
+        control, model, direction,                                       //
         [](NumberBox const& c) { return static_cast<int>(c.value()); },  // get
         [](NumberBox const& c, int v) { c.value(v); });                  // set
 }
 
-void apply_bind(TextBox const& control, core::observable<core::u16_text>& model) {
-    bind_two_way<EventKey::TextChanged>(
-        control, model,
+// NaN is the box's own word for empty, and it travels as it is: the box
+// raises no ValueChanged for NaN over NaN, so the echo of writing one back
+// ends there, where observable::set cannot end it (NaN equals nothing).
+void apply_bind(NumberBox const& control, core::observable<double>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::ValueChanged>(
+        control, model, direction,                          //
+        [](NumberBox const& c) { return c.value(); },       // get
+        [](NumberBox const& c, double v) { c.value(v); });  // set
+}
+
+void apply_bind(TextBox const& control, core::observable<core::u16_text>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::TextChanged>(
+        control, model, direction,
         // get: the control hands back char16_t units, and nothing on the way
         // guaranteed them -- a paste is whatever the clipboard held. repaired
         // makes them the validated u16_text the model holds, an odd surrogate
