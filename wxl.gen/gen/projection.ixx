@@ -13,7 +13,6 @@ module;
 
 export module wxl.gen:projection;
 
-import :profile;
 import :md;
 export namespace gen {
 

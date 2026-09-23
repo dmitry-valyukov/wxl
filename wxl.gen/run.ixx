@@ -15,7 +15,7 @@ module;
 export module wxl.gen:run;
 
 import :generate;
-import :profile;
+import :md;
 
 export {
 

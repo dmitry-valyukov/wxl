@@ -8,13 +8,12 @@ module;
 
 // Output side of winui-srcgen: everything that turns the discovered type
 // closure into C++ sources under `Output::dir`. The metadata walk itself
-// (:crawl) knows nothing about file layout or C++ syntax -- it only hands
-// over the Model below; the individual writers live in gen/*.cpp, declared
-// in gen/writers.ixx.
+// (wxl.gen.common's crawl.h) knows nothing about file layout or C++ syntax --
+// it only hands over the Model below; the individual writers live in
+// gen/*.cpp, declared in gen/writers.ixx.
 
 export module wxl.gen:generate;
 
-import :crawl;
 import :md;
 export {
 

@@ -141,8 +141,11 @@ add_subdirectory(wxl.highlight)
 add_subdirectory(wxl.bb)
 add_subdirectory(wxl.rsdn)
 
+# Профили и обход метаданных -- общее у генератора и редактора профилей.
+add_subdirectory(wxl.gen.common)
 add_subdirectory(wxl.gen)
 add_subdirectory(wxl.ui)
+
 add_subdirectory(samples)
 
 # Песочница: пробы механизмов WinUI, каждая -- отдельное приложение. Собирается

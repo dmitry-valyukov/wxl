@@ -1,11 +1,13 @@
 # winui-srcgen -- reads WinUI3 .winmd metadata and generates wxl's wrappers.
 #
 # One module, wxl.gen, with a partition per stage:
-#   :profile   -- input: the JSON profiles saying what to generate
-#   :crawl     -- the metadata walk producing the type closure
 #   :generate  -- orchestration of the output, with one writer per artefact
 #                 under gen/
-#   :winmd     -- the sole include of winmd_reader.h, re-exported as `md`
+#   :run       -- a whole run behind one call
+#   :winmd     -- the sole include of winmd_reader.h, re-exported as `md`,
+#                 and of wxl.gen.common's headers: the profiles and the
+#                 metadata walk, which the profile editor (wxl.gen.ui) reads
+#                 too
 #
 # main.cpp is an ordinary translation unit: main() may not be attached to a
 # named module, so it consumes wxl.gen the way any application would.
@@ -29,8 +31,6 @@ wxl_target_modules(winui-srcgen
 
         winmd.ixx
         md.ixx
-        profile.ixx
-        crawl.ixx
         generate.ixx
         run.ixx
 
@@ -41,8 +41,6 @@ wxl_target_modules(winui-srcgen
         gen/members.ixx
         gen/writers.ixx
     SRC
-        profile.cpp
-        crawl.cpp
         generate.cpp
         run.cpp
 
@@ -64,23 +62,13 @@ wxl_target_modules(winui-srcgen
         gen/dsl.cpp
         gen/schema.cpp
         gen/cmake.cpp
-
-        xml_input.h
-        xml_input.cpp
 )
 
 source_group("gen" REGULAR_EXPRESSION "gen/.*")
 
 target_link_libraries(winui-srcgen
     PRIVATE
-        winmd_reader
-        # The profiles are read with wxl's own JSON reader -- comments and
-        # all, which is the shape our settings files are written in.
-        wxl::json
-        # The nuspec of a WindowsAppSDK release is read with wxl's own XML
-        # reader; it brings wxl::core with it, which is where the STA pool
-        # main() builds comes from.
-        wxl::xml
+        wxl.gen.common
         # join(), ascii_lower() and the rest of the text handling this tool
         # used to keep copies of.
         wxl::core

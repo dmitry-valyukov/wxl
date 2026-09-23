@@ -11,7 +11,7 @@ module;
 // header shared with non-module code, so the type must stay a global-module
 // entity -- a second declaration inside the module would be a different
 // entity of the same name. Callers include it the same way.
-#include "../xml_input.h"
+#include "xml_input.h"
 
 // One entry point per kind of generated artefact; each lives in its own
 // gen/*.cpp so the file you open matches the output you're changing.

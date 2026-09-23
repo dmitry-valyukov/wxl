@@ -6,6 +6,12 @@ module;
 // partition exists.
 #include <winmd_reader.h>
 
+// The profiles and the walk, which the generator shares with the profile
+// editor as wxl.gen.common. Here and nowhere else in the generator, because
+// crawl.h includes the reader too.
+#include "crawl.h"
+#include "profile.h"
+
 export module wxl.gen:winmd;
 
 // A using-declaration names the entity itself, so `md::TypeDef` *is*
@@ -60,3 +66,32 @@ using winmd::reader::extends_type;
 using winmd::reader::is_nested;
 
 }  // namespace md
+
+// wxl.gen.common's names, which its headers declare outside any module: named
+// here so that the units importing this partition see them, the way they see
+// the reader's under md.
+export {
+
+using ::MemberFilter;
+using ::SyntheticMember;
+using ::SetterMethod;
+using ::PackageRef;
+using ::Profile;
+using ::TypeMap;
+using ::ProfileSet;
+using ::Symbol;
+using ::Closure;
+
+using ::load_profile;
+using ::resolve_profiles;
+using ::default_nuget_root;
+using ::load_type_map;
+using ::use_type_map;
+using ::type_map;
+using ::load_symbol_names;
+using ::use_symbol_names;
+using ::symbol_names;
+using ::is_given_from_above;
+using ::crawl;
+
+}  // export
