@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // winmd_reader.h includes <windows.h> as it is, and its min/max macros then
@@ -130,3 +132,18 @@ struct Closure {
 };
 
 Closure crawl(ProfileSet const& profiles, winmd::reader::cache const& db);
+
+// The kinds of member a profile names.
+enum class MemberKind : uint8_t { Property, Method, Event };
+
+// The member names a profile can list for a type, by kind: what the type
+// declares itself plus, for a class, what the interfaces it implements
+// directly declare -- the names the walk filters by. Sorted, each name once;
+// the views point into the metadata.
+struct DeclaredMembers {
+    std::vector<std::string_view> properties;
+    std::vector<std::string_view> methods;
+    std::vector<std::string_view> events;
+};
+
+DeclaredMembers declared_members_of(winmd::reader::TypeDef const& type);
