@@ -1772,6 +1772,19 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     dsl.events.insert(type_map().hand_written_events.begin(),
                       type_map().hand_written_events.end());
 
+    // A bound-only member needs the same key and tag; the setter the tag
+    // dispatches to is constrained on the member's existence, so on a class
+    // that has none the assignment is refused rather than compiled.
+    for (auto&& member : type_map().bound_members) {
+        auto [it, inserted] = dsl.property_value_type.emplace(member.name, member.value_type);
+        if (!inserted && it->second != member.value_type) {
+            it->second.clear();
+        }
+        if (!member.include.empty()) {
+            dsl.includes.insert(member.include);
+        }
+    }
+
     write_dsl(out, dsl, emitted);
 
     // The schema, last, because it is the same vocabulary said per class and
@@ -1790,6 +1803,24 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         if (owner != schema.classes.end()) {
             owner->members.push_back(std::move(member));
         }
+    }
+
+    // A bound-only member joins the class it is written on (types.json). The
+    // class has to be in the closure: a member on a class nobody generates
+    // would anchor to nothing, and is reported rather than dropped.
+    for (auto&& bound : type_map().bound_members) {
+        std::string const name = bound.class_name.substr(bound.class_name.rfind('.') + 1);
+        auto const owner = std::find_if(schema.classes.begin(), schema.classes.end(),
+                                        [&name](auto&& klass) { return klass.name == name; });
+        if (owner == schema.classes.end()) {
+            std::print("warning: bound member {}.{} names a class the profile does not generate\n",
+                       bound.class_name, bound.name);
+            continue;
+        }
+        Schema::Member member{Schema::Member::Kind::Bound, bound.name, member_name(bound.name),
+                              bound.value_type};
+        member.direction = bound.direction;
+        owner->members.push_back(std::move(member));
     }
 
     std::map<std::string, std::string> schema_base;  // every class -> its base, before pruning

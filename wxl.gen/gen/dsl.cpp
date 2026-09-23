@@ -44,11 +44,17 @@ void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
 
     // The key enums keep the metadata name; everything the DSL and the
     // wrappers spell is the member name, camelCase.
+    //
+    // Constrained on the call it makes, so that a class without the setter
+    // refuses the assignment at the tag rather than inside this body -- and
+    // so that a binding can ask, before it commits to writing, whether there
+    // is anything to write to.
     for (auto&& [name, value_type] : dsl.property_value_type) {
         std::print(file, R"(
 template <>
 struct PropertySetter<PropertyKey::{0}> {{
     template <typename Obj, typename T>
+        requires requires(Obj const& object, T const& value) {{ object.{1}(value); }}
     static void set(Obj const& object, T const& value) {{
         object.{1}(value);
     }}

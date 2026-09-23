@@ -796,6 +796,25 @@ TypeMap load_type_map(std::filesystem::path const& path) {
         if (value const* const events = members->find("events")) {
             map.hand_written_events = read_string_set(*events, path, "handWrittenMembers.events");
         }
+        if (value const* const array = members->find("boundMembers")) {
+            if (!array->is_array()) {
+                fail(path, "'handWrittenMembers.boundMembers' must be an array");
+            }
+            for (value const& entry : array->elements()) {
+                if (!entry.is_object()) {
+                    fail(path, "every bound member must be an object");
+                }
+                std::string direction = required_string(entry, path, "direction", "bound member");
+                if (direction != "input" && direction != "output" && direction != "both") {
+                    fail(path, "a bound member's 'direction' is \"input\", \"output\" or \"both\"");
+                }
+                map.bound_members.push_back(
+                    {required_string(entry, path, "class", "bound member"),
+                     required_string(entry, path, "property", "bound member"),
+                     required_string(entry, path, "value", "bound member"), std::move(direction),
+                     string_or(entry, path, "include", {})});
+            }
+        }
     }
     return map;
 }

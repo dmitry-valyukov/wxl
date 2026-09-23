@@ -172,7 +172,7 @@ wxl::Teardown wxl_launched() {
                                 row = 0,
                                 fontSize = 28,
                                 CharacterSpacing {100},
-                                text = Bind{calc->expression},
+                                text = BindOutput{calc->expression},
                             },
 
                             // Нижняя строка: главное табло (число)
@@ -183,7 +183,7 @@ wxl::Teardown wxl_launched() {
                                 fontSize = 64,
                                 textWrapping.wrap,
                                 CharacterSpacing {75},
-                                text = Bind{calc->display},
+                                text = BindOutput{calc->display},
                             },
                         },
                     },

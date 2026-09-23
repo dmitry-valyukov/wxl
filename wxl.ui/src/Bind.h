@@ -1,36 +1,54 @@
 #pragma once
 
-// wxl::Bind -- a binding written where the control is described.
+// wxl::Bind, BindInput, BindOutput -- a binding written where the control is
+// described.
 //
 //     struct Calc : core::sta_refcounted {
 //         core::observable<std::u16string> entry{u"0"};
 //     };
 //
-//     TextBlock { text = Bind{calc->entry} }              // one way: the field shows
-//     ToggleSwitch { isOn = Bind{settings.minimizeOnClose} }   // two ways: the control edits
+//     ToggleSwitch { isOn = Bind{settings.minimizeOnClose} }   // both ways: the control edits
 //     ToggleSwitch { Bind{settings.minimizeOnClose} }          // the same, by the data's type
+//     TextBlock { text = BindOutput{calc->entry} }        // from the field: the control shows
+//     TextBox { text = BindInput{search.query} }          // into the field: the control writes
+//     NumberBox { intermediateValue = BindInput{eq.a} }   // into the field, as typed
 //
-// Named, `property = Bind{field}` binds that property to the field: the control
-// opens showing the value and follows every change, by nobody's hand. Which way
-// the binding runs is the property's own nature, not a mode to choose. A
+// Three forms, one shape each, and a property takes the form its shape allows.
+//
+// Bind runs both ways: the control opens showing the value, follows every
+// change, and writes back what is edited on it, by nobody's hand. It takes a
 // property the control writes itself -- isOn under Toggled, text under
-// TextChanged -- has a two-way pair in impl/binding.h and is bound both ways,
-// the way WPF defaults TextBox.Text to two-way and TextBlock.Text to one; a
-// one-way binding into a control that edits would lose the edit to the next
-// write. Every other settable property is bound one way, through the setter
-// the generator already emits, and needs no pair written for it.
+// TextChanged -- which is a pair in impl/binding.h. A property the control
+// only shows has no way back and refuses it, naming BindOutput instead: a
+// binding that silently ran one way would look like the other.
+//
+// BindOutput runs from the field to the control only: the control opens
+// showing the value and follows every change, and what is typed into it stays
+// there -- a TextBox as a display that can still be selected and copied from.
+// It takes every property with a setter, pair or no pair, through the setter
+// the generator already emits, and nothing has to be written for it.
+//
+// BindInput runs from the control to the field only: the field takes each
+// value the control writes, and nothing is ever written back -- a query box
+// whose field is the search, not the text. It takes a pair, since only a
+// property the control writes has an event to read it under; a pair may take
+// it and nothing else -- NumberBox's intermediateValue, the number as it is
+// being typed, is read off the control and has no setter to show it with.
+// The control opens as the description left it, and the field keeps its value
+// until the control's first change.
 //
 // Unnamed, `Bind{field}` inside the braces rides the route every unnamed
 // argument does -- a callable applied to the object -- and binds the control's
 // canonical property by the data's type (observable<bool> on a ToggleSwitch ->
-// isOn). Only the two-way pairs have that route; a one-way binding names its
-// property, because a control has several of one type (isEnabled and
-// visibility are both bool) and the type alone cannot choose.
+// isOn). Only the pairs have that route, and BindInput and BindOutput take it
+// the same way; a binding of any other property names it, because a control
+// has several of one type (isEnabled and visibility are both bool) and the
+// type alone cannot choose.
 //
-// Bind holds the field by address and never owns it. The field is a member of a
-// model that outlives the description, and the binding is a watch inside that
-// field: it owns the control, the control holds nothing back, and both go when
-// the field goes.
+// A binding holds the field by address and never owns it. The field is a
+// member of a model that outlives the description, and the binding is a watch
+// inside that field: it owns the control, the control holds nothing back, and
+// both go when the field goes.
 
 #include "core.h"
 
@@ -38,19 +56,48 @@
 
 namespace wxl {
 
-template <class T>
-struct Bind {
+namespace impl {
+
+// What the three spellings share: the field by address, and the direction,
+// applied to whatever control the braces are building.
+template <class T, bind_direction way>
+struct bound_field {
+    static constexpr bind_direction direction = way;
+
     core::observable<T>* model;
 
-    explicit Bind(core::observable<T>& field) noexcept : model(&field) {}
+    explicit bound_field(core::observable<T>& field) noexcept : model(&field) {}
 
     template <class Control>
     void operator()(Control const& control) const {
-        impl::apply_bind(control, *model);
+        apply_bind(control, *model, direction);
     }
+};
+
+}  // namespace impl
+
+template <class T>
+struct Bind : impl::bound_field<T, impl::bind_direction::both> {
+    using impl::bound_field<T, impl::bind_direction::both>::bound_field;
 };
 
 template <class T>
 Bind(core::observable<T>&) -> Bind<T>;
+
+template <class T>
+struct BindInput : impl::bound_field<T, impl::bind_direction::input> {
+    using impl::bound_field<T, impl::bind_direction::input>::bound_field;
+};
+
+template <class T>
+BindInput(core::observable<T>&) -> BindInput<T>;
+
+template <class T>
+struct BindOutput : impl::bound_field<T, impl::bind_direction::output> {
+    using impl::bound_field<T, impl::bind_direction::output>::bound_field;
+};
+
+template <class T>
+BindOutput(core::observable<T>&) -> BindOutput<T>;
 
 }  // namespace wxl

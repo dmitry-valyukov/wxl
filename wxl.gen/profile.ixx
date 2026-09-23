@@ -177,6 +177,19 @@ struct TypeMap {
         std::string include;     // header defining that type, or empty
     };
 
+    // A property a generated class has as a binding target alone -- NumberBox's
+    // IntermediateValue, the number as it is being typed: no metadata declares
+    // it and no setter writes it, a pair in impl/binding.h reads it off the
+    // control. It gets the key, the tag, the class's schema anchor and a test
+    // line binding it in the direction the pair takes.
+    struct BoundMember {
+        std::string class_name;  // "Microsoft.UI.Xaml.Controls.NumberBox"
+        std::string name;        // "IntermediateValue", as metadata would spell it
+        std::string value_type;  // "double" -- the observable's type, under namespace wxl
+        std::string direction;   // "input", "output" or "both"
+        std::string include;     // header defining that type, or empty
+    };
+
     std::set<std::string> given_from_above;
     std::set<std::string> implicit_roots;
     std::vector<Projection> projections;
@@ -186,6 +199,7 @@ struct TypeMap {
     // `on...` tag, and an EventAdder calling the class's add_on.../remove_on....
     std::vector<HandWrittenProperty> hand_written_properties;
     std::set<std::string> hand_written_events;
+    std::vector<BoundMember> bound_members;
 };
 
 // Reads profiles/types.json. Throws std::runtime_error naming the file on

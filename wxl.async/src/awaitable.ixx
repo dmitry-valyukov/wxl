@@ -16,7 +16,7 @@ template <class R>
 class awaitable
 {
 public:
-    explicit awaitable(std::unique_ptr<async_op_t<R>> op) : op_(std::move(op)) {}
+    explicit awaitable(std::unique_ptr<async_op_t<R>> op) noexcept : op_(std::move(op)) {}
 
     /// Always suspends, even when the worker has already finished.
     ///
