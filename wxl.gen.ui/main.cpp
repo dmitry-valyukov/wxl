@@ -11,6 +11,7 @@
 #include "Card.h"
 #include "CompositionWindow.h"
 #include "Editor.h"
+#include "MagnifyEffect.h"
 #include "ThemeBrush.h"
 #include "VirtualTree.h"
 #include "generated/brushes.h"
@@ -122,10 +123,20 @@ wxl::Teardown wxl_launched() {
         height = 40.0,
     };
 
+    // Один эффект на все кнопки, как в образце Effects: копии — это тот же
+    // эффект, и анимации у всех кнопок общие.
+    auto const pop = MagnifyEffect {1.2, maximum = 1.35, minimum = 0.95};
+
+    auto const toolButton = Preset {
+        styles.Button.CommandBarFlyoutEllipsis,
+        pop,
+    };
+
     // Переключатель показа — в тон кнопкам командной панели: без рамки, в
     // обычном состоянии прозрачный, нажатый — сдержанной подложкой, а не
     // акцентом шаблона ToggleButton; знак нажатого — цветом текста.
     auto const toolToggle = Preset {
+        pop,
         width = 44.0,
         height = 40.0,
         Padding {0},
@@ -173,7 +184,7 @@ wxl::Teardown wxl_launched() {
                 vAlign.center,
                 Margin {0, 0, 8, 0},
                 Button {
-                    styles.Button.CommandBarFlyoutEllipsis,
+                    toolButton,
                     toolTip = u"Уменьшить масштаб",
                     isEnabled = BindOutput {zoom->canZoomOut},
                     onClick = [zoom] {
@@ -184,14 +195,14 @@ wxl::Teardown wxl_launched() {
                     content = FontIcon {toolGlyph, glyph = glyphs::zoomOut},
                 },
                 Button {
-                    styles.Button.CommandBarFlyoutEllipsis,
+                    toolButton,
                     width = 64.0,
                     toolTip = u"Масштаб 100 %",
                     onClick = [zoom] { zoom->step.set(zoomDefault); },
                     content = TextBlock {text = BindOutput {zoom->caption}},
                 },
                 Button {
-                    styles.Button.CommandBarFlyoutEllipsis,
+                    toolButton,
                     toolTip = u"Увеличить масштаб",
                     isEnabled = BindOutput {zoom->canZoomIn},
                     onClick = [zoom] {
@@ -215,12 +226,12 @@ wxl::Teardown wxl_launched() {
                         orientation.horizontal,
                         spacing = 4,
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Новый профиль",
                             content = FontIcon {toolGlyph, glyph = glyphs::newProfile},
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Открыть профиль",
                             content = FontIcon {
                                 toolFilledGlyph,
@@ -229,7 +240,7 @@ wxl::Teardown wxl_launched() {
                             },
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Сохранить профиль",
                             content = FontIcon {
                                 toolFilledGlyph,
@@ -256,12 +267,12 @@ wxl::Teardown wxl_launched() {
                             content = FontIcon {toolGlyph, glyph = glyphs::notChosen},
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Отменить",
                             content = FontIcon {toolGlyph, glyph = glyphs::undo},
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Повторить",
                             content = FontIcon {toolGlyph, glyph = glyphs::redo},
                         },
