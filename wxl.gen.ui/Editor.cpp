@@ -375,7 +375,7 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& profile) {
     editor->data_ = std::make_unique<Data>(load_profile(profile), files);
     editor->types_ = intrusive_ptr<TreeModel> {new TypesModel {*editor}, /*add_ref=*/false};
     auto const file = profile.filename().wstring();
-    editor->profileName.set(std::u16string {file.begin(), file.end()});
+    editor->title.set(std::u16string {file.begin(), file.end()} + u" — wxl.gen.ui");
     return editor;
 }
 
