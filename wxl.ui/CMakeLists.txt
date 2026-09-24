@@ -92,7 +92,14 @@ add_library(wxl.ui STATIC
     src/event_awaitable.h
     src/BevelEffect.h
     src/BevelEffect.cpp
+    src/Button3DEffect.h
+    src/Button3DEffect.cpp
     src/HaloEffect.h
+    src/HaloEffect.cpp
+    src/GaussianBlurEffect.h
+    src/GaussianBlurEffect.cpp
+    src/impl/effect_layer.h
+    src/impl/effect_layer.cpp
     src/MagnifyEffect.h
     src/MagnifyEffect.cpp
     src/schema.h
@@ -102,6 +109,7 @@ add_library(wxl.ui STATIC
     src/Collection.h
     src/Collection.impl.h
     src/Color.h
+    src/Relief.h
     src/Thickness.h
     src/TaggedValue.h
     src/Uri.h

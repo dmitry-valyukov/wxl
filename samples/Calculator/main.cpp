@@ -4,89 +4,102 @@ using namespace wxl;
 using namespace wxl::dsl;
 
 namespace {
-    // Шаблон фона панели калькулятора: кисть строится при применении
-    Template<RadialGradientBrush> backgroundTemplate(Color centerColor, Color edgeColor) {
+
+    // Лампа сцены: сверху и немного слева — 105°, если считать от горизонтали
+    // против часовой стрелки, — и поднята на 50° над поверхностью; тёплый
+    // ключевой свет и холодноватый фоновый. В разметке заданы только альбедо
+    // поверхностей, все тени и блики из них выводятся в compile-time по формулам
+    // освещения.
+    constexpr Light lamp {
+        Direction::from_angles(105, 50),
+        rgb(255, 246, 232),
+        rgb(140, 146, 168)
+    };
+
+    // Тона освещённой панели: под лампой, на полпути и у края градиента.
+    struct Glow {
+        Color centre, mid, edge;
+    };
+
+    constexpr double glowRadius = 1.3;
+
+    // Панель под лампой на высоте height (в радиусах градиента): фоновый
+    // свет ровный, ключевой спадает от проекции лампы к краю.
+    consteval Glow glow(Color albedo, double height) {
+        return {
+            relief_helper::under(albedo, lamp, 0.0, height),
+            relief_helper::under(albedo, lamp, 0.5 * glowRadius, height),
+            relief_helper::under(albedo, lamp, glowRadius, height),
+        };
+    }
+
+    // Шаблон фона панели: кисть строится при применении
+    Template<RadialGradientBrush> backgroundTemplate(Glow const& tones) {
         return {
             center = {0.33, 0.33},
             gradientOrigin = {0.33, 0.33},
-            radiusX = 1.3,
-            radiusY = 1.3,
-            GradientStop {centerColor, offset = 0.0},
-            GradientStop {edgeColor, offset = 1.0},
+            radiusX = glowRadius,
+            radiusY = glowRadius,
+            Template<GradientStop> {tones.centre, offset = 0.0},
+            Template<GradientStop> {tones.mid, offset = 0.5},
+            Template<GradientStop> {tones.edge, offset = 1.0},
         };
     }
 
-    // Тона «вдавленной» клавиши: ядро, кромка и её светлый край
-    struct Dip {
-        Color core, rim, edge;
+    // Общий стиль для шрифтового оформления LCD-экрана калькулятора
+    auto const lcdDisplayPreset = Preset {
+        fontFamily = FontFamily{u"Assets/digitalism.ttf#Digitalism"},
+        foreground = Template<SolidColorBrush>{rgb(44, 58, 28)},
+        hAlign.stretch,
+        textAlignment.right,
+        FontWeight {600},
+        HaloEffect {
+            color = rgb(92, 138, 32),
+            blurRadius = 14.0f
+        },
     };
 
-    // Полный набор тонов клавиши: покой, наведение, нажатие. Все производные
-    // тона — сдвиг светлоты исходных в OKLCH, вычисленный компилятором, так
-    // что набор целиком константа, а на старте только собираются кисти.
-    struct KeyFace {
-        Color ink, inkPressed;
-        Dip rest, hover, pressed;
-    };
-
-    consteval Dip dip(Color core, Color rim) {
-        return {core, rim, lightness(rim, 0.06)};
-    }
-
-    consteval KeyFace keyFace(Color ink, Color core, Color rim) {
-        return {
-            ink, lightness(ink, -0.15),
-            dip(core, rim),
-            dip(lightness(core, 0.06), lightness(rim, 0.06)),
-            dip(lightness(core, -0.03), lightness(rim, -0.05)),
-        };
-    }
-
-    // Эффект «вдавленной» в панель клавиши
-    Template<RadialGradientBrush> dipTemplate(Dip const& tones) {
-        return {
-            center = {0.5, 0.5},
-            gradientOrigin = {0.1, 0.1},
-            radiusX = 1.85,
-            radiusY = 1.15,
-            GradientStop {tones.core, offset = 0.0},
-            GradientStop {tones.rim, offset = 0.75},
-            GradientStop {tones.edge, offset = 1.0},
-        };
-    }
-
-    // Настройка стилей кнопки и её состояний (PointerOver, Pressed) через словарь тем
-    auto keyFacePreset(KeyFace const& face) {
-        return Preset{
-            foreground = SolidColorBrush {face.ink},
-            background = dipTemplate(face.rest),
-
-            ThemeBrush {u"ButtonBackgroundPointerOver", dipTemplate(face.hover).build()},
-            ThemeBrush {u"ButtonBackgroundPressed", dipTemplate(face.pressed).build()},
-            ThemeBrush {u"ButtonForegroundPointerOver", SolidColorBrush {face.ink}},
-            ThemeBrush {u"ButtonForegroundPressed", SolidColorBrush {face.inkPressed}},
-            ThemeBrush {u"ButtonBorderBrushPointerOver", SolidColorBrush {colors.black}},
-            ThemeBrush {u"ButtonBorderBrushPressed", SolidColorBrush {colors.black}},
-
-            borderBrush = SolidColorBrush {colors.black},
-            BorderThickness {1},
-            CornerRadius {6},
-
-            Padding {1},
-            horizontalContentAlignment = HorizontalAlignment::Stretch,
-            verticalContentAlignment = VerticalAlignment::Stretch,
-        };
-    }
-
-    // Палитры трёх видов клавиш: чернила, ядро (с прозрачностью) и кромка
-    constexpr KeyFace numericKey  = keyFace(rgb(237, 239, 242), rgba(38, 40, 43, 0.933), rgb(70, 74, 81));
-    constexpr KeyFace actionKey   = keyFace(rgb(204, 217, 245), rgba(29, 38, 58, 0.933), rgb(50, 70, 119));
-    constexpr KeyFace terminalKey = keyFace(rgb(255, 227, 180), rgba(74, 44, 23, 0.933), rgb(182, 100, 29));
+    // Альбедо корпуса и табло: тёмный полупрозрачный пластик и подсвеченный
+    // изнутри экран, над которым лампа стоит вдвое выше и светит ровнее
+    constexpr Glow bodyGlow = glow(rgba(39, 39, 89, 0.66), 1.0);
+    constexpr Glow lcdGlow  = glow(rgb(208, 220, 170), 2.0);
 
     // Кант для псевдообъёма: блик слева сверху, тень справа снизу. Рисует его
     // композитор поверх собственной обводки элемента.
-    constexpr Color rimLight = rgba(255, 255, 255, 0.36);
-    constexpr Color rimShade = rgba(0, 0, 0, 0.55);
+    constexpr Color rimLight = rgba(255, 255, 255, 0.46);
+    constexpr Color rimShade = rgba(52, 52, 52, 0.55);
+
+    // Три вида клавиш: чернила и материал (с прозрачностью), остальное —
+    // свет: тень 0.7, вдавленный верх.
+    Button3DEffect numericKey {
+        foreground = rgb(237, 239, 242),
+        background = rgba(68, 72, 79, 0.933),
+        shadow = 0.4,
+        emboss = -0.3
+    };
+
+    Button3DEffect actionKey {
+        foreground = rgb(204, 217, 245),
+        background = rgba(48, 68, 116, 0.933),
+        shadow = 0.4,
+        emboss = -0.3
+    };
+
+    Button3DEffect terminalKey {
+        foreground = rgb(255, 227, 180),
+        background = rgba(176, 98, 30, 0.933),
+        shadow = 0.4,
+        emboss = -0.3
+    };
+
+    // Раскладка клавиши — скругление, отступ
+    // и растяжение содержимого. Вид клавиши даёт Button3DEffect.
+    Preset keyLayoutPreset {
+        CornerRadius {8},
+        Padding {1},
+        horizontalContentAlignment = hAlign.stretch,
+        verticalContentAlignment = vAlign.stretch,
+    };
 }
 
 using calculator::Calc;
@@ -104,28 +117,10 @@ wxl::Teardown wxl_launched() {
     // Голый указатель для дешевого захвата
     Calc * calc = calcKeeper.get();
 
-    // Общий стиль для шрифтового оформления LCD-экрана калькулятора
-    auto const lcdDisplayPreset = Preset{
-        fontFamily = FontFamily{u"Assets/digitalism.ttf#Digitalism"},
-        foreground = Template<SolidColorBrush>{rgb(44, 58, 28)},
-        hAlign.stretch,
-        textAlignment.right,
-        FontWeight {600},
-        HaloEffect {color = rgb(92, 138, 32), blurRadius = 14.0f},
-    };
-
-    // Клавиши: кант внутри чёрной обводки, свет чуть заходит на правую сторону.
-    auto const rim = BevelEffect {rimLight, rimShade, Margin {1}, offset = 2};
-
-    // Стили для различных типов клавиш
-    auto const numericKeyStyle  = keyFacePreset(numericKey);
-    auto const actionKeyStyle   = keyFacePreset(actionKey);
-    auto const terminalKeyStyle = keyFacePreset(terminalKey);
-
-    auto selectKeyPreset = [&](char16_t key) {
-        return calculator::isNumeric(key)  ? numericKeyStyle
-             : calculator::isTerminal(key) ? terminalKeyStyle
-                                           : actionKeyStyle;
+    auto selectButtonEffect = [&](char16_t key) {
+        return calculator::isNumeric(key)  ? numericKey
+             : calculator::isTerminal(key) ? terminalKey
+                                           : actionKey;
     };
 
     // Декларативное описание всего интерфейса в рамках единого C++ выражения
@@ -136,9 +131,9 @@ wxl::Teardown wxl_launched() {
         // Корпус — сама сетка клавиш: фон, кант и фокус надеты прямо на неё.
         content = Grid {
             requestedTheme = ElementTheme::Dark,
-            BevelEffect {rimLight, rimShade, strokeThickness = 1},
+            BevelEffect {rimLight, rimShade, strokeThickness = 2},
             isTabStop = true,
-            background = backgroundTemplate(rgba(35, 35, 100, 0.584), rgba(16, 16, 39, 0.584)),
+            background = backgroundTemplate(bodyGlow),
             CornerRadius {6},
             Padding {16},
             rowSpacing = 8,
@@ -168,9 +163,9 @@ wxl::Teardown wxl_launched() {
             Border {
                 row = 0,
                 columnSpan = 4,
-                background = backgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
+                background = backgroundTemplate(lcdGlow),
                 borderBrush = rgba(51, 51, 51, 0.753),
-                BorderThickness {3},
+                BorderThickness {4},
                 BevelEffect {rimShade, rimLight},
                 CornerRadius {10},
                 Padding {14, 8, 14, 0},
@@ -208,20 +203,24 @@ wxl::Teardown wxl_launched() {
                         u"123%"
                         u"±0.="> key) {
                 return Button {
-                    fontSize = 26,
-                    FontWeight {600},
-                    selectKeyPreset(key.value),
+                    keyLayoutPreset,
+                    selectButtonEffect(key.value),
                     hAlign.stretch, vAlign.stretch,
                     row = key.index / 4 + 1,
                     column = key.index % 4,
                     onClick = [calc, symbol = key.value] { calc->press(symbol); },
 
-                    rim,
                     content = TextBlock {
                         key.text(),
+                        fontSize = 28,
+                        FontWeight {600},
                         hAlign.center,
                         vAlign.center,
-                        HaloEffect {color = rgb(43, 27, 0), blurRadius = 8.0f},
+                        GaussianBlurEffect {
+                            color = rgb(0, 0, 0),
+                            blurRadius = 3.0f,
+                            gamma = 0.5
+                        },
                     },
                 };
             },

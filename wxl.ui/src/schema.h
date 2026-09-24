@@ -9,10 +9,36 @@
 // test/dsl_surface.cpp: no generator writes one for it.
 
 #include "BevelEffect.h"
+#include "Button3DEffect.h"
+#include "GaussianBlurEffect.h"
+#include "HaloEffect.h"
 #include "MagnifyEffect.h"
 #include "generated/schema.h"
 
 namespace wxl::dsl::schema {
+
+struct HaloEffect {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Color, ::wxl::Color, ::wxl::HaloEffect> color{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::BlurRadius, double, ::wxl::HaloEffect> blurRadius{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Opacity, double, ::wxl::HaloEffect> opacity{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Offset, ::wxl::Vector3, ::wxl::HaloEffect> offset{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::ZIndex, int32_t, ::wxl::HaloEffect> zIndex{};
+};
+
+struct GaussianBlurEffect {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Color, ::wxl::Color, ::wxl::GaussianBlurEffect> color{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::BlurRadius, double, ::wxl::GaussianBlurEffect> blurRadius{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Opacity, double, ::wxl::GaussianBlurEffect> opacity{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Gamma, double, ::wxl::GaussianBlurEffect> gamma{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::ZIndex, int32_t, ::wxl::GaussianBlurEffect> zIndex{};
+};
+
+struct Button3DEffect {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Foreground, ::wxl::Color, ::wxl::Button3DEffect> foreground{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Background, ::wxl::Color, ::wxl::Button3DEffect> background{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Shadow, double, ::wxl::Button3DEffect> shadow{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Emboss, double, ::wxl::Button3DEffect> emboss{};
+};
 
 struct BevelEffect {
     static constexpr ::wxl::Property<::wxl::PropertyKey::StrokeThickness, double, ::wxl::BevelEffect> strokeThickness{};
