@@ -20,6 +20,14 @@ namespace {
 constexpr std::u16string_view collapsedGlyph = u"\uE76C";
 constexpr std::u16string_view expandedGlyph = u"\uE70D";
 
+// Отметка — знак шрифта значков, а не CheckBox: у того галочка — AnimatedIcon,
+// и при листании, когда строка получает другой тип, она рисовалась заново.
+// checkbox_checked_16_regular и checkbox_unchecked_16_regular.
+constexpr std::u16string_view checkedGlyph = u"\uF27C";
+constexpr std::u16string_view uncheckedGlyph = u"\uF290";
+
+constexpr std::u16string_view iconFont = u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
+
 // Колесо даёт 120 на щелчок; щелчок листает три строки, как в проводнике.
 constexpr int32_t wheelUnitsPerLine = 40;
 
@@ -87,20 +95,24 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         },
     };
 
+    // Щелчок по отметке строку не выбирает: он до неё не доходит.
     Apply {row.check,
-        minWidth = 0.0,
+        fontFamily = FontFamily {iconFont},
+        fontSize = 16.0,
         vAlign.center,
-        onClick = [this, slot](CheckBox const&, RoutedEventArgs&) {
+        Margin {4, 0, 0, 0},
+        onTapped = [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
             if (model_) {
                 model_->toggleChecked(first() + slot);
                 render();
             }
+            args.handled(true);
         },
     };
 
     // Знаки размера 16 и кегль 16: знак ложится на свою сетку без масштаба.
     Apply {row.icon,
-        fontFamily = FontFamily {u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
+        fontFamily = FontFamily {iconFont},
         fontSize = 16.0,
         vAlign.center,
         Margin {4, 0, 0, 0},
@@ -233,7 +245,10 @@ void VirtualTree::render() {
                        : data.expander == Expander::Expanded ? expandedGlyph
                                                              : std::u16string_view{});
         row.check.visibility(data.check == Check::None ? Visibility::Collapsed : Visibility::Visible);
-        row.check.isChecked(data.check == Check::Checked);
+        bool const checked = data.check == Check::Checked;
+        row.check.text(checked ? checkedGlyph : uncheckedGlyph);
+        row.check.foreground(checked ? static_cast<Brush const&>(brushes.Accent.FillColor.Default)
+                                     : static_cast<Brush const&>(brushes.Text.FillColor.Secondary));
 
         glyph_.clear();
         if (data.icon) {

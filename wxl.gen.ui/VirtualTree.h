@@ -83,7 +83,7 @@ private:
         wxl::StackPanel panel;
         wxl::Border indent;
         wxl::TextBlock glyph;
-        wxl::CheckBox check;
+        wxl::TextBlock check;
         wxl::TextBlock icon;
         wxl::TextBlock text;
     };
