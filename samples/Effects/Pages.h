@@ -55,6 +55,9 @@ wxl::FrameworkElement showcase(Snippet description, std::span<const Sample> samp
 // Halo Effect — свечение вокруг глифов (HaloPage.cpp).
 wxl::FrameworkElement haloPage();
 
+// Gaussian Blur Effect — ореол графом эффектов с гаммой спада (GaussianBlurPage.cpp).
+wxl::FrameworkElement gaussianBlurPage();
+
 // Bevel Effect — скошенная кромка, светлая и тёмная по диагонали (BevelPage.cpp).
 wxl::FrameworkElement bevelPage();
 

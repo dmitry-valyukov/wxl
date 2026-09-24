@@ -17,3 +17,4 @@
 #include "MagnifyEffect.h"
 #include "BevelEffect.h"
 #include "HaloEffect.h"
+#include "GaussianBlurEffect.h"

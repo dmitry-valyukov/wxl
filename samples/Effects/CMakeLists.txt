@@ -31,6 +31,7 @@ wxl_add_executable(sample.effects
     main.cpp
     Showcase.cpp
     HaloPage.cpp
+    GaussianBlurPage.cpp
     MagnifyPage.cpp
     BevelPage.cpp
     ${_effects_snippets}
