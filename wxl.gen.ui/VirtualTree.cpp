@@ -160,15 +160,19 @@ Brush const& VirtualTree::iconBrush(RowIcon const& icon) {
         }
     }
 
+    return fills_.emplace_back(&icon, iconFill(icon.outer, icon.inner).build()).second;
+}
+
+Template<RadialGradientBrush> iconFill(Color outer, Color inner) {
     // Радиус 0.5 доходит до краёв знака: светлая середина, тёмный край.
-    return fills_.emplace_back(&icon, RadialGradientBrush {
+    return {
         center = {0.5, 0.5},
         gradientOrigin = {0.5, 0.5},
         radiusX = 0.5,
         radiusY = 0.5,
-        GradientStop {icon.inner, offset = 0.0},
-        GradientStop {icon.outer, offset = 1.0},
-    }).second;
+        GradientStop {inner, offset = 0.0},
+        GradientStop {outer, offset = 1.0},
+    };
 }
 
 void VirtualTree::model(intrusive_ptr<TreeModel> value) {

@@ -33,11 +33,12 @@ std::wstring widen(std::string_view utf8) {
     return wide;
 }
 
-// Знаки кнопок панели — размер 20 шрифта Fluent UI System Icons (Assets).
+// Знаки кнопок панели — размер 20 шрифта Fluent UI System Icons (Assets):
+// контурные из Regular, open и save — заливочные из Filled.
 namespace glyphs {
     constexpr char16_t newProfile[] {0xE4DB, 0};         // document_add
-    constexpr char16_t open[] {0xF42E, 0};               // folder_open
-    constexpr char16_t save[] {0xF67F, 0};               // save
+    constexpr char16_t open[] {0xF432, 0};               // folder_open, Filled
+    constexpr char16_t save[] {0xF689, 0};               // save, Filled
     constexpr char16_t chosen[] {0xF28D, 0};             // checkbox_checked
     constexpr char16_t dependencies[] {0xE2FC, 0};       // checkbox_checked_sync
     constexpr char16_t notChosen[] {0xF291, 0};          // checkbox_unchecked
@@ -106,6 +107,10 @@ wxl::Teardown wxl_launched() {
         fontFamily = FontFamily {u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
         fontSize = 20.0,
     };
+    auto const toolFilledGlyph = Preset {
+        fontFamily = FontFamily {u"Assets/FluentSystemIcons-Filled.ttf#FluentSystemIcons-Filled"},
+        fontSize = 20.0,
+    };
 
     // Верхние панели — как в образце HelloHere. Панель профиля пока макет:
     // действий на кнопках нет; переключатели показа — знаки тех же отметок,
@@ -131,12 +136,20 @@ wxl::Teardown wxl_launched() {
                         Button {
                             styles.Button.CommandBarFlyoutEllipsis,
                             toolTip = u"Открыть профиль",
-                            content = FontIcon {toolGlyph, glyph = glyphs::open},
+                            content = FontIcon {
+                                toolFilledGlyph,
+                                glyph = glyphs::open,
+                                foreground = iconFill(rgb(109, 55, 16), rgb(255, 167, 38)),
+                            },
                         },
                         Button {
                             styles.Button.CommandBarFlyoutEllipsis,
                             toolTip = u"Сохранить профиль",
-                            content = FontIcon {toolGlyph, glyph = glyphs::save},
+                            content = FontIcon {
+                                toolFilledGlyph,
+                                glyph = glyphs::save,
+                                foreground = iconFill(rgb(10, 14, 28), rgb(41, 121, 255)),
+                            },
                         },
                         ToggleButton {
                             toolToggle,

@@ -33,6 +33,9 @@ struct RowIcon {
     wxl::Color inner;
 };
 
+// Радиальная заливка значка — та же у строк дерева и у кнопок панели.
+wxl::Template<wxl::RadialGradientBrush> iconFill(wxl::Color outer, wxl::Color inner);
+
 // Строка, как её показывает дерево. Текст — UTF-8 модели; дерево читает его
 // сразу, до следующего обращения к модели.
 struct TreeRow {

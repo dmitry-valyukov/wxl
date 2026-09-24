@@ -10,7 +10,8 @@ wxl_add_executable(wxl.gen.ui
     VirtualTree.cpp
 )
 
-# Шрифт значков строк -- Fluent UI System Icons (MIT), рядом с исполняемым файлом.
+# Шрифты значков -- Fluent UI System Icons (MIT), контурный и заливочный, рядом с
+# исполняемым файлом. Коды знаков -- в icons/*.json того же набора.
 wxl_target_assets(wxl.gen.ui Assets)
 
 # Профили и обход метаданных -- те же, что у генератора.
