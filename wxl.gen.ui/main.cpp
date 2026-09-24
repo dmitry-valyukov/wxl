@@ -1,12 +1,17 @@
 // Визуальный редактор профилей генератора проекции.
 
+#include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <iterator>
 #include <string>
+#include <string_view>
 
 #include "Bind.h"
 #include "Card.h"
+#include "CompositionWindow.h"
 #include "Editor.h"
+#include "MagnifyEffect.h"
 #include "ThemeBrush.h"
 #include "VirtualTree.h"
 #include "generated/brushes.h"
@@ -44,7 +49,40 @@ namespace glyphs {
     constexpr char16_t notChosen[] {0xF291, 0};          // checkbox_unchecked
     constexpr char16_t undo[] {0xF199, 0};               // arrow_undo
     constexpr char16_t redo[] {0xF16E, 0};               // arrow_redo
+    constexpr char16_t zoomOut[] {0xF8C6, 0};            // zoom_out
+    constexpr char16_t zoomIn[] {0xF8C4, 0};             // zoom_in
 }
+
+// Вкладки над левым деревом. Выбранную узнают по тексту: вкладка — это её имя.
+constexpr std::u16string_view typesTab = u"Types";
+constexpr std::u16string_view resourcesTab = u"Resources";
+
+// Масштаб всего окна — по сетке, а не множителем: из любого шага кнопки
+// приходят в те же точки, и 100 % всегда среди них.
+constexpr double zoomSteps[] {0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0};
+constexpr uint32_t zoomDefault = 2;
+constexpr uint32_t zoomLast = std::size(zoomSteps) - 1;
+
+core::u16_text percent(uint32_t step) {
+    core::u16_text text = core::to_u16(zoomSteps[step] * 100, std::chars_format::fixed, 0);
+    text += u" %";
+    return text;
+}
+
+// Шаг сетки, который ставят кнопки, и то, что за ним следует: подпись и
+// доступность кнопок на краях сетки.
+struct Zoom {
+    core::observable<uint32_t> step {zoomDefault};
+    core::observable<core::u16_text> caption;
+    core::observable<bool> canZoomOut;
+    core::observable<bool> canZoomIn;
+
+    Zoom() {
+        caption.follow(step, percent);
+        canZoomOut.follow(step, [](uint32_t step) { return step > 0; });
+        canZoomIn.follow(step, [](uint32_t step) { return step < zoomLast; });
+    }
+};
 
 }  // namespace
 
@@ -75,7 +113,8 @@ wxl::Teardown wxl_launched() {
         right->refresh();
     });
 
-    // Верхняя панель — карточка, как в образце HelloHere, высотой в кнопку.
+    // Панель инструментов — одна на всё окно, карточкой, как в образце HelloHere,
+    // высотой в кнопку.
     auto const topPanel = Preset {
         row = 0,
         hAlign.stretch,
@@ -84,10 +123,20 @@ wxl::Teardown wxl_launched() {
         height = 40.0,
     };
 
+    // Один эффект на все кнопки, как в образце Effects: копии — это тот же
+    // эффект, и анимации у всех кнопок общие.
+    auto const pop = MagnifyEffect {1.2, maximum = 1.35, minimum = 0.95};
+
+    auto const toolButton = Preset {
+        styles.Button.CommandBarFlyoutEllipsis,
+        pop,
+    };
+
     // Переключатель показа — в тон кнопкам командной панели: без рамки, в
     // обычном состоянии прозрачный, нажатый — сдержанной подложкой, а не
     // акцентом шаблона ToggleButton; знак нажатого — цветом текста.
     auto const toolToggle = Preset {
+        pop,
         width = 44.0,
         height = 40.0,
         Padding {0},
@@ -103,38 +152,86 @@ wxl::Teardown wxl_launched() {
         ThemeBrush {u"ToggleButtonForegroundCheckedPressed", brushes.Text.FillColor.Secondary},
     };
 
+    // Шрифт — по ms-appx:///, как велит FontFamily.h: относительный путь в знаке
+    // на заголовке окна шрифт не находил, и знаки пустели во всём окне.
     auto const toolGlyph = Preset {
-        fontFamily = FontFamily {u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
+        fontFamily = FontFamily {u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
         fontSize = 20.0,
     };
     auto const toolFilledGlyph = Preset {
-        fontFamily = FontFamily {u"Assets/FluentSystemIcons-Filled.ttf#FluentSystemIcons-Filled"},
+        fontFamily = FontFamily {u"ms-appx:///Assets/FluentSystemIcons-Filled.ttf#FluentSystemIcons-Filled"},
         fontSize = 20.0,
     };
 
-    // Верхние панели — как в образце HelloHere. Панель профиля пока макет:
-    // действий на кнопках нет; переключатели показа — знаки тех же отметок,
-    // что в дереве.
-    auto window = Window {
+    auto const zoom = core::make_refcounted<Zoom>();
+
+    // Окно со своим заголовком, как в образце CustomTitleBar: заголовок — строка
+    // над содержимым, кнопки окна рисует само окно его высотой, и масштаб
+    // увеличивает весь остров разом — заголовок, кнопки окна и панели.
+    //
+    // Панель профиля пока макет: действий на кнопках нет; переключатели показа —
+    // знаки тех же отметок, что в дереве.
+    CompositionWindow const window {
         title = BindOutput {document->title},
-        SplitView {
-            displayMode = SplitViewDisplayMode::Inline,
-            isPaneOpen = true,
-            openPaneLength = 520.0,
-            pane = Grid {
-                rowDefinitions = u"auto,*",
-                Card {
-                    topPanel,
+        minSize = {640, 400},
+        extendsContentIntoTitleBar = true,
+        titleBar = {
+            background = brushes.SolidBackgroundFillColor.Secondary,
+            title = BindOutput {document->title},
+            rightHeader = StackPanel {
+                orientation.horizontal,
+                spacing = 4,
+                vAlign.center,
+                Margin {0, 0, 8, 0},
+                Button {
+                    toolButton,
+                    toolTip = u"Уменьшить масштаб",
+                    isEnabled = BindOutput {zoom->canZoomOut},
+                    onClick = [zoom] {
+                        if (uint32_t const step = zoom->step.get(); step > 0) {
+                            zoom->step.set(step - 1);
+                        }
+                    },
+                    content = FontIcon {toolGlyph, glyph = glyphs::zoomOut},
+                },
+                Button {
+                    toolButton,
+                    width = 64.0,
+                    toolTip = u"Масштаб 100 %",
+                    onClick = [zoom] { zoom->step.set(zoomDefault); },
+                    content = TextBlock {text = BindOutput {zoom->caption}},
+                },
+                Button {
+                    toolButton,
+                    toolTip = u"Увеличить масштаб",
+                    isEnabled = BindOutput {zoom->canZoomIn},
+                    onClick = [zoom] {
+                        if (uint32_t const step = zoom->step.get(); step < zoomLast) {
+                            zoom->step.set(step + 1);
+                        }
+                    },
+                    content = FontIcon {toolGlyph, glyph = glyphs::zoomIn},
+                },
+            },
+        },
+        Grid {
+            rowDefinitions = u"auto,*",
+            Card {
+                topPanel,
+                Grid {
+                    // Первая колонка — ширина левой части раздвижки ниже: кнопки
+                    // стоят над деревом типов, имя типа — над деревом членов.
+                    columnDefinitions = u"520,*",
                     StackPanel {
                         orientation.horizontal,
                         spacing = 4,
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Новый профиль",
                             content = FontIcon {toolGlyph, glyph = glyphs::newProfile},
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Открыть профиль",
                             content = FontIcon {
                                 toolFilledGlyph,
@@ -143,7 +240,7 @@ wxl::Teardown wxl_launched() {
                             },
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Сохранить профиль",
                             content = FontIcon {
                                 toolFilledGlyph,
@@ -170,35 +267,55 @@ wxl::Teardown wxl_launched() {
                             content = FontIcon {toolGlyph, glyph = glyphs::notChosen},
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Отменить",
                             content = FontIcon {toolGlyph, glyph = glyphs::undo},
                         },
                         Button {
-                            styles.Button.CommandBarFlyoutEllipsis,
+                            toolButton,
                             toolTip = u"Повторить",
                             content = FontIcon {toolGlyph, glyph = glyphs::redo},
                         },
                     },
-                },
-                Border {row = 1, left->view()},
-            },
-            content = Grid {
-                rowDefinitions = u"auto,*",
-                Card {
-                    topPanel,
                     TextBlock {
+                        column = 1,
                         text = BindOutput {document->typeName},
                         vAlign.center,
                     },
                 },
-                Border {row = 1, right->view()},
+            },
+            SplitView {
+                row = 1,
+                displayMode = SplitViewDisplayMode::Inline,
+                isPaneOpen = true,
+                openPaneLength = 520.0,
+                pane = Grid {
+                    rowDefinitions = u"auto,*",
+                    SelectorBar {
+                        onSelectionChanged = [left, document](SelectorBar const& bar,
+                                                              SelectorBarSelectionChangedEventArgs&) {
+                            if (auto const item = bar.selectedItem()) {
+                                bool const resources = std::u16string_view {item.text()} == resourcesTab;
+                                left->model(resources ? document->resources() : document->types());
+                            }
+                        },
+                        SelectorBarItem {text = typesTab, isSelected = true},
+                        SelectorBarItem {text = resourcesTab},
+                    },
+                    Border {row = 1, left->view()},
+                },
+                content = right->view(),
             },
         },
     };
 
-    window.appWindow().resize({1200, 800});
+    // Окно — ручка, и единственный наблюдатель, который его масштабирует,
+    // держит его по значению; кнопки держат модель и окна не видят.
+    zoom->step.on_change([window](uint32_t const& step) noexcept { window.zoom(zoomSteps[step]); });
+
+    window.background(rgb(243, 243, 243));
+    window.centreWithClientSize({1200, 800});
     window.activate();
 
-    return [document, types, members](TeardownReason) {};
+    return [document, types, members, zoom](TeardownReason) {};
 }

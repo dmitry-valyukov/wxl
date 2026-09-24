@@ -480,6 +480,10 @@ Profile load_profile(std::filesystem::path const& path) {
         for (value const& entry : types->members()) {
             std::string const name{entry.name().chars()};
             profile.types.emplace(name, read_member_filter(entry, path, name));
+            value const* const styles = entry.find("styles");
+            profile.styles.emplace(
+                name, styles ? MemberFilter::allow(read_string_set(*styles, path, "styles"))
+                             : MemberFilter::all());
             if (auto added = read_synthetic_members(entry, path, name); !added.empty()) {
                 profile.synthetic.emplace(name, std::move(added));
             }
@@ -500,6 +504,10 @@ Profile load_profile(std::filesystem::path const& path) {
     } else {
         fail(path, std::format("'discoveredTypes' must be \"none\" or \"all\", got \"{}\"",
                                discovered));
+    }
+
+    if (value const* const brushes = document.find("brushes")) {
+        profile.brushes = MemberFilter::allow(read_string_set(*brushes, path, "brushes"));
     }
 
     profile.windows_metadata = bool_or(document, path, "windowsMetadata", false);
@@ -577,6 +585,13 @@ struct ProfileLoader {
                 }
             }
         }
+        for (auto&& [name, filter] : profile.styles) {
+            auto [it, inserted] = result.styles.try_emplace(name, filter);
+            if (!inserted) {
+                it->second.merge(filter);
+            }
+        }
+        result.brushes.merge(profile.brushes);
         result.discovered.merge(profile.discovered);
         windows_metadata = windows_metadata || profile.windows_metadata;
 

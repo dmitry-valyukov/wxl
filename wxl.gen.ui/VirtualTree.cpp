@@ -26,7 +26,7 @@ constexpr std::u16string_view expandedGlyph = u"\uE70D";
 constexpr std::u16string_view checkedGlyph = u"\uF28D";
 constexpr std::u16string_view uncheckedGlyph = u"\uF291";
 
-constexpr std::u16string_view iconFont = u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
+constexpr std::u16string_view iconFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
 
 // Колесо даёт 120 на щелчок; щелчок листает три строки, как в проводнике.
 constexpr int32_t wheelUnitsPerLine = 40;
