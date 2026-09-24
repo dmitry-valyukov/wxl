@@ -7,6 +7,7 @@
 #include "Bind.h"
 #include "Card.h"
 #include "Editor.h"
+#include "ThemeBrush.h"
 #include "VirtualTree.h"
 #include "generated/brushes.h"
 #include "launch.h"
@@ -82,6 +83,25 @@ wxl::Teardown wxl_launched() {
         height = 40.0,
     };
 
+    // Переключатель показа — в тон кнопкам командной панели: без рамки, в
+    // обычном состоянии прозрачный, нажатый — сдержанной подложкой, а не
+    // акцентом шаблона ToggleButton; знак нажатого — цветом текста.
+    auto const toolToggle = Preset {
+        width = 44.0,
+        height = 40.0,
+        Padding {0},
+        BorderThickness {0},
+        ThemeBrush {u"ToggleButtonBackground", brushes.SubtleFillColor.Transparent},
+        ThemeBrush {u"ToggleButtonBackgroundPointerOver", brushes.SubtleFillColor.Secondary},
+        ThemeBrush {u"ToggleButtonBackgroundPressed", brushes.SubtleFillColor.Tertiary},
+        ThemeBrush {u"ToggleButtonBackgroundChecked", brushes.SubtleFillColor.Secondary},
+        ThemeBrush {u"ToggleButtonBackgroundCheckedPointerOver", brushes.SubtleFillColor.Secondary},
+        ThemeBrush {u"ToggleButtonBackgroundCheckedPressed", brushes.SubtleFillColor.Tertiary},
+        ThemeBrush {u"ToggleButtonForegroundChecked", brushes.Text.FillColor.Primary},
+        ThemeBrush {u"ToggleButtonForegroundCheckedPointerOver", brushes.Text.FillColor.Primary},
+        ThemeBrush {u"ToggleButtonForegroundCheckedPressed", brushes.Text.FillColor.Secondary},
+    };
+
     auto const toolGlyph = Preset {
         fontFamily = FontFamily {u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
         fontSize = 20.0,
@@ -119,16 +139,19 @@ wxl::Teardown wxl_launched() {
                             content = FontIcon {toolGlyph, glyph = glyphs::save},
                         },
                         ToggleButton {
+                            toolToggle,
                             isChecked = true,
                             toolTip = u"Показывать выбранные",
                             content = FontIcon {toolGlyph, glyph = glyphs::chosen},
                         },
                         ToggleButton {
+                            toolToggle,
                             isChecked = true,
                             toolTip = u"Показывать автоматически включённые зависимости",
                             content = FontIcon {toolGlyph, glyph = glyphs::dependencies},
                         },
                         ToggleButton {
+                            toolToggle,
                             isChecked = true,
                             toolTip = u"Показывать невыбранные",
                             content = FontIcon {toolGlyph, glyph = glyphs::notChosen},
