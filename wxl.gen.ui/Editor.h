@@ -1,8 +1,9 @@
 #pragma once
 
-// Редактор одного профиля: сам профиль, метаданные, которые он называет, и
-// модели двух деревьев над ними — типы по пространствам имён и члены
-// выбранного типа. Отметки правят профиль в памяти.
+// Редактор одного профиля: сам профиль, метаданные и словари XAML, которые он
+// называет, и модели деревьев над ними — типы по файлам и пространствам имён,
+// именованные ресурсы словарей и члены выбранного типа. Отметки правят профиль
+// в памяти.
 
 #include <cstdint>
 #include <filesystem>
@@ -13,15 +14,21 @@
 
 namespace editor {
 
+class TypesModel;
+class ResourcesModel;
+
 class Editor : public wxl::core::sta_refcounted {
 public:
-    // Читает профиль и открывает метаданные его пакетов.
+    // Читает профиль, открывает метаданные его пакетов и читает их словари.
     static wxl::core::intrusive_ptr<Editor> open(std::filesystem::path const& profile);
 
     ~Editor() override;
 
-    // Левое дерево: пространства имён и их типы.
-    wxl::core::intrusive_ptr<TreeModel> types() const { return types_; }
+    // Левое дерево, вкладка Types: файлы winmd, их пространства имён и типы.
+    wxl::core::intrusive_ptr<TreeModel> types() const;
+
+    // Левое дерево, вкладка Resources: стили по своим типам и кисти.
+    wxl::core::intrusive_ptr<TreeModel> resources() const;
 
     // Правое дерево: члены выбранного типа; пусто, пока тип не выбран.
     wxl::core::observable<wxl::core::intrusive_ptr<TreeModel>> members;
@@ -39,9 +46,11 @@ private:
     struct Data;
     friend class TypesModel;
     friend class MembersModel;
+    friend class ResourcesModel;
 
     std::unique_ptr<Data> data_;
-    wxl::core::intrusive_ptr<TreeModel> types_;
+    wxl::core::intrusive_ptr<TypesModel> types_;
+    wxl::core::intrusive_ptr<ResourcesModel> resources_;
 };
 
 }  // namespace editor

@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <iterator>
 #include <string>
+#include <string_view>
 
 #include "Bind.h"
 #include "Card.h"
@@ -50,6 +51,10 @@ namespace glyphs {
     constexpr char16_t zoomOut[] {0xF8C6, 0};            // zoom_out
     constexpr char16_t zoomIn[] {0xF8C4, 0};             // zoom_in
 }
+
+// Вкладки над левым деревом. Выбранную узнают по тексту: вкладка — это её имя.
+constexpr std::u16string_view typesTab = u"Types";
+constexpr std::u16string_view resourcesTab = u"Resources";
 
 // Масштаб всего окна — по сетке, а не множителем: из любого шага кнопки
 // приходят в те же точки, и 100 % всегда среди них.
@@ -273,7 +278,21 @@ wxl::Teardown wxl_launched() {
                 displayMode = SplitViewDisplayMode::Inline,
                 isPaneOpen = true,
                 openPaneLength = 520.0,
-                pane = left->view(),
+                pane = Grid {
+                    rowDefinitions = u"auto,*",
+                    SelectorBar {
+                        onSelectionChanged = [left, document](SelectorBar const& bar,
+                                                              SelectorBarSelectionChangedEventArgs&) {
+                            if (auto const item = bar.selectedItem()) {
+                                bool const resources = std::u16string_view {item.text()} == resourcesTab;
+                                left->model(resources ? document->resources() : document->types());
+                            }
+                        },
+                        SelectorBarItem {text = typesTab, isSelected = true},
+                        SelectorBarItem {text = resourcesTab},
+                    },
+                    Border {row = 1, left->view()},
+                },
                 content = right->view(),
             },
         },
