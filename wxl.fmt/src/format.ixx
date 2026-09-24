@@ -1,9 +1,3 @@
-module;
-
-#include <fmt/compile.h>
-#include <fmt/format.h>
-#include <fmt/xchar.h>
-
 // Text for the interface, formatted in one call.
 //
 // The result is checked text, and no scan earns that: the format string is a
@@ -17,6 +11,7 @@ module;
 export module wxl.fmt:format;
 
 import :text_buffer;
+import fmt;
 import wxl.core;
 import std;
 
@@ -135,7 +130,7 @@ u16_text format(fmt::basic_format_string<char16_t, std::type_identity_t<impl::pl
     return impl::format_plain(form.get(), impl::plain(args)...);
 }
 
-/// The same for an FMT_COMPILE() string, parsed at compile time. A second
+/// The same for a compiled string, u"…"_cf, parsed at compile time. A second
 /// overload for the reason text_builder gives: the check above happens while
 /// the literal becomes a format string, and a compiled one is past that.
 template <typename Compiled, impl::format_argument... Args>

@@ -3,12 +3,12 @@
 #include <complex>
 #include <string_view>
 
-#include <fmt/compile.h>
-
 import wxl.core;
 import wxl.fmt;
+import fmt;
 
 using namespace std::string_view_literals;
+using namespace fmt::literals;
 using wxl::core::u16_text;
 using wxl::core::u16_view;
 
@@ -34,7 +34,7 @@ TEST(format, text_it_was_handed) {
 }
 
 TEST(format, a_compiled_format_string) {
-    EXPECT_EQ(wxl::core::format(FMT_COMPILE(u"{}x{}"), 3, 4).plain(), u"3x4"sv);
+    EXPECT_EQ(wxl::core::format(u"{}x{}"_cf, 3, 4).plain(), u"3x4"sv);
 }
 
 TEST(format, a_result_longer_than_the_buffer_inside) {

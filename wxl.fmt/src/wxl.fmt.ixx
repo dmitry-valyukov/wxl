@@ -4,7 +4,7 @@
 // Its own module and not a partition of wxl.core for one reason: fmt. The
 // buffer is fmt::basic_memory_buffer and the builder's format() is a template
 // compiled in the consumer, so whoever imports this compiles against fmt's
-// headers. wxl.core stays on the std module alone, and only the modules that
+// module. wxl.core stays on the std module alone, and only the modules that
 // assemble text -- the log, the applications writing their settings -- take
 // the dependency.
 //

@@ -1,10 +1,6 @@
-module;
-
-#include <fmt/format.h>
-#include <fmt/xchar.h>
-
 module wxl.fmt;
 
+import fmt;
 import wxl.core;
 import std;
 
