@@ -1,10 +1,3 @@
-module;
-
-// fmt first, and it has to stay first: wxl.core's abi.h defines assume() as a
-// macro, and fmt has a function of that name -- included the other way round,
-// the macro rewrites fmt's own definition of it and the header stops parsing.
-#include <fmt/format.h>
-
 // The buffer text is assembled in.
 //
 // It is fmt's, not the standard library's, and not one of our own either. The
@@ -25,12 +18,13 @@ module;
 // wxl.fmt/benchmarks/text_builder_benchmark.cpp.
 //
 // Where the text goes is one question. How the format string is read is
-// another, independent of it: FMT_COMPILE parses the string at compile time
+// another, independent of it: a "…"_cf string is parsed at compile time
 // and adds to whatever buffer is underneath. That one is the caller's, made
 // one format string at a time -- see :text_builder.
 
 export module wxl.fmt:text_buffer;
 
+import fmt;
 import std;
 
 export namespace wxl::core {

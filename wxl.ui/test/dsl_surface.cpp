@@ -559,29 +559,49 @@ namespace library_presets {
     };
 }
 
-// A binding written on a property. Which way it runs is the property's: one
-// way where the control only shows, both ways where it writes the property
-// itself -- decided by the pair in impl/binding.h, not by a mode. The model is
-// one refcounted object whose observables are its fields, not handles.
+// A binding written on a property, in the one form its shape allows. Bind
+// takes a property the control shows and writes itself -- a pair in
+// impl/binding.h; BindOutput takes any property with a setter; BindInput takes
+// a pair, both ways or input alone. Each written elsewhere is refused with the
+// form to write instead, which no line here can show: a static_assert in a
+// body is not something a requires-expression can see. The model is one
+// refcounted object whose observables are its fields, not handles.
 namespace {
 struct BoundModel : core::sta_refcounted {
     core::observable<std::u16string> title{u"WXL"};
     core::observable<bool> busy;
     core::observable<core::u16_text> name;
     core::observable<int> row;
+    core::observable<double> amount;
 };
 }  // namespace
 
 [[maybe_unused]] void binding_by_property() {
     core::intrusive_ptr<BoundModel> const model{new BoundModel{}};
 
-    TextBlock{text = Bind{model->title}};   // one way: no pair for text on a TextBlock
-    Button{isEnabled = Bind{model->busy}};       // one way, and named: bool alone could not choose
-    ProgressRing{isActive = Bind{model->busy}};  // the same bool, another property
-    TextBox{text = Bind{model->name}};      // two ways: a TextBox writes its text
-    ToggleSwitch{isOn = Bind{model->busy}};      // two ways, named
-    ToggleSwitch{Bind{model->busy}};             // two ways, by the data's type
+    // Both ways: the control writes the property itself.
+    TextBox{text = Bind{model->name}};
+    ToggleSwitch{isOn = Bind{model->busy}};      // named
+    ToggleSwitch{Bind{model->busy}};             // by the data's type
     ComboBox{selectedIndex = Bind{model->row}};
+    NumberBox{value = Bind{model->amount}};
+
+    // From the field: the control shows, pair or no pair.
+    TextBlock{text = BindOutput{model->title}};  // no pair: the only form a TextBlock's text takes
+    Button{isEnabled = BindOutput{model->busy}}; // named: bool alone could not choose
+    ProgressRing{isActive = BindOutput{model->busy}};
+    TextBox{text = BindOutput{model->name}};     // a pair, one half: what is typed stays in the box
+    NumberBox{value = BindOutput{model->row}};
+
+    // Into the field: the control writes, nothing written back.
+    TextBox{text = BindInput{model->name}};
+    ToggleSwitch{isOn = BindInput{model->busy}};
+    ComboBox{selectedIndex = BindInput{model->row}};
+    NumberBox{intermediateValue = BindInput{model->amount}};  // input alone: the number as typed
+
+    // And unnamed, by the data's type, the way Bind{} goes.
+    ToggleSwitch{BindInput{model->busy}};
+    ToggleSwitch{BindOutput{model->busy}};
 }
 
 // Copy construction must not be hijacked by the variadic constructor -- the

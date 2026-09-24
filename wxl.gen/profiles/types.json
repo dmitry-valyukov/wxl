@@ -159,6 +159,22 @@
             { "property": "Emboss", "value": "double" },
             { "property": "Gamma", "value": "double" }
         ],
-        "events": ["ClientSizeChanged", "GeometryChanged"]
+        "events": ["ClientSizeChanged", "GeometryChanged"],
+
+        // A property a generated class has as a binding target alone: no
+        // metadata declares it and no setter writes it -- the pair in
+        // impl/binding.h reads it off the control. It gets the key and the
+        // tag, the class's schema anchor and a test line binding it the way
+        // the pair allows. NumberBox commits Value only on Enter, a spin or
+        // the focus leaving; the number as it is being typed goes under the
+        // Slider's own name for a value not yet committed.
+        "boundMembers": [
+            {
+                "class": "Microsoft.UI.Xaml.Controls.NumberBox",
+                "property": "IntermediateValue",
+                "value": "double",
+                "direction": "input"
+            }
+        ]
     }
 }
