@@ -26,6 +26,7 @@ namespace {
 // FluentSystemIcons-Regular.json. Заливка —
 // тёмный край, светлая середина.
 using wxl::rgb;
+constexpr RowIcon libraryIcon {0xE761, rgb(136, 14, 79), rgb(248, 187, 208)};    // library: бордово-розовый
 constexpr RowIcon namespaceIcon {0xE058, rgb(13, 71, 161), rgb(128, 222, 234)};  // app_folder: сине-голубой
 constexpr RowIcon classIcon {0xF132, rgb(109, 55, 16), rgb(255, 167, 38)};       // apps: коричнево-оранжевый
 constexpr RowIcon structIcon {0xE202, rgb(27, 94, 32), rgb(255, 204, 170)};      // broad_activity_feed: зелёно-персиковый
@@ -103,33 +104,53 @@ struct TypeEntry {
     bool listed = false;
 };
 
+// Левое дерево: файлы winmd профиля, в них — пространства имён, в тех — типы.
 class TypesModel final : public TreeModel {
 public:
     explicit TypesModel(Editor& editor) : editor_(editor) {
         auto const& db = editor_.data_->db;
+        for (md::database const& source : db.databases()) {
+            std::string_view const path = source.path();
+            libraries_.push_back({.source = &source, .name = path.substr(path.find_last_of("\\/") + 1)});
+        }
+        std::ranges::sort(libraries_, {}, &Library::name);
+
+        // Тип находит свой файл по адресу базы, из которой прочитан.
+        std::vector<std::pair<md::database const*, Library*>> bySource;
+        bySource.reserve(libraries_.size());
+        for (Library& library : libraries_) {
+            bySource.emplace_back(library.source, &library);
+        }
+        std::ranges::sort(bySource, {}, &std::pair<md::database const*, Library*>::first);
+
         for (auto&& [name, members] : db.namespaces()) {
             if (name.empty()) {
                 continue;
             }
             // Показываются только классы, структуры и перечисления; пространство,
-            // где их нет, не показывается вовсе.
-            auto const shown = members.classes.size() + members.structs.size() + members.enums.size();
-            if (shown == 0) {
-                continue;
-            }
-            Namespace& space = namespaces_.emplace_back();
-            space.name = name;
-            space.types.reserve(shown);
-            // Списки кэша, а не категория типа: атрибуты — тоже классы, а
-            // контракты — структуры, и кэш держит их отдельно.
+            // где их нет, не показывается вовсе. Списки кэша, а не категория типа:
+            // атрибуты — тоже классы, а контракты — структуры, и кэш держит их
+            // отдельно.
             for (auto&& [kind, icon] : {std::pair {&members.classes, &classIcon},
                                         std::pair {&members.structs, &structIcon},
                                         std::pair {&members.enums, &enumIcon}}) {
                 for (auto&& def : *kind) {
-                    space.types.push_back({def, icon});
+                    Library& library = *std::ranges::lower_bound(
+                        bySource, &def.get_database(), {}, &std::pair<md::database const*, Library*>::first)->second;
+                    // Пространства идут по имени, поэтому своё у файла — последнее.
+                    if (library.namespaces.empty() || library.namespaces.back().name != name) {
+                        library.namespaces.push_back({.name = name});
+                    }
+                    library.namespaces.back().types.push_back({def, icon});
                 }
             }
-            std::ranges::sort(space.types, {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
+        }
+
+        std::erase_if(libraries_, [](Library const& library) { return library.namespaces.empty(); });
+        for (Library& library : libraries_) {
+            for (Namespace& space : library.namespaces) {
+                std::ranges::sort(space.types, {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
+            }
         }
 
         for (auto&& [type, filter] : editor_.data_->profile.types) {
@@ -143,52 +164,58 @@ public:
     uint32_t size() const override { return size_; }
 
     TreeRow row(uint32_t index) const override {
-        auto const [space, type] = locate(index);
-        if (type == npos) {
+        auto const [library, space, type] = locate(index);
+        if (!space) {
+            return {.text = library->name,
+                    .icon = &libraryIcon,
+                    .expander = library->expanded ? Expander::Expanded : Expander::Collapsed};
+        }
+        if (!type) {
             return {.text = space->name,
+                    .depth = 1,
                     .icon = &namespaceIcon,
                     .expander = space->expanded ? Expander::Expanded : Expander::Collapsed};
         }
 
-        TypeEntry const& entry = space->types[type];
-        return {.text = entry.def.TypeName(),
-                .depth = 1,
-                .icon = entry.icon,
-                .check = entry.listed ? Check::Checked : Check::Unchecked,
-                .selected = entry.def == selected_};
+        return {.text = type->def.TypeName(),
+                .depth = 2,
+                .icon = type->icon,
+                .check = type->listed ? Check::Checked : Check::Unchecked,
+                .selected = type->def == selected_};
     }
 
     void toggleExpanded(uint32_t index) override {
-        auto const [space, type] = locate(index);
-        if (type == npos) {
+        auto const [library, space, type] = locate(index);
+        if (!space) {
+            library->expanded = !library->expanded;
+        } else if (!type) {
             space->expanded = !space->expanded;
-            recount();
+        } else {
+            return;
         }
+        recount();
     }
 
     void toggleChecked(uint32_t index) override {
-        auto const [space, type] = locate(index);
-        if (type == npos) {
+        TypeEntry* const entry = locate(index).type;
+        if (!entry) {
             return;
         }
 
-        TypeEntry& entry = space->types[type];
         auto& types = editor_.data_->profile.types;
-        std::string const name = full_name(entry.def);
-        if (entry.listed) {
+        std::string const name = full_name(entry->def);
+        if (entry->listed) {
             types.erase(name);
         } else {
             types.emplace(name, MemberFilter::all());
         }
-        entry.listed = !entry.listed;
+        entry->listed = !entry->listed;
         editor_.revision.set(editor_.revision.get() + 1);
     }
 
     void invoke(uint32_t index) override;
 
 private:
-    static constexpr uint32_t npos = UINT32_MAX;
-
     struct Namespace {
         std::string_view name;
         std::vector<TypeEntry> types;
@@ -196,49 +223,76 @@ private:
         uint32_t start = 0;  // номер строки самого пространства среди видимых
     };
 
+    struct Library {
+        md::database const* source = nullptr;
+        std::string_view name;  // имя файла winmd
+        std::vector<Namespace> namespaces;
+        bool expanded = false;
+        uint32_t start = 0;  // номер строки самого файла среди видимых
+    };
+
+    // Строка дерева: файл, а под ним — пространство и тип, если строка их.
+    struct Location {
+        Library* library;
+        Namespace* space;
+        TypeEntry* type;
+    };
+
     static std::string full_name(md::TypeDef const& type) {
         return std::format("{}.{}", type.TypeNamespace(), type.TypeName());
     }
 
+    // Номера строк у свёрнутого не пересчитываются: к ним не спускаются.
     void recount() {
         uint32_t start = 0;
-        for (Namespace& space : namespaces_) {
-            space.start = start;
-            start += 1 + (space.expanded ? static_cast<uint32_t>(space.types.size()) : 0);
+        for (Library& library : libraries_) {
+            library.start = start++;
+            if (!library.expanded) {
+                continue;
+            }
+            for (Namespace& space : library.namespaces) {
+                space.start = start++;
+                start += space.expanded ? static_cast<uint32_t>(space.types.size()) : 0;
+            }
         }
         size_ = start;
     }
 
-    // Пространство имён видимой строки и номер типа в нём; npos — строка самого
-    // пространства.
-    std::pair<Namespace*, uint32_t> locate(uint32_t index) const {
-        auto const after = std::ranges::upper_bound(namespaces_, index, {}, &Namespace::start);
-        auto* space = const_cast<Namespace*>(&*std::prev(after));
-        return {space, index == space->start ? npos : index - space->start - 1};
+    Location locate(uint32_t index) const {
+        auto& library = const_cast<Library&>(*std::prev(std::ranges::upper_bound(libraries_, index, {}, &Library::start)));
+        if (index == library.start) {
+            return {&library, nullptr, nullptr};
+        }
+        auto& space = *std::prev(std::ranges::upper_bound(library.namespaces, index, {}, &Namespace::start));
+        if (index == space.start) {
+            return {&library, &space, nullptr};
+        }
+        return {&library, &space, &space.types[index - space.start - 1]};
     }
 
     TypeEntry* find(std::string_view full) {
-        auto const dot = full.rfind('.');
-        if (dot == std::string_view::npos) {
+        md::TypeDef const def = editor_.data_->db.find(full);
+        if (!def) {
             return nullptr;
         }
-        auto const space_name = full.substr(0, dot);
-        auto const type_name = full.substr(dot + 1);
-
-        auto const space = std::ranges::lower_bound(namespaces_, space_name, {}, &Namespace::name);
-        if (space == namespaces_.end() || space->name != space_name) {
+        auto const library = std::ranges::find(libraries_, &def.get_database(), &Library::source);
+        if (library == libraries_.end()) {
+            return nullptr;
+        }
+        auto const space = std::ranges::lower_bound(library->namespaces, def.TypeNamespace(), {}, &Namespace::name);
+        if (space == library->namespaces.end() || space->name != def.TypeNamespace()) {
             return nullptr;
         }
         auto const type = std::ranges::lower_bound(
-            space->types, type_name, {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
-        if (type == space->types.end() || type->def.TypeName() != type_name) {
+            space->types, def.TypeName(), {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
+        if (type == space->types.end() || type->def != def) {
             return nullptr;
         }
         return &*type;
     }
 
     Editor& editor_;
-    std::vector<Namespace> namespaces_;
+    std::vector<Library> libraries_;
     uint32_t size_ = 0;
     md::TypeDef selected_;
 };
@@ -348,15 +402,14 @@ private:
 };
 
 void TypesModel::invoke(uint32_t index) {
-    auto const [space, type] = locate(index);
-    if (type == npos) {
+    TypeEntry* const entry = locate(index).type;
+    if (!entry) {
         return;
     }
 
-    TypeEntry& entry = space->types[type];
-    selected_ = entry.def;
-    editor_.typeName.set(to_u16(full_name(entry.def)));
-    editor_.members.set(intrusive_ptr<TreeModel> {new MembersModel {editor_, entry}, /*add_ref=*/false});
+    selected_ = entry->def;
+    editor_.typeName.set(to_u16(full_name(entry->def)));
+    editor_.members.set(intrusive_ptr<TreeModel> {new MembersModel {editor_, *entry}, /*add_ref=*/false});
 }
 
 Editor::Editor() = default;
