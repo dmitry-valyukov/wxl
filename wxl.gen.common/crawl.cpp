@@ -115,6 +115,15 @@ void visit_declared_members(TypeDef const& type, Visit&& visit) {
             }
         }
     }
+
+    // An enum's members are its enumerators, in declaration order.
+    if (get_category(type) == category::enum_type) {
+        for (auto&& field : type.FieldList()) {
+            if (field.Flags().Literal()) {
+                visit(MemberKind::Constant, field.Name());
+            }
+        }
+    }
 }
 
 std::set<std::string> declared_members(TypeDef const& type) {
@@ -450,8 +459,18 @@ struct Crawler {
             for (auto&& field : type.FieldList()) {
                 visit_type_sig(field.Signature().Type(), type);
             }
+        } else if (cat == category::enum_type) {
+            // The enumerators are an enum's members, and a profile may keep
+            // some of them. An enum the profiles never name, reached through
+            // the walk, keeps all: a signature needs the whole type. The
+            // enumerators carry no further type references.
+            bool const all = filter.kind == MemberFilter::Kind::None;
+            for (auto&& field : type.FieldList()) {
+                if (field.Flags().Literal() && (all || filter.allows(field.Name()))) {
+                    result.members[type].insert(std::string(field.Name()));
+                }
+            }
         }
-        // enum_type: enumerators carry no further type references.
     }
 
     void run() {
@@ -720,6 +739,7 @@ DeclaredMembers declared_members_of(TypeDef const& type) {
             case MemberKind::Property: members.properties.push_back(name); break;
             case MemberKind::Method: members.methods.push_back(name); break;
             case MemberKind::Event: members.events.push_back(name); break;
+            case MemberKind::Constant: members.constants.push_back(name); break;
         }
     });
     // A method overloaded by arity is declared once per overload, and a

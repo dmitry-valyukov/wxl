@@ -87,11 +87,16 @@ struct enum_info {
     std::vector<Field> literals;
 };
 
-enum_info analyze_enum(TypeDef const& type) {
+// `kept` is what the walk recorded as the enum's members: the enumerators the
+// profiles kept -- all of them for an enum they never name.
+enum_info analyze_enum(TypeDef const& type, std::map<TypeDef, std::set<std::string>> const& kept) {
     enum_info info{type};
+    auto const values = kept.find(type);
     for (auto&& field : type.FieldList()) {
         if (field.Flags().Literal()) {
-            info.literals.push_back(field);
+            if (values != kept.end() && values->second.contains(std::string{field.Name()})) {
+                info.literals.push_back(field);
+            }
         } else if (field.Signature().Type().element_type() == ElementType::U4) {
             // The non-literal "value__" backing field's own type is the
             // enum's real underlying type -- WinRT enums are Int32
@@ -102,7 +107,8 @@ enum_info analyze_enum(TypeDef const& type) {
     return info;
 }
 
-void write_enums_file(std::filesystem::path const& path, std::vector<TypeDef> const& enums) {
+void write_enums_file(std::filesystem::path const& path, std::vector<TypeDef> const& enums,
+                      std::map<TypeDef, std::set<std::string>> const& kept) {
     auto out = open_output(path);
 
     // <stdint.h>, not <cstdint>: the emitted underlying types and field
@@ -118,7 +124,9 @@ namespace wxl {{
                banner);
 
     for (auto&& type : enums) {
-        auto const info = analyze_enum(type);
+        auto const info = analyze_enum(type, kept);
+        // Every enumerator carries its value: with some of them left out by a
+        // profile, the rest must not move.
         std::print(out, "enum class {} : {}\n{{\n", type.TypeName(), info.underlying);
         for (auto&& literal : info.literals) {
             std::print(out, "    {} = {},\n", literal.Name(), format_constant(literal.Constant()));
@@ -378,9 +386,10 @@ void write_umbrella_file(std::filesystem::path const& path, std::vector<std::str
 
 }  // namespace
 
-std::vector<std::pair<std::string, std::string>> enum_members(TypeDef const& type) {
+std::vector<std::pair<std::string, std::string>> enum_members(
+    TypeDef const& type, std::map<TypeDef, std::set<std::string>> const& kept) {
     std::vector<std::pair<std::string, std::string>> values;
-    for (auto&& field : analyze_enum(type).literals) {
+    for (auto&& field : analyze_enum(type, kept).literals) {
         values.emplace_back(member_name(field.Name()), std::string{field.Name()});
     }
     return values;
@@ -458,7 +467,7 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
     for (auto&& [ns, types] : enums_by_namespace) {
         std::string const filename = ns + ".Enums.h";
         auto const path = out.dir / filename;
-        write_enums_file(path, types);
+        write_enums_file(path, types, model.members);
         emitted.add(path);
         std::print("wrote {} ({} enums)\n", path.string(), types.size());
         enum_files.push_back(filename);
