@@ -366,12 +366,25 @@ void write_styles(Output const& out, Model const& model,
         generated.insert(std::string{type.TypeName()});
     }
 
+    // And of those, the ones the profiles chose. The document names a target
+    // by its bare name and the profile by the full one; the generated class
+    // joins the two.
+    std::map<std::string, MemberFilter const*> chosen;  // target -> its filter
+    for (auto&& type : model.classes) {
+        auto const filter =
+            model.styles.find(std::format("{}.{}", type.TypeNamespace(), type.TypeName()));
+        if (filter != model.styles.end()) {
+            chosen.emplace(std::string{type.TypeName()}, &filter->second);
+        }
+    }
+
     // Grouped by target type, and each group's members sorted, so the header
     // reads as a list rather than as the order a 3 MB document happened to
     // declare things in.
     std::map<std::string, std::map<std::string, std::string>> groups;  // target -> member -> key
     std::set<std::string> seen;
     size_t dropped = 0;
+    size_t left_out = 0;
     size_t collisions = 0;
     for (auto&& [key, target] : found) {
         // A dictionary declares each key once per theme, and the lookup at
@@ -382,6 +395,11 @@ void write_styles(Output const& out, Model const& model,
         }
         if (!generated.count(target)) {
             ++dropped;
+            continue;
+        }
+        if (auto const filter = chosen.find(target);
+            filter != chosen.end() && !filter->second->allows(key)) {
+            ++left_out;
             continue;
         }
         auto& members = groups[target];
@@ -431,8 +449,9 @@ void write_styles(Output const& out, Model const& model,
     write_name_table(out, emitted, "style_names.h", "style_names", names);
 
     std::print("wrote {}styles.h ({} styles in {} groups, {} dropped for a target type that is "
-               "not generated{})\n",
+               "not generated{}{})\n",
                out.dir.string() + "\\", names.size(), groups.size(), dropped,
+               left_out ? std::format(", {} left out by the profile", left_out) : "",
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
 }
 
@@ -453,6 +472,7 @@ void write_brushes(Output const& out, Model const& model,
     std::map<std::string, std::string> stems;        // stem -> key
     std::map<std::string, std::string> theme_stems;  // the same, for *ThemeBrush
     std::set<std::string> seen;
+    size_t left_out = 0;
     size_t collisions = 0;
     for (auto&& declared : resources) {
         // Unscoped only, and for a harder reason than tidiness: a brush
@@ -465,6 +485,10 @@ void write_brushes(Output const& out, Model const& model,
         // A dictionary declares each key once per theme; the lookup at run
         // time is by name and the framework picks the theme itself.
         if (!seen.insert(declared.key).second) {
+            continue;
+        }
+        if (!model.brushes.allows(declared.key)) {
+            ++left_out;
             continue;
         }
         // CardBackgroundFillColorDefaultBrush reads as
@@ -504,8 +528,9 @@ void write_brushes(Output const& out, Model const& model,
 
     write_name_table(out, emitted, "brush_names.h", "brush_names", names);
 
-    std::print("wrote {}brushes.h ({} brushes, {} theme brushes{})\n", out.dir.string() + "\\",
+    std::print("wrote {}brushes.h ({} brushes, {} theme brushes{}{})\n", out.dir.string() + "\\",
                stems.size(), theme_stems.size(),
+               left_out ? std::format(", {} left out by the profile", left_out) : "",
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
 }
 

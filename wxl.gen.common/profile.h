@@ -131,6 +131,19 @@ struct Profile {
     std::map<std::string, MemberFilter> types;  // "Microsoft.UI.Xaml.Controls.Button" -> filter
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // by the same type name
     std::map<std::string, std::vector<SetterMethod>> setter_methods;  // by the same type name
+
+    // The named styles of a listed type, by dictionary key: "styles": [...]
+    // under the type's entry narrows them to those; a type listed without it
+    // keeps all of its own (All). A style belongs with its type because
+    // without the type it is not generated anyway -- there is nothing to
+    // apply it to. A type the profile does not list has no entry here.
+    std::map<std::string, MemberFilter> styles;  // by the same type name
+
+    // The named brushes, by dictionary key: "brushes": [...] at the top of
+    // the profile narrows them to those; without it, All. A brush belongs to
+    // no type, so it is listed on its own.
+    MemberFilter brushes = MemberFilter::all();
+
     MemberFilter discovered = MemberFilter::none();
     bool windows_metadata = false;
 };
@@ -218,6 +231,13 @@ struct ProfileSet {
     std::map<std::string, MemberFilter> types;     // roots of the walk
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // properties wxl adds
     std::map<std::string, std::vector<SetterMethod>> setter_methods;  // methods written as tags
+
+    // Merged the way members are, as a union: a profile that lists a type
+    // without "styles", or has no "brushes", asks for all of them, and so
+    // the merge does. A type no profile lists keeps all of its styles.
+    std::map<std::string, MemberFilter> styles;
+    MemberFilter brushes = MemberFilter::none();  // None until the first profile merges in
+
     MemberFilter discovered = MemberFilter::none();
 };
 

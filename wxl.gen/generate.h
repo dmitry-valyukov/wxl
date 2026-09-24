@@ -68,6 +68,12 @@ struct Model {
     // where WinRT declares them.
     std::map<md::TypeDef, std::set<std::string>> members;
 
+    // The profiles' choice among the dictionaries' named resources, by key
+    // (see profile.h): styles under the full name of their target type -- a
+    // type with no entry keeps all of its styles -- and brushes on their own.
+    std::map<std::string, MemberFilter> styles;
+    MemberFilter brushes = MemberFilter::all();
+
     std::set<std::string> property_names;
     std::set<std::string> event_names;
 };
