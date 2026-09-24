@@ -118,12 +118,12 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         fontFamily = FontFamily {iconFont},
         fontSize = 16.0,
         vAlign.center,
-        Margin {4, 0, 0, 0},
+        Margin {2, 0, 0, 0},
     };
 
     Apply {row.text,
         vAlign.center,
-        Margin {6, 0, 12, 0},
+        Margin {4, 0, 12, 0},
     };
 
     Apply {row.panel,

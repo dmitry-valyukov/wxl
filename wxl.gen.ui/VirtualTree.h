@@ -100,7 +100,7 @@ private:
     // Номер строки модели в ячейке пула; ячейки начинаются за запасом сверху.
     uint32_t first() const { return top_ < reserve_ ? 0 : top_ - reserve_; }
 
-    static constexpr double rowHeight_ = 28;
+    static constexpr double rowHeight_ = 26;
     static constexpr double indentStep_ = 16;
     static constexpr uint32_t reserve_ = 3;
 
