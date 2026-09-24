@@ -1749,7 +1749,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     for (auto&& type : model.enums) {
         auto const name = std::string{type.TypeName()};
         if (enum_types.count(name)) {
-            dsl.enumerators.emplace(name, enum_members(type));
+            dsl.enumerators.emplace(name, enum_members(type, model.members));
         }
     }
 

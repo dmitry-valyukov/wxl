@@ -26,7 +26,8 @@ public:
     // Правое дерево: члены выбранного типа; пусто, пока тип не выбран.
     wxl::core::observable<wxl::core::intrusive_ptr<TreeModel>> members;
 
-    wxl::core::observable<std::u16string> profileName;
+    // Заголовок окна: имя файла профиля и редактора, как у редакторов документов.
+    wxl::core::observable<std::u16string> title;
     wxl::core::observable<std::u16string> typeName;
 
     // Отметка изменила профиль: деревья перечитывают видимые строки.

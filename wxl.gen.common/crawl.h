@@ -133,17 +133,19 @@ struct Closure {
 
 Closure crawl(ProfileSet const& profiles, winmd::reader::cache const& db);
 
-// The kinds of member a profile names.
-enum class MemberKind : uint8_t { Property, Method, Event };
+// The kinds of member a profile names. A Constant is an enumerator.
+enum class MemberKind : uint8_t { Property, Method, Event, Constant };
 
 // The member names a profile can list for a type, by kind: what the type
 // declares itself plus, for a class, what the interfaces it implements
-// directly declare -- the names the walk filters by. Sorted, each name once;
-// the views point into the metadata.
+// directly declare, and for an enum its enumerators -- the names the walk
+// filters by. Properties, methods and events sorted, each name once;
+// enumerators in declaration order. The views point into the metadata.
 struct DeclaredMembers {
     std::vector<std::string_view> properties;
     std::vector<std::string_view> methods;
     std::vector<std::string_view> events;
+    std::vector<std::string_view> constants;
 };
 
 DeclaredMembers declared_members_of(winmd::reader::TypeDef const& type);

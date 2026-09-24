@@ -217,10 +217,12 @@ void write_schema(Output const& out, Schema const& schema, Dsl const& dsl, Emitt
 // CMakeLists.txt adding everything above to the consuming target.
 void write_cmake_lists(Output const& out, Emitted const& emitted);
 
-// An enum's values: the member name each is surfaced under and the
-// enumerator's own name. Defined in gen/enums_structs.cpp, which is where
-// what counts as a value of an enum is decided.
-std::vector<std::pair<std::string, std::string>> enum_members(md::TypeDef const& type);
+// An enum's values the profiles kept (`kept` is the walk's record of members):
+// the member name each is surfaced under and the enumerator's own name.
+// Defined in gen/enums_structs.cpp, which is where what counts as a value of
+// an enum is decided.
+std::vector<std::pair<std::string, std::string>> enum_members(
+    md::TypeDef const& type, std::map<md::TypeDef, std::set<std::string>> const& kept);
 
 // WinRT has no formal "EventArgs" category -- it's a naming convention.
 // Defined in gen/event_args.cpp; gen/classes.cpp uses it to leave those
