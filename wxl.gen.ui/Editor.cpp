@@ -23,12 +23,12 @@ namespace {
 
 // Значки строк: знаки размера 16 шрифта Fluent UI System Icons
 // (Assets/FluentSystemIcons-Regular.ttf), коды — из его
-// FluentSystemIcons-Regular.json; у group размера 16 нет, он 20-й. Заливка —
+// FluentSystemIcons-Regular.json. Заливка —
 // тёмный край, светлая середина.
 using wxl::rgb;
 constexpr RowIcon namespaceIcon {0xE058, rgb(13, 71, 161), rgb(128, 222, 234)};  // app_folder: сине-голубой
 constexpr RowIcon classIcon {0xF132, rgb(109, 55, 16), rgb(255, 167, 38)};       // apps: коричнево-оранжевый
-constexpr RowIcon structIcon {0xF465, rgb(27, 94, 32), rgb(255, 204, 170)};      // group: зелёно-персиковый
+constexpr RowIcon structIcon {0xE202, rgb(27, 94, 32), rgb(255, 204, 170)};      // broad_activity_feed: зелёно-персиковый
 constexpr RowIcon enumIcon {0xE779, rgb(74, 20, 140), rgb(186, 104, 200)};       // list: фиолетовый
 constexpr RowIcon propertyIcon {0xEE85, rgb(66, 66, 66), rgb(189, 189, 189)};    // wrench: серый
 constexpr RowIcon methodIcon {0xF334, rgb(49, 27, 146), rgb(209, 196, 233)};     // cube: тёмно-светло-фиолетовый
