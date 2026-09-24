@@ -33,6 +33,7 @@ constexpr RowIcon enumIcon {0xE779, rgb(74, 20, 140), rgb(186, 104, 200)};      
 constexpr RowIcon propertyIcon {0xEE85, rgb(66, 66, 66), rgb(189, 189, 189)};    // wrench: серый
 constexpr RowIcon methodIcon {0xF334, rgb(49, 27, 146), rgb(209, 196, 233)};     // cube: тёмно-светло-фиолетовый
 constexpr RowIcon eventIcon {0xE617, rgb(230, 81, 0), rgb(255, 235, 59)};        // flash: оранжево-жёлтый
+constexpr RowIcon constantIcon {0xF0544, rgb(74, 20, 140), rgb(186, 104, 200)};  // storage: как у перечисления
 
 std::u16string to_u16(std::string_view utf8) {
     std::wstring wide;
@@ -43,15 +44,17 @@ std::u16string to_u16(std::string_view utf8) {
 }
 
 // Отметка члена в фильтре типа. Тип, которого в профиле нет, входит в него со
-// списком из одного этого члена; у «всех членов» снятая отметка делает список
-// запрещающим; разрешающий и запрещающий списки просто пополняются и худеют.
+// списком из одного этого члена — кроме перечисления: не названное профилем, оно
+// выходит со всеми значениями, и снятая отметка вносит его запрещающим списком.
+// У «всех членов» снятая отметка делает список запрещающим; разрешающий и
+// запрещающий списки просто пополняются и худеют.
 void mark_member(std::map<std::string, MemberFilter>& types, std::string const& type,
-                 std::string_view member, bool on) {
+                 std::string_view member, bool on, bool unlistedKeepsAll) {
     std::string const name {member};
     auto const found = types.find(type);
     if (found == types.end()) {
-        if (on) {
-            types.emplace(type, MemberFilter::allow({name}));
+        if (on != unlistedKeepsAll) {
+            types.emplace(type, on ? MemberFilter::allow({name}) : MemberFilter::deny({name}));
         }
         return;
     }
@@ -245,11 +248,16 @@ public:
     MembersModel(Editor& editor, TypeEntry& entry)
         : editor_(editor),
           entry_(entry),
-          name_(std::format("{}.{}", entry.def.TypeNamespace(), entry.def.TypeName())) {
+          name_(std::format("{}.{}", entry.def.TypeNamespace(), entry.def.TypeName())),
+          enum_(md::get_category(entry.def) == md::category::enum_type) {
         auto declared = declared_members_of(entry.def);
-        groups_[0].names = std::move(declared.properties);
-        groups_[1].names = std::move(declared.methods);
-        groups_[2].names = std::move(declared.events);
+        if (enum_) {
+            groups_.push_back({"Values", &constantIcon, std::move(declared.constants)});
+        } else {
+            groups_.push_back({"Properties", &propertyIcon, std::move(declared.properties)});
+            groups_.push_back({"Methods", &methodIcon, std::move(declared.methods)});
+            groups_.push_back({"Events", &eventIcon, std::move(declared.events)});
+        }
     }
 
     uint32_t size() const override {
@@ -292,7 +300,7 @@ public:
 
         std::string_view const name = group->names[member];
         auto& types = editor_.data_->profile.types;
-        mark_member(types, name_, name, !allows(name));
+        mark_member(types, name_, name, !allows(name), enum_);
         entry_.listed = types.contains(name_);
         editor_.revision.set(editor_.revision.get() + 1);
     }
@@ -311,10 +319,11 @@ private:
         uint32_t shown() const { return expanded ? static_cast<uint32_t>(names.size()) : 0; }
     };
 
+    // Перечисление, которого профиль не называет, генератор выпускает целиком.
     bool allows(std::string_view member) const {
         auto const& types = editor_.data_->profile.types;
         auto const found = types.find(name_);
-        return found != types.end() && found->second.allows(member);
+        return found == types.end() ? enum_ : found->second.allows(member);
     }
 
     std::pair<Group*, uint32_t> locate(uint32_t index) const {
@@ -334,9 +343,8 @@ private:
     Editor& editor_;
     TypeEntry& entry_;
     std::string const name_;
-    std::array<Group, 3> groups_ {Group {"Properties", &propertyIcon},
-                                  Group {"Methods", &methodIcon},
-                                  Group {"Events", &eventIcon}};
+    bool const enum_;
+    std::vector<Group> groups_;
 };
 
 void TypesModel::invoke(uint32_t index) {

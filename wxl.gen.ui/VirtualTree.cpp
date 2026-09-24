@@ -22,9 +22,9 @@ constexpr std::u16string_view expandedGlyph = u"\uE70D";
 
 // Отметка — знак шрифта значков, а не CheckBox: у того галочка — AnimatedIcon,
 // и при листании, когда строка получает другой тип, она рисовалась заново.
-// checkbox_checked_16_regular и checkbox_unchecked_16_regular.
-constexpr std::u16string_view checkedGlyph = u"\uF27C";
-constexpr std::u16string_view uncheckedGlyph = u"\uF290";
+// checkbox_checked_20_regular и checkbox_unchecked_20_regular.
+constexpr std::u16string_view checkedGlyph = u"\uF28D";
+constexpr std::u16string_view uncheckedGlyph = u"\uF291";
 
 constexpr std::u16string_view iconFont = u"Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
 
@@ -95,12 +95,15 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         },
     };
 
-    // Щелчок по отметке строку не выбирает: он до неё не доходит.
+    // Щелчок по отметке строку не выбирает: он до неё не доходит. Поле шире
+    // знака, чтобы попадать в него не целясь.
     Apply {row.check,
         fontFamily = FontFamily {iconFont},
-        fontSize = 16.0,
+        fontSize = 20.0,
+        width = 28.0,
+        textAlignment.center,
         vAlign.center,
-        Margin {4, 0, 0, 0},
+        Margin {2, 0, 0, 0},
         onTapped = [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
             if (model_) {
                 model_->toggleChecked(first() + slot);
