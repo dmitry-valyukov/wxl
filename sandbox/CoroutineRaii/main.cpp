@@ -7,8 +7,8 @@
 //
 // Два подозрения разведены по отдельным случаям, чтобы не спутать их между
 // собой: что возвращает final_suspend() (suspend_never, как у самовладеющей
-// корутины, или suspend_always, как у той, что держит владелец) и через какую
-// ручку зовут destroy() — типизированную coroutine_handle<promise_type> или
+// корутины, или suspend_always, как у той, что держит владелец) и через какой
+// хендл вызывают destroy() — типизированную coroutine_handle<promise_type> или
 // стёртую coroutine_handle<>.
 //
 // Каждая проверка печатает строку; код возврата — число провалившихся.
@@ -34,7 +34,7 @@ struct Trace {
     ~Trace() { *released = true; }
 };
 
-// Ожидатель, отдающий наружу ручку собственной корутины: тип ручки — параметр,
+// Ожидатель, отдающий наружу хендл собственной корутины: тип хендла — параметр,
 // поэтому один и тот же ожидатель даёт и стёртую, и типизированную.
 template <class Handle>
 struct capture {
@@ -155,14 +155,14 @@ int main() {
 
     // 2. Приостановленный кадр сносят: живые локальные объекты обязаны
     // уничтожиться и здесь — на этом держится всякий RAII в корутине.
-    // Четыре случая: обе формы на обеих ручках.
+    // Четыре случая: обе формы на обоих хендлах.
     {
         std::coroutine_handle<> waiter;
         bool released = false;
 
         self_owning_erased(waiter, &released);
         waiter.destroy();
-        check("сам себе хозяин, ручка без типа: destroy отпустил локальное", released);
+        check("сам себе хозяин, хендл без типа: destroy отпустил локальное", released);
     }
 
     {
@@ -171,7 +171,7 @@ int main() {
 
         self_owning_typed(waiter, &released);
         waiter.destroy();
-        check("сам себе хозяин, ручка с типом: destroy отпустил локальное", released);
+        check("сам себе хозяин, хендл с типом: destroy отпустил локальное", released);
     }
 
     {
@@ -180,7 +180,7 @@ int main() {
 
         owned_erased(waiter, &released);
         waiter.destroy();
-        check("с владельцем, ручка без типа: destroy отпустил локальное", released);
+        check("с владельцем, хендл без типа: destroy отпустил локальное", released);
     }
 
     {
@@ -189,7 +189,7 @@ int main() {
 
         owned_typed(waiter, &released);
         waiter.destroy();
-        check("с владельцем, ручка с типом: destroy отпустил локальное", released);
+        check("с владельцем, хендл с типом: destroy отпустил локальное", released);
     }
 
     // 3. То же со своим operator new — и видно, выделялся ли кадр.

@@ -147,6 +147,17 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
                 render();
             }
         },
+        onPointerEntered = [this, slot](StackPanel const&, PointerRoutedEventArgs&) {
+            hovered_ = slot;
+            paint(slot);
+        },
+        // Выход из одной ячейки может прийти и после входа в соседнюю.
+        onPointerExited = [this, slot](StackPanel const&, PointerRoutedEventArgs&) {
+            if (hovered_ == slot) {
+                hovered_.reset();
+                paint(slot);
+            }
+        },
         row.indent,
         row.glyph,
         row.check,
@@ -246,7 +257,7 @@ void VirtualTree::render() {
     uint32_t const base = first();
 
     for (uint32_t slot = 0; slot < pool_.size(); ++slot) {
-        Row const& row = pool_[slot];
+        Row& row = pool_[slot];
         uint32_t const index = base + slot;
         if (index >= count) {
             row.panel.visibility(Visibility::Collapsed);
@@ -255,9 +266,8 @@ void VirtualTree::render() {
 
         TreeRow const data = model_->row(index);
         row.panel.visibility(Visibility::Visible);
-        Brush const& fill = data.selected ? static_cast<Brush const&>(brushes.SubtleFillColor.Secondary)
-                                          : static_cast<Brush const&>(brushes.SubtleFillColor.Transparent);
-        row.panel.background(fill);
+        row.selected = data.selected;
+        paint(slot);
         row.indent.width(data.depth * indentStep_);
         row.glyph.text(data.expander == Expander::Collapsed ? collapsedGlyph
                        : data.expander == Expander::Expanded ? expandedGlyph
@@ -284,6 +294,15 @@ void VirtualTree::render() {
 
     // Строки запаса сверху уходят за край: панель сдвинута на их высоту.
     rows_.translation(Vector3 {0, -static_cast<float>((top_ - base) * rowHeight_), 0});
+}
+
+void VirtualTree::paint(uint32_t slot) {
+    // Строка под указателем светлее выбранной: выбор виден и под указателем.
+    Row const& row = pool_[slot];
+    Brush const& fill = row.selected       ? static_cast<Brush const&>(brushes.SubtleFillColor.Secondary)
+                        : hovered_ == slot ? static_cast<Brush const&>(brushes.SubtleFillColor.Tertiary)
+                                           : static_cast<Brush const&>(brushes.SubtleFillColor.Transparent);
+    row.panel.background(fill);
 }
 
 }  // namespace editor

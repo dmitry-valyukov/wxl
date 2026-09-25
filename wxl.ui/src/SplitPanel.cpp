@@ -22,7 +22,7 @@ namespace foundation = winrt::Windows::Foundation;
 
 namespace {
 
-// Объект WinUI панели. Детей у него три: левая часть, правая часть и ручка --
+// Объект WinUI панели. Детей у него три: левая часть, правая часть и разделитель --
 // последней, чтобы лежать поверх частей. Состояние перетаскивания живёт здесь
 // же: обёртка wxl своего ничего не несёт.
 struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
@@ -41,7 +41,7 @@ struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
     // именем первого интерфейса из implements.
     winrt::hstring GetRuntimeClassName() const { return L"wxl.SplitPanel"; }
 
-    // Часть встаёт перед ручкой; прежняя уходит из детей.
+    // Часть встаёт перед разделителем; прежняя уходит из детей.
     void place(xaml::UIElement& slot, xaml::UIElement const& value) {
         auto const children = Children();
         uint32_t at = 0;

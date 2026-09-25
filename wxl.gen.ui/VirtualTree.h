@@ -89,9 +89,11 @@ private:
         wxl::TextBlock check;
         wxl::TextBlock icon;
         wxl::TextBlock text;
+        bool selected = false;  // выбрана ли строка модели, показанная в ячейке
     };
 
     Row makeRow(uint32_t slot);
+    void paint(uint32_t slot);
     void resize(double height);
     void scrollBy(int64_t lines);
     void scrollTo(uint32_t top);
@@ -119,6 +121,10 @@ private:
     uint32_t top_ = 0;
     uint32_t visible_ = 0;  // строк, видимых целиком
     double height_ = 0;     // высота, под которую построен пул
+
+    // Ячейка пула под указателем. Ячейка, а не строка модели: при листании
+    // под неподвижным указателем остаётся та же ячейка с другой строкой.
+    wxl::core::nullable<uint32_t> hovered_;
 };
 
 }  // namespace editor
