@@ -305,7 +305,7 @@ using namespace wxl::dsl;
         minSize = {820, 560},
         extendsContentIntoTitleBar = true,
         titleBar = {leftHeader = TextBlock{L"App"}, rightHeader = Button{L"Sign in"}},
-        zoom = 1.25,
+        zoomFactor = 1.25,
         onClosed = [] {},
         onGeometryChanged = [] {},
         onClientSizeChanged = [](Object const&, ClientSize const& client) { (void)client.scale; },
@@ -327,7 +327,7 @@ using namespace wxl::dsl;
 
     auto const closeLater = [window] { window.close(); };
     (void)closeLater;
-    window.zoom(window.zoom() * 1.1);
+    window.zoomFactor(window.zoomFactor() * 1.1);
     window.appWindow().title(legacy.title());
     auto sizes = wxl::on_event<EventKey::ClientSizeChanged>(window);
     (void)sizes;

@@ -14,6 +14,7 @@
 #include "MagnifyEffect.h"
 #include "SplitPanel.h"
 #include "ThemeBrush.h"
+#include "ZoomEffect.h"
 #include "VirtualTree.h"
 #include "generated/brushes.h"
 #include "launch.h"
@@ -58,31 +59,15 @@ namespace glyphs {
 constexpr std::u16string_view typesTab = u"Types";
 constexpr std::u16string_view resourcesTab = u"Resources";
 
-// Масштаб всего окна — по сетке, а не множителем: из любого шага кнопки
-// приходят в те же точки, и 100 % всегда среди них.
-constexpr double zoomSteps[] {0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0};
-constexpr uint32_t zoomDefault = 2;
-constexpr uint32_t zoomLast = std::size(zoomSteps) - 1;
-
-core::u16_text percent(uint32_t step) {
-    core::u16_text text = core::to_u16(zoomSteps[step] * 100, std::chars_format::fixed, 0);
+core::u16_text percent(double factor) {
+    core::u16_text text = core::to_u16(factor * 100, std::chars_format::fixed, 0);
     text += u" %";
     return text;
 }
 
-// Шаг сетки, который ставят кнопки, и то, что за ним следует: подпись и
-// доступность кнопок на краях сетки.
-struct Zoom {
-    core::observable<uint32_t> step {zoomDefault};
-    core::observable<core::u16_text> caption;
-    core::observable<bool> canZoomOut;
-    core::observable<bool> canZoomIn;
-
-    Zoom() {
-        caption.follow(step, percent);
-        canZoomOut.follow(step, [](uint32_t step) { return step > 0; });
-        canZoomIn.follow(step, [](uint32_t step) { return step < zoomLast; });
-    }
+// Подпись кнопки «100 %» — масштаб модели словами.
+struct ZoomLabel {
+    core::observable<core::u16_text> text;
 };
 
 }  // namespace
@@ -167,7 +152,11 @@ wxl::Teardown wxl_launched() {
         fontSize = 20.0,
     };
 
-    auto const zoom = core::make_refcounted<Zoom>();
+    // Масштаб окна — с клавиатуры (Ctrl и «+», «−», «0»), колесом с Ctrl и кнопками
+    // в заголовке, по сетке от 50 до 200 %.
+    auto const zoom = ZoomEffect {zoomLevels125};
+    auto const label = core::make_refcounted<ZoomLabel>();
+    label->text.follow(zoom.model().zoomFactor(), percent);
 
     // Окно со своим заголовком, как в образце CustomTitleBar: заголовок — строка
     // над содержимым, кнопки окна рисует само окно его высотой, и масштаб
@@ -176,6 +165,7 @@ wxl::Teardown wxl_launched() {
     // Панель профиля пока макет: действий на кнопках нет; переключатели показа —
     // знаки тех же отметок, что в дереве.
     CompositionWindow const window {
+        zoom,
         title = BindOutput {document->title},
         minSize = {640, 400},
         extendsContentIntoTitleBar = true,
@@ -190,30 +180,22 @@ wxl::Teardown wxl_launched() {
                 Button {
                     toolButton,
                     toolTip = u"Уменьшить масштаб",
-                    isEnabled = BindOutput {zoom->canZoomOut},
-                    onClick = [zoom] {
-                        if (uint32_t const step = zoom->step.get(); step > 0) {
-                            zoom->step.set(step - 1);
-                        }
-                    },
+                    isEnabled = BindOutput {zoom.model().canZoomOut()},
+                    onClick = [zoom] { zoom.model().zoomOut(); },
                     content = FontIcon {toolGlyph, glyph = glyphs::zoomOut},
                 },
                 Button {
                     toolButton,
                     width = 64.0,
                     toolTip = u"Масштаб 100 %",
-                    onClick = [zoom] { zoom->step.set(zoomDefault); },
-                    content = TextBlock {text = BindOutput {zoom->caption}},
+                    onClick = [zoom] { zoom.model().resetZoom(); },
+                    content = TextBlock {text = BindOutput {label->text}},
                 },
                 Button {
                     toolButton,
                     toolTip = u"Увеличить масштаб",
-                    isEnabled = BindOutput {zoom->canZoomIn},
-                    onClick = [zoom] {
-                        if (uint32_t const step = zoom->step.get(); step < zoomLast) {
-                            zoom->step.set(step + 1);
-                        }
-                    },
+                    isEnabled = BindOutput {zoom.model().canZoomIn()},
+                    onClick = [zoom] { zoom.model().zoomIn(); },
                     content = FontIcon {toolGlyph, glyph = glyphs::zoomIn},
                 },
             },
@@ -324,13 +306,9 @@ wxl::Teardown wxl_launched() {
         },
     };
 
-    // Окно — ручка, и единственный наблюдатель, который его масштабирует,
-    // держит его по значению; кнопки держат модель и окна не видят.
-    zoom->step.on_change([window](uint32_t const& step) noexcept { window.zoom(zoomSteps[step]); });
-
     window.background(rgb(243, 243, 243));
     window.centreWithClientSize({1200, 800});
     window.activate();
 
-    return [document, types, members, zoom](TeardownReason) {};
+    return [document, types, members, label](TeardownReason) {};
 }

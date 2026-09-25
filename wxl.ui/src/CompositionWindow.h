@@ -82,9 +82,12 @@ namespace wxl {
 // CompositionWindow.cpp; окно смотрит в него и делит его с копиями.
 struct WindowState;
 
+class AppZoom;
+class ZoomEffect;
+
 /// Что приносит ClientSizeChanged: клиентская область в физических пикселях и
 /// масштаб, которым их делят, чтобы получить логические, -- DPI экрана с
-/// увеличением окна (`zoom`) в нём.
+/// увеличением окна (`zoomFactor`) в нём.
 struct ClientSize {
     SizeInt32 size;
     float scale;
@@ -185,7 +188,7 @@ public:
     ContainerVisual contentVisual() const;
 
     /// Размер клиентской области окна в физических пикселях и масштаб, которым
-    /// их делят на логические: DPI экрана (DPI/96) с увеличением окна (`zoom`).
+    /// их делят на логические: DPI экрана (DPI/96) с увеличением окна (`zoomFactor`).
     /// Страница живёт задником окна (сценой), не в острове, поэтому и меру берёт
     /// отсюда: острова при автооткрытии на старте ещё нет, спрашивать не у кого.
     SizeInt32 clientSize() const;
@@ -230,8 +233,8 @@ public:
     /// ширина окна меньше, и вёрстка переливается под неё. 1 -- как задал
     /// экран; DPI экрана остаётся в множителе и при переезде окна на другой
     /// монитор. Сцена под островом не увеличивается: она в физических пикселях.
-    void zoom(double value) const;
-    double zoom() const;
+    void zoomFactor(double value) const;
+    double zoomFactor() const;
 
     // ---- Заголовок окна ----
     //
@@ -371,7 +374,7 @@ public:
     /// острова. Это и есть место, где приложение перестраивает раскладку под
     /// новую ширину: то же самое из `FrameworkElement::SizeChanged` пришло бы
     /// уже изнутри прохода вёрстки, а править дерево оттуда нельзя. Смена
-    /// увеличения (`zoom`) зовёт его тоже: логическая ширина от неё меняется.
+    /// увеличения (`zoomFactor`) зовёт его тоже: логическая ширина от неё меняется.
     EventToken add_onClientSizeChanged(EventHandler<ClientSize> const& handler) const;
     void remove_onClientSizeChanged(EventToken token) const;
 
@@ -403,6 +406,11 @@ public:
     void onPointerWheel(std::function<void(PointerPoint const&)> handler) const;
 
 private:
+    // Масштаб, который присоединяет ZoomEffect: окно ведёт модель клавишами и
+    // колесом своего острова и следует за её масштабом.
+    friend class ZoomEffect;
+    void attachZoom(core::intrusive_ptr<AppZoom> zoom) const;
+
     core::intrusive_ptr<WindowState> state_;
 };
 

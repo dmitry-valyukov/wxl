@@ -160,6 +160,10 @@ add_library(wxl.ui STATIC
     src/Panels.cpp
     src/SplitPanel.h
     src/SplitPanel.cpp
+    src/AppZoom.h
+    src/AppZoom.cpp
+    src/ZoomEffect.h
+    src/ZoomEffect.cpp
     src/impl/binding.h
     src/binding.cpp
     src/WindowShade.h
