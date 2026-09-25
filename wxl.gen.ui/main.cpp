@@ -153,8 +153,8 @@ wxl::Teardown wxl_launched() {
     };
 
     // Масштаб окна — с клавиатуры (Ctrl и «+», «−», «0»), колесом с Ctrl и кнопками
-    // в заголовке, по сетке от 50 до 200 %.
-    auto const zoom = ZoomEffect {zoomLevels125};
+    // в заголовке, по ступеням от 50 до 300 %.
+    auto const zoom = ZoomEffect {};
     auto const label = core::make_refcounted<ZoomLabel>();
     label->text.follow(zoom.model().zoomFactor(), percent);
 
