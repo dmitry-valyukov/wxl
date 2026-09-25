@@ -4,68 +4,102 @@ using namespace wxl;
 using namespace wxl::dsl;
 
 namespace {
-    // Шаблон фона панели калькулятора: кисть строится при применении
-    Template<RadialGradientBrush> backgroundTemplate(Color centerColor, Color edgeColor) {
+
+    // Лампа сцены: сверху и немного слева — 105°, если считать от горизонтали
+    // против часовой стрелки, — и поднята на 50° над поверхностью; тёплый
+    // ключевой свет и холодноватый фоновый. В разметке заданы только альбедо
+    // поверхностей, все тени и блики из них выводятся в compile-time по формулам
+    // освещения.
+    constexpr Light lamp {
+        Direction::from_angles(105, 50),
+        rgb(255, 246, 232),
+        rgb(140, 146, 168)
+    };
+
+    // Тона освещённой панели: под лампой, на полпути и у края градиента.
+    struct Glow {
+        Color centre, mid, edge;
+    };
+
+    constexpr double glowRadius = 1.3;
+
+    // Панель под лампой на высоте height (в радиусах градиента): фоновый
+    // свет ровный, ключевой спадает от проекции лампы к краю.
+    consteval Glow glow(Color albedo, double height) {
+        return {
+            relief_helper::under(albedo, lamp, 0.0, height),
+            relief_helper::under(albedo, lamp, 0.5 * glowRadius, height),
+            relief_helper::under(albedo, lamp, glowRadius, height),
+        };
+    }
+
+    // Шаблон фона панели: кисть строится при применении
+    Template<RadialGradientBrush> backgroundTemplate(Glow const& tones) {
         return {
             center = {0.33, 0.33},
             gradientOrigin = {0.33, 0.33},
-            radiusX = 1.3,
-            radiusY = 1.3,
-            GradientStop {centerColor, offset = 0.0},
-            GradientStop {edgeColor, offset = 1.0},
+            radiusX = glowRadius,
+            radiusY = glowRadius,
+            Template<GradientStop> {tones.centre, offset = 0.0},
+            Template<GradientStop> {tones.mid, offset = 0.5},
+            Template<GradientStop> {tones.edge, offset = 1.0},
         };
     }
 
-    // Смещение цветовых каналов на заданную величину с зажатием в диапазоне 0..255
-    constexpr Color tweakColor(Color color, int by) {
-        auto const channel = [by](uint8_t value) {
-            int const moved = value + by;
-            return static_cast<uint8_t>(moved < 0 ? 0 : moved > 255 ? 255 : moved);
-        };
+    // Общий стиль для шрифтового оформления LCD-экрана калькулятора
+    auto const lcdDisplayPreset = Preset {
+        fontFamily = FontFamily{u"Assets/digitalism.ttf#Digitalism"},
+        foreground = Template<SolidColorBrush>{rgb(44, 58, 28)},
+        hAlign.stretch,
+        textAlignment.right,
+        FontWeight {600},
+        HaloEffect {
+            color = rgb(92, 138, 32),
+            blurRadius = 14.0f
+        },
+    };
 
-        return {color.A, channel(color.R), channel(color.G), channel(color.B)};
-    }
-
-    // Эффект «вдавленной» в панель клавиши
-    Template<RadialGradientBrush> dipTemplate(Color core, Color rim) {
-        return {
-            center = {0.5, 0.5},
-            gradientOrigin = {0.1, 0.1},
-            radiusX = 1.85,
-            radiusY = 1.15,
-            GradientStop {core, offset = 0.0},
-            GradientStop {rim, offset = 0.75},
-            GradientStop {tweakColor(rim, 18), offset = 1.0},
-        };
-    }
-
-    // Настройка стилей кнопки и её состояний (PointerOver, Pressed) через словарь тем
-    auto keyFacePreset(Color ink, Color core, Color rim) {
-        return Preset{
-            foreground = SolidColorBrush {ink},
-            background = dipTemplate(core, rim),
-
-            ThemeBrush {u"ButtonBackgroundPointerOver", dipTemplate(tweakColor(core, 20), tweakColor(rim, 20)).build()},
-            ThemeBrush {u"ButtonBackgroundPressed", dipTemplate(tweakColor(core, -5), tweakColor(rim, -12)).build()},
-            ThemeBrush {u"ButtonForegroundPointerOver", SolidColorBrush {ink}},
-            ThemeBrush {u"ButtonForegroundPressed", SolidColorBrush {tweakColor(ink, -40)}},
-            ThemeBrush {u"ButtonBorderBrushPointerOver", SolidColorBrush {rgb(0, 0, 0)}},
-            ThemeBrush {u"ButtonBorderBrushPressed", SolidColorBrush {rgb(0, 0, 0)}},
-
-            borderBrush = SolidColorBrush {rgb(0, 0, 0)},
-            BorderThickness {1},
-            CornerRadius {6},
-
-            Padding {1},
-            horizontalContentAlignment = HorizontalAlignment::Stretch,
-            verticalContentAlignment = VerticalAlignment::Stretch,
-        };
-    }
+    // Альбедо корпуса и табло: тёмный полупрозрачный пластик и подсвеченный
+    // изнутри экран, над которым лампа стоит вдвое выше и светит ровнее
+    constexpr Glow bodyGlow = glow(rgba(39, 39, 89, 0.66), 1.0);
+    constexpr Glow lcdGlow  = glow(rgb(208, 220, 170), 2.0);
 
     // Кант для псевдообъёма: блик слева сверху, тень справа снизу. Рисует его
     // композитор поверх собственной обводки элемента.
-    constexpr Color rimLight = rgba(255, 255, 255, 0.36);
-    constexpr Color rimShade = rgba(0, 0, 0, 0.55);
+    constexpr Color rimLight = rgba(255, 255, 255, 0.46);
+    constexpr Color rimShade = rgba(52, 52, 52, 0.55);
+
+    // Три вида клавиш: чернила и материал (с прозрачностью), остальное —
+    // свет: тень 0.7, вдавленный верх.
+    Button3DEffect numericKey {
+        foreground = rgb(237, 239, 242),
+        background = rgba(68, 72, 79, 0.933),
+        shadow = 0.4,
+        emboss = -0.3
+    };
+
+    Button3DEffect actionKey {
+        foreground = rgb(204, 217, 245),
+        background = rgba(48, 68, 116, 0.933),
+        shadow = 0.4,
+        emboss = -0.3
+    };
+
+    Button3DEffect terminalKey {
+        foreground = rgb(255, 227, 180),
+        background = rgba(176, 98, 30, 0.933),
+        shadow = 0.4,
+        emboss = -0.3
+    };
+
+    // Раскладка клавиши — скругление, отступ
+    // и растяжение содержимого. Вид клавиши даёт Button3DEffect.
+    Preset keyLayoutPreset {
+        CornerRadius {8},
+        Padding {1},
+        horizontalContentAlignment = hAlign.stretch,
+        verticalContentAlignment = vAlign.stretch,
+    };
 }
 
 using calculator::Calc;
@@ -83,28 +117,10 @@ wxl::Teardown wxl_launched() {
     // Голый указатель для дешевого захвата
     Calc * calc = calcKeeper.get();
 
-    // Общий стиль для шрифтового оформления LCD-экрана калькулятора
-    auto const lcdDisplayPreset = Preset{
-        fontFamily = FontFamily{u"Assets/digitalism.ttf#Digitalism"},
-        foreground = Template<SolidColorBrush>{rgb(44, 58, 28)},
-        hAlign.stretch,
-        textAlignment.right,
-        FontWeight {600},
-        HaloEffect {color = rgb(92, 138, 32), blurRadius = 14.0f},
-    };
-
-    // Клавиши: кант внутри чёрной обводки, свет чуть заходит на правую сторону.
-    auto const rim = BevelEffect {rimLight, rimShade, Margin {1}, offset = 2};
-
-    // Стили для различных типов клавиш
-    auto const numericKeyStyle  = keyFacePreset(rgb(237, 239, 242), RGBA{"#26282BEE"}, rgb(70, 74, 81));
-    auto const actionKeyStyle   = keyFacePreset(rgb(204, 217, 245), RGBA{"#1D263AEE"}, rgb(50, 70, 119));
-    auto const terminalKeyStyle = keyFacePreset(rgb(255, 227, 180), RGBA{"#4A2C17EE"}, rgb(182, 100, 29));
-
-    auto selectKeyPreset = [&](char16_t key) {
-        return calculator::isNumeric(key)  ? numericKeyStyle
-             : calculator::isTerminal(key) ? terminalKeyStyle
-                                           : actionKeyStyle;
+    auto selectButtonEffect = [&](char16_t key) {
+        return calculator::isNumeric(key)  ? numericKey
+             : calculator::isTerminal(key) ? terminalKey
+                                           : actionKey;
     };
 
     // Декларативное описание всего интерфейса в рамках единого C++ выражения
@@ -112,13 +128,18 @@ wxl::Teardown wxl_launched() {
         title = u"WXL Calculator",
         minSize = {320, 420},
 
-        content = Border {
+        // Корпус — сама сетка клавиш: фон, кант и фокус надеты прямо на неё.
+        content = Grid {
             requestedTheme = ElementTheme::Dark,
-            BevelEffect {rimLight, rimShade, strokeThickness = 1},
+            BevelEffect {rimLight, rimShade, strokeThickness = 2},
             isTabStop = true,
-            background = backgroundTemplate(RGBA{"#23236495"}, RGBA{"#10102795"}),
-            BorderThickness {1},
+            background = backgroundTemplate(bodyGlow),
             CornerRadius {6},
+            Padding {16},
+            rowSpacing = 8,
+            columnSpacing = 8,
+            rowDefinitions = u"auto,*,*,*,*,*",
+            columnDefinitions = u"*,*,*,*",
 
             // Перехват текстового ввода символов
             onCharacterReceived = [calc](Object const&, CharacterReceivedRoutedEventArgs& args) {
@@ -135,84 +156,73 @@ wxl::Teardown wxl_launched() {
                 args.handled(true);
             },
 
-            onLoaded = [](Border const& keypad) { keypad.focus(FocusState::Programmatic); },
+            onLoaded = [](Grid const& keypad) { keypad.focus(FocusState::Programmatic); },
 
-            Grid {
-                Padding {16},
-                rowSpacing = 8,
-                columnSpacing = 8,
-                rowDefinitions = u"auto,*,*,*,*,*",
-                columnDefinitions = u"*,*,*,*",
+            // Табло: вдавлено тем же кантом с цветами в обратном порядке, поверх
+            // тёмной обводки самого элемента.
+            Border {
+                row = 0,
+                columnSpan = 4,
+                background = backgroundTemplate(lcdGlow),
+                borderBrush = rgba(51, 51, 51, 0.753),
+                BorderThickness {4},
+                BevelEffect {rimShade, rimLight},
+                CornerRadius {10},
+                Padding {14, 8, 14, 0},
+                Margin {0, 4, 0, 12},
 
-                // Экранная подложка
-                Border {
-                    row = 0,
-                    columnSpan = 4,
-                    background = backgroundTemplate(rgb(220, 232, 180), rgb(166, 178, 135)),
-                    BorderThickness {2},
-                    // Табло вдавлено: тот же кант с цветами в обратном порядке.
-                    BevelEffect {rimShade, rimLight},
-                    CornerRadius {10},
-                    Padding {0},
-                    Margin {0, 4, 0, 12},
+                Grid {
+                    rowDefinitions = u"auto,*",
 
-                    Border {
-                        BorderThickness {2},
-                        borderBrush = SolidColorBrush {RGBA{"#333333C0"}},
-                        CornerRadius {9},
-                        Margin {-1},
-                        Padding {14, 8, 14, 0},
+                    // Верхняя строка: текущее выражение (формула)
+                    TextBlock {
+                        lcdDisplayPreset,
+                        row = 0,
+                        fontSize = 28,
+                        CharacterSpacing {100},
+                        text = BindOutput{calc->expression},
+                    },
 
-                        Grid {
-                            rowDefinitions = u"auto,*",
-
-                            // Верхняя строка: текущее выражение (формула)
-                            TextBlock {
-                                lcdDisplayPreset,
-                                row = 0,
-                                fontSize = 28,
-                                CharacterSpacing {100},
-                                text = BindOutput{calc->expression},
-                            },
-
-                            // Нижняя строка: главное табло (число)
-                            TextBlock {
-                                lcdDisplayPreset,
-                                row = 1,
-                                Margin {0, 8, 0, -4},
-                                fontSize = 64,
-                                textWrapping.wrap,
-                                CharacterSpacing {75},
-                                text = BindOutput{calc->display},
-                            },
-                        },
+                    // Нижняя строка: главное табло (число)
+                    TextBlock {
+                        lcdDisplayPreset,
+                        row = 1,
+                        Margin {0, 8, 0, -4},
+                        fontSize = 64,
+                        textWrapping.wrap,
+                        CharacterSpacing {75},
+                        text = BindOutput{calc->display},
                     },
                 },
+            },
 
-                // Генерация сетки кнопок через compile-time фолд над строковым литералом
-                [&](iterate<u"C÷×√"
-                            u"789-"
-                            u"456+"
-                            u"123%"
-                            u"±0.="> key) {
-                    return Button {
-                        fontSize = 26,
+            // Генерация сетки кнопок через compile-time фолд над строковым литералом
+            [&](iterate<u"C÷×√"
+                        u"789-"
+                        u"456+"
+                        u"123%"
+                        u"±0.="> key) {
+                return Button {
+                    keyLayoutPreset,
+                    selectButtonEffect(key.value),
+                    hAlign.stretch, vAlign.stretch,
+                    row = key.index / 4 + 1,
+                    column = key.index % 4,
+                    onClick = [calc, symbol = key.value] { calc->press(symbol); },
+
+                    content = TextBlock {
+                        key.text(),
+                        fontSize = 28,
                         FontWeight {600},
-                        selectKeyPreset(key.value),
-                        hAlign.stretch, vAlign.stretch,
-                        row = key.index / 4 + 1,
-                        column = key.index % 4,
-                        onClick = [calc, symbol = key.value] { calc->press(symbol); },
-
-                        rim,
-                        content = TextBlock {
-                            key.text(),
-                            hAlign.center,
-                            vAlign.center,
-                            HaloEffect {color = rgb(43, 27, 0), blurRadius = 8.0f},
+                        hAlign.center,
+                        vAlign.center,
+                        GaussianBlurEffect {
+                            color = rgb(0, 0, 0),
+                            blurRadius = 3.0f,
+                            gamma = 0.5
                         },
-                    };
-                },
+                    },
+                };
             },
         },
     };

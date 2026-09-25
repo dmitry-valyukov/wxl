@@ -4,8 +4,7 @@
 // готовые панели и карточка, два блока разметки (описание — HTML, код —
 // RSDN с подсветкой), фигуры и сами эффекты.
 //
-// HaloEffect.h идёт последним: он единственный здесь несёт `import`, а
-// заголовок после импорта должен быть уже разобран.
+// HaloEffect.h больше не несёт `import`: его композиция ушла в HaloEffect.cpp.
 
 #include "ui.h"
 #include "Card.h"
@@ -18,3 +17,4 @@
 #include "MagnifyEffect.h"
 #include "BevelEffect.h"
 #include "HaloEffect.h"
+#include "GaussianBlurEffect.h"

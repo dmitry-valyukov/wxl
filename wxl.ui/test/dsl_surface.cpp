@@ -21,6 +21,7 @@
 #include "ShowDialog.h"
 #include "ThemeBrush.h"
 #include "Panels.h"
+#include "Relief.h"
 #include "UiThread.h"
 #include "ui.h"
 #include "generated/Microsoft.UI.Dispatching.h"
@@ -491,7 +492,7 @@ namespace library_presets {
     Border built{background = RadialGradientBrush{
                      glow,
                      GradientStop{rgba(51, 51, 180, 0.2), offset = 0.0},
-                     GradientStop{RGBA{"#20208720"}, offset = 1.0},
+                     GradientStop{rgba(32, 32, 135, 0.125), offset = 1.0},
                  }};
 
     Border given{background = Template<RadialGradientBrush>{glow}};
@@ -519,7 +520,7 @@ namespace library_presets {
         };
     };
 
-    Border keypad{background = glowing(RGBA{"#333333B4"}, RGBA{"#20202087"})};
+    Border keypad{background = glowing(rgba(51, 51, 51, 0.706), rgba(32, 32, 32, 0.53))};
     Border display{background = glowing(rgb(220, 232, 180), rgb(166, 178, 135))};
 }
 
@@ -949,7 +950,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
         hAlign.right,
         vAlign.top,
         Margin{0, 64, 72, 0},
-        background = SolidColorBrush{RGBA{"#1C12086C"}},
+        background = SolidColorBrush{rgba(28, 18, 8, 0.424)},
         content,
     };
 
@@ -979,7 +980,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
 [[maybe_unused]] void themed_brushes() {
     Border follows{background = brushes.Card.BackgroundFillColor.Default};
     TextBlock pinned{foreground = brushes.Text.FillColor.Primary(ElementTheme::Dark)};
-    Border literal{background = SolidColorBrush{RGBA{"#1A1A1A6C"}}};
+    Border literal{background = SolidColorBrush{rgba(26, 26, 26, 0.424)}};
 
     (void)follows;
     (void)pinned;
@@ -991,7 +992,7 @@ static_assert(!std::is_default_constructible_v<ElementCompositionPreview>,
 inline constexpr Preset tinted{background = colors.white, borderBrush = Color{255, 0, 0, 0}};
 
 [[maybe_unused]] void colours_for_brushes() {
-    Border scrim{background = RGBA{"#E0E0D0A0"}, tinted};
+    Border scrim{background = rgba(224, 224, 208, 0.627), tinted};
     TextBlock ink{foreground = rgb(44, 58, 28)};
     Button swatch{borderBrush = colors.gray, background = Color{255, 0, 0, 0}};
     Apply{scrim, background = colors.transparent};
@@ -1232,25 +1233,130 @@ static_assert(alignof(Color) == 1);
 static_assert(offsetof(Color, A) == 0 && offsetof(Color, R) == 1 && offsetof(Color, G) == 2
               && offsetof(Color, B) == 3);
 
-// CSS hex puts alpha last; Color itself is A, R, G, B.
-static_assert(RGBA{"#dff9f9d8"} == Color{0xD8, 0xDF, 0xF9, 0xF9});
-static_assert(RGBA{"#102030"} == Color{0xFF, 0x10, 0x20, 0x30});
-static_assert(RGBA{"#aBc"} == Color{0xFF, 0xAA, 0xBB, 0xCC});
-static_assert(RGBA{"#1234"} == Color{0x44, 0x11, 0x22, 0x33});
-
 // The CSS functions: alpha is a fraction, rounded to the nearest byte.
 static_assert(rgb(131, 50, 50) == Color{255, 131, 50, 50});
 static_assert(rgba(131, 50, 50, 0.2) == Color{51, 131, 50, 50});
 static_assert(rgba(0, 0, 0, 0) == colors.transparent);
 static_assert(rgba(255, 255, 255, 1.0) == colors.white);
 
+// color_helper::lightness() moves along OKLCH L: the ends are black and white,
+// a zero step is the identity, equal steps either way from a grey land
+// symmetric greys, and alpha rides along.
+static_assert(color_helper::lightness(colors.black, 1.0) == colors.white);
+static_assert(color_helper::lightness(colors.white, -1.0) == colors.black);
+static_assert(color_helper::lightness(rgb(131, 50, 50), 0.0) == rgb(131, 50, 50));
+static_assert(color_helper::lightness(colors.gray, 0.2) == rgb(189, 189, 189));
+static_assert(color_helper::lightness(colors.gray, -0.2) == rgb(72, 72, 72));
+static_assert(color_helper::lightness(rgba(30, 20, 200, 0.5), -0.1).A == 128);
+
+// shade() is a product in linear light: a quarter of white is not a quarter
+// of the byte, one is the identity, zero is black, a colour keeps its hue
+// because the channels scale together, too much light clips at white, and
+// alpha rides along.
+static_assert(color_helper::shade(colors.white, 0.25) == rgb(137, 137, 137));
+static_assert(color_helper::shade(colors.gray, 0.5) == rgb(92, 92, 92));
+static_assert(color_helper::shade(rgb(200, 60, 30), 0.3) == rgb(116, 31, 13));
+static_assert(color_helper::shade(rgb(200, 60, 30), 1.0) == rgb(200, 60, 30));
+static_assert(color_helper::shade(rgba(200, 60, 30, 0.5), 0.0) == rgba(0, 0, 0, 0.5));
+static_assert(color_helper::shade(colors.gray, 8.0) == colors.white);
+
+// highlight() is a sum in linear light: the light's colour comes through and
+// the surface's saturation goes; all of a white light is white.
+static_assert(color_helper::highlight(rgb(200, 60, 30), colors.white, 0.0) == rgb(200, 60, 30));
+static_assert(color_helper::highlight(rgb(200, 60, 30), colors.white, 0.2) == rgb(228, 136, 127));
+static_assert(color_helper::highlight(colors.gray, rgb(255, 200, 100), 0.5) == rgb(220, 188, 144));
+static_assert(color_helper::highlight(colors.black, colors.white, 1.0) == colors.white);
+
+// illuminate() is Lambert: a face square to a white lamp with no ambient
+// shows its albedo, a face turned away shows only the ambient, the slopes in
+// between get the cosine's share of the key, and a direction's length does
+// not matter.
+namespace {
+constexpr Light lampAbove {{0, 0, 1}, colors.white, colors.black};
+constexpr Light lampAtLeft {{-1, -1, 1.2}, rgb(255, 246, 232), rgb(64, 68, 90)};
+}  // namespace
+static_assert(Light::illuminate(rgb(200, 60, 30), lampAbove, {0, 0, 1}) == rgb(200, 60, 30));
+static_assert(Light::illuminate(rgb(200, 60, 30), lampAbove, {0, 0, 5}) == rgb(200, 60, 30));
+static_assert(Light::illuminate(rgb(200, 60, 30), lampAbove, {0, 0, -1}) == colors.black);
+static_assert(Light::illuminate(rgb(200, 60, 30), lampAtLeft, {0, 0, 1}) == rgb(170, 48, 22));
+static_assert(Light::illuminate(rgb(200, 60, 30), lampAtLeft, {-1, -1, 1.5}) == rgb(204, 59, 28));
+static_assert(Light::illuminate(rgb(200, 60, 30), lampAtLeft, {1, 1, 1.5}) == rgb(48, 9, 4));
+static_assert(Light::illuminate(rgba(200, 60, 30, 0.5), lampAbove, {0, 0, 1}).A == 128);
+
+// relief_helper: a raised relief turns its near face to the lamp and its far
+// face away, a sunken one is the same two faces swapped, the flat top gets
+// the lamp's cosine, and under a lamp straight overhead the two faces of a
+// relief are one.
+namespace {
+constexpr auto raisedRed = relief_helper::raised(rgb(200, 60, 30), lampAtLeft);
+constexpr auto sunkenRed = relief_helper::sunken(rgb(200, 60, 30), lampAtLeft);
+constexpr auto underhead = relief_helper::raised(rgb(200, 60, 30), lampAbove);
+}  // namespace
+static_assert(raisedRed.nearLamp == rgb(202, 58, 28) && raisedRed.farFromLamp == rgb(81, 19, 8));
+static_assert(sunkenRed.nearLamp == raisedRed.farFromLamp && sunkenRed.farFromLamp == raisedRed.nearLamp);
+static_assert(relief_helper::flat(rgb(200, 60, 30), lampAtLeft) == rgb(170, 48, 22));
+static_assert(underhead.nearLamp == rgb(200, 60, 30) && underhead.farFromLamp == rgb(200, 60, 30));
+static_assert(relief_helper::raised(rgb(200, 60, 30), lampAtLeft, 0.0).nearLamp == rgb(170, 48, 22));
+
+// falloff() is one under the lamp, falls by the inverse square and the
+// cosine, and depends only on the ratio of distance to height; under() puts
+// it on the key and leaves the ambient alone.
+static_assert(relief_helper::falloff(0.0, 1.0) == 1.0);
+static_assert(relief_helper::falloff(1.3, 2.0) - relief_helper::falloff(0.65, 1.0) < 1e-12
+              && relief_helper::falloff(0.65, 1.0) - relief_helper::falloff(1.3, 2.0) < 1e-12);
+static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 0.0, 1.0) == rgb(205, 59, 28));
+static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 0.65, 1.0) == rgb(164, 46, 21));
+static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 1.3, 1.0) == rgb(112, 29, 12));
+static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 1.3, 2.0) == rgb(164, 46, 21));
+
+// towards() places a lamp by two angles: azimuth the classical way round the
+// screen, elevation above it. Straight overhead is the viewer's axis.
+namespace {
+constexpr auto leftUp = Direction::from_angles(120, 60);
+constexpr auto overhead = Direction::from_angles(45, 90);
+constexpr bool close_to(double value, double expected) {
+    return value - expected < 1e-6 && expected - value < 1e-6;
+}
+}  // namespace
+static_assert(close_to(leftUp.x, -0.25) && close_to(leftUp.y, -0.433013) && close_to(leftUp.z, 0.866025));
+static_assert(close_to(overhead.x, 0.0) && close_to(overhead.y, 0.0) && close_to(overhead.z, 1.0));
+
+// across() is the gradient axis of a face under the lamp: from the lamp's
+// side to the far side through the middle, whatever the lamp's height; a
+// lamp overhead leaves both ends in the middle.
+namespace {
+constexpr auto axisLeftUp = relief_helper::across({Direction::from_angles(120, 60), colors.white, colors.black});
+constexpr auto axisLow = relief_helper::across({Direction::from_angles(120, 20), colors.white, colors.black});
+constexpr auto axisOverhead = relief_helper::across({Direction::from_angles(120, 90), colors.white, colors.black});
+}  // namespace
+static_assert(close_to(axisLeftUp.startX, 0.25) && close_to(axisLeftUp.startY, 0.5 - 0.4330127)
+              && close_to(axisLeftUp.endX, 0.75) && close_to(axisLeftUp.endY, 0.5 + 0.4330127));
+static_assert(close_to(axisLow.startX, axisLeftUp.startX) && close_to(axisLow.endY, axisLeftUp.endY));
+static_assert(close_to(axisOverhead.startX, 0.5) && close_to(axisOverhead.endY, 0.5));
+
+// cushion() samples the shoulder ring by ring, outermost first: at full rise
+// the outer ring leans nearly to the side and the far side of it is all but
+// in the ambient, the inner ring is nearly the top; at no rise every ring is
+// the top; a negative rise swaps the sides.
+namespace {
+constexpr Light lampHigh {Direction::from_angles(120, 60), rgb(255, 246, 232), rgb(64, 68, 90)};
+constexpr auto cushionRed = relief_helper::cushion<4>(rgb(200, 60, 30), lampHigh, 1.0);
+constexpr auto flatRed = relief_helper::cushion<4>(rgb(200, 60, 30), lampHigh, 0.0);
+constexpr auto dentRed = relief_helper::cushion<4>(rgb(200, 60, 30), lampHigh, -1.0);
+constexpr Color topRed = relief_helper::flat(rgb(200, 60, 30), lampHigh);
+}  // namespace
+static_assert(topRed == rgb(192, 55, 26));
+static_assert(cushionRed[0].nearLamp == rgb(192, 55, 26) && cushionRed[0].farFromLamp == rgb(48, 9, 4));
+static_assert(cushionRed[1].nearLamp == rgb(204, 59, 28) && cushionRed[1].farFromLamp == rgb(134, 36, 16));
+static_assert(cushionRed[2].nearLamp == rgb(204, 59, 28) && cushionRed[2].farFromLamp == rgb(167, 47, 22));
+static_assert(cushionRed[3].nearLamp == rgb(198, 57, 27) && cushionRed[3].farFromLamp == rgb(186, 53, 25));
+static_assert(flatRed[0].nearLamp == topRed && flatRed[0].farFromLamp == topRed && flatRed[3].nearLamp == topRed
+              && flatRed[3].farFromLamp == topRed);
+static_assert(dentRed[0].nearLamp == cushionRed[0].farFromLamp && dentRed[0].farFromLamp == cushionRed[0].nearLamp
+              && dentRed[2].nearLamp == cushionRed[2].farFromLamp);
+
 // Color is a bare aggregate, the way it crosses the ABI.
 static_assert(std::is_aggregate_v<Color> && std::is_trivially_copyable_v<Color> && sizeof(Color) == 4);
-
-[[maybe_unused]] void colour_literals() {
-    Border hex{background = RGBA{"#dff9f9d8"}};
-    (void)hex;
-}
 
 // What a string parameter takes. Every spelling of UTF-16 the code has --
 // and the wxl::wstring a getter hands back, so a value read off one control
@@ -1399,6 +1505,73 @@ struct probe_task {
             std::rethrow_exception(*got.error());
         }
     }
+}
+
+// HaloEffect and GaussianBlurEffect -- written by hand, so their schema
+// lines are too.
+[[maybe_unused]] void HaloEffect_color_assigned(::wxl::HaloEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::color = value);
+}
+[[maybe_unused]] void HaloEffect_blurRadius_assigned(::wxl::HaloEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::blurRadius = value);
+}
+[[maybe_unused]] void HaloEffect_opacity_assigned(::wxl::HaloEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::opacity = value);
+}
+[[maybe_unused]] void HaloEffect_offset_assigned(::wxl::HaloEffect const& object, ::wxl::Vector3 value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::offset = value);
+}
+[[maybe_unused]] void HaloEffect_zIndex_assigned(::wxl::HaloEffect const& object, int32_t value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::zIndex = value);
+}
+[[maybe_unused]] void GaussianBlurEffect_color_assigned(::wxl::GaussianBlurEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::color = value);
+}
+[[maybe_unused]] void GaussianBlurEffect_blurRadius_assigned(::wxl::GaussianBlurEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::blurRadius = value);
+}
+[[maybe_unused]] void GaussianBlurEffect_opacity_assigned(::wxl::GaussianBlurEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::opacity = value);
+}
+[[maybe_unused]] void GaussianBlurEffect_gamma_assigned(::wxl::GaussianBlurEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::gamma = value);
+}
+[[maybe_unused]] void GaussianBlurEffect_zIndex_assigned(::wxl::GaussianBlurEffect const& object, int32_t value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::zIndex = value);
+}
+// The braces as a text block writes them: the generic tags, a bare colour,
+// and both effects attached to a TextBlock, a halo under the glyphs and a glow
+// over them.
+[[maybe_unused]] void glows_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    HaloEffect const halo{color = rgb(92, 138, 32), blurRadius = 14.0f};
+    HaloEffect const bare{rgb(92, 138, 32)};
+    GaussianBlurEffect const glow{rgb(0, 0, 0), blurRadius = 3.0f, gamma = 0.5, opacity = 0.9, zIndex = 1};
+    TextBlock{u"0", halo, bare, glow};
+}
+
+// Button3DEffect -- written by hand, so its schema lines are too.
+[[maybe_unused]] void Button3DEffect_foreground_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::foreground = value);
+}
+[[maybe_unused]] void Button3DEffect_background_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::background = value);
+}
+[[maybe_unused]] void Button3DEffect_shadow_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::shadow = value);
+}
+[[maybe_unused]] void Button3DEffect_emboss_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::emboss = value);
+}
+// The braces as a button writes them: the generic tags, a colour where the
+// foreground is a brush elsewhere, and the effect attached to a Button.
+[[maybe_unused]] void Button3DEffect_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    Button3DEffect const key{foreground = rgb(237, 239, 242), background = rgba(68, 72, 79, 0.933), shadow = 0.7,
+                             emboss = -1};
+    Button{u"7", key};
 }
 
 // BevelEffect -- written by hand, so its schema lines are too.

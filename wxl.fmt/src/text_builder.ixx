@@ -1,8 +1,3 @@
-module;
-
-#include <fmt/compile.h>
-#include <fmt/format.h>
-
 // Assembling text: many pieces, one buffer, no string built and thrown away
 // between them.
 //
@@ -16,6 +11,7 @@ module;
 export module wxl.fmt:text_builder;
 
 import :text_buffer;
+import fmt;
 import std;
 
 export namespace wxl::core {
@@ -27,12 +23,13 @@ export namespace wxl::core {
 ///
 ///     wxl::core::text_builder<> out;
 ///     out.format("{:.1f}%", share * 100.0);            // checked at compile time
-///     out.format(FMT_COMPILE("{}x{}"), width, height); // parsed at compile time
+///     out.format("{}x{}"_cf, width, height);           // parsed at compile time
 ///     out.format(fmt::runtime(from_config), value);    // a string decided at run time
 ///     out.append(" -- braces {} and all");
 ///     write(out.view());
 ///
-/// FMT_COMPILE is the one worth reaching for in a loop: it leaves the call
+/// The compiled string -- "…"_cf, from fmt::literals -- is the one worth
+/// reaching for in a loop: it leaves the call
 /// with no format-string walk and no packing of the arguments into a
 /// type-erased list, which measures at about 1.5 times the speed of the same
 /// run without it. It only applies to a literal, and it quietly falls back to
@@ -61,7 +58,7 @@ public:
         fmt::format_to(fmt::appender(buffer_), form, std::forward<Args>(args)...);
     }
 
-    /// The same for an FMT_COMPILE() string.
+    /// The same for a compiled string, "…"_cf.
     ///
     /// A second overload rather than one template over the format string: the
     /// compile-time check above happens while the *literal* is being turned

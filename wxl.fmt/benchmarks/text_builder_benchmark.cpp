@@ -7,7 +7,7 @@
 //
 // Two axes are being measured, and they are independent: where the text goes
 // (which buffer, on which allocator) and how the format string is read
-// (walked at run time, or parsed by FMT_COMPILE at compile time). Every row
+// (walked at run time, or parsed at compile time as a "…"_cf string). Every row
 // varies one of them with the other held still, so the two effects can be
 // read off separately and added.
 //
@@ -25,13 +25,13 @@
 #include <string>
 #include <vector>
 
-#include <fmt/compile.h>
-#include <fmt/format.h>
-
 import wxl.core;
 import wxl.fmt;
+import fmt;
 
 namespace {
+
+using namespace fmt::literals;
 
 using clock_t_ = std::chrono::steady_clock;
 /// The best of several passes, not the average of them. What is being timed
@@ -121,14 +121,14 @@ void lines(unsigned rounds) {
     const double fmt_pooled_compiled = milliseconds(rounds, [&] {
         pooled_compiled.clear();
         fmt::format_to(fmt::appender(pooled_compiled),
-                       FMT_COMPILE("{}: page {} of {}, {:.1f}%"), title, page, count, share);
+                       "{}: page {} of {}, {:.1f}%"_cf, title, page, count, share);
         sink += pooled_compiled.size();
     });
 
     wxl::core::text_builder<wxl::core::sta_allocator> compiled;
     const double text_builder_compiled = milliseconds(rounds, [&] {
         compiled.reset();
-        compiled.format(FMT_COMPILE("{}: page {} of {}, {:.1f}%"), title, page, count, share);
+        compiled.format("{}: page {} of {}, {:.1f}%"_cf, title, page, count, share);
         sink += compiled.size();
     });
 
@@ -188,7 +188,7 @@ void document(unsigned rounds, unsigned records) {
     const double fmt_pooled_compiled = milliseconds(rounds, [&] {
         fmt::basic_memory_buffer<char, 256, wxl::core::sta_allocator<char>> out;
         for (unsigned at = 0; at != records; ++at)
-            fmt::format_to(fmt::appender(out), FMT_COMPILE("<r i=\"{}\" v=\"{:.3f}\"/>"), at,
+            fmt::format_to(fmt::appender(out), "<r i=\"{}\" v=\"{:.3f}\"/>"_cf, at,
                            at * 1.5);
         sink += out.size();
     });
@@ -196,7 +196,7 @@ void document(unsigned rounds, unsigned records) {
     const double ours_compiled = milliseconds(rounds, [&] {
         wxl::core::text_builder<wxl::core::sta_allocator> out;
         for (unsigned at = 0; at != records; ++at)
-            out.format(FMT_COMPILE("<r i=\"{}\" v=\"{:.3f}\"/>"), at, at * 1.5);
+            out.format("<r i=\"{}\" v=\"{:.3f}\"/>"_cf, at, at * 1.5);
         sink += out.size();
     });
 

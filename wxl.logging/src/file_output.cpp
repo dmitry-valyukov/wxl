@@ -1,12 +1,11 @@
 module;
 
-#include <fmt/format.h>
-
 #include "abi.h"
 
 module wxl.logging;
 
 import wxl.core;
+import fmt;
 import std;
 
 namespace wxl::logging {

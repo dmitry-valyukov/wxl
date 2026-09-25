@@ -4,15 +4,14 @@
 #include <string>
 #include <string_view>
 
-#include <fmt/compile.h>
-#include <fmt/format.h>
-
-// wxl.core does not re-export wxl.core: nothing in its interface names a type
-// from it, so the allocator a buffer runs on is the caller's own import.
+// wxl.fmt imports wxl.core without re-exporting it, so the allocator a buffer
+// runs on is the caller's own import.
 import wxl.core;
 import wxl.fmt;
+import fmt;
 
 using namespace std::string_view_literals;
+using namespace fmt::literals;
 
 namespace {
 
@@ -44,7 +43,7 @@ TEST(builder, appending_takes_text_as_it_stands) {
 TEST(builder, a_compiled_format_string) {
     wxl::core::text_builder<> out;
 
-    out.format(FMT_COMPILE("{} of {}"), 7, 350);
+    out.format("{} of {}"_cf, 7, 350);
 
     EXPECT_EQ(out.view(), "7 of 350");
 }
@@ -112,7 +111,7 @@ TEST(builder, a_short_line_never_allocates) {
 TEST(builder, on_the_pool) {
     pooled_builder out;
 
-    out.format(FMT_COMPILE("page {} of {}"), 7, 350);
+    out.format("page {} of {}"_cf, 7, 350);
 
     EXPECT_EQ(out.view(), "page 7 of 350");
 }
