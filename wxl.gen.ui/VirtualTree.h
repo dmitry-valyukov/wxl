@@ -118,6 +118,7 @@ private:
     wxl::core::intrusive_ptr<TreeModel> model_;
     uint32_t top_ = 0;
     uint32_t visible_ = 0;  // строк, видимых целиком
+    double height_ = 0;     // высота, под которую построен пул
 };
 
 }  // namespace editor

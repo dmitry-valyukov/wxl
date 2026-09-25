@@ -158,6 +158,8 @@ add_library(wxl.ui STATIC
     src/Card.cpp
     src/Panels.h
     src/Panels.cpp
+    src/SplitPanel.h
+    src/SplitPanel.cpp
     src/impl/binding.h
     src/binding.cpp
     src/WindowShade.h

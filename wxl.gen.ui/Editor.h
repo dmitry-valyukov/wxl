@@ -37,6 +37,9 @@ public:
     wxl::core::observable<std::u16string> title;
     wxl::core::observable<std::u16string> typeName;
 
+    // Строка состояния: полный путь открытого профиля.
+    wxl::core::observable<std::u16string> path;
+
     // Отметка изменила профиль: деревья перечитывают видимые строки.
     wxl::core::observable<uint32_t> revision;
 
