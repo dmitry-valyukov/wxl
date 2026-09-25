@@ -221,6 +221,23 @@ struct WindowState : core::refcounted {
     bool zoomHandlersAdded{false};
     int32_t accumulatedWheelDelta{0};
 
+    // Датчик жеста масштабирования: ScrollViewer над корнем острова со своим
+    // масштабом и без прокрутки. Жест со вложенных списков доходит до него по
+    // цепочке масштабирования; пока пальцы движутся, он увеличивает остров как
+    // картинку, а в конце модель встаёт на ближайшую ступень, и он -- обратно к
+    // 1 (проба sandbox/ZoomGestureProbe). Ctrl+колесо до него не доходит:
+    // обработчик колеса у корня помечает его обработанным, и шаги остаются за
+    // моделью.
+    controls::ScrollViewer zoomSensor{nullptr};
+
+    // Flyout с текущим масштабом: появляется, пока масштаб меняется, и сам
+    // прячется через zoomFlyoutDelay после последнего изменения. Transient --
+    // без фокуса: следующее Ctrl+«+» идёт окну, а не flyout.
+    controls::Flyout zoomFlyout{nullptr};
+    controls::TextBlock zoomFlyoutText{nullptr};
+    winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer zoomFlyoutTimer{nullptr};
+    static constexpr std::chrono::milliseconds zoomFlyoutDelay{1500};
+
     // Раскладка острова: корень в две строки -- заголовок с кнопками окна и под
     // ним содержимое приложения. Заводится вместе с островом.
     controls::Grid root{nullptr};
@@ -477,8 +494,109 @@ struct WindowState : core::refcounted {
         if (value <= 0 || value == zoomFactor) return;
         zoomFactor = value;
         applyZoom();
+        limitZoomGesture();
         clientSizeChanged.fire(clientSize());
         queueRegions();
+    }
+
+    // ---- Жест масштабирования и flyout масштаба (ZoomEffect) ----
+
+    // Датчик ставится над корнем, когда присоединён эффект и есть остров.
+    void ensureZoomSensor() {
+        if (zoomSensor || !appZoom || !chrome) return;
+        zoomSensor = controls::ScrollViewer{};
+        zoomSensor.ZoomMode(controls::ZoomMode::Enabled);
+        // Без инерции: ступень выбирается там, где пальцы остановились. С ней
+        // быстрый жест, остановленный на 200 %, доезжал до 300 % (проба на
+        // wxl.gen.ui касанием InjectSyntheticPointerInput).
+        zoomSensor.IsZoomInertiaEnabled(false);
+        zoomSensor.HorizontalScrollMode(controls::ScrollMode::Disabled);
+        zoomSensor.VerticalScrollMode(controls::ScrollMode::Disabled);
+        zoomSensor.HorizontalScrollBarVisibility(controls::ScrollBarVisibility::Disabled);
+        zoomSensor.VerticalScrollBarVisibility(controls::ScrollBarVisibility::Disabled);
+        limitZoomGesture();
+        zoomSensor.ViewChanged([this](auto&&, controls::ScrollViewerViewChangedEventArgs const& args) {
+            onZoomGesture(args.IsIntermediate());
+        });
+        chrome.Content(zoomSensor);
+        zoomSensor.Content(root);
+    }
+
+    // Жест не уходит за ступени модели: пределы датчика -- относительно
+    // масштаба, в котором остров уже стоит.
+    void limitZoomGesture() {
+        if (!zoomSensor) return;
+        zoomSensor.MinZoomFactor(static_cast<float>(AppZoom::minZoomFactor / zoomFactor));
+        zoomSensor.MaxZoomFactor(static_cast<float>(AppZoom::maxZoomFactor / zoomFactor));
+    }
+
+    void onZoomGesture(bool intermediate) {
+        double const gesture = zoomSensor.ZoomFactor();
+        // ScrollViewer хранит масштаб во float: единица -- с допуском.
+        if (std::abs(gesture - 1.0) < 1e-4) return;
+        double const wanted = zoomFactor * gesture;
+        if (intermediate) {
+            showZoomFlyout(wanted);
+            return;
+        }
+        // Сначала датчик обратно к единице, потом модель на ступень: остров
+        // берёт новый масштаб уже без увеличения картинкой поверх.
+        zoomSensor.ChangeView(nullptr, nullptr, 1.0f, true);
+        double const before = zoomFactor;
+        appZoom->setZoomFactor(wanted);
+        // Сменилась ступень -- flyout уже показала подписка на модель; нет --
+        // он всё ещё показывает промежуточное число жеста.
+        if (zoomFactor == before) showZoomFlyout(zoomFactor);
+    }
+
+    static winrt::hstring percent(double factor) {
+        return winrt::hstring{std::to_wstring(std::lround(factor * 100)) + L" %"};
+    }
+
+    // Зовётся и из подписки на модель, а она noexcept: ошибка XAML здесь --
+    // пропущенный flyout, а не конец программы. Остров, которого ещё не
+    // показали, flyout не нужен.
+    void showZoomFlyout(double factor) noexcept {
+        if (!root || !root.XamlRoot()) return;
+        try {
+            showZoomFlyoutNow(factor);
+        } catch (winrt::hresult_error const& error) {
+            ::OutputDebugStringW((L"wxl::ZoomEffect: flyout масштаба не показан: " + std::wstring{error.message()} +
+                                  L"\n").c_str());
+        }
+    }
+
+    void showZoomFlyoutNow(double factor) {
+        if (!zoomFlyout) {
+            zoomFlyoutText = controls::TextBlock{};
+            zoomFlyout = controls::Flyout{};
+            zoomFlyout.Content(zoomFlyoutText);
+            zoomFlyout.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+            zoomFlyoutTimer = winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread().CreateTimer();
+            zoomFlyoutTimer.Interval(zoomFlyoutDelay);
+            zoomFlyoutTimer.IsRepeating(false);
+            zoomFlyoutTimer.Tick([this](auto&&, auto&&) {
+                if (zoomFlyout) zoomFlyout.Hide();
+            });
+        }
+        zoomFlyoutText.Text(percent(factor));
+        if (!zoomFlyout.IsOpen()) {
+            // Под строкой заголовка, посередине: Bottom у элемента ставит flyout
+            // по его середине. У точки (Position) WinUI ставит его левым краем, а
+            // ширины flyout до показа не знает никто. Нет строки заголовка --
+            // от верха окна, в точке.
+            controls::Primitives::FlyoutShowOptions options;
+            options.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+            options.Placement(controls::Primitives::FlyoutPlacementMode::Bottom);
+            if (bar) {
+                zoomFlyout.ShowAt(bar, options);
+            } else {
+                options.Position(winrt::Windows::Foundation::Point {static_cast<float>(root.ActualWidth() / 2), 0.0f});
+                zoomFlyout.ShowAt(root, options);
+            }
+        }
+        zoomFlyoutTimer.Stop();
+        zoomFlyoutTimer.Start();
     }
 
     // Клавиши -- у корня острова, в PreviewKeyDown: он идёт от корня раньше
@@ -1226,11 +1344,18 @@ void CompositionWindow::attachZoom(core::intrusive_ptr<AppZoom> zoom) const {
     state.appZoom = std::move(zoom);
     // Состояние снимает эту подписку в деструкторе, поэтому ей хватает
     // простого указателя.
+    // Масштаб, с которым эффект пришёл (восстановленный приложением), --
+    // без flyout: его никто не регулировал. Flyout -- на каждое изменение
+    // после присоединения.
     state.zoomFactorCookie = state.appZoom->zoomFactor()
-                             .on_change([self = state_.get()](double const& value) noexcept { self->setZoomFactor(value); })
+                             .on_change([self = state_.get()](double const& value) noexcept {
+                                 self->setZoomFactor(value);
+                                 self->showZoomFlyout(value);
+                             })
                              .get();
     state.setZoomFactor(state.appZoom->zoomFactor().get());
     state.ensureIsland();
+    state.ensureZoomSensor();
     state.addZoomHandlers();
 }
 
