@@ -62,7 +62,7 @@ FrameworkElement glow() {
     ;
 }
 
-// Неоновая вывеска из фигур: ореол носит и фигура, не только текст.
+// Неоновая вывеска из фигур: ореол присоединяется и к фигуре, не только к тексту.
 constexpr char8_t neonSignText[] = {
 #include "Snippets/Halo/NeonSign.h.embed"
 };

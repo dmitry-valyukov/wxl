@@ -1,6 +1,6 @@
 #pragma once
 
-// wxl::HaloEffect -- a glow around the glyphs, worn by the element that
+// wxl::HaloEffect -- a glow around the glyphs, attached to the element that
 // carries it and written in that element's own braces:
 //
 //     TextBlock {
@@ -28,7 +28,7 @@
 // in the braces is applied to the shadow when there is one to apply it to.
 // A preset's arguments are its type, so the effect is a template on them,
 // deduced from the braces; nothing of that shows at the point of writing.
-// The element it is worn by is another matter, and constrained separately:
+// The element it is attached to is another matter, and constrained separately:
 // anything that hands over the alpha of its glyphs.
 
 #include "core.h"
@@ -55,12 +55,12 @@ public:
     /// has to be listed twice.
     explicit HaloEffect(Settings... settings) : shape_{std::move(settings)...} {}
 
-    /// Worn by anything that can hand over the alpha of its own glyphs, which
+    /// Attached to anything that can hand over the alpha of its own glyphs, which
     /// is what the halo is cut out of.
     template <typename Obj>
         requires requires(Obj const& element) { element.getAlphaMask(); }
     void operator()(Obj const& element) const {
-        wear(element, shape_);
+        attach(element, shape_);
     }
 
 private:
@@ -69,7 +69,7 @@ private:
     // not, and this one outlives the expression that started it. Both are
     // handles -- a reference count each.
     template <typename Obj>
-    static async::detached_task wear(Obj element, shape_t shape) {
+    static async::detached_task attach(Obj element, shape_t shape) {
         auto const visual = ElementCompositionPreview::getElementVisual(element);
         auto const children = visual.try_as<ContainerVisual>().children();
 

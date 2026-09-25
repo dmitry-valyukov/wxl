@@ -23,7 +23,7 @@
 // **Drawn by the compositor, beside what XAML draws.** The rim is a
 // ShapeVisual put on top among the children of the element's own visual, the
 // way HaloEffect puts its shadow underneath. The element's borderBrush is left
-// alone, so a button keeps its own border and wears the rim as well, and
+// alone, so a button keeps its own border and gets the rim as well, and
 // nothing in the tree has to be nested to carry it. The visual follows the
 // element's size by itself; the rim's size, the gradient's axis and its stops
 // follow by expressions the compositor evaluates, so a resize never reaches
@@ -37,8 +37,8 @@
 // and stays as wide as it was written, whatever the proportions.
 //
 // The effect is a handle: copies share their settings, and one written once
-// can be worn by a whole keypad. Each wearer gets composition objects of its
-// own.
+// can be attached to a whole keypad. Each attached element gets composition
+// objects of its own.
 
 #include "core.h"
 #include "Color.h"
