@@ -44,7 +44,7 @@ struct MagnifyEffect::State : core::sta_refcounted {
     std::optional<core::duration> duration;
     core::duration delay{};
 
-    // ---- What every wearer shares, made on the first one ----
+    // ---- What every attached element shares, made on the first one ----
     //
     // The compositor is the XAML one, the same for every element on the one
     // STA thread; the property set carries the scale per axis so that a
@@ -71,8 +71,8 @@ struct MagnifyEffect::State : core::sta_refcounted {
         }
     }
 
-    // The shared objects, made on the first wearer and the motions remade
-    // after a setting changed. The motions animate progress: 0 at rest, 1
+    // The shared objects, made on the first attached element and the motions
+    // remade after a setting changed. The motions animate progress: 0 at rest, 1
     // grown, beyond either end for the swing past it.
     void prepare(composition::Compositor const& owner) {
         if (!compositor) {
@@ -87,8 +87,8 @@ struct MagnifyEffect::State : core::sta_refcounted {
                 L"Vector3(this.Target.Size.X * 0.5, this.Target.Size.Y * 0.5, 0)");
 
             // What is shown is base * visual, so the visual carries the
-            // quotient. `p` is each wearer's own property set, set just before
-            // the expression is started on it.
+            // quotient. `p` is each attached element's own property set, set
+            // just before the expression is started on it.
             shown = compositor.CreateExpressionAnimation(
                 L"Vector3((1 + (s.X - 1) * p.MagnifyProgress) / p.MagnifyBaseX,"
                 L" (1 + (s.Y - 1) * p.MagnifyProgress) / p.MagnifyBaseY, 1)");

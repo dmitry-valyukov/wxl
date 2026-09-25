@@ -61,6 +61,10 @@ VirtualTree::VirtualTree() {
             resize(args.newSize().height);
         },
         onPointerWheelChanged = [this](Grid const& grid, PointerRoutedEventArgs& args) {
+            // Колесо с Ctrl — масштаб окна (ZoomEffect), не прокрутка.
+            if (static_cast<uint32_t>(args.keyModifiers()) & static_cast<uint32_t>(VirtualKeyModifiers::Control)) {
+                return;
+            }
             scrollBy(-args.getCurrentPoint(grid).properties().mouseWheelDelta() / wheelUnitsPerLine);
             args.handled(true);
         },

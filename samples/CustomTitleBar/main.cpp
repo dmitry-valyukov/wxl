@@ -54,7 +54,7 @@ wxl::Teardown wxl_launched() {
     // The window is a handle, so the one watcher that zooms it captures it by
     // value; the buttons below hold the model and never see the window.
     auto const zoom = std::make_shared<Zoom>();
-    zoom->factor.on_change([window](double const& value) noexcept { window.zoom(value); });
+    zoom->factor.on_change([window](double const& value) noexcept { window.zoomFactor(value); });
 
     window.content(StackPanel{
         Margin{24},

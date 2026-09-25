@@ -43,12 +43,12 @@
 // property two classes declare with two types, so on its own it only deduces.
 //
 // **One effect, many elements.** The object is a handle, like every wrapper:
-// copies share one state, and an effect built once can be worn by a whole
-// toolbar. The state keeps the composition objects every wearer can share --
-// the easing curve, both motions, both expressions and the property set the
-// scale lives in -- so a second button costs a property set and two
+// copies share one state, and an effect built once can be attached to a whole
+// toolbar. The state keeps the composition objects every attached element can
+// share -- the easing curve, both motions, both expressions and the property
+// set the scale lives in -- so a second button costs a property set and two
 // subscriptions, not another set of animations. A setting changed later is
-// picked up by every wearer at its next motion.
+// picked up by every attached element at its next motion.
 //
 // **The motion runs in the compositor.** What the element shows is a scalar
 // on the visual's own property set, animated by a key frame animation; the
@@ -68,10 +68,10 @@
 // drawing at 1. The resampling is all at the start of each motion, where the
 // eye does not dwell; where it ends, nothing is resampled.
 //
-// The effect owns the element's RenderTransform and RenderTransformOrigin:
-// an element that needs a render transform of its own cannot wear it. (Reading
-// RenderTransform does not tell whether one was set -- an unset one comes back
-// as a fresh object on every read.)
+// The effect owns the element's RenderTransform and RenderTransformOrigin, so
+// it cannot be attached to an element that needs a render transform of its
+// own. (Reading RenderTransform does not tell whether one was set -- an unset
+// one comes back as a fresh object on every read.)
 
 #include "core.h"
 #include "geometry.h"

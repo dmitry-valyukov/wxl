@@ -18,6 +18,7 @@
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>   // ButtonBase::Click -- команда кнопки окна для UI Automation
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Hosting.h>
+#include <winrt/Microsoft.UI.Xaml.Input.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.h>
@@ -51,6 +52,7 @@
 #include "generated/Microsoft.UI.Input.impl.h"
 #include "generated/Microsoft.UI.Windowing.impl.h"
 #include "generated/Microsoft.UI.Xaml.impl.h"
+#include "AppZoom.h"
 
 // Импорт последним: он несёт модульный std, а обычный заголовок после него
 // MSVC уже не примет. Нужен для wxl::core::append_number -- сборки строки
@@ -207,8 +209,17 @@ struct WindowState : core::refcounted {
     // Увеличение острова и то, как его понимает OverrideScale моста:
     // документация называет его и масштабом вместо масштаба окна, и множителем к
     // нему, так что это меряется на деле (applyZoom) и запоминается.
-    double zoom{1.0};
+    double zoomFactor{1.0};
     bool zoomApplied{false};
+
+    // Масштаб, который присоединил ZoomEffect: клавиши и колесо острова двигают
+    // модель, остров следует за её масштабом. Колесо копится до щелчка
+    // (WHEEL_DELTA): точный тачпад шлёт его мелкими долями. Подписка на модель
+    // хранится адресом своего cookie: nullptr -- подписки нет.
+    core::intrusive_ptr<AppZoom> appZoom;
+    void const* zoomFactorCookie{nullptr};
+    bool zoomHandlersAdded{false};
+    int32_t accumulatedWheelDelta{0};
 
     // Раскладка острова: корень в две строки -- заголовок с кнопками окна и под
     // ним содержимое приложения. Заводится вместе с островом.
@@ -261,6 +272,7 @@ struct WindowState : core::refcounted {
     // бросает, а из деструктора исключению идти некуда.
     ~WindowState() {
         try {
+            if (zoomFactorCookie) appZoom->zoomFactor().remove_change(core::cookie_t {zoomFactorCookie});
             dropTitleBar();
             if (xamlRoot) xamlRoot.Changed(xamlRootChanged);
             if (nonClient) {
@@ -289,7 +301,7 @@ struct WindowState : core::refcounted {
     }
 
     float scale() const {
-        return static_cast<float>(::GetDpiForWindow(hwnd)) / 96.0f * static_cast<float>(zoom);
+        return static_cast<float>(::GetDpiForWindow(hwnd)) / 96.0f * static_cast<float>(zoomFactor);
     }
 
     void showPicture(muc::CompositionSurfaceBrush brush, BackgroundFill fill, Color color) {
@@ -460,20 +472,80 @@ struct WindowState : core::refcounted {
         xamlRootChanged = current.Changed([this](auto&&, auto&&) { queueRegions(); });
     }
 
+    // Увеличение острова: и от CompositionWindow::zoomFactor, и от модели ZoomEffect.
+    void setZoomFactor(double value) {
+        if (value <= 0 || value == zoomFactor) return;
+        zoomFactor = value;
+        applyZoom();
+        clientSizeChanged.fire(clientSize());
+        queueRegions();
+    }
+
+    // Клавиши -- у корня острова, в PreviewKeyDown: он идёт от корня раньше
+    // элемента в фокусе, и Ctrl+0 не достаётся полю ввода. Колесо -- с
+    // handledEventsToo: ScrollViewer и списки помечают его обработанным.
+    void addZoomHandlers() {
+        if (zoomHandlersAdded) return;
+        zoomHandlersAdded = true;
+        root.PreviewKeyDown([this](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
+            if (appZoom && onPreviewKeyDown(static_cast<int>(args.Key()))) args.Handled(true);
+        });
+        root.AddHandler(
+            xaml::UIElement::PointerWheelChangedEvent(),
+            winrt::box_value(xaml::Input::PointerEventHandler(
+                [this](auto&&, xaml::Input::PointerRoutedEventArgs const& args) {
+                    if (appZoom && onPointerWheelChanged(args)) args.Handled(true);
+                })),
+            true);
+    }
+
+    // Ctrl без Alt: Ctrl+Alt -- это AltGr, им набирают символы.
+    static bool isZoomModifierDown() { return ::GetKeyState(VK_CONTROL) < 0 && ::GetKeyState(VK_MENU) >= 0; }
+
+    // «+» и «-» -- и основного ряда, и цифрового блока; «0» -- тоже оба.
+    bool onPreviewKeyDown(int key) {
+        if (!isZoomModifierDown()) return false;
+        switch (key) {
+            case VK_ADD:
+            case VK_OEM_PLUS:
+                appZoom->zoomIn();
+                return true;
+            case VK_SUBTRACT:
+            case VK_OEM_MINUS:
+                appZoom->zoomOut();
+                return true;
+            case '0':
+            case VK_NUMPAD0:
+                appZoom->resetZoom();
+                return true;
+        }
+        return false;
+    }
+
+    bool onPointerWheelChanged(xaml::Input::PointerRoutedEventArgs const& args) {
+        if (!isZoomModifierDown()) return false;
+        auto const wheel = args.GetCurrentPoint(root).Properties();
+        if (wheel.IsHorizontalMouseWheel()) return false;
+        accumulatedWheelDelta += wheel.MouseWheelDelta();
+        for (; accumulatedWheelDelta >= WHEEL_DELTA; accumulatedWheelDelta -= WHEEL_DELTA) appZoom->zoomIn();
+        for (; accumulatedWheelDelta <= -WHEEL_DELTA; accumulatedWheelDelta += WHEEL_DELTA) appZoom->zoomOut();
+        return true;
+    }
+
     void applyZoom() {
-        if (!chrome || (zoom == 1.0 && !zoomApplied)) return;
+        if (!chrome || (zoomFactor == 1.0 && !zoomApplied)) return;
         zoomApplied = true;
         content::DesktopChildSiteBridge const bridge = chrome.SiteBridge();
         content::ContentSiteView const view = bridge.SiteView();
         float const parent = view.ParentScale();
-        float const wanted = parent * static_cast<float>(zoom);
+        float const wanted = parent * static_cast<float>(zoomFactor);
         bridge.OverrideScale(wanted);
         // Документация называет OverrideScale и масштабом, заменяющим масштаб
         // окна, и множителем к нему. На экране 100 % разницы нет; на другом
         // видно по итогу, и множитель ставится заново.
         float const got = view.RasterizationScale();
         if (std::abs(got - wanted) > 0.001f && std::abs(got - wanted * parent) <= 0.001f) {
-            bridge.OverrideScale(static_cast<float>(zoom));
+            bridge.OverrideScale(static_cast<float>(zoomFactor));
         }
     }
 
@@ -1146,15 +1218,23 @@ void CompositionWindow::hideContent() const {
     }
 }
 
-void CompositionWindow::zoom(double value) const {
-    if (value <= 0 || value == state_->zoom) return;
-    state_->zoom = value;
-    state_->applyZoom();
-    state_->clientSizeChanged.fire(state_->clientSize());
-    state_->queueRegions();
+void CompositionWindow::zoomFactor(double value) const { state_->setZoomFactor(value); }
+
+void CompositionWindow::attachZoom(core::intrusive_ptr<AppZoom> zoom) const {
+    WindowState& state = *state_;
+    if (state.zoomFactorCookie) state.appZoom->zoomFactor().remove_change(core::cookie_t {state.zoomFactorCookie});
+    state.appZoom = std::move(zoom);
+    // Состояние снимает эту подписку в деструкторе, поэтому ей хватает
+    // простого указателя.
+    state.zoomFactorCookie = state.appZoom->zoomFactor()
+                             .on_change([self = state_.get()](double const& value) noexcept { self->setZoomFactor(value); })
+                             .get();
+    state.setZoomFactor(state.appZoom->zoomFactor().get());
+    state.ensureIsland();
+    state.addZoomHandlers();
 }
 
-double CompositionWindow::zoom() const { return state_->zoom; }
+double CompositionWindow::zoomFactor() const { return state_->zoomFactor; }
 
 // ---- Заголовок окна ---------------------------------------------------------
 
