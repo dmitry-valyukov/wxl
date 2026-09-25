@@ -118,8 +118,10 @@ public:
     explicit TypesModel(Editor& editor) : editor_(editor) {
         auto const& db = editor_.data_->db;
         for (md::database const& source : db.databases()) {
+            // Имя файла без .winmd: в дереве библиотека зовётся по своему имени.
             std::string_view const path = source.path();
-            libraries_.push_back({.source = &source, .name = path.substr(path.find_last_of("\\/") + 1)});
+            std::string_view const file = path.substr(path.find_last_of("\\/") + 1);
+            libraries_.push_back({.source = &source, .name = file.substr(0, file.rfind('.'))});
         }
         std::ranges::sort(libraries_, {}, &Library::name);
 
