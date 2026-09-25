@@ -287,7 +287,13 @@ wxl::Teardown wxl_launched() {
                         SelectorBarItem {text = typesTab, isSelected = true},
                         SelectorBarItem {text = resourcesTab},
                     },
-                    Border {row = 1, framed, left->view()},
+                    // Дерево — на сплошном фоне, белом в светлой теме.
+                    Border {
+                        row = 1,
+                        framed,
+                        background = brushes.SolidBackgroundFillColor.Quarternary,
+                        left->view(),
+                    },
                 },
                 content = Border {framed, right->view()},
             },
