@@ -155,7 +155,9 @@
     // WM_SIZE), and the moment its place changed.
     "handWrittenMembers": {
         "properties": [
-            { "property": "ZoomFactor", "value": "double" }
+            { "property": "ZoomFactor", "value": "double" },
+            { "property": "Emboss", "value": "double" },
+            { "property": "Gamma", "value": "double" }
         ],
         "events": ["ClientSizeChanged", "GeometryChanged"],
 

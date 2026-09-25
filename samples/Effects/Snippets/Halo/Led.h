@@ -7,7 +7,7 @@ Border {
     Grid {
         // Погашенные сегменты просвечивают под живыми — этим индикатор и
         // отличается от надписи.
-        TextBlock {u"88:88", segment, foreground = RGBA{"#FF4A001B"}},
+        TextBlock {u"88:88", segment, foreground = rgba(255, 74, 0, 0.106)},
 
         // Два ореола на одном элементе: тугое ядро и широкий разлёт.
         TextBlock {

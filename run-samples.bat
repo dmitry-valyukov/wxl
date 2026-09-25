@@ -16,12 +16,12 @@ set "blank=0"
 
 rem Чем занят каждый пример — по имени его папки. Папка без строки здесь
 rem попадёт в список с именем исполняемого файла вместо пояснения.
-set "about.Calculator=калькулятор на пресетах и градиентных кистях"
-set "about.CustomTitleBar=свой заголовок окна и масштаб всего острова"
 set "about.HelloHere=весь интерфейс одной функцией, переключение темы"
-set "about.HtmlView=показ разметки HTML, BB и RSDN одним блоком"
+set "about.Calculator=калькулятор на пресетах и градиентных кистях"
 set "about.Quadratic=квадратное уравнение на observable-полях"
 set "about.Trayed=консоль чужой программы в своём окне, из трея"
+set "about.HtmlView=показ разметки HTML, BB и RSDN без тяжеловесного WebView2"
+set "about.CustomTitleBar=свой заголовок окна и масштаб всего острова"
 
 echo Сборка примеров, Release...
 call :build

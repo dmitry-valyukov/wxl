@@ -72,10 +72,6 @@ endif()
 
 find_package(cppwinrt CONFIG REQUIRED)
 
-# fmt: what wxl.fmt's text_builder formats through. Its buffer is the
-# extension point std::format does not have -- see wxl.fmt/doc/fmt.md.
-find_package(fmt CONFIG REQUIRED)
-
 # winmd::reader is a header-only WinMD metadata parsing library; not packaged
 # by vcpkg, so it's fetched directly from its upstream repo.
 include(FetchContent)

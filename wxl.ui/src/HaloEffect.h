@@ -6,7 +6,7 @@
 //     TextBlock {
 //         u"0",
 //         fontSize = 48,
-//         HaloEffect { blurRadius = 14.0f, color = rgb(92, 138, 32) },
+//         HaloEffect {color = rgb(92, 138, 32), blurRadius = 14.0f},
 //     }
 //
 // A shadow whose offset is zero is a halo, and the shape it takes is whatever
@@ -20,103 +20,70 @@
 // written -- the element is being constructed, and it belongs to no window
 // yet. What the effect does instead is wait: XAML draws an element into a
 // child of its visual, made on the first frames, and everything the halo needs
-// is reachable from that visual once it exists. The waiting is a coroutine
-// nobody holds, so writing the effect is the whole of using it.
+// is reachable from that visual once it exists.
 //
-// Its settings are a preset for the DropShadow, which is why they are spelled
-// with the same tags a DropShadow's own properties are: whatever is written
-// in the braces is applied to the shadow when there is one to apply it to.
-// A preset's arguments are its type, so the effect is a template on them,
-// deduced from the braces; nothing of that shows at the point of writing.
-// The element it is attached to is another matter, and constrained separately:
-// anything that hands over the alpha of its glyphs.
+// The tags are the DropShadow's own -- blurRadius, color, opacity, offset --
+// plus zIndex, where the halo lies among the layers on the element: XAML's
+// own drawing is 0, the halo's default is -1, under the glyphs; a positive
+// one puts it over them. Two effects on one element are ordered by it, and
+// at the same z by the order they are written.
+//
+// The effect is a handle: copies share their settings, and one written once
+// can be attached to many elements. Each attached element gets composition
+// objects of its own.
+
+#include <cstdint>
+#include <functional>
 
 #include "core.h"
-
-#include "event_awaitable.h"
-#include "generated/Members.h"
+#include "Color.h"
 #include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.Hosting.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include "generated/Microsoft.UI.Xaml.h"
+#include "geometry.h"
 #include "impl/member.h"
-
-import wxl.async;
 
 namespace wxl {
 
-template <typename... Settings>
-class HaloEffect
-{
-    using shape_t = Preset<Settings...>;
-
+class HaloEffect {
 public:
-    /// The shadow's own settings, in the shadow's own vocabulary: blurRadius,
-    /// color, opacity, offset. Nothing here is wxl's invention, and nothing
-    /// has to be listed twice.
-    explicit HaloEffect(Settings... settings) : shape_{std::move(settings)...} {}
+    /// The DropShadow's defaults: black, blur 9, opaque, no offset; under the glyphs.
+    HaloEffect();
+
+    /// The tags: color, blurRadius, opacity, offset, zIndex.
+    template <typename... Setters>
+        requires(sizeof...(Setters) > 0) && impl::setter_pack<HaloEffect, Setters...>
+    explicit HaloEffect(Setters&&... setters) : HaloEffect() {
+        (impl::apply_argument(*this, std::forward<Setters>(setters)), ...);
+    }
+
+    HaloEffect(HaloEffect const& other) noexcept;
+    HaloEffect& operator=(HaloEffect const& other) noexcept;
+    ~HaloEffect();
+
+    /// A bare colour is the halo's colour.
+    void setPositional(Color value) const { color(value); }
+
+    void color(Color value) const;
+    void blurRadius(double value) const;
+    void opacity(double value) const;
+    void offset(Vector3 value) const;
+    void zIndex(int32_t value) const;
 
     /// Attached to anything that can hand over the alpha of its own glyphs, which
     /// is what the halo is cut out of.
     template <typename Obj>
         requires requires(Obj const& element) { element.getAlphaMask(); }
     void operator()(Obj const& element) const {
-        attach(element, shape_);
+        // The mask is asked for once the element is drawn: before that there
+        // are no glyphs laid out to take the alpha of.
+        attach(element, [element] { return element.getAlphaMask(); });
     }
 
 private:
-    // By value, both of them, and that is the rule rather than a choice here:
-    // a coroutine's parameters are copied into its frame while a reference is
-    // not, and this one outlives the expression that started it. Both are
-    // handles -- a reference count each.
-    template <typename Obj>
-    static async::detached_task attach(Obj element, shape_t shape) {
-        auto const visual = ElementCompositionPreview::getElementVisual(element);
-        auto const children = visual.try_as<ContainerVisual>().children();
+    void attach(UIElement const& element, std::function<CompositionBrush()> mask) const;
 
-        // An element draws itself into a child of its visual rather than into
-        // the visual, so the glyphs are a sibling of the halo and being under
-        // them is a matter of order in this collection. XAML makes that child
-        // lazily, on its first frames, and puts it *below* whatever it finds
-        // already there -- so the halo waits for it instead of racing it.
-        // Added at the bottom afterwards, it lands under the glyphs with
-        // nothing to reorder.
-        //
-        // Waited for by the frame rather than by the element: XAML raises
-        // nothing when it gets round to building that child, and its own
-        // events stop coming once the window has settled -- so a wait on
-        // LayoutUpdated here comes true only if something else provokes a
-        // layout, and on a window nobody has touched yet, nothing does.
-        auto frames = on_event(&CompositionTarget::add_onRendering,
-                               &CompositionTarget::remove_onRendering);
-        while (children.count() == 0) {
-            co_await frames;
-        }
-
-        // And by now there is one to be had: every composition object knows
-        // the compositor that made it, and the element's visual was made by
-        // the one its window runs on.
-        auto const compositor = visual.compositor();
-
-        auto const glow = compositor.createDropShadow();
-        shape(glow);
-        glow.mask(element.getAlphaMask());
-
-        auto const halo = compositor.createSpriteVisual();
-        halo.shadow(glow);
-
-        // No size of its own and nothing to subscribe to: the halo's parent
-        // is the element's own visual, XAML keeps that at the element's
-        // layout size, and a relative adjustment of one says "the same".
-        halo.relativeSizeAdjustment({1.0f, 1.0f});
-
-        children.insertAtBottom(halo);
-    }
-
-    shape_t shape_;
+    struct State;
+    core::intrusive_ptr<State> state_;
 };
-
-template <typename... Settings>
-    requires impl::setter_pack<DropShadow, Settings...>
-HaloEffect(Settings&&...) -> HaloEffect<std::decay_t<Settings>...>;
 
 }  // namespace wxl

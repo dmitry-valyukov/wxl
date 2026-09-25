@@ -40,9 +40,13 @@
 // can be attached to a whole keypad. Each attached element gets composition
 // objects of its own.
 
+#include <array>
+#include <cstddef>
+
 #include "core.h"
 #include "Color.h"
 #include "CornerRadius.h"
+#include "Relief.h"
 #include "Thickness.h"
 #include "generated/Microsoft.UI.Xaml.h"
 #include "impl/member.h"
@@ -68,6 +72,16 @@ public:
     /// A bare colour: the first is the lit side, the second the shaded one.
     void setPositional(Color value) const;
     void setPositional(CornerRadius value) const { cornerRadius(value); }
+
+    /// The two sides of one ring, from relief_helper. Written several times,
+    /// or as the array relief_helper::cushion() returns, the rings share the
+    /// stroke's width equally, the first one outermost: a shoulder in as
+    /// many steps as there are rings.
+    void setPositional(relief_helper::Edges ring) const;
+    template <std::size_t N>
+    void setPositional(std::array<relief_helper::Edges, N> const& rings) const {
+        for (auto const& ring : rings) setPositional(ring);
+    }
 
     void strokeThickness(double value) const;
     void blurRadius(double value) const;
