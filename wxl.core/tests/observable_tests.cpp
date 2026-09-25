@@ -186,4 +186,49 @@ TEST(Observable, works_for_nullable_bool) {
     EXPECT_FALSE(seen.has_value());
 }
 
+// A model that sets a field itself and hands out only its read-only face.
+struct Counter {
+    observable<int const>& value() { return value_; }
+    void bump() { value_.set(value_.get() + 1); }
+
+private:
+    observable<int> value_{0};
+};
+
+template <class T>
+concept settable = requires(T& field) { field.set(1); };
+
+TEST(Observable, read_only_face_hears_what_the_field_sets) {
+    Counter counter;
+    observable<int const>& face = counter.value();
+    int watched = -1;
+    int bound = -1;
+    face.on_change([&](int const& v) noexcept { watched = v; });
+    face.watch_for_binding([&](int const& v) noexcept { bound = v; });
+
+    counter.bump();
+    EXPECT_EQ(face.get(), 1);
+    EXPECT_EQ(watched, 1);
+    EXPECT_EQ(bound, 1);
+}
+
+TEST(Observable, read_only_face_is_neither_set_nor_made_alone) {
+    static_assert(settable<observable<int>>);
+    static_assert(!settable<observable<int const>>);
+    // Only the field is made and destroyed; the face exists as its base.
+    static_assert(!std::is_constructible_v<observable<int const>>);
+    static_assert(!std::is_destructible_v<observable<int const>>);
+    static_assert(std::is_convertible_v<observable<int>&, observable<int const>&>);
+}
+
+TEST(Observable, follows_a_read_only_face) {
+    Counter counter;
+    observable<int> doubled;
+    doubled.follow(counter.value(), [](int v) { return v * 2; });
+    EXPECT_EQ(doubled.get(), 0);
+
+    counter.bump();
+    EXPECT_EQ(doubled.get(), 2);
+}
+
 }  // namespace
