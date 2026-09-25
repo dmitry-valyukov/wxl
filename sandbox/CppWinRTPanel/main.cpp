@@ -43,6 +43,9 @@ using winrt::Windows::Foundation::Size;
 namespace {
 
 struct SplitPanel : Controls::PanelT<SplitPanel> {
+    // Своё имя: без него cppwinrt отвечает именем первого интерфейса из implements.
+    hstring GetRuntimeClassName() const { return L"wxl.SplitPanel"; }
+
     float left = 200;
     float gap = 8;
     int measures = 0;
