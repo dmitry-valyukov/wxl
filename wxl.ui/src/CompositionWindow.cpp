@@ -266,8 +266,8 @@ struct WindowState : core::refcounted {
     // Заголовок-элемент переживает окно, если его держит приложение, -- его
     // обратные вызовы указывают сюда и снимаются вместе с состоянием.
     //
-    // Состояние может умирать и после того, как XAML уже закрыт: ручку окна
-    // держит обработчик в дереве острова, и последней её отпускает сам остров,
+    // Состояние может умирать и после того, как XAML уже закрыт: хендл окна
+    // держит обработчик в дереве острова, и последним его отпускает сам остров,
     // уходя вместе с приложением. Тогда снимать подписки уже не с кого -- вызов
     // бросает, а из деструктора исключению идти некуда.
     ~WindowState() {
@@ -931,7 +931,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
 
         case WM_NCDESTROY:
             // Последнее сообщение окна: оно отпускает своё состояние. Живут ещё
-            // ручки -- состояние остаётся им, без окна под собой.
+            // хендлы -- состояние остаётся им, без окна под собой.
             if (state) {
                 ::SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 state->hwnd = nullptr;
@@ -991,7 +991,7 @@ struct fire_and_forget {
 
 // Асинхронная смена задника: ждёт текстуру из кэша (декод на потоках WinRT) и,
 // вернувшись на UI-поток, ставит её картинкой фона -- если за время загрузки фон
-// не сменили. Состояние держится ручкой, картинка -- по значению: корутина
+// не сменили. Состояние держится хендлом, картинка -- по значению: корутина
 // владеет обоими через ожидание.
 fire_and_forget swapBackground(core::intrusive_ptr<WindowState> state, BackgroundImage image,
                                std::uint64_t change) {
@@ -1127,7 +1127,7 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
                                      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                                      nullptr, nullptr, ::GetModuleHandleW(nullptr), nullptr);
     // Своя ссылка окна на состояние -- до WM_NCDESTROY: оконная процедура
-    // находит его по USERDATA, и отпущенная последняя ручка не освободит его
+    // находит его по USERDATA, и отпущенный последний хендл не освободит его
     // под живым окном.
     intrusive_ptr_add_ref(state_.get());
     ::SetWindowLongPtrW(state_->hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state_.get()));
