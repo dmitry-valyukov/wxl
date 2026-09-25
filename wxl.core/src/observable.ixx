@@ -9,7 +9,7 @@ template <class T>
 class observable;
 
 /**
- * The read-only face of a field: `observable<T const>`. A model hands it out
+ * A field seen read-only: `observable<T const>`. A model hands it out
  * where a view may watch a value and bind to it but only the model sets it --
  * the model keeps an `observable<T>` and returns a reference to it as this:
  *
@@ -20,12 +20,13 @@ class observable;
  *     };
  *
  * Everything but setting is here: the value, the application's watches, the
- * bindings' watches. So BindOutput takes the face -- the control follows the
- * value -- while Bind and BindInput, which write into the field, do not.
+ * bindings' watches. So BindOutput takes a read-only observable -- the control
+ * follows the value -- while Bind and BindInput, which write into the field,
+ * do not.
  *
  * Only an `observable<T>` is ever made: the constructors and the destructor
- * are protected, so there is no face without the field behind it, and no way
- * to destroy a field through its face.
+ * are protected, so there is no read-only observable without the field behind
+ * it, and no way to destroy a field through it.
  */
 template <class T>
 class observable<T const> {
@@ -98,11 +99,11 @@ protected:
 
 namespace impl {
 
-// The face a field extends, named apart from the field itself: Doxygen reads a
-// base of the same template as a class deriving from itself, whatever the
-// arguments.
+// The read-only observable a field extends, named apart from the field itself:
+// Doxygen reads a base of the same template as a class deriving from itself,
+// whatever the arguments.
 template <class T>
-using observable_face = observable<T const>;
+using readonly_observable = observable<T const>;
 
 }  // namespace impl
 
@@ -129,16 +130,16 @@ using observable_face = observable<T const>;
  * destroys every watch, and what a watch owned -- the control it wrote to --
  * is let go with it.
  *
- * What it adds to its read-only face (`observable<T const>`, above) is setting:
+ * What it adds to its read-only base (`observable<T const>`, above) is setting:
  * set() and follow().
  */
 template <class T>
-class observable : public impl::observable_face<T> {
-    using face = impl::observable_face<T>;
+class observable : public impl::readonly_observable<T> {
+    using readonly = impl::readonly_observable<T>;
 
 public:
     observable() = default;
-    explicit observable(T value) : face(std::move(value)) {}
+    explicit observable(T value) : readonly(std::move(value)) {}
 
     /// Sets the value and, if it actually changed, tells the watchers. Setting
     /// it to what it already holds says nothing: a binding writing back the
@@ -160,7 +161,7 @@ public:
     /// last argument -- is called with the current values of all of them and
     /// the result becomes this field's value. It is computed once right here
     /// too, so the field is in step from the moment it follows rather than
-    /// from the first change after. A source may be a read-only face.
+    /// from the first change after. A source may be a read-only observable.
     ///
     /// The watches live on the sources and point back at this field, so it has
     /// to be there whenever a source changes -- as it is when all of them are
