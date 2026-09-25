@@ -188,6 +188,13 @@ void VirtualTree::refresh() {
 }
 
 void VirtualTree::resize(double height) {
+    // Ширину меняет граница раздвижки на каждом движении мыши, а пулу и полосе
+    // до ширины дела нет: их меняет только высота.
+    if (height == height_) {
+        return;
+    }
+    height_ = height;
+
     visible_ = static_cast<uint32_t>(height / rowHeight_);
 
     // Частично видимая нижняя строка тоже строится, и запас — с обеих сторон.

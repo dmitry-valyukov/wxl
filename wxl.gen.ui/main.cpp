@@ -12,6 +12,7 @@
 #include "CompositionWindow.h"
 #include "Editor.h"
 #include "MagnifyEffect.h"
+#include "SplitPanel.h"
 #include "ThemeBrush.h"
 #include "VirtualTree.h"
 #include "generated/brushes.h"
@@ -113,14 +114,17 @@ wxl::Teardown wxl_launched() {
         right->refresh();
     });
 
-    // Панель инструментов — одна на всё окно, карточкой, как в образце HelloHere,
-    // высотой в кнопку.
+    // Панель инструментов — одна на всё окно, карточкой, как в образце HelloHere.
     auto const topPanel = Preset {
-        row = 0,
         hAlign.stretch,
         CornerRadius {2},
         Padding {16, 0},
-        height = 40.0,
+    };
+
+    // Рамка деревьев — той же кистью, что обводка карточки панели.
+    auto const framed = Preset {
+        BorderThickness {1},
+        borderBrush = brushes.Card.StrokeColorDefault,
     };
 
     // Один эффект на все кнопки, как в образце Effects: копии — это тот же
@@ -214,14 +218,13 @@ wxl::Teardown wxl_launched() {
                 },
             },
         },
+        // Панель инструментов наверху, раздвижка под ней, строка состояния внизу.
         Grid {
-            rowDefinitions = u"auto,*",
+            rowDefinitions = u"40,*,auto",
             Card {
                 topPanel,
                 Grid {
-                    // Первая колонка — ширина левой части раздвижки ниже: кнопки
-                    // стоят над деревом типов, имя типа — над деревом членов.
-                    columnDefinitions = u"520,*",
+                    columnDefinitions = u"auto,*",
                     StackPanel {
                         orientation.horizontal,
                         spacing = 4,
@@ -281,14 +284,14 @@ wxl::Teardown wxl_launched() {
                         column = 1,
                         text = BindOutput {document->typeName},
                         vAlign.center,
+                        Margin {24, 0, 0, 0},
                     },
                 },
             },
-            SplitView {
+            SplitPanel {
                 row = 1,
-                displayMode = SplitViewDisplayMode::Inline,
-                isPaneOpen = true,
                 openPaneLength = 520.0,
+                spacing = 8.0,
                 pane = Grid {
                     rowDefinitions = u"auto,*",
                     SelectorBar {
@@ -302,9 +305,21 @@ wxl::Teardown wxl_launched() {
                         SelectorBarItem {text = typesTab, isSelected = true},
                         SelectorBarItem {text = resourcesTab},
                     },
-                    Border {row = 1, left->view()},
+                    Border {row = 1, framed, left->view()},
                 },
-                content = right->view(),
+                content = Border {framed, right->view()},
+            },
+            Border {
+                row = 2,
+                background = brushes.SolidBackgroundFillColor.Secondary,
+                borderBrush = brushes.Card.StrokeColorDefault,
+                BorderThickness {0, 1, 0, 0},
+                Padding {12, 4},
+                TextBlock {
+                    text = BindOutput {document->path},
+                    foreground = brushes.Text.FillColor.Secondary,
+                    fontSize = 12.0,
+                },
             },
         },
     };
