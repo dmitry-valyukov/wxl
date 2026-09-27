@@ -11,7 +11,8 @@ import std;
 //   <Namespace>.h        public wrappers -- name no winrt:: type at all,
 //                        each declaring its `Impl` without defining it
 //   <Namespace>.impl.h   private -- the matching `Impl` chain, one field
-//                        per surviving interface
+//                        per surviving interface; not written for a group
+//                        of statics-only classes, which has no `Impl`
 //   <Namespace>.cpp      out-of-line bodies (constructors today, member
 //                        forwarding once members are generated)
 //
@@ -513,6 +514,31 @@ void write_includes(std::ostream& out, std::set<std::string> const& includes) {
     }
 }
 
+// What the private side of a group stands on: the private halves of its base
+// classes' groups, its own public header, and the projection headers of every
+// class and interface it names.
+std::set<std::string> private_includes(std::string_view ns, std::vector<class_info> const& classes,
+                                       std::map<std::string, std::string> const& group_of) {
+    auto includes = file_includes(ns, classes, group_of, /*impl_side=*/true);
+    includes.insert(std::string(ns) + ".h");
+    for (auto&& info : classes) {
+        includes.insert(winrt_include(info.type.TypeNamespace()));
+        for (auto&& iface : info.interfaces) {
+            includes.insert(winrt_include(iface.TypeNamespace()));
+        }
+    }
+    return includes;
+}
+
+// Whether a group has an Impl chain to define. A statics-only class has none --
+// nothing is instantiated, so there is no level and no interface field -- and a
+// group made of nothing else gets no private header at all: its source includes
+// what that header would have, and nobody else has a reason to include it.
+bool has_impl(std::vector<class_info> const& classes) {
+    return std::any_of(classes.begin(), classes.end(),
+                       [](class_info const& info) { return !info.statics_only; });
+}
+
 void write_public_header(std::filesystem::path const& path, std::string_view ns,
                          std::vector<class_info> const& classes,
                          std::map<std::string, std::string> const& group_of,
@@ -781,14 +807,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
                        std::map<std::string, std::string> const& group_of) {
     auto out = open_output(path);
 
-    auto includes = file_includes(ns, classes, group_of, /*impl_side=*/true);
-    includes.insert(std::string(ns) + ".h");
-    for (auto&& info : classes) {
-        includes.insert(winrt_include(info.type.TypeNamespace()));
-        for (auto&& iface : info.interfaces) {
-            includes.insert(winrt_include(iface.TypeNamespace()));
-        }
-    }
+    auto const includes = private_includes(ns, classes, group_of);
 
     std::print(out, R"({}// Private side of {} -- never included by consuming code.
 //
@@ -876,6 +895,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
 
 void write_source(std::filesystem::path const& path, std::string_view ns,
                   std::vector<class_info> const& classes,
+                  std::map<std::string, std::string> const& group_of,
                   std::set<std::string> const& collection_elements) {
     auto out = open_output(path);
 
@@ -926,10 +946,16 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
         }
     }
 
-    std::print(out, "{}#include \"{}.impl.h\"\n", banner, ns);
-    if (!includes.empty()) {
-        std::print(out, "\n");
+    if (!has_impl(classes)) {
+        includes.merge(private_includes(ns, classes, group_of));
+        std::print(out, "{}", banner);
         write_includes(out, includes);
+    } else {
+        std::print(out, "{}#include \"{}.impl.h\"\n", banner, ns);
+        if (!includes.empty()) {
+            std::print(out, "\n");
+            write_includes(out, includes);
+        }
     }
 
     std::print(out, "\nnamespace wxl {{\n");
@@ -1716,14 +1742,18 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     size_t constructors = 0;
     for (auto&& [ns, infos] : by_group) {
         auto const header = out.dir / (ns + ".h");
-        auto const impl_header = out.dir / (ns + ".impl.h");
         auto const source = out.dir / (ns + ".cpp");
 
         write_public_header(header, ns, infos, group_of, used_by_group[ns]);
-        write_impl_header(impl_header, ns, infos, group_of);
-        write_source(source, ns, infos, defined_by_group[ns]);
         emitted.add(header);
-        emitted.add(impl_header);
+
+        if (has_impl(infos)) {
+            auto const impl_header = out.dir / (ns + ".impl.h");
+            write_impl_header(impl_header, ns, infos, group_of);
+            emitted.add(impl_header);
+        }
+
+        write_source(source, ns, infos, group_of, defined_by_group[ns]);
         emitted.add(source);
 
         classes += infos.size();
