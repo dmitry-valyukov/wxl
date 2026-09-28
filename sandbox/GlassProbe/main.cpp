@@ -332,6 +332,19 @@ wxl::Teardown wxl_launched() {
     logFile = ::_wfopen((folder + L"glass-probe.log").c_str(), L"w");
     startTick = ::GetTickCount64();
 
+    // --system-engine: движок композиции ОС вместо движка в процессе (Windows App
+    // SDK 2.3, Limited Access Feature); ставится до первого объекта композиции.
+    if (std::wstring_view{::GetCommandLineW()}.find(L"--system-engine") != std::wstring_view::npos) {
+        bool set = false;
+        try {
+            set = muc::CompositionEngine::TrySetProcessEngine(muc::CompositionEngineType::System);
+            say("CompositionEngine::TrySetProcessEngine(System): %d", set ? 1 : 0);
+        } catch (winrt::hresult_error const& error) {
+            say("CompositionEngine::TrySetProcessEngine(System) threw %08x %s", static_cast<unsigned>(error.code().value),
+                winrt::to_string(error.message()).c_str());
+        }
+    }
+
     probe = new Probe{};
     std::wstring_view const commandLine{::GetCommandLineW()};
     probe->mode = commandLine.find(L"--link-own") != std::wstring_view::npos ? Mode::LinkOwn
