@@ -677,6 +677,17 @@ struct WindowState : core::refcounted {
             zoomFlyout = controls::Flyout{};
             zoomFlyout.Content(zoomFlyoutText);
             zoomFlyout.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+            // Flyout только показывает число: мышь и клавиатура до него не
+            // доходят. Щелчок по нему ставил фокус XAML на его Popup, и клавиши
+            // масштаба -- они слушаются у корня -- переставали работать; запрет
+            // фокуса (AllowFocusOnInteraction, IsTabStop) этого не снимает,
+            // снимает только IsHitTestVisible: щелчок проходит насквозь. Tab до
+            // Transient-flyout не доходит и так, IsTabStop -- чтобы так и
+            // осталось (проба sandbox/KeyboardZoomProbe --info-flyout).
+            xaml::Style presenter{winrt::xaml_typename<controls::FlyoutPresenter>()};
+            presenter.Setters().Append(xaml::Setter{xaml::UIElement::IsHitTestVisibleProperty(), winrt::box_value(false)});
+            presenter.Setters().Append(xaml::Setter{xaml::UIElement::IsTabStopProperty(), winrt::box_value(false)});
+            zoomFlyout.FlyoutPresenterStyle(presenter);
             zoomFlyoutTimer = winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread().CreateTimer();
             zoomFlyoutTimer.Interval(zoomFlyoutDelay);
             zoomFlyoutTimer.IsRepeating(false);
