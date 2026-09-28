@@ -4,6 +4,7 @@
 #include "Bind.h"
 #include "Card.h"
 #include "CompositionWindow.h"
+#include "GlassEffect.h"
 #include "launch.h"
 #include "ui.h"
 
@@ -121,6 +122,8 @@ wxl::Teardown wxl_launched() {
         minSize = {910, 390},
         background = BackgroundImage {u"Assets/bk2.jpg", BackgroundFill::UniformToFill},
         Card {
+            GlassEffect {blurRadius = 24.0f},
+            background = rgba(255, 255, 255, 0.35),
             hAlign.center,
             vAlign.center,
             StackPanel {

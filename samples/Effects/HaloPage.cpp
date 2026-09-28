@@ -62,22 +62,10 @@ FrameworkElement glow() {
     ;
 }
 
-// Неоновая вывеска из фигур: ореол присоединяется и к фигуре, не только к тексту.
-constexpr char8_t neonSignText[] = {
-#include "Snippets/Halo/NeonSign.h.embed"
-};
-
-FrameworkElement shapes() {
-    return
-#include "Snippets/Halo/NeonSign.h"
-    ;
-}
-
 constexpr effects::Sample samples[] = {
     {u"Как в калькуляторе: табло LCD", {effects::snippet(lcdText)}, &lcd},
     {u"Светодиодный семисегментный индикатор", {effects::snippet(ledSegmentText), effects::snippet(ledText)}, &led},
     {u"Просто светящаяся надпись", {effects::snippet(glowText)}, &glow},
-    {u"Неоновая вывеска из фигур", {effects::snippet(neonSignText)}, &shapes},
 };
 
 }  // namespace

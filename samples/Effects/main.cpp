@@ -37,6 +37,9 @@ constexpr Effect catalogue[] = {
     {u"Magnify Effect",
      u"Рост под указателем: за постоянное время, движение считает композитор",
      &effects::magnifyPage},
+    {u"Glass Effect",
+     u"Матовое стекло под элементом: размытая и тонированная подложка, чтобы буквы читались над картинкой",
+     &effects::glassPage},
 };
 
 }  // namespace

@@ -34,6 +34,7 @@ wxl_add_executable(sample.effects
     GaussianBlurPage.cpp
     MagnifyPage.cpp
     BevelPage.cpp
+    GlassPage.cpp
     ${_effects_snippets}
     ${_effects_embedded}
     embed.cmake
