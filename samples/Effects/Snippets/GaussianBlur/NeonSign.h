@@ -24,8 +24,7 @@ Border {
             },
         },
 
-        // Рамка со скруглением и надпись в ней: ореол носят оба, каждый
-        // свой.
+        // Рамка со скруглением и надпись в ней: один неон на обоих.
         Grid {
             Rectangle {
                 width = 230,
@@ -34,7 +33,7 @@ Border {
                 radiusY = 16,
                 stroke = rgb(255, 196, 246),
                 strokeThickness = 4.0,
-                GaussianBlurEffect {color = rgb(255, 43, 214), blurRadius = 18.0f, gamma = 0.6},
+                neon,
             },
             TextBlock {
                 u"Night Club",
@@ -45,7 +44,7 @@ Border {
                 hAlign.center,
                 vAlign.center,
                 foreground = rgb(255, 232, 251),
-                GaussianBlurEffect {color = rgb(255, 43, 214), blurRadius = 14.0f, gamma = 0.6},
+                neon,
             },
         },
 
