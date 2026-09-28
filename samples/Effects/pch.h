@@ -19,3 +19,4 @@
 #include "HaloEffect.h"
 #include "GaussianBlurEffect.h"
 #include "GlassEffect.h"
+#include "Button3DEffect.h"

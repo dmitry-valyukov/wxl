@@ -61,11 +61,25 @@ FrameworkElement onTop() {
     ;
 }
 
+
+// Неоновая вывеска из фигур: ореол присоединяется и к фигуре, не только к
+// тексту, а лампочке хватает одного ореола с гаммой вместо двух.
+constexpr char8_t neonSignText[] = {
+#include "Snippets/GaussianBlur/NeonSign.h.embed"
+};
+
+FrameworkElement shapes() {
+    return
+#include "Snippets/GaussianBlur/NeonSign.h"
+    ;
+}
+
 constexpr effects::Sample samples[] = {
     {u"Как в калькуляторе: цифра клавиши", {effects::snippet(keycapText)}, &keycap},
     {u"Рядом с Halo: та же тень и гамма", {effects::snippet(compareText)}, &compare},
     {u"Три гаммы одного ореола", {effects::snippet(gammaText)}, &gammas},
     {u"zIndex: под глифами и над ними", {effects::snippet(onTopText)}, &onTop},
+    {u"Неоновая вывеска из фигур", {effects::snippet(neonSignText)}, &shapes},
 };
 
 }  // namespace

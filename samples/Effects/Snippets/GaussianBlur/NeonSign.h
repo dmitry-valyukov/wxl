@@ -14,13 +14,13 @@ Border {
                 height = 86,
                 stroke = rgb(184, 251, 255),
                 strokeThickness = 4.0,
-                HaloEffect {color = rgb(0, 200, 255), blurRadius = 18.0f},
+                GaussianBlurEffect {color = rgb(0, 200, 255), blurRadius = 18.0f, gamma = 0.6},
             },
             Image {
                 source = u"Assets/Coctail.png",
                 width = 50,
                 height = 50,
-                HaloEffect {color = rgb(0, 200, 255), blurRadius = 10.0f},
+                GaussianBlurEffect {color = rgb(0, 200, 255), blurRadius = 10.0f, gamma = 0.6},
             },
         },
 
@@ -34,7 +34,7 @@ Border {
                 radiusY = 16,
                 stroke = rgb(255, 196, 246),
                 strokeThickness = 4.0,
-                HaloEffect {color = rgb(255, 43, 214), blurRadius = 18.0f},
+                GaussianBlurEffect {color = rgb(255, 43, 214), blurRadius = 18.0f, gamma = 0.6},
             },
             TextBlock {
                 u"Night Club",
@@ -45,18 +45,18 @@ Border {
                 hAlign.center,
                 vAlign.center,
                 foreground = rgb(255, 232, 251),
-                HaloEffect {color = rgb(255, 43, 214), blurRadius = 14.0f},
+                GaussianBlurEffect {color = rgb(255, 43, 214), blurRadius = 14.0f, gamma = 0.6},
             },
         },
 
-        // Залитая лампочка: два ореола, ядро и разлёт.
+        // Залитая лампочка: один ореол с гаммой — тугое ядро и широкий разлёт,
+        // на что у Halo уходило два.
         Ellipse {
             width = 28,
             height = 28,
             vAlign.center,
             fill = rgb(255, 246, 176),
-            HaloEffect {color = rgb(255, 196, 0), blurRadius = 12.0f},
-            HaloEffect {color = rgb(255, 122, 0), blurRadius = 36.0f},
+            GaussianBlurEffect {color = rgb(255, 160, 0), blurRadius = 36.0f, gamma = 0.4},
         },
     },
 }
