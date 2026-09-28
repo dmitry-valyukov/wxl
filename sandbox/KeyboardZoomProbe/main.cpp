@@ -126,6 +126,7 @@ struct Probe {
     HWND lastFocusedChild = nullptr;
     bool initialActivation = true;
     bool islandFocusPending = false;  // остров был недоступен, когда окно его звало
+    bool pressKeys = true;            // режим --flyout-scale клавиш не жмёт
     winrt::guid lastTakeFocusCorrelation{};
 };
 
@@ -410,6 +411,63 @@ std::vector<Phase> phases() {
     };
 }
 
+// ---- смена масштаба острова при открытом flyout (без клавиш) ----
+//
+// Как ZoomEffect на каждое изменение модели: сначала масштаб острова
+// (OverrideScale моста, как applyZoom), потом flyout -- ShowAt, только если он
+// закрыт. Второй ряд этапов показывает flyout отложенно, после пересчёта.
+
+controls::Flyout scaleFlyout{nullptr};
+controls::TextBlock scaleText{nullptr};
+
+void zoomStep(float scale, bool deferShow) {
+    if (!scaleFlyout) {
+        scaleText = controls::TextBlock{};
+        scaleFlyout = controls::Flyout{};
+        scaleFlyout.Content(scaleText);
+        scaleFlyout.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+        scaleFlyout.Opened([](auto&&, auto&&) { say("  scale flyout Opened"); });
+        scaleFlyout.Closed([](auto&&, auto&&) { say("  scale flyout Closed"); });
+    }
+    say("  OverrideScale %.2f; flyout open before: %d", scale, scaleFlyout.IsOpen() ? 1 : 0);
+    probe->xamlSource.SiteBridge().OverrideScale(scale);
+    scaleText.Text(winrt::hstring{std::to_wstring(std::lround(scale * 100)) + L" %"});
+    auto show = [] {
+        if (scaleFlyout.IsOpen()) {
+            say("  flyout open -- no ShowAt");
+            return;
+        }
+        controls::Primitives::FlyoutShowOptions options;
+        options.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+        options.Placement(controls::Primitives::FlyoutPlacementMode::Bottom);
+        scaleFlyout.ShowAt(probe->button, options);
+        say("  ShowAt");
+    };
+    if (deferShow) {
+        winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread().TryEnqueue(
+            winrt::Microsoft::UI::Dispatching::DispatcherQueuePriority::Low, show);
+    } else {
+        show();
+    }
+}
+
+std::vector<Phase> flyoutScalePhases() {
+    std::vector<Phase> result;
+    static char const* names[] = {"S1 110 %, flyout as ZoomEffect", "S2 125 %, flyout as ZoomEffect",
+                                  "S3 150 %, flyout as ZoomEffect", "S4 125 %, flyout as ZoomEffect",
+                                  "D1 110 %, flyout shown deferred", "D2 125 %, flyout shown deferred",
+                                  "D3 150 %, flyout shown deferred", "D4 125 %, flyout shown deferred"};
+    static float const scales[] = {1.1f, 1.25f, 1.5f, 1.25f, 1.1f, 1.25f, 1.5f, 1.25f};
+    for (int i = 0; i < 8; ++i) {
+        float const scale = scales[i];
+        bool const defer = i >= 4;
+        result.push_back({names[i],
+                          {{0, [scale, defer] { zoomStep(scale, defer); }},
+                           {25, [] { say("  flyout open after 400 ms: %d", scaleFlyout.IsOpen() ? 1 : 0); }}}});
+    }
+    return result;
+}
+
 std::vector<Phase> infoFlyoutPhases() {
     return {
         {"F1 TextBox focused, info flyout shown as ZoomEffect shows it now",
@@ -490,10 +548,10 @@ void tick() {
     }
     // Ctrl держится весь нажим, как его держит человек.
     if (offset == 28) describeFocus();
-    if (offset == 30) key(VK_CONTROL, true);
-    if (offset == 33) key(static_cast<WORD>(plusKey), true);
-    if (offset == 35) key(static_cast<WORD>(plusKey), false);
-    if (offset == 40) key(VK_CONTROL, false);
+    if (offset == 30 && probe->pressKeys) key(VK_CONTROL, true);
+    if (offset == 33 && probe->pressKeys) key(static_cast<WORD>(plusKey), true);
+    if (offset == 35 && probe->pressKeys) key(static_cast<WORD>(plusKey), false);
+    if (offset == 40 && probe->pressKeys) key(VK_CONTROL, false);
     if (offset == 75) {
         std::string order;
         for (auto const& what : probe->seen) order += (order.empty() ? "" : " -> ") + what;
@@ -665,7 +723,15 @@ wxl::Teardown wxl_launched() {
     std::wstring_view const commandLine{::GetCommandLineW()};
     bool const infoFlyoutMode = commandLine.find(L"--info-flyout") != std::wstring_view::npos;
     probe->windowLike = infoFlyoutMode || commandLine.find(L"--window-like") != std::wstring_view::npos;
-    probe->phases = infoFlyoutMode ? infoFlyoutPhases() : probe->windowLike ? windowLikePhases() : phases();
+    bool const flyoutScaleMode = commandLine.find(L"--flyout-scale") != std::wstring_view::npos;
+    if (flyoutScaleMode) {
+        probe->windowLike = true;
+        probe->pressKeys = false;
+    }
+    probe->phases = flyoutScaleMode ? flyoutScalePhases()
+                    : infoFlyoutMode ? infoFlyoutPhases()
+                    : probe->windowLike ? windowLikePhases()
+                                        : phases();
     say("mode: %s", probe->windowLike ? "window-like (focus as Microsoft.UI.Xaml.Window)" : "plain");
 
     WNDCLASSEXW wc{sizeof(WNDCLASSEXW)};
