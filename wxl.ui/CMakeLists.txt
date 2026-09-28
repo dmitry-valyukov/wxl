@@ -98,6 +98,9 @@ add_library(wxl.ui STATIC
     src/HaloEffect.cpp
     src/GaussianBlurEffect.h
     src/GaussianBlurEffect.cpp
+    src/GlassEffect.h
+    src/GlassEffect.cpp
+    src/impl/scene.h
     src/impl/effect_layer.h
     src/impl/effect_layer.cpp
     src/MagnifyEffect.h

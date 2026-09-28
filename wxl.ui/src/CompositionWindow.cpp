@@ -43,6 +43,7 @@
 // Перед Object.impl.h: тот тянет import wxl.core (модульный std), а
 // window_placement.h несёт обычный <optional> -- он должен встретиться до
 // импорта, иначе MSVC не примет стандартный заголовок после него.
+#include "impl/scene.h"
 #include "impl/window_frame.h"
 #include "impl/window_placement.h"
 #include "impl/application_folder.h"
@@ -1550,3 +1551,20 @@ void CompositionWindow::onPointerWheel(std::function<void(PointerPoint const&)> 
 }
 
 }  // namespace wxl
+
+// ---- Сцена для эффектов ----------------------------------------------------
+
+namespace wxl::impl {
+
+scene scene_of(winrt::Microsoft::UI::WindowId const window) noexcept {
+    HWND const hwnd = reinterpret_cast<HWND>(window.Value);
+    // Только своё окно: у чужого в USERDATA что угодно.
+    wchar_t name[sizeof(kClassName) / sizeof(wchar_t) + 1]{};
+    if (::GetClassNameW(hwnd, name, static_cast<int>(std::size(name))) == 0) return {};
+    if (std::wstring_view{name} != kClassName) return {};
+    WindowState const* const state = stateOf(hwnd);
+    if (!state || !state->backdrop) return {};
+    return {state->compositor, state->backdrop};
+}
+
+}  // namespace wxl::impl
