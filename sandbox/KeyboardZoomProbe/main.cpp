@@ -25,7 +25,12 @@
 // (DesktopWindowImpl в исходниках WinUI 3, microsoft-ui-xaml): WM_ACTIVATE не
 // отдаёт DefWindowProc, при активации отдаёт фокус острову и возвращает его
 // элементу XAML, Tab за крайний элемент возвращает в остров. Этапы W1-W5 в
-// windowLikePhases(). Проба прогоняет их сама и
+// windowLikePhases().
+//
+// С ключом --info-flyout (фокус -- как с --window-like) -- информационный
+// flyout, как у ZoomEffect (Transient, текст «110 %» под кнопкой): берёт ли он
+// фокус при показе, от щелчка и от Tab -- как есть и с запретами фокуса и
+// попадания (этапы F1-F6 в infoFlyoutPhases()). Проба прогоняет их сама и
 // закрывается; всё пишет в keyboard-zoom-probe.log рядом с исполняемым файлом.
 // SendInput нажимает настоящие клавиши и щёлкает настоящей мышью: на время
 // пробы клавиатура и мышь -- её.
@@ -43,6 +48,7 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.System.h>
+#include <winrt/Windows.UI.Xaml.Interop.h>  // xaml_typename -- стиль FlyoutPresenter
 #include <winrt/Windows.UI.h>
 
 #include <windows.h>
@@ -295,11 +301,7 @@ void key(WORD vk, bool down) {
     ::SendInput(1, &input, sizeof(INPUT));
 }
 
-void clickEmptyIslandArea() {
-    RECT client{};
-    ::GetClientRect(probe->hwnd, &client);
-    POINT point{client.right - 60, client.bottom - 60};
-    ::ClientToScreen(probe->hwnd, &point);
+void clickAt(POINT point) {
     POINT saved{};
     ::GetCursorPos(&saved);
     ::SetCursorPos(point.x, point.y);
@@ -310,6 +312,60 @@ void clickEmptyIslandArea() {
     ::SendInput(2, inputs, sizeof(INPUT));
     say("  click at %ld,%ld", point.x, point.y);
     ::SetCursorPos(saved.x, saved.y);
+}
+
+void clickEmptyIslandArea() {
+    RECT client{};
+    ::GetClientRect(probe->hwnd, &client);
+    POINT point{client.right - 60, client.bottom - 60};
+    ::ClientToScreen(probe->hwnd, &point);
+    clickAt(point);
+}
+
+// ---- информационный flyout, как у ZoomEffect ----
+
+enum class InfoFlyout { AsNow, NotFocusable, NotFocusableNotHitTestable };
+
+controls::Flyout infoFlyout{nullptr};
+controls::TextBlock infoText{nullptr};
+
+void showInfoFlyout(InfoFlyout kind) {
+    if (infoFlyout) infoFlyout.Hide();
+    infoText = controls::TextBlock{};
+    infoText.Text(L"110 %");
+    infoText.PointerPressed([](auto&&, xaml::Input::PointerRoutedEventArgs const&) { say("  info text PointerPressed"); });
+    infoFlyout = controls::Flyout{};
+    infoFlyout.Content(infoText);
+    infoFlyout.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+    if (kind != InfoFlyout::AsNow) {
+        // Ни щелчок, ни Tab не дают ему фокуса.
+        infoFlyout.AllowFocusOnInteraction(false);
+        xaml::Style presenter{winrt::xaml_typename<controls::FlyoutPresenter>()};
+        presenter.Setters().Append(xaml::Setter{xaml::UIElement::IsTabStopProperty(), winrt::box_value(false)});
+        presenter.Setters().Append(
+            xaml::Setter{xaml::FrameworkElement::AllowFocusOnInteractionProperty(), winrt::box_value(false)});
+        if (kind == InfoFlyout::NotFocusableNotHitTestable) {
+            presenter.Setters().Append(xaml::Setter{xaml::UIElement::IsHitTestVisibleProperty(), winrt::box_value(false)});
+        }
+        infoFlyout.FlyoutPresenterStyle(presenter);
+    }
+    controls::Primitives::FlyoutShowOptions options;
+    options.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+    options.Placement(controls::Primitives::FlyoutPlacementMode::Bottom);
+    infoFlyout.ShowAt(probe->button, options);
+}
+
+void clickInfoFlyout() {
+    if (!infoText || !infoText.XamlRoot()) {
+        say("  info flyout not in the tree");
+        return;
+    }
+    auto const center = infoText.TransformToVisual(nullptr).TransformPoint(
+        {static_cast<float>(infoText.ActualWidth() / 2), static_cast<float>(infoText.ActualHeight() / 2)});
+    double const scale = infoText.XamlRoot().RasterizationScale();
+    POINT point{static_cast<LONG>(center.X * scale), static_cast<LONG>(center.Y * scale)};
+    ::ClientToScreen(probe->hwnd, &point);
+    clickAt(point);
 }
 
 // ---- этапы ----
@@ -351,6 +407,42 @@ std::vector<Phase> phases() {
            }},
           {8, [] { ::SetForegroundWindow(probe->other); }},
           {18, [] { ::SetForegroundWindow(probe->hwnd); }}}},
+    };
+}
+
+std::vector<Phase> infoFlyoutPhases() {
+    return {
+        {"F1 TextBox focused, info flyout shown as ZoomEffect shows it now",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Programmatic); }},
+          {4, [] { showInfoFlyout(InfoFlyout::AsNow); }}}},
+        {"F2 click on the info flyout, as now",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Programmatic); }},
+          {2, [] { showInfoFlyout(InfoFlyout::AsNow); }},
+          {14, [] { clickInfoFlyout(); }}}},
+        {"F3 click on the info flyout, not focusable (AllowFocusOnInteraction, IsTabStop false)",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Programmatic); }},
+          {2, [] { showInfoFlyout(InfoFlyout::NotFocusable); }},
+          {14, [] { clickInfoFlyout(); }}}},
+        {"F4 click on the info flyout, not focusable and not hit-testable",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Programmatic); }},
+          {2, [] { showInfoFlyout(InfoFlyout::NotFocusableNotHitTestable); }},
+          {14, [] { clickInfoFlyout(); }}}},
+        {"F5 Tab, Tab from the TextBox with the info flyout open, as now",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Keyboard); }},
+          {2, [] { showInfoFlyout(InfoFlyout::AsNow); }},
+          {8, [] { key(VK_TAB, true); }},
+          {9, [] { key(VK_TAB, false); }},
+          {14, [] { describeFocus(); }},
+          {16, [] { key(VK_TAB, true); }},
+          {17, [] { key(VK_TAB, false); }}}},
+        {"F6 Tab, Tab from the TextBox with the info flyout open, not focusable and not hit-testable",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Keyboard); }},
+          {2, [] { showInfoFlyout(InfoFlyout::NotFocusableNotHitTestable); }},
+          {8, [] { key(VK_TAB, true); }},
+          {9, [] { key(VK_TAB, false); }},
+          {14, [] { describeFocus(); }},
+          {16, [] { key(VK_TAB, true); }},
+          {17, [] { key(VK_TAB, false); }}}},
     };
 }
 
@@ -468,6 +560,12 @@ void buildContent() {
     probe->root.Background(xaml::Media::SolidColorBrush{mu::Colors::Transparent()});
     probe->root.Children().Append(top);
     probe->root.Loaded([](auto&&, auto&&) { onIslandLoaded(); });
+    probe->root.AddHandler(xaml::UIElement::PointerPressedEvent(),
+                           winrt::box_value(xaml::Input::PointerEventHandler(
+                               [](auto&&, xaml::Input::PointerRoutedEventArgs const& args) {
+                                   say("  root PointerPressed%s", handledNote(args.Handled()).c_str());
+                               })),
+                           true);
     probe->root.PreviewKeyDown([](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
         if (isPlus(args)) seen("root.PreviewKeyDown" + handledNote(args.Handled()));
     });
@@ -564,8 +662,10 @@ wxl::Teardown wxl_launched() {
     startTick = ::GetTickCount64();
 
     probe = new Probe{};
-    probe->windowLike = std::wstring_view{::GetCommandLineW()}.find(L"--window-like") != std::wstring_view::npos;
-    probe->phases = probe->windowLike ? windowLikePhases() : phases();
+    std::wstring_view const commandLine{::GetCommandLineW()};
+    bool const infoFlyoutMode = commandLine.find(L"--info-flyout") != std::wstring_view::npos;
+    probe->windowLike = infoFlyoutMode || commandLine.find(L"--window-like") != std::wstring_view::npos;
+    probe->phases = infoFlyoutMode ? infoFlyoutPhases() : probe->windowLike ? windowLikePhases() : phases();
     say("mode: %s", probe->windowLike ? "window-like (focus as Microsoft.UI.Xaml.Window)" : "plain");
 
     WNDCLASSEXW wc{sizeof(WNDCLASSEXW)};
