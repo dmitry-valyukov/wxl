@@ -19,7 +19,13 @@
 //   - PreviewKeyDown у содержимого всплывающего Flyout.
 //
 // Положения фокуса -- этапы 1-10 в phases(); на этапе 10 окно при получении
-// фокуса отдаёт его острову (NavigateFocus(Restore)). Проба прогоняет их сама и
+// фокуса отдаёт его острову (NavigateFocus(Restore)).
+//
+// С ключом --window-like окно ведёт фокус, как Microsoft.UI.Xaml.Window
+// (DesktopWindowImpl в исходниках WinUI 3, microsoft-ui-xaml): WM_ACTIVATE не
+// отдаёт DefWindowProc, при активации отдаёт фокус острову и возвращает его
+// элементу XAML, Tab за крайний элемент возвращает в остров. Этапы W1-W5 в
+// windowLikePhases(). Проба прогоняет их сама и
 // закрывается; всё пишет в keyboard-zoom-probe.log рядом с исполняемым файлом.
 // SendInput нажимает настоящие клавиши и щёлкает настоящей мышью: на время
 // пробы клавиатура и мышь -- её.
@@ -107,6 +113,14 @@ struct Probe {
     std::vector<std::string> seen;  // кто увидел Ctrl+«+» на этапе, по порядку
     int step = 0;
     bool restoreFocusOnActivation = false;  // этап 10: WM_SETFOCUS окна -> NavigateFocus(Restore)
+
+    // Режим --window-like: фокус ведётся, как у Microsoft.UI.Xaml.Window
+    // (DesktopWindowImpl::OnActivate и OnDesktopWindowXamlSourceTakeFocusRequested).
+    bool windowLike = false;
+    HWND lastFocusedChild = nullptr;
+    bool initialActivation = true;
+    bool islandFocusPending = false;  // остров был недоступен, когда окно его звало
+    winrt::guid lastTakeFocusCorrelation{};
 };
 
 Probe* probe = nullptr;
@@ -194,6 +208,83 @@ void listChildWindows() {
         0);
 }
 
+// ---- фокус, как у Microsoft.UI.Xaml.Window ----
+
+HWND bridgeWindow() {
+    return reinterpret_cast<HWND>(static_cast<uintptr_t>(probe->xamlSource.SiteBridge().WindowId().Value));
+}
+
+bool islandOwns(HWND window) {
+    HWND const bridge = bridgeWindow();
+    return window == bridge || ::IsChild(bridge, window);
+}
+
+// DesktopWindowImpl::SetFocusToContentIsland -> XamlIslandRoot::TrySetFocus.
+void setFocusToContentIsland() {
+    auto const xamlRoot = probe->root.XamlRoot();
+    if (!xamlRoot) {
+        // Window берёт остров внутренним вызовом сразу после Initialize; снаружи
+        // остров виден только через XamlRoot содержимого -- после его загрузки.
+        say("  SetFocusToContentIsland: no XamlRoot yet, pending");
+        probe->islandFocusPending = true;
+        return;
+    }
+    probe->islandFocusPending = false;
+    auto const controller = winrt::Microsoft::UI::Input::InputFocusController::GetForIsland(xamlRoot.ContentIsland());
+    if (controller.HasFocus()) {
+        say("  SetFocusToContentIsland: island already has focus");
+        return;
+    }
+    say("  SetFocusToContentIsland: TrySetFocus=%d", controller.TrySetFocus() ? 1 : 0);
+}
+
+void restoreFocus() {
+    auto const result = probe->xamlSource.NavigateFocus(
+        xaml::Hosting::XamlSourceFocusNavigationRequest{xaml::Hosting::XamlSourceFocusNavigationReason::Restore});
+    say("  RestoreFocus: WasFocusMoved=%d", result.WasFocusMoved() ? 1 : 0);
+}
+
+void onActivate(WPARAM wparam) {
+    bool const minimized = HIWORD(wparam) != 0;
+    WORD const state = LOWORD(wparam);
+    say("  WM_ACTIVATE %s%s", state == WA_INACTIVE ? "WA_INACTIVE" : state == WA_CLICKACTIVE ? "WA_CLICKACTIVE" : "WA_ACTIVE",
+        minimized ? " minimized" : "");
+    if (state == WA_INACTIVE && !minimized) {
+        HWND const focus = ::GetFocus();
+        if (focus && ::IsChild(probe->hwnd, focus)) probe->lastFocusedChild = focus;
+    }
+    if (!minimized && state != WA_INACTIVE) {
+        if (!probe->lastFocusedChild || islandOwns(probe->lastFocusedChild)) {
+            setFocusToContentIsland();
+            restoreFocus();
+        } else {
+            ::SetFocus(probe->lastFocusedChild);
+        }
+    }
+    if (!minimized && probe->initialActivation) {
+        setFocusToContentIsland();
+        probe->initialActivation = false;
+    }
+}
+
+void onTakeFocusRequested(xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+    auto const request = args.Request();
+    auto const correlation = request.CorrelationId();
+    auto const reason = request.Reason();
+    say("  TakeFocusRequested reason=%d", static_cast<int>(reason));
+    if (correlation == probe->lastTakeFocusCorrelation) {
+        restoreFocus();
+        return;
+    }
+    probe->lastTakeFocusCorrelation = correlation;
+    if (reason == xaml::Hosting::XamlSourceFocusNavigationReason::First ||
+        reason == xaml::Hosting::XamlSourceFocusNavigationReason::Last) {
+        auto const result = probe->xamlSource.NavigateFocus(
+            xaml::Hosting::XamlSourceFocusNavigationRequest{reason, winrt::Windows::Foundation::Rect{}, correlation});
+        say("  NavigateFocus(%d): WasFocusMoved=%d", static_cast<int>(reason), result.WasFocusMoved() ? 1 : 0);
+    }
+}
+
 // ---- ввод ----
 
 void key(WORD vk, bool down) {
@@ -263,6 +354,30 @@ std::vector<Phase> phases() {
     };
 }
 
+std::vector<Phase> windowLikePhases() {
+    return {
+        {"W1 startup: initial activation, nothing else", {}},
+        {"W2 TextBox focused, another window activated, the probe window activated again",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Programmatic); }},
+          {8, [] { ::SetForegroundWindow(probe->other); }},
+          {18, [] { ::SetForegroundWindow(probe->hwnd); }}}},
+        {"W3 Button focused, window minimized and restored",
+         {{0, [] { probe->button.Focus(xaml::FocusState::Programmatic); }},
+          {4, [] { ::ShowWindow(probe->hwnd, SW_MINIMIZE); }},
+          {14, [] { ::ShowWindow(probe->hwnd, SW_RESTORE); }}}},
+        {"W4 Tab on the last element (Button)",
+         {{0, [] { probe->button.Focus(xaml::FocusState::Keyboard); }},
+          {8, [] { key(VK_TAB, true); }},
+          {10, [] { key(VK_TAB, false); }}}},
+        {"W5 Shift+Tab on the first element (TextBox)",
+         {{0, [] { probe->field.Focus(xaml::FocusState::Keyboard); }},
+          {6, [] { key(VK_SHIFT, true); }},
+          {8, [] { key(VK_TAB, true); }},
+          {10, [] { key(VK_TAB, false); }},
+          {12, [] { key(VK_SHIFT, false); }}}},
+    };
+}
+
 void tick() {
     int const s = probe->step++;
     std::size_t const index = static_cast<std::size_t>(s / phaseTicks);
@@ -300,6 +415,12 @@ void tick() {
 
 void onIslandLoaded() {
     listChildWindows();
+    if (probe->islandFocusPending) {
+        bool const active = ::GetActiveWindow() == probe->hwnd;
+        say("  island loaded with focus pending; window active: %d", active ? 1 : 0);
+        if (active) setFocusToContentIsland();
+        probe->islandFocusPending = false;
+    }
     try {
         probe->islandKeyboard =
             winrt::Microsoft::UI::Input::InputKeyboardSource::GetForIsland(probe->root.XamlRoot().ContentIsland());
@@ -402,6 +523,14 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
         case WM_SYSKEYDOWN:
             if (wparam == plusKey) seen("WndProc WM_KEYDOWN");
             break;
+        case WM_ACTIVATE:
+            // Как DesktopWindowImpl::OnMessage: WM_ACTIVATE до DefWindowProc не
+            // доходит -- тот поставил бы фокус на само окно.
+            if (probe->windowLike) {
+                onActivate(wparam);
+                return 0;
+            }
+            break;
         case WM_SETFOCUS:
             say("  WndProc WM_SETFOCUS (from %s)", className(reinterpret_cast<HWND>(wparam)).c_str());
             if (probe->restoreFocusOnActivation && probe->xamlSource) {
@@ -435,7 +564,9 @@ wxl::Teardown wxl_launched() {
     startTick = ::GetTickCount64();
 
     probe = new Probe{};
-    probe->phases = phases();
+    probe->windowLike = std::wstring_view{::GetCommandLineW()}.find(L"--window-like") != std::wstring_view::npos;
+    probe->phases = probe->windowLike ? windowLikePhases() : phases();
+    say("mode: %s", probe->windowLike ? "window-like (focus as Microsoft.UI.Xaml.Window)" : "plain");
 
     WNDCLASSEXW wc{sizeof(WNDCLASSEXW)};
     wc.lpfnWndProc = windowProc;
@@ -458,6 +589,13 @@ wxl::Teardown wxl_launched() {
     probe->xamlSource = xaml::Hosting::DesktopWindowXamlSource{};
     probe->xamlSource.Initialize(mu::WindowId{static_cast<uint64_t>(reinterpret_cast<uintptr_t>(probe->hwnd))});
     probe->xamlSource.Content(probe->sensor);
+    say("XamlRoot right after Content(): %s", probe->root.XamlRoot() ? "yes" : "no");
+    if (probe->windowLike) {
+        probe->xamlSource.TakeFocusRequested(
+            [](auto&&, xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+                onTakeFocusRequested(args);
+            });
+    }
     resize();
     probe->xamlSource.SiteBridge().Show();
 
