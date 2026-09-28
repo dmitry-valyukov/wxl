@@ -248,6 +248,23 @@ struct WindowState : core::refcounted {
     controls::Button closeButton{nullptr};
     xaml::UIElement page{nullptr};               // содержимое приложения
 
+    // Фокус клавиатуры -- как у Microsoft.UI.Xaml.Window (DesktopWindowImpl в
+    // исходниках WinUI 3). Пока остров показан, WM_ACTIVATE не доходит до
+    // DefWindowProc: тот ставит фокус на само окно, и клавиши идут в WndProc
+    // мимо XAML. Окно отдаёт фокус острову и возвращает его элементу, у
+    // которого он был; уходя, запоминает дочернее окно с фокусом. Снаружи
+    // остров виден только через XamlRoot содержимого, а он появляется не
+    // сразу: пришла активация раньше него -- передача фокуса ждёт загрузки
+    // (проба sandbox/KeyboardZoomProbe).
+    HWND lastFocusedChild{nullptr};
+    bool initialActivation{true};
+    bool islandFocusPending{false};
+    winrt::guid lastTakeFocusCorrelation{};
+    // Остров показан (showPage) и не спрятан (hideContent, режим чтения). Не
+    // IsVisible моста: тот ложен и у показанного острова, пока не видно само
+    // окно, -- а первый WM_ACTIVATE приходит изнутри ShowWindow.
+    bool contentShown{false};
+
     // Заголовок окна -- то, что у Microsoft.UI.Xaml.Window держит WindowChrome.
     // AppWindow и источник неклиентского ввода заводятся при первой нужде: окну,
     // которое заголовок не трогает, они ни к чему.
@@ -469,13 +486,101 @@ struct WindowState : core::refcounted {
             row.Height(height);
             root.RowDefinitions().Append(row);
         }
-        root.Loaded([this](auto&&, auto&&) { watchXamlRoot(); });
+        root.Loaded([this](auto&&, auto&&) { onRootLoaded(); });
         chrome.Content(root);
+        chrome.TakeFocusRequested(
+            [this](auto&&, xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+                onTakeFocusRequested(args);
+            });
 
         RECT client{};
         ::GetClientRect(hwnd, &client);
         chrome.SiteBridge().MoveAndResize({0, 0, client.right, client.bottom});
         applyZoom();
+    }
+
+    void onRootLoaded() {
+        watchXamlRoot();
+        // Остров стал виден снаружи: передача фокуса, которую окно отложило.
+        if (!islandFocusPending) return;
+        islandFocusPending = false;
+        if (islandShown() && ::GetActiveWindow() == hwnd) focusIsland();
+    }
+
+    // ---- Фокус клавиатуры: как у Microsoft.UI.Xaml.Window ----
+
+    bool islandShown() const { return chrome && contentShown; }
+
+    // Окно ввода острова -- дочернее у окна его моста.
+    bool islandOwns(HWND window) const {
+        auto const bridge = reinterpret_cast<HWND>(static_cast<std::uintptr_t>(chrome.SiteBridge().WindowId().Value));
+        return window == bridge || ::IsChild(bridge, window);
+    }
+
+    // DesktopWindowImpl::SetFocusToContentIsland: фокус Windows -- окну ввода острова.
+    void focusIsland() {
+        xaml::XamlRoot const current = root ? root.XamlRoot() : nullptr;
+        if (!current) {
+            islandFocusPending = true;
+            return;
+        }
+        islandFocusPending = false;
+        auto const controller = input::InputFocusController::GetForIsland(current.ContentIsland());
+        if (!controller.HasFocus()) controller.TrySetFocus();
+    }
+
+    // DesktopWindowImpl::RestoreFocus: фокус XAML -- элементу, у которого он был.
+    void restoreXamlFocus() {
+        chrome.NavigateFocus(xaml::Hosting::XamlSourceFocusNavigationRequest{
+            xaml::Hosting::XamlSourceFocusNavigationReason::Restore});
+    }
+
+    // WM_ACTIVATE -- DesktopWindowImpl::OnActivate. false -- острова нет или он
+    // спрятан (режим чтения): фокус ставит DefWindowProc на само окно, и
+    // клавиши идут сцене (onKeyDown).
+    bool onActivate(WPARAM wparam) {
+        if (!islandShown()) return false;
+        bool const minimized = HIWORD(wparam) != 0;
+        bool const inactive = LOWORD(wparam) == WA_INACTIVE;
+        if (inactive && !minimized) {
+            // У свёрнутого GetFocus пуст -- запомненное остаётся прежним.
+            HWND const focus = ::GetFocus();
+            if (focus && ::IsChild(hwnd, focus)) lastFocusedChild = focus;
+        }
+        if (!minimized && !inactive) {
+            if (!lastFocusedChild || islandOwns(lastFocusedChild)) {
+                focusIsland();
+                restoreXamlFocus();
+            } else {
+                ::SetFocus(lastFocusedChild);
+            }
+        }
+        if (!minimized && initialActivation) {
+            focusIsland();
+            initialActivation = false;
+        }
+        return true;
+    }
+
+    // Tab за последний элемент острова (Shift+Tab -- за первый): остров отдаёт
+    // фокус окну, а кроме острова в окне ничего нет -- фокус идёт по кругу в
+    // тот же остров, как у Window (OnDesktopWindowXamlSourceTakeFocusRequested).
+    void onTakeFocusRequested(xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+        auto const request = args.Request();
+        winrt::guid const correlation = request.CorrelationId();
+        if (correlation == lastTakeFocusCorrelation) {
+            // Запрос вернулся с тем же номером: в острове один элемент, фокус
+            // остаётся на нём.
+            restoreXamlFocus();
+            return;
+        }
+        lastTakeFocusCorrelation = correlation;
+        auto const reason = request.Reason();
+        if (reason == xaml::Hosting::XamlSourceFocusNavigationReason::First ||
+            reason == xaml::Hosting::XamlSourceFocusNavigationReason::Last) {
+            chrome.NavigateFocus(
+                xaml::Hosting::XamlSourceFocusNavigationRequest{reason, winrt::Windows::Foundation::Rect{}, correlation});
+        }
     }
 
     // Смена масштаба острова -- DPI или увеличение -- меняет прямоугольники в
@@ -679,6 +784,14 @@ struct WindowState : core::refcounted {
             root.Children().Append(page);
         }
         chrome.SiteBridge().Show();
+        contentShown = true;
+        // Фокус на самом окне -- он там для сцены (режим чтения) или остров
+        // показан уже после активации. Показанному острову -- фокус, как при
+        // активации.
+        if (::GetFocus() == hwnd) {
+            focusIsland();
+            restoreXamlFocus();
+        }
     }
 
     // ---- Заголовок и кнопки окна ----
@@ -1011,6 +1124,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             }
             break;
 
+        case WM_ACTIVATE:
+            // Пока остров показан, фокус ведётся, как у Microsoft.UI.Xaml.Window:
+            // DefWindowProc поставил бы его на само окно, мимо XAML.
+            if (state && state->onActivate(wparam)) return 0;
+            break;
+
         case WM_EXITSIZEMOVE:
             // Конец перетаскивания рамки: и сдвиг, и растяжка кончаются здесь.
             if (state) state->geometryChanged.fire(Object::Impl::empty<Object>());
@@ -1332,7 +1451,10 @@ void CompositionWindow::hideContent() const {
     // идти сцене, а пустой, но показанный остров перехватывал бы его над собой.
     if (state_->chrome) {
         state_->showPage(nullptr);
+        // Фокус, оставшийся в спрятанном острове, увёл бы туда и клавиши сцены.
+        if (HWND const focus = ::GetFocus(); focus && state_->islandOwns(focus)) ::SetFocus(state_->hwnd);
         state_->chrome.SiteBridge().Hide();
+        state_->contentShown = false;
     }
 }
 
