@@ -19,6 +19,8 @@
 // Кнопки в теле окна (их находит драйвер по имени): «Крупнее», «Мельче»,
 // «Масштаб 1», «Журнал», «Панель», «Высота».
 
+#include "platform.h"
+
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
@@ -38,7 +40,6 @@
 #include <winrt/Windows.UI.Xaml.Interop.h>
 #include <winrt/Windows.UI.h>
 
-#include <windows.h>
 #include <shellapi.h>
 
 #include <cmath>

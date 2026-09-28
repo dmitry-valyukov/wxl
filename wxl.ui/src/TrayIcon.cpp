@@ -13,7 +13,7 @@
 // Windows and projection headers first, and with them the standard library they
 // pull in: wxl's own headers carry the wxl.core import, and a standard header
 // after that import is one MSVC has already seen through the std module.
-#include <windows.h>
+#include "platform.h"
 
 #include <commctrl.h>
 #include <shellapi.h>

@@ -4,9 +4,9 @@
 // The Windows and projection headers come first, and with them the standard
 // library they pull in: the wxl headers below carry the wxl.core import, and a
 // standard header after that import is one MSVC has already seen through the std
-// module. windows.h is explicit -- SetWindowLongPtrW and GWLP_HWNDPARENT are
+// module. platform.h is explicit -- SetWindowLongPtrW and GWLP_HWNDPARENT are
 // ours to reach for, and the projection headers do not pull them in.
-#include <windows.h>
+#include "platform.h"
 
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Windows.Foundation.h>

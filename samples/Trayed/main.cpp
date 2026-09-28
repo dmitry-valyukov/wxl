@@ -30,10 +30,7 @@
 // system's pool, and wxl::UiThread carries the news back to the thread that
 // owns the window.
 
-// NOMINMAX so the min/max macros do not wreck the std::max/std::min in the
-// wxl headers this sample reaches through -- geometry.h, by way of TrayIcon.h.
-#define NOMINMAX
-#include <windows.h>
+#include "platform.h"
 
 #include <commctrl.h>
 #include <shellapi.h>

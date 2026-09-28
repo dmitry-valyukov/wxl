@@ -29,7 +29,7 @@
 // And a third scenario for the cold case: sixteen blocks held at once, so the
 // allocator cannot hand back what it has just taken in.
 
-#include <windows.h>
+#include "platform.h"
 
 #include <chrono>
 #include <cstddef>

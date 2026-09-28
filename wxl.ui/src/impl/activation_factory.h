@@ -1,5 +1,7 @@
 #pragma once
 
+#include "platform.h"
+
 #include <inspectable.h>
 #include <roapi.h>
 #include <unknwn.h>

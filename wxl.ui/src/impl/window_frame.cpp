@@ -1,9 +1,9 @@
-#include "window_frame.h"
-
 // dwmapi.h includes uxtheme.h, which names LOGFONTW and RGBQUAD: GDI types,
 // which NOGDI would otherwise keep out of windows.h.
 #undef NOGDI
-#include <windows.h>
+#include "platform.h"
+
+#include "window_frame.h"
 
 #include <dwmapi.h>
 

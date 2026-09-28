@@ -5,9 +5,8 @@
 
 // Своё раньше импорта: заголовки Windows нужны для символьного стека, а после
 // import стандартный заголовок MSVC уже не принимает.
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "platform.h"
+
 #include <dbghelp.h>
 
 #include <crtdbg.h>
