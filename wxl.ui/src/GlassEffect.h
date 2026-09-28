@@ -1,8 +1,8 @@
 #pragma once
 
-// wxl::GlassEffect -- a frosted pane under an element: what the window shows
-// behind it, blurred and tinted, so that sharp glyphs and symbols stay
-// readable over a picture. Written in the element's own braces:
+// wxl::GlassEffect -- a frosted pane under an element: what shows behind it,
+// blurred and tinted, so that sharp glyphs and symbols stay readable over a
+// picture. Written in the element's own braces:
 //
 //     Card {
 //         GlassEffect {rgba(255, 255, 255, 0.2), blurRadius = 24.0f},
@@ -10,12 +10,14 @@
 //         ...
 //     }
 //
-// The pane is drawn on the window's scene, where the picture is, under the
-// XAML island: an element's own visual sees nothing behind it, since the
-// island is transparent, and the scene sees everything the window paints.
-// The pane follows the element's rectangle and corner radius through every
-// layout, comes with Loaded and goes with Unloaded. In a window that is not a
-// CompositionWindow there is no scene, and the effect does nothing.
+// What is behind an element lies in two trees, and the pane is drawn in
+// both: among the element's own layers, under its pixels, for whatever XAML
+// draws behind it in the page; and on the window's scene, under the
+// element's rectangle, for the picture a CompositionWindow shows behind the
+// whole page -- the XAML island is transparent there and sees nothing of it.
+// Both follow the element's rectangle and corner radius through every
+// layout, come with Loaded and go with Unloaded. In a window that is not a
+// CompositionWindow there is no scene, and the page pane is all there is.
 //
 // blurRadius is what it is on the other effects; color is the tint laid over
 // the blur, a bare colour is that too; opacity is the pane as a whole. The

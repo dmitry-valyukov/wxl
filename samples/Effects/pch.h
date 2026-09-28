@@ -18,3 +18,4 @@
 #include "BevelEffect.h"
 #include "HaloEffect.h"
 #include "GaussianBlurEffect.h"
+#include "GlassEffect.h"
