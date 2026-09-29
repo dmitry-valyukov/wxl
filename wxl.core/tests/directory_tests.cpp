@@ -1,11 +1,14 @@
 #include <gtest/gtest.h>
 
+#include "test_directory.h"
+
 import std;
 import wxl.core;
 
 using wxl::core::directory;
 using wxl::core::file;
 using wxl::core::path;
+using wxl::core::test_directory;
 
 namespace {
 
@@ -18,7 +21,7 @@ class DirectoryTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        root_ = path(std::filesystem::temp_directory_path().wstring()) / L"wxl_core_directory_tests";
+        root_ = test_directory();
 
         std::filesystem::remove_all(root_.native());
 

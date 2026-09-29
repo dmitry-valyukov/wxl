@@ -78,7 +78,7 @@ TypeUse string_type() {
     use.winrt_type = "winrt::hstring";
     use.to_winrt = "impl::to_winrt($)";
     use.from_winrt = "impl::from_winrt($)";
-    use.public_includes = {"collections.h", "string_param.h", "<string_view>"};
+    use.public_includes = {"collections.h", "string_param.h"};
     use.impl_includes = {std::string{conversions_include}};
     return use;
 }
@@ -92,7 +92,7 @@ TypeUse string_type() {
 // rather than once per call. Crossing out builds a fresh wrapper around the
 // returned object.
 TypeUse wrapper_type(std::string_view name, std::string_view winrt_name,
-                     std::string_view public_include, std::string_view impl_include) {
+                     std::string_view public_include) {
     TypeUse use;
     use.supported = true;
     use.is_wrapper = true;
@@ -102,13 +102,14 @@ TypeUse wrapper_type(std::string_view name, std::string_view winrt_name,
     use.to_winrt = std::format("*Object::Impl::get_typed<{}>($)", use.value_type);
     use.from_winrt = std::format("Object::Impl::wrap<{}>($)", use.value_type);
     use.public_includes = {std::string{public_include}};
-    use.impl_includes = {std::string{impl_include}};
 
     // Building a wrapper means allocating its Impl, so the private header
-    // defining that Impl chain is needed too -- every public header has one
-    // beside it under the same name.
+    // defining that Impl chain is needed -- every public header has one
+    // beside it under the same name. It is also all the source needs: that
+    // header includes the projection of every type its Impl fields hold, and
+    // the source names none of them itself.
     std::string_view const stem = public_include.substr(0, public_include.size() - 2);
-    use.impl_includes.insert(std::format("{}.impl.h", stem));
+    use.impl_includes = {std::format("{}.impl.h", stem)};
     return use;
 }
 
@@ -470,7 +471,7 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
         auto const name = index.names.find(type);
         auto const header = index.headers.find(type);
         if (name != index.names.end() && header != index.headers.end()) {
-            return wrapper_type(name->second, winrt_name, header->second, winrt_header);
+            return wrapper_type(name->second, winrt_name, header->second);
         }
         return interface_parameter(winrt_name, winrt_header);
     }
@@ -515,7 +516,7 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
                 return unsupported(
                     std::format("{} declares no default interface", full_name(type)));
             }
-            return wrapper_type(name->second, winrt_name, header->second, winrt_header);
+            return wrapper_type(name->second, winrt_name, header->second);
         }
         case category::interface_type:
             return unsupported(std::format("{} slipped past the interface branch above",
@@ -567,8 +568,7 @@ TypeUse map_type(TypeSig const& sig, TypeIndex const& index) {
     if (element == ElementType::Object) {
         // System.Object in metadata: the wrapped IInspectable itself, which
         // is exactly what wxl::Object is.
-        return wrapper_type("Object", "winrt::Windows::Foundation::IInspectable", "../Object.h",
-                            "<winrt/Windows.Foundation.h>");
+        return wrapper_type("Object", "winrt::Windows::Foundation::IInspectable", "../Object.h");
     }
 
     if (auto const* ref = std::get_if<coded_index<TypeDefOrRef>>(&sig.Type())) {

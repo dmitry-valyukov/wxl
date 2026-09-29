@@ -62,7 +62,8 @@ public:
     virtual void toggleExpanded(uint32_t index) = 0;
     virtual void toggleChecked(uint32_t index) = 0;
 
-    // Строку выбрали: щелчок по ней.
+    // Строку выбрали: щелчок по ней. Раскрывающуюся строку тот же щелчок
+    // затем раскрывает или сворачивает.
     virtual void invoke(uint32_t index) = 0;
 };
 
@@ -90,6 +91,7 @@ private:
         wxl::TextBlock icon;
         wxl::TextBlock text;
         bool selected = false;  // выбрана ли строка модели, показанная в ячейке
+        bool expandable = false;
     };
 
     Row makeRow(uint32_t slot);

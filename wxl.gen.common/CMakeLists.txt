@@ -35,3 +35,7 @@ target_link_libraries(wxl.gen.common
 )
 
 wxl_set_target_folders(wxl.gen.common)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

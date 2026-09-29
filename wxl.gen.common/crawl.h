@@ -5,6 +5,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 // winmd_reader.h includes <windows.h> as it is, and its min/max macros then
@@ -28,6 +29,17 @@
 // walk records them as a boundary and never expands their members. Which
 // ones those are comes from the type map (profiles/types.json).
 bool is_given_from_above(winmd::reader::TypeDef const& type);
+
+// Namespace, then name: the order for any container of types whose order
+// reaches the output. winmd's own operator< compares the addresses of the
+// metadata tables first, and every .winmd file has its own tables wherever the
+// heap put them, so types from two files change places from run to run. The
+// cache keeps one type per full name, which makes this a total order.
+struct by_full_name {
+    bool operator()(winmd::reader::TypeDef const& a, winmd::reader::TypeDef const& b) const {
+        return std::pair{a.TypeNamespace(), a.TypeName()} < std::pair{b.TypeNamespace(), b.TypeName()};
+    }
+};
 
 struct Closure {
     // Every discovered type, ordered from dependency sources to their
@@ -120,7 +132,7 @@ struct Closure {
     std::set<std::string> deprecated;
 
     // Given-from-above types the walk stopped at; recorded, never emitted.
-    std::set<winmd::reader::TypeDef> boundary;
+    std::set<winmd::reader::TypeDef, by_full_name> boundary;
 
     // Diagnostics: profile entries the metadata doesn't back up. Both are
     // reported by main(), not thrown -- a stale name shouldn't stop a run.

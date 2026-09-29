@@ -22,14 +22,13 @@ namespace foundation = winrt::Windows::Foundation;
 
 namespace {
 
-// Объект WinUI панели. Детей у него три: левая часть, правая часть и разделитель --
-// последней, чтобы лежать поверх частей. Состояние перетаскивания живёт здесь
-// же: обёртка wxl своего ничего не несёт.
+// Объект WinUI панели. Детей у него три: две части и разделитель -- последним,
+// чтобы лежать поверх частей. Состояние перетаскивания живёт здесь же: обёртка
+// wxl своего ничего не несёт.
 struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
     SplitPanelObject() {
         grip_.Fill(xaml::Media::SolidColorBrush {winrt::Windows::UI::Color {0, 0, 0, 0}});
-        grip_.as<xaml::IUIElementProtected>().ProtectedCursor(winrt::Microsoft::UI::Input::InputSystemCursor::Create(
-            winrt::Microsoft::UI::Input::InputSystemCursorShape::SizeWestEast));
+        showCursor();
         grip_.PointerPressed({this, &SplitPanelObject::pressed});
         grip_.PointerMoved({this, &SplitPanelObject::moved});
         grip_.PointerReleased({this, &SplitPanelObject::released});
@@ -40,6 +39,12 @@ struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
     // Имя для дерева элементов (Live Visual Tree): без него cppwinrt отвечает
     // именем первого интерфейса из implements.
     winrt::hstring GetRuntimeClassName() const { return L"wxl.SplitPanel"; }
+
+    void showCursor() {
+        grip_.as<xaml::IUIElementProtected>().ProtectedCursor(winrt::Microsoft::UI::Input::InputSystemCursor::Create(
+            vertical_ ? winrt::Microsoft::UI::Input::InputSystemCursorShape::SizeNorthSouth
+                      : winrt::Microsoft::UI::Input::InputSystemCursorShape::SizeWestEast));
+    }
 
     // Часть встаёт перед разделителем; прежняя уходит из детей.
     void place(xaml::UIElement& slot, xaml::UIElement const& value) {
@@ -54,64 +59,85 @@ struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
         }
     }
 
-    // Сколько левой части помещается в данную ширину: зазор и правая часть
-    // остаются видны, пока ширины хватает на зазор.
-    float fitted(float width) const {
-        if (!std::isfinite(width)) {
+    // Размеры и точки -- по оси панели и поперёк неё.
+    float along(foundation::Size size) const { return vertical_ ? size.Height : size.Width; }
+    float across(foundation::Size size) const { return vertical_ ? size.Width : size.Height; }
+    float along(foundation::Point point) const { return vertical_ ? point.Y : point.X; }
+    float along(winrt::Windows::Foundation::Numerics::float2 size) const { return vertical_ ? size.y : size.x; }
+
+    foundation::Size size(float main, float cross) const {
+        return vertical_ ? foundation::Size {cross, main} : foundation::Size {main, cross};
+    }
+
+    foundation::Rect rect(float offset, float main, float cross) const {
+        return vertical_ ? foundation::Rect {0, offset, cross, main} : foundation::Rect {offset, 0, main, cross};
+    }
+
+    // Сколько pane помещается в данный размер: зазор и content остаются
+    // видны, пока места хватает на зазор.
+    float fitted(float extent) const {
+        if (!std::isfinite(extent)) {
             return length_;
         }
-        return std::clamp(length_, 0.0f, std::max(0.0f, width - spacing_));
+        return std::clamp(length_, 0.0f, std::max(0.0f, extent - spacing_));
     }
 
     foundation::Size MeasureOverride(foundation::Size available) {
-        float const length = fitted(available.Width);
-        float const rest = std::isfinite(available.Width) ? std::max(0.0f, available.Width - length - spacing_)
-                                                          : available.Width;
-        foundation::Size desired {length + spacing_, 0};
+        float const extent = along(available);
+        float const cross = across(available);
+        float const length = fitted(extent);
+        float const rest = std::isfinite(extent) ? std::max(0.0f, extent - length - spacing_) : extent;
+        float main = length + spacing_;
+        float thickness = 0;
         if (pane_) {
-            pane_.Measure({length, available.Height});
-            desired.Height = std::max(desired.Height, pane_.DesiredSize().Height);
+            pane_.Measure(size(length, cross));
+            thickness = std::max(thickness, across(pane_.DesiredSize()));
         }
         if (content_) {
-            content_.Measure({rest, available.Height});
-            desired.Width += content_.DesiredSize().Width;
-            desired.Height = std::max(desired.Height, content_.DesiredSize().Height);
+            content_.Measure(size(rest, cross));
+            main += along(content_.DesiredSize());
+            thickness = std::max(thickness, across(content_.DesiredSize()));
         }
-        grip_.Measure({spacing_, available.Height});
-        return desired;
+        grip_.Measure(size(spacing_, cross));
+        return size(main, thickness);
     }
 
     foundation::Size ArrangeOverride(foundation::Size final) {
-        float const length = fitted(final.Width);
-        float const rest = std::max(0.0f, final.Width - length - spacing_);
+        float const extent = along(final);
+        float const cross = across(final);
+        float const length = fitted(extent);
+        float const rest = std::max(0.0f, extent - length - spacing_);
+        float const paneAt = trailing_ ? rest + spacing_ : 0;
+        float const gripAt = trailing_ ? rest : length;
+        float const contentAt = trailing_ ? 0 : length + spacing_;
         if (pane_) {
-            pane_.Arrange(foundation::Rect {0, 0, length, final.Height});
+            pane_.Arrange(rect(paneAt, length, cross));
         }
-        grip_.Arrange(foundation::Rect {length, 0, spacing_, final.Height});
+        grip_.Arrange(rect(gripAt, spacing_, cross));
         if (content_) {
-            content_.Arrange(foundation::Rect {length + spacing_, 0, rest, final.Height});
+            content_.Arrange(rect(contentAt, rest, cross));
         }
         return final;
     }
 
-    static float minWidthOf(xaml::UIElement const& element) {
+    float leastOf(xaml::UIElement const& element) const {
         auto const framework = element.try_as<xaml::FrameworkElement>();
-        return framework ? static_cast<float>(framework.MinWidth()) : 0.0f;
+        return framework ? static_cast<float>(vertical_ ? framework.MinHeight() : framework.MinWidth()) : 0.0f;
     }
 
-    // Граница не заходит за MinWidth ни одной из частей; если обе не
-    // помещаются, левая берёт своё.
+    // Граница не заходит за MinWidth (MinHeight) ни одной из частей; если обе
+    // не помещаются, pane берёт своё.
     float clamped(float length) const {
-        float const least = pane_ ? minWidthOf(pane_) : 0.0f;
-        float const most = ActualSize().x - spacing_ - (content_ ? minWidthOf(content_) : 0.0f);
+        float const least = pane_ ? leastOf(pane_) : 0.0f;
+        float const most = along(ActualSize()) - spacing_ - (content_ ? leastOf(content_) : 0.0f);
         return std::max(least, std::min(length, most));
     }
 
     void pressed(foundation::IInspectable const&, xaml::Input::PointerRoutedEventArgs const& args) {
         if (grip_.CapturePointer(args.Pointer())) {
             dragging_ = true;
-            from_ = args.GetCurrentPoint(*this).Position().X;
-            start_ = fitted(ActualSize().x);
+            from_ = along(args.GetCurrentPoint(*this).Position());
+            start_ = fitted(along(ActualSize()));
             args.Handled(true);
         }
     }
@@ -120,7 +146,9 @@ struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
         if (!dragging_) {
             return;
         }
-        float const length = clamped(start_ + args.GetCurrentPoint(*this).Position().X - from_);
+        // Pane после content растёт, когда границу тянут назад.
+        float const shift = along(args.GetCurrentPoint(*this).Position()) - from_;
+        float const length = clamped(trailing_ ? start_ - shift : start_ + shift);
         if (length != length_) {
             length_ = length;
             InvalidateMeasure();
@@ -146,10 +174,12 @@ struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
 
     float length_ = 320;  // как OpenPaneLength у SplitView
     float spacing_ = 8;
+    bool vertical_ = false;
+    bool trailing_ = false;  // pane после content
 
     bool dragging_ = false;
-    float from_ = 0;   // где нажали, в координатах панели
-    float start_ = 0;  // ширина левой части в тот миг
+    float from_ = 0;   // где нажали, по оси панели
+    float start_ = 0;  // размер pane в тот миг
 };
 
 }  // namespace
@@ -202,6 +232,27 @@ void SplitPanel::openPaneLength(double value) const {
 
 double SplitPanel::openPaneLength() const {
     return Impl::of(impl()).length_;
+}
+
+void SplitPanel::orientation(Orientation value) const {
+    SplitPanelObject& object = Impl::of(impl());
+    object.vertical_ = value == Orientation::Vertical;
+    object.showCursor();
+    object.InvalidateMeasure();
+}
+
+Orientation SplitPanel::orientation() const {
+    return Impl::of(impl()).vertical_ ? Orientation::Vertical : Orientation::Horizontal;
+}
+
+void SplitPanel::panePlacement(SplitViewPanePlacement value) const {
+    SplitPanelObject& object = Impl::of(impl());
+    object.trailing_ = value == SplitViewPanePlacement::Right;
+    object.InvalidateArrange();
+}
+
+SplitViewPanePlacement SplitPanel::panePlacement() const {
+    return Impl::of(impl()).trailing_ ? SplitViewPanePlacement::Right : SplitViewPanePlacement::Left;
 }
 
 void SplitPanel::spacing(double value) const {
