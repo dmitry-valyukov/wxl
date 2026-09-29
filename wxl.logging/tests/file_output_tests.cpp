@@ -4,15 +4,11 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <vector>
 
 import wxl.logging;
-
-#include "recording_output.h"
 
 using wxl::logging::file_options;
 using wxl::logging::file_output;

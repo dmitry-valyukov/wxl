@@ -1552,6 +1552,26 @@ struct probe_task {
     TextBlock{u"0", halo, bare, glow};
 }
 
+
+
+// GlassEffect -- written by hand, so its schema lines are too.
+[[maybe_unused]] void GlassEffect_color_assigned(::wxl::GlassEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::color = value);
+}
+[[maybe_unused]] void GlassEffect_blurRadius_assigned(::wxl::GlassEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::blurRadius = value);
+}
+[[maybe_unused]] void GlassEffect_opacity_assigned(::wxl::GlassEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::opacity = value);
+}
+// The pane under a panel, with a bare tint and the tags.
+[[maybe_unused]] void glass_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    GlassEffect const pane{rgba(255, 255, 255, 0.2), blurRadius = 24.0f, opacity = 0.9};
+    Border{pane, GlassEffect{blurRadius = 12.0f}};
+}
+
 // Button3DEffect -- written by hand, so its schema lines are too.
 [[maybe_unused]] void Button3DEffect_foreground_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::foreground = value);

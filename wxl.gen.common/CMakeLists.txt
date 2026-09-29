@@ -22,8 +22,9 @@ wxl_add_module_library(wxl.gen.common STATIC
 
 target_link_libraries(wxl.gen.common
     PUBLIC
-        # crawl.h includes the reader.
+        # crawl.h includes the reader, and platform.h ahead of it.
         winmd_reader
+        wxl::core
     PRIVATE
         # The profiles are read with wxl's own JSON reader -- comments and
         # all, which is the shape our settings files are written in.
@@ -31,7 +32,10 @@ target_link_libraries(wxl.gen.common
         # The nuspec of a WindowsAppSDK release and the XAML dictionaries are
         # read with wxl's own XML reader.
         wxl::xml
-        wxl::core
 )
 
 wxl_set_target_folders(wxl.gen.common)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

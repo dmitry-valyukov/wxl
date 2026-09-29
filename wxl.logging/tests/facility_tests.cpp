@@ -1,9 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <mutex>
 #include <string>
-#include <string_view>
-#include <vector>
 
 import wxl.logging;
 

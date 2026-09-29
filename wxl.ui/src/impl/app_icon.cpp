@@ -1,4 +1,4 @@
-#include <windows.h>
+#include "platform.h"
 
 #include "impl/app_icon.h"
 

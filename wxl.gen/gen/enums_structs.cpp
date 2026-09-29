@@ -235,12 +235,17 @@ void write_structs_file(std::filesystem::path const& path, std::vector<struct_in
     auto out = open_output(path);
 
     // <stdint.h> rather than <cstdint>, for the same reason as in
-    // write_enums_file() above: the emitted field types are unqualified.
-    std::print(out, R"({}#pragma once
-
-#include <stdint.h>
-)",
-               banner);
+    // write_enums_file() above: the emitted field types are unqualified. Only
+    // where a field is one of them: a file of doubles and enums has no use for it.
+    bool const fixed_width = std::ranges::any_of(structs, [](struct_info const& s) {
+        return std::ranges::any_of(s.fields, [](auto const& field) {
+            return field.type.cpp_type.ends_with("_t") && field.type.cpp_type.find("int") != std::string::npos;
+        });
+    });
+    std::print(out, "{}#pragma once\n\n", banner);
+    if (fixed_width) {
+        std::print(out, "#include <stdint.h>\n");
+    }
 
     for (auto&& include : includes) {
         // Projections name standard headers (<chrono>); everything else is

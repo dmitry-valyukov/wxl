@@ -6,8 +6,9 @@
 //
 // Проекция и заголовки Windows -- первыми, и с ними стандартные, что они тянут:
 // заголовки wxl несут импорт wxl.core, после которого текстовый заголовок MSVC
-// уже видел бы через модуль std. windows.h после winrt: его GetCurrentTime
-// иначе подставился бы в одноимённый метод проекции.
+// уже видел бы через модуль std.
+#include "platform.h"
+
 #include <winrt/Microsoft.Graphics.Canvas.Effects.h>   // Border и Composite -- фон плиткой и цвет под ним
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
@@ -32,8 +33,6 @@
 #include <limits>
 #include <vector>
 
-#include <windows.h>
-
 #include <d2d1_1.h>     // ID2D1DeviceContext, DrawBitmap -- фон-картинка рисуется через DrawingSurface
 #include <wincodec.h>   // WIC: декод картинки заднего фона в поверхность
 #include <shellapi.h>   // HDROP, DragAcceptFiles/DragQueryFileW/DragFinish -- WIN32_LEAN_AND_MEAN их прячет
@@ -43,6 +42,7 @@
 // Перед Object.impl.h: тот тянет import wxl.core (модульный std), а
 // window_placement.h несёт обычный <optional> -- он должен встретиться до
 // импорта, иначе MSVC не примет стандартный заголовок после него.
+#include "impl/scene.h"
 #include "impl/window_frame.h"
 #include "impl/window_placement.h"
 #include "impl/application_folder.h"
@@ -246,6 +246,7 @@ struct WindowState : core::refcounted {
     winrt::event_token captionReleased{};
     bool extendsContentIntoTitleBar{false};
     bool captionButtonsTransparent{false};   // прозрачный фон системных кнопок ставится один раз
+    bool active{false};                      // по WM_NCACTIVATE: у неактивного окна знаки кнопок гаснут
     // Высота системных кнопок до того, как их сменили свои, -- её возвращают,
     // когда заголовок-элемент убран.
     std::optional<windowing::TitleBarHeightOption> systemButtonsHeight;
@@ -573,6 +574,10 @@ struct WindowState : core::refcounted {
             return resources.Lookup(winrt::box_value(winrt::hstring{key}));
         };
         button.Style(resource(L"WindowCaptionButton").as<xaml::Style>());
+        // Штрих стиля в полпикселя сглаживается в серый и у активного окна;
+        // системные знаки -- в пиксель.
+        button.Resources().Insert(winrt::box_value(winrt::hstring{L"WindowCaptionButtonStrokeWidth"}),
+                                  winrt::box_value(1.0));
         // Значок стиль берёт из Content геометрией; у «развернуть» -- из своих
         // состояний WindowStateNormal и WindowStateMaximized.
         if (geometry) {
@@ -635,6 +640,19 @@ struct WindowState : core::refcounted {
         }
         captionButtons.SizeChanged([this](auto&&, auto&&) { queueRegions(); });
         bar.Children().Append(captionButtons);
+        showActive(active);
+    }
+
+    // У стиля нет неактивного состояния. Фон кнопки в покое прозрачный, так
+    // что её прозрачность гасит один знак, как у системных кнопок; под
+    // указателем знак полный.
+    static constexpr double inactiveCaptionOpacity = 0.36;
+
+    void showActive(bool value) {
+        active = value;
+        for (controls::Button const& button : {minimizeButton, maximizeButton, closeButton}) {
+            if (button) button.Opacity(active ? 1.0 : inactiveCaptionOpacity);
+        }
     }
 
     void showCaptionState(input::NonClientRegionKind kind, std::wstring_view state) {
@@ -646,9 +664,11 @@ struct WindowState : core::refcounted {
             default: return;
         }
         if (!button) return;
+        bool const normal = state == L"Normal";
         std::wstring name{state};
-        if (kind == input::NonClientRegionKind::Close && name != L"Normal") name = L"CloseButton" + name;
+        if (kind == input::NonClientRegionKind::Close && !normal) name = L"CloseButton" + name;
         xaml::VisualStateManager::GoToState(button, name, false);
+        button.Opacity(active || !normal ? 1.0 : inactiveCaptionOpacity);
     }
 
     void showMaximized() {
@@ -876,6 +896,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
 
         case WM_MOVE:
             if (state) state->queueRegions();
+            break;
+
+        case WM_NCACTIVATE:
+            if (state) state->showActive(wparam != FALSE);
             break;
 
         case WM_DPICHANGED:
@@ -1550,3 +1574,20 @@ void CompositionWindow::onPointerWheel(std::function<void(PointerPoint const&)> 
 }
 
 }  // namespace wxl
+
+// ---- Сцена для эффектов ----------------------------------------------------
+
+namespace wxl::impl {
+
+scene scene_of(winrt::Microsoft::UI::WindowId const window) noexcept {
+    HWND const hwnd = reinterpret_cast<HWND>(window.Value);
+    // Только своё окно: у чужого в USERDATA что угодно.
+    wchar_t name[sizeof(kClassName) / sizeof(wchar_t) + 1]{};
+    if (::GetClassNameW(hwnd, name, static_cast<int>(std::size(name))) == 0) return {};
+    if (std::wstring_view{name} != kClassName) return {};
+    WindowState const* const state = stateOf(hwnd);
+    if (!state || !state->backdrop) return {};
+    return {state->compositor, state->backdrop};
+}
+
+}  // namespace wxl::impl

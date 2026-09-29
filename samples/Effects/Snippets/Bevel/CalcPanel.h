@@ -29,8 +29,8 @@ Grid {
         },
     },
 
-    Button {u"+", graphite, row = 1, column = 0},
-    Button {u"−", navy, row = 1, column = 1},
-    Button {u"×", graphite, row = 2, column = 0},
-    Button {u"=", amber, row = 2, column = 1},
+    Button {u"+", keyLayout, graphite, row = 1, column = 0},
+    Button {u"−", keyLayout, navy, row = 1, column = 1},
+    Button {u"×", keyLayout, graphite, row = 2, column = 0},
+    Button {u"=", keyLayout, amber, row = 2, column = 1},
 }

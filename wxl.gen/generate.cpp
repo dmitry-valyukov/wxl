@@ -1,4 +1,3 @@
-#include <format>
 #include <print>
 
 #include "xml_input.h"

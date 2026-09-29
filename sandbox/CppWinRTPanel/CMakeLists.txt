@@ -16,10 +16,9 @@ add_executable(sandbox.cppwinrt-panel
 target_include_directories(sandbox.cppwinrt-panel PRIVATE
     ${WXL_CPPWINRT_PROJECTION_DIR}
     ${PROJECT_SOURCE_DIR}/wxl.ui/src
+    ${PROJECT_SOURCE_DIR}/wxl.core/src
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include
 )
-
-target_compile_definitions(sandbox.cppwinrt-panel PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 
 target_link_libraries(sandbox.cppwinrt-panel PRIVATE
     wxl.winappsdk.bootstrap
