@@ -246,6 +246,7 @@ struct WindowState : core::refcounted {
     winrt::event_token captionReleased{};
     bool extendsContentIntoTitleBar{false};
     bool captionButtonsTransparent{false};   // прозрачный фон системных кнопок ставится один раз
+    bool active{false};                      // по WM_NCACTIVATE: у неактивного окна знаки кнопок гаснут
     // Высота системных кнопок до того, как их сменили свои, -- её возвращают,
     // когда заголовок-элемент убран.
     std::optional<windowing::TitleBarHeightOption> systemButtonsHeight;
@@ -573,6 +574,10 @@ struct WindowState : core::refcounted {
             return resources.Lookup(winrt::box_value(winrt::hstring{key}));
         };
         button.Style(resource(L"WindowCaptionButton").as<xaml::Style>());
+        // Штрих стиля в полпикселя сглаживается в серый и у активного окна;
+        // системные знаки -- в пиксель.
+        button.Resources().Insert(winrt::box_value(winrt::hstring{L"WindowCaptionButtonStrokeWidth"}),
+                                  winrt::box_value(1.0));
         // Значок стиль берёт из Content геометрией; у «развернуть» -- из своих
         // состояний WindowStateNormal и WindowStateMaximized.
         if (geometry) {
@@ -635,6 +640,19 @@ struct WindowState : core::refcounted {
         }
         captionButtons.SizeChanged([this](auto&&, auto&&) { queueRegions(); });
         bar.Children().Append(captionButtons);
+        showActive(active);
+    }
+
+    // У стиля нет неактивного состояния. Фон кнопки в покое прозрачный, так
+    // что её прозрачность гасит один знак, как у системных кнопок; под
+    // указателем знак полный.
+    static constexpr double inactiveCaptionOpacity = 0.36;
+
+    void showActive(bool value) {
+        active = value;
+        for (controls::Button const& button : {minimizeButton, maximizeButton, closeButton}) {
+            if (button) button.Opacity(active ? 1.0 : inactiveCaptionOpacity);
+        }
     }
 
     void showCaptionState(input::NonClientRegionKind kind, std::wstring_view state) {
@@ -646,9 +664,11 @@ struct WindowState : core::refcounted {
             default: return;
         }
         if (!button) return;
+        bool const normal = state == L"Normal";
         std::wstring name{state};
-        if (kind == input::NonClientRegionKind::Close && name != L"Normal") name = L"CloseButton" + name;
+        if (kind == input::NonClientRegionKind::Close && !normal) name = L"CloseButton" + name;
         xaml::VisualStateManager::GoToState(button, name, false);
+        button.Opacity(active || !normal ? 1.0 : inactiveCaptionOpacity);
     }
 
     void showMaximized() {
@@ -876,6 +896,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
 
         case WM_MOVE:
             if (state) state->queueRegions();
+            break;
+
+        case WM_NCACTIVATE:
+            if (state) state->showActive(wparam != FALSE);
             break;
 
         case WM_DPICHANGED:
