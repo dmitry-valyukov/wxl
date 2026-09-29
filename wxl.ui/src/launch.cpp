@@ -153,6 +153,10 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
     winrt::init_apartment(winrt::apartment_type::single_threaded);
 
+    // The loop asynchronous files and directories run on, started here so that an
+    // application has nothing to set up before it awaits one.
+    wxl::async::sta_loop::start_dispatched("wxl: I/O");
+
     auto reason = wxl::TeardownReason::Closed;
     try {
         // Returns when the application exits; OnLaunched above runs inside.
@@ -185,6 +189,10 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         exitCode = (*teardownHandler)(reason).value_or(0);
         teardownHandler = {};
     }
+
+    // After the handler, which may still let go of coroutines that are waiting for
+    // a file: giving an operation up needs the worker.
+    wxl::async::sta_loop::stop();
 
     // The one place wxl runs what it registered through module_cleanup: after
     // the handler, which may still use what those cleanups release, and before
