@@ -18,7 +18,10 @@
 //   - KeyboardAccelerator на корне;
 //   - PreviewKeyDown у содержимого всплывающего Flyout.
 //
-// Положения фокуса -- этапы 1-10 в phases(); на этапе 10 окно при получении
+// С ключом --sensor-handles датчик помечает Ctrl+«+» обработанным в своём
+// PreviewKeyDown, как CompositionWindow с 2026-09-29: масштабирует ли он сам.
+//
+// Положения фокуса -- этапы 1-11 в phases(); на этапе 10 окно при получении
 // фокуса отдаёт его острову (NavigateFocus(Restore)).
 //
 // С ключом --window-like окно ведёт фокус, как Microsoft.UI.Xaml.Window
@@ -127,6 +130,7 @@ struct Probe {
     bool initialActivation = true;
     bool islandFocusPending = false;  // остров был недоступен, когда окно его звало
     bool pressKeys = true;            // режим --flyout-scale клавиш не жмёт
+    bool sensorHandles = false;       // --sensor-handles: датчик помечает Ctrl+«+» обработанным
     winrt::guid lastTakeFocusCorrelation{};
 };
 
@@ -408,6 +412,16 @@ std::vector<Phase> phases() {
            }},
           {8, [] { ::SetForegroundWindow(probe->other); }},
           {18, [] { ::SetForegroundWindow(probe->hwnd); }}}},
+        {"11 focus on the sensor itself (above the root)",
+         {{0, [] {
+               probe->restoreFocusOnActivation = false;
+               ::SetForegroundWindow(probe->hwnd);
+           }},
+          {4, [] {
+               ::SetFocus(findDescendant(probe->hwnd, L"InputSiteWindowClass"));
+               probe->sensor.IsTabStop(true);
+               say("  sensor.Focus: %d", probe->sensor.Focus(xaml::FocusState::Programmatic) ? 1 : 0);
+           }}}},
     };
 }
 
@@ -650,7 +664,11 @@ void buildContent() {
     probe->sensor.VerticalScrollBarVisibility(controls::ScrollBarVisibility::Disabled);
     probe->sensor.Content(probe->root);
     probe->sensor.PreviewKeyDown([](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
-        if (isPlus(args)) seen("sensor.PreviewKeyDown" + handledNote(args.Handled()));
+        if (!isPlus(args)) return;
+        seen("sensor.PreviewKeyDown" + handledNote(args.Handled()));
+        // --sensor-handles: клавиши масштаба ловит верхний элемент острова, как
+        // CompositionWindow, и датчику своим масштабом заниматься нечем.
+        if (probe->sensorHandles) args.Handled(true);
     });
     probe->sensor.AddHandler(xaml::UIElement::KeyDownEvent(),
                              winrt::box_value(xaml::Input::KeyEventHandler(
@@ -723,6 +741,7 @@ wxl::Teardown wxl_launched() {
     std::wstring_view const commandLine{::GetCommandLineW()};
     bool const infoFlyoutMode = commandLine.find(L"--info-flyout") != std::wstring_view::npos;
     probe->windowLike = infoFlyoutMode || commandLine.find(L"--window-like") != std::wstring_view::npos;
+    probe->sensorHandles = commandLine.find(L"--sensor-handles") != std::wstring_view::npos;
     bool const flyoutScaleMode = commandLine.find(L"--flyout-scale") != std::wstring_view::npos;
     if (flyoutScaleMode) {
         probe->windowLike = true;
