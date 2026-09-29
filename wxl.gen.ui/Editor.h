@@ -37,6 +37,10 @@ public:
     wxl::core::observable<std::u16string> title;
     wxl::core::observable<std::u16string> typeName;
 
+    // Справа внизу: сведения о строке, выбранной последней в любом из
+    // деревьев, — разметка HtmlBlock.
+    wxl::core::observable<std::wstring> info;
+
     // Строка состояния: полный путь открытого профиля.
     wxl::core::observable<std::u16string> path;
 

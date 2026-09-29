@@ -23,7 +23,6 @@
 #include <limits>
 #include <format>
 #include <string>
-#include <vector>
 
 import wxl.core;
 import wxl.fmt;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "platform.h"
+
 #include <unknwn.h>
 
 #include <winrt/base.h>

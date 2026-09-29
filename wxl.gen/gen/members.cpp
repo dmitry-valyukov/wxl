@@ -1,5 +1,4 @@
 #include <format>
-#include <print>
 
 #include "wxl.gen.h"
 
@@ -210,7 +209,7 @@ void collect_property(Property const& property, std::string_view field_view, Typ
                 member_info boxed{member_info::Kind::BoxedString, wxl_name, winrt_name, field};
                 boxed.params.push_back({"value", {}});
                 boxed.params.back().type.param_type = "string_param";
-                boxed.params.back().type.public_includes = {"string_param.h", "<string_view>"};
+                boxed.params.back().type.public_includes = {"string_param.h"};
                 boxed.params.back().type.impl_includes = {"../impl/conversions.h"};
                 members.push_back(std::move(boxed));
             }

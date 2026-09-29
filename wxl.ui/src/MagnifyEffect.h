@@ -33,10 +33,11 @@
 // at 0.8, then springs to 1.2 and settles at 1. Unset, or on the wrong side,
 // there is no swing.
 //
-// **Timing.** Without a swing a motion is one phase: 140 ms in, 180 ms out.
-// With one, that phase reaches the far point and a slower settle follows,
-// 200 ms in and 220 ms out. `duration` sets the first phase; the settle keeps
-// its proportion to it.
+// **Timing.** A motion without a swing takes 140 ms in and 180 ms out, on an
+// S curve. One with a swing takes 300 ms in and 360 ms out, on the
+// compositor's BackEase: one continuous curve out past the end and back,
+// with the amplitude found from the far point. `duration` sets the whole
+// motion either way.
 //
 // maximum and minimum are measured on the axis that moves further from 1. The braced `scale = {1.3, 1.1}` needs the typed
 // anchor, schema::MagnifyEffect::scale in schema.h: the bare `scale` names a
@@ -115,8 +116,8 @@ public:
     void maximum(double value) const;
     void minimum(double value) const;
 
-    /// The first phase of each motion -- all of it when it does not swing.
-    /// Unset, 140 ms in and 180 out; a swing adds a settle of 200 and 220.
+    /// The whole of each motion. Unset, 140 ms in and 180 out; with a swing,
+    /// 300 and 360.
     void duration(core::duration value) const;
 
     /// How long the pointer has to stay before the element starts growing.

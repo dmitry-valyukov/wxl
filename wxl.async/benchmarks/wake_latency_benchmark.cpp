@@ -14,7 +14,7 @@
 //
 // Usage: wxl.async.wake-latency-benchmark [samples [pinger_cpu ponger_cpu]]
 
-#include <windows.h>
+#include "platform.h"
 
 import std;
 import wxl.core;

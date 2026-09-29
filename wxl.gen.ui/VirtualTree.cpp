@@ -134,16 +134,16 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         orientation.horizontal,
         height = rowHeight_,
         background = brushes.SubtleFillColor.Transparent,
+        // Второй щелчок двойного приходит как DoubleTapped, а не Tapped:
+        // узел переключается один раз.
         onTapped = [this, slot](StackPanel const&, TappedRoutedEventArgs&) {
             if (model_) {
-                model_->invoke(first() + slot);
-                render();
-            }
-        },
-        onDoubleTapped = [this, slot](StackPanel const&, DoubleTappedRoutedEventArgs&) {
-            if (model_) {
-                model_->toggleExpanded(first() + slot);
-                updateBar();
+                uint32_t const index = first() + slot;
+                model_->invoke(index);
+                if (pool_[slot].expandable) {
+                    model_->toggleExpanded(index);
+                    updateBar();
+                }
                 render();
             }
         },
@@ -267,6 +267,7 @@ void VirtualTree::render() {
         TreeRow const data = model_->row(index);
         row.panel.visibility(Visibility::Visible);
         row.selected = data.selected;
+        row.expandable = data.expander != Expander::None;
         paint(slot);
         row.indent.width(data.depth * indentStep_);
         row.glyph.text(data.expander == Expander::Collapsed ? collapsedGlyph

@@ -98,6 +98,9 @@ add_library(wxl.ui STATIC
     src/HaloEffect.cpp
     src/GaussianBlurEffect.h
     src/GaussianBlurEffect.cpp
+    src/GlassEffect.h
+    src/GlassEffect.cpp
+    src/impl/scene.h
     src/impl/effect_layer.h
     src/impl/effect_layer.cpp
     src/MagnifyEffect.h
@@ -245,12 +248,11 @@ target_include_directories(wxl.ui PRIVATE
     ${WXL_WINDOWSAPPSDK_WINUI_DIR}/include
 )
 
-# NODRAWTEXT and NOGDI keep a Win32 name from being a macro: DrawText is a
-# method on Direct2D's render target, and windows.h rewrites it to its A/W
-# spelling before d2d1.h is even parsed. Nothing here draws through GDI --
-# the pixels come from Direct2D through the compositor -- so the second
-# costs the library nothing.
-target_compile_definitions(wxl.ui PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX NODRAWTEXT NOGDI)
+# The keys every windows.h of the tree gets live beside it, in wxl.core's
+# platform.h. NOGDI is this library's own: nothing here draws through GDI --
+# the pixels come from Direct2D through the compositor -- and the few files
+# that paint a GDI surface lift it for themselves.
+target_compile_definitions(wxl.ui PRIVATE NOGDI)
 
 target_link_libraries(wxl.ui
     PUBLIC

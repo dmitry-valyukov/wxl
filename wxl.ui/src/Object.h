@@ -33,7 +33,6 @@ namespace wxl {
 class Statics {
 public:
     Statics() = delete;
-    ~Statics() = delete;
     Statics(Statics const&) = delete;
     Statics(Statics&&) = delete;
     Statics& operator=(Statics const&) = delete;

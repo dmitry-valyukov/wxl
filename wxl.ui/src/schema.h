@@ -11,6 +11,7 @@
 #include "BevelEffect.h"
 #include "Button3DEffect.h"
 #include "GaussianBlurEffect.h"
+#include "GlassEffect.h"
 #include "HaloEffect.h"
 #include "MagnifyEffect.h"
 #include "generated/schema.h"
@@ -31,6 +32,12 @@ struct GaussianBlurEffect {
     static constexpr ::wxl::Property<::wxl::PropertyKey::Opacity, double, ::wxl::GaussianBlurEffect> opacity{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Gamma, double, ::wxl::GaussianBlurEffect> gamma{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::ZIndex, int32_t, ::wxl::GaussianBlurEffect> zIndex{};
+};
+
+struct GlassEffect {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Color, ::wxl::Color, ::wxl::GlassEffect> color{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::BlurRadius, double, ::wxl::GlassEffect> blurRadius{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Opacity, double, ::wxl::GlassEffect> opacity{};
 };
 
 struct Button3DEffect {

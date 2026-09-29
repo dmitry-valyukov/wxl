@@ -1,11 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <mutex>
-#include <stdexcept>
-#include <string>
-#include <string_view>
-#include <vector>
-
 import wxl.logging;
 
 #include "recording_output.h"

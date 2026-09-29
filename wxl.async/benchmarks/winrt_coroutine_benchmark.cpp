@@ -37,10 +37,10 @@
 // The winrt headers first, and with them the standard library they pull in textually:
 // a standard header included after a module import is one MSVC has already seen
 // through the std module.
+#include "platform.h"
+
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.System.h>
-
-#include <windows.h>
 
 #include <DispatcherQueue.h>  // CreateDispatcherQueueController -- the OS queue, coremessaging.lib
 

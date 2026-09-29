@@ -19,6 +19,7 @@
 #include "HtmlBlock.h"
 #include "RsdnBlock.h"
 #include "ShowDialog.h"
+#include "SplitPanel.h"
 #include "ThemeBrush.h"
 #include "Panels.h"
 #include "Relief.h"
@@ -1551,6 +1552,26 @@ struct probe_task {
     TextBlock{u"0", halo, bare, glow};
 }
 
+
+
+// GlassEffect -- written by hand, so its schema lines are too.
+[[maybe_unused]] void GlassEffect_color_assigned(::wxl::GlassEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::color = value);
+}
+[[maybe_unused]] void GlassEffect_blurRadius_assigned(::wxl::GlassEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::blurRadius = value);
+}
+[[maybe_unused]] void GlassEffect_opacity_assigned(::wxl::GlassEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::opacity = value);
+}
+// The pane under a panel, with a bare tint and the tags.
+[[maybe_unused]] void glass_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    GlassEffect const pane{rgba(255, 255, 255, 0.2), blurRadius = 24.0f, opacity = 0.9};
+    Border{pane, GlassEffect{blurRadius = 12.0f}};
+}
+
 // Button3DEffect -- written by hand, so its schema lines are too.
 [[maybe_unused]] void Button3DEffect_foreground_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::foreground = value);
@@ -1623,6 +1644,15 @@ struct probe_task {
 }
 [[maybe_unused]] void MagnifyEffect_delayTime_assigned(::wxl::MagnifyEffect const& object, ::wxl::core::duration value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::delayTime = value);
+}
+
+// SplitPanel -- written by hand: its orientation and pane placement take the tags
+// of StackPanel and SplitView.
+[[maybe_unused]] void SplitPanel_vertical_trailing(::wxl::UIElement const& top, ::wxl::UIElement const& bottom) {
+    using namespace ::wxl::dsl;
+    ::wxl::SplitPanel const split{orientation.vertical, panePlacement.right, openPaneLength = 200.0,
+                                  content = top, pane = bottom};
+    (void)split;
 }
 
 }  // namespace

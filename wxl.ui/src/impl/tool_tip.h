@@ -2,8 +2,6 @@
 
 #include <winrt/Microsoft.UI.Xaml.h>
 
-#include <string_view>
-
 #include "../string_param.h"
 
 // What stands behind `toolTip = L"..."` on any element.
