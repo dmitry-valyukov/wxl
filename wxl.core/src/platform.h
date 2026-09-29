@@ -5,10 +5,17 @@
 // unknwn, ...), includes this header first.
 
 // NODRAWTEXT: DrawText is a method on Direct2D's render target, and windows.h
-// would rewrite it to its A/W spelling before d2d1.h is even parsed.
+// would rewrite it to its A/W spelling before d2d1.h is even parsed. Guarded,
+// since a consumer may define the same keys for its own sources.
+#ifndef NODRAWTEXT
 #define NODRAWTEXT
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <stdint.h>
 #include <windows.h>
 
