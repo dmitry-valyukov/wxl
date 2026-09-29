@@ -40,6 +40,52 @@ constexpr RowIcon constantIcon {0xF0544, rgb(74, 20, 140), rgb(186, 104, 200)}; 
 constexpr RowIcon styleIcon {0xF355, rgb(0, 96, 100), rgb(178, 235, 242)};       // design_ideas: тёмно-светло-бирюзовый
 constexpr RowIcon brushIcon {0xF591, rgb(183, 28, 28), rgb(255, 171, 145)};      // paint_brush: красно-персиковый
 
+// Текст метаданных в разметку HtmlBlock: знаки разметки — сущностями.
+void append_text(std::wstring& html, std::string_view utf8) {
+    std::wstring wide;
+    if (auto const text = wxl::core::unicode::checked(utf8)) {
+        wxl::core::unicode::append_utf16(wide, *text);
+    }
+    for (wchar_t const c : wide) {
+        switch (c) {
+            case L'<': html += L"&lt;"; break;
+            case L'>': html += L"&gt;"; break;
+            case L'&': html += L"&amp;"; break;
+            default: html += c; break;
+        }
+    }
+}
+
+void append_bold(std::wstring& html, std::string_view utf8) {
+    html += L"<b>";
+    append_text(html, utf8);
+    html += L"</b>";
+}
+
+// Что профиль говорит о членах типа.
+void append_filter(std::wstring& html, MemberFilter const* filter) {
+    html += L"<p>Profile: ";
+    if (!filter || filter->kind == MemberFilter::Kind::None) {
+        html += L"not listed</p>";
+        return;
+    }
+    if (filter->kind == MemberFilter::Kind::All) {
+        html += L"all members</p>";
+        return;
+    }
+    html += filter->kind == MemberFilter::Kind::Allow ? L"only " : L"all members except ";
+    bool first = true;
+    for (std::string const& name : filter->names) {
+        html += first ? L"" : L", ";
+        append_text(html, name);
+        first = false;
+    }
+    if (first) {
+        html += L"no members";
+    }
+    html += L"</p>";
+}
+
 std::u16string to_u16(std::string_view utf8) {
     std::wstring wide;
     if (auto const text = wxl::core::unicode::checked(utf8)) {
@@ -178,20 +224,22 @@ public:
         if (!space) {
             return {.text = library->name,
                     .icon = &libraryIcon,
-                    .expander = library->expanded ? Expander::Expanded : Expander::Collapsed};
+                    .expander = library->expanded ? Expander::Expanded : Expander::Collapsed,
+                    .selected = library == selected_};
         }
         if (!type) {
             return {.text = space->name,
                     .depth = 1,
                     .icon = &namespaceIcon,
-                    .expander = space->expanded ? Expander::Expanded : Expander::Collapsed};
+                    .expander = space->expanded ? Expander::Expanded : Expander::Collapsed,
+                    .selected = space == selected_};
         }
 
         return {.text = type->def.TypeName(),
                 .depth = 2,
                 .icon = type->icon,
                 .check = type->listed ? Check::Checked : Check::Unchecked,
-                .selected = type->def == selected_};
+                .selected = type == selected_};
     }
 
     void toggleExpanded(uint32_t index) override {
@@ -309,10 +357,68 @@ private:
         return &*type;
     }
 
+    static std::wstring libraryInfo(Library const& library) {
+        size_t types = 0;
+        for (Namespace const& space : library.namespaces) {
+            types += space.types.size();
+        }
+        std::wstring html = L"library ";
+        append_bold(html, library.name);
+        html += L"<br>";
+        append_text(html, library.source->path());
+        html += std::format(L"<p>{} namespaces, {} classes, structs and enums</p>", library.namespaces.size(), types);
+        return html;
+    }
+
+    static std::wstring namespaceInfo(Library const& library, Namespace const& space) {
+        size_t classes = 0;
+        size_t structs = 0;
+        size_t enums = 0;
+        for (TypeEntry const& type : space.types) {
+            (type.icon == &classIcon ? classes : type.icon == &structIcon ? structs : enums) += 1;
+        }
+        std::wstring html = L"namespace ";
+        append_bold(html, space.name);
+        html += L"<br>Library ";
+        append_text(html, library.name);
+        html += std::format(L"<p>{} classes, {} structs, {} enums</p>", classes, structs, enums);
+        return html;
+    }
+
+    std::wstring typeInfo(Namespace const& space, TypeEntry const& type) const {
+        std::wstring html;
+        if (type.icon == &classIcon) {
+            html += type.def.Flags().Sealed() ? L"sealed class " : L"class ";
+        } else {
+            html += type.icon == &structIcon ? L"struct " : L"enum ";
+        }
+        append_bold(html, type.def.TypeName());
+
+        // Классы WinRT наследуют System.Object; базу называем, только если она
+        // своя.
+        if (type.icon == &classIcon) {
+            if (auto const base = type.def.Extends(); base && base.type() != md::TypeDefOrRef::TypeSpec) {
+                auto const [ns, name] = md::get_type_namespace_and_name(base);
+                if (ns != "System" || name != "Object") {
+                    html += L" : ";
+                    append_text(html, std::format("{}.{}", ns, name));
+                }
+            }
+        }
+
+        html += L"<br>Member of ";
+        append_bold(html, space.name);
+
+        auto const& types = editor_.data_->profile.types;
+        auto const found = types.find(full_name(type.def));
+        append_filter(html, found == types.end() ? nullptr : &found->second);
+        return html;
+    }
+
     Editor& editor_;
     std::vector<Library> libraries_;
     uint32_t size_ = 0;
-    md::TypeDef selected_;
+    void const* selected_ = nullptr;  // выбранная строка: файл, пространство или тип
 };
 
 class MembersModel final : public TreeModel {
@@ -324,11 +430,11 @@ public:
           enum_(md::get_category(entry.def) == md::category::enum_type) {
         auto declared = declared_members_of(entry.def);
         if (enum_) {
-            groups_.push_back({"Values", &constantIcon, std::move(declared.constants)});
+            groups_.push_back({"Values", L"value", &constantIcon, std::move(declared.constants)});
         } else {
-            groups_.push_back({"Properties", &propertyIcon, std::move(declared.properties)});
-            groups_.push_back({"Methods", &methodIcon, std::move(declared.methods)});
-            groups_.push_back({"Events", &eventIcon, std::move(declared.events)});
+            groups_.push_back({"Properties", L"property", &propertyIcon, std::move(declared.properties)});
+            groups_.push_back({"Methods", L"method", &methodIcon, std::move(declared.methods)});
+            groups_.push_back({"Events", L"event", &eventIcon, std::move(declared.events)});
         }
     }
 
@@ -354,7 +460,8 @@ public:
         return {.text = name,
                 .depth = 1,
                 .icon = group->icon,
-                .check = allows(name) ? Check::Checked : Check::Unchecked};
+                .check = allows(name) ? Check::Checked : Check::Unchecked,
+                .selected = group == selected_.first && member == selected_.second};
     }
 
     void toggleExpanded(uint32_t index) override {
@@ -377,13 +484,29 @@ public:
         editor_.revision.set(editor_.revision.get() + 1);
     }
 
-    void invoke(uint32_t) override {}
+    void invoke(uint32_t index) override {
+        auto const [group, member] = locate(index);
+        if (member == npos) {
+            return;
+        }
+        selected_ = {group, member};
+
+        std::string_view const name = group->names[member];
+        std::wstring html {group->kind};
+        html += L' ';
+        append_bold(html, name);
+        html += L"<br>Member of ";
+        append_bold(html, name_);
+        html += allows(name) ? L"<p>Profile: generated</p>" : L"<p>Profile: not generated</p>";
+        editor_.info.set(std::move(html));
+    }
 
 private:
     static constexpr uint32_t npos = UINT32_MAX;
 
     struct Group {
         std::string_view title;
+        std::wstring_view kind;  // член группы одним словом — в сведениях о нём
         RowIcon const* icon = nullptr;
         std::vector<std::string_view> names;
         bool expanded = true;
@@ -417,6 +540,7 @@ private:
     std::string const name_;
     bool const enum_;
     std::vector<Group> groups_;
+    std::pair<Group const*, uint32_t> selected_ {nullptr, npos};
 };
 
 // Левое дерево на вкладке Resources: именованные ресурсы словарей XAML, из
@@ -653,14 +777,19 @@ private:
     uint32_t size_ = 0;
 };
 void TypesModel::invoke(uint32_t index) {
-    TypeEntry* const entry = locate(index).type;
+    auto const [library, space, entry] = locate(index);
     if (!entry) {
+        selected_ = space ? static_cast<void const*>(space) : library;
+        editor_.typeName.set({});
+        editor_.members.set({});
+        editor_.info.set(space ? namespaceInfo(*library, *space) : libraryInfo(*library));
         return;
     }
 
-    selected_ = entry->def;
+    selected_ = entry;
     editor_.typeName.set(to_u16(full_name(entry->def)));
     editor_.members.set(intrusive_ptr<TreeModel> {new MembersModel {editor_, *entry}, /*add_ref=*/false});
+    editor_.info.set(typeInfo(*space, *entry));
 }
 
 Editor::Editor() = default;
