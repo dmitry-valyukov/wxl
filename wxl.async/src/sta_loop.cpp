@@ -10,6 +10,13 @@ namespace wxl::async {
 void async_op::abandon(async_op* op) noexcept {
     op->abandoned_ = true;
 
+    // Left to finish alone, wherever it is; one that has not started will not.
+    if (op->orphanable_) {
+        op->canceled_.store(true, std::memory_order_seq_cst);
+        op->on_cancel();
+        return;
+    }
+
     bool owed = false;
 
     // One already in the return channel is the worker's no more, and there is nothing
@@ -19,8 +26,6 @@ void async_op::abandon(async_op* op) noexcept {
         // handing an operation to the kernel.
         op->canceled_.store(true, std::memory_order_seq_cst);
         op->on_cancel();
-
-        if (op->orphanable_) return;
 
         owed = sta_loop::wait_until_back(op);
     }

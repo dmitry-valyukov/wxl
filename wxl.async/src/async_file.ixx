@@ -27,6 +27,10 @@ export namespace wxl::async {
 ///   would copy that much on the calling thread; any read from a compressed or
 ///   encrypted file; flush().
 /// - **size() and close() run on the STA thread**: they take microseconds.
+/// - **Opening and creating go by a name**, which the system may take as long
+///   as it likes over. Under `sta_loop::start_dispatched()` they are carried out
+///   on the system's thread pool and come back through the thread's dispatcher
+///   queue; under the other two shapes of the loop, on the worker.
 ///
 /// **The position is kept here**, an overlapped handle having none: it moves on
 /// by what was asked for as an operation starts, so that two reads started one
@@ -38,7 +42,7 @@ export namespace wxl::async {
 /// left behind.
 ///
 /// **Which loop is not asked and cannot be told**: there is one, it is the STA
-/// thread's, and `sta_loop::instance()` is where these calls find it.
+/// thread's, and `sta_loop` is static from top to bottom.
 ///
 /// **Giving an operation up.** Opening and creating own everything they touch,
 /// so an awaitable that goes away before them leaves them to finish alone

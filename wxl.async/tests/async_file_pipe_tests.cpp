@@ -5,7 +5,8 @@
 
 #include "platform.h"
 
-#include "sta_pool.h"
+#include "loop_environment.h"
+#include "test_directory.h"
 
 import std;
 import wxl.core;
@@ -126,8 +127,7 @@ protected:
     void SetUp() override {
         ASSERT_TRUE(pipe_.made());
 
-        root_ = path(std::filesystem::temp_directory_path().wstring()) /
-                L"wxl_async_file_pipe_tests";
+        root_ = test_directory();
 
         std::filesystem::remove_all(root_.native());
 
@@ -148,12 +148,12 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHeldArrivesThroughThePort) {
 
     task work = reads_once(pipe_.name(), got, reading);
 
-    sta_loop::run_until([&] { return reading; });
+    wait_until([&] { return reading; });
 
     EXPECT_FALSE(work.done());
     ASSERT_TRUE(pipe_.write("hello"));
 
-    sta_loop::run_until([&] { return work.done(); });
+    wait_until([&] { return work.done(); });
     work.result();
 
     EXPECT_EQ(got, "hello");
@@ -164,7 +164,7 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingPastAReadInTheKernelCancelsIt) {
 
     task work = first_read_fails_second_is_with_the_kernel(root_ / L"refusing.bin", pipe_.name());
 
-    sta_loop::run_until([&] { return work.done(); });
+    wait_until([&] { return work.done(); });
 
     EXPECT_FALSE(watchdog.was_needed()) << "the read was waited for instead of cancelled";
 
@@ -185,7 +185,7 @@ TEST_F(AsyncFilePipeTest, DroppingATaskSuspendedOnAReadInTheKernelCancelsIt) {
     {
         task work = reads_and_is_dropped(pipe_.name(), reading);
 
-        sta_loop::run_until([&] { return reading; });
+        wait_until([&] { return reading; });
 
         EXPECT_FALSE(work.done());
     }

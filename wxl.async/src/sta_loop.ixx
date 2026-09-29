@@ -226,6 +226,18 @@ class sta_loop
     static void pay_owed_callback() noexcept;
     ///@}
 
+    /// How an orphanable operation is carried out, chosen as the loop starts: on the
+    /// worker, or -- for a loop with a dispatcher queue under it -- on the system's
+    /// thread pool, so that the worker never stands in a call that goes by a name.
+    ///@{
+    inline static void send_to_worker(async_op& op) { enqueue(core::as_not_null<async_op>(&op)); }
+
+    /// In sta_queue.cpp.
+    static void send_to_pool(async_op& op);
+
+    static inline void (*send_orphan_)(async_op&) = &send_to_worker;
+    ///@}
+
     /// stop()'s wait, in sta_loop.cpp: takes back everything that is out, resuming
     /// nobody, and sleeps in place while there is nothing to take.
     static void take_back_outstanding() noexcept;
@@ -279,6 +291,14 @@ public:
         worker_.emplace(worker_name, threads_.get());
         worker_->start_async().get();
     }
+
+    /// Starts the loop for a thread with a message loop, on that thread's own
+    /// dispatcher queue -- the system's, `Windows.System.DispatcherQueue`, made here
+    /// if the thread has none. The worker's handovers are posted to it, and so is
+    /// every orphanable operation on its way back from the thread pool.
+    ///
+    /// In sta_queue.cpp.
+    static void start_dispatched(std::string_view worker_name = "sta_loop worker");
 
     /// Waits for every operation that is out to come back, and stops the worker.
     ///
@@ -366,9 +386,13 @@ public:
 
     /// The same for a body that touches nothing but what it owns -- its captures are
     /// copies, and the result is a value of its own. Given up, it is left to finish
-    /// alone rather than waited for, and what it brings back is released when the loop
-    /// deletes it. A body that writes into the caller's frame must not be passed here:
-    /// nothing would stop it from writing after the frame is gone.
+    /// alone rather than waited for, and what it brings back is released when it is
+    /// deleted, on this thread. A body that writes into the caller's frame must not be
+    /// passed here: nothing would stop it from writing after the frame is gone.
+    ///
+    /// Under start_dispatched() it runs on the system's thread pool and not on the
+    /// worker: what is orphanable here is what goes by a name -- opening a file,
+    /// making a directory -- and may take the system as long as it likes.
     template <class Fn>
     [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> async_call(
         orphanable_t tag, Fn&& fn) {
@@ -377,7 +401,9 @@ public:
         std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
             tag, std::forward<Fn>(fn)));
 
-        return async_run(std::move(op));
+        send_orphan_(*op);
+
+        return awaitable<result_t>(std::move(op));
     }
 
     /// The same for an operation written out as a class of its own: whoever

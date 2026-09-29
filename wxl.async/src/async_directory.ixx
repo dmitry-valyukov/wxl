@@ -13,8 +13,8 @@ export namespace wxl::async {
 ///
 /// The same split as `async_file`: `core::directory` knows how to talk to
 /// Windows, this one knows where that talking runs and that a failure has to
-/// reach a co_await as an exception. Which loop is neither asked nor told --
-/// see `sta_loop::instance()`.
+/// reach a co_await as an exception. Which loop is neither asked nor told:
+/// there is one, and `sta_loop` is static.
 ///
 /// The same split between what may be left to finish alone and what is waited
 /// for: opening, exists(), create_all() and remove() own what they touch and are

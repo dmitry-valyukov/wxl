@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "sta_pool.h"
+#include "loop_environment.h"
 #include "test_directory.h"
 
 import std;
@@ -111,7 +111,7 @@ protected:
     }
 
     void run(task work) {
-        sta_loop::run_until([&] { return work.done(); });
+        wait_until([&] { return work.done(); });
 
         work.result();
     }
