@@ -715,13 +715,20 @@ struct WindowState : core::refcounted {
         zoomFlyoutTimer.Start();
     }
 
-    // Клавиши -- у корня острова, в PreviewKeyDown: он идёт от корня раньше
-    // элемента в фокусе, и Ctrl+0 не достаётся полю ввода. Колесо -- с
-    // handledEventsToo: ScrollViewer и списки помечают его обработанным.
+    // Клавиши -- у верхнего элемента острова (датчика жеста), в PreviewKeyDown:
+    // он идёт сверху раньше элемента в фокусе, и Ctrl+0 не достаётся полю
+    // ввода. Не у корня: фокус бывает и над ним -- на самом датчике или ни на
+    // чём, -- и во всплывающем окне, где корень клавишу не видит. Такую клавишу
+    // датчик масштабировал сам, как любой ScrollViewer, и оставался не в 1:
+    // остров уменьшался дважды и съезжал от угла (Беседка; проба
+    // sandbox/KeyboardZoomProbe). Колесо -- у корня, с handledEventsToo: оно
+    // всплывает снизу, и корень видит его раньше датчика; ScrollViewer и
+    // списки помечают его обработанным.
     void addZoomHandlers() {
         if (zoomHandlersAdded) return;
         zoomHandlersAdded = true;
-        root.PreviewKeyDown([this](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
+        xaml::UIElement const top = zoomSensor ? xaml::UIElement{zoomSensor} : xaml::UIElement{root};
+        top.PreviewKeyDown([this](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
             if (appZoom && onPreviewKeyDown(static_cast<int>(args.Key()))) args.Handled(true);
         });
         root.AddHandler(
