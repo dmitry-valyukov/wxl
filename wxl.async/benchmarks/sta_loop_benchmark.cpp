@@ -35,7 +35,7 @@
 //        "pin" puts the STA thread on cpu 0 and every variant's worker on cpu 2, to tell
 //        the mechanism from the scheduler; the third argument runs one table alone.
 
-#include <windows.h>  // WaitOnAddress / WakeByAddressSingle -- the address wait the "address" rows stand on
+#include "platform.h"  // WaitOnAddress / WakeByAddressSingle -- the address wait the "address" rows stand on
 
 import std;
 import wxl.core;

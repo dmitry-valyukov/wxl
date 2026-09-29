@@ -13,8 +13,6 @@
 #include <winrt/Windows.Foundation.h>
 
 #include <cassert>
-#include <cstddef>
-#include <cstdint>
 
 #include "Object.h"
 

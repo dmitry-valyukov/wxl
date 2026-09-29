@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <atomic>
-#include <mutex>
 #include <set>
 #include <string>
 #include <string_view>

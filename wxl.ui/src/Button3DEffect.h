@@ -30,8 +30,6 @@
 // with it. The effect is a handle: copies share their settings, and one
 // written once can be attached to a whole keypad.
 
-#include <cstddef>
-
 #include "core.h"
 #include "Color.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"

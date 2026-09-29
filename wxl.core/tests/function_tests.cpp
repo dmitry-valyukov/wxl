@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <crtdbg.h>
-#include <stdlib.h>
 
 import std;
 import wxl.core;

@@ -15,10 +15,11 @@
 //
 // GDI is needed for the window snapshot (PrintWindow into a DIB), so NOGDI is
 // lifted for this one file, the way WindowBackdrop.cpp does. It is first,
-// before the winrt headers pull windows.h in with NOGDI still in force.
+// before platform.h brings windows.h in with NOGDI still in force.
 // NODRAWTEXT stays: without it a DrawText macro would rewrite the DrawText
 // method d2d1 declares on ID2D1DeviceContext.
 #undef NOGDI
+#include "platform.h"
 
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Numerics.h>
@@ -26,8 +27,6 @@
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.Composition.Desktop.h>
 #include <winrt/Windows.UI.Composition.h>
-
-#include <windows.h>
 
 #include <d2d1_1.h>
 #include <d3d11.h>

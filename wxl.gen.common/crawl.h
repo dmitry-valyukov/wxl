@@ -9,12 +9,9 @@
 
 // winmd_reader.h includes <windows.h> as it is, and its min/max macros then
 // break std::min/std::max in whatever is included after -- wxl's geometry.h
-// among them. Included here first, with NOMINMAX, <windows.h> leaves the
+// among them. Through platform.h first, with NOMINMAX, <windows.h> leaves the
 // reader's own include nothing to define.
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
+#include "platform.h"
 
 #include <winmd_reader.h>
 

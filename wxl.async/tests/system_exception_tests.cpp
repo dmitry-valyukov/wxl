@@ -1,8 +1,6 @@
 // Тест зовёт саму Windows (SetLastError, коды ошибок), поэтому её заголовок
 // идёт первым -- до import, как того требует порядок в проекте.
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "platform.h"
 
 #include <gtest/gtest.h>
 

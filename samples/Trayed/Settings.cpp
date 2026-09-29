@@ -2,10 +2,7 @@
 // tables the index-valued settings stand for: which font families are offered,
 // and which themes.
 
-// NOMINMAX so the min/max macros do not wreck the std::min/max the wxl headers
-// (reached through Settings.h -> core.h) use.
-#define NOMINMAX
-#include <windows.h>
+#include "platform.h"
 
 #include "Settings.h"
 

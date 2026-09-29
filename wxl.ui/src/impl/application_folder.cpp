@@ -1,6 +1,6 @@
-#include "application_folder.h"
+#include "platform.h"
 
-#include <windows.h>
+#include "application_folder.h"
 
 #include <string>
 

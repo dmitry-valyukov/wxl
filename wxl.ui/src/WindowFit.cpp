@@ -1,12 +1,5 @@
 // fitToContent, the winrt side: subscribe to the content's Loaded and resize the
 // window's AppWindow to the content's arranged size.
-//
-// The projection and the Windows headers come first, and with them the standard
-// library they pull in: the wxl headers below carry the wxl.core import, and a
-// standard header after that import is one MSVC has already seen through the std
-// module.
-#include <winrt/Microsoft.UI.Xaml.h>
-#include <winrt/Windows.Foundation.h>
 
 #include "Object.impl.h"
 #include "events.h"

@@ -19,18 +19,14 @@
 // thing under test -- IFrameworkElementFactory::CreateInstance and the
 // blind-aggregation identity check -- is the same raw WinRT COM style as
 // framework_element_activation.cpp, no cppwinrt involved in that part.
-#include <windows.h>
+#include "platform.h"
+
 #include <unknwn.h>
 #include <inspectable.h>
-#include <restrictederrorinfo.h>
 #include <hstring.h>
 #include <roapi.h>
 #include <winstring.h>
 
-// Prevent conflict with Storyboard::GetCurrentTime, same as WxlApp1/pch.h.
-#undef GetCurrentTime
-
-#include <winrt/Windows.Foundation.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 
 #include <impl/bootstrap.h>

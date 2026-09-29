@@ -6,8 +6,9 @@
 //
 // Проекция и заголовки Windows -- первыми, и с ними стандартные, что они тянут:
 // заголовки wxl несут импорт wxl.core, после которого текстовый заголовок MSVC
-// уже видел бы через модуль std. windows.h после winrt: его GetCurrentTime
-// иначе подставился бы в одноимённый метод проекции.
+// уже видел бы через модуль std.
+#include "platform.h"
+
 #include <winrt/Microsoft.Graphics.Canvas.Effects.h>   // Border и Composite -- фон плиткой и цвет под ним
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
@@ -31,8 +32,6 @@
 #include <cmath>
 #include <limits>
 #include <vector>
-
-#include <windows.h>
 
 #include <d2d1_1.h>     // ID2D1DeviceContext, DrawBitmap -- фон-картинка рисуется через DrawingSurface
 #include <wincodec.h>   // WIC: декод картинки заднего фона в поверхность

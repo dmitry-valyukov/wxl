@@ -1,7 +1,5 @@
 module;
 
-#include "abi.h"
-
 export module wxl.core:function;
 
 import :checks;

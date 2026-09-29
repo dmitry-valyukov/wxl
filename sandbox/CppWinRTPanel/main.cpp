@@ -14,10 +14,7 @@
 // Дети — левая часть, полоса разделителя в зазоре и правая часть. Ответы — в
 // stdout, окно закрывается само после второй раскладки.
 
-#include <windows.h>
-
-// Как в sandbox/Aggregation: иначе макрос сталкивается с Storyboard::GetCurrentTime.
-#undef GetCurrentTime
+#include "platform.h"
 
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>

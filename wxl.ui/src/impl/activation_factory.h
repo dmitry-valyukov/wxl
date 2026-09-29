@@ -1,9 +1,9 @@
 #pragma once
 
+#include "platform.h"
+
 #include <inspectable.h>
 #include <roapi.h>
-#include <unknwn.h>
-#include <winstring.h>
 
 // winrt/base.h is a narrow, deliberate exception to wxl::impl's rule of having
 // no winrt/cppwinrt dependency: winrt::param::hstring and winrt::guid are tiny

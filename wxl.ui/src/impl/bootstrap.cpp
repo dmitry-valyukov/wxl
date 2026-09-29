@@ -1,10 +1,10 @@
+#include "platform.h"
+
 #include "bootstrap.h"
 
 #include "hresult.h"
 
 #include <mutex>
-
-#include <windows.h>
 
 #include <MddBootstrap.h>
 

@@ -1,6 +1,5 @@
 // See Card.cpp: the bodies of try_as for the hand-written panels, which no
-// public header can carry, and the include order the std module demands.
-#include <winrt/Microsoft.UI.Xaml.Controls.h>
+// public header can carry.
 
 #include "Object.impl.h"
 #include "Panels.h"

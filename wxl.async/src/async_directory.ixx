@@ -1,7 +1,5 @@
 module;
 
-#include "abi.h"
-
 export module wxl.async:async_directory;
 
 import :awaitable;

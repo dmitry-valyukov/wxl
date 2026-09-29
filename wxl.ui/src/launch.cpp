@@ -5,16 +5,13 @@
 // now has to be, because Teardown holds a core::function, so parsing it
 // materialises the std module in this unit; a textual winrt header after that
 // would collide.
-//
-// Before <windows.h>: its GetCurrentTime macro would otherwise be applied to
-// the projection's own method of that name.
+#include "platform.h"
+
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.XamlTypeInfo.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Windows.Foundation.Collections.h>
-
-#include <windows.h>
 
 #include <crtdbg.h>
 #include <iostream>

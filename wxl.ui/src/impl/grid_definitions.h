@@ -2,8 +2,6 @@
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 
-#include <string_view>
-
 #include "../string_param.h"
 
 // What stands behind a Grid's rows and columns written as text.

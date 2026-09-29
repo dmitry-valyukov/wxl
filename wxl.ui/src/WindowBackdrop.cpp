@@ -22,7 +22,7 @@
 // would mean another compositor -- the thing that just proved to be on the
 // wrong side of it.
 #undef NOGDI
-#include <windows.h>
+#include "platform.h"
 
 #include <commctrl.h>
 #include <wincodec.h>

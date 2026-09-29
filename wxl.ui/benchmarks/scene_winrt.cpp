@@ -15,12 +15,12 @@
 // A console subsystem executable, like its twin: the window still opens, and
 // the table has somewhere to go.
 
-// The benchmark's own headers first, with the standard headers they use.
+#include "platform.h"
+
+// The benchmark's own headers, with the standard headers they use.
 #include "scene_report.h"
 #include "scene_shape.h"
 
-// The projection, before <windows.h>: that header's GetCurrentTime macro
-// would otherwise be applied to the projection's own method of that name.
 #include <winrt/Microsoft.UI.Windowing.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
@@ -31,8 +31,6 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.UI.Text.h>
 #include <winrt/Windows.UI.h>
-
-#include <windows.h>
 
 #include <MddBootstrap.h>
 
