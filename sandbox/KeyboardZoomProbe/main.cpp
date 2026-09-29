@@ -33,7 +33,17 @@
 // С ключом --info-flyout (фокус -- как с --window-like) -- информационный
 // flyout, как у ZoomEffect (Transient, текст «110 %» под кнопкой): берёт ли он
 // фокус при показе, от щелчка и от Tab -- как есть и с запретами фокуса и
-// попадания (этапы F1-F6 в infoFlyoutPhases()). Проба прогоняет их сама и
+// попадания (этапы F1-F6 в infoFlyoutPhases()).
+//
+// С ключом --flyout-scale клавиши не нажимаются: масштаб острова меняется
+// OverrideScale при открытом и закрытом flyout (этапы S, D, H в
+// flyoutScalePhases()). Открытый до смены масштаба flyout закрывается сам --
+// его Popup с лёгким закрытием закрывается на смену размера XamlRoot
+// (Popup::OnXamlRootChanged в исходниках WinUI), мимо Closing и после того,
+// как вызывающий уже проверил IsOpen. --cancel-closing отменяет в Closing
+// закрытия, которых не просили (отменять нечего -- Closing не приходит);
+// --windowed-flyout -- flyout в своём окне (ShouldConstrainToRootBounds =
+// false), закрывается так же. Проба прогоняет этапы сама и
 // закрывается; всё пишет в keyboard-zoom-probe.log рядом с исполняемым файлом.
 // SendInput нажимает настоящие клавиши и щёлкает настоящей мышью: на время
 // пробы клавиатура и мышь -- её.
@@ -433,6 +443,9 @@ std::vector<Phase> phases() {
 
 controls::Flyout scaleFlyout{nullptr};
 controls::TextBlock scaleText{nullptr};
+bool cancelClosing = false;  // --cancel-closing: закрытие, которое просили не мы, отменяется
+bool windowedFlyout = false;  // --windowed-flyout: ShouldConstrainToRootBounds = false -- flyout в своём окне
+bool hidingOnPurpose = false;
 
 void zoomStep(float scale, bool deferShow) {
     if (!scaleFlyout) {
@@ -440,7 +453,16 @@ void zoomStep(float scale, bool deferShow) {
         scaleFlyout = controls::Flyout{};
         scaleFlyout.Content(scaleText);
         scaleFlyout.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+        if (windowedFlyout) scaleFlyout.ShouldConstrainToRootBounds(false);
         scaleFlyout.Opened([](auto&&, auto&&) { say("  scale flyout Opened"); });
+        scaleFlyout.Closing([](auto&&, controls::Primitives::FlyoutBaseClosingEventArgs const& args) {
+            if (cancelClosing && !hidingOnPurpose) {
+                args.Cancel(true);
+                say("  scale flyout Closing -- canceled");
+            } else {
+                say("  scale flyout Closing");
+            }
+        });
         scaleFlyout.Closed([](auto&&, auto&&) { say("  scale flyout Closed"); });
     }
     say("  OverrideScale %.2f; flyout open before: %d", scale, scaleFlyout.IsOpen() ? 1 : 0);
@@ -479,6 +501,14 @@ std::vector<Phase> flyoutScalePhases() {
                           {{0, [scale, defer] { zoomStep(scale, defer); }},
                            {25, [] { say("  flyout open after 400 ms: %d", scaleFlyout.IsOpen() ? 1 : 0); }}}});
     }
+    // Своё закрытие (как таймер скрытия у ZoomEffect) должно пройти и при отмене чужих.
+    result.push_back({"H hide on purpose",
+                      {{0, [] {
+                            hidingOnPurpose = true;
+                            scaleFlyout.Hide();
+                            hidingOnPurpose = false;
+                        }},
+                       {25, [] { say("  flyout open after 400 ms: %d", scaleFlyout.IsOpen() ? 1 : 0); }}}});
     return result;
 }
 
@@ -543,6 +573,9 @@ std::vector<Phase> windowLikePhases() {
 }
 
 void tick() {
+    // Этапы -- только после загрузки острова: ShowAt у элемента вне живого
+    // дерева бросает hresult_invalid_argument (первый тик таймера бывает раньше).
+    if (!probe->root.XamlRoot()) return;
     int const s = probe->step++;
     std::size_t const index = static_cast<std::size_t>(s / phaseTicks);
     int const offset = s % phaseTicks;
@@ -742,6 +775,8 @@ wxl::Teardown wxl_launched() {
     bool const infoFlyoutMode = commandLine.find(L"--info-flyout") != std::wstring_view::npos;
     probe->windowLike = infoFlyoutMode || commandLine.find(L"--window-like") != std::wstring_view::npos;
     probe->sensorHandles = commandLine.find(L"--sensor-handles") != std::wstring_view::npos;
+    cancelClosing = commandLine.find(L"--cancel-closing") != std::wstring_view::npos;
+    windowedFlyout = commandLine.find(L"--windowed-flyout") != std::wstring_view::npos;
     bool const flyoutScaleMode = commandLine.find(L"--flyout-scale") != std::wstring_view::npos;
     if (flyoutScaleMode) {
         probe->windowLike = true;
