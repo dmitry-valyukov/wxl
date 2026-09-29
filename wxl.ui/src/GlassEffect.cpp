@@ -103,6 +103,19 @@ struct Sheet {
         shape.CornerRadius({radius, radius});
     }
 
+    // The compositor copies what lies behind the layer into the effect when
+    // the layer is drawn and keeps the copy: a neighbour under it that
+    // changes later -- a picture decoded a frame after the pane went in --
+    // is not noticed. Taking the layer out and putting it back is what makes
+    // it copy again; a new brush on the same layer does not.
+    void reattach(int z) {
+        if (!layer) return;
+        auto const parent = layer.Parent();
+        if (!parent) return;
+        parent.Children().Remove(layer);
+        impl::insert_layer(parent.Children(), layer, z);
+    }
+
     void take_off() {
         if (!layer) return;
         if (auto const parent = layer.Parent()) parent.Children().Remove(layer);
@@ -110,6 +123,9 @@ struct Sheet {
         shape = nullptr;
     }
 };
+
+// Where the island pane stands among the element's layers: under its pixels.
+constexpr int paneZ = -1;
 
 // One attached element's panes: made on Loaded, following the element on
 // every layout, taken off on Unloaded. The element is held weakly -- its own
@@ -149,8 +165,8 @@ struct Pane : std::enable_shared_from_this<Pane> {
                              auto const self = weak.lock();
                              if (!self || self->inIsland.layer) return;
                              self->inIsland.make(host.Compositor(), self->color, self->blurRadius, self->opacity);
-                             impl::insert_layer(children, self->inIsland.layer, -1);
                              if (auto const fe = self->element.get()) self->follow(fe);
+                             impl::insert_layer(children, self->inIsland.layer, paneZ);
                          });
 
         follow(fe);
@@ -164,13 +180,16 @@ struct Pane : std::enable_shared_from_this<Pane> {
     // The element's rectangle: in the island, its own size in logical
     // pixels; on the scene, its place in the window in physical ones -- the
     // island covers the client area from its corner, and its rasterization
-    // scale is the DPI with the window's zoom.
+    // scale is the DPI with the window's zoom. Whatever appears or grows
+    // behind the element comes with a layout pass, so the island pane is
+    // reattached here to copy the background afresh.
     void follow(xaml::FrameworkElement const& fe) {
         auto const root = fe.XamlRoot();
         if (!root) return;
         float2 const size{static_cast<float>(fe.ActualWidth()), static_cast<float>(fe.ActualHeight())};
         float const radius = corner_of(fe);
         inIsland.fit(size, radius);
+        inIsland.reattach(paneZ);
 
         if (!onScene.layer) return;
         float const scale = static_cast<float>(root.RasterizationScale());
