@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "sta_pool.h"
+#include "test_directory.h"
 
 import std;
 import wxl.core;
@@ -90,7 +91,7 @@ class AsyncFileTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        root_ = path(std::filesystem::temp_directory_path().wstring()) / L"wxl_async_file_tests";
+        root_ = test_directory();
 
         std::filesystem::remove_all(root_.native());
 

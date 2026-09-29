@@ -10,6 +10,7 @@
 #include "Card.h"
 #include "CompositionWindow.h"
 #include "Editor.h"
+#include "HtmlBlock.h"
 #include "MagnifyEffect.h"
 #include "SplitPanel.h"
 #include "ThemeBrush.h"
@@ -93,6 +94,9 @@ wxl::Teardown wxl_launched() {
     document->members.on_change([right](core::intrusive_ptr<TreeModel> const& model) noexcept {
         right->model(model);
     });
+    auto const details = HtmlBlock {textWrapping.wrap};
+    document->info.on_change([details](std::wstring const& markup) noexcept { details.html(markup); });
+
     document->revision.on_change([left, right](uint32_t) noexcept {
         left->refresh();
         right->refresh();
@@ -152,8 +156,8 @@ wxl::Teardown wxl_launched() {
     };
 
     // Масштаб окна — с клавиатуры (Ctrl и «+», «−», «0»), колесом с Ctrl и кнопками
-    // в заголовке, по сетке от 50 до 200 %.
-    auto const zoom = ZoomEffect {zoomLevels125};
+    // в заголовке, по ступеням от 50 до 300 %.
+    auto const zoom = ZoomEffect {};
     auto const label = core::make_refcounted<ZoomLabel>();
     label->text.follow(zoom.model().zoomFactor(), percent);
 
@@ -294,7 +298,23 @@ wxl::Teardown wxl_launched() {
                         left->view(),
                     },
                 },
-                content = Border {framed, right->view()},
+                // Справа члены типа и под ними, меньше, сведения о выбранном —
+                // как у просмотрщиков библиотек типов.
+                content = SplitPanel {
+                    orientation.vertical,
+                    panePlacement.right,
+                    openPaneLength = 180.0,
+                    spacing = 8.0,
+                    content = Border {framed, right->view()},
+                    pane = Border {
+                        framed,
+                        background = brushes.SolidBackgroundFillColor.Quarternary,
+                        ScrollViewer {
+                            Padding {12, 8},
+                            content = details,
+                        },
+                    },
+                },
             },
             Border {
                 row = 2,

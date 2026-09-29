@@ -221,6 +221,23 @@ struct WindowState : core::refcounted {
     bool zoomHandlersAdded{false};
     int32_t accumulatedWheelDelta{0};
 
+    // Датчик жеста масштабирования: ScrollViewer над корнем острова со своим
+    // масштабом и без прокрутки. Жест со вложенных списков доходит до него по
+    // цепочке масштабирования; пока пальцы движутся, он увеличивает остров как
+    // картинку, а в конце модель встаёт на ближайшую ступень, и он -- обратно к
+    // 1 (проба sandbox/ZoomGestureProbe). Ctrl+колесо до него не доходит:
+    // обработчик колеса у корня помечает его обработанным, и шаги остаются за
+    // моделью.
+    controls::ScrollViewer zoomSensor{nullptr};
+
+    // Flyout с текущим масштабом: появляется, пока масштаб меняется, и сам
+    // прячется через zoomFlyoutDelay после последнего изменения. Transient --
+    // без фокуса: следующее Ctrl+«+» идёт окну, а не flyout.
+    controls::Flyout zoomFlyout{nullptr};
+    controls::TextBlock zoomFlyoutText{nullptr};
+    winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer zoomFlyoutTimer{nullptr};
+    static constexpr std::chrono::milliseconds zoomFlyoutDelay{1500};
+
     // Раскладка острова: корень в две строки -- заголовок с кнопками окна и под
     // ним содержимое приложения. Заводится вместе с островом.
     controls::Grid root{nullptr};
@@ -230,6 +247,23 @@ struct WindowState : core::refcounted {
     controls::Button maximizeButton{nullptr};
     controls::Button closeButton{nullptr};
     xaml::UIElement page{nullptr};               // содержимое приложения
+
+    // Фокус клавиатуры -- как у Microsoft.UI.Xaml.Window (DesktopWindowImpl в
+    // исходниках WinUI 3). Пока остров показан, WM_ACTIVATE не доходит до
+    // DefWindowProc: тот ставит фокус на само окно, и клавиши идут в WndProc
+    // мимо XAML. Окно отдаёт фокус острову и возвращает его элементу, у
+    // которого он был; уходя, запоминает дочернее окно с фокусом. Снаружи
+    // остров виден только через XamlRoot содержимого, а он появляется не
+    // сразу: пришла активация раньше него -- передача фокуса ждёт загрузки
+    // (проба sandbox/KeyboardZoomProbe).
+    HWND lastFocusedChild{nullptr};
+    bool initialActivation{true};
+    bool islandFocusPending{false};
+    winrt::guid lastTakeFocusCorrelation{};
+    // Остров показан (showPage) и не спрятан (hideContent, режим чтения). Не
+    // IsVisible моста: тот ложен и у показанного острова, пока не видно само
+    // окно, -- а первый WM_ACTIVATE приходит изнутри ShowWindow.
+    bool contentShown{false};
 
     // Заголовок окна -- то, что у Microsoft.UI.Xaml.Window держит WindowChrome.
     // AppWindow и источник неклиентского ввода заводятся при первой нужде: окну,
@@ -246,6 +280,7 @@ struct WindowState : core::refcounted {
     winrt::event_token captionReleased{};
     bool extendsContentIntoTitleBar{false};
     bool captionButtonsTransparent{false};   // прозрачный фон системных кнопок ставится один раз
+    bool active{false};                      // по WM_NCACTIVATE: у неактивного окна знаки кнопок гаснут
     // Высота системных кнопок до того, как их сменили свои, -- её возвращают,
     // когда заголовок-элемент убран.
     std::optional<windowing::TitleBarHeightOption> systemButtonsHeight;
@@ -452,13 +487,101 @@ struct WindowState : core::refcounted {
             row.Height(height);
             root.RowDefinitions().Append(row);
         }
-        root.Loaded([this](auto&&, auto&&) { watchXamlRoot(); });
+        root.Loaded([this](auto&&, auto&&) { onRootLoaded(); });
         chrome.Content(root);
+        chrome.TakeFocusRequested(
+            [this](auto&&, xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+                onTakeFocusRequested(args);
+            });
 
         RECT client{};
         ::GetClientRect(hwnd, &client);
         chrome.SiteBridge().MoveAndResize({0, 0, client.right, client.bottom});
         applyZoom();
+    }
+
+    void onRootLoaded() {
+        watchXamlRoot();
+        // Остров стал виден снаружи: передача фокуса, которую окно отложило.
+        if (!islandFocusPending) return;
+        islandFocusPending = false;
+        if (islandShown() && ::GetActiveWindow() == hwnd) focusIsland();
+    }
+
+    // ---- Фокус клавиатуры: как у Microsoft.UI.Xaml.Window ----
+
+    bool islandShown() const { return chrome && contentShown; }
+
+    // Окно ввода острова -- дочернее у окна его моста.
+    bool islandOwns(HWND window) const {
+        auto const bridge = reinterpret_cast<HWND>(static_cast<std::uintptr_t>(chrome.SiteBridge().WindowId().Value));
+        return window == bridge || ::IsChild(bridge, window);
+    }
+
+    // DesktopWindowImpl::SetFocusToContentIsland: фокус Windows -- окну ввода острова.
+    void focusIsland() {
+        xaml::XamlRoot const current = root ? root.XamlRoot() : nullptr;
+        if (!current) {
+            islandFocusPending = true;
+            return;
+        }
+        islandFocusPending = false;
+        auto const controller = input::InputFocusController::GetForIsland(current.ContentIsland());
+        if (!controller.HasFocus()) controller.TrySetFocus();
+    }
+
+    // DesktopWindowImpl::RestoreFocus: фокус XAML -- элементу, у которого он был.
+    void restoreXamlFocus() {
+        chrome.NavigateFocus(xaml::Hosting::XamlSourceFocusNavigationRequest{
+            xaml::Hosting::XamlSourceFocusNavigationReason::Restore});
+    }
+
+    // WM_ACTIVATE -- DesktopWindowImpl::OnActivate. false -- острова нет или он
+    // спрятан (режим чтения): фокус ставит DefWindowProc на само окно, и
+    // клавиши идут сцене (onKeyDown).
+    bool onActivate(WPARAM wparam) {
+        if (!islandShown()) return false;
+        bool const minimized = HIWORD(wparam) != 0;
+        bool const inactive = LOWORD(wparam) == WA_INACTIVE;
+        if (inactive && !minimized) {
+            // У свёрнутого GetFocus пуст -- запомненное остаётся прежним.
+            HWND const focus = ::GetFocus();
+            if (focus && ::IsChild(hwnd, focus)) lastFocusedChild = focus;
+        }
+        if (!minimized && !inactive) {
+            if (!lastFocusedChild || islandOwns(lastFocusedChild)) {
+                focusIsland();
+                restoreXamlFocus();
+            } else {
+                ::SetFocus(lastFocusedChild);
+            }
+        }
+        if (!minimized && initialActivation) {
+            focusIsland();
+            initialActivation = false;
+        }
+        return true;
+    }
+
+    // Tab за последний элемент острова (Shift+Tab -- за первый): остров отдаёт
+    // фокус окну, а кроме острова в окне ничего нет -- фокус идёт по кругу в
+    // тот же остров, как у Window (OnDesktopWindowXamlSourceTakeFocusRequested).
+    void onTakeFocusRequested(xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+        auto const request = args.Request();
+        winrt::guid const correlation = request.CorrelationId();
+        if (correlation == lastTakeFocusCorrelation) {
+            // Запрос вернулся с тем же номером: в острове один элемент, фокус
+            // остаётся на нём.
+            restoreXamlFocus();
+            return;
+        }
+        lastTakeFocusCorrelation = correlation;
+        auto const reason = request.Reason();
+        if (reason == xaml::Hosting::XamlSourceFocusNavigationReason::First ||
+            reason == xaml::Hosting::XamlSourceFocusNavigationReason::Last) {
+            chrome.NavigateFocus(
+                xaml::Hosting::XamlSourceFocusNavigationRequest{reason, winrt::Windows::Foundation::Rect{}, correlation});
+        }
     }
 
     // Смена масштаба острова -- DPI или увеличение -- меняет прямоугольники в
@@ -477,17 +600,136 @@ struct WindowState : core::refcounted {
         if (value <= 0 || value == zoomFactor) return;
         zoomFactor = value;
         applyZoom();
+        limitZoomGesture();
         clientSizeChanged.fire(clientSize());
         queueRegions();
     }
 
-    // Клавиши -- у корня острова, в PreviewKeyDown: он идёт от корня раньше
-    // элемента в фокусе, и Ctrl+0 не достаётся полю ввода. Колесо -- с
-    // handledEventsToo: ScrollViewer и списки помечают его обработанным.
+    // ---- Жест масштабирования и flyout масштаба (ZoomEffect) ----
+
+    // Датчик ставится над корнем, когда присоединён эффект и есть остров.
+    void ensureZoomSensor() {
+        if (zoomSensor || !appZoom || !chrome) return;
+        zoomSensor = controls::ScrollViewer{};
+        zoomSensor.ZoomMode(controls::ZoomMode::Enabled);
+        // Без инерции: ступень выбирается там, где пальцы остановились. С ней
+        // быстрый жест, остановленный на 200 %, доезжал до 300 % (проба на
+        // wxl.gen.ui касанием InjectSyntheticPointerInput).
+        zoomSensor.IsZoomInertiaEnabled(false);
+        zoomSensor.HorizontalScrollMode(controls::ScrollMode::Disabled);
+        zoomSensor.VerticalScrollMode(controls::ScrollMode::Disabled);
+        zoomSensor.HorizontalScrollBarVisibility(controls::ScrollBarVisibility::Disabled);
+        zoomSensor.VerticalScrollBarVisibility(controls::ScrollBarVisibility::Disabled);
+        limitZoomGesture();
+        zoomSensor.ViewChanged([this](auto&&, controls::ScrollViewerViewChangedEventArgs const& args) {
+            onZoomGesture(args.IsIntermediate());
+        });
+        chrome.Content(zoomSensor);
+        zoomSensor.Content(root);
+    }
+
+    // Жест не уходит за ступени модели: пределы датчика -- относительно
+    // масштаба, в котором остров уже стоит.
+    void limitZoomGesture() {
+        if (!zoomSensor) return;
+        zoomSensor.MinZoomFactor(static_cast<float>(AppZoom::minZoomFactor / zoomFactor));
+        zoomSensor.MaxZoomFactor(static_cast<float>(AppZoom::maxZoomFactor / zoomFactor));
+    }
+
+    void onZoomGesture(bool intermediate) {
+        double const gesture = zoomSensor.ZoomFactor();
+        // ScrollViewer хранит масштаб во float: единица -- с допуском.
+        if (std::abs(gesture - 1.0) < 1e-4) return;
+        double const wanted = zoomFactor * gesture;
+        if (intermediate) {
+            showZoomFlyout(wanted);
+            return;
+        }
+        // Сначала датчик обратно к единице, потом модель на ступень: остров
+        // берёт новый масштаб уже без увеличения картинкой поверх.
+        zoomSensor.ChangeView(nullptr, nullptr, 1.0f, true);
+        double const before = zoomFactor;
+        appZoom->setZoomFactor(wanted);
+        // Сменилась ступень -- flyout уже показала подписка на модель; нет --
+        // он всё ещё показывает промежуточное число жеста.
+        if (zoomFactor == before) showZoomFlyout(zoomFactor);
+    }
+
+    static winrt::hstring percent(double factor) {
+        return winrt::hstring{std::to_wstring(std::lround(factor * 100)) + L" %"};
+    }
+
+    // Зовётся и из подписки на модель, а она noexcept: ошибка XAML здесь --
+    // пропущенный flyout, а не конец программы. Остров, которого ещё не
+    // показали, flyout не нужен.
+    void showZoomFlyout(double factor) noexcept {
+        if (!root || !root.XamlRoot()) return;
+        try {
+            showZoomFlyoutNow(factor);
+        } catch (winrt::hresult_error const& error) {
+            ::OutputDebugStringW((L"wxl::ZoomEffect: flyout масштаба не показан: " + std::wstring{error.message()} +
+                                  L"\n").c_str());
+        }
+    }
+
+    void showZoomFlyoutNow(double factor) {
+        if (!zoomFlyout) {
+            zoomFlyoutText = controls::TextBlock{};
+            zoomFlyout = controls::Flyout{};
+            zoomFlyout.Content(zoomFlyoutText);
+            zoomFlyout.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+            // Flyout только показывает число: мышь и клавиатура до него не
+            // доходят. Щелчок по нему ставил фокус XAML на его Popup, и клавиши
+            // масштаба -- они слушаются у корня -- переставали работать; запрет
+            // фокуса (AllowFocusOnInteraction, IsTabStop) этого не снимает,
+            // снимает только IsHitTestVisible: щелчок проходит насквозь. Tab до
+            // Transient-flyout не доходит и так, IsTabStop -- чтобы так и
+            // осталось (проба sandbox/KeyboardZoomProbe --info-flyout).
+            xaml::Style presenter{winrt::xaml_typename<controls::FlyoutPresenter>()};
+            presenter.Setters().Append(xaml::Setter{xaml::UIElement::IsHitTestVisibleProperty(), winrt::box_value(false)});
+            presenter.Setters().Append(xaml::Setter{xaml::UIElement::IsTabStopProperty(), winrt::box_value(false)});
+            zoomFlyout.FlyoutPresenterStyle(presenter);
+            zoomFlyoutTimer = winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread().CreateTimer();
+            zoomFlyoutTimer.Interval(zoomFlyoutDelay);
+            zoomFlyoutTimer.IsRepeating(false);
+            zoomFlyoutTimer.Tick([this](auto&&, auto&&) {
+                if (zoomFlyout) zoomFlyout.Hide();
+            });
+        }
+        zoomFlyoutText.Text(percent(factor));
+        if (!zoomFlyout.IsOpen()) {
+            // Под строкой заголовка, посередине: Bottom у элемента ставит flyout
+            // по его середине. У точки (Position) WinUI ставит его левым краем, а
+            // ширины flyout до показа не знает никто. Нет строки заголовка --
+            // от верха окна, в точке.
+            controls::Primitives::FlyoutShowOptions options;
+            options.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+            options.Placement(controls::Primitives::FlyoutPlacementMode::Bottom);
+            if (bar) {
+                zoomFlyout.ShowAt(bar, options);
+            } else {
+                options.Position(winrt::Windows::Foundation::Point {static_cast<float>(root.ActualWidth() / 2), 0.0f});
+                zoomFlyout.ShowAt(root, options);
+            }
+        }
+        zoomFlyoutTimer.Stop();
+        zoomFlyoutTimer.Start();
+    }
+
+    // Клавиши -- у верхнего элемента острова (датчика жеста), в PreviewKeyDown:
+    // он идёт сверху раньше элемента в фокусе, и Ctrl+0 не достаётся полю
+    // ввода. Не у корня: фокус бывает и над ним -- на самом датчике или ни на
+    // чём, -- и во всплывающем окне, где корень клавишу не видит. Такую клавишу
+    // датчик масштабировал сам, как любой ScrollViewer, и оставался не в 1:
+    // остров уменьшался дважды и съезжал от угла (Беседка; проба
+    // sandbox/KeyboardZoomProbe). Колесо -- у корня, с handledEventsToo: оно
+    // всплывает снизу, и корень видит его раньше датчика; ScrollViewer и
+    // списки помечают его обработанным.
     void addZoomHandlers() {
         if (zoomHandlersAdded) return;
         zoomHandlersAdded = true;
-        root.PreviewKeyDown([this](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
+        xaml::UIElement const top = zoomSensor ? xaml::UIElement{zoomSensor} : xaml::UIElement{root};
+        top.PreviewKeyDown([this](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
             if (appZoom && onPreviewKeyDown(static_cast<int>(args.Key()))) args.Handled(true);
         });
         root.AddHandler(
@@ -561,6 +803,14 @@ struct WindowState : core::refcounted {
             root.Children().Append(page);
         }
         chrome.SiteBridge().Show();
+        contentShown = true;
+        // Фокус на самом окне -- он там для сцены (режим чтения) или остров
+        // показан уже после активации. Показанному острову -- фокус, как при
+        // активации.
+        if (::GetFocus() == hwnd) {
+            focusIsland();
+            restoreXamlFocus();
+        }
     }
 
     // ---- Заголовок и кнопки окна ----
@@ -573,6 +823,10 @@ struct WindowState : core::refcounted {
             return resources.Lookup(winrt::box_value(winrt::hstring{key}));
         };
         button.Style(resource(L"WindowCaptionButton").as<xaml::Style>());
+        // Штрих стиля в полпикселя сглаживается в серый и у активного окна;
+        // системные знаки -- в пиксель.
+        button.Resources().Insert(winrt::box_value(winrt::hstring{L"WindowCaptionButtonStrokeWidth"}),
+                                  winrt::box_value(1.0));
         // Значок стиль берёт из Content геометрией; у «развернуть» -- из своих
         // состояний WindowStateNormal и WindowStateMaximized.
         if (geometry) {
@@ -635,6 +889,19 @@ struct WindowState : core::refcounted {
         }
         captionButtons.SizeChanged([this](auto&&, auto&&) { queueRegions(); });
         bar.Children().Append(captionButtons);
+        showActive(active);
+    }
+
+    // У стиля нет неактивного состояния. Фон кнопки в покое прозрачный, так
+    // что её прозрачность гасит один знак, как у системных кнопок; под
+    // указателем знак полный.
+    static constexpr double inactiveCaptionOpacity = 0.36;
+
+    void showActive(bool value) {
+        active = value;
+        for (controls::Button const& button : {minimizeButton, maximizeButton, closeButton}) {
+            if (button) button.Opacity(active ? 1.0 : inactiveCaptionOpacity);
+        }
     }
 
     void showCaptionState(input::NonClientRegionKind kind, std::wstring_view state) {
@@ -646,9 +913,11 @@ struct WindowState : core::refcounted {
             default: return;
         }
         if (!button) return;
+        bool const normal = state == L"Normal";
         std::wstring name{state};
-        if (kind == input::NonClientRegionKind::Close && name != L"Normal") name = L"CloseButton" + name;
+        if (kind == input::NonClientRegionKind::Close && !normal) name = L"CloseButton" + name;
         xaml::VisualStateManager::GoToState(button, name, false);
+        button.Opacity(active || !normal ? 1.0 : inactiveCaptionOpacity);
     }
 
     void showMaximized() {
@@ -878,6 +1147,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             if (state) state->queueRegions();
             break;
 
+        case WM_NCACTIVATE:
+            if (state) state->showActive(wparam != FALSE);
+            break;
+
         case WM_DPICHANGED:
             // Окно PerMonitorV2 само встаёт в прямоугольник, предложенный под
             // новый DPI, а увеличение острова пересчитывается от масштаба нового
@@ -891,6 +1164,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
                 state->fillPicture();
                 return 0;
             }
+            break;
+
+        case WM_ACTIVATE:
+            // Пока остров показан, фокус ведётся, как у Microsoft.UI.Xaml.Window:
+            // DefWindowProc поставил бы его на само окно, мимо XAML.
+            if (state && state->onActivate(wparam)) return 0;
             break;
 
         case WM_EXITSIZEMOVE:
@@ -1214,7 +1493,10 @@ void CompositionWindow::hideContent() const {
     // идти сцене, а пустой, но показанный остров перехватывал бы его над собой.
     if (state_->chrome) {
         state_->showPage(nullptr);
+        // Фокус, оставшийся в спрятанном острове, увёл бы туда и клавиши сцены.
+        if (HWND const focus = ::GetFocus(); focus && state_->islandOwns(focus)) ::SetFocus(state_->hwnd);
         state_->chrome.SiteBridge().Hide();
+        state_->contentShown = false;
     }
 }
 
@@ -1226,11 +1508,18 @@ void CompositionWindow::attachZoom(core::intrusive_ptr<AppZoom> zoom) const {
     state.appZoom = std::move(zoom);
     // Состояние снимает эту подписку в деструкторе, поэтому ей хватает
     // простого указателя.
+    // Масштаб, с которым эффект пришёл (восстановленный приложением), --
+    // без flyout: его никто не регулировал. Flyout -- на каждое изменение
+    // после присоединения.
     state.zoomFactorCookie = state.appZoom->zoomFactor()
-                             .on_change([self = state_.get()](double const& value) noexcept { self->setZoomFactor(value); })
+                             .on_change([self = state_.get()](double const& value) noexcept {
+                                 self->setZoomFactor(value);
+                                 self->showZoomFlyout(value);
+                             })
                              .get();
     state.setZoomFactor(state.appZoom->zoomFactor().get());
     state.ensureIsland();
+    state.ensureZoomSensor();
     state.addZoomHandlers();
 }
 

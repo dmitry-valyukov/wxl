@@ -398,4 +398,17 @@ if(BUILD_TESTING)
         CXX_SCAN_FOR_MODULES ON)
     wxl_set_target_folders(wxl.ui.teardown-test PREFIX "tests")
     add_test(NAME wxl.ui.teardown COMMAND wxl.ui.teardown-test)
+
+    # AppZoom -- the steps and the nearest one -- is plain code over
+    # wxl.core's observable, so its test builds the one source with wxl.core,
+    # the way teardown's does, and reports through the exit code for the same
+    # reason: AppZoom.h reaches wxl.core through core.h.
+    add_executable(wxl.ui.app-zoom-test test/app_zoom_test.cpp src/AppZoom.cpp)
+    target_link_libraries(wxl.ui.app-zoom-test PRIVATE wxl::core)
+    target_include_directories(wxl.ui.app-zoom-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(wxl.ui.app-zoom-test PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON)
+    wxl_set_target_folders(wxl.ui.app-zoom-test PREFIX "tests")
+    add_test(NAME wxl.ui.app-zoom COMMAND wxl.ui.app-zoom-test)
 endif()

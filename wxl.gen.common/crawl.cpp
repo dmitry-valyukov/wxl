@@ -198,7 +198,7 @@ struct Crawler {
     Closure result;
 
     std::deque<TypeDef> queue;
-    std::map<TypeDef, std::set<TypeDef>> dependencies;
+    std::map<TypeDef, std::set<TypeDef, by_full_name>> dependencies;
     // Members a profile listed on a *derived* type although an ancestor
     // declares them; routed to that ancestor before the walk starts.
     std::map<TypeDef, MemberFilter> inherited;
@@ -596,17 +596,15 @@ struct Crawler {
     // Post-order DFS over the recorded edges: a type is appended only
     // after everything it depends on, so the result runs from dependency
     // sources to their consumers. `visiting` breaks the cycles WinRT
-    // metadata genuinely contains.
+    // metadata genuinely contains. The roots and each type's dependencies
+    // are taken by full name, so the order depends on the metadata alone.
     void order() {
         std::vector<TypeDef> types;
         types.reserve(result.surface.size());
         for (auto&& [type, filter] : result.surface) {
             types.push_back(type);
         }
-        std::sort(types.begin(), types.end(), [](TypeDef const& a, TypeDef const& b) {
-            return std::pair{a.TypeNamespace(), a.TypeName()} <
-                   std::pair{b.TypeNamespace(), b.TypeName()};
-        });
+        std::sort(types.begin(), types.end(), by_full_name{});
 
         std::set<TypeDef> done;
         std::set<TypeDef> visiting;

@@ -19,6 +19,7 @@
 #include "HtmlBlock.h"
 #include "RsdnBlock.h"
 #include "ShowDialog.h"
+#include "SplitPanel.h"
 #include "ThemeBrush.h"
 #include "Panels.h"
 #include "Relief.h"
@@ -1643,6 +1644,15 @@ struct probe_task {
 }
 [[maybe_unused]] void MagnifyEffect_delayTime_assigned(::wxl::MagnifyEffect const& object, ::wxl::core::duration value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::delayTime = value);
+}
+
+// SplitPanel -- written by hand: its orientation and pane placement take the tags
+// of StackPanel and SplitView.
+[[maybe_unused]] void SplitPanel_vertical_trailing(::wxl::UIElement const& top, ::wxl::UIElement const& bottom) {
+    using namespace ::wxl::dsl;
+    ::wxl::SplitPanel const split{orientation.vertical, panePlacement.right, openPaneLength = 200.0,
+                                  content = top, pane = bottom};
+    (void)split;
 }
 
 }  // namespace

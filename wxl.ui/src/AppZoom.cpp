@@ -4,11 +4,40 @@ namespace wxl {
 
 namespace {
 
-constexpr double levels120[] {1 / 1.728, 1 / 1.44, 1 / 1.2, 1.0, 1.2, 1.44, 1.728, 2.0736};
-constexpr double levels125[] {0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0};
+// Ступени меню масштаба Chrome и Edge от 50 до 300 %. Две трети -- дробью, а
+// не 0.67: подпись «67 %» округляет, а множитель должен быть точным.
+constexpr double levels[] {AppZoom::minZoomFactor, 2.0 / 3.0, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0,
+                           2.5, AppZoom::maxZoomFactor};
 
-// Масштаб по уровням: шаг -- переход на соседний уровень.
-template <auto const& levels>
+// Номер ступени 100 %.
+constexpr uint32_t defaultLevel = [] {
+    uint32_t level = 0;
+    while (levels[level] != 1.0) {
+        ++level;
+    }
+    return level;
+}();
+
+constexpr uint32_t levelCount = static_cast<uint32_t>(std::size(levels));
+
+// Ступень, ближайшая к множителю по отношению: из двух соседних та, во
+// сколько раз до которой меньше. Поровну -- нижняя.
+constexpr uint32_t nearestLevel(double factor) {
+    if (std::isnan(factor)) {
+        return defaultLevel;
+    }
+    if (factor <= levels[0]) {
+        return 0;
+    }
+    for (uint32_t upper = 1; upper < levelCount; ++upper) {
+        if (factor <= levels[upper]) {
+            uint32_t const lower = upper - 1;
+            return factor / levels[lower] <= levels[upper] / factor ? lower : upper;
+        }
+    }
+    return levelCount - 1;
+}
+
 class SteppedZoom final : public AppZoom {
 public:
     SteppedZoom() { setLevel(defaultLevel); }
@@ -18,7 +47,7 @@ public:
     core::observable<bool const>& canZoomOut() override { return canZoomOut_; }
 
     void zoomIn() override {
-        if (level_ + 1 < std::size(levels)) {
+        if (level_ + 1 < levelCount) {
             setLevel(level_ + 1);
         }
     }
@@ -31,20 +60,13 @@ public:
 
     void resetZoom() override { setLevel(defaultLevel); }
 
-private:
-    // Номер уровня 100 %.
-    static constexpr uint32_t defaultLevel = [] {
-        uint32_t level = 0;
-        while (levels[level] != 1.0) {
-            ++level;
-        }
-        return level;
-    }();
+    void setZoomFactor(double factor) override { setLevel(nearestLevel(factor)); }
 
+private:
     void setLevel(uint32_t level) {
         level_ = level;
         zoomFactor_.set(levels[level]);
-        canZoomIn_.set(level + 1 < std::size(levels));
+        canZoomIn_.set(level + 1 < levelCount);
         canZoomOut_.set(level > 0);
     }
 
@@ -54,19 +76,10 @@ private:
     core::observable<bool> canZoomOut_;
 };
 
-using AppZoom120 = SteppedZoom<levels120>;
-using AppZoom125 = SteppedZoom<levels125>;
-
 }  // namespace
 
-core::intrusive_ptr<AppZoom> AppZoom::make(ZoomLevels levels) {
-    switch (levels) {
-        case zoomLevels120:
-            return {new AppZoom120 {}, /*add_ref=*/false};
-        case zoomLevels125:
-            break;
-    }
-    return {new AppZoom125 {}, /*add_ref=*/false};
+core::intrusive_ptr<AppZoom> AppZoom::make() {
+    return {new SteppedZoom {}, /*add_ref=*/false};
 }
 
 }  // namespace wxl
