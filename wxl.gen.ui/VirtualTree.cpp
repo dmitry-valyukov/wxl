@@ -22,9 +22,10 @@ constexpr std::u16string_view expandedGlyph = u"\uE70D";
 
 // Отметка — знак шрифта значков, а не CheckBox: у того галочка — AnimatedIcon,
 // и при листании, когда строка получает другой тип, она рисовалась заново.
-// checkbox_checked_20_regular и checkbox_unchecked_20_regular.
+// checkbox_checked, checkbox_unchecked и checkbox_indeterminate, размер 20.
 constexpr std::u16string_view checkedGlyph = u"\uF28D";
 constexpr std::u16string_view uncheckedGlyph = u"\uF291";
+constexpr std::u16string_view indeterminateGlyph = u"\uE2FE";
 
 constexpr std::u16string_view iconFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
 
@@ -274,8 +275,10 @@ void VirtualTree::render() {
                        : data.expander == Expander::Expanded ? expandedGlyph
                                                              : std::u16string_view{});
         row.check.visibility(data.check == Check::None ? Visibility::Collapsed : Visibility::Visible);
-        bool const checked = data.check == Check::Checked;
-        row.check.text(checked ? checkedGlyph : uncheckedGlyph);
+        bool const checked = data.check != Check::Unchecked;
+        row.check.text(data.check == Check::Checked         ? checkedGlyph
+                       : data.check == Check::Indeterminate ? indeterminateGlyph
+                                                            : uncheckedGlyph);
         row.check.foreground(checked ? static_cast<Brush const&>(brushes.Accent.FillColor.Default)
                                      : static_cast<Brush const&>(brushes.Text.FillColor.Secondary));
 

@@ -37,8 +37,17 @@ public:
     wxl::core::observable<std::u16string> title;
     wxl::core::observable<std::u16string> typeName;
 
-    // Справа внизу: сведения о строке, выбранной последней в любом из
-    // деревьев, — разметка HtmlBlock.
+    // Строка, выбранная последней в любом из деревьев: её модель и сама строка.
+    struct Selection {
+        wxl::core::intrusive_ptr<TreeModel> model;
+        void const* row = nullptr;
+
+        bool operator==(Selection const&) const = default;
+    };
+    wxl::core::observable<Selection> selection;
+
+    // Справа внизу: сведения о выбранной строке — разметка HtmlBlock. Следует
+    // за выбором и за профилем.
     wxl::core::observable<std::wstring> info;
 
     // Строка состояния: полный путь открытого профиля.

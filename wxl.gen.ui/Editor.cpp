@@ -97,9 +97,13 @@ std::u16string to_u16(std::string_view utf8) {
 // списком из одного этого члена — кроме перечисления: не названное профилем, оно
 // выходит со всеми значениями, и снятая отметка вносит его запрещающим списком.
 // У «всех членов» снятая отметка делает список запрещающим; разрешающий и
-// запрещающий списки просто пополняются и худеют.
-void mark_member(std::map<std::string, MemberFilter>& types, std::string const& type,
-                 std::string_view member, bool on, bool unlistedKeepsAll) {
+// запрещающий списки просто пополняются и худеют. Разрешающий, опустев, уходит
+// из профиля вместе с типом, если стилей тип не генерирует: тип без членов и
+// без стилей не генерирует ничего. Стили типа из профиля без своей записи —
+// все его стили, и styled говорит, есть ли они у него в словарях.
+void mark_member(Profile& profile, std::string const& type, std::string_view member, bool on,
+                 bool unlistedKeepsAll, bool styled) {
+    auto& types = profile.types;
     std::string const name {member};
     auto const found = types.find(type);
     if (found == types.end()) {
@@ -120,6 +124,17 @@ void mark_member(std::map<std::string, MemberFilter>& types, std::string const& 
                 filter.names.insert(name);
             } else {
                 filter.names.erase(name);
+                auto const styles = profile.styles.find(type);
+                bool const generatesStyles = styles == profile.styles.end()
+                                                 ? styled
+                                                 : styles->second.kind != MemberFilter::Kind::Allow ||
+                                                       !styles->second.names.empty();
+                if (filter.names.empty() && !generatesStyles) {
+                    types.erase(found);
+                    if (styles != profile.styles.end()) {
+                        profile.styles.erase(styles);
+                    }
+                }
             }
             break;
         case MemberFilter::Kind::Deny:
@@ -148,6 +163,9 @@ struct Editor::Data {
     // Ресурсы словарей XAML с ключами, как их объявил документ; модель ресурсов
     // смотрит в их строки.
     std::vector<DictionaryResource> resources;
+
+    // Полные имена типов, у которых в словарях есть стили.
+    std::set<std::string, std::less<>> styled;
 };
 
 // Тип в левом дереве; адрес постоянен, пока жив редактор.
@@ -224,21 +242,21 @@ public:
             return {.text = library->name,
                     .icon = &libraryIcon,
                     .expander = library->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .selected = library == selected_};
+                    .selected = library == selected_.library && !selected_.space};
         }
         if (!type) {
             return {.text = space->name,
                     .depth = 1,
                     .icon = &namespaceIcon,
                     .expander = space->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .selected = space == selected_};
+                    .selected = space == selected_.space && !selected_.type};
         }
 
         return {.text = type->def.TypeName(),
                 .depth = 2,
                 .icon = type->icon,
                 .check = type->listed ? Check::Checked : Check::Unchecked,
-                .selected = type == selected_};
+                .selected = type == selected_.type};
     }
 
     void toggleExpanded(uint32_t index) override {
@@ -272,6 +290,7 @@ public:
     }
 
     void invoke(uint32_t index) override;
+    std::wstring describe() const override;
 
     // Тип внесли в профиль или вынесли из него не отсюда — отметкой стиля.
     void relist(std::string_view full) {
@@ -417,7 +436,7 @@ private:
     Editor& editor_;
     std::vector<Library> libraries_;
     uint32_t size_ = 0;
-    void const* selected_ = nullptr;  // выбранная строка: файл, пространство или тип
+    Location selected_ {};  // выбранная строка: файл, а под ним — пространство и тип
 };
 
 class MembersModel final : public TreeModel {
@@ -435,6 +454,8 @@ public:
             groups_.push_back({"Methods", L"method", &methodIcon, std::move(declared.methods)});
             groups_.push_back({"Events", L"event", &eventIcon, std::move(declared.events)});
         }
+        // Пустая группа не показывается.
+        std::erase_if(groups_, [](Group const& group) { return group.names.empty(); });
     }
 
     uint32_t size() const override {
@@ -450,9 +471,8 @@ public:
         if (member == npos) {
             return {.text = group->title,
                     .icon = group->icon,
-                    .expander = group->names.empty() ? Expander::None
-                                : group->expanded    ? Expander::Expanded
-                                                     : Expander::Collapsed};
+                    .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
+                    .check = groupCheck(*group)};
         }
 
         std::string_view const name = group->names[member];
@@ -472,14 +492,21 @@ public:
 
     void toggleChecked(uint32_t index) override {
         auto const [group, member] = locate(index);
+        Profile& profile = editor_.data_->profile;
+        bool const styled = editor_.data_->styled.contains(name_);
         if (member == npos) {
-            return;
+            // Отмеченная целиком группа снимается, иначе отмечается целиком.
+            bool const on = groupCheck(*group) != Check::Checked;
+            for (std::string_view const name : group->names) {
+                if (allows(name) != on) {
+                    mark_member(profile, name_, name, on, enum_, styled);
+                }
+            }
+        } else {
+            std::string_view const name = group->names[member];
+            mark_member(profile, name_, name, !allows(name), enum_, styled);
         }
-
-        std::string_view const name = group->names[member];
-        auto& types = editor_.data_->profile.types;
-        mark_member(types, name_, name, !allows(name), enum_);
-        entry_.listed = types.contains(name_);
+        entry_.listed = profile.types.contains(name_);
         editor_.revision.set(editor_.revision.get() + 1);
     }
 
@@ -489,6 +516,14 @@ public:
             return;
         }
         selected_ = {group, member};
+        editor_.selection.set({intrusive_ptr<TreeModel> {this}, &group->names[member]});
+    }
+
+    std::wstring describe() const override {
+        auto const [group, member] = selected_;
+        if (!group) {
+            return {};
+        }
 
         std::string_view const name = group->names[member];
         std::wstring html {group->kind};
@@ -497,7 +532,7 @@ public:
         html += L"<br>Member of ";
         append_bold(html, name_);
         html += allows(name) ? L"<p>Profile: generated</p>" : L"<p>Profile: not generated</p>";
-        editor_.info.set(std::move(html));
+        return html;
     }
 
 private:
@@ -518,6 +553,14 @@ private:
         auto const& types = editor_.data_->profile.types;
         auto const found = types.find(name_);
         return found == types.end() ? enum_ : found->second.allows(member);
+    }
+
+    Check groupCheck(Group const& group) const {
+        auto const chosen = std::ranges::count_if(group.names, [this](std::string_view name) { return allows(name); });
+        if (chosen == 0) {
+            return Check::Unchecked;
+        }
+        return std::cmp_equal(chosen, group.names.size()) ? Check::Checked : Check::Indeterminate;
     }
 
     std::pair<Group*, uint32_t> locate(uint32_t index) const {
@@ -574,6 +617,9 @@ public:
         for (auto&& [target, keys] : styles) {
             std::ranges::sort(keys);
             groups_.push_back({.target = target, .type = resolve(target), .keys = std::move(keys)});
+            if (!groups_.back().type.empty()) {
+                editor_.data_->styled.insert(groups_.back().type);
+            }
         }
 
         std::ranges::sort(plain);
@@ -635,9 +681,19 @@ public:
             if (group.type.empty()) {
                 return;
             }
-            if (profile.types.contains(group.type)) {
-                toggle(profile.styles.try_emplace(group.type, MemberFilter::all()).first->second, key,
-                       group.keys);
+            if (auto const type = profile.types.find(group.type); type != profile.types.end()) {
+                auto const styles = profile.styles.try_emplace(group.type, MemberFilter::all()).first;
+                toggle(styles->second, key, group.keys);
+                // Тип без членов и без стилей не генерирует ничего — уходит из
+                // профиля вместе с пустым списком стилей.
+                auto const empty = [](MemberFilter const& filter) {
+                    return filter.kind == MemberFilter::Kind::Allow && filter.names.empty();
+                };
+                if (empty(styles->second) && empty(type->second)) {
+                    profile.styles.erase(styles);
+                    profile.types.erase(type);
+                    types_.relist(group.type);
+                }
             } else {
                 // Без своего типа стиль не генерируется: отметка вносит тип
                 // корнем обхода без собственных членов и с одним этим стилем.
@@ -776,19 +832,24 @@ private:
     uint32_t size_ = 0;
 };
 void TypesModel::invoke(uint32_t index) {
-    auto const [library, space, entry] = locate(index);
-    if (!entry) {
-        selected_ = space ? static_cast<void const*>(space) : library;
-        editor_.typeName.set({});
-        editor_.members.set({});
-        editor_.info.set(space ? namespaceInfo(*library, *space) : libraryInfo(*library));
-        return;
-    }
+    selected_ = locate(index);
+    auto const [library, space, entry] = selected_;
+    void const* const row = entry ? static_cast<void const*>(entry) : space ? static_cast<void const*>(space) : library;
+    editor_.typeName.set(entry ? to_u16(full_name(entry->def)) : std::u16string {});
+    editor_.members.set(entry ? intrusive_ptr<TreeModel> {new MembersModel {editor_, *entry}, /*add_ref=*/false}
+                              : intrusive_ptr<TreeModel> {});
+    editor_.selection.set({intrusive_ptr<TreeModel> {this}, row});
+}
 
-    selected_ = entry;
-    editor_.typeName.set(to_u16(full_name(entry->def)));
-    editor_.members.set(intrusive_ptr<TreeModel> {new MembersModel {editor_, *entry}, /*add_ref=*/false});
-    editor_.info.set(typeInfo(*space, *entry));
+std::wstring TypesModel::describe() const {
+    auto const [library, space, entry] = selected_;
+    if (entry) {
+        return typeInfo(*space, *entry);
+    }
+    if (space) {
+        return namespaceInfo(*library, *space);
+    }
+    return library ? libraryInfo(*library) : std::wstring {};
 }
 
 Editor::Editor() = default;
@@ -820,6 +881,9 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& profile) {
     }
     editor->types_ = intrusive_ptr<TypesModel> {new TypesModel {*editor}, /*add_ref=*/false};
     editor->resources_ = intrusive_ptr<ResourcesModel> {new ResourcesModel {*editor, *editor->types_}, /*add_ref=*/false};
+    editor->info.follow(editor->selection, editor->revision, [](Selection const& chosen, uint32_t) {
+        return chosen.model ? chosen.model->describe() : std::wstring {};
+    });
     auto const file = profile.filename().wstring();
     editor->title.set(std::u16string {file.begin(), file.end()} + u" — wxl.gen.ui");
     editor->path.set(std::filesystem::path {profile}.make_preferred().u16string());

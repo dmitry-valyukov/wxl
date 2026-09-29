@@ -22,7 +22,8 @@
 namespace editor {
 
 enum class Expander : uint8_t { None, Collapsed, Expanded };
-enum class Check : uint8_t { None, Unchecked, Checked };
+// Indeterminate — у родителя, когда отмечены не все дети.
+enum class Check : uint8_t { None, Unchecked, Checked, Indeterminate };
 
 // Значок строки: знак шрифта Fluent UI System Icons (Assets) и его радиальная
 // заливка — светлая середина, тёмный край. Модели держат значки постоянными,
@@ -65,6 +66,9 @@ public:
     // Строку выбрали: щелчок по ней. Раскрывающуюся строку тот же щелчок
     // затем раскрывает или сворачивает.
     virtual void invoke(uint32_t index) = 0;
+
+    // Сведения о строке, выбранной в этой модели, — разметка HtmlBlock.
+    virtual std::wstring describe() const { return {}; }
 };
 
 class VirtualTree : public wxl::core::sta_refcounted {
