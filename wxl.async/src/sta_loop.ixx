@@ -6,6 +6,8 @@ export module wxl.async:sta_loop;
 
 import :async_op;
 import :awaitable;
+import :io_op;
+import :io_port;
 import :spsc_channel;
 import :thread_group;
 import :threaded_component;
@@ -143,16 +145,16 @@ private:
 /// the path with no error is not touched for it.
 class sta_loop
 {
-    /// The worker sleeps on an event of the channel's own making; the STA side
-    /// sleeps or is called back, and that is what `sta_signal` decides. Either
-    /// way the arm/disarm protocol inside the channel makes sure
-    /// a wakeup is never lost.
-    using to_worker_t = spsc_channel<async_op*, 256>;
+    /// The worker sleeps on its completion port, and the queue it reads wakes it
+    /// through the same port; the STA side sleeps or is called back, and that is
+    /// what `sta_signal` decides. Either way the arm/disarm protocol inside the
+    /// channel makes sure a wakeup is never lost.
+    using to_worker_t = spsc_channel<async_op*, 256, io_port>;
     using from_worker_t = spsc_channel<async_op*, 256, sta_signal>;
 
     /// The worker thread. It has no state of its own beyond the channels of the
-    /// run: what to do arrives as an operation, and where to put the answer is
-    /// the same for all of them.
+    /// run: what to do arrives as an operation or as a completion from the
+    /// kernel, and where to put the answer is the same for all of them.
     class worker : public threaded_component
     {
     public:
@@ -162,35 +164,11 @@ class sta_loop
         inline ~worker() override { dispose(); }
 
     protected:
-        inline void run() override {
-            // Built here rather than beside the channels: the reader belongs to
-            // the thread that reads, and this is it.
-            to_worker_t::reader reader(to_worker_);
+        /// In sta_loop.cpp.
+        void run() override;
 
-            async_op* op = nullptr;
-
-            // closed() is asked only when a receive came back empty, never once
-            // per operation: close() forces a wakeup, and that wakeup comes
-            // back through receive() with nothing in its hands, so the empty
-            // path sees every close there will ever be.
-            for (;;) {
-                if (reader.receive(op)) {
-                    execute(op);
-                    continue;
-                }
-
-                if (to_worker_.closed()) break;
-            }
-
-            // A latched close is the promise that nothing more can be sent, so what
-            // is left in the queue is everything that will ever be there -- and it
-            // was accepted, so it gets done.
-            while (reader.read(op)) execute(op);
-        }
-
-        /// Closing the channel is what ends run(): it makes the loop above fall
-        /// through, and the forced signal wakes the thread if it is asleep in
-        /// receive() at that moment.
+        /// Closing the channel is what ends run(), and the forced signal wakes
+        /// the thread if it is asleep on the port at that moment.
         inline void on_stopping() override {
             threaded_component::on_stopping();
 
@@ -210,8 +188,13 @@ class sta_loop
         }
     };
 
-    static inline to_worker_t to_worker_{false};
+    static inline to_worker_t to_worker_;
     static inline from_worker_t from_worker_;
+
+    /// Operations out and not taken back yet, counted by the STA thread alone: up
+    /// where one is sent or handed to the kernel, down where one is taken out of the
+    /// return channel. stop() waits for it to reach zero.
+    static inline std::size_t outstanding_ = 0;
 
     /// The STA side of the return channel. Its owner is the STA thread, and
     /// there is one of it, which is what the channel asks.
@@ -242,6 +225,10 @@ class sta_loop
     static void take_if_next(async_op* op) noexcept;
     static void pay_owed_callback() noexcept;
     ///@}
+
+    /// stop()'s wait, in sta_loop.cpp: takes back everything that is out, resuming
+    /// nobody, and sleeps in place while there is nothing to take.
+    static void take_back_outstanding() noexcept;
 
 public:
     /// Static from top to bottom, and therefore never made.
@@ -293,16 +280,20 @@ public:
         worker_->start_async().get();
     }
 
-    /// Stops the worker and waits for it to finish what it had accepted.
+    /// Waits for every operation that is out to come back, and stops the worker.
     ///
-    /// What it does not do is finish the coroutines. What the worker handed back
-    /// and nobody took is taken out here without resuming anybody: a given-up
-    /// operation is deleted, and a coroutine waiting for one of the others never
-    /// resumes; its frame is destroyed by its `task`, suspended where it stood,
-    /// and the operation goes with it. That is the honest end for a loop that is
-    /// being shut down -- there is nothing left to resume it *onto* -- but a
-    /// caller that wants its coroutines finished runs them to their end before
-    /// stopping.
+    /// The wait comes first because an operation the kernel holds comes back
+    /// through the worker, which therefore has to outlive it. So an operation
+    /// that would never finish by itself -- a read from a pipe nobody writes to
+    /// -- has to be given up before this is called, or this does not return.
+    ///
+    /// What it does not do is finish the coroutines. What comes back is taken
+    /// out here without resuming anybody: a given-up operation is deleted, and
+    /// a coroutine waiting for one of the others never resumes; its frame is
+    /// destroyed by its `task`, suspended where it stood, and the operation
+    /// goes with it. That is the honest end for a loop that is being shut down
+    /// -- there is nothing left to resume it *onto* -- but a caller that wants
+    /// its coroutines finished runs them to their end before stopping.
     ///
     /// Doing nothing when there is no run is the point rather than an
     /// indulgence: a teardown path has no business knowing how far a startup
@@ -312,12 +303,13 @@ public:
         // Это ошибка логики.
         if (!worker_) return;
 
-        if (worker_->was_started()) worker_->stop_async().get();
+        if (worker_->was_started()) {
+            take_back_outstanding();
+            worker_->stop_async().get();
+        }
 
         worker_.reset();
         threads_.reset();
-
-        for (async_op* op = nullptr; from_worker_reader_.read(op);) op->settle();
 
         // The wake-up goes with the run it belonged to. The channel holding it
         // is static and the callback's body is in the STA pool, so this is
@@ -336,7 +328,14 @@ public:
     /// left to carry the operation and nothing to carry it back with, and a
     /// coroutine that reaches this point was one the caller had promised to
     /// finish before stopping.
-    inline static void enqueue(core::not_null<async_op> op) { to_worker_.send(op.get()); }
+    inline static void enqueue(core::not_null<async_op> op) {
+        ++outstanding_;
+        to_worker_.send(op.get());
+    }
+
+    /// The port the worker sleeps on, for whoever opens a file: that is where the
+    /// file's overlapped operations are told to finish.
+    inline static io_port& port() noexcept { return to_worker_.wakeup(); }
 
     /// Starts an operation whose body is a lambda and returns what the coroutine
     /// awaits.
@@ -395,6 +394,38 @@ public:
         return awaitable<R>(std::move(op));
     }
 
+    /// Starts an overlapped operation here, on the STA thread, without the trip to the
+    /// worker. One the system finishes inside the call is delivered at once, and the
+    /// coroutine awaiting it does not suspend; one the kernel takes comes back through
+    /// the port and the return channel.
+    ///
+    /// Only for what is known not to hold the calling thread. The rest goes through
+    /// async_run(), and is started on the worker.
+    [[nodiscard]] inline static awaitable<std::size_t> async_start(std::unique_ptr<io_op> op) {
+        if (op->start())
+            op->deliver_here();
+        else
+            ++outstanding_;
+
+        return awaitable<std::size_t>(std::move(op));
+    }
+
+    /// Runs the body here, on the STA thread, and returns it already delivered: for a
+    /// call short enough not to be worth a trip, which still answers through a
+    /// co_await and still fails there.
+    template <class Fn>
+    [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> call_here(Fn&& fn) {
+        using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
+
+        std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
+            std::forward<Fn>(fn)));
+
+        op->packaged_execute();
+        op->deliver_here();
+
+        return awaitable<result_t>(std::move(op));
+    }
+
     /// Takes one finished operation and gives control back to the coroutine that
     /// was waiting for it -- or, with nobody waiting, deletes it if it was given up
     /// and otherwise leaves it for the co_await still to come. Sleeps while there is
@@ -406,6 +437,8 @@ public:
         async_op* op = nullptr;
 
         if (!from_worker_reader_.receive(op)) return false;
+
+        --outstanding_;
 
         // The op may be gone by the time this returns: deleted if it was given up, or
         // taken with the co_await that resumes here.
@@ -456,7 +489,7 @@ public:
         }
 
         for (;;) {
-            for (async_op* op = nullptr; from_worker_reader_.read(op);) resumed += op->come_back();
+            for (async_op* op = nullptr; take(op);) resumed += op->come_back();
 
             if (!driven) return resumed;
 
@@ -465,11 +498,20 @@ public:
 
             async_op* op = nullptr;
 
-            if (!from_worker_reader_.read(op)) return resumed;
+            if (!take(op)) return resumed;
 
             from_worker_.disarm();
             resumed += op->come_back();
         }
+    }
+
+private:
+    /// Takes the next operation out of the return channel, if there is one.
+    inline static bool take(async_op*& op) noexcept {
+        if (!from_worker_reader_.read(op)) return false;
+
+        --outstanding_;
+        return true;
     }
 };
 

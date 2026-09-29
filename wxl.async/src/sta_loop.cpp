@@ -15,7 +15,9 @@ void async_op::abandon(async_op* op) noexcept {
     // One already in the return channel is the worker's no more, and there is nothing
     // to cancel.
     if (!sta_loop::is_back(op)) {
-        op->canceled_.store(true, std::memory_order_relaxed);
+        // Ordered against the worker's second look at the flag, which it takes after
+        // handing an operation to the kernel.
+        op->canceled_.store(true, std::memory_order_seq_cst);
         op->on_cancel();
 
         if (op->orphanable_) return;
@@ -77,7 +79,7 @@ void sta_loop::take_if_next(async_op* op) noexcept {
 
     async_op* taken = nullptr;
 
-    if (from_worker_reader_.read(taken)) delete taken;
+    if (take(taken)) delete taken;
 }
 
 void sta_loop::pay_owed_callback() noexcept {
@@ -89,6 +91,88 @@ void sta_loop::pay_owed_callback() noexcept {
     auto at = from_worker_reader_.look_ahead();
 
     if (from_worker_reader_.peek(at) && from_worker_.disarm()) from_worker_.wakeup().set();
+}
+
+void sta_loop::take_back_outstanding() noexcept {
+    sta_signal& signal = from_worker_.wakeup();
+
+    // Nobody is called back from here on: what the dispatcher was owed is taken below.
+    if (signal.driven()) from_worker_.disarm();
+
+    signal.hold();
+
+    while (outstanding_ != 0) {
+        async_op* op = nullptr;
+
+        if (take(op)) {
+            op->settle();
+            continue;
+        }
+
+        from_worker_.arm();
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+
+        auto at = from_worker_reader_.look_ahead();
+
+        if (!from_worker_reader_.peek(at)) signal.wait_held();
+
+        from_worker_.disarm();
+    }
+
+    signal.release();
+}
+
+void sta_loop::worker::run() {
+    // Built here rather than beside the channels: the reader belongs to the thread
+    // that reads, and this is it.
+    to_worker_t::reader reader(to_worker_);
+    io_port& port = to_worker_.wakeup();
+
+    OVERLAPPED_ENTRY arrived[64];
+
+    for (;;) {
+        bool worked = false;
+
+        for (async_op* op = nullptr; reader.read(op); worked = true) execute(op);
+
+        // The channel's waiting protocol around the port's sleep: armed, fenced, looked
+        // at once more, and only then asleep.
+        if (!worked) {
+            to_worker_.arm();
+            std::atomic_thread_fence(std::memory_order_seq_cst);
+
+            if (async_op* op = nullptr; reader.read(op)) {
+                to_worker_.disarm();
+                execute(op);
+                worked = true;
+            }
+        }
+
+        // After a run of work the port is only looked into, so that what the kernel
+        // has finished does not wait for the queue to run dry.
+        const std::size_t count = port.take(arrived, !worked);
+
+        if (!worked) to_worker_.disarm();
+
+        for (const OVERLAPPED_ENTRY& entry : std::span(arrived, count)) {
+            // The queue's wake-up is a packet with no operation behind it.
+            if (!entry.lpOverlapped) continue;
+
+            io_op* const op = io_op::from(entry.lpOverlapped);
+
+            op->completed();
+            from_worker_.send(op);
+        }
+
+        // Asked only after a sleep, never once per operation: close() forces a
+        // wakeup, so the path that slept sees every close there will ever be.
+        if (!worked && to_worker_.closed()) break;
+    }
+
+    // A latched close is the promise that nothing more can be sent, so what is left
+    // in the queue is everything that will ever be there -- and it was accepted, so
+    // it gets done.
+    for (async_op* op = nullptr; reader.read(op);) execute(op);
 }
 
 }  // namespace wxl::async

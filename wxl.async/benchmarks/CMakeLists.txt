@@ -57,3 +57,11 @@ target_link_libraries(wxl.async.winrt-coroutine-benchmark
     PRIVATE wxl::async Microsoft::CppWinRT coremessaging.lib runtimeobject.lib)
 
 wxl_set_target_folders(wxl.async.winrt-coroutine-benchmark)
+
+# One read of a file, by how it is carried out: blocking on either thread, or overlapped
+# and finished through the port.
+add_executable(wxl.async.async-file-benchmark async_file_benchmark.cpp)
+
+target_link_libraries(wxl.async.async-file-benchmark PRIVATE wxl::async)
+
+wxl_set_target_folders(wxl.async.async-file-benchmark)

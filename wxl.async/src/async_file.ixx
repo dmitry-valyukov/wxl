@@ -11,19 +11,31 @@ import std;
 
 export namespace wxl::async {
 
-/// A file whose every blocking call happens on the loop's worker thread, and
-/// whose every answer comes back to the coroutine that asked.
+/// A file that never holds the STA thread, and whose every answer comes back to
+/// the coroutine that asked.
 ///
-/// It is `core::file` and nothing else: the handle, the reads and the writes
-/// are that class's, and what is added here is only where they run. Which is
-/// the whole point of the split -- the synchronous file knows how to talk to
-/// Windows and owes nobody an explanation, and this one knows about threads and
-/// about the fact that a failure has to reach a `co_await` as an exception.
+/// The handle is `core::file`'s, opened for overlapped operations and attached
+/// to the loop's port. What is added here is where each call runs:
 ///
-/// **Failures become exceptions here**, thrown on the worker thread, carried
-/// back inside the operation and rethrown by the co_await. `system_exception`
-/// is constructed the moment the call fails, so the code it keeps is the one
-/// the failed call left behind.
+/// - **A read starts on the STA thread itself**, which saves the trip to the
+///   worker. One the kernel takes comes back through the port; one the system
+///   chooses to finish inside the call is over there and then, and the
+///   co_await does not suspend.
+/// - **What is known to hold the calling thread goes to the worker**: every
+///   write, since a file made here starts empty and each write grows it; a read
+///   into more than `direct_read_limit` bytes, which served inside the call
+///   would copy that much on the calling thread; any read from a compressed or
+///   encrypted file; flush().
+/// - **size() and close() run on the STA thread**: they take microseconds.
+///
+/// **The position is kept here**, an overlapped handle having none: it moves on
+/// by what was asked for as an operation starts, so that two reads started one
+/// after another ask for two different places. A read that brings less has
+/// reached the end of the file.
+///
+/// **Failures become exceptions here**, carried back inside the operation and
+/// rethrown by the co_await. `system_exception` keeps the code the failed call
+/// left behind.
 ///
 /// **Which loop is not asked and cannot be told**: there is one, it is the STA
 /// thread's, and `sta_loop::instance()` is where these calls find it.
@@ -33,7 +45,8 @@ export namespace wxl::async {
 /// (`orphanable`): the file, if they get as far as opening one, is closed when
 /// the loop deletes the operation. Everything else borrows this object and the
 /// caller's buffer, and an awaitable giving one of those up waits until the
-/// worker has let go.
+/// operation has come back -- which a read or a write the kernel holds is told
+/// to do at once, by CancelIoEx.
 ///
 /// **The path is copied into the operation, and that is deliberate.** Borrowing
 /// it looks free and is a trap: the operation is handed to the worker inside the
@@ -46,6 +59,10 @@ export namespace wxl::async {
 class async_file
 {
 public:
+    /// The largest read started on the STA thread. Copying this much takes about what a
+    /// trip through the worker does; more goes to the worker.
+    static constexpr std::size_t direct_read_limit = 64 * 1024;
+
     async_file() = default;
 
     async_file(async_file&&) noexcept = default;
@@ -59,9 +76,10 @@ public:
     /// \throw system_exception at the co_await if it could not be created.
     static awaitable<async_file> create(const core::path& path);
 
-    /// Reads into the caller's buffer -- which lives in the coroutine frame and
-    /// is therefore still there when the worker gets to it.
-    /// \return how much was read; zero at the end of the file.
+    /// Reads into the caller's buffer, which has to stay where it is until the
+    /// read has been awaited or given up.
+    /// \return how much was read; less than asked for at the end of the file,
+    ///         and zero past it.
     [[nodiscard]] awaitable<std::size_t> read(std::span<std::byte> into);
 
     /// The same read into an array of byte-sized elements -- `char buffer[N]`
@@ -85,20 +103,25 @@ public:
     ///        does not, so it is not a failure to pass over.
     [[nodiscard]] awaitable<void> flush();
 
-    /// Closes on the worker thread, where the closing belongs.
-    ///
     /// Not required: an async_file left alone closes itself when it is
-    /// destroyed. But that happens wherever the object dies, which is the STA
-    /// thread, and `CloseHandle` on a file that has been written is not always
-    /// quick. So a coroutine that has just written something says so here.
+    /// destroyed.
     [[nodiscard]] awaitable<void> close();
 
     inline bool opened() const noexcept { return file_.opened(); }
 
 private:
-    inline explicit async_file(core::file&& opened) : file_(std::move(opened)) {}
+    /// Attaches the file to the loop's port and asks what kind it is. Called where
+    /// the file was opened, which is not the STA thread.
+    explicit async_file(core::file&& opened);
 
     core::file file_;
+    std::uint64_t position_ = 0;
+
+    /// What io_port::attach() answered.
+    bool skips_port_ = false;
+
+    /// Compressed or encrypted: its reads are served inside the call that starts them.
+    bool reads_hold_the_caller_ = false;
 };
 
 }  // export namespace wxl::async

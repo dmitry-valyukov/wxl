@@ -130,6 +130,10 @@ public:
     /// with it, and nothing but its awaitable refers to it any more.
     inline bool delivered() const noexcept { return delivered_; }
 
+    /// The STA thread's call for an operation that was over inside the call that
+    /// started it, on this thread: it never travels, and is delivered as it stands.
+    inline void deliver_here() noexcept { delivered_ = true; }
+
     /// The awaitable's call, when it goes away before the operation has been delivered:
     /// marks it given up, asks it to cancel, and -- unless it is orphanable -- waits,
     /// without resuming anybody, until the worker has let go of it. The loop deletes it
@@ -157,6 +161,15 @@ protected:
     inline void rethrow_if_failed() const {
         if (error_) std::rethrow_exception(error_);
     }
+
+    /// For an operation that learns of its failure without throwing -- from the code an
+    /// overlapped call left behind.
+    inline void set_error(std::exception_ptr error) noexcept { error_ = std::move(error); }
+
+    /// Whether it has been given up. For a body that hands the operation to the kernel:
+    /// read after the handing over, it closes the race with a cancellation that came
+    /// before there was anything to cancel.
+    inline bool canceled() const noexcept { return canceled_.load(std::memory_order_seq_cst); }
 
 private:
     std::coroutine_handle<> coro_;

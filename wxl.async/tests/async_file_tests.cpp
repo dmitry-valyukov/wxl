@@ -195,3 +195,67 @@ TEST_F(AsyncFileTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
 
     EXPECT_EQ(got, content);
 }
+
+namespace {
+
+/// Two reads started one after the other, and awaited in the opposite order.
+task reads_two_parts(path file_path, std::string& first, std::string& second) {
+    async_file f = co_await async_file::open_read(file_path);
+
+    char first_buffer[1000];
+    char second_buffer[1000];
+
+    auto a = f.read(first_buffer);
+    auto b = f.read(second_buffer);
+
+    second.assign(second_buffer, co_await b);
+    first.assign(first_buffer, co_await a);
+}
+
+/// Into a buffer too large to be read on the thread that asks.
+task reads_in_large_pieces(path file_path, std::string& out) {
+    async_file f = co_await async_file::open_read(file_path);
+
+    std::vector<char> buffer(async_file::direct_read_limit * 2);
+
+    while (const std::size_t n = co_await f.read(
+               std::as_writable_bytes(std::span(buffer.data(), buffer.size()))))
+        out.append(buffer.data(), n);
+}
+
+std::string large_content() {
+    std::string content;
+
+    for (int i = 0; content.size() < async_file::direct_read_limit * 5; ++i)
+        content += "line " + std::to_string(i) + "\n";
+
+    return content;
+}
+
+}  // namespace
+
+TEST_F(AsyncFileTest, ReadsStartedTogetherAskForDifferentPlaces) {
+    const std::string content = test_content();
+
+    given_a_file(L"parts.bin", content);
+
+    std::string first;
+    std::string second;
+
+    run(reads_two_parts(root_ / L"parts.bin", first, second));
+
+    EXPECT_EQ(first, content.substr(0, 1000));
+    EXPECT_EQ(second, content.substr(1000, 1000));
+}
+
+TEST_F(AsyncFileTest, ALargeReadGoesThroughTheWorkerAndBringsTheSame) {
+    const std::string content = large_content();
+
+    given_a_file(L"large.bin", content);
+
+    std::string got;
+
+    run(reads_in_large_pieces(root_ / L"large.bin", got));
+
+    EXPECT_EQ(got, content);
+}
