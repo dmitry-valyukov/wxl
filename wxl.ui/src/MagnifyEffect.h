@@ -33,22 +33,23 @@
 // at 0.8, then springs to 1.2 and settles at 1. Unset, or on the wrong side,
 // there is no swing.
 //
-// **Timing.** Without a swing a motion is one phase: 140 ms in, 180 ms out.
-// With one, that phase reaches the far point and a slower settle follows,
-// 200 ms in and 220 ms out. `duration` sets the first phase; the settle keeps
-// its proportion to it.
+// **Timing.** A motion without a swing takes 140 ms in and 180 ms out, on an
+// S curve. One with a swing takes 300 ms in and 360 ms out, on the
+// compositor's BackEase: one continuous curve out past the end and back,
+// with the amplitude found from the far point. `duration` sets the whole
+// motion either way.
 //
 // maximum and minimum are measured on the axis that moves further from 1. The braced `scale = {1.3, 1.1}` needs the typed
 // anchor, schema::MagnifyEffect::scale in schema.h: the bare `scale` names a
 // property two classes declare with two types, so on its own it only deduces.
 //
 // **One effect, many elements.** The object is a handle, like every wrapper:
-// copies share one state, and an effect built once can be worn by a whole
-// toolbar. The state keeps the composition objects every wearer can share --
-// the easing curve, both motions, both expressions and the property set the
-// scale lives in -- so a second button costs a property set and two
+// copies share one state, and an effect built once can be attached to a whole
+// toolbar. The state keeps the composition objects every attached element can
+// share -- the easing curve, both motions, both expressions and the property
+// set the scale lives in -- so a second button costs a property set and two
 // subscriptions, not another set of animations. A setting changed later is
-// picked up by every wearer at its next motion.
+// picked up by every attached element at its next motion.
 //
 // **The motion runs in the compositor.** What the element shows is a scalar
 // on the visual's own property set, animated by a key frame animation; the
@@ -68,10 +69,10 @@
 // drawing at 1. The resampling is all at the start of each motion, where the
 // eye does not dwell; where it ends, nothing is resampled.
 //
-// The effect owns the element's RenderTransform and RenderTransformOrigin:
-// an element that needs a render transform of its own cannot wear it. (Reading
-// RenderTransform does not tell whether one was set -- an unset one comes back
-// as a fresh object on every read.)
+// The effect owns the element's RenderTransform and RenderTransformOrigin, so
+// it cannot be attached to an element that needs a render transform of its
+// own. (Reading RenderTransform does not tell whether one was set -- an unset
+// one comes back as a fresh object on every read.)
 
 #include "core.h"
 #include "geometry.h"
@@ -115,8 +116,8 @@ public:
     void maximum(double value) const;
     void minimum(double value) const;
 
-    /// The first phase of each motion -- all of it when it does not swing.
-    /// Unset, 140 ms in and 180 out; a swing adds a settle of 200 and 220.
+    /// The whole of each motion. Unset, 140 ms in and 180 out; with a swing,
+    /// 300 and 360.
     void duration(core::duration value) const;
 
     /// How long the pointer has to stay before the element starts growing.

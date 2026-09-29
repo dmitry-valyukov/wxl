@@ -1,3 +1,5 @@
+#include "platform.h"
+
 #include <gtest/gtest.h>
 
 #include <objbase.h>   // CoGetApartmentType / APTTYPE -- проверить, что рабочий поток MTA

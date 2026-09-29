@@ -1,9 +1,6 @@
 // wxl::RsdnBlock: разметка в parse() модуля wxl.rsdn, наполнение — общим
 // сборщиком семейства (MarkupBlock.cpp).
 
-// Проекция первой (см. MarkupBlock.cpp о порядке заголовков).
-#include <winrt/Microsoft.UI.Xaml.Controls.h>
-
 #include "Object.impl.h"
 #include "RsdnBlock.impl.h"
 #include "impl/activation_factory.h"

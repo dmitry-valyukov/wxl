@@ -1,7 +1,3 @@
-module;
-
-#include <fmt/format.h>
-
 export module wxl.logging:logger;
 
 import :entry;
@@ -9,6 +5,7 @@ import :facility;
 import :output;
 import :severity;
 import wxl.core;
+import fmt;
 import std;
 
 export namespace wxl::logging {

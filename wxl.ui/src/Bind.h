@@ -7,41 +7,43 @@
 //         core::observable<std::u16string> entry{u"0"};
 //     };
 //
-//     TextBlock { text = Bind{calc->entry} }              // one way: the field shows
-//     ToggleSwitch { isOn = Bind{settings.minimizeOnClose} }   // two ways: the control edits
+//     ToggleSwitch { isOn = Bind{settings.minimizeOnClose} }   // both ways: the control edits
 //     ToggleSwitch { Bind{settings.minimizeOnClose} }          // the same, by the data's type
-//     TextBox { text = BindInput{search.query} }          // the control writes the field, and that is all
-//     TextBox { text = BindOutput{search.hint} }          // the field writes the control, and that is all
+//     TextBlock { text = BindOutput{calc->entry} }        // from the field: the control shows
+//     TextBox { text = BindInput{search.query} }          // into the field: the control writes
+//     NumberBox { intermediateValue = BindInput{eq.a} }   // into the field, as typed
 //
-// Named, `property = Bind{field}` binds that property to the field: the control
-// opens showing the value and follows every change, by nobody's hand. Which way
-// the binding runs is the property's own nature, not a mode to choose. A
+// Three forms, one shape each, and a property takes the form its shape allows.
+//
+// Bind runs both ways: the control opens showing the value, follows every
+// change, and writes back what is edited on it, by nobody's hand. It takes a
 // property the control writes itself -- isOn under Toggled, text under
-// TextChanged -- has a two-way pair in impl/binding.h and is bound both ways,
-// the way WPF defaults TextBox.Text to two-way and TextBlock.Text to one; a
-// one-way binding into a control that edits would lose the edit to the next
-// write. Every other settable property is bound one way, through the setter
-// the generator already emits, and needs no pair written for it.
+// TextChanged -- which is a pair in impl/binding.h. A property the control
+// only shows has no way back and refuses it, naming BindOutput instead: a
+// binding that silently ran one way would look like the other.
 //
-// BindInput and BindOutput are the two halves of that, for when the property's
-// nature is not what is wanted. BindOutput runs from the field to the control
-// only: the control opens showing the value and follows every change, and what
-// is typed into it stays there -- a TextBox as a display that can still be
-// selected and copied from. It takes every settable property, pair or no pair.
+// BindOutput runs from the field to the control only: the control opens
+// showing the value and follows every change, and what is typed into it stays
+// there -- a TextBox as a display that can still be selected and copied from.
+// It takes every property with a setter, pair or no pair, through the setter
+// the generator already emits, and nothing has to be written for it.
+//
 // BindInput runs from the control to the field only: the field takes each
 // value the control writes, and nothing is ever written back -- a query box
-// whose field is the search, not the text. It needs the pair, since only a
-// property the control writes has an event to read it under, and names one
-// without a pair to a compile error. The control opens as the description
-// left it, and the field keeps its value until the control's first change.
+// whose field is the search, not the text. It takes a pair, since only a
+// property the control writes has an event to read it under; a pair may take
+// it and nothing else -- NumberBox's intermediateValue, the number as it is
+// being typed, is read off the control and has no setter to show it with.
+// The control opens as the description left it, and the field keeps its value
+// until the control's first change.
 //
 // Unnamed, `Bind{field}` inside the braces rides the route every unnamed
 // argument does -- a callable applied to the object -- and binds the control's
 // canonical property by the data's type (observable<bool> on a ToggleSwitch ->
-// isOn). Only the two-way pairs have that route, and BindInput and BindOutput
-// take it the same way; a one-way binding of any other property names it,
-// because a control has several of one type (isEnabled and visibility are
-// both bool) and the type alone cannot choose.
+// isOn). Only the pairs have that route, and BindInput and BindOutput take it
+// the same way; a binding of any other property names it, because a control
+// has several of one type (isEnabled and visibility are both bool) and the
+// type alone cannot choose.
 //
 // A binding holds the field by address and never owns it. The field is a
 // member of a model that outlives the description, and the binding is a watch

@@ -116,7 +116,7 @@ public:
     explicit OverlayCard(Setters&&... setters)
         : Border{
               CornerRadius{12},
-              dsl::background = SolidColorBrush{RGBA{"#1A1A1A6C"}},
+              dsl::background = SolidColorBrush{rgba(26, 26, 26, 0.424)},
               dsl::borderBrush = SolidColorBrush{rgba(255, 255, 255, 0.2)},
               BorderThickness{1},
               dsl::shadow = ThemeShadow{},

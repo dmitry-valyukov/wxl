@@ -1,9 +1,6 @@
-module;
-
-#include <format>
 #include <print>
 
-module wxl.gen;
+#include "wxl.gen.h"
 
 import std;
 import wxl.core;
@@ -139,5 +136,8 @@ void run(ProfileSet const& profiles, Output const& out) {
     auto const closure = crawl(profiles, db);
     report(profiles, closure);
 
-    write_all(out, build_model(closure), profiles.resources);
+    Model model = build_model(closure);
+    model.styles = profiles.styles;
+    model.brushes = profiles.brushes;
+    write_all(out, model, profiles.resources);
 }

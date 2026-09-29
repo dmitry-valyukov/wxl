@@ -1,10 +1,8 @@
-module;
-
 #include <format>
 #include <ostream>
 #include <print>
 
-module wxl.gen;
+#include "wxl.gen.h"
 
 import std;
 

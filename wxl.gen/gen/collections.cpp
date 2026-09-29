@@ -1,9 +1,7 @@
-module;
-#include <format>
 #include <ostream>
 #include <print>
 
-module wxl.gen;
+#include "wxl.gen.h"
 import std;
 // collections.h -- the container aliases the generated code uses instead of
 // the std ones. All of them are backed by wxl.core's STA allocator

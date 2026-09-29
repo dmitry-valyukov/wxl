@@ -4,8 +4,11 @@
 #include "Bind.h"
 #include "Card.h"
 #include "CompositionWindow.h"
+#include "GlassEffect.h"
 #include "launch.h"
 #include "ui.h"
+
+import wxl.fmt;
 
 using namespace wxl;
 using namespace wxl::core;
@@ -13,25 +16,16 @@ using namespace wxl::dsl;
 
 namespace {
 
-u16_text to_string(double value) {
-    return to_u16(value, std::chars_format::general, 9);
-}
-
-u16_text to_string(double real, double imaginary) {
-    u16_text text = to_string(real);
-    if (imaginary < 0)
-        text += u" − j·";
-    else
-        text += u" + j·";
-    text += to_string(std::abs(imaginary));
-    return text;
+// Девять значащих цифр — у double и у обеих частей complex одинаково.
+u16_text to_string(auto value) {
+    return format(u"{:.9g}", value);
 }
 
 struct Answer {
     u16_text D, x1, x2;
 };
 
-// Пустое поле NumberBox — это NaN: коэффициент без числа ответа не даёт.
+// Пустое поле NumberBox — это NaN, и текст, который числом ещё не стал, — тоже.
 constexpr double blank = std::numeric_limits<double>::quiet_NaN();
 
 // Корни через q = −(b + sign(b)·√D)/2 как q/a и c/q: без вычитания близких чисел,
@@ -53,20 +47,23 @@ static Answer solve(double a, double b, double c) {
     }
 
     double const d = b * b - 4 * a * c;
+    std::complex<double> first, second;
 
     if (d < 0) {
-        // Комплексные корни
-        double const real = -b / (2 * a);
-        double const imaginary = std::sqrt(-d) / (2 * std::abs(a));
-        return {to_string(d), to_string(real, -imaginary), to_string(real, imaginary)};
+        // Комплексные корни — сопряжённая пара
+        second = {-b / (2 * a), std::sqrt(-d) / (2 * std::abs(a))};
+        first = std::conj(second);
+    } else {
+        // Формула Мюллера для сохранения точности
+        double const q = -0.5 * (b + std::copysign(std::sqrt(d), b));
+        double const one = q / a;
+        // Теорема Виета
+        double const other = q == 0 ? one : c / q;
+        first = std::min(one, other);
+        second = std::max(one, other);
     }
 
-    // Формула Мюллера для сохранения точности
-    double const q = -0.5 * (b + std::copysign(std::sqrt(d), b));
-    double const first = q / a;
-    // Теорема Виета
-    double const second = q == 0 ? first : c / q;
-    return {to_string(d), to_string(std::min(first, second)), to_string(std::max(first, second))};
+    return {to_string(d), to_string(first), to_string(second)};
 }
 
 // Коэффициенты пишут поля ввода, ответы показывают поля вывода. Любая правка
@@ -125,6 +122,8 @@ wxl::Teardown wxl_launched() {
         minSize = {910, 390},
         background = BackgroundImage {u"Assets/bk2.jpg", BackgroundFill::UniformToFill},
         Card {
+            GlassEffect {blurRadius = 24.0f},
+            background = rgba(255, 255, 255, 0.35),
             hAlign.center,
             vAlign.center,
             StackPanel {
@@ -140,7 +139,7 @@ wxl::Teardown wxl_launched() {
                     NumberBox {
                         input,
                         placeholderText = u"a",
-                        value = BindInput {eq.a},
+                        intermediateValue = BindInput {eq.a},
                         onLoaded = [](NumberBox const& control) {
                             control.focus(FocusState::Programmatic);
                         },
@@ -149,13 +148,13 @@ wxl::Teardown wxl_launched() {
                     NumberBox {
                         input,
                         placeholderText = u"b",
-                        value = BindInput {eq.b},
+                        intermediateValue = BindInput {eq.b},
                     },
                     TextBlock {txt, u"· x +"},
                     NumberBox {
                         input,
                         placeholderText = u"c",
-                        value = BindInput {eq.c},
+                        intermediateValue = BindInput {eq.c},
                     },
                     TextBlock {txt, u"= 0"},
                 },

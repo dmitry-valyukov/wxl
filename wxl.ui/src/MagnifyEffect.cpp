@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <optional>
 
 #include "MagnifyEffect.h"
@@ -34,6 +35,30 @@ namespace {
 winrt::Windows::Foundation::TimeSpan timespan(core::duration d) {
     return winrt::Windows::Foundation::TimeSpan{static_cast<int64_t>(d.ticks())};
 }
+
+// How far BackEase out overshoots its end, in units of the way: the largest
+// of a·s·sin(πs) − s³ on [0, 1], which is the curve's own formula with the
+// end at the origin. It grows with the amplitude a, so the amplitude that
+// swings exactly to a given far point is found by bisection.
+double back_overshoot(double a) {
+    double best = 0.0;
+    for (int i = 1; i < 256; ++i) {
+        double const s = i / 256.0;
+        best = std::max(best, a * s * std::sin(std::numbers::pi * s) - s * s * s);
+    }
+    return best;
+}
+
+double back_amplitude(double past) {
+    double low = 0.0;
+    double high = 1.0;
+    while (back_overshoot(high) < past) high *= 2.0;
+    for (int i = 0; i < 32; ++i) {
+        double const mid = (low + high) / 2.0;
+        (back_overshoot(mid) < past ? low : high) = mid;
+    }
+    return high;
+}
 } // namespace
 
 struct MagnifyEffect::State : core::sta_refcounted {
@@ -44,7 +69,7 @@ struct MagnifyEffect::State : core::sta_refcounted {
     std::optional<core::duration> duration;
     core::duration delay{};
 
-    // ---- What every wearer shares, made on the first one ----
+    // ---- What every attached element shares, made on the first one ----
     //
     // The compositor is the XAML one, the same for every element on the one
     // STA thread; the property set carries the scale per axis so that a
@@ -71,8 +96,8 @@ struct MagnifyEffect::State : core::sta_refcounted {
         }
     }
 
-    // The shared objects, made on the first wearer and the motions remade
-    // after a setting changed. The motions animate progress: 0 at rest, 1
+    // The shared objects, made on the first attached element and the motions
+    // remade after a setting changed. The motions animate progress: 0 at rest, 1
     // grown, beyond either end for the swing past it.
     void prepare(composition::Compositor const& owner) {
         if (!compositor) {
@@ -87,8 +112,8 @@ struct MagnifyEffect::State : core::sta_refcounted {
                 L"Vector3(this.Target.Size.X * 0.5, this.Target.Size.Y * 0.5, 0)");
 
             // What is shown is base * visual, so the visual carries the
-            // quotient. `p` is each wearer's own property set, set just before
-            // the expression is started on it.
+            // quotient. `p` is each attached element's own property set, set
+            // just before the expression is started on it.
             shown = compositor.CreateExpressionAnimation(
                 L"Vector3((1 + (s.X - 1) * p.MagnifyProgress) / p.MagnifyBaseX,"
                 L" (1 + (s.Y - 1) * p.MagnifyProgress) / p.MagnifyBaseY, 1)");
@@ -121,26 +146,26 @@ struct MagnifyEffect::State : core::sta_refcounted {
             }
         }
 
-        // Two phases when it swings: out to the far point, and the slower
-        // settle back. Without a swing the first phase is the whole motion.
-        // `duration` sets the first phase; the settle keeps its proportion.
-        auto const motion = [&](float to, float swing, std::chrono::milliseconds first_natural,
-                                 std::chrono::milliseconds settle_natural) {
+        // A swing is one continuous curve, BackEase out: it passes the end,
+        // turns smoothly and comes back, the way a thrown thing does. Two
+        // key frames glued at the far point would stop there twice. The
+        // amplitude is found from the far point once, here.
+        auto const motion = [&](float to, double past, std::chrono::milliseconds natural,
+                                 std::chrono::milliseconds natural_swing) {
             auto const animation = compositor.CreateScalarKeyFrameAnimation();
-            double const natural = static_cast<double>(first_natural.count());
-            double const first = duration ? static_cast<double>(duration->ticks()) / 10'000.0 : natural;
-            double const settle = swing != 0.0f ? first * static_cast<double>(settle_natural.count()) / natural : 0.0;
-            double const total = first + settle;
-            animation.Duration(timespan(core::duration::from_ticks(static_cast<uint64_t>(total * 10'000.0))));
-            if (swing != 0.0f) {
-                animation.InsertKeyFrame(static_cast<float>(first / total), to + swing, curve);
+            animation.Duration(duration ? timespan(*duration)
+                                        : winrt::Windows::Foundation::TimeSpan{past != 0.0 ? natural_swing : natural});
+            composition::CompositionEasingFunction easing = curve;
+            if (past != 0.0) {
+                easing = composition::CompositionEasingFunction::CreateBackEasingFunction(
+                    compositor, composition::CompositionEasingFunctionMode::Out, static_cast<float>(back_amplitude(past)));
             }
-            animation.InsertKeyFrame(1.0f, to, curve);
+            animation.InsertKeyFrame(1.0f, to, easing);
             return animation;
         };
-        grow = motion(1.0f, static_cast<float>(past_top), std::chrono::milliseconds{140}, std::chrono::milliseconds{200});
+        grow = motion(1.0f, past_top, std::chrono::milliseconds{140}, std::chrono::milliseconds{300});
         grow.DelayTime(timespan(delay));
-        shrink = motion(0.0f, -static_cast<float>(past_bottom), std::chrono::milliseconds{180}, std::chrono::milliseconds{220});
+        shrink = motion(0.0f, past_bottom, std::chrono::milliseconds{180}, std::chrono::milliseconds{360});
     }
 };
 

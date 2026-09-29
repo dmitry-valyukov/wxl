@@ -15,8 +15,9 @@
 // pointer -- the vtable slot is the same width either way, and what comes
 // back is handed straight to cppwinrt.
 
+#include "platform.h"
+
 #include <unknwn.h>
-#include <windows.h>
 
 namespace wxl::impl {
 

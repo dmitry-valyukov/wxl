@@ -1,10 +1,8 @@
-module;
-
 #include <format>
 #include <ostream>
 #include <print>
 
-module wxl.gen;
+#include "wxl.gen.h"
 
 import std;
 
@@ -13,7 +11,8 @@ import std;
 //   <Namespace>.h        public wrappers -- name no winrt:: type at all,
 //                        each declaring its `Impl` without defining it
 //   <Namespace>.impl.h   private -- the matching `Impl` chain, one field
-//                        per surviving interface
+//                        per surviving interface; not written for a group
+//                        of statics-only classes, which has no `Impl`
 //   <Namespace>.cpp      out-of-line bodies (constructors today, member
 //                        forwarding once members are generated)
 //
@@ -515,6 +514,31 @@ void write_includes(std::ostream& out, std::set<std::string> const& includes) {
     }
 }
 
+// What the private side of a group stands on: the private halves of its base
+// classes' groups, its own public header, and the projection headers of every
+// class and interface it names.
+std::set<std::string> private_includes(std::string_view ns, std::vector<class_info> const& classes,
+                                       std::map<std::string, std::string> const& group_of) {
+    auto includes = file_includes(ns, classes, group_of, /*impl_side=*/true);
+    includes.insert(std::string(ns) + ".h");
+    for (auto&& info : classes) {
+        includes.insert(winrt_include(info.type.TypeNamespace()));
+        for (auto&& iface : info.interfaces) {
+            includes.insert(winrt_include(iface.TypeNamespace()));
+        }
+    }
+    return includes;
+}
+
+// Whether a group has an Impl chain to define. A statics-only class has none --
+// nothing is instantiated, so there is no level and no interface field -- and a
+// group made of nothing else gets no private header at all: its source includes
+// what that header would have, and nobody else has a reason to include it.
+bool has_impl(std::vector<class_info> const& classes) {
+    return std::any_of(classes.begin(), classes.end(),
+                       [](class_info const& info) { return !info.statics_only; });
+}
+
 void write_public_header(std::filesystem::path const& path, std::string_view ns,
                          std::vector<class_info> const& classes,
                          std::map<std::string, std::string> const& group_of,
@@ -783,14 +807,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
                        std::map<std::string, std::string> const& group_of) {
     auto out = open_output(path);
 
-    auto includes = file_includes(ns, classes, group_of, /*impl_side=*/true);
-    includes.insert(std::string(ns) + ".h");
-    for (auto&& info : classes) {
-        includes.insert(winrt_include(info.type.TypeNamespace()));
-        for (auto&& iface : info.interfaces) {
-            includes.insert(winrt_include(iface.TypeNamespace()));
-        }
-    }
+    auto const includes = private_includes(ns, classes, group_of);
 
     std::print(out, R"({}// Private side of {} -- never included by consuming code.
 //
@@ -878,6 +895,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
 
 void write_source(std::filesystem::path const& path, std::string_view ns,
                   std::vector<class_info> const& classes,
+                  std::map<std::string, std::string> const& group_of,
                   std::set<std::string> const& collection_elements) {
     auto out = open_output(path);
 
@@ -928,10 +946,16 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
         }
     }
 
-    std::print(out, "{}#include \"{}.impl.h\"\n", banner, ns);
-    if (!includes.empty()) {
-        std::print(out, "\n");
+    if (!has_impl(classes)) {
+        includes.merge(private_includes(ns, classes, group_of));
+        std::print(out, "{}", banner);
         write_includes(out, includes);
+    } else {
+        std::print(out, "{}#include \"{}.impl.h\"\n", banner, ns);
+        if (!includes.empty()) {
+            std::print(out, "\n");
+            write_includes(out, includes);
+        }
     }
 
     std::print(out, "\nnamespace wxl {{\n");
@@ -1718,14 +1742,18 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     size_t constructors = 0;
     for (auto&& [ns, infos] : by_group) {
         auto const header = out.dir / (ns + ".h");
-        auto const impl_header = out.dir / (ns + ".impl.h");
         auto const source = out.dir / (ns + ".cpp");
 
         write_public_header(header, ns, infos, group_of, used_by_group[ns]);
-        write_impl_header(impl_header, ns, infos, group_of);
-        write_source(source, ns, infos, defined_by_group[ns]);
         emitted.add(header);
-        emitted.add(impl_header);
+
+        if (has_impl(infos)) {
+            auto const impl_header = out.dir / (ns + ".impl.h");
+            write_impl_header(impl_header, ns, infos, group_of);
+            emitted.add(impl_header);
+        }
+
+        write_source(source, ns, infos, group_of, defined_by_group[ns]);
         emitted.add(source);
 
         classes += infos.size();
@@ -1751,7 +1779,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     for (auto&& type : model.enums) {
         auto const name = std::string{type.TypeName()};
         if (enum_types.count(name)) {
-            dsl.enumerators.emplace(name, enum_members(type));
+            dsl.enumerators.emplace(name, enum_members(type, model.members));
         }
     }
 
@@ -1772,6 +1800,19 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     dsl.events.insert(type_map().hand_written_events.begin(),
                       type_map().hand_written_events.end());
 
+    // A bound-only member needs the same key and tag; the setter the tag
+    // dispatches to is constrained on the member's existence, so on a class
+    // that has none the assignment is refused rather than compiled.
+    for (auto&& member : type_map().bound_members) {
+        auto [it, inserted] = dsl.property_value_type.emplace(member.name, member.value_type);
+        if (!inserted && it->second != member.value_type) {
+            it->second.clear();
+        }
+        if (!member.include.empty()) {
+            dsl.includes.insert(member.include);
+        }
+    }
+
     write_dsl(out, dsl, emitted);
 
     // The schema, last, because it is the same vocabulary said per class and
@@ -1790,6 +1831,24 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         if (owner != schema.classes.end()) {
             owner->members.push_back(std::move(member));
         }
+    }
+
+    // A bound-only member joins the class it is written on (types.json). The
+    // class has to be in the closure: a member on a class nobody generates
+    // would anchor to nothing, and is reported rather than dropped.
+    for (auto&& bound : type_map().bound_members) {
+        std::string const name = bound.class_name.substr(bound.class_name.rfind('.') + 1);
+        auto const owner = std::find_if(schema.classes.begin(), schema.classes.end(),
+                                        [&name](auto&& klass) { return klass.name == name; });
+        if (owner == schema.classes.end()) {
+            std::print("warning: bound member {}.{} names a class the profile does not generate\n",
+                       bound.class_name, bound.name);
+            continue;
+        }
+        Schema::Member member{Schema::Member::Kind::Bound, bound.name, member_name(bound.name),
+                              bound.value_type};
+        member.direction = bound.direction;
+        owner->members.push_back(std::move(member));
     }
 
     std::map<std::string, std::string> schema_base;  // every class -> its base, before pruning

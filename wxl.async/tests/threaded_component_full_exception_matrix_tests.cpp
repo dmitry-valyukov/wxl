@@ -1,4 +1,3 @@
-#include <gtest/gtest.h>
 
 #include "threaded_test_component.h"
 

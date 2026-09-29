@@ -4,6 +4,8 @@
 // standard header they need: wxl's own headers carry the wxl.core import,
 // and a standard header included after that import is one the compiler has
 // already seen through the std module.
+#include "platform.h"
+
 #include <winrt/Microsoft.Graphics.DirectX.h>
 #include <winrt/Microsoft.UI.Composition.h>
 

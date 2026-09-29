@@ -1,13 +1,10 @@
 // Files dropped on the window, taken the short way the shell has offered
 // since Windows 3.1.
 //
-// The projection and the Windows headers come first, and with them every
-// standard header they need: wxl's own headers carry the wxl.core import, and
-// a standard header included after that import is one the compiler has already
-// seen through the std module.
-#include <winrt/Microsoft.UI.Xaml.h>
-
-#include <windows.h>
+// Windows and standard headers first: wxl's own headers carry the wxl.core
+// import, and a standard header included after that import is one the compiler
+// has already seen through the std module.
+#include "platform.h"
 
 #include <commctrl.h>
 #include <shellapi.h>

@@ -23,7 +23,7 @@
 // **Drawn by the compositor, beside what XAML draws.** The rim is a
 // ShapeVisual put on top among the children of the element's own visual, the
 // way HaloEffect puts its shadow underneath. The element's borderBrush is left
-// alone, so a button keeps its own border and wears the rim as well, and
+// alone, so a button keeps its own border and gets the rim as well, and
 // nothing in the tree has to be nested to carry it. The visual follows the
 // element's size by itself; the rim's size, the gradient's axis and its stops
 // follow by expressions the compositor evaluates, so a resize never reaches
@@ -37,12 +37,16 @@
 // and stays as wide as it was written, whatever the proportions.
 //
 // The effect is a handle: copies share their settings, and one written once
-// can be worn by a whole keypad. Each wearer gets composition objects of its
-// own.
+// can be attached to a whole keypad. Each attached element gets composition
+// objects of its own.
+
+#include <array>
+#include <cstddef>
 
 #include "core.h"
 #include "Color.h"
 #include "CornerRadius.h"
+#include "Relief.h"
 #include "Thickness.h"
 #include "generated/Microsoft.UI.Xaml.h"
 #include "impl/member.h"
@@ -68,6 +72,16 @@ public:
     /// A bare colour: the first is the lit side, the second the shaded one.
     void setPositional(Color value) const;
     void setPositional(CornerRadius value) const { cornerRadius(value); }
+
+    /// The two sides of one ring, from relief_helper. Written several times,
+    /// or as the array relief_helper::cushion() returns, the rings share the
+    /// stroke's width equally, the first one outermost: a shoulder in as
+    /// many steps as there are rings.
+    void setPositional(relief_helper::Edges ring) const;
+    template <std::size_t N>
+    void setPositional(std::array<relief_helper::Edges, N> const& rings) const {
+        for (auto const& ring : rings) setPositional(ring);
+    }
 
     void strokeThickness(double value) const;
     void blurRadius(double value) const;

@@ -29,7 +29,6 @@
 
    ```powershell
    %VCPKG_ROOT%\vcpkg.exe install cppwinrt:x64-windows-static-md
-   %VCPKG_ROOT%\vcpkg.exe install fmt:x64-windows-static-md
    ```
 
 4. GTest — только если собираешь с тестами. `BUILD_TESTING` выключена по
@@ -40,8 +39,10 @@
    %VCPKG_ROOT%\vcpkg.exe install gtest:x64-windows-static-md
    ```
 
-5. Сеть на первую настройку дерева: `winmd` (читатель метаданных WinRT)
-   приезжает через `FetchContent`, а сайту документации нужны Doxygen и тема.
+5. Сеть на первую настройку дерева: `winmd` (читатель метаданных WinRT) и
+   `fmt` (собирается модулем `import fmt;` из своих исходников, порт vcpkg
+   модуля не даёт) приезжают через `FetchContent`, а сайту документации нужны
+   Doxygen и тема.
    Сайт можно и не собирать — `-DWXL_BUILD_DOCS=OFF`.
 
 ### Конфигурирование и сборка

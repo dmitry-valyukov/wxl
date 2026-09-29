@@ -72,10 +72,6 @@ endif()
 
 find_package(cppwinrt CONFIG REQUIRED)
 
-# fmt: what wxl.fmt's text_builder formats through. Its buffer is the
-# extension point std::format does not have -- see wxl.fmt/doc/fmt.md.
-find_package(fmt CONFIG REQUIRED)
-
 # winmd::reader is a header-only WinMD metadata parsing library; not packaged
 # by vcpkg, so it's fetched directly from its upstream repo.
 include(FetchContent)
@@ -141,8 +137,14 @@ add_subdirectory(wxl.highlight)
 add_subdirectory(wxl.bb)
 add_subdirectory(wxl.rsdn)
 
+# Профили и обход метаданных -- общее у генератора и редактора профилей.
+add_subdirectory(wxl.gen.common)
 add_subdirectory(wxl.gen)
 add_subdirectory(wxl.ui)
+
+# Визуальный редактор профилей wxl.gen -- приложение на wxl.ui.
+add_subdirectory(wxl.gen.ui)
+
 add_subdirectory(samples)
 
 # Песочница: пробы механизмов WinUI, каждая -- отдельное приложение. Собирается

@@ -9,17 +9,13 @@
 // every byte is one unit; Russian, where every letter is two bytes; and one
 // with characters above the basic plane, where a pair has to be built.
 
-// Before windows.h, or its min/max macros eat std::numeric_limits below.
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "platform.h"
 
 #include <chrono>
 #include <cstdio>
 #include <limits>
 #include <string>
 #include <string_view>
-#include <vector>
 
 import wxl.core;
 

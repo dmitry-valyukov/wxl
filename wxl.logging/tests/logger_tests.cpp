@@ -1,14 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <fmt/format.h>
-
-#include <chrono>
-#include <mutex>
 #include <string>
 #include <string_view>
-#include <vector>
 
 import wxl.logging;
+import fmt;
 
 #include "recording_output.h"
 

@@ -1,10 +1,8 @@
-module;
-
 #include <format>
 #include <ostream>
 #include <print>
 
-module wxl.gen;
+#include "wxl.gen.h"
 
 import std;
 
@@ -128,6 +126,12 @@ declaration declare(Schema::Class const& owner, Schema::Member const& member,
 
     if (member.kind == Kind::Event) {
         return {{}, event_anchor(member.key, owner.name)};
+    }
+
+    // A binding target has a plain anchor: the type it carries is the
+    // observable's, and the only assignment it survives is a Bind form.
+    if (member.kind == Kind::Bound) {
+        return {{}, property_anchor(member.key, member.type, owner.name)};
     }
 
     if (member.kind == Kind::Collection) {
@@ -284,6 +288,7 @@ void write_schema_test(std::filesystem::path const& path, Schema const& schema, 
 // static_assert inside a function body, and a body is not instantiated by a
 // requires-expression, so there is no way to assert that it fires.
 
+#include "../Bind.h"
 #include "schema.h"
 
 namespace {{
@@ -328,6 +333,19 @@ namespace {{
                                klass.name, member.name, object, path_to,
                                member.type.empty() ? "::wxl::Object" : qualified(member.type),
                                test_value(klass, member, dsl));
+                    break;
+
+                // Bound in the direction its pair takes: the one line that
+                // proves the anchor, the pair and the observable's type agree.
+                case Schema::Member::Kind::Bound:
+                    std::print(file, R"([[maybe_unused]] void {0}_{1}_bound({2}, ::wxl::core::observable<{4}>& field) {{
+    ::wxl::impl::apply_argument(object, {3} = ::wxl::{5}{{field}});
+}}
+)",
+                               klass.name, member.name, object, path_to, qualified(member.type),
+                               member.direction == "input"    ? "BindInput"
+                               : member.direction == "output" ? "BindOutput"
+                                                              : "Bind");
                     break;
             }
 

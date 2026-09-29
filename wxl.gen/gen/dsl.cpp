@@ -1,9 +1,7 @@
-module;
-#include <format>
 #include <ostream>
 #include <print>
 
-module wxl.gen;
+#include "wxl.gen.h"
 import std;
 // Members.h -- the surface the builder syntax is written against.
 //
@@ -44,11 +42,17 @@ void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
 
     // The key enums keep the metadata name; everything the DSL and the
     // wrappers spell is the member name, camelCase.
+    //
+    // Constrained on the call it makes, so that a class without the setter
+    // refuses the assignment at the tag rather than inside this body -- and
+    // so that a binding can ask, before it commits to writing, whether there
+    // is anything to write to.
     for (auto&& [name, value_type] : dsl.property_value_type) {
         std::print(file, R"(
 template <>
 struct PropertySetter<PropertyKey::{0}> {{
     template <typename Obj, typename T>
+        requires requires(Obj const& object, T const& value) {{ object.{1}(value); }}
     static void set(Obj const& object, T const& value) {{
         object.{1}(value);
     }}
@@ -59,18 +63,25 @@ struct PropertySetter<PropertyKey::{0}> {{
 
     // An attached property's setter belongs to another class entirely: the
     // tag is written inside the child, and the call goes to the statics of
-    // the parent whose layout the value is for.
+    // the parent whose layout the value is for. Unless the object has a
+    // member of that name itself: a hand-written class may take the same
+    // tag for a property of its own -- zIndex on an effect, saying where its
+    // layer lies -- and then the tag is the object's.
     for (auto&& [name, attached] : dsl.attached) {
         std::print(file, R"(
 template <>
 struct PropertySetter<PropertyKey::{0}> {{
     template <typename Obj, typename T>
     static void set(Obj const& object, T const& value) {{
-        {1}::{2}(object, value);
+        if constexpr (requires {{ object.{3}(value); }}) {{
+            object.{3}(value);
+        }} else {{
+            {1}::{2}(object, value);
+        }}
     }}
 }};
 )",
-                   name, attached.owner, attached.setter);
+                   name, attached.owner, attached.setter, member_name(name));
     }
 
     // A collection-valued property is filled, not assigned: the setter is

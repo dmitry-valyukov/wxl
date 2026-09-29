@@ -169,6 +169,8 @@
                 "Value",
                 "Minimum",
                 "Maximum",
+                "SmallChange",
+                "LargeChange",
                 "ValueChanged"
             ]
         },
@@ -271,6 +273,7 @@
                 "HorizontalScrollBarVisibility",
                 "VerticalScrollBarVisibility",
                 "HorizontalScrollMode",
+                "VerticalScrollMode",
                 "ZoomMode",
                 "ZoomFactor",
                 "MinZoomFactor",
@@ -461,7 +464,8 @@
             "members": [
                 "StepFrequency",
                 "Orientation",
-                "Header"
+                "Header",
+                "IntermediateValue"
             ]
         },
         "Microsoft.UI.Xaml.Controls.ToolTip": {
@@ -645,6 +649,11 @@
         "Microsoft.UI.Xaml.RoutedEventArgs": {
             "members": [
                 "OriginalSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.SizeChangedEventArgs": {
+            "members": [
+                "NewSize"
             ]
         },
         "Microsoft.UI.Xaml.Input.PointerRoutedEventArgs": {
