@@ -205,8 +205,8 @@ task reads_into_its_frame(probe& p) {
 
 /// Many reads out at once and the first awaited one fails: every one of them is given up
 /// in the same unwinding, in the order a vector destroys its elements -- the order the
-/// operations went out in, and so the one in which a walk from the head of the return
-/// channel would start again for every one of them.
+/// operations went out in, so each is looked for from the head of the return channel
+/// past all the ones given up before it.
 task fails_with_many_reads_out(probe& p, std::size_t count) {
     frame_witness witness(p);
     std::vector<std::array<std::byte, 16>> buffers(count);

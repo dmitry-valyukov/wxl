@@ -108,7 +108,7 @@ public:
             return false;
         }
 
-        stage_ = stage::delivered;
+        delivered_ = true;
 
         if (!coro_) return false;
 
@@ -123,19 +123,12 @@ public:
         if (abandoned_)
             delete this;
         else
-            stage_ = stage::delivered;
+            delivered_ = true;
     }
 
     /// Whether the loop has taken it out of the return channel: the worker is done
     /// with it, and nothing but its awaitable refers to it any more.
-    inline bool delivered() const noexcept { return stage_ == stage::delivered; }
-
-    /// Whether a wait looking ahead in the return channel has passed it there: the
-    /// worker is done with it, though it has not been taken out yet.
-    inline bool seen() const noexcept { return stage_ == stage::seen; }
-
-    /// The looking wait's call, for every operation it passes. \see seen()
-    inline void mark_seen() noexcept { stage_ = stage::seen; }
+    inline bool delivered() const noexcept { return delivered_; }
 
     /// The awaitable's call, when it goes away before the operation has been delivered:
     /// marks it given up, asks it to cancel, and -- unless it is orphanable -- waits,
@@ -166,25 +159,16 @@ protected:
     }
 
 private:
-    /// Where the operation is, as the STA thread knows it. The worker never reads it.
-    enum class stage : std::uint8_t {
-        /// Handed to the worker, and not seen back yet.
-        sent,
-        /// Seen in the return channel by a wait looking ahead in it: the worker is done
-        /// with it, and it has not been taken out yet.
-        seen,
-        /// Taken out of the return channel.
-        delivered,
-    };
-
     std::coroutine_handle<> coro_;
     std::exception_ptr error_;
 
     /// Written by the STA thread, read by the worker before the body: the one field
-    /// of the operation both threads touch while it is out, hence atomic.
+    /// of the operation both threads touch while it is out, hence atomic. The rest
+    /// below is the STA thread's alone.
     std::atomic<bool> canceled_{false};
 
-    stage stage_ = stage::sent;
+    /// Taken out of the return channel.
+    bool delivered_ = false;
 
     /// Given up by its awaitable: whoever takes it out of the return channel deletes it.
     bool abandoned_ = false;

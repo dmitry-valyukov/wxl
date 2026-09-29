@@ -10,17 +10,17 @@ namespace wxl::async {
 void async_op::abandon(async_op* op) noexcept {
     op->abandoned_ = true;
 
-    // One passed in the return channel by an earlier wait is back already: the worker
-    // is done with it, and there is nothing to cancel.
     bool owed = false;
 
-    if (!op->seen()) {
+    // One already in the return channel is the worker's no more, and there is nothing
+    // to cancel.
+    if (!sta_loop::is_back(op)) {
         op->canceled_.store(true, std::memory_order_relaxed);
         op->on_cancel();
 
         if (op->orphanable_) return;
 
-        owed = sta_loop::wait_until_seen(op);
+        owed = sta_loop::wait_until_back(op);
     }
 
     // Taken before the debt is paid, so that a channel holding nothing else is not
@@ -30,29 +30,16 @@ void async_op::abandon(async_op* op) noexcept {
     if (owed) sta_loop::pay_owed_callback();
 }
 
-bool sta_loop::walk_to(async_op* wanted) noexcept {
-    // A walk goes on from where the last one stopped for as long as what that walk
-    // marked is still unread -- which is exactly when the first unread operation is
-    // marked, since every walk marks one unbroken run and reading takes from its head.
-    // Otherwise it starts again at the head: everything the last walk passed has been
-    // read, and the place it stopped at may be in a block handed back to the writer.
-    auto head = from_worker_reader_.look_ahead();
+bool sta_loop::is_back(async_op* op) noexcept {
+    auto at = from_worker_reader_.look_ahead();
 
-    if (async_op** const first = from_worker_reader_.peek(head); !first || !(*first)->seen())
-        walked_ = from_worker_reader_.look_ahead();
-
-    while (async_op** const next = from_worker_reader_.peek(walked_)) {
-        (*next)->mark_seen();
-
-        if (*next == wanted) return true;
-    }
+    while (async_op** const next = from_worker_reader_.peek(at))
+        if (*next == op) return true;
 
     return false;
 }
 
-bool sta_loop::wait_until_seen(async_op* op) noexcept {
-    if (walk_to(op)) return false;
-
+bool sta_loop::wait_until_back(async_op* op) noexcept {
     sta_signal& signal = from_worker_.wakeup();
 
     // In the driven shape an armed trigger is a callback the next handover owes the
@@ -62,21 +49,21 @@ bool sta_loop::wait_until_seen(async_op* op) noexcept {
 
     signal.hold();
 
-    // The channel's own waiting protocol, with a walk where receive() reads: armed,
-    // fenced, looked at once more, and only then asleep -- so a handover made between
-    // the last walk and the arming is found by the second walk rather than lost.
+    // The channel's own waiting protocol, with a look where receive() reads: armed,
+    // fenced, looked once more, and only then asleep -- so a handover made between the
+    // last look and the arming is found by the second look rather than lost.
     do {
         from_worker_.arm();
         std::atomic_thread_fence(std::memory_order_seq_cst);
 
-        if (walk_to(op)) {
+        if (is_back(op)) {
             from_worker_.disarm();
             break;
         }
 
         signal.wait_held();
         from_worker_.disarm();
-    } while (!walk_to(op));
+    } while (!is_back(op));
 
     signal.release();
 

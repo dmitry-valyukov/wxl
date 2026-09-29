@@ -138,9 +138,9 @@ private:
 /// awaitable goes away first (`async_op::abandon`), the STA thread waits in place --
 /// looking ahead in the return channel, never taking anything out of it, never
 /// resuming anybody, because it may be in the middle of unwinding and a coroutine
-/// resumed from there could throw into it. The walk marks every operation it passes
-/// and remembers where it stopped, so every awaitable given up in one unwinding costs
-/// one walk of the channel between them.
+/// resumed from there could throw into it. Giving up is the exception's path and pays
+/// for itself: the channel is walked from its head for every operation given up, and
+/// the path with no error is not touched for it.
 class sta_loop
 {
     /// The worker sleeps on an event of the channel's own making; the STA side
@@ -230,18 +230,15 @@ class sta_loop
     /// application's to choose.
     static inline std::optional<worker> worker_;
 
-    /// Where the last wait for a given-up operation stopped looking. Carried on from
-    /// only while what that walk marked is still unread, see walk_to().
-    static inline from_worker_t::reader::lookahead walked_;
-
     friend class async_op;
 
-    /// What async_op::abandon() asks of the loop, in sta_loop.cpp: the walk, the wait
-    /// in place, and the tidying after it. wait_until_seen() answers whether it took
-    /// over a callback the dispatcher is owed, which pay_owed_callback() then settles.
+    /// What async_op::abandon() asks of the loop, in sta_loop.cpp: the look into the
+    /// return channel, the wait in place, and the tidying after it. wait_until_back()
+    /// answers whether it took over a callback the dispatcher is owed, which
+    /// pay_owed_callback() then settles.
     ///@{
-    static bool walk_to(async_op* wanted) noexcept;
-    static bool wait_until_seen(async_op* op) noexcept;
+    static bool is_back(async_op* op) noexcept;
+    static bool wait_until_back(async_op* op) noexcept;
     static void take_if_next(async_op* op) noexcept;
     static void pay_owed_callback() noexcept;
     ///@}
