@@ -1,0 +1,72 @@
+{
+    "name": "full",
+    "description": "The rich profile plus every WinUI3 type that the WinUI 3 Gallery port (samples/Gallery) builds its pages from and the smaller profiles leave out. The port is meant to show that the whole Gallery can be written without XAML, with the same types, so this file grows by one group per stage of the porting plan, never by a type nobody asked for.",
+    "extends": [
+        "rich"
+    ],
+
+    "windowsAppSdk": "2.4.0",
+    "windowsMetadata": true,
+
+    "types": {
+        "Microsoft.UI.Xaml.Controls.UserControl": {
+            "comment": "The base of the Gallery's own controls (ControlExample, PageHeader) and of Page. Whole surface.",
+            "members": [
+                "Content"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Page": {
+            "comment": "The page the Gallery's Frame shows. Never created by Frame.Navigate here -- that takes a TypeName of a XAML class -- but built directly and put into Frame.Content.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.Frame": {
+            "comment": "The Gallery's rootFrame and the Frame of its sample pages.",
+            "members": [
+                "Content",
+                "CanGoBack",
+                "CanGoForward",
+                "GoBack",
+                "GoForward",
+                "Navigated",
+                "Navigating"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItemHeader": {
+            "comment": "The \"Controls\" caption between the Gallery navigation view's groups.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
+            "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
+            "members": [
+                "Content",
+                "ContentTemplate"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RadioButtons": {
+            "comment": "The group of radio buttons the settings page and many samples use.",
+            "members": [
+                "Items",
+                "SelectedIndex",
+                "SelectedItem",
+                "Header",
+                "MaxColumns",
+                "SelectionChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.MicaBackdrop": {
+            "comment": "The Gallery window's system backdrop.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop": {
+            "comment": "The acrylic sibling of MicaBackdrop.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Media.SystemBackdrop": {
+            "comment": "The base of both backdrops; what Window.systemBackdrop holds.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Window": {
+            "comment": "Window is an implicit root with the whole surface; listed only so that SystemBackdrop stays in the profile if that ever changes."
+        }
+    }
+}

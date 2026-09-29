@@ -1,0 +1,48 @@
+#pragma once
+
+// Страницы Gallery: по контролу на файл, как в оригинале (Samples/<Контрол>/).
+//
+// Страница оригинала — `Page` в `Frame`; здесь она `FrameworkElement`, который
+// окно кладёт в `NavigationView::content`, — наименьшее, что умеет
+// раскладываться и что принимает содержимое. Раскладку одного примера
+// (`ControlExample` оригинала) пишет `controlExample` из Presenter.cpp.
+//
+// Код каждого примера — файл `Snippets/<Контрол>/X.h`: он включается #include
+// в функцию, строящую пример, и он же, вшитый байтами, показывается под
+// примером. `X.h.embed` делает CMake (embed.cmake): это ровно то, что вернул
+// бы `#embed "X.h"`, а MSVC 14.51 его пока не знает. Показанное и работающее —
+// один текст. Введение к примеру — `X.html` рядом.
+
+#include "pch.h"
+
+#include <cstddef>
+#include <string_view>
+#include <vector>
+
+namespace gallery {
+
+// Байты файла из Snippets/, вшитые в exe. char8_t, потому что байты идут
+// числами 0..255, а `char` старше 127 в фигурных скобках — сужение.
+using Snippet = std::u8string_view;
+
+template <std::size_t N>
+constexpr Snippet snippet(const char8_t (&bytes)[N]) {
+    return Snippet{bytes, N};
+}
+
+// Что кладёт в раскладку один пример.
+struct ExampleParts {
+    Snippet header;                      // введение, HTML
+    wxl::FrameworkElement example;       // живой показ
+    std::vector<wxl::FrameworkElement> output = {};   // подпись под показом (Output оригинала)
+    std::vector<wxl::FrameworkElement> options = {};  // элементы управления справа (Options оригинала)
+    Snippet code;                        // исходник показанного
+};
+
+// Один ControlExample: введение, показ с параметрами и исходник под ним.
+wxl::FrameworkElement controlExample(ExampleParts const& parts);
+
+// Страница контрола: примеры друг под другом.
+wxl::FrameworkElement buttonPage();
+
+}  // namespace gallery
