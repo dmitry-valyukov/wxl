@@ -260,3 +260,29 @@ TEST_F(AsyncFileTest, ALargeReadGoesThroughTheWorkerAndBringsTheSame) {
 
     EXPECT_EQ(got, content);
 }
+
+#ifndef WXL_ASYNC_TESTS_DISPATCHED
+
+TEST_F(AsyncFileTest, AFileGivenUpOnceOpenCanBeAskedForAgainAtOnce) {
+    // On the loop whose worker opens files, one at a time: by the time the worker is
+    // inside the operation sent after the opening, the file is open, and nobody has
+    // taken it. Made for writing, it is shared with nobody -- so that it can be made
+    // again the moment the opening has been given up says the first one let go of it.
+    const path target = root_ / L"again.bin";
+    hevent passed{true};
+
+    {
+        auto opening = async_file::create(target);
+        auto barrier = sta_loop::async_call([&passed] { passed.set(); });
+
+        passed.wait();
+    }
+
+    file again = file::create(target.c_str());
+
+    EXPECT_TRUE(again.opened()) << "the file given up was still held";
+
+    EXPECT_EQ(sta_loop::run_pending(), 0u) << "a given-up operation resumed somebody";
+}
+
+#endif

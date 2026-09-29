@@ -386,20 +386,20 @@ public:
 
     /// The same for a body that touches nothing but what it owns -- its captures are
     /// copies, and the result is a value of its own. Given up, it is left to finish
-    /// alone rather than waited for, and what it brings back is released when it is
-    /// deleted, on this thread. A body that writes into the caller's frame must not be
-    /// passed here: nothing would stop it from writing after the frame is gone.
+    /// alone rather than waited for, and what it made is let go of at once
+    /// (`orphanable_t`). A body that writes into the caller's frame must not be passed
+    /// here: nothing would stop it from writing after the frame is gone.
     ///
     /// Under start_dispatched() it runs on the system's thread pool and not on the
     /// worker: what is orphanable here is what goes by a name -- opening a file,
     /// making a directory -- and may take the system as long as it likes.
     template <class Fn>
     [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> async_call(
-        orphanable_t tag, Fn&& fn) {
+        orphanable_t, Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
 
-        std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
-            tag, std::forward<Fn>(fn)));
+        std::unique_ptr<async_op_t<result_t>> op(new orphan_op_f<std::decay_t<Fn>>(
+            std::forward<Fn>(fn)));
 
         send_orphan_(*op);
 

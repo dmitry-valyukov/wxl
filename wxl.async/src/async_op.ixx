@@ -12,8 +12,13 @@ export namespace wxl::async {
 /// Says of an operation that it touches nothing but what it owns -- no buffer in a
 /// coroutine frame, no object the coroutine holds -- so that an awaitable going away early
 /// may leave it to finish alone instead of waiting for it. Opening a file is the model: it
-/// carries its own copy of the path, and what it brings back, the open file, is released
-/// by whoever ends up holding it.
+/// carries its own copy of the path, and what it brings back is the open file.
+///
+/// Given up, such an operation lets go of what it made at once, so that whoever gave it
+/// up can ask for the same file the next moment: a result already there is destroyed by
+/// the thread giving it up, and one still being made by the thread making it, as soon as
+/// it is made. Which means the result of an orphanable body is destroyed on either
+/// thread, and has to be something that can be.
 struct orphanable_t {
     explicit orphanable_t() = default;
 };
@@ -213,6 +218,9 @@ public:
 protected:
     void set_value(R&& value) { value_.emplace(std::move(value)); }
 
+    /// Destroys what was produced, for an operation nobody is going to ask.
+    void drop_value() noexcept { value_.reset(); }
+
 private:
     // An optional rather than an R: a result type is not obliged to have a default
     // constructor, and an open file has no sensible empty state anyway.
@@ -226,6 +234,9 @@ public:
     using async_op::async_op;
 
     inline void take_result() { rethrow_if_failed(); }
+
+protected:
+    inline void drop_value() noexcept {}
 };
 
 /// The simple case: the body is a lambda or a functor, and the result is whatever
@@ -244,9 +255,6 @@ public:
     template <class Fn2>
     explicit async_op_f(Fn2&& fn) : fn_(std::forward<Fn2>(fn)) {}
 
-    template <class Fn2>
-    async_op_f(orphanable_t tag, Fn2&& fn) : async_op_t<R>(tag), fn_(std::forward<Fn2>(fn)) {}
-
 protected:
     bool execute() override {
         if constexpr (std::is_void_v<R>)
@@ -259,6 +267,55 @@ protected:
 
 private:
     Fn fn_;
+};
+
+/// The same for an orphanable body, with the race a given-up one has to settle: the
+/// thread giving it up and the thread carrying it out meet on one word, and whichever
+/// finds the result with nobody left to take it destroys it there and then.
+template <class Fn, class R = std::invoke_result_t<Fn&>>
+class orphan_op_f final : public async_op_t<R>
+{
+public:
+    template <class Fn2>
+    explicit orphan_op_f(Fn2&& fn) : async_op_t<R>(orphanable), fn_(std::forward<Fn2>(fn)) {}
+
+protected:
+    bool execute() override {
+        stage found = stage::waiting;
+
+        // Given up before it started: it does not start.
+        if (!stage_.compare_exchange_strong(found, stage::running)) [[unlikely]]
+            return true;
+
+        // Caught here rather than by the caller: the word below has to be settled on
+        // the way out of a body that threw as well.
+        try {
+            if constexpr (std::is_void_v<R>)
+                fn_();
+            else
+                this->set_value(fn_());
+        } catch (...) {
+            this->set_error(std::current_exception());
+        }
+
+        found = stage::running;
+
+        // Given up while it ran: what it made is nobody's, and goes now.
+        if (!stage_.compare_exchange_strong(found, stage::finished)) [[unlikely]]
+            this->drop_value();
+
+        return true;
+    }
+
+    void on_cancel() noexcept override {
+        if (stage_.exchange(stage::given_up) == stage::finished) this->drop_value();
+    }
+
+private:
+    enum class stage : std::uint8_t { waiting, running, finished, given_up };
+
+    Fn fn_;
+    std::atomic<stage> stage_{stage::waiting};
 };
 
 }  // export namespace wxl::async

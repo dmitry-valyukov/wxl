@@ -12,39 +12,66 @@ task asks_where(std::thread::id& worker, std::thread::id& orphan) {
     orphan = co_await sta_loop::async_call(orphanable, [] { return std::this_thread::get_id(); });
 }
 
-/// What an operation that opens something hands back: a resource of its own, released
-/// by whoever ends up holding it.
+/// Where a resource was let go of, and the moment it was.
+struct release_record {
+    std::atomic<int> times{0};
+    std::thread::id on;
+
+    /// Manual-reset, set as the resource goes.
+    hevent happened{true};
+};
+
+/// What an operation that opens something hands back: a resource of its own.
 class handle_like
 {
 public:
-    handle_like(std::atomic<int>& released, std::thread::id& released_on)
-        : released_(&released), released_on_(&released_on) {}
+    explicit handle_like(release_record& record) : record_(&record) {}
 
-    handle_like(handle_like&& other) noexcept
-        : released_(std::exchange(other.released_, nullptr)), released_on_(other.released_on_) {}
+    handle_like(handle_like&& other) noexcept : record_(std::exchange(other.record_, nullptr)) {}
 
     handle_like& operator=(handle_like&&) = delete;
 
     ~handle_like() {
-        if (!released_) return;
+        if (!record_) return;
 
-        *released_on_ = std::this_thread::get_id();
-        ++*released_;
+        record_->on = std::this_thread::get_id();
+        ++record_->times;
+        record_->happened.set();
     }
 
 private:
-    std::atomic<int>* released_;
-    std::thread::id* released_on_;
+    release_record* record_;
+};
+
+/// Says, as it goes, that the operation carrying it has been deleted: it rides in the
+/// capture of the body.
+class deletion_mark
+{
+public:
+    explicit deletion_mark(std::atomic<bool>& deleted) : deleted_(&deleted) {}
+
+    deletion_mark(deletion_mark&& other) noexcept
+        : deleted_(std::exchange(other.deleted_, nullptr)) {}
+
+    deletion_mark& operator=(deletion_mark&&) = delete;
+
+    ~deletion_mark() {
+        if (deleted_) *deleted_ = true;
+    }
+
+private:
+    std::atomic<bool>* deleted_;
 };
 
 /// Starts an opening and gives it up once the pool is inside it.
-task opens_and_changes_its_mind(hevent& started, hevent& gate, std::atomic<int>& released,
-                                std::thread::id& released_on) {
-    auto opening = sta_loop::async_call(orphanable, [&started, &gate, &released, &released_on] {
-        started.set();
-        gate.wait();
-        return handle_like(released, released_on);
-    });
+task opens_and_changes_its_mind(hevent& started, hevent& gate, release_record& record,
+                                std::atomic<bool>& deleted) {
+    auto opening =
+        sta_loop::async_call(orphanable, [&started, &gate, &record, mark = deletion_mark(deleted)] {
+            started.set();
+            gate.wait();
+            return handle_like(record);
+        });
 
     started.wait();
 
@@ -71,11 +98,11 @@ TEST(StaLoopDispatchedTest, AnOrphanableOperationRunsOnThePoolAndNotOnTheWorker)
     EXPECT_NE(orphan, worker);
 }
 
-TEST(StaLoopDispatchedTest, AnOrphanGivenUpIsNotWaitedForAndReleasesWhatItBringsHere) {
+TEST(StaLoopDispatchedTest, AnOrphanGivenUpWhileItRunsLetsGoOfWhatItMakesAsSoonAsItIsMade) {
     hevent started{true};
     hevent gate{true};
-    std::atomic<int> released{0};
-    std::thread::id released_on;
+    release_record record;
+    std::atomic<bool> deleted{false};
 
     // Only a scheme that waits for an orphan would keep the call below from returning
     // while the gate is shut. The watchdog opens it after a while, so that such a
@@ -89,7 +116,7 @@ TEST(StaLoopDispatchedTest, AnOrphanGivenUpIsNotWaitedForAndReleasesWhatItBrings
         gate.set();
     });
 
-    task work = opens_and_changes_its_mind(started, gate, released, released_on);
+    task work = opens_and_changes_its_mind(started, gate, record, deleted);
 
     unwound.release();
     watchdog.join();
@@ -97,16 +124,45 @@ TEST(StaLoopDispatchedTest, AnOrphanGivenUpIsNotWaitedForAndReleasesWhatItBrings
     EXPECT_FALSE(had_to_wait.load()) << "the frame waited for an operation that touches nothing of it";
     EXPECT_TRUE(work.done());
     EXPECT_THROW(work.result(), std::runtime_error);
-    EXPECT_EQ(released.load(), 0);
+    EXPECT_EQ(record.times.load(), 0);
 
-    // It runs to its end on the pool, comes back through the queue, and what it
-    // brought is released as it is deleted -- on this thread.
+    // It runs to its end on the pool, and what it made goes there and then: the
+    // message loop has not turned, and nobody is left to take it.
     gate.set();
+    record.happened.wait();
 
-    wait_until([&] { return released.load() != 0; });
+    EXPECT_EQ(record.times.load(), 1);
+    EXPECT_NE(record.on, std::this_thread::get_id());
 
-    EXPECT_EQ(released.load(), 1);
-    EXPECT_EQ(released_on, std::this_thread::get_id());
+    // The operation itself still comes back through the queue, to be deleted here.
+    wait_until([&] { return deleted.load(); });
+}
+
+TEST(StaLoopDispatchedTest, AnOrphanGivenUpAfterItsBodyLetsGoOfWhatItMadeWithoutTheLoopTurning) {
+    // Given up once the body has made the resource. Whether the pool has got as far as
+    // saying so or not, the resource goes -- by the hand of this thread or of the pool
+    // -- while this thread stands still.
+    release_record record;
+    hevent made{true};
+    std::atomic<bool> deleted{false};
+
+    {
+        auto opening =
+            sta_loop::async_call(orphanable, [&record, &made, mark = deletion_mark(deleted)] {
+                handle_like resource(record);
+
+                made.set();
+                return resource;
+            });
+
+        made.wait();
+    }
+
+    record.happened.wait();
+
+    EXPECT_EQ(record.times.load(), 1);
+
+    wait_until([&] { return deleted.load(); });
 }
 
 TEST(StaLoopDispatchedTest, AnOrphanComingBackIsTakenByTheCoAwaitThatFollows) {

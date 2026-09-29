@@ -46,8 +46,12 @@ export namespace wxl::async {
 ///
 /// **Giving an operation up.** Opening and creating own everything they touch,
 /// so an awaitable that goes away before them leaves them to finish alone
-/// (`orphanable`): the file, if they get as far as opening one, is closed when
-/// the loop deletes the operation. Everything else borrows this object and the
+/// (`orphanable`), and the file is let go of at once: one already open is
+/// closed before the awaitable's destructor returns, one being opened is closed
+/// the moment it is open, and one not reached yet is never opened. So what
+/// handles the failure may ask for the same file straight away -- short of the
+/// one case nothing here can shorten, a call to the system that is under way.
+/// Everything else borrows this object and the
 /// caller's buffer, and an awaitable giving one of those up waits until the
 /// operation has come back -- which a read or a write the kernel holds is told
 /// to do at once, by CancelIoEx.
