@@ -35,7 +35,91 @@
             "comment": "The \"Controls\" caption between the Gallery navigation view's groups.",
             "members": []
         },
-        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
+        "Microsoft.UI.Xaml.Controls.GridView": {
+            "comment": "The tile grid of the Gallery's Home, All controls and section pages. Everything a ListViewBase gives (selection mode, item click) comes from base.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.BitmapIcon": {
+            "comment": "The Gallery's navigation group icon when the catalogue names a .png.",
+            "members": [
+                "UriSource",
+                "ShowAsMonochrome"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ImageIcon": {
+            "comment": "An icon from an image source.",
+            "members": [
+                "Source"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ImageIconSource": {
+            "comment": "The icon a TitleBar carries beside its title.",
+            "members": [
+                "ImageSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TitleBar": {
+            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar.",
+            "members": [
+                "IconSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationView": {
+            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over.",
+            "members": [
+                "DisplayMode",
+                "DisplayModeChanged",
+                "IsPaneToggleButtonVisible",
+                "IsPaneVisible"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItem": {
+            "comment": "The group rows: they expand and are not themselves a page.",
+            "members": [
+                "IsExpanded",
+                "SelectsOnInvoked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs": {
+            "comment": "Which item the selection landed on.",
+            "members": [
+                "SelectedItem",
+                "IsSettingsSelected"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItemInvokedEventArgs": {
+            "comment": "Which item was clicked, a group row included: SelectsOnInvoked false rows raise only this.",
+            "members": [
+                "InvokedItem",
+                "InvokedItemContainer",
+                "IsSettingsInvoked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBox": {
+            "comment": "The search box in the Gallery's title bar: its query icon, and the text of the query it submits.",
+            "members": [
+                "QueryIcon",
+                "UpdateTextOnSelect"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBoxQuerySubmittedEventArgs": {
+            "comment": "What was typed when the query was submitted.",
+            "members": [
+                "QueryText",
+                "ChosenSuggestion"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBoxTextChangedEventArgs": {
+            "comment": "Why the text changed: only a user's typing refreshes suggestions.",
+            "members": [
+                "Reason"
+            ]
+        },        "Microsoft.UI.Xaml.Controls.TextBlock": {
+            "comment": "Selectable text: the Gallery's API details flyout lets the namespace be copied.",
+            "members": [
+                "IsTextSelectionEnabled"
+            ]
+        },        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
             "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
             "members": [
                 "Content",

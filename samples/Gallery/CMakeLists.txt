@@ -27,9 +27,19 @@ endforeach()
 
 wxl_add_executable(sample.gallery
     Pages.h
+    Catalog.h
+    Shell.h
     pch.h
     main.cpp
     Presenter.cpp
+    Catalog.cpp
+    Shell.cpp
+    Tiles.cpp
+    ItemPages.cpp
+    ItemPage.cpp
+    ListPages.cpp
+    HomePage.cpp
+    SettingsPage.cpp
     ButtonPage.cpp
     ${_gallery_snippets}
     ${_gallery_embedded}
@@ -40,3 +50,4 @@ wxl_add_executable(sample.gallery
 target_include_directories(sample.gallery PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 wxl_target_assets(sample.gallery Assets)
+target_link_libraries(sample.gallery PRIVATE wxl::json)
