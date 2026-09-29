@@ -2,7 +2,7 @@ Grid {
     width = 520,
     height = 300,
     Image {
-        source = u"Assets/board.jpg",
+        source = u"Assets/GlassBackdrop.png",
         stretch = Stretch::UniformToFill,
     },
     Border {
