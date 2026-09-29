@@ -8,5 +8,4 @@ wxl_add_executable(sandbox.zoom-gesture-probe
 )
 
 target_include_directories(sandbox.zoom-gesture-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
-target_compile_definitions(sandbox.zoom-gesture-probe PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX NODRAWTEXT)
 target_link_libraries(sandbox.zoom-gesture-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib)

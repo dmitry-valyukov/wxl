@@ -24,6 +24,8 @@
 // закрывается; журнал -- glass-probe.log, снимок -- glass-probe-<режим>.bmp
 // рядом с исполняемым файлом. Окно на время снимка поверх остальных.
 
+#include "platform.h"
+
 #include <winrt/Microsoft.Graphics.Canvas.Effects.h>
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
@@ -39,8 +41,6 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Graphics.Effects.h>
 #include <winrt/Windows.UI.h>
-
-#include <windows.h>
 
 #include <cstdarg>
 #include <cstdint>

@@ -30,6 +30,8 @@
 // windowless-island-probe.log рядом с исполняемым файлом. Щелчок и клавиша --
 // SendInput, только когда окно пробы впереди.
 
+#include "platform.h"
+
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
@@ -45,8 +47,6 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.h>
-
-#include <windows.h>
 
 #include <cstdarg>
 #include <cstdint>

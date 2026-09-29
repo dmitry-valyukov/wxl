@@ -11,8 +11,8 @@ add_executable(sandbox.system-engine-probe
 target_include_directories(sandbox.system-engine-probe PRIVATE
     ${WXL_CPPWINRT_PROJECTION_DIR}
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include)
-target_compile_definitions(sandbox.system-engine-probe PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX NODRAWTEXT)
 target_link_libraries(sandbox.system-engine-probe PRIVATE
+    wxl::core
     Microsoft::CppWinRT
     runtimeobject.lib
     "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")

@@ -8,13 +8,13 @@
 // всего: рантайм, затем сразу TrySetProcessEngine, затем композитор на
 // потоке с DispatcherQueue.
 
+#include "platform.h"
+
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Windows.Foundation.h>
 
 #include <cstdio>
-
-#include <windows.h>
 
 #include <MddBootstrap.h>
 

@@ -13,6 +13,8 @@
 //
 // Ввода нет; журнал -- sensor-scale-probe.log рядом с исполняемым файлом.
 
+#include "platform.h"
+
 #include <winrt/Microsoft.UI.Content.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
@@ -22,8 +24,6 @@
 #include <winrt/Microsoft.UI.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>
-
-#include <windows.h>
 
 #include <cmath>
 #include <cstdarg>

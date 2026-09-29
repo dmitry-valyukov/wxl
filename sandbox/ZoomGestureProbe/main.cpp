@@ -29,6 +29,8 @@
 // SendInput двигает настоящий указатель и нажимает настоящий Ctrl: на время
 // пробы мышь и клавиатура -- её.
 
+#include "platform.h"
+
 #include <winrt/Microsoft.UI.Content.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Input.h>
@@ -41,8 +43,6 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.System.h>
-
-#include <windows.h>
 
 #include <cstdarg>
 #include <cstdio>

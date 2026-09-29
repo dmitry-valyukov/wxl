@@ -38,6 +38,8 @@
 // SendInput нажимает настоящие клавиши и щёлкает настоящей мышью: на время
 // пробы клавиатура и мышь -- её.
 
+#include "platform.h"
+
 #include <winrt/Microsoft.UI.Content.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Input.h>
@@ -53,8 +55,6 @@
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.Xaml.Interop.h>  // xaml_typename -- стиль FlyoutPresenter
 #include <winrt/Windows.UI.h>
-
-#include <windows.h>
 
 #include <cstdarg>
 #include <cstdio>

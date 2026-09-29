@@ -11,5 +11,4 @@ wxl_add_executable(sandbox.windowless-island-probe
 )
 
 target_include_directories(sandbox.windowless-island-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
-target_compile_definitions(sandbox.windowless-island-probe PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX NODRAWTEXT)
 target_link_libraries(sandbox.windowless-island-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib gdi32.lib)

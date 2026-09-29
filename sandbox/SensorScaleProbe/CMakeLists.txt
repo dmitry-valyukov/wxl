@@ -8,5 +8,4 @@ wxl_add_executable(sandbox.sensor-scale-probe
 )
 
 target_include_directories(sandbox.sensor-scale-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
-target_compile_definitions(sandbox.sensor-scale-probe PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX NODRAWTEXT)
 target_link_libraries(sandbox.sensor-scale-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib)
