@@ -4,9 +4,7 @@
 
 namespace wxl {
 
-ZoomEffect::ZoomEffect() : ZoomEffect(zoomLevels125) {}
-
-ZoomEffect::ZoomEffect(ZoomLevels levels) : model_(AppZoom::make(levels)) {}
+ZoomEffect::ZoomEffect() : model_(AppZoom::make()) {}
 
 void ZoomEffect::operator()(CompositionWindow const& window) const {
     window.attachZoom(model_);
