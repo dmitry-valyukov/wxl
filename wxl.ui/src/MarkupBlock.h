@@ -11,7 +11,6 @@
 // дело наследника.
 
 #include <optional>
-#include <string>
 #include <string_view>
 
 #include "FormattedBlock.h"

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <string>
 #include <string_view>
 
 import wxl.xml;

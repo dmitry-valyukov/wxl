@@ -45,11 +45,9 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
-#include <cstdlib>
 #include <functional>
 #include <limits>
 #include <string>
-#include <vector>
 
 #include "launch.h"
 

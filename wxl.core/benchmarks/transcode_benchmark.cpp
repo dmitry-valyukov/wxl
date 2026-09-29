@@ -16,7 +16,6 @@
 #include <limits>
 #include <string>
 #include <string_view>
-#include <vector>
 
 import wxl.core;
 

@@ -5,7 +5,6 @@
 // the next level down (wxl.html's HtmlBlock) inherits this Impl.
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "FormattedBlock.h"

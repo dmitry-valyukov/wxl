@@ -1,15 +1,9 @@
 // makeModalDialog, the winrt side: the Win32 owner, then WinUI's modal and
 // off-taskbar properties.
 //
-// The Windows and projection headers come first, and with them the standard
-// library they pull in: the wxl headers below carry the wxl.core import, and a
-// standard header after that import is one MSVC has already seen through the std
-// module. platform.h is explicit -- SetWindowLongPtrW and GWLP_HWNDPARENT are
-// ours to reach for, and the projection headers do not pull them in.
+// platform.h comes first and explicitly: SetWindowLongPtrW and GWLP_HWNDPARENT
+// are ours to reach for, and the wxl headers below do not pull them in.
 #include "platform.h"
-
-#include <winrt/Microsoft.UI.Xaml.h>
-#include <winrt/Windows.Foundation.h>
 
 #include "Object.impl.h"
 #include "generated/Microsoft.UI.Windowing.h"

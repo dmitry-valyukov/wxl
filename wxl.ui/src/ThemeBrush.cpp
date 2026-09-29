@@ -4,7 +4,6 @@
 // pull in: the wxl headers below carry the wxl.core import, and a standard
 // header after that import is one MSVC has already seen through the std
 // module.
-#include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>

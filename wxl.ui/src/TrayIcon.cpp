@@ -10,23 +10,18 @@
 // subclass catches the shell's messages ahead of WinUI's own handling, the way
 // the console host is driven from Trayed.
 //
-// Windows and projection headers first, and with them the standard library they
-// pull in: wxl's own headers carry the wxl.core import, and a standard header
-// after that import is one MSVC has already seen through the std module.
+// Windows and standard headers first: wxl's own headers carry the wxl.core
+// import, and a standard header after that import is one MSVC has already seen
+// through the std module.
 #include "platform.h"
 
 #include <commctrl.h>
 #include <shellapi.h>
 #include <windowsx.h>
 
-#include <winrt/Microsoft.UI.Xaml.Controls.h>
-#include <winrt/Microsoft.UI.Xaml.h>
-#include <winrt/Windows.Foundation.h>
-
 #include <algorithm>
 #include <iterator>
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 

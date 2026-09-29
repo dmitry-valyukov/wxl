@@ -35,8 +35,6 @@
 // get the same colour; on the control itself each gets its own, which is what
 // a keypad of three kinds of key needs.
 
-#include <string_view>
-
 #include "core.h"
 #include "generated/Microsoft.UI.Xaml.Media.h"
 #include "generated/Microsoft.UI.Xaml.h"

@@ -23,12 +23,10 @@
 
 #include <unknwn.h>
 #include <inspectable.h>
-#include <restrictederrorinfo.h>
 #include <hstring.h>
 #include <roapi.h>
 #include <winstring.h>
 
-#include <winrt/Windows.Foundation.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 
 #include <impl/bootstrap.h>
