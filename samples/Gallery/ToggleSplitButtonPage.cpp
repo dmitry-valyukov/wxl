@@ -1,6 +1,9 @@
 // Страница ToggleSplitButton — ToggleSplitButtonPage оригинала.
 
 #include "Pages.h"
+#include "event_awaitable.h"
+
+import wxl.async;
 
 using namespace wxl;
 using namespace wxl::dsl;

@@ -16,6 +16,8 @@ auto swatch = Border {
     background = SolidColorBrush {color = *current},
 };
 
+const Preset dot {width = 32, height = 32, radiusX = 4.0, radiusY = 4.0};
+
 auto colorButton = SplitButton {
     minWidth = 0,
     minHeight = 0,
@@ -25,32 +27,38 @@ auto colorButton = SplitButton {
     onClick = [richBox, current] {
         richBox.document().selection().characterFormat().foregroundColor(*current);
     },
-};
-
-const Preset dot {width = 32, height = 32, radiusX = 4.0, radiusY = 4.0};
-
-colorButton.flyout(Flyout {
-    placement = FlyoutPlacementMode::Bottom,
-    content = GridView {
-        isItemClickEnabled = true,
-        width = 3 * 52,
-        onItemClick = [richBox, swatch, current, colorButton](Object const&, ItemClickEventArgs& args) {
-            auto const picked = args.clickedItem().try_as<Rectangle>().fill().try_as<SolidColorBrush>().color();
-            *current = picked;
-            richBox.document().selection().characterFormat().foregroundColor(picked);
-            swatch.background(SolidColorBrush {color = picked});
-            colorButton.flyout().hide();
+    flyout = Flyout {
+        placement = FlyoutPlacementMode::Bottom,
+        // Opening the flyout starts a coroutine: it waits for a swatch to be
+        // clicked and ends when the content leaves the tree, that is, when the
+        // flyout closes. The flyout is its own sender, so nothing captures the
+        // button that owns it.
+        onOpened = [richBox, swatch, current](Object const& sender) -> async::detached_task {
+            auto const flyout = sender.try_as<Flyout>();
+            auto clicks = onItemClick(flyout.content().try_as<GridView>());
+            while (auto const got = co_await clicks.next()) {
+                auto const picked =
+                    got->get().clickedItem().try_as<Rectangle>().fill().try_as<SolidColorBrush>().color();
+                *current = picked;
+                richBox.document().selection().characterFormat().foregroundColor(picked);
+                swatch.background(SolidColorBrush {color = picked});
+                flyout.hide();
+            }
         },
-        Rectangle {dot, fill = rgb(255, 0, 0)},
-        Rectangle {dot, fill = rgb(255, 165, 0)},
-        Rectangle {dot, fill = rgb(255, 255, 0)},
-        Rectangle {dot, fill = rgb(0, 128, 0)},
-        Rectangle {dot, fill = rgb(0, 0, 255)},
-        Rectangle {dot, fill = rgb(75, 0, 130)},
-        Rectangle {dot, fill = rgb(238, 130, 238)},
-        Rectangle {dot, fill = rgb(128, 128, 128)},
+        content = GridView {
+            isItemClickEnabled = true,
+            width = 3 * 52,
+            Rectangle {dot, fill = rgb(255, 0, 0)},
+            Rectangle {dot, fill = rgb(255, 165, 0)},
+            Rectangle {dot, fill = rgb(255, 255, 0)},
+            Rectangle {dot, fill = rgb(0, 128, 0)},
+            Rectangle {dot, fill = rgb(0, 0, 255)},
+            Rectangle {dot, fill = rgb(75, 0, 130)},
+            Rectangle {dot, fill = rgb(238, 130, 238)},
+            Rectangle {dot, fill = rgb(128, 128, 128)},
+        },
     },
-});
+};
 
 richBox.document().selection().characterFormat().foregroundColor(*current);
 richBox.document().selection().setText(

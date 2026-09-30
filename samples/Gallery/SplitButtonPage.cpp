@@ -4,6 +4,9 @@
 // панели здесь не построить, и три колонки даёт ширина GridView.
 
 #include "Pages.h"
+#include "event_awaitable.h"
+
+import wxl.async;
 
 using namespace wxl;
 using namespace wxl::dsl;

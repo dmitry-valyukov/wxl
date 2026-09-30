@@ -235,6 +235,26 @@
                 "Parent"
             ]
         },
+        "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
+            "comment": "Target: the element a flyout is attached to. A coroutine started when the flyout opens finds its owner there, so no handler has to capture the owner (which holds the flyout: a cycle).",
+            "members": [
+                "Target"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.Clipboard": {
+            "comment": "The copy button under every example puts the code on the clipboard; the Clipboard page of the Gallery reads it back.",
+            "members": [
+                "SetContent",
+                "Flush"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.DataPackage": {
+            "comment": "What goes on the clipboard: text, and whether it is a copy.",
+            "members": [
+                "SetText",
+                "RequestedOperation"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.ContentPresenter": {
             "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
             "members": [
