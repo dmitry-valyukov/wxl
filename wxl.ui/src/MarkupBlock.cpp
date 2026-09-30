@@ -42,21 +42,21 @@ constexpr double kFontScale[] = {0.63, 0.82, 1.0, 1.13, 1.5, 2.0, 3.0};
 
 // ---- маленькие разборы значений атрибутов ----
 
-std::optional<double> parse_number(std::wstring_view text) {
+std::optional<double> parse_number(std::u16string_view text) {
     if (text.empty()) return std::nullopt;
     double value = 0;
-    for (const wchar_t c : text) {
-        if (c < L'0' || c > L'9') return std::nullopt;
-        value = value * 10 + (c - L'0');
+    for (const char16_t c : text) {
+        if (c < u'0' || c > u'9') return std::nullopt;
+        value = value * 10 + (c - u'0');
     }
     return value;
 }
 
 // <font size>: 1..7, или +n/-n от умолчания 3.
-std::optional<double> parse_font_scale(std::wstring_view text) {
+std::optional<double> parse_font_scale(std::u16string_view text) {
     if (text.empty()) return std::nullopt;
-    const bool relative = text.front() == L'+' || text.front() == L'-';
-    const bool negative = text.front() == L'-';
+    const bool relative = text.front() == u'+' || text.front() == u'-';
+    const bool negative = text.front() == u'-';
     if (relative) text.remove_prefix(1);
     const std::optional<double> number = parse_number(text);
     if (!number) return std::nullopt;
@@ -66,86 +66,86 @@ std::optional<double> parse_font_scale(std::wstring_view text) {
 }
 
 struct named_color {
-    std::wstring_view name;
+    std::u16string_view name;
     std::uint32_t rgb;
 };
 
 // Полный набор CSS-имён цвета — самая дешёвая грамматика: одна таблица
 // (design.md, «Атрибуты»: принято).
 constexpr named_color kNamedColors[] = {
-    {L"aliceblue", 0xF0F8FF}, {L"antiquewhite", 0xFAEBD7}, {L"aqua", 0x00FFFF},
-    {L"aquamarine", 0x7FFFD4}, {L"azure", 0xF0FFFF}, {L"beige", 0xF5F5DC},
-    {L"bisque", 0xFFE4C4}, {L"black", 0x000000}, {L"blanchedalmond", 0xFFEBCD},
-    {L"blue", 0x0000FF}, {L"blueviolet", 0x8A2BE2}, {L"brown", 0xA52A2A},
-    {L"burlywood", 0xDEB887}, {L"cadetblue", 0x5F9EA0}, {L"chartreuse", 0x7FFF00},
-    {L"chocolate", 0xD2691E}, {L"coral", 0xFF7F50}, {L"cornflowerblue", 0x6495ED},
-    {L"cornsilk", 0xFFF8DC}, {L"crimson", 0xDC143C}, {L"cyan", 0x00FFFF},
-    {L"darkblue", 0x00008B}, {L"darkcyan", 0x008B8B}, {L"darkgoldenrod", 0xB8860B},
-    {L"darkgray", 0xA9A9A9}, {L"darkgreen", 0x006400}, {L"darkgrey", 0xA9A9A9},
-    {L"darkkhaki", 0xBDB76B}, {L"darkmagenta", 0x8B008B}, {L"darkolivegreen", 0x556B2F},
-    {L"darkorange", 0xFF8C00}, {L"darkorchid", 0x9932CC}, {L"darkred", 0x8B0000},
-    {L"darksalmon", 0xE9967A}, {L"darkseagreen", 0x8FBC8F}, {L"darkslateblue", 0x483D8B},
-    {L"darkslategray", 0x2F4F4F}, {L"darkslategrey", 0x2F4F4F}, {L"darkturquoise", 0x00CED1},
-    {L"darkviolet", 0x9400D3}, {L"deeppink", 0xFF1493}, {L"deepskyblue", 0x00BFFF},
-    {L"dimgray", 0x696969}, {L"dimgrey", 0x696969}, {L"dodgerblue", 0x1E90FF},
-    {L"firebrick", 0xB22222}, {L"floralwhite", 0xFFFAF0}, {L"forestgreen", 0x228B22},
-    {L"fuchsia", 0xFF00FF}, {L"gainsboro", 0xDCDCDC}, {L"ghostwhite", 0xF8F8FF},
-    {L"gold", 0xFFD700}, {L"goldenrod", 0xDAA520}, {L"gray", 0x808080},
-    {L"green", 0x008000}, {L"greenyellow", 0xADFF2F}, {L"grey", 0x808080},
-    {L"honeydew", 0xF0FFF0}, {L"hotpink", 0xFF69B4}, {L"indianred", 0xCD5C5C},
-    {L"indigo", 0x4B0082}, {L"ivory", 0xFFFFF0}, {L"khaki", 0xF0E68C},
-    {L"lavender", 0xE6E6FA}, {L"lavenderblush", 0xFFF0F5}, {L"lawngreen", 0x7CFC00},
-    {L"lemonchiffon", 0xFFFACD}, {L"lightblue", 0xADD8E6}, {L"lightcoral", 0xF08080},
-    {L"lightcyan", 0xE0FFFF}, {L"lightgoldenrodyellow", 0xFAFAD2}, {L"lightgray", 0xD3D3D3},
-    {L"lightgreen", 0x90EE90}, {L"lightgrey", 0xD3D3D3}, {L"lightpink", 0xFFB6C1},
-    {L"lightsalmon", 0xFFA07A}, {L"lightseagreen", 0x20B2AA}, {L"lightskyblue", 0x87CEFA},
-    {L"lightslategray", 0x778899}, {L"lightslategrey", 0x778899}, {L"lightsteelblue", 0xB0C4DE},
-    {L"lightyellow", 0xFFFFE0}, {L"lime", 0x00FF00}, {L"limegreen", 0x32CD32},
-    {L"linen", 0xFAF0E6}, {L"magenta", 0xFF00FF}, {L"maroon", 0x800000},
-    {L"mediumaquamarine", 0x66CDAA}, {L"mediumblue", 0x0000CD}, {L"mediumorchid", 0xBA55D3},
-    {L"mediumpurple", 0x9370DB}, {L"mediumseagreen", 0x3CB371}, {L"mediumslateblue", 0x7B68EE},
-    {L"mediumspringgreen", 0x00FA9A}, {L"mediumturquoise", 0x48D1CC}, {L"mediumvioletred", 0xC71585},
-    {L"midnightblue", 0x191970}, {L"mintcream", 0xF5FFFA}, {L"mistyrose", 0xFFE4E1},
-    {L"moccasin", 0xFFE4B5}, {L"navajowhite", 0xFFDEAD}, {L"navy", 0x000080},
-    {L"oldlace", 0xFDF5E6}, {L"olive", 0x808000}, {L"olivedrab", 0x6B8E23},
-    {L"orange", 0xFFA500}, {L"orangered", 0xFF4500}, {L"orchid", 0xDA70D6},
-    {L"palegoldenrod", 0xEEE8AA}, {L"palegreen", 0x98FB98}, {L"paleturquoise", 0xAFEEEE},
-    {L"palevioletred", 0xDB7093}, {L"papayawhip", 0xFFEFD5}, {L"peachpuff", 0xFFDAB9},
-    {L"peru", 0xCD853F}, {L"pink", 0xFFC0CB}, {L"plum", 0xDDA0DD},
-    {L"powderblue", 0xB0E0E6}, {L"purple", 0x800080}, {L"rebeccapurple", 0x663399},
-    {L"red", 0xFF0000}, {L"rosybrown", 0xBC8F8F}, {L"royalblue", 0x4169E1},
-    {L"saddlebrown", 0x8B4513}, {L"salmon", 0xFA8072}, {L"sandybrown", 0xF4A460},
-    {L"seagreen", 0x2E8B57}, {L"seashell", 0xFFF5EE}, {L"sienna", 0xA0522D},
-    {L"silver", 0xC0C0C0}, {L"skyblue", 0x87CEEB}, {L"slateblue", 0x6A5ACD},
-    {L"slategray", 0x708090}, {L"slategrey", 0x708090}, {L"snow", 0xFFFAFA},
-    {L"springgreen", 0x00FF7F}, {L"steelblue", 0x4682B4}, {L"tan", 0xD2B48C},
-    {L"teal", 0x008080}, {L"thistle", 0xD8BFD8}, {L"tomato", 0xFF6347},
-    {L"turquoise", 0x40E0D0}, {L"violet", 0xEE82EE}, {L"wheat", 0xF5DEB3},
-    {L"white", 0xFFFFFF}, {L"whitesmoke", 0xF5F5F5}, {L"yellow", 0xFFFF00},
-    {L"yellowgreen", 0x9ACD32},
+    {u"aliceblue", 0xF0F8FF}, {u"antiquewhite", 0xFAEBD7}, {u"aqua", 0x00FFFF},
+    {u"aquamarine", 0x7FFFD4}, {u"azure", 0xF0FFFF}, {u"beige", 0xF5F5DC},
+    {u"bisque", 0xFFE4C4}, {u"black", 0x000000}, {u"blanchedalmond", 0xFFEBCD},
+    {u"blue", 0x0000FF}, {u"blueviolet", 0x8A2BE2}, {u"brown", 0xA52A2A},
+    {u"burlywood", 0xDEB887}, {u"cadetblue", 0x5F9EA0}, {u"chartreuse", 0x7FFF00},
+    {u"chocolate", 0xD2691E}, {u"coral", 0xFF7F50}, {u"cornflowerblue", 0x6495ED},
+    {u"cornsilk", 0xFFF8DC}, {u"crimson", 0xDC143C}, {u"cyan", 0x00FFFF},
+    {u"darkblue", 0x00008B}, {u"darkcyan", 0x008B8B}, {u"darkgoldenrod", 0xB8860B},
+    {u"darkgray", 0xA9A9A9}, {u"darkgreen", 0x006400}, {u"darkgrey", 0xA9A9A9},
+    {u"darkkhaki", 0xBDB76B}, {u"darkmagenta", 0x8B008B}, {u"darkolivegreen", 0x556B2F},
+    {u"darkorange", 0xFF8C00}, {u"darkorchid", 0x9932CC}, {u"darkred", 0x8B0000},
+    {u"darksalmon", 0xE9967A}, {u"darkseagreen", 0x8FBC8F}, {u"darkslateblue", 0x483D8B},
+    {u"darkslategray", 0x2F4F4F}, {u"darkslategrey", 0x2F4F4F}, {u"darkturquoise", 0x00CED1},
+    {u"darkviolet", 0x9400D3}, {u"deeppink", 0xFF1493}, {u"deepskyblue", 0x00BFFF},
+    {u"dimgray", 0x696969}, {u"dimgrey", 0x696969}, {u"dodgerblue", 0x1E90FF},
+    {u"firebrick", 0xB22222}, {u"floralwhite", 0xFFFAF0}, {u"forestgreen", 0x228B22},
+    {u"fuchsia", 0xFF00FF}, {u"gainsboro", 0xDCDCDC}, {u"ghostwhite", 0xF8F8FF},
+    {u"gold", 0xFFD700}, {u"goldenrod", 0xDAA520}, {u"gray", 0x808080},
+    {u"green", 0x008000}, {u"greenyellow", 0xADFF2F}, {u"grey", 0x808080},
+    {u"honeydew", 0xF0FFF0}, {u"hotpink", 0xFF69B4}, {u"indianred", 0xCD5C5C},
+    {u"indigo", 0x4B0082}, {u"ivory", 0xFFFFF0}, {u"khaki", 0xF0E68C},
+    {u"lavender", 0xE6E6FA}, {u"lavenderblush", 0xFFF0F5}, {u"lawngreen", 0x7CFC00},
+    {u"lemonchiffon", 0xFFFACD}, {u"lightblue", 0xADD8E6}, {u"lightcoral", 0xF08080},
+    {u"lightcyan", 0xE0FFFF}, {u"lightgoldenrodyellow", 0xFAFAD2}, {u"lightgray", 0xD3D3D3},
+    {u"lightgreen", 0x90EE90}, {u"lightgrey", 0xD3D3D3}, {u"lightpink", 0xFFB6C1},
+    {u"lightsalmon", 0xFFA07A}, {u"lightseagreen", 0x20B2AA}, {u"lightskyblue", 0x87CEFA},
+    {u"lightslategray", 0x778899}, {u"lightslategrey", 0x778899}, {u"lightsteelblue", 0xB0C4DE},
+    {u"lightyellow", 0xFFFFE0}, {u"lime", 0x00FF00}, {u"limegreen", 0x32CD32},
+    {u"linen", 0xFAF0E6}, {u"magenta", 0xFF00FF}, {u"maroon", 0x800000},
+    {u"mediumaquamarine", 0x66CDAA}, {u"mediumblue", 0x0000CD}, {u"mediumorchid", 0xBA55D3},
+    {u"mediumpurple", 0x9370DB}, {u"mediumseagreen", 0x3CB371}, {u"mediumslateblue", 0x7B68EE},
+    {u"mediumspringgreen", 0x00FA9A}, {u"mediumturquoise", 0x48D1CC}, {u"mediumvioletred", 0xC71585},
+    {u"midnightblue", 0x191970}, {u"mintcream", 0xF5FFFA}, {u"mistyrose", 0xFFE4E1},
+    {u"moccasin", 0xFFE4B5}, {u"navajowhite", 0xFFDEAD}, {u"navy", 0x000080},
+    {u"oldlace", 0xFDF5E6}, {u"olive", 0x808000}, {u"olivedrab", 0x6B8E23},
+    {u"orange", 0xFFA500}, {u"orangered", 0xFF4500}, {u"orchid", 0xDA70D6},
+    {u"palegoldenrod", 0xEEE8AA}, {u"palegreen", 0x98FB98}, {u"paleturquoise", 0xAFEEEE},
+    {u"palevioletred", 0xDB7093}, {u"papayawhip", 0xFFEFD5}, {u"peachpuff", 0xFFDAB9},
+    {u"peru", 0xCD853F}, {u"pink", 0xFFC0CB}, {u"plum", 0xDDA0DD},
+    {u"powderblue", 0xB0E0E6}, {u"purple", 0x800080}, {u"rebeccapurple", 0x663399},
+    {u"red", 0xFF0000}, {u"rosybrown", 0xBC8F8F}, {u"royalblue", 0x4169E1},
+    {u"saddlebrown", 0x8B4513}, {u"salmon", 0xFA8072}, {u"sandybrown", 0xF4A460},
+    {u"seagreen", 0x2E8B57}, {u"seashell", 0xFFF5EE}, {u"sienna", 0xA0522D},
+    {u"silver", 0xC0C0C0}, {u"skyblue", 0x87CEEB}, {u"slateblue", 0x6A5ACD},
+    {u"slategray", 0x708090}, {u"slategrey", 0x708090}, {u"snow", 0xFFFAFA},
+    {u"springgreen", 0x00FF7F}, {u"steelblue", 0x4682B4}, {u"tan", 0xD2B48C},
+    {u"teal", 0x008080}, {u"thistle", 0xD8BFD8}, {u"tomato", 0xFF6347},
+    {u"turquoise", 0x40E0D0}, {u"violet", 0xEE82EE}, {u"wheat", 0xF5DEB3},
+    {u"white", 0xFFFFFF}, {u"whitesmoke", 0xF5F5F5}, {u"yellow", 0xFFFF00},
+    {u"yellowgreen", 0x9ACD32},
 };
 
-std::optional<int> hex_digit(wchar_t c) {
-    if (c >= L'0' && c <= L'9') return c - L'0';
-    if (c >= L'a' && c <= L'f') return c - L'a' + 10;
-    if (c >= L'A' && c <= L'F') return c - L'A' + 10;
+std::optional<int> hex_digit(char16_t c) {
+    if (c >= u'0' && c <= u'9') return c - u'0';
+    if (c >= u'a' && c <= u'f') return c - u'a' + 10;
+    if (c >= u'A' && c <= u'F') return c - u'A' + 10;
     return std::nullopt;
 }
 
-std::optional<Color> parse_color(std::wstring_view text) {
+std::optional<Color> parse_color(std::u16string_view text) {
     if (text.empty()) return std::nullopt;
 
-    if (text.front() == L'#') {
+    if (text.front() == u'#') {
         text.remove_prefix(1);
         std::uint32_t rgb = 0;
         if (text.size() == 3) {
-            for (const wchar_t c : text) {
+            for (const char16_t c : text) {
                 const std::optional<int> digit = hex_digit(c);
                 if (!digit) return std::nullopt;
                 rgb = rgb << 8 | static_cast<std::uint32_t>(*digit * 17);
             }
         } else if (text.size() == 6) {
-            for (const wchar_t c : text) {
+            for (const char16_t c : text) {
                 const std::optional<int> digit = hex_digit(c);
                 if (!digit) return std::nullopt;
                 rgb = rgb << 4 | static_cast<std::uint32_t>(*digit);
@@ -158,9 +158,9 @@ std::optional<Color> parse_color(std::wstring_view text) {
     }
 
     // Имена, без учёта регистра ASCII: <font color=Navy> встречается.
-    sta_wstring lower{text};
-    for (wchar_t& c : lower) {
-        if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c + 32);
+    core::sta_u16string lower{text};
+    for (char16_t& c : lower) {
+        if (c >= u'A' && c <= u'Z') c = static_cast<char16_t>(c + 32);
     }
     for (const named_color& candidate : kNamedColors) {
         if (candidate.name == lower) {
@@ -173,14 +173,14 @@ std::optional<Color> parse_color(std::wstring_view text) {
 }
 
 // Первое семейство из списка через запятую, без кавычек и пробелов.
-std::wstring_view first_face(std::wstring_view faces) {
-    const std::size_t comma = faces.find(L',');
-    if (comma != std::wstring_view::npos) faces = faces.substr(0, comma);
-    while (!faces.empty() && (faces.front() == L' ' || faces.front() == L'"' ||
-                              faces.front() == L'\''))
+std::u16string_view first_face(std::u16string_view faces) {
+    const std::size_t comma = faces.find(u',');
+    if (comma != std::u16string_view::npos) faces = faces.substr(0, comma);
+    while (!faces.empty() && (faces.front() == u' ' || faces.front() == u'"' ||
+                              faces.front() == u'\''))
         faces.remove_prefix(1);
     while (!faces.empty() &&
-           (faces.back() == L' ' || faces.back() == L'"' || faces.back() == L'\''))
+           (faces.back() == u' ' || faces.back() == u'"' || faces.back() == u'\''))
         faces.remove_suffix(1);
     return faces;
 }
@@ -192,13 +192,13 @@ using html::tag_t;
 
 // Плоский текст поддерева: что <sub>/<sup> отдают appendScript, которому
 // разметка внутри ни к чему.
-sta_wstring flatten(const html::node& element) {
+core::sta_u16string flatten(const html::node& element) {
     struct level {
         const html::node* element;
         html::node_list::const_iterator child;
     };
 
-    sta_wstring out;
+    core::sta_u16string out;
     pooled_vector<level> stack;
     stack.push_back({&element, element.children().begin()});
     while (!stack.empty()) {
@@ -233,7 +233,7 @@ public:
     // `word` — самое длинное слово ячейки, из которого считается её
     // min-content: RichTextBlock, измеренный нулевой шириной, отвечает
     // нулём, а не словом, так что слово меряется отдельно.
-    void add(Border const& box, int column, int span, sta_wstring word, bool bold) {
+    void add(Border const& box, int column, int span, core::sta_u16string word, bool bold) {
         boxes_.push_back(box);
         columns_of_.push_back(column);
         spans_.push_back(span);
@@ -268,7 +268,7 @@ public:
                 // Слово не меняется — меряется один раз, пробным TextBlock
                 // того же кегля.
                 winrt::Microsoft::UI::Xaml::Controls::TextBlock probe;
-                probe.Text(winrt::hstring{std::wstring_view{words_[i]}});
+                probe.Text(impl::to_winrt(hstring_param{words_[i]}));
                 probe.FontSize(font_size_);
                 if (bold_[i]) probe.FontWeight(winrt::Microsoft::UI::Text::FontWeights::Bold());
                 probe.Measure({infinite, infinite});
@@ -285,16 +285,16 @@ public:
         }
 
         const double inner = available - 1;  // левая линия рамки
-        sta_wstring spec;
+        core::sta_u16string spec;
         if (max_total <= inner) {
-            for (std::size_t c = 0; c < count; ++c) spec += c ? L",auto" : L"auto";
+            for (std::size_t c = 0; c < count; ++c) spec += c ? u",auto" : u"auto";
         } else {
             const double spare = std::max(0.0, inner - min_total);
             const double room = max_total - min_total;
             for (std::size_t c = 0; c < count; ++c) {
                 double width = narrowest[c];
                 if (room > 0) width += spare * (widest[c] - narrowest[c]) / room;
-                if (c) spec += L',';
+                if (c) spec += u',';
                 append_digits(spec, std::max(1, static_cast<int>(std::floor(width))));
             }
         }
@@ -303,11 +303,11 @@ public:
         grid_.columnDefinitions(spec);
     }
 
-    static void append_digits(sta_wstring& out, int number) {
-        wchar_t digits[12];
+    static void append_digits(core::sta_u16string& out, int number) {
+        char16_t digits[12];
         int count = 0;
         do {
-            digits[count++] = static_cast<wchar_t>(L'0' + number % 10);
+            digits[count++] = static_cast<char16_t>(u'0' + number % 10);
             number /= 10;
         } while (number != 0);
         while (count-- > 0) out += digits[count];
@@ -322,10 +322,10 @@ private:
     pooled_vector<Border> boxes_;
     pooled_vector<int> columns_of_;
     pooled_vector<int> spans_;
-    pooled_vector<sta_wstring> words_;
+    pooled_vector<core::sta_u16string> words_;
     pooled_vector<bool> bold_;
     pooled_vector<double> narrow_;  // min-content ячейки; −1, пока не измерен
-    sta_wstring last_;
+    core::sta_u16string last_;
 };
 
 class builder {
@@ -435,7 +435,7 @@ private:
         // имя с опечаткой выглядит ровно так же.
         const HtmlStyle* named = nullptr;
         HtmlStyle coded;
-        if (const std::wstring_view name = element.attribute_str(attr_t::style); !name.empty()) {
+        if (const zstring_view name = element.attribute_str(attr_t::style); !name.empty()) {
             named = impl_.findStyle(name);
             if (!named && code_style(name, coded)) named = &coded;
             if (!named) report(HtmlErrorKind::UnknownStyle, name);
@@ -545,7 +545,7 @@ private:
     // Expander, которого у переключателя складки нет, а место под неё
     // шаблон всё равно держит (MinHeight темы). Обход без рекурсии.
     static void collapse_template_part(winrt::Microsoft::UI::Xaml::DependencyObject const& root,
-                                       std::wstring_view name) {
+                                       hstring_param const& name) {
         namespace xaml = winrt::Microsoft::UI::Xaml;
         pooled_vector<xaml::DependencyObject> pending;
         pending.push_back(root);
@@ -553,7 +553,7 @@ private:
             const xaml::DependencyObject current = pending.back();
             pending.pop_back();
             if (const auto element = current.try_as<xaml::FrameworkElement>()) {
-                if (element.Name() == name) {
+                if (element.Name() == impl::to_winrt(name)) {
                     element.Visibility(xaml::Visibility::Collapsed);
                     return;
                 }
@@ -599,7 +599,7 @@ private:
         FormattedBlock content{};
         content.fontSize(base_size_);
         content.isTextSelectionEnabled(root_.isTextSelectionEnabled());
-        content.onLink([box = impl_.onLink_](std::wstring_view target) { box->invoke(target); });
+        content.onLink([box = impl_.onLink_](zstring_view target) { box->invoke(target); });
         content.onError([box = impl_.onError_](HtmlError const& error) { box->invoke(error); });
         // Моноширинный — на весь код разом: внутри карточки он один на всё,
         // и снимать его не с чего.
@@ -640,17 +640,17 @@ private:
     void open_details(level_t& entered, const html::node& element, const HtmlStyle* named) {
         open_block(entered, {.margin = theme_.detailsMargin}, named);
 
-        sta_wstring title;
+        core::sta_u16string title;
         for (const html::node& child : element.children()) {
             if (child.tag() == tag_t::summary) {
                 title = flatten(child);
                 break;
             }
         }
-        if (title.empty()) title = L"Подробности";
+        if (title.empty()) title = u"Подробности";
 
         Expander toggle{};
-        toggle.header(std::wstring_view{title});
+        toggle.header(title);
         toggle.isExpanded(false);
         toggle.padding(Thickness{0});
         // Содержимого у переключателя нет, а шаблон держит под него место;
@@ -658,7 +658,7 @@ private:
         Object::Impl::as<winrt::Microsoft::UI::Xaml::FrameworkElement>(toggle).Loaded(
             [](winrt::Windows::Foundation::IInspectable const& sender, auto const&) {
                 collapse_template_part(sender.as<winrt::Microsoft::UI::Xaml::DependencyObject>(),
-                                       L"ExpanderContent");
+                                       u"ExpanderContent");
             });
         block_.appendWideElement(toggle);
         block_.beginFold(toggle);
@@ -679,22 +679,22 @@ private:
 
     // Самое длинное слово содержимого ячейки — то, уже чего колонка не
     // сожмётся (min-content браузера, без разрыва слов).
-    static sta_wstring longest_word(const html::node& cell) {
-        const sta_wstring text = flatten(cell);
-        std::wstring_view best;
-        std::size_t start = std::wstring_view::npos;
+    static core::sta_u16string longest_word(const html::node& cell) {
+        const core::sta_u16string text = flatten(cell);
+        std::u16string_view best;
+        std::size_t start = std::u16string_view::npos;
         for (std::size_t i = 0; i <= text.size(); ++i) {
-            const bool space = i == text.size() || text[i] == L' ' || text[i] == L'\t' ||
-                               text[i] == L'\n' || text[i] == L'\r';
+            const bool space = i == text.size() || text[i] == u' ' || text[i] == u'\t' ||
+                               text[i] == u'\n' || text[i] == u'\r';
             if (!space) {
-                if (start == std::wstring_view::npos) start = i;
+                if (start == std::u16string_view::npos) start = i;
                 continue;
             }
-            if (start != std::wstring_view::npos && i - start > best.size())
-                best = std::wstring_view{text}.substr(start, i - start);
-            start = std::wstring_view::npos;
+            if (start != std::u16string_view::npos && i - start > best.size())
+                best = std::u16string_view{text}.substr(start, i - start);
+            start = std::u16string_view::npos;
         }
-        return sta_wstring{best};
+        return core::sta_u16string{best};
     }
 
     // Число из атрибута объединения: 1 по умолчанию, и всё, что не число
@@ -738,11 +738,11 @@ private:
         const int columns = static_cast<int>(reserved.size());
 
         Grid grid{};
-        sta_wstring spec;
-        for (int r = 0; r < rows; ++r) spec += r ? L",auto" : L"auto";
+        core::sta_u16string spec;
+        for (int r = 0; r < rows; ++r) spec += r ? u",auto" : u"auto";
         grid.rowDefinitions(spec);
         spec.clear();
-        for (int c = 0; c < columns; ++c) spec += c ? L",auto" : L"auto";
+        for (int c = 0; c < columns; ++c) spec += c ? u",auto" : u"auto";
         grid.columnDefinitions(spec);
 
         // Рамка таблицы рисует левую и верхнюю линии, ячейки — правую и
@@ -762,7 +762,7 @@ private:
             FormattedBlock content{};
             content.fontSize(base_size_);
             content.isTextSelectionEnabled(root_.isTextSelectionEnabled());
-            content.onLink([box = impl_.onLink_](std::wstring_view target) { box->invoke(target); });
+            content.onLink([box = impl_.onLink_](zstring_view target) { box->invoke(target); });
             content.onError([box = impl_.onError_](HtmlError const& error) { box->invoke(error); });
             if (cell.header) {
                 content.pushStyle({.bold = true});
@@ -817,12 +817,12 @@ private:
         const double depth = static_cast<double>(lists_.empty() ? 1 : lists_.size());
         open_block(entered, {.margin = Thickness{theme_.listIndent * depth, 0, 0, 2}}, named);
 
-        sta_wstring marker;
+        core::sta_u16string marker;
         if (!lists_.empty() && lists_.back().next > 0) {
             append_marker(marker, lists_.back().next++, lists_.back().numbering);
-            marker += L". ";
+            marker += u". ";
         } else {
-            marker = L"• ";
+            marker = u"• ";
         }
         block_.appendText(marker);
     }
@@ -839,15 +839,15 @@ private:
 
     TextStyle font_style(const html::node& element) const {
         TextStyle style;
-        if (const std::wstring_view color = element.attribute_str(attr_t::color); !color.empty()) {
+        if (const zstring_view color = element.attribute_str(attr_t::color); !color.empty()) {
             style.color = parse_color(color);
             if (!style.color) report(HtmlErrorKind::BadColor, color);
         }
-        if (const std::wstring_view face = element.attribute_str(attr_t::face); !face.empty()) {
-            const std::wstring_view family = first_face(face);
-            if (!family.empty()) style.fontFamily = sta_wstring{family};
+        if (const zstring_view face = element.attribute_str(attr_t::face); !face.empty()) {
+            const std::u16string_view family = first_face(face);
+            if (!family.empty()) style.fontFamily = FontFamily{hstring{family}};
         }
-        if (const std::wstring_view size = element.attribute_str(attr_t::size); !size.empty()) {
+        if (const zstring_view size = element.attribute_str(attr_t::size); !size.empty()) {
             if (const std::optional<double> scale = parse_font_scale(size)) {
                 style.fontSize = base_size_ * *scale;
             } else {
@@ -860,11 +860,11 @@ private:
     // Целыми видами, никогда подстрокой: виды дерева несут терминатор в
     // [size], и разрез посередине его потерял бы — парсер ради этого уже
     // порезал строки <pre> на отдельные куски с узлами <br>.
-    void emit_text(std::wstring_view text) { block_.appendText(text); }
+    void emit_text(zstring_view text) { block_.appendText(text); }
 
     // В диагностический слив, когда он у блока есть. detail — вид в DOM,
     // действителен на время вызова: ровно то, что обещает HtmlError.
-    void report(HtmlErrorKind kind, std::wstring_view detail) const {
+    void report(HtmlErrorKind kind, zstring_view detail) const {
         impl_.onError_->invoke(HtmlError{kind, detail});
     }
 
@@ -904,7 +904,7 @@ private:
     }
 
     void emit_image(const html::node& element) {
-        const std::wstring_view source = element.attribute_str(attr_t::src);
+        const zstring_view source = element.attribute_str(attr_t::src);
         if (source.empty()) {
             report(HtmlErrorKind::MissingImage, element.attribute_str(attr_t::alt));
             return;
@@ -914,15 +914,15 @@ private:
         // называть хранилище самого приложения; удалённое отбрасывается с
         // записью: лента, полная http-картинок, должна сказать, почему не
         // показывает ни одной.
-        std::wstring_view src = source;
-        sta_wstring resolved;
-        const std::size_t scheme = src.find(L"://");
-        if (scheme != std::wstring_view::npos) {
-            sta_wstring name{src.substr(0, scheme)};
-            for (wchar_t& c : name) {
-                if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c + 32);
+        zstring_view src = source;
+        core::sta_u16string resolved;
+        const std::size_t scheme = src.view().find(u"://");
+        if (scheme != std::u16string_view::npos) {
+            core::sta_u16string name{src.view().substr(0, scheme)};
+            for (char16_t& c : name) {
+                if (c >= u'A' && c <= u'Z') c = static_cast<char16_t>(c + 32);
             }
-            if (name != L"file" && name != L"ms-appx" && name != L"ms-appdata") {
+            if (name != u"file" && name != u"ms-appx" && name != u"ms-appdata") {
                 report(HtmlErrorKind::RemoteImage, src);
                 return;
             }
@@ -930,21 +930,22 @@ private:
             // Голый относительный путь — от каталога документа, когда блоку
             // его назвали. Склейка — basic_string: терминирована, как всякий
             // текстовый параметр.
-            const std::filesystem::path path{src};
+            const std::filesystem::path path{src.wide()};
             if (path.is_relative()) {
-                resolved.assign(
-                    (std::filesystem::path{std::wstring_view{impl_.baseDirectory_}} / path)
-                        .native());
+                const std::wstring joined =
+                    (std::filesystem::path{zstring_view{impl_.baseDirectory_}.wide()} / path)
+                        .native();
+                resolved.assign(reinterpret_cast<const char16_t*>(joined.data()), joined.size());
                 src = resolved;
             }
         }
 
         Size size{static_cast<float>(theme_.imageSide), static_cast<float>(theme_.imageSide)};
-        if (const std::wstring_view width = element.attribute_str(attr_t::width); !width.empty()) {
+        if (const zstring_view width = element.attribute_str(attr_t::width); !width.empty()) {
             if (const auto value = parse_number(width)) size.width = static_cast<float>(*value);
             else report(HtmlErrorKind::BadDimension, width);
         }
-        if (const std::wstring_view height = element.attribute_str(attr_t::height); !height.empty()) {
+        if (const zstring_view height = element.attribute_str(attr_t::height); !height.empty()) {
             if (const auto value = parse_number(height)) size.height = static_cast<float>(*value);
             else report(HtmlErrorKind::BadDimension, height);
         }
@@ -952,41 +953,41 @@ private:
     }
 
     // Вид нумерации <ol type>: буква HTML, а всё незнакомое — цифры.
-    static wchar_t numbering(const html::node& element) noexcept {
-        const std::wstring_view type = element.attribute_str(attr_t::type);
-        if (type.size() != 1) return L'1';
-        const wchar_t kind = type.front();
-        return kind == L'a' || kind == L'A' || kind == L'i' || kind == L'I' ? kind : L'1';
+    static char16_t numbering(const html::node& element) noexcept {
+        const zstring_view type = element.attribute_str(attr_t::type);
+        if (type.size() != 1) return u'1';
+        const char16_t kind = type.front();
+        return kind == u'a' || kind == u'A' || kind == u'i' || kind == u'I' ? kind : u'1';
     }
 
     // Номер пункта в виде его списка: 1, a (после z идёт aa, как в браузере),
     // i — римскими; за пределами римской записи снова цифры.
-    static void append_marker(sta_wstring& marker, int number, wchar_t numbering) {
-        if ((numbering == L'a' || numbering == L'A') && number > 0) {
-            wchar_t letters[8];
+    static void append_marker(core::sta_u16string& marker, int number, char16_t numbering) {
+        if ((numbering == u'a' || numbering == u'A') && number > 0) {
+            char16_t letters[8];
             int count = 0;
             for (int rest = number; rest > 0 && count < 8; rest /= 26) {
                 --rest;
-                letters[count++] = static_cast<wchar_t>(numbering + rest % 26);
+                letters[count++] = static_cast<char16_t>(numbering + rest % 26);
             }
             while (count-- > 0) marker += letters[count];
             return;
         }
-        if ((numbering == L'i' || numbering == L'I') && number > 0 && number < 4000) {
+        if ((numbering == u'i' || numbering == u'I') && number > 0 && number < 4000) {
             struct step {
                 int value;
-                std::wstring_view upper;
-                std::wstring_view lower;
+                std::u16string_view upper;
+                std::u16string_view lower;
             };
             constexpr step steps[] = {
-                {1000, L"M", L"m"}, {900, L"CM", L"cm"}, {500, L"D", L"d"}, {400, L"CD", L"cd"},
-                {100, L"C", L"c"},  {90, L"XC", L"xc"},  {50, L"L", L"l"},  {40, L"XL", L"xl"},
-                {10, L"X", L"x"},   {9, L"IX", L"ix"},   {5, L"V", L"v"},   {4, L"IV", L"iv"},
-                {1, L"I", L"i"},
+                {1000, u"M", u"m"}, {900, u"CM", u"cm"}, {500, u"D", u"d"}, {400, u"CD", u"cd"},
+                {100, u"C", u"c"},  {90, u"XC", u"xc"},  {50, u"u", u"l"},  {40, u"XL", u"xl"},
+                {10, u"X", u"x"},   {9, u"IX", u"ix"},   {5, u"V", u"v"},   {4, u"IV", u"iv"},
+                {1, u"I", u"i"},
             };
             for (const step& one : steps) {
                 while (number >= one.value) {
-                    marker += numbering == L'I' ? one.upper : one.lower;
+                    marker += numbering == u'I' ? one.upper : one.lower;
                     number -= one.value;
                 }
             }
@@ -999,19 +1000,19 @@ private:
     // — палитра по фактической теме элемента, светлой или тёмной (цвета
     // Visual Studio: синее ключевое слово с белого фона на чёрном не
     // читается). Реестр стилей смотрели раньше: он сильнее.
-    bool code_style(std::wstring_view name, HtmlStyle& out) {
+    bool code_style(std::u16string_view name, HtmlStyle& out) {
         const std::optional<Color>* themed = nullptr;
         std::uint32_t light = 0;
         std::uint32_t dark = 0;
-        if (name == L"kw") {
+        if (name == u"kw") {
             themed = &theme_.keywordColor;
             light = 0x0000FF;
             dark = 0x569CD6;
-        } else if (name == L"str") {
+        } else if (name == u"str") {
             themed = &theme_.stringColor;
             light = 0x8B0000;
             dark = 0xD69D85;
-        } else if (name == L"com") {
+        } else if (name == u"com") {
             themed = &theme_.commentColor;
             light = 0x008000;
             dark = 0x57A64A;
@@ -1054,7 +1055,7 @@ private:
     // Глубина — втяжка.
     struct list_state {
         int next;
-        wchar_t numbering;
+        char16_t numbering;
     };
     pooled_vector<list_state> lists_;
 };
@@ -1091,8 +1092,8 @@ void MarkupBlock::theme(HtmlTheme const& value) const {
     static_cast<Impl*>(impl())->theme_ = value;
 }
 
-void MarkupBlock::baseDirectory(string_param directory) const {
-    static_cast<Impl*>(impl())->baseDirectory_ = directory.wide();
+void MarkupBlock::baseDirectory(hstring_param const& directory) const {
+    static_cast<Impl*>(impl())->baseDirectory_ = hstring{directory};
 }
 
 }  // namespace wxl

@@ -8,10 +8,10 @@
 // every view points into the document's own arena and the tree owes the
 // input nothing once the parse returns.
 //
-// Every one of those views is null-terminated at [size], deliberately: the
-// terminator costs the arena one wchar_t per string, and it is what lets a
-// view cross into COM/WinRT as a string reference (the param::hstring
-// contract -- zero right after the view) without a copy at the call.
+// Every one of those views is a zstring_view, deliberately: the terminator
+// costs the arena one char16_t per string, and it is what lets a string
+// cross into WinRT as a string reference (the hstring_param contract --
+// zero right after the text) without a copy at the call. The type says so.
 
 export module wxl.html:node;
 
@@ -93,15 +93,15 @@ enum class attr_t : std::uint8_t {
 /// a type whose natural name node::attribute() already wears as a method.
 class attribute_t {
 public:
-    constexpr attribute_t(attr_t name, std::wstring_view value) noexcept
+    constexpr attribute_t(attr_t name, core::zstring_view value) noexcept
         : name_(name), value_(value) {}
 
     constexpr attr_t name() const noexcept { return name_; }
-    constexpr std::wstring_view value() const noexcept { return value_; }
+    constexpr core::zstring_view value() const noexcept { return value_; }
 
 private:
     attr_t name_;
-    std::wstring_view value_;
+    core::zstring_view value_;
 };
 
 /// The attributes of an element, in document order: one array in the arena.
@@ -120,14 +120,14 @@ public:
 
     /// A text node: whitespace already collapsed, entities already decoded,
     /// and a zero right after the view -- see the header comment.
-    inline explicit node(std::wstring_view text) noexcept : value_(text), tag_(tag_t::text) {}
+    inline explicit node(core::zstring_view text) noexcept : value_(text), tag_(tag_t::text) {}
 
     inline tag_t tag() const noexcept { return tag_; }
     inline bool is_text() const noexcept { return tag_ == tag_t::text; }
     inline bool is_element() const noexcept { return tag_ != tag_t::text; }
 
     /// What a text node holds; an element answers empty.
-    constexpr std::wstring_view value() const noexcept { return value_; }
+    constexpr core::zstring_view value() const noexcept { return value_; }
 
     inline const node* parent() const noexcept { return parent_; }
 
@@ -144,7 +144,7 @@ public:
     /// `!x || x->empty()`. What is left of the distinction is `attribute()`
     /// below, for the caller that really is asking whether the element
     /// carries the thing at all.
-    inline std::wstring_view attribute_str(attr_t name) const noexcept {
+    inline core::zstring_view attribute_str(attr_t name) const noexcept {
         for (const attribute_t& candidate : attributes_) {
             if (candidate.name() == name) return candidate.value();
         }
@@ -170,7 +170,7 @@ public:
 private:
     node_list children_;
     const node* parent_ = nullptr;
-    std::wstring_view value_;
+    core::zstring_view value_;
     attribute_span attributes_;
     tag_t tag_;
 };
@@ -246,42 +246,42 @@ enum class error_t : std::uint8_t {
 /// literal).
 struct parse_error {
     error_t code;
-    std::wstring_view detail;
+    core::zstring_view detail;
 };
 
 /// The canonical spelling of a known tag, as a wide literal: what an error
 /// record can point at forever, no arena copy needed.
-constexpr std::wstring_view canonical_name(tag_t tag) noexcept {
+constexpr core::zstring_view canonical_name(tag_t tag) noexcept {
     switch (tag) {
-    case tag_t::p: return L"p";
-    case tag_t::div: return L"div";
-    case tag_t::br: return L"br";
-    case tag_t::h1: return L"h1";
-    case tag_t::h2: return L"h2";
-    case tag_t::h3: return L"h3";
-    case tag_t::blockquote: return L"blockquote";
-    case tag_t::ul: return L"ul";
-    case tag_t::ol: return L"ol";
-    case tag_t::li: return L"li";
-    case tag_t::pre: return L"pre";
-    case tag_t::hr: return L"hr";
-    case tag_t::table: return L"table";
-    case tag_t::tr: return L"tr";
-    case tag_t::td: return L"td";
-    case tag_t::th: return L"th";
-    case tag_t::details: return L"details";
-    case tag_t::summary: return L"summary";
-    case tag_t::b: return L"b";
-    case tag_t::i: return L"i";
-    case tag_t::u: return L"u";
-    case tag_t::s: return L"s";
-    case tag_t::code: return L"code";
-    case tag_t::a: return L"a";
-    case tag_t::img: return L"img";
-    case tag_t::sub: return L"sub";
-    case tag_t::sup: return L"sup";
-    case tag_t::font: return L"font";
-    case tag_t::span: return L"span";
+    case tag_t::p: return u"p";
+    case tag_t::div: return u"div";
+    case tag_t::br: return u"br";
+    case tag_t::h1: return u"h1";
+    case tag_t::h2: return u"h2";
+    case tag_t::h3: return u"h3";
+    case tag_t::blockquote: return u"blockquote";
+    case tag_t::ul: return u"ul";
+    case tag_t::ol: return u"ol";
+    case tag_t::li: return u"li";
+    case tag_t::pre: return u"pre";
+    case tag_t::hr: return u"hr";
+    case tag_t::table: return u"table";
+    case tag_t::tr: return u"tr";
+    case tag_t::td: return u"td";
+    case tag_t::th: return u"th";
+    case tag_t::details: return u"details";
+    case tag_t::summary: return u"summary";
+    case tag_t::b: return u"b";
+    case tag_t::i: return u"i";
+    case tag_t::u: return u"u";
+    case tag_t::s: return u"s";
+    case tag_t::code: return u"code";
+    case tag_t::a: return u"a";
+    case tag_t::img: return u"img";
+    case tag_t::sub: return u"sub";
+    case tag_t::sup: return u"sup";
+    case tag_t::font: return u"font";
+    case tag_t::span: return u"span";
     default: return {};
     }
 }

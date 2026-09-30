@@ -12,30 +12,23 @@
 // which is what lets content arrive in independent chunks (a chat feed
 // appends; nothing is reparsed).
 //
-// Every text parameter is a view with a zero right after it: the view goes
-// into WinRT as a string reference (winrt::param::hstring's contract, and
-// a deliberate abort() when broken -- test/param_hstring_test.cpp), and no
+// Every text parameter is an hstring_param: the text goes into WinRT as a
+// string reference, with the zero after it that the type promises, and no
 // copy is bought here to insure against the caller. Literals, any
-// basic_string and wxl.html's arena views satisfy the contract for free.
+// basic_string and wxl.html's arena views (zstring_view) satisfy it for free.
 
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 
+#include "FontFamily.h"
 #include "Thickness.h"
-#include "string_param.h"
+#include "hstring_param.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "geometry.h"
 
 namespace wxl {
-
-// std::wstring with the STA pool's allocator -- the wchar_t sibling of the
-// generated wxl::wstring (which is char16_t, HSTRING's unit). Styles are
-// created per parsed fragment, so their string lives on the pool like every
-// other repeating allocation on the one STA thread.
-using sta_wstring = std::basic_string<wchar_t, std::char_traits<wchar_t>,
-                                      core::sta_allocator<wchar_t>>;
 
 // One level of inline styling, worn over whatever is outside it: an empty
 // field inherits, a filled one overrides. pushStyle() puts a level on,
@@ -44,7 +37,7 @@ using sta_wstring = std::basic_string<wchar_t, std::char_traits<wchar_t>,
 struct TextStyle {
     std::optional<Color> color;
     std::optional<double> fontSize;
-    std::optional<sta_wstring> fontFamily;
+    std::optional<FontFamily> fontFamily;
     std::optional<bool> bold;
     std::optional<bool> italic;
     std::optional<bool> underline;
@@ -87,7 +80,7 @@ enum class HtmlErrorKind : std::uint8_t {
 // releases right after.
 struct HtmlError {
     HtmlErrorKind kind;
-    std::wstring_view detail;
+    zstring_view detail;
 };
 
 // How a wide element (appendWideElement) takes the width of the text area:
@@ -124,14 +117,14 @@ public:
     void appendParagraph(BlockStyle const& style) const;
 
     // Text in the current effective style (the merge of the pushed levels).
-    void appendText(string_param text) const;
+    void appendText(hstring_param const& text) const;
 
     void appendLineBreak() const;
 
     // A link. Clicks go to the onLink handler; without one, an http/https
     // target opens in the default browser and every other scheme is
     // silently dropped -- the target came with foreign content.
-    void appendLink(string_param text, string_param target) const;
+    void appendLink(hstring_param const& text, hstring_param const& target) const;
 
     // The same link as a scope, for content richer than one flat run:
     // between pushLink() and popLink(), appendText goes inside the link and
@@ -141,7 +134,7 @@ public:
     // around it: the element sits between two halves that share the target,
     // and the text keeps its order. A second pushLink closes the first:
     // links do not nest, in HTML or here.
-    void pushLink(string_param target) const;
+    void pushLink(hstring_param const& target) const;
     void popLink() const;
 
     // Text in its own small block riding the baseline: the sub/sup trick
@@ -149,14 +142,14 @@ public:
     // and a Run cannot shift vertically. `scale` is the size against the
     // current effective one; `drop` shifts down in fractions of that size
     // (negative lifts).
-    void appendScript(string_param text, double scale, double drop) const;
+    void appendScript(hstring_param const& text, double scale, double drop) const;
 
     // An image from a local file or resource URI. The size is required by
     // design (wxl.html/design.md): the bitmap loads asynchronously, and a
     // line that grows after the fact is a jump the reader sees. toolTip
     // doubles as the automation name, same as the toolTip tag everywhere.
-    void appendImage(string_param source, Size size,
-                     string_param toolTip = {}) const;
+    void appendImage(hstring_param const& source, Size size,
+                     hstring_param const& toolTip = {}) const;
 
     // Any element inline with the text -- the door <sub>/<sup> tricks
     // come through.
@@ -196,7 +189,7 @@ public:
     // callable of the right shape converts to one, so that is what a caller
     // writes; a callable of the wrong shape is refused at the call, by the
     // constraint on that conversion.
-    using LinkHandler = core::function<void(std::wstring_view)>;
+    using LinkHandler = core::function<void(zstring_view)>;
 
     void onLink(LinkHandler handler) const;
 

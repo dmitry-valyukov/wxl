@@ -63,7 +63,7 @@ std::u16string narrow(std::wstring const& text) {
     return std::u16string(text.begin(), text.end());
 }
 
-FrameworkElement titled(std::wstring_view title, FrameworkElement const& body, Thickness titleMargin) {
+FrameworkElement titled(zstring_view title, FrameworkElement const& body, Thickness titleMargin) {
     return Grid {
         rowDefinitions = u"auto,*",
         TextBlock {

@@ -56,8 +56,8 @@ namespace glyphs {
 }
 
 // Вкладки над левым деревом. Выбранную узнают по тексту: вкладка — это её имя.
-constexpr std::u16string_view typesTab = u"Types";
-constexpr std::u16string_view resourcesTab = u"Resources";
+constexpr zstring_view typesTab = u"Types";
+constexpr zstring_view resourcesTab = u"Resources";
 
 core::u16_text percent(double factor) {
     core::u16_text text = core::to_u16(factor * 100, std::chars_format::fixed, 0);
@@ -283,7 +283,7 @@ wxl::Teardown wxl_launched() {
                         onSelectionChanged = [left, document](SelectorBar const& bar,
                                                               SelectorBarSelectionChangedEventArgs&) {
                             if (auto const item = bar.selectedItem()) {
-                                bool const resources = std::u16string_view {item.text()} == resourcesTab;
+                                bool const resources = item.text() == resourcesTab;
                                 left->model(resources ? document->resources() : document->types());
                             }
                         },

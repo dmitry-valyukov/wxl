@@ -39,7 +39,7 @@ public:
     /// One character of content, under the whitespace rules: runs of
     /// whitespace collapse to one pending space, block edges trim, `<pre>`
     /// keeps everything and breaks lines into `<br>` nodes.
-    void character(wchar_t c);
+    void character(char16_t c);
 
     /// An explicit line break (`<br>`, BB's newline): the space that would
     /// end the line dies, the new line starts fresh.
@@ -65,7 +65,7 @@ public:
 
     /// Copies scratch text into the arena -- with the zero after it, which
     /// is the terminated-view promise of the whole tree.
-    std::wstring_view copy(const xml::sta_wstring& text);
+    core::zstring_view copy(const core::sta_u16string& text);
 
     /// The attributes of an element, copied into the arena for open().
     attribute_span copy_attributes(std::span<const attribute_t> attributes);
@@ -74,10 +74,10 @@ public:
 
     /// A recovery record; `detail` must live at least as long as the
     /// document -- a literal (canonical_name), or an arena copy.
-    void record(error_t code, std::wstring_view detail);
+    void record(error_t code, core::zstring_view detail);
 
     /// The same, with the detail copied into the arena first.
-    void record_copied(error_t code, const xml::sta_wstring& detail);
+    void record_copied(error_t code, const core::sta_u16string& detail);
 
     /// Flushes what is pending and answers the root. The builder is done;
     /// only document_builder calls this.
@@ -91,7 +91,7 @@ private:
     void close_open_list_item();
     void open_in_table(tag_t tag, attribute_span attributes);
     void foster_cell();
-    void pre_char(wchar_t c);
+    void pre_char(char16_t c);
     node* append_new(tag_t tag, attribute_span attributes);
 
     static constexpr std::size_t kMaxErrors = 64;
@@ -102,7 +102,7 @@ private:
     node* root_;
     xml::sta_vector<node*> open_;
 
-    xml::sta_wstring text_;
+    core::sta_u16string text_;
     bool pending_space_ = false;
     bool has_content_ = false;
 

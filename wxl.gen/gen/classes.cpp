@@ -1676,7 +1676,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                     info.positional.emplace_back(value.param_type,
                                                  std::format("{}(value)", member.name));
                 }
-            } else if (member.winrt_name == "Text" && value.param_type == "string_param") {
+            } else if (member.winrt_name == "Text" && value.param_type == "hstring_param const&") {
                 text_route = member.name;
             }
         }
@@ -1686,7 +1686,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         // names: point a profile at another control library and its
         // controls get the same treatment with nothing hand-written.
         if (auto const& route = text_route.empty() ? content_route : text_route; !route.empty()) {
-            info.positional.emplace_back("string_param", std::format("{}(value)", route));
+            info.positional.emplace_back("hstring_param const&", std::format("{}(value)", route));
         }
 
         bool const base_has = info.base_name != "Object" && info.base_name != "DependencyObject" &&

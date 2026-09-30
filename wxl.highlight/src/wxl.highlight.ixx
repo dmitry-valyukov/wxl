@@ -30,7 +30,7 @@ enum class kind_t : std::uint8_t { plain, keyword, string, comment };
 /// Кусок кода: вид в исходный текст и что это. Куски выходят по порядку и
 /// покрывают вход без зазоров, так что склейка их текстов даёт вход.
 struct piece {
-    std::wstring_view text;
+    std::u16string_view text;
     kind_t kind;
 };
 
@@ -57,12 +57,12 @@ enum class boundary_t : std::uint8_t {
 /// Правило комментария или строки: открыл -- закрыл.
 struct delimited_rule {
     kind_t kind;
-    std::wstring_view open;
-    std::wstring_view close;     ///< пусто -- до конца строки
-    std::wstring_view prefixes;  ///< один из них может стоять перед open: u"..." в Python; цифра 8
+    std::u16string_view open;
+    std::u16string_view close;     ///< пусто -- до конца строки
+    std::u16string_view prefixes;  ///< один из них может стоять перед open: u"..." в Python; цифра 8
                                  ///< в списке разрешает и двухбуквенный u8"..." (C++). Префикс --
                                  ///< начало слова: в середине идентификатора он строку не открывает
-    wchar_t escape;              ///< символ экранирования внутри; 0 -- нет
+    char16_t escape;              ///< символ экранирования внутри; 0 -- нет
     bool doubled_close;          ///< удвоенный close внутри -- не конец: 'it''s'
     bool multiline;              ///< может пересечь перевод строки; иначе кончается с ней
     bool line_start_only;        ///< open только в начале строки: =begin в Ruby
@@ -78,14 +78,14 @@ struct delimited_rule {
 struct keyword_set {
     boundary_t prefix;
     boundary_t postfix;
-    std::span<const std::wstring_view> words;
+    std::span<const std::u16string_view> words;
     std::size_t longest;  ///< длина самого длинного слова: дальше сканер не смотрит
 };
 
 /// Язык: правила комментариев и строк в порядке старшинства, наборы
 /// ключевых слов в порядке старшинства.
 struct language {
-    std::wstring_view name;
+    std::u16string_view name;
     bool case_insensitive;
     std::span<const delimited_rule> delimiters;
     std::span<const keyword_set> keywords;
@@ -94,7 +94,7 @@ struct language {
 /// Язык по имени тега кода: «c#», «cs» и «csharp» -- один C#, регистр
 /// имени не важен. nullptr -- язык не известен, в том числе для самого
 /// «code»: у кода без языка языка нет.
-const language* find_language(std::wstring_view tag) noexcept;
+const language* find_language(std::u16string_view tag) noexcept;
 
 /// Все встроенные языки.
 std::span<const language> languages() noexcept;
@@ -107,7 +107,7 @@ std::span<const language> languages() noexcept;
 /// строкой и остаётся.
 class scanner {
 public:
-    inline scanner(const language& language, std::wstring_view code) noexcept
+    inline scanner(const language& language, std::u16string_view code) noexcept
         : language_(&language), code_(code) {}
 
     /// Следующий кусок; пусто, когда код кончился.
@@ -125,12 +125,12 @@ private:
     std::size_t delimited_end(const delimited_rule& rule, std::size_t at) const noexcept;
 
     const language* language_;
-    std::wstring_view code_;
+    std::u16string_view code_;
     std::size_t pos_ = 0;
 
     // Проба, сделанная при поиске конца обычного куска: следующий вызов
     // начнётся ровно с неё, и считать заново нечего.
-    std::size_t probed_at_ = std::wstring_view::npos;
+    std::size_t probed_at_ = std::u16string_view::npos;
     std::optional<found> probed_;
 };
 

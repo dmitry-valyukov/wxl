@@ -5,7 +5,7 @@
 #include <optional>
 #include <string_view>
 
-#include "../string_param.h"
+#include "../hstring_param.h"
 
 // What stands behind a window's remembered place -- where it was, how large,
 // and whether it was ordinary, maximized or full-screen.
@@ -55,10 +55,10 @@ struct placement_geometry {
 /// make sense of -- a settings file edited by hand, or written by an older
 /// version, must not take the window down. Shared so both windows read one
 /// format one way.
-std::optional<placement_geometry> parse_placement(std::wstring_view text);
+std::optional<placement_geometry> parse_placement(std::u16string_view text);
 
 /// The word a state is written as, for composing the text back.
-std::wstring_view name_of(placement_state state);
+std::u16string_view name_of(placement_state state);
 
 /// Brings a remembered rectangle to the monitors that exist now: unplugged,
 /// resized or rearranged, the old coordinates may put the window where nobody
@@ -76,9 +76,9 @@ RECT fit_placement_to_displays(RECT const& wanted);
 /// one holding most of it is gone, the window moves to wherever the largest
 /// remainder is, and failing that to the centre of the primary display.
 void set_window_placement(winrt::Microsoft::UI::Xaml::Window const& window,
-                          string_param text);
+                          hstring_param const& text);
 
 /// The same text, read back off the window as it stands now.
-std::wstring get_window_placement(winrt::Microsoft::UI::Xaml::Window const& window);
+std::u16string get_window_placement(winrt::Microsoft::UI::Xaml::Window const& window);
 
 }  // namespace wxl::impl

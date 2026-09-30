@@ -77,7 +77,7 @@ using namespace wxl::dsl;
         isTextSelectionEnabled = true,
     };
 
-    block.onLink([](std::wstring_view) {});
+    block.onLink([](zstring_view) {});
     block.onError([](HtmlError const& error) {
         (void)error.kind;
         (void)error.detail;
@@ -114,7 +114,7 @@ using namespace wxl::dsl;
         {L"warn", {.text = {.color = rgb(192, 57, 43), .bold = true}}},
         {L"note", {.text = {.color = rgb(96, 96, 96)}}},
     });
-    markup.onLink([](std::wstring_view) {});
+    markup.onLink([](zstring_view) {});
     markup.onError([](HtmlError const&) {});
     markup.theme(HtmlTheme{.quoteColor = {rgb(128, 128, 128)},
                            .preRadius = 6,
@@ -135,7 +135,7 @@ using namespace wxl::dsl;
     };
     forum.theme(HtmlTheme{});
     forum.baseDirectory(LR"(C:\docs)");
-    forum.onLink([](std::wstring_view) {});
+    forum.onLink([](zstring_view) {});
     forum.onError([](HtmlError const&) {});
     forum.append(L"[quote=Вася]дописано[/quote]");
     forum.bb(L"[list][*]заново[/list]");
@@ -678,7 +678,7 @@ struct BoundModel : core::sta_refcounted {
 // The procedural side of the same members: ordinary calls, all const.
 [[maybe_unused]] void procedural(TextBlock const& text, Button const& button) {
     text.text(L"changed");
-    wstring const current = text.text();
+    hstring const current = text.text();
     button.content(L"Click");
     EventToken const token = button.add_onClick([](Object const&, RoutedEventArgs&) {});
     button.remove_onClick(token);
@@ -1371,36 +1371,44 @@ static_assert(dentRed[0].nearLamp == cushionRed[0].farFromLamp && dentRed[0].far
 // Color is a bare aggregate, the way it crosses the ABI.
 static_assert(std::is_aggregate_v<Color> && std::is_trivially_copyable_v<Color> && sizeof(Color) == 4);
 
-// What a string parameter takes. Every spelling of UTF-16 the code has --
-// and the wxl::wstring a getter hands back, so a value read off one control
-// goes straight into another without naming a unit at the call site.
-static_assert(std::is_convertible_v<wchar_t const*, string_param>);
-static_assert(std::is_convertible_v<char16_t const*, string_param>);
-static_assert(std::is_convertible_v<std::wstring_view, string_param>);
-static_assert(std::is_convertible_v<std::u16string_view, string_param>);
-static_assert(std::is_convertible_v<std::wstring const&, string_param>);
-// And checked text, straight: a model's u16_text reaches a control's setter
-// without a step back through units.
-static_assert(std::is_convertible_v<core::u16_view, string_param>);
-static_assert(std::is_convertible_v<core::u16_text const&, string_param>);
-static_assert(std::is_convertible_v<std::u16string const&, string_param>);
-static_assert(std::is_convertible_v<wstring const&, string_param>);
+// What a string parameter takes: whatever carries a zero after its text, in
+// either unit, and an hstring a getter hands back -- so a value read off one
+// control goes straight into another without naming a unit at the call site.
+static_assert(std::is_convertible_v<char16_t const*, hstring_param>);
+static_assert(std::is_convertible_v<char16_t const (&)[5], hstring_param>);
+static_assert(std::is_convertible_v<wchar_t const*, hstring_param>);
+static_assert(std::is_convertible_v<wchar_t const (&)[5], hstring_param>);
+static_assert(std::is_convertible_v<std::u16string const&, hstring_param>);
+static_assert(std::is_convertible_v<std::wstring const&, hstring_param>);
+// Checked text that owns its buffer, straight: a model's u16_text reaches a
+// control's setter without a step back through units.
+static_assert(std::is_convertible_v<core::u16_text const&, hstring_param>);
+static_assert(std::is_convertible_v<hstring const&, hstring_param>);
+static_assert(std::is_convertible_v<zstring_view, hstring_param>);
 
-// And nothing implicit going back: a parameter that decayed into a wchar_t
+// And no plain view: it promises nothing about the unit after its end, and the
+// type exists to carry that promise. A view goes through assume_terminated().
+static_assert(!std::is_convertible_v<std::u16string_view, hstring_param>);
+static_assert(!std::is_convertible_v<std::wstring_view, hstring_param>);
+static_assert(!std::is_convertible_v<core::u16_view, hstring_param>);
+
+// Nor anything implicit going back: a parameter that decayed into a wchar_t
 // view would be a silent way back to the unit this type exists to leave.
-static_assert(!std::is_convertible_v<string_param, std::wstring_view>);
+static_assert(!std::is_convertible_v<hstring_param, std::wstring_view>);
 
-// The char16_t half is a constant expression, so what it carries can be read
-// here. The wchar_t half cannot be -- the rename is a reinterpret_cast, which
-// constant evaluation never enters -- and is checked in
-// test/string_param_test.cpp instead.
-static_assert(string_param{u"text"}.text() == std::u16string_view{u"text"});
+// The value types that keep a string take the same spellings in one step.
+static_assert(std::is_convertible_v<char16_t const (&)[5], Uri>);
+static_assert(std::is_convertible_v<std::u16string const&, Uri>);
+static_assert(std::is_convertible_v<hstring const&, Uri>);
+static_assert(!std::is_convertible_v<std::u16string_view, Uri>);
+static_assert(std::is_convertible_v<char16_t const (&)[5], FontFamily>);
+static_assert(std::is_convertible_v<char16_t const (&)[5], ImageSource>);
+static_assert(std::is_convertible_v<std::u16string const&, ImageSource>);
 
-// The rename itself is only sound while the two units are the same width.
-// MSVC gives that; the standard promises it nowhere, which is the whole
+// The rename between the two units is only sound while they are the same
+// width. MSVC gives that; the standard promises it nowhere, which is the whole
 // reason the code is moving off wchar_t.
 static_assert(sizeof(wchar_t) == sizeof(char16_t));
-
 // Awaiting an event. A wait is named by what makes it rather than spelled
 // out: the type carries how it reaches its event, and that is the factory's
 // business, not the caller's.

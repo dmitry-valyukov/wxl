@@ -14,8 +14,8 @@ using namespace wxl::dsl;
 namespace {
 
 // Строка настройки: значок, название с пояснением, элемент управления.
-FrameworkElement settingRow(std::u16string_view icon, std::u16string_view label,
-                            std::u16string_view details, FrameworkElement const& control) {
+FrameworkElement settingRow(zstring_view icon, zstring_view label,
+                            zstring_view details, FrameworkElement const& control) {
     auto texts = StackPanel {
         vAlign.center,
         TextBlock {label},
@@ -43,7 +43,7 @@ FrameworkElement settingRow(std::u16string_view icon, std::u16string_view label,
     };
 }
 
-FrameworkElement sectionHeader(std::u16string_view label) {
+FrameworkElement sectionHeader(zstring_view label) {
     return TextBlock {label, Margin {1, 30, 0, 6}, styles.TextBlock.BodyStrong};
 }
 

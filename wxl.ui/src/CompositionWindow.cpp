@@ -1535,7 +1535,7 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     state_->resize(static_cast<float>(client.right), static_cast<float>(client.bottom));
 }
 
-CompositionWindow::CompositionWindow(string_param title, SizeInt32 minSize) : CompositionWindow() {
+CompositionWindow::CompositionWindow(hstring_param const& title, SizeInt32 minSize) : CompositionWindow() {
     this->title(title);
     this->minSize(minSize);
 }
@@ -1653,17 +1653,17 @@ AppWindow CompositionWindow::appWindow() const {
 
 // ---- Само окно ----------------------------------------------------------------
 
-void CompositionWindow::title(string_param value) const {
-    std::wstring const text{value.wide()};
-    ::SetWindowTextW(state_->hwnd, text.c_str());
+void CompositionWindow::title(hstring_param const& value) const {
+    // The text is terminated -- the parameter's contract -- so the pointer goes to
+    // Windows as it lies.
+    ::SetWindowTextW(state_->hwnd, value.text().wc_str());
 }
 
-wstring CompositionWindow::title() const {
+hstring CompositionWindow::title() const {
     int const length = ::GetWindowTextLengthW(state_->hwnd);
-    wstring text(static_cast<std::size_t>(length) + 1, L'\0');
+    core::sta_u16string text(static_cast<std::size_t>(length) + 1, u'\0');
     ::GetWindowTextW(state_->hwnd, reinterpret_cast<wchar_t*>(text.data()), length + 1);
-    text.resize(static_cast<std::size_t>(length));
-    return text;
+    return hstring{std::u16string_view{text.data(), static_cast<std::size_t>(length)}};
 }
 
 void CompositionWindow::minSize(SizeInt32 const& value) const { state_->minSize = value; }
@@ -1720,11 +1720,11 @@ DispatcherQueue CompositionWindow::dispatcherQueue() const {
     return Object::Impl::wrap<DispatcherQueue>(mud::DispatcherQueue::GetForCurrentThread());
 }
 
-void CompositionWindow::placement(string_param saved) const {
+void CompositionWindow::placement(hstring_param const& saved) const {
     // Та же строка, что у генерируемого Window; разбор формата и подгонку к
     // сегодняшним мониторам берём общими -- impl::parse_placement и
     // fit_placement_to_displays из WindowPlacement.cpp.
-    auto const wanted = impl::parse_placement(saved.wide());
+    auto const wanted = impl::parse_placement(saved.text().view());
     if (!wanted) {
         return;  // пусто или мусор: окно остаётся там, где создано
     }
@@ -1747,7 +1747,7 @@ void CompositionWindow::placement(string_param saved) const {
     }
 }
 
-std::wstring CompositionWindow::placement() const {
+hstring CompositionWindow::placement() const {
     WINDOWPLACEMENT placement{};
     placement.length = sizeof(placement);
     if (!::GetWindowPlacement(state_->hwnd, &placement)) {
@@ -1765,12 +1765,12 @@ std::wstring CompositionWindow::placement() const {
         : placement.showCmd == SW_SHOWMAXIMIZED ? impl::placement_state::maximized
                                                 : impl::placement_state::normal;
 
-    std::wstring text{impl::name_of(state)};
+    std::u16string text{impl::name_of(state)};
     for (long const value : {rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top}) {
-        text += L' ';
+        text += u' ';
         wxl::core::append_number(text, value);
     }
-    return text;
+    return hstring{text};
 }
 
 bool CompositionWindow::fullScreen() const { return state_->fullScreen; }

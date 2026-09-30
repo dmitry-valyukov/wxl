@@ -141,7 +141,7 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
         HtmlBlock {
             Margin {0, 0, 0, 12},
             isTextSelectionEnabled = true,
-            std::wstring_view{intro},
+            intro,
         },
         Border {
             CornerRadius {8, 8, 0, 0},
