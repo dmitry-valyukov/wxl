@@ -36,6 +36,15 @@ constexpr Entry ported[] = {
     {L"AutoSuggestBox", &gallery::autoSuggestBoxPage},
     {L"RichTextBlock", &gallery::richTextBlockPage},
     {L"RichEditBox", &gallery::richEditBoxPage},
+    {L"Border", &gallery::borderPage},
+    {L"Canvas", &gallery::canvasPage},
+    {L"Expander", &gallery::expanderPage},
+    {L"Grid", &gallery::gridPage},
+    {L"RelativePanel", &gallery::relativePanelPage},
+    {L"SplitView", &gallery::splitViewPage},
+    {L"StackPanel", &gallery::stackPanelPage},
+    {L"VariableSizedWrapGrid", &gallery::variableSizedWrapGridPage},
+    {L"Viewbox", &gallery::viewboxPage},
 };
 
 }  // namespace
