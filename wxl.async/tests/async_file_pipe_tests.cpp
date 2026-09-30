@@ -121,6 +121,105 @@ task reads_and_is_dropped(path pipe_name, bool& reading) {
     ADD_FAILURE() << "resumed after its task was dropped";
 }
 
+/// A pipe whose far end takes a little and then no more: a write of more than it holds
+/// stays inside the call until somebody reads, or until the call is cut short.
+class narrow_pipe
+{
+public:
+    static constexpr DWORD capacity = 4096;
+
+    narrow_pipe() {
+        static int made = 0;
+
+        const std::wstring name = L"\\\\.\\pipe\\wxl-async-narrow-" +
+                                  std::to_wstring(::GetCurrentProcessId()) + L"-" +
+                                  std::to_wstring(++made);
+
+        reader_ = ::CreateNamedPipeW(name.c_str(), PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_WAIT, 1,
+                                     0, capacity, 0, nullptr);
+        writer_ = ::CreateFileW(name.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+    }
+
+    ~narrow_pipe() {
+        if (writer_ != INVALID_HANDLE_VALUE) ::CloseHandle(writer_);
+        if (reader_ != INVALID_HANDLE_VALUE) ::CloseHandle(reader_);
+    }
+
+    bool made() const noexcept {
+        return reader_ != INVALID_HANDLE_VALUE && writer_ != INVALID_HANDLE_VALUE;
+    }
+
+    /// For a blocking write, on whatever thread makes it.
+    HANDLE writer() const noexcept { return writer_; }
+
+    /// Takes one byte, waiting for it: once it is here, the writer is inside its call.
+    bool take_one() const noexcept {
+        char byte = 0;
+        DWORD got = 0;
+
+        return ::ReadFile(reader_, &byte, 1, &got, nullptr) && got == 1;
+    }
+
+    /// Takes whatever is written until the writer is done, letting it through.
+    void drain() const noexcept {
+        char buffer[capacity];
+        DWORD got = 0;
+
+        while (::ReadFile(reader_, buffer, sizeof(buffer), &got, nullptr) && got != 0) {}
+    }
+
+private:
+    HANDLE reader_ = INVALID_HANDLE_VALUE;
+    HANDLE writer_ = INVALID_HANDLE_VALUE;
+};
+
+/// Says, as it goes, that the operation carrying it has been deleted: it rides in the
+/// capture of the body.
+class deletion_mark
+{
+public:
+    explicit deletion_mark(std::atomic<bool>& deleted) : deleted_(&deleted) {}
+
+    deletion_mark(deletion_mark&& other) noexcept
+        : deleted_(std::exchange(other.deleted_, nullptr)) {}
+
+    deletion_mark& operator=(deletion_mark&&) = delete;
+
+    ~deletion_mark() {
+        if (deleted_) *deleted_ = true;
+    }
+
+private:
+    std::atomic<bool>* deleted_;
+};
+
+/// Gives an orphan up the moment it is started, over and over, and between the orphans
+/// awaits a blocking read carried out where they are -- which has to come through every
+/// time: cutting short is for the call of the operation given up, and no other.
+task reads_among_orphans_given_up(path file_path, int rounds, int& cut_short, int& read) {
+    for (int round = 0; round < rounds; ++round) {
+        { auto given_up = async_directory::exists(file_path); }
+
+        const DWORD outcome = co_await sta_loop::async_call(orphanable, [file_path] {
+            file f = file::open_read(file_path.c_str());
+
+            if (!f.opened()) return ::GetLastError();
+
+            std::byte buffer[4096];
+
+            ::SetLastError(ERROR_SUCCESS);
+            f.read(buffer);
+
+            return ::GetLastError();
+        });
+
+        if (outcome == ERROR_OPERATION_ABORTED)
+            ++cut_short;
+        else if (outcome == ERROR_SUCCESS)
+            ++read;
+    }
+}
+
 class AsyncFilePipeTest : public ::testing::Test
 {
 protected:
@@ -192,4 +291,77 @@ TEST_F(AsyncFilePipeTest, DroppingATaskSuspendedOnAReadInTheKernelCancelsIt) {
 
     EXPECT_FALSE(watchdog.was_needed()) << "the read was waited for instead of cancelled";
     EXPECT_EQ(sta_loop::run_pending(), 0u) << "a given-up operation resumed somebody";
+}
+
+TEST(OrphanTest, GivingUpAnOrphanCutsShortTheCallItStandsIn) {
+    narrow_pipe pipe;
+
+    ASSERT_TRUE(pipe.made());
+
+    static constexpr DWORD not_yet = ~DWORD{0};
+
+    std::atomic<DWORD> outcome{not_yet};
+    std::atomic<bool> deleted{false};
+    hevent left{true};
+
+    // Lets the write through after a while unless told not to, so that a write which
+    // was to be cut short and was not fails the test instead of hanging the binary.
+    std::binary_semaphore done{0};
+    std::jthread rescue([&] {
+        if (!done.try_acquire_for(std::chrono::seconds(10))) pipe.drain();
+    });
+
+    {
+        auto writing = sta_loop::async_call(
+            orphanable, [writer = pipe.writer(), &outcome, &left, mark = deletion_mark(deleted)] {
+                static const std::vector<char> much(1024 * 1024);
+
+                DWORD written = 0;
+
+                outcome = ::WriteFile(writer, much.data(), static_cast<DWORD>(much.size()),
+                                      &written, nullptr)
+                              ? ERROR_SUCCESS
+                              : ::GetLastError();
+
+                left.set();
+            });
+
+        // A byte of the megabyte has come through, so the body is inside its write,
+        // and the pipe holds too little for it to leave.
+        ASSERT_TRUE(pipe.take_one());
+
+        EXPECT_EQ(outcome.load(), not_yet);
+    }
+
+    left.wait();
+    done.release();
+
+    EXPECT_EQ(outcome.load(), static_cast<DWORD>(ERROR_OPERATION_ABORTED));
+
+    wait_until([&] { return deleted.load(); });
+}
+
+TEST_F(AsyncFilePipeTest, GivingAnOrphanUpNeverCutsShortACallOfAnotherOperation) {
+    constexpr int rounds = 2000;
+
+    const path target = root_ / L"among.bin";
+
+    {
+        file made = file::create(target.c_str());
+        const std::vector<std::byte> content(4096, std::byte{7});
+
+        ASSERT_TRUE(made.opened());
+        ASSERT_EQ(made.write(content), content.size());
+    }
+
+    int cut_short = 0;
+    int read = 0;
+
+    task work = reads_among_orphans_given_up(target, rounds, cut_short, read);
+
+    wait_until([&] { return work.done(); });
+    work.result();
+
+    EXPECT_EQ(cut_short, 0);
+    EXPECT_EQ(read, rounds);
 }

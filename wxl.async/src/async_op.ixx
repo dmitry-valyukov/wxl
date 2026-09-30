@@ -269,9 +269,49 @@ private:
     Fn fn_;
 };
 
-/// The same for an orphanable body, with the race a given-up one has to settle: the
-/// thread giving it up and the thread carrying it out meet on one word, and whichever
-/// finds the result with nobody left to take it destroys it there and then.
+/// Where an orphanable operation is, as the two threads that may end it agree: the one
+/// carrying it out and the one giving it up meet on this word.
+///
+/// Giving up an operation that is running also cuts short the call to the system it
+/// stands in -- an opening the system is taking its time over fails at once, as
+/// cancelled. That reaches a thread and not an operation, so it is only ever done to a
+/// thread known to be inside this operation's body: the body does not leave while it is
+/// being done.
+class orphan_stage
+{
+public:
+    /// The carrying thread's call before the body.
+    /// \return `false` if the operation was given up before it started, and is not to.
+    [[nodiscard]] bool enter() noexcept;
+
+    /// The carrying thread's call after the body, whichever way the body ended.
+    /// \return `false` if the operation was given up while it ran: what it made is
+    ///         nobody's, and the caller destroys it.
+    [[nodiscard]] bool leave() noexcept;
+
+    /// The call of the thread giving the operation up.
+    /// \return `true` if the body had finished: what it made is there, and the caller
+    ///         destroys it.
+    [[nodiscard]] bool give_up() noexcept;
+
+private:
+    enum class stage : std::uint8_t {
+        waiting,
+        running,
+        finished,
+        /// Given up while running, and the call the body stands in is being cut short
+        /// this moment: the body waits for that to be over before it leaves.
+        cutting_short,
+        given_up,
+    };
+
+    std::atomic<stage> stage_{stage::waiting};
+
+    /// The thread the body runs on, written before the word says `running`.
+    std::uint32_t thread_ = 0;
+};
+
+/// An orphanable operation whose body is a lambda.
 template <class Fn, class R = std::invoke_result_t<Fn&>>
 class orphan_op_f final : public async_op_t<R>
 {
@@ -281,14 +321,11 @@ public:
 
 protected:
     bool execute() override {
-        stage found = stage::waiting;
-
-        // Given up before it started: it does not start.
-        if (!stage_.compare_exchange_strong(found, stage::running)) [[unlikely]]
+        if (!stage_.enter()) [[unlikely]]
             return true;
 
-        // Caught here rather than by the caller: the word below has to be settled on
-        // the way out of a body that threw as well.
+        // Caught here rather than by the caller: the stage has to be settled on the way
+        // out of a body that threw as well.
         try {
             if constexpr (std::is_void_v<R>)
                 fn_();
@@ -298,24 +335,19 @@ protected:
             this->set_error(std::current_exception());
         }
 
-        found = stage::running;
-
-        // Given up while it ran: what it made is nobody's, and goes now.
-        if (!stage_.compare_exchange_strong(found, stage::finished)) [[unlikely]]
+        if (!stage_.leave()) [[unlikely]]
             this->drop_value();
 
         return true;
     }
 
     void on_cancel() noexcept override {
-        if (stage_.exchange(stage::given_up) == stage::finished) this->drop_value();
+        if (stage_.give_up()) this->drop_value();
     }
 
 private:
-    enum class stage : std::uint8_t { waiting, running, finished, given_up };
-
     Fn fn_;
-    std::atomic<stage> stage_{stage::waiting};
+    orphan_stage stage_;
 };
 
 }  // export namespace wxl::async
