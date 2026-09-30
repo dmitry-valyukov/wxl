@@ -207,6 +207,28 @@ void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& mode
         [](RadioMenuFlyoutItem const& c, bool v) { c.isChecked(v); });   // set
 }
 
+void apply_bind(FlipView const& control, core::observable<int>& model, bind_direction direction) {
+    bind_pair<EventKey::SelectionChanged>(
+        control, model, direction,                                 //
+        [](FlipView const& c) { return c.selectedIndex(); },       // get
+        [](FlipView const& c, int v) { c.selectedIndex(v); });     // set
+}
+
+void apply_bind(PipsPager const& control, core::observable<int>& model, bind_direction direction) {
+    bind_pair<EventKey::SelectedIndexChanged>(
+        control, model, direction,                                     //
+        [](PipsPager const& c) { return c.selectedPageIndex(); },      // get
+        [](PipsPager const& c, int v) { c.selectedPageIndex(v); });    // set
+}
+
+void apply_bind(PagerControl const& control, core::observable<int>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::SelectedIndexChanged>(
+        control, model, direction,                                        //
+        [](PagerControl const& c) { return c.selectedPageIndex(); },      // get
+        [](PagerControl const& c, int v) { c.selectedPageIndex(v); });    // set
+}
+
 void apply_bind(NumberBox const& control, core::observable<int>& model, bind_direction direction) {
     bind_pair<EventKey::ValueChanged>(
         control, model, direction,                                       //

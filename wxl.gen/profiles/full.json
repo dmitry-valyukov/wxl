@@ -398,6 +398,21 @@
         "Microsoft.UI.Xaml.Controls.CalendarView": {
             "comment": "Date & time: the month calendar the Gallery's CalendarView page shows."
         },
+        "Microsoft.UI.Xaml.Controls.PagerControl": {
+            "comment": "Scrolling: a pager for a count of pages, bounded or not."
+        },
+        "Microsoft.UI.Xaml.Controls.PipsPager": {
+            "comment": "Scrolling: dots for the pages of a flip view or a list."
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollView": {
+            "comment": "Scrolling: the ScrollViewer of the compositor, with programmatic scrolling."
+        },
+        "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar": {
+            "comment": "Scrolling: a scroll bar with labels along it."
+        },
+        "Microsoft.UI.Xaml.Controls.SemanticZoom": {
+            "comment": "Scrolling: two views of one collection, close and far."
+        },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
             "members": [

@@ -285,3 +285,15 @@ struct optional_selector<wxl::Offset> {
 };
 
 }  // namespace wxl::core
+
+namespace wxl::core {
+
+// A vector that may be absent -- the centre point of ScrollView.ZoomBy, where
+// empty means the centre of the view. No float pattern is spare, so
+// nullable<Vector2> is std::optional<Vector2>, like Rect's and Point's.
+template <>
+struct optional_selector<wxl::Vector2> {
+    using nullable = std::optional<wxl::Vector2>;
+};
+
+}  // namespace wxl::core

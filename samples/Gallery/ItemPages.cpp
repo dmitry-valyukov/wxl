@@ -45,6 +45,11 @@ constexpr Entry ported[] = {
     {L"StackPanel", &gallery::stackPanelPage},
     {L"VariableSizedWrapGrid", &gallery::variableSizedWrapGridPage},
     {L"Viewbox", &gallery::viewboxPage},
+    {L"PipsPager", &gallery::pipsPagerPage},
+    // PagerControl не включён: уже пустой `PagerControl {}` роняет XAML (0xC000027B) на
+    // установленном рантайме 2.5.1. Причина не установлена; контрол числится
+    // экспериментальным. Страница написана (PagerControlPage.cpp) и собирается; строка
+    // {L"PagerControl", &gallery::pagerControlPage} включается, когда экземпляр заработает.
     {L"ScrollViewer", &gallery::scrollViewerPage},
     {L"CalendarView", &gallery::calendarViewPage},
     {L"TimePicker", &gallery::timePickerPage},

@@ -88,6 +88,8 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement pipsPagerPage();
+wxl::FrameworkElement pagerControlPage();
 wxl::FrameworkElement scrollViewerPage();
 wxl::FrameworkElement calendarViewPage();
 wxl::FrameworkElement timePickerPage();
