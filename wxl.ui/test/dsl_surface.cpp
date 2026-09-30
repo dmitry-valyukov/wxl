@@ -572,6 +572,7 @@ struct BoundModel : core::sta_refcounted {
     core::observable<std::u16string> title{u"WXL"};
     core::observable<bool> busy;
     core::observable<core::u16_text> name;
+    core::observable<Color> tint;
     core::observable<int> row;
     core::observable<double> amount;
 };
@@ -589,6 +590,11 @@ struct BoundModel : core::sta_refcounted {
     CheckBox{isChecked = Bind{model->busy}};
     CheckBox{Bind{model->busy}};
     ToggleButton{isChecked = Bind{model->busy}};
+    RadioButtons{selectedIndex = Bind{model->row}};
+    Slider{value = Bind{model->amount}};
+    RatingControl{value = Bind{model->amount}};
+    ColorPicker{color = Bind{model->tint}};
+    Slider{Bind{model->amount}};
 
     // From the field: the control shows, pair or no pair.
     TextBlock{text = BindOutput{model->title}};  // no pair: the only form a TextBlock's text takes
