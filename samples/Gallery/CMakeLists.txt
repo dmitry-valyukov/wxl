@@ -68,6 +68,12 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    CalendarViewPage.cpp
+    TimePickerPage.cpp
+    DatePickerPage.cpp
+    CalendarDatePickerPage.cpp
+    StandardUICommandPage.cpp
+    XamlUICommandPage.cpp
     SwipeControlPage.cpp
     CommandBarFlyoutPage.cpp
     MenuFlyoutPage.cpp

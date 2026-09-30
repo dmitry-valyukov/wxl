@@ -9,6 +9,7 @@
 //
 // core.h is where the wxl.core import lives, for every wxl header alike.
 #include "core.h"
+#include "hstring_param.h"
 
 struct IInspectable;
 
@@ -134,6 +135,21 @@ public:
     // question. A moved-from wrapper and the empty result of a try_as miss hold
     // none; every freshly built or handed-over one does.
     explicit operator bool() const noexcept { return impl_ != nullptr; }
+
+    // ---- A string that came in an object ----
+    //
+    // A property that takes any object (CommandParameter, an item of a list)
+    // is given a string boxed as one, and an event hands it back as an Object:
+    // `args.parameter()` of a command that was asked to run. These two read
+    // the string out again. Only a string is read -- a number or a value of
+    // another kind is not turned into text -- and text() on an object that
+    // is not one is a wiring mistake, as try_as() on the wrong class is.
+
+    /// Whether this object is a boxed string.
+    bool is_text() const;
+
+    /// The string this object boxes.
+    hstring text() const;
 
     // ---- The way out of wxl, and back in ----
     //
