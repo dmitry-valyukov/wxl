@@ -35,6 +35,10 @@ bool Object::is_text() const {
     return value && value.Type() == winrt::Windows::Foundation::PropertyType::String;
 }
 
+Object Object::from_text(hstring_param const& text) {
+    return copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(winrt::box_value(impl::to_winrt(text)))));
+}
+
 hstring Object::text() const {
     assert(is_text() && "wxl: text() of an object that is not a boxed string");
     return impl::from_winrt(impl_->inspectable_.as<winrt::Windows::Foundation::IPropertyValue>().GetString());

@@ -151,6 +151,10 @@ public:
     /// The string this object boxes.
     hstring text() const;
 
+    /// A string boxed into an object, for what takes any object and is given a text:
+    /// the content of a label, of a tooltip.
+    static Object from_text(hstring_param const& text);
+
     // ---- The way out of wxl, and back in ----
     //
     // Everything above is built for the one STA thread wxl is: the Impl

@@ -405,7 +405,28 @@
             "comment": "Scrolling: dots for the pages of a flip view or a list."
         },
         "Microsoft.UI.Xaml.Controls.ScrollView": {
-            "comment": "Scrolling: the ScrollViewer of the compositor, with programmatic scrolling."
+            "comment": "Scrolling: the ScrollViewer of the compositor, with programmatic scrolling. The scroll controllers of its presenter are properties of the view here, given an AnnotatedScrollBar.",
+            "syntheticMembers": {
+                "VerticalScrollController": {
+                    "comment": "The bar that drives the view up and down, and is told where it is.",
+                    "type": "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar",
+                    "function": "impl::set_vertical_scroll_controller",
+                    "include": "../impl/scroll_controller.h"
+                },
+                "HorizontalScrollController": {
+                    "comment": "The same, sideways.",
+                    "type": "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar",
+                    "function": "impl::set_horizontal_scroll_controller",
+                    "include": "../impl/scroll_controller.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.AnnotatedScrollBarDetailLabelRequestedEventArgs": {
+            "comment": "Scrolling: where the pointer is on the rail, and what to show there.",
+            "members": [
+                "Content",
+                "ScrollOffset"
+            ]
         },
         "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar": {
             "comment": "Scrolling: a scroll bar with labels along it."
