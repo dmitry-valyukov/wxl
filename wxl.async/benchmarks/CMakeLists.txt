@@ -43,6 +43,15 @@ target_link_libraries(wxl.async.wake-latency-benchmark PRIVATE wxl::async synchr
 
 wxl_set_target_folders(wxl.async.wake-latency-benchmark)
 
+# One writer and one reader through spsc_channel, mpsc_channel and the textbook ring under a
+# mutex and condition variables: latency at a steady pace, by the pause between elements, and
+# throughput at full speed.
+add_executable(wxl.async.channels-benchmark channels_benchmark.cpp)
+
+target_link_libraries(wxl.async.channels-benchmark PRIVATE wxl::async)
+
+wxl_set_target_folders(wxl.async.channels-benchmark)
+
 # The loop against the native scheme: the same round trip written the WinRT way --
 # resume_background() out, resume_foreground(DispatcherQueue) back, and the
 # IAsyncOperation a framework call is -- beside sta_loop in its driven shape, on one
