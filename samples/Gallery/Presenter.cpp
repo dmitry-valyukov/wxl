@@ -56,7 +56,7 @@ FrameworkElement copyButton(std::wstring text) {
     return Button {
         Margin {0, 0, 8, 0},
         hAlign.right,
-        vAlign.top,
+        vAlign.center,
         Padding {11, 5, 11, 6},
         styles.Button.Subtle,
         toolTip = u"Copy code",
@@ -156,15 +156,17 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
             CornerRadius {0, 0, 8, 8},
             background = brushes.Card.BackgroundFillColor.Secondary,
             header = u"Source code",
-            content = StackPanel {
-                spacing = 16.0,
+            // Кнопка копирования — в строке вкладки, а не над кодом: у оригинала
+            // она внутри поля кода.
+            content = Grid {
+                rowDefinitions = u"auto,*",
+                rowSpacing = 16.0,
                 language,
-                Grid {
-                    ScrollViewer {
-                        horizontalScrollBarVisibility = ScrollBarVisibility::Auto,
-                        content = code,
-                    },
-                    copyButton(source),
+                copyButton(source),
+                ScrollViewer {
+                    row = 1,
+                    horizontalScrollBarVisibility = ScrollBarVisibility::Auto,
+                    content = code,
                 },
             },
         },
