@@ -1,0 +1,22 @@
+{
+    "comment": "The NuGet packages the tree reads besides what the Windows App SDK release in wxl.gen/profiles/base.json ships. tools/restore-packages.ps1 fetches every one into the NuGet package folder, and nothing else downloads anything.",
+
+    "sdkPackages": [
+        "Microsoft.WindowsAppSDK.Foundation",
+        "Microsoft.WindowsAppSDK.InteractiveExperiences",
+        "Microsoft.WindowsAppSDK.WinUI"
+    ],
+
+    "extra": [
+        { "id": "Microsoft.Graphics.Win2D", "version": "1.4.0" },
+        { "id": "Microsoft.Web.WebView2", "version": "1.0.4078.44" }
+    ],
+
+    "experimental": [
+        {
+            "id": "Microsoft.WindowsAppSDK.WinUI",
+            "version": "2.3.10-experimental",
+            "why": "The metadata of WrapPanel and LayoutPanel: the stable WinUI package keeps them out of Microsoft.UI.Xaml.winmd, the experimental channel declares them."
+        }
+    ]
+}
