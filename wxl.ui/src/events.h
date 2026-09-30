@@ -194,7 +194,12 @@ public:
     EventHandler(Fn&& fn)
         : base_t{[fn = std::forward<Fn>(fn)](Object const& sender, EventArgsRef<Args> args) {
               using T = impl::handler_sender_t<std::decay_t<Fn>>;
-              if (T const control = sender.try_as<T>()) fn(control, args);
+              // A sender named Object is the sender as it came: nothing to convert.
+              if constexpr (std::is_same_v<T, Object>) {
+                  fn(sender, args);
+              } else if (T const control = sender.try_as<T>()) {
+                  fn(control, args);
+              }
           }} {}
 
     // The sender-only form, adapted the same way. The args the event carries
@@ -204,7 +209,11 @@ public:
     EventHandler(Fn&& fn)
         : base_t{[fn = std::forward<Fn>(fn)](Object const& sender, EventArgsRef<Args>) {
               using T = impl::handler_sender_t<std::decay_t<Fn>>;
-              if (T const control = sender.try_as<T>()) fn(control);
+              if constexpr (std::is_same_v<T, Object>) {
+                  fn(sender);
+              } else if (T const control = sender.try_as<T>()) {
+                  fn(control);
+              }
           }} {}
 
     // The nullary form: both are dropped, and nothing is looked up on the way

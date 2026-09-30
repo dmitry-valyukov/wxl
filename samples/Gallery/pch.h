@@ -10,6 +10,7 @@
 #include "HtmlBlock.h"
 #include "RsdnBlock.h"
 #include "launch.h"
+#include "MagnifyEffect.h"
 #include "generated/brushes.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Media.h"

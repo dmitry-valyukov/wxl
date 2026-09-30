@@ -44,19 +44,22 @@ FrameworkElement linkRow(std::wstring_view title, std::wstring_view uri) {
     };
 }
 
-// Кнопка «API details»: пространство имён и цепочка наследования.
+// Кнопка «API details»: пространство имён и цепочка наследования — здесь
+// это обёртки wxl, а не типы WinUI: все они в одном пространстве `wxl` и
+// повторяют цепочку наследования своих оригиналов. Панель флайута задана
+// шириной: презентер флайута по умолчанию уже, чем цепочка.
 FrameworkElement apiDetails(gallery::ControlInfo const& item) {
     if (item.apiNamespace.empty() && item.baseClasses.empty()) {
         return Border {};
     }
-    auto panel = StackPanel {spacing = 16.0};
+    auto panel = StackPanel {width = 420, spacing = 16.0};
     if (!item.apiNamespace.empty()) {
         panel.children().append(StackPanel {
             spacing = 8.0,
             orientation.horizontal,
             caption(u"Namespace"),
             TextBlock {
-                std::wstring_view{item.apiNamespace},
+                u"wxl",
                 vAlign.center,
                 fontFamily = u"Consolas",
                 isTextSelectionEnabled = true,
@@ -77,12 +80,14 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
             TextBlock {
                 std::wstring_view{chain},
                 fontFamily = u"Consolas",
+                isTextSelectionEnabled = true,
                 styles.TextBlock.Caption,
                 textWrapping.wrap,
             },
         });
     }
     return Button {
+        gallery::appPop(),
         Padding {4},
         vAlign.bottom,
         Margin {0, 0, 0, 3},
@@ -95,7 +100,6 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         },
     };
 }
-
 FrameworkElement documentation(gallery::ControlInfo const& item) {
     if (item.docs.empty()) {
         return Border {};
@@ -105,6 +109,7 @@ FrameworkElement documentation(gallery::ControlInfo const& item) {
         links.children().append(linkRow(doc.title, doc.uri));
     }
     return DropDownButton {
+        gallery::appPop(),
         toolTip = u"Documentation",
         content = StackPanel {
             orientation.horizontal,
@@ -128,6 +133,7 @@ FrameworkElement sourceLinks(gallery::ControlInfo const& item) {
     }
     auto const uri = std::wstring{winUIBaseUrl} + item.sourcePath;
     return DropDownButton {
+        gallery::appPop(),
         toolTip = u"Source code of this control",
         content = StackPanel {
             orientation.horizontal,
@@ -149,6 +155,7 @@ FrameworkElement sourceLinks(gallery::ControlInfo const& item) {
 // Переключатель темы окна: тема ставится корню, как в HelloHere.
 FrameworkElement themeButton() {
     return Button {
+        gallery::appPop(),
         height = 32,
         Margin {0, 0, 4, 0},
         toolTip = u"Toggle theme",
@@ -166,6 +173,7 @@ FrameworkElement themeButton() {
 FrameworkElement favoriteButton(std::wstring id) {
     bool const on = gallery::isFavorite(id);
     return ToggleButton {
+        gallery::appPop(),
         height = 32,
         Margin {4, 0, 0, 0},
         isChecked = on,
