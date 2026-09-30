@@ -182,6 +182,8 @@ add_library(wxl.ui STATIC
     src/Panels.cpp
     src/SplitPanel.h
     src/SplitPanel.cpp
+    src/CustomLayout.h
+    src/CustomLayout.cpp
     src/AppZoom.h
     src/AppZoom.cpp
     src/ZoomEffect.h
@@ -227,6 +229,8 @@ add_library(wxl.ui STATIC
     src/impl/grid_definitions.cpp
     src/impl/tool_tip.h
     src/impl/tool_tip.cpp
+    src/impl/wheel_to_parent.h
+    src/impl/wheel_to_parent.cpp
     src/impl/automation_name.h
     src/impl/automation_name.cpp
     src/impl/value_box.h

@@ -157,6 +157,7 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
             content = Grid {
                 ScrollViewer {
                     horizontalScrollBarVisibility = ScrollBarVisibility::Auto,
+                    wheelToParent = true,
                     content = code,
                 },
                 copyButton(source),

@@ -88,6 +88,7 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement layoutPanelPage();
 wxl::FrameworkElement wrapPanelPage();
 wxl::FrameworkElement appBarSeparatorPage();
 wxl::FrameworkElement appBarToggleButtonPage();

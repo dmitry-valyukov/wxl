@@ -238,9 +238,11 @@
             ]
         },
         "Microsoft.UI.Xaml.UIElement": {
-            "comment": "Status & info: a tip that is an element of its own (ToolTipService.ToolTip over an object), beside toolTip, which is the text.",
+            "comment": "Status & info: a tip that is an element of its own (ToolTipService.ToolTip over an object), beside toolTip, which is the text. Layout: Measure and Arrange, which a custom layout calls on its children.",
             "members": [
-                "KeyboardAccelerators"
+                "KeyboardAccelerators",
+                "Measure",
+                "Arrange"
             ],
             "syntheticMembers": {
                 "ToolTipElement": {
@@ -279,6 +281,26 @@
         },
         "Microsoft.UI.Xaml.Controls.LayoutPanel": {
             "comment": "Layout: a panel that places its children by a layout object."
+        },
+        "Microsoft.UI.Xaml.Controls.StackLayout": {
+            "comment": "Layout: the layout LayoutPanel gets beside a custom one.",
+            "members": [
+                "Orientation",
+                "Spacing"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollViewer": {
+            "comment": "Gallery: a code block in a horizontal ScrollViewer must not keep the wheel from the page around it.",
+            "members": [],
+            "syntheticMembers": {
+                "WheelToParent": {
+                    "comment": "A wheel turn this viewer cannot use (nothing to scroll up or down, no modifier key) goes on up to the panel that scrolls the page. The viewer takes the wheel and marks it handled even when it scrolls nothing, so without this a horizontal strip of code stops the page.",
+                    "cppType": "bool",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_wheel_to_parent",
+                    "include": "../impl/wheel_to_parent.h"
+                }
+            }
         },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",

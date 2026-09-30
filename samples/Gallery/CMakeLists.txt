@@ -68,6 +68,7 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    LayoutPanelPage.cpp
     WrapPanelPage.cpp
     AppBarSeparatorPage.cpp
     AppBarToggleButtonPage.cpp

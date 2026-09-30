@@ -14,6 +14,7 @@
 #include "event_awaitable.h"
 #include "Card.h"
 #include "CompositionWindow.h"
+#include "CustomLayout.h"
 #include "DrawingSurface.h"
 #include "FormattedBlock.h"
 #include "HtmlBlock.h"
@@ -1682,3 +1683,17 @@ struct probe_task {
 }
 
 }  // namespace
+
+// A ScrollViewer that hands the wheel it cannot use to the scroller above it.
+[[maybe_unused]] void wheel_to_parent() {
+    ScrollViewer{wheelToParent = true, horizontalScrollBarVisibility = ScrollBarVisibility::Auto};
+}
+
+// A layout written as two functions, in a LayoutPanel.
+[[maybe_unused]] void custom_layout() {
+    auto const custom = CustomLayout{
+        [](Collection<UIElement> const& children, Size available) { return available; },
+        [](Collection<UIElement> const& children, Size final) { return final; },
+    };
+    LayoutPanel{layout = custom};
+}
