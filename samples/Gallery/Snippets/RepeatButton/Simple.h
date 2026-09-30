@@ -4,7 +4,7 @@
 struct Model {
     core::observable<bool> enabled{true};
 };
-auto const model = gallery::hold(std::make_shared<Model>());
+auto const model = gallery::hold<Model>();
 auto output = TextBlock {Margin {8, 0, 0, 0}, vAlign.center};
 
 auto button = RepeatButton {

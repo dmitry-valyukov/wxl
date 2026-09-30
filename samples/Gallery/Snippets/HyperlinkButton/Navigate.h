@@ -4,7 +4,7 @@
 struct Model {
     core::observable<bool> enabled{true};
 };
-auto const model = gallery::hold(std::make_shared<Model>());
+auto const model = gallery::hold<Model>();
 auto link = HyperlinkButton {
     content = u"Microsoft home page",
     navigateUri = u"https://www.microsoft.com",

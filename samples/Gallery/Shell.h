@@ -27,8 +27,10 @@ void navigate(Destination destination);
 // элемент. Страницу сменили — модель отпускается, и вместе с ней элементы.
 void holdModel(std::shared_ptr<void> model);
 
-template <class Model>
-std::shared_ptr<Model> hold(std::shared_ptr<Model> model) {
+// Строит модель и отдаёт её оболочке: `auto const model = gallery::hold<Model>();`
+template <class Model, class... Arguments>
+std::shared_ptr<Model> hold(Arguments&&... arguments) {
+    auto model = std::make_shared<Model>(std::forward<Arguments>(arguments)...);
     holdModel(model);
     return model;
 }
