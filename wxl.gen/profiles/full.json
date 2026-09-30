@@ -267,9 +267,11 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.CommandBar": {
-            "comment": "Menus & toolbars: a bar that stays open until told to close.",
+            "comment": "Menus & toolbars: a bar that stays open until told to close, and says when it opens and closes (the user does that too, with the ellipsis).",
             "members": [
-                "IsSticky"
+                "IsSticky",
+                "Opened",
+                "Closed"
             ]
         },
         "Microsoft.UI.Xaml.Controls.ICommandBarElement": {
