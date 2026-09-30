@@ -1,36 +1,39 @@
-// The one thing the model holds is what was chosen; the picture, the name and
-// the subtitle under the box are all derived from it.
+// The model holds what was chosen and follows it: the control is looked up
+// once, and what the details show is read off that.
 struct Model {
     core::observable<std::u16string> name;
+    core::observable<gallery::ControlInfo const*> control;
+    core::observable<Visibility> visibility;
+    core::observable<std::wstring> image;
+    core::observable<std::wstring> subtitle;
+
+    Model() {
+        control.follow(name, [](std::u16string const& name) { return gallery::controlByTitle(name); });
+        visibility.follow(control, [](gallery::ControlInfo const* control) {
+            return control ? Visibility::Visible : Visibility::Collapsed;
+        });
+        image.follow(control, [](gallery::ControlInfo const* control) {
+            return control ? gallery::assetPath(control->imagePath) : std::wstring{};
+        });
+        subtitle.follow(control, [](gallery::ControlInfo const* control) {
+            return control ? control->subtitle : std::wstring{};
+        });
+    }
 };
 auto const model = gallery::hold<Model>();
 
 auto details = StackPanel {
     orientation.horizontal,
     Margin {0, 8, 0, 0},
-    visibility = BindOutput {model->name,
-        [](std::u16string const& name) {
-            return gallery::controlByTitle(name) ? Visibility::Visible : Visibility::Collapsed;
-        }},
-    Image {
-        height = 75,
-        source = BindOutput {model->name,
-            [](std::u16string const& name) {
-                auto const* control = gallery::controlByTitle(name);
-                return control ? gallery::assetPath(control->imagePath) : std::wstring{};
-            }},
-    },
+    visibility = BindOutput {model->visibility},
+    Image {height = 75, source = BindOutput {model->image}},
     StackPanel {
         vAlign.center,
         TextBlock {Margin {8, 0, 0, 0}, styles.TextBlock.BodyStrong, text = BindOutput {model->name}},
         TextBlock {
             Margin {8, 0, 0, 0},
             textWrapping.wrapWholeWords,
-            text = BindOutput {model->name,
-                [](std::u16string const& name) {
-                    auto const* control = gallery::controlByTitle(name);
-                    return control ? control->subtitle : std::wstring{};
-                }},
+            text = BindOutput {model->subtitle},
         },
     },
 };
