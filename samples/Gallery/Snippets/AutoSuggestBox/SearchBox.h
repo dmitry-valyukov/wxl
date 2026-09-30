@@ -14,7 +14,7 @@ auto details = StackPanel {
 auto const show = [picture, nameText, subtitleText, details](std::u16string_view name) {
     if (auto const* control = gallery::controlByTitle(name)) {
         details.visibility(Visibility::Visible);
-        picture.source(gallery::assetPath(control->imagePath).c_str());
+        picture.source(gallery::assetPath(control->imagePath));
         nameText.text(name);
         subtitleText.text(control->subtitle);
     }

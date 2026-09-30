@@ -145,7 +145,9 @@ inline winrt::Windows::Foundation::Uri to_winrt(Uri const& value) {
 }
 
 inline Uri from_winrt(winrt::Windows::Foundation::Uri const& value) {
-    return value ? Uri{value.ToString()} : Uri{};
+    // The hstring is read as a view by name: string_param has no winrt type
+    // to take it as, and the temporary lives to the end of the statement.
+    return value ? Uri{std::wstring_view{value.ToString()}} : Uri{};
 }
 
 // A font family. The runtime type is built from the name and remembers

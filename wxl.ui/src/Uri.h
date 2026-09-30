@@ -9,6 +9,7 @@
 // keeps `NavigateUri = L"https://..."` to exactly those characters.
 
 #include "generated/collections.h"
+#include "string_param.h"
 
 namespace wxl {
 
@@ -17,16 +18,15 @@ public:
     Uri() = default;
 
     // Not explicit, on purpose: the whole point is that a string literal is
-    // a URI wherever a property asks for one. The pointer overload is what
-    // makes the literal itself work -- through the view alone it would take
-    // two user-defined conversions, which an implicit sequence never has.
-    Uri(std::wstring_view text) noexcept
-        : text_(reinterpret_cast<char16_t const*>(text.data()), text.size()) {}
-
-    Uri(wchar_t const* text) noexcept : Uri(std::wstring_view{text}) {}
-
-    Uri(std::u16string_view text) noexcept : text_(text.data(), text.size()) {}
-    Uri(char16_t const* text) noexcept : Uri(std::u16string_view{text}) {}
+    // a URI wherever a property asks for one. What counts as a string is
+    // string_param's business and nobody else's here. It is a template, not
+    // a `Uri(string_param)`, because through that a literal would take two
+    // user-defined conversions (literal to string_param, string_param to Uri),
+    // which an implicit sequence never has; deduced, the literal arrives as
+    // itself and string_param is the one conversion inside.
+    template <typename Text>
+        requires std::convertible_to<Text const&, string_param>
+    Uri(Text const& text) noexcept : Uri{Own{}, string_param{text}} {}
 
     // The reinterpret_cast is between wchar_t and char16_t, the same 16-bit
     // code unit on Windows differing only in type.
@@ -37,6 +37,10 @@ public:
     bool empty() const noexcept { return text_.empty(); }
 
 private:
+    struct Own {};
+
+    Uri(Own, string_param text) noexcept : text_(text.text().data(), text.text().size()) {}
+
     wstring text_;
 };
 

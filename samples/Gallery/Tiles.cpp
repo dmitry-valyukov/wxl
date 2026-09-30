@@ -27,7 +27,7 @@ wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
                 width = 32,
                 Margin {8, 12, 16, 0},
                 vAlign.top,
-                source = std::wstring_view{image},
+                source = image,
             },
             StackPanel {
                 column = 1,
