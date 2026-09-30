@@ -68,6 +68,11 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    ToolTipPage.cpp
+    ProgressRingPage.cpp
+    ProgressBarPage.cpp
+    InfoBarPage.cpp
+    InfoBadgePage.cpp
     RichTextBlockPage.cpp
     RichEditBoxPage.cpp
     ${_gallery_snippets}

@@ -88,6 +88,11 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement toolTipPage();
+wxl::FrameworkElement progressRingPage();
+wxl::FrameworkElement progressBarPage();
+wxl::FrameworkElement infoBarPage();
+wxl::FrameworkElement infoBadgePage();
 wxl::FrameworkElement richTextBlockPage();
 wxl::FrameworkElement richEditBoxPage();
 
