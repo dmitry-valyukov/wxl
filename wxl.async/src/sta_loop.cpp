@@ -141,7 +141,9 @@ void sta_loop::worker::run() {
         for (async_op* op = nullptr; reader.read(op); worked = true) execute(op);
 
         // The channel's waiting protocol around the port's sleep: armed, fenced, looked
-        // at once more, and only then asleep.
+        // at once more, and only then asleep. A closed channel is never slept on: the
+        // wake-up that came with the close may already have been taken by a look
+        // into the port after a run of work.
         if (!worked) {
             to_worker_.arm();
             std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -150,6 +152,9 @@ void sta_loop::worker::run() {
                 to_worker_.disarm();
                 execute(op);
                 worked = true;
+            } else if (to_worker_.closed()) {
+                to_worker_.disarm();
+                break;
             }
         }
 
@@ -169,8 +174,6 @@ void sta_loop::worker::run() {
             from_worker_.send(op);
         }
 
-        // Asked only after a sleep, never once per operation: close() forces a
-        // wakeup, so the path that slept sees every close there will ever be.
         if (!worked && to_worker_.closed()) break;
     }
 
