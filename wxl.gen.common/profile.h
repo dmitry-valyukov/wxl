@@ -109,6 +109,13 @@ struct PackageRef {
     std::vector<std::string> resources;
 
     std::string version;       // empty for a package the SDK release ships
+
+    // A version of a package the SDK release ships, named in place of the one
+    // the release declares -- for every entry of that id in every profile of
+    // the set. The one deliberate departure from "the release's packages are
+    // one consistent set": a package whose other channel declares types the
+    // stable one keeps out, and the profile that asks for them says why.
+    std::string override_version;
     std::string metadata_dir;  // empty means "metadata", the layout the SDK uses
 };
 

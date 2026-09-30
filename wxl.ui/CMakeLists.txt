@@ -39,6 +39,9 @@ endif()
 # from the WindowsAppSDK metadata and lives in the repo.
 find_package(cppwinrt CONFIG REQUIRED)
 
+# Where the NuGet packages are, and at which versions: cmake/wxl_packages.cmake.
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/wxl_packages.cmake")
+
 # Relative to this directory, not CMAKE_SOURCE_DIR: wxl.ui builds both
 # standalone and as a subdirectory, and the projection lives in the repo
 # next to both.
@@ -56,8 +59,9 @@ endif()
 # dependencies, so this is wired here
 # rather than by every consuming application. Declared before the target,
 # since both the include path and the import library below use it.
+wxl_nuget_package_dir(_wxl_foundation_dir Microsoft.WindowsAppSDK.Foundation)
 set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
-    "D:/Users/Dima/.nuget/packages/microsoft.windowsappsdk.foundation/2.3.5"
+    "${_wxl_foundation_dir}"
     CACHE PATH "WindowsAppSDK.Foundation NuGet package (Bootstrap headers/lib/dll)")
 
 # WinUI3's native interop headers: microsoft.ui.xaml.window.h, which is how
@@ -68,8 +72,9 @@ set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
 # Not the InteractiveExperiences package's Microsoft.UI.Interop.h, which
 # would answer the same question through a WindowId: it includes the ABI
 # header Microsoft.UI.h, which that package does not carry.
+wxl_nuget_package_dir(_wxl_winui_dir Microsoft.WindowsAppSDK.WinUI)
 set(WXL_WINDOWSAPPSDK_WINUI_DIR
-    "D:/Users/Dima/.nuget/packages/microsoft.windowsappsdk.winui/2.3.2"
+    "${_wxl_winui_dir}"
     CACHE PATH "WindowsAppSDK.WinUI NuGet package (native interop headers)")
 
 # Win2D (Microsoft.Graphics.Canvas) -- CompositionWindow grabs textures with it
@@ -77,8 +82,9 @@ set(WXL_WINDOWSAPPSDK_WINUI_DIR
 # DLL activates unpackaged and, like the bootstrapper above, must sit next to the
 # consumer's executable -- or the window's constructor faults building the shared
 # CanvasDevice. wxl declares the path; the consumer copies the DLL.
+wxl_nuget_package_dir(_wxl_win2d_dir Microsoft.Graphics.Win2D)
 set(WXL_WIN2D_DIR
-    "D:/Users/Dima/.nuget/packages/microsoft.graphics.win2d/1.4.0"
+    "${_wxl_win2d_dir}"
     CACHE PATH "Win2D (Microsoft.Graphics.Canvas) NuGet package (native runtime DLL)")
 
 add_library(wxl.ui STATIC

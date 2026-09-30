@@ -269,6 +269,7 @@ PackageRef read_package(value const& entry, std::filesystem::path const& source)
     // Checked against the SDK release below, where it is known whether this
     // package is one the release ships.
     package.version = string_or(entry, source, "version", {});
+    package.override_version = string_or(entry, source, "overrideVersion", {});
     package.metadata_dir = string_or(entry, source, "metadataDir", {});
     if (value const* const listed = entry.find("metadata")) {
         auto const names = read_string_set(*listed, source, "metadata");
@@ -646,9 +647,30 @@ ProfileSet resolve_profiles(std::vector<std::filesystem::path> const& paths,
         package_versions.emplace(wxl::core::ascii_lower(windows_app_sdk_id), chose_sdk->windows_app_sdk);
     }
 
+    // A version a profile puts in place of the release's own applies to the
+    // package wherever any profile of the set lists it.
+    std::map<std::string, std::string> overridden;
+    for (auto&& profile : with_packages) {
+        for (auto&& package : profile.packages) {
+            if (!package.override_version.empty()) {
+                overridden[wxl::core::ascii_lower(package.id)] = package.override_version;
+            }
+        }
+    }
+
     for (auto&& profile : with_packages) {
         for (auto&& package : profile.packages) {
             auto const shipped = package_versions.find(wxl::core::ascii_lower(package.id));
+            if (auto const over = overridden.find(wxl::core::ascii_lower(package.id));
+                over != overridden.end()) {
+                for (auto&& file : resolve_package(package, over->second, nuget_root, profile.source)) {
+                    metadata.insert(file);
+                }
+                for (auto&& file : resolve_resources(package, over->second, nuget_root, profile.source)) {
+                    resources.insert(file);
+                }
+                continue;
+            }
 
             // A package the release ships takes its version from the release
             // and may not name one: a hand-picked version there is the

@@ -8,6 +8,14 @@
     "windowsAppSdk": "2.4.0",
     "windowsMetadata": true,
 
+    "packages": [
+        {
+            "id": "Microsoft.WindowsAppSDK.WinUI",
+            "overrideVersion": "2.3.10-experimental",
+            "comment": "WrapPanel and LayoutPanel: the stable WinUI package keeps them out of Microsoft.UI.Xaml.winmd, this channel declares them. The whole WinUI metadata and style catalogue are read from it, the rest of the release is the stable one. tools/packages.json pins the same version for tools/restore-packages.ps1."
+        }
+    ],
+
     "types": {
         "Microsoft.UI.Xaml.Controls.UserControl": {
             "comment": "The base of the Gallery's own controls (ControlExample, PageHeader) and of Page. Whole surface.",
@@ -265,6 +273,12 @@
         "Microsoft.UI.Xaml.Controls.ICommandBarElement": {
             "comment": "Menus & toolbars: what a command bar holds -- AppBarButton, AppBarToggleButton, AppBarSeparator -- which has no class of its own, only this interface.",
             "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.WrapPanel": {
+            "comment": "Layout: items that flow and wrap."
+        },
+        "Microsoft.UI.Xaml.Controls.LayoutPanel": {
+            "comment": "Layout: a panel that places its children by a layout object."
         },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
