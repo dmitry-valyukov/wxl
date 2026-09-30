@@ -4,6 +4,7 @@
 // строки (названия), а по выбранному названию контрол находится в каталоге.
 
 #include "Pages.h"
+#include "Shell.h"
 #include "StringList.h"
 
 #include <string>

@@ -1,25 +1,39 @@
-auto picture = Image {height = 75};
-auto nameText = TextBlock {Margin {8, 0, 0, 0}, styles.TextBlock.BodyStrong};
-auto subtitleText = TextBlock {Margin {8, 0, 0, 0}, textWrapping.wrapWholeWords};
+// The one thing the model holds is what was chosen; the picture, the name and
+// the subtitle under the box are all derived from it.
+struct Model {
+    core::observable<std::u16string> name;
+};
+auto const model = gallery::hold<Model>();
 
 auto details = StackPanel {
     orientation.horizontal,
     Margin {0, 8, 0, 0},
-    visibility = Visibility::Collapsed,
-    picture,
-    StackPanel {vAlign.center, nameText, subtitleText},
+    visibility = BindOutput {model->name,
+        [](std::u16string const& name) {
+            return gallery::controlByTitle(name) ? Visibility::Visible : Visibility::Collapsed;
+        }},
+    Image {
+        height = 75,
+        source = BindOutput {model->name,
+            [](std::u16string const& name) {
+                auto const* control = gallery::controlByTitle(name);
+                return control ? gallery::assetPath(control->imagePath) : std::wstring{};
+            }},
+    },
+    StackPanel {
+        vAlign.center,
+        TextBlock {Margin {8, 0, 0, 0}, styles.TextBlock.BodyStrong, text = BindOutput {model->name}},
+        TextBlock {
+            Margin {8, 0, 0, 0},
+            textWrapping.wrapWholeWords,
+            text = BindOutput {model->name,
+                [](std::u16string const& name) {
+                    auto const* control = gallery::controlByTitle(name);
+                    return control ? control->subtitle : std::wstring{};
+                }},
+        },
+    },
 };
-
-// What was chosen is shown under the box.
-auto const show = [picture, nameText, subtitleText, details](std::u16string_view name) {
-    if (auto const* control = gallery::controlByTitle(name)) {
-        details.visibility(Visibility::Visible);
-        picture.source(gallery::assetPath(control->imagePath));
-        nameText.text(name);
-        subtitleText.text(control->subtitle);
-    }
-};
-
 auto box = AutoSuggestBox {
     width = 300,
     hAlign.left,
@@ -43,14 +57,14 @@ auto box = AutoSuggestBox {
             self.text(title);
         }
     },
-    onQuerySubmitted = [show](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
+    onQuerySubmitted = [model](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
         if (args.chosenSuggestion()) {
-            show(stringOf(args.chosenSuggestion()));
+            model->name.set(std::u16string{stringOf(args.chosenSuggestion())});
         } else if (!args.queryText().empty()) {
             // No suggestion picked: the first control that matches the text.
             auto const found = gallery::controlTitles(args.queryText());
             if (!found.empty()) {
-                show(found.front());
+                model->name.set(std::u16string{found.front()});
             }
         }
     },
