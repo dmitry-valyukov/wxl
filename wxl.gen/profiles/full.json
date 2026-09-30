@@ -371,6 +371,30 @@
                 "PointerDeviceType"
             ]
         },
+        "Microsoft.UI.Xaml.Controls.DatePicker": {
+            "comment": "Date & time: the date and what of it is shown.",
+            "members": [
+                "Date",
+                "DayFormat",
+                "DayVisible",
+                "MonthVisible",
+                "YearVisible",
+                "MinYear",
+                "MaxYear",
+                "CalendarIdentifier"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TimePicker": {
+            "comment": "Date & time: the clock and how finely minutes go.",
+            "members": [
+                "MinuteIncrement",
+                "ClockIdentifier",
+                "Time"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.CalendarView": {
+            "comment": "Date & time: the month calendar the Gallery's CalendarView page shows."
+        },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
             "members": [
@@ -441,6 +465,7 @@
             "comment": "AllowFocusOnInteraction: a button that opens a flyout holding an input keeps focus when pressed. Parent: a handler reads its siblings from the panel it is in, so that no handler has to capture an element (a captured sibling that captures back is a cycle nothing breaks).",
             "members": [
                 "Parent",
+                "Language",
                 "AllowFocusOnInteraction"
             ]
         },

@@ -1,0 +1,1 @@
+TimePicker {header = u"Arrival time", minuteIncrement = 15}
