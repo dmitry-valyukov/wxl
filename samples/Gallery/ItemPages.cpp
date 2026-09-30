@@ -29,6 +29,13 @@ constexpr Entry ported[] = {
     {L"RatingControl", &gallery::ratingControlPage},
     {L"Slider", &gallery::sliderPage},
     {L"ToggleSwitch", &gallery::toggleSwitchPage},
+    {L"TextBlock", &gallery::textBlockPage},
+    {L"TextBox", &gallery::textBoxPage},
+    {L"PasswordBox", &gallery::passwordBoxPage},
+    {L"NumberBox", &gallery::numberBoxPage},
+    {L"AutoSuggestBox", &gallery::autoSuggestBoxPage},
+    {L"RichTextBlock", &gallery::richTextBlockPage},
+    {L"RichEditBox", &gallery::richEditBoxPage},
 };
 
 }  // namespace

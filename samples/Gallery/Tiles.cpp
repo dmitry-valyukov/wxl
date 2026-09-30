@@ -8,10 +8,8 @@
 using namespace wxl;
 using namespace wxl::dsl;
 
-namespace {
-
 // «ms-appx:///Assets/…» оригинала — путь от папки рядом с exe.
-std::wstring assetPath(std::wstring_view imagePath) {
+std::wstring gallery::assetPath(std::wstring_view imagePath) {
     constexpr std::wstring_view scheme = L"ms-appx:///";
     if (imagePath.starts_with(scheme)) {
         imagePath.remove_prefix(scheme.size());
@@ -19,10 +17,8 @@ std::wstring assetPath(std::wstring_view imagePath) {
     return std::wstring{imagePath};
 }
 
-}  // namespace
-
 wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
-    auto const image = assetPath(item.imagePath);
+    auto const image = gallery::assetPath(item.imagePath);
 
     auto tile = Grid {
         Grid {

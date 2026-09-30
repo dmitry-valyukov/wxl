@@ -59,6 +59,10 @@ bool matches(gallery::ControlInfo const& item, std::vector<std::wstring> const& 
     });
 }
 
+std::u16string narrow(std::wstring const& text) {
+    return std::u16string(text.begin(), text.end());
+}
+
 FrameworkElement titled(std::wstring_view title, FrameworkElement const& body, Thickness titleMargin) {
     return Grid {
         rowDefinitions = u"auto,*",
@@ -161,4 +165,96 @@ wxl::FrameworkElement gallery::searchResultsPage(std::wstring_view query) {
         }
     }    show(0);
     return navigation;
+}
+
+bool gallery::containsWords(std::u16string_view text, std::u16string_view query) {
+    auto const haystack = lower(gallery::wide(text));
+    auto const words = tokens(gallery::wide(query));
+    return std::ranges::all_of(words, [&](std::wstring const& word) {
+        return haystack.find(word) != std::wstring::npos;
+    });
+}
+
+std::vector<std::u16string> gallery::controlTitles(std::u16string_view query) {
+    std::vector<std::u16string> found;
+    for (auto const& group : catalog().groups) {
+        for (auto const& item : group.items) {
+            auto title = narrow(item.title);
+            if (pageFor(item.uniqueId) && containsWords(title, query)) {
+                found.push_back(std::move(title));
+            }
+        }
+    }
+    // Начинающиеся с запроса — первыми, дальше по алфавиту.
+    auto const head = lower(gallery::wide(query));
+    std::ranges::sort(found, [&](std::u16string const& a, std::u16string const& b) {
+        bool const first = lower(gallery::wide(a)).starts_with(head);
+        bool const second = lower(gallery::wide(b)).starts_with(head);
+        return first != second ? first : a < b;
+    });
+    return found;
+}
+
+gallery::ControlInfo const* gallery::controlByTitle(std::u16string_view title) {
+    for (auto const& group : catalog().groups) {
+        for (auto const& item : group.items) {
+            if (narrow(item.title) == title) {
+                return &item;
+            }
+        }
+    }
+    return nullptr;
+}
+std::wstring gallery::indentXml(std::wstring_view xml) {
+    std::wstring out;
+    int depth = 0;
+    auto const line = [&](std::wstring_view tag) {
+        if (!out.empty()) {
+            out += L'\n';
+        }
+        out.append(static_cast<std::size_t>(depth) * 2, L' ');
+        out += tag;
+    };
+
+    std::size_t at = 0;
+    while (at < xml.size()) {
+        if (xml[at] != L'<') {
+            ++at;  // текст между тегами без элемента: пробелы формата
+            continue;
+        }
+        auto const close = xml.find(L'>', at);
+        if (close == std::wstring_view::npos) {
+            break;
+        }
+        auto const tag = xml.substr(at, close - at + 1);
+        at = close + 1;
+
+        if (tag.starts_with(L"</")) {
+            --depth;
+            line(tag);
+        } else if (tag.ends_with(L"/>") || tag.starts_with(L"<?") || tag.starts_with(L"<!")) {
+            line(tag);
+        } else {
+            // Открывающий тег, за которым сразу текст и закрывающий тег:
+            // вся запись в одной строке.
+            std::size_t next = at;
+            while (next < xml.size() && xml[next] != L'<') {
+                ++next;
+            }
+            auto const text = xml.substr(at, next - at);
+            bool const onlyText = next < xml.size() && xml.substr(next).starts_with(L"</") &&
+                                  text.find_first_not_of(L" \r\n\t") != std::wstring_view::npos;
+            if (onlyText) {
+                auto const end = xml.find(L'>', next);
+                line(tag);
+                out += text;
+                out += xml.substr(next, end - next + 1);
+                at = end + 1;
+            } else {
+                line(tag);
+                ++depth;
+            }
+        }
+    }
+    return out;
 }
