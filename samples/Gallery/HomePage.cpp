@@ -69,8 +69,8 @@ FrameworkElement heroHeader() {
         StackPanel {
             Margin {36, 48, 0, 0},
             vAlign.center,
-            TextBlock {u"Windows App SDK 2.4 · wxl", fontSize = 18},
-            TextBlock {u"WinUI 3 Gallery", styles.TextBlock.TitleLarge},
+            TextBlock {u"Windows App SDK 2.4", fontSize = 18},
+            TextBlock {u"WXL Gallery", styles.TextBlock.TitleLarge},
         },
         ScrollViewer {
             row = 2,
