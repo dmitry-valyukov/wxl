@@ -41,8 +41,10 @@ awaitable<bool> async_directory::exists(const core::path& path) {
 }
 
 awaitable<void> async_directory::create_all(const core::path& p) {
-    return sta_loop::async_call(orphanable, [copy = p]() mutable {
-        if (!core::directory::create_all(copy)) throw system_exception("CreateDirectoryW");
+    return sta_loop::async_call(orphanable, [copy = p](const orphan_stage& stage) mutable {
+        const auto wanted = [&stage] { return !stage.given_up(); };
+
+        if (!core::directory::create_all(copy, wanted)) throw system_exception("CreateDirectoryW");
     });
 }
 

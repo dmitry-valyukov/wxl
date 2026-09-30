@@ -207,3 +207,52 @@ TEST(StaLoopDispatchedTest, AnExceptionFromThePoolArrivesAtTheCoAwait) {
 
     EXPECT_EQ(message, "from the pool");
 }
+
+namespace {
+
+/// An orphan left out on purpose when the binary ends, for the environment below to
+/// find stop() waiting for. The loop starts once per process, so the stop itself cannot
+/// be watched from inside a test.
+struct orphan_left_out {
+    std::atomic<bool> finished{false};
+    std::optional<awaitable<int>> pending;
+};
+
+orphan_left_out left_out;
+
+/// Registered from this file, so its TearDown() may run before or after the loop
+/// environment stops the loop; both stop it the same way, and the second call finds
+/// nothing to do.
+class stop_watch : public ::testing::Environment
+{
+public:
+    void TearDown() override {
+        if (!left_out.pending) return;
+
+        loop_stopping.set();
+        sta_loop::stop();
+
+        EXPECT_TRUE(left_out.finished.load());
+        EXPECT_TRUE(left_out.pending->await_ready());
+
+        left_out.pending.reset();
+    }
+};
+
+::testing::Environment* const watch = ::testing::AddGlobalTestEnvironment(new stop_watch);
+
+}  // namespace
+
+TEST(StaLoopDispatchedTest, StopWaitsForAnOrphanOutOnThePool) {
+    left_out.pending = sta_loop::async_call(orphanable, [] {
+        // Still going when stop() is called, and for a while after: the wait is a
+        // real one.
+        loop_stopping.wait();
+        ::Sleep(100);
+        left_out.finished = true;
+        return 7;
+    });
+
+    // The rest is the environment's, once the tests are over.
+    EXPECT_FALSE(left_out.pending->await_ready());
+}

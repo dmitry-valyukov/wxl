@@ -226,21 +226,39 @@ class sta_loop
     static void pay_owed_callback() noexcept;
     ///@}
 
-    /// How an orphanable operation is carried out, chosen as the loop starts: on the
-    /// worker, or -- for a loop with a dispatcher queue under it -- on the system's
-    /// thread pool, so that the worker never stands in a call that goes by a name.
-    ///@{
+    /// What a loop with a dispatcher queue under it does differently from one on the
+    /// worker alone, chosen as the loop starts.
+    struct shape
+    {
+        /// Carries out an orphanable operation: on the worker, or on the system's
+        /// thread pool, so that the worker never stands in a call that goes by a name.
+        void (*send_orphan)(async_op&);
+
+        /// stop()'s wait: takes back everything that is out, resuming nobody.
+        void (*take_back_outstanding)() noexcept;
+
+        /// stop()'s last word, once the worker is gone.
+        void (*let_go)() noexcept;
+    };
+
     inline static void send_to_worker(async_op& op) { enqueue(core::as_not_null<async_op>(&op)); }
 
-    /// In sta_queue.cpp.
-    static void send_to_pool(async_op& op);
+    /// In sta_loop.cpp: sleeps in place while there is nothing to take.
+    static void take_back_outstanding() noexcept;
 
-    static inline void (*send_orphan_)(async_op&) = &send_to_worker;
+    inline static void keep_nothing() noexcept {}
+
+    static constexpr shape on_worker{&send_to_worker, &take_back_outstanding, &keep_nothing};
+
+    /// In sta_queue.cpp.
+    ///@{
+    static void send_to_pool(async_op& op);
+    static void take_back_dispatched() noexcept;
+    static void let_go_of_queue() noexcept;
+    static constexpr shape on_queue{&send_to_pool, &take_back_dispatched, &let_go_of_queue};
     ///@}
 
-    /// stop()'s wait, in sta_loop.cpp: takes back everything that is out, resuming
-    /// nobody, and sleeps in place while there is nothing to take.
-    static void take_back_outstanding() noexcept;
+    static inline const shape* shape_ = &on_worker;
 
 public:
     /// Static from top to bottom, and therefore never made.
@@ -306,6 +324,9 @@ public:
     /// through the worker, which therefore has to outlive it. So an operation
     /// that would never finish by itself -- a read from a pipe nobody writes to
     /// -- has to be given up before this is called, or this does not return.
+    /// Under start_dispatched() the wait turns the thread's message loop, since
+    /// that is how the queue delivers, and the queue this made is shut down at
+    /// the end, the way the thread would have to before it exits.
     ///
     /// What it does not do is finish the coroutines. What comes back is taken
     /// out here without resuming anybody: a given-up operation is deleted, and
@@ -324,7 +345,7 @@ public:
         if (!worker_) return;
 
         if (worker_->was_started()) {
-            take_back_outstanding();
+            shape_->take_back_outstanding();
             worker_->stop_async().get();
         }
 
@@ -335,6 +356,8 @@ public:
         // is static and the callback's body is in the STA pool, so this is
         // where it is given back -- while there is still a pool to give it to.
         from_worker_.wakeup().forget_wake();
+
+        shape_->let_go();
     }
 
     /// Whether there is a run in progress -- for the infrastructure that starts
@@ -394,14 +417,14 @@ public:
     /// worker: what is orphanable here is what goes by a name -- opening a file,
     /// making a directory -- and may take the system as long as it likes.
     template <class Fn>
-    [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> async_call(
+    [[nodiscard]] static awaitable<orphan_result_t<std::decay_t<Fn>>> async_call(
         orphanable_t, Fn&& fn) {
-        using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
+        using result_t = orphan_result_t<std::decay_t<Fn>>;
 
         std::unique_ptr<async_op_t<result_t>> op(new orphan_op_f<std::decay_t<Fn>>(
             std::forward<Fn>(fn)));
 
-        send_orphan_(*op);
+        shape_->send_orphan(*op);
 
         return awaitable<result_t>(std::move(op));
     }
@@ -506,6 +529,21 @@ public:
     ///
     /// \return how many coroutines were resumed.
     inline static std::size_t run_pending() {
+        return drain_pending([](async_op* op) { return op->come_back(); });
+    }
+
+    /// The same for a loop that is being stopped: what comes back is settled, and
+    /// nobody is resumed.
+    inline static void settle_pending() noexcept {
+        drain_pending([](async_op* op) noexcept {
+            op->settle();
+            return false;
+        });
+    }
+
+private:
+    template <class Deliver>
+    inline static std::size_t drain_pending(Deliver deliver) {
         std::size_t resumed = 0;
         const bool driven = from_worker_.wakeup().driven();
 
@@ -515,7 +553,7 @@ public:
         }
 
         for (;;) {
-            for (async_op* op = nullptr; take(op);) resumed += op->come_back();
+            for (async_op* op = nullptr; take(op);) resumed += deliver(op);
 
             if (!driven) return resumed;
 
@@ -527,11 +565,10 @@ public:
             if (!take(op)) return resumed;
 
             from_worker_.disarm();
-            resumed += op->come_back();
+            resumed += deliver(op);
         }
     }
 
-private:
     /// Takes the next operation out of the return channel, if there is one.
     inline static bool take(async_op*& op) noexcept {
         if (!from_worker_reader_.read(op)) return false;

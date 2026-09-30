@@ -365,3 +365,43 @@ TEST_F(AsyncFilePipeTest, GivingAnOrphanUpNeverCutsShortACallOfAnotherOperation)
     EXPECT_EQ(cut_short, 0);
     EXPECT_EQ(read, rounds);
 }
+
+TEST(OrphanTest, ABodyOfSeveralCallsStopsAtTheOneCutShort) {
+    narrow_pipe pipe;
+
+    ASSERT_TRUE(pipe.made());
+
+    std::atomic<int> calls{0};
+    hevent left{true};
+
+    std::binary_semaphore done{0};
+    std::jthread rescue([&] {
+        if (!done.try_acquire_for(std::chrono::seconds(10))) pipe.drain();
+    });
+
+    {
+        auto writing = sta_loop::async_call(
+            orphanable, [writer = pipe.writer(), &calls, &left](const orphan_stage& stage) {
+                static const std::vector<char> much(1024 * 1024);
+
+                // Three writes, each of more than the pipe holds; the body asks between
+                // them whether it is still wanted.
+                for (int call = 0; call < 3 && !stage.given_up(); ++call) {
+                    DWORD written = 0;
+
+                    ++calls;
+                    ::WriteFile(writer, much.data(), static_cast<DWORD>(much.size()), &written,
+                                nullptr);
+                }
+
+                left.set();
+            });
+
+        ASSERT_TRUE(pipe.take_one());
+    }
+
+    left.wait();
+    done.release();
+
+    EXPECT_EQ(calls.load(), 1);
+}

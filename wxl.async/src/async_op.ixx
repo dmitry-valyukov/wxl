@@ -294,6 +294,13 @@ public:
     ///         destroys it.
     [[nodiscard]] bool give_up() noexcept;
 
+    /// The body's question between two calls to the system, when it makes more than
+    /// one: cutting short reaches the call under way and no other, so a body given up
+    /// between two of its calls would go on to the next unless it asks.
+    inline bool given_up() const noexcept {
+        return stage_.load(std::memory_order_relaxed) >= stage::cutting_short;
+    }
+
 private:
     enum class stage : std::uint8_t {
         waiting,
@@ -311,8 +318,28 @@ private:
     std::uint32_t thread_ = 0;
 };
 
+/// A body that takes the stage, to ask it between its calls.
+template <class Fn>
+concept asks_stage = std::invocable<Fn&, const orphan_stage&>;
+
+template <class Fn>
+struct orphan_result
+{
+    using type = std::invoke_result_t<Fn&>;
+};
+
+template <asks_stage Fn>
+struct orphan_result<Fn>
+{
+    using type = std::invoke_result_t<Fn&, const orphan_stage&>;
+};
+
+/// What an orphanable body answers, whether or not it takes the stage.
+template <class Fn>
+using orphan_result_t = orphan_result<Fn>::type;
+
 /// An orphanable operation whose body is a lambda.
-template <class Fn, class R = std::invoke_result_t<Fn&>>
+template <class Fn, class R = orphan_result_t<Fn>>
 class orphan_op_f final : public async_op_t<R>
 {
 public:
@@ -328,9 +355,9 @@ protected:
         // out of a body that threw as well.
         try {
             if constexpr (std::is_void_v<R>)
-                fn_();
+                run();
             else
-                this->set_value(fn_());
+                this->set_value(run());
         } catch (...) {
             this->set_error(std::current_exception());
         }
@@ -346,6 +373,13 @@ protected:
     }
 
 private:
+    inline R run() {
+        if constexpr (asks_stage<Fn>)
+            return fn_(std::as_const(stage_));
+        else
+            return fn_();
+    }
+
     Fn fn_;
     orphan_stage stage_;
 };
