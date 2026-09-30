@@ -53,6 +53,19 @@ ControlPage pageFor(std::wstring_view uniqueId);
 
 // Страница контрола: примеры друг под другом.
 wxl::FrameworkElement buttonPage();
+wxl::FrameworkElement dropDownButtonPage();
+wxl::FrameworkElement hyperlinkButtonPage();
+wxl::FrameworkElement repeatButtonPage();
+wxl::FrameworkElement toggleButtonPage();
+wxl::FrameworkElement splitButtonPage();
+wxl::FrameworkElement toggleSplitButtonPage();
+wxl::FrameworkElement checkBoxPage();
+wxl::FrameworkElement colorPickerPage();
+wxl::FrameworkElement comboBoxPage();
+wxl::FrameworkElement radioButtonPage();
+wxl::FrameworkElement ratingControlPage();
+wxl::FrameworkElement sliderPage();
+wxl::FrameworkElement toggleSwitchPage();
 
 // Плитка контрола (ControlItemTemplate оригинала) и сетка плиток: GridView,
 // клик по плитке — переход на страницу контрола.

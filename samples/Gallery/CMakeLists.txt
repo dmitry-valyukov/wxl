@@ -41,6 +41,19 @@ wxl_add_executable(sample.gallery
     HomePage.cpp
     SettingsPage.cpp
     ButtonPage.cpp
+    DropDownButtonPage.cpp
+    HyperlinkButtonPage.cpp
+    RepeatButtonPage.cpp
+    ToggleButtonPage.cpp
+    SplitButtonPage.cpp
+    ToggleSplitButtonPage.cpp
+    CheckBoxPage.cpp
+    ColorPickerPage.cpp
+    ComboBoxPage.cpp
+    RadioButtonPage.cpp
+    RatingControlPage.cpp
+    SliderPage.cpp
+    ToggleSwitchPage.cpp
     ${_gallery_snippets}
     ${_gallery_embedded}
     embed.cmake

@@ -119,7 +119,123 @@
             "members": [
                 "IsTextSelectionEnabled"
             ]
-        },        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
+        },        "Microsoft.UI.Xaml.Controls.Primitives.RepeatButton": {
+            "comment": "Basic input: fires Click again and again while it is held.",
+            "members": [
+                "Delay",
+                "Interval"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToggleSplitButton": {
+            "comment": "Basic input: a SplitButton whose main part toggles.",
+            "members": [
+                "IsChecked",
+                "IsCheckedChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToggleSplitButtonIsCheckedChangedEventArgs": {
+            "comment": "Carries nothing of its own; the new state is read from the button.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.ColorPicker": {
+            "comment": "Basic input: the colour picker page turns each of its parts on and off and reads the colour back.",
+            "members": [
+                "Color",
+                "ColorSpectrumShape",
+                "IsAlphaEnabled",
+                "IsAlphaSliderVisible",
+                "IsAlphaTextInputVisible",
+                "IsColorChannelTextInputVisible",
+                "IsColorSliderVisible",
+                "IsHexInputVisible",
+                "IsMoreButtonVisible",
+                "ColorChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ColorChangedEventArgs": {
+            "comment": "The colour before and after.",
+            "members": [
+                "NewColor",
+                "OldColor"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RatingControl": {
+            "comment": "Basic input: stars, with a caption, a placeholder value and clearing.",
+            "members": [
+                "Caption",
+                "IsClearEnabled",
+                "IsReadOnly",
+                "Value",
+                "PlaceholderValue",
+                "MaxRating",
+                "ValueChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Slider": {
+            "comment": "Ticks and their snapping on top of what base asks for.",
+            "members": [
+                "TickFrequency",
+                "TickPlacement",
+                "SnapsTo"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ComboBox": {
+            "comment": "The text of an editable box and the moment it is submitted.",
+            "members": [
+                "Header",
+                "Text",
+                "TextSubmitted"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ComboBoxTextSubmittedEventArgs": {
+            "comment": "What was typed, and whether the handler took it over.",
+            "members": [
+                "Text",
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.VariableSizedWrapGrid": {
+            "comment": "The swatch grid of the SplitButton text example.",
+            "members": [
+                "MaximumRowsOrColumns",
+                "Orientation"
+            ]
+        },
+        "Microsoft.UI.Text.RichEditTextDocument": {
+            "comment": "The selection: SplitButton and ToggleSplitButton pages format it.",
+            "members": [
+                "Selection"
+            ]
+        },
+        "Microsoft.UI.Text.ITextRange": {
+            "comment": "Text and paragraph formatting of a range (and so of a selection).",
+            "members": [
+                "SetText",
+                "ParagraphFormat"
+            ]
+        },
+        "Microsoft.UI.Text.ITextSelection": {
+            "comment": "What Document.Selection hands out: a range with a caret. Everything it does comes from ITextRange.",
+            "members": []
+        },
+        "Microsoft.UI.Text.ITextCharacterFormat": {
+            "comment": "The colour of the characters.",
+            "members": [
+                "ForegroundColor"
+            ]
+        },
+        "Microsoft.UI.Text.ITextParagraphFormat": {
+            "comment": "The marker of a list paragraph (bullets, Roman numerals).",
+            "members": [
+                "ListType"
+            ]
+        },        "Microsoft.UI.Xaml.FrameworkElement": {
+            "comment": "Parent: a handler reads its siblings from the panel it is in, so that no handler has to capture an element (a captured sibling that captures back is a cycle nothing breaks).",
+            "members": [
+                "Parent"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
             "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
             "members": [
                 "Content",

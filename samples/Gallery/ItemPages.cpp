@@ -16,6 +16,19 @@ struct Entry {
 
 constexpr Entry ported[] = {
     {L"Button", &gallery::buttonPage},
+    {L"DropDownButton", &gallery::dropDownButtonPage},
+    {L"HyperlinkButton", &gallery::hyperlinkButtonPage},
+    {L"RepeatButton", &gallery::repeatButtonPage},
+    {L"ToggleButton", &gallery::toggleButtonPage},
+    {L"SplitButton", &gallery::splitButtonPage},
+    {L"ToggleSplitButton", &gallery::toggleSplitButtonPage},
+    {L"CheckBox", &gallery::checkBoxPage},
+    {L"ColorPicker", &gallery::colorPickerPage},
+    {L"ComboBox", &gallery::comboBoxPage},
+    {L"RadioButton", &gallery::radioButtonPage},
+    {L"RatingControl", &gallery::ratingControlPage},
+    {L"Slider", &gallery::sliderPage},
+    {L"ToggleSwitch", &gallery::toggleSwitchPage},
 };
 
 }  // namespace

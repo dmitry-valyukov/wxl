@@ -13,3 +13,4 @@
 #include "generated/brushes.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Media.h"
+#include "generated/Microsoft.UI.Xaml.Shapes.h"

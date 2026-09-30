@@ -71,7 +71,7 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
         },
         Expander {
             hAlign.stretch,
-            header = u"Исходный код",
+            header = u"Source code",
             content = RsdnBlock {
                 isTextSelectionEnabled = true,
                 std::wstring_view{code},
