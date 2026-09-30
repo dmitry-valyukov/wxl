@@ -7,7 +7,7 @@ auto details = StackPanel {
     Margin {0, 8, 0, 0},
     visibility = Visibility::Collapsed,
     picture,
-    StackPanel {nameText, subtitleText},
+    StackPanel {vAlign.center, nameText, subtitleText},
 };
 
 // What was chosen is shown under the box.
