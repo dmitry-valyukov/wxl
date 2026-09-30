@@ -10,7 +10,7 @@ using namespace wxl::dsl;
 
 namespace {
 
-constexpr char8_t description[] = {
+constexpr char8_t introText[] = {
 #include "Snippets/Glass/page.html.embed"
 };
 
@@ -44,5 +44,5 @@ constexpr effects::Sample samples[] = {
 }  // namespace
 
 wxl::FrameworkElement effects::glassPage() {
-    return showcase(effects::snippet(description), samples);
+    return showcase(effects::snippet(introText), samples);
 }

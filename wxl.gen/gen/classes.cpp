@@ -542,7 +542,8 @@ bool has_impl(std::vector<class_info> const& classes) {
 void write_public_header(std::filesystem::path const& path, std::string_view ns,
                          std::vector<class_info> const& classes,
                          std::map<std::string, std::string> const& group_of,
-                         std::set<std::string> const& collection_elements) {
+                         std::set<std::string> const& collection_elements,
+                         std::set<std::string> const& dropped) {
     auto out = open_output(path);
 
     auto includes = file_includes(ns, classes, group_of, /*impl_side=*/false);
@@ -551,8 +552,28 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
     // takes a TitleBar, whose header includes this one for FrameworkElement --
     // and a declaration taking a reference needs the name alone.
     std::set<std::string> announced;
+
+    // Every wrapped class a member names is announced as well as included:
+    // namespaces refer to each other through members (Input's XamlUICommand
+    // holds a Controls IconSource, while Controls reaches Input through
+    // Xaml), so whichever header a translation unit meets first has the other
+    // one's include skipped by #pragma once, and a declaration needs only the
+    // name.
+    auto announce = [&](TypeUse const& type) {
+        if (type.is_collection) {
+            announced.insert(type.element_type);
+        } else if (type.is_wrapper && type.value_type != "Object") {
+            announced.insert(type.value_type);
+        }
+    };
     for (auto&& info : classes) {
         for (auto&& member : info.members) {
+            if (!member.returns_void) {
+                announce(member.result);
+            }
+            for (auto&& param : member.params) {
+                announce(param.type);
+            }
             if (!member.returns_void) {
                 includes.insert(member.result.public_includes.begin(),
                                 member.result.public_includes.end());
@@ -581,6 +602,15 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
     }
     includes.erase(std::string(ns) + ".h");  // a member of this very file's own group
 
+    // A group that a member names and whose own headers lead back here is
+    // announced above and not included: in a circle of includes the header met
+    // first in a translation unit has the other's include skipped, and a class
+    // used as a base then stands undeclared. The edges of a circle are found by
+    // group_include_cycles; a header that only leads away stays included, for
+    // the callers that use what a member hands back.
+    for (auto&& group : dropped) {
+        includes.erase(group + ".h");
+    }
     // The variadic constructors below are the DSL's entry point, and they
     // apply whatever the braces contained. A group of nothing but
     // statics-only classes has no such constructor and does not need it --
@@ -1773,6 +1803,69 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     }
     produced.collection_elements = already_defined;
 
+    // The public header of a group includes the homes of its bases and of the
+    // wrapped classes its members name. The first kind is a tree; the second
+    // can close a circle, and an edge that does is dropped from the header
+    // that would close it (write_public_header announces the class instead).
+    std::map<std::string, std::set<std::string>> cyclic;
+    {
+        std::set<std::string> group_names;
+        for (auto&& [space, group] : group_of) {
+            group_names.insert(group);
+        }
+        std::map<std::string, std::set<std::string>> named;  // member edges
+        std::map<std::string, std::set<std::string>> edges;  // all edges
+        for (auto&& [ns, infos] : by_group) {
+            std::set<std::string> own_bases;  // the tree: never dropped
+            for (auto&& base : file_includes(ns, infos, group_of, /*impl_side=*/false)) {
+                if (base.ends_with(".h") && group_names.count(base.substr(0, base.size() - 2))) {
+                    own_bases.insert(base.substr(0, base.size() - 2));
+                }
+            }
+            auto const take = [&](TypeUse const& type) {
+                for (auto&& include : type.public_includes) {
+                    if (include.ends_with(".h")) {
+                        auto const name = include.substr(0, include.size() - 2);
+                        if (group_names.count(name) && name != ns) {
+                            if (!own_bases.count(name)) {
+                                named[ns].insert(name);
+                            }
+                        }
+                    }
+                }
+            };
+            for (auto&& info : infos) {
+                for (auto&& member : info.members) {
+                    take(member.result);
+                    for (auto&& param : member.params) {
+                        take(param.type);
+                    }
+                }
+                for (auto&& ctor : info.constructors) {
+                    for (auto&& param : ctor.method.params) {
+                        take(param.type);
+                    }
+                }
+            }
+            edges[ns] = named[ns];
+            edges[ns].insert(own_bases.begin(), own_bases.end());
+        }
+        auto reach = edges;
+        for (auto&& via : group_names) {
+            for (auto&& from : group_names) {
+                if (reach[from].count(via)) {
+                    reach[from].insert(reach[via].begin(), reach[via].end());
+                }
+            }
+        }
+        for (auto&& [ns, names] : named) {
+            for (auto&& name : names) {
+                if (reach[name].count(ns)) {
+                    cyclic[ns].insert(name);
+                }
+            }
+        }
+    }
     size_t classes = 0;
     size_t activatable = 0;
     size_t constructors = 0;
@@ -1780,7 +1873,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         auto const header = out.dir / (ns + ".h");
         auto const source = out.dir / (ns + ".cpp");
 
-        write_public_header(header, ns, infos, group_of, used_by_group[ns]);
+        write_public_header(header, ns, infos, group_of, used_by_group[ns], cyclic[ns]);
         emitted.add(header);
 
         if (has_impl(infos)) {

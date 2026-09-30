@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <memory>
 
+#include "generated/Microsoft.UI.Windowing.h"
+
 using namespace wxl;
 using namespace wxl::dsl;
 

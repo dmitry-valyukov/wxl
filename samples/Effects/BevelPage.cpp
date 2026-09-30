@@ -17,7 +17,7 @@ namespace {
 
 // Описание — Snippets/Bevel/page.html: HTML отдельным файлом, чтобы править
 // его и смотреть в браузере как есть.
-constexpr char8_t description[] = {
+constexpr char8_t introText[] = {
 #include "Snippets/Bevel/page.html.embed"
 };
 
@@ -72,5 +72,5 @@ constexpr effects::Sample samples[] = {
 }  // namespace
 
 wxl::FrameworkElement effects::bevelPage() {
-    return showcase(effects::snippet(description), samples);
+    return showcase(effects::snippet(introText), samples);
 }

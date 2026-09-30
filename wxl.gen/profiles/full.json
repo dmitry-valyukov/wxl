@@ -304,6 +304,36 @@
                 }
             }
         },
+        "Microsoft.UI.Xaml.Controls.RadioMenuFlyoutItem": {
+            "comment": "Menus & toolbars: a menu item that is one of a group, checked like a radio button."
+        },
+        "Microsoft.UI.Xaml.Controls.SplitMenuFlyoutItem": {
+            "comment": "Menus & toolbars: a menu item with a submenu beside its own action."
+        },
+        "Microsoft.UI.Xaml.Controls.CommandBarFlyout": {
+            "comment": "Menus & toolbars: a command bar in a flyout."
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeControl": {
+            "comment": "Menus & toolbars: items revealed or invoked by swiping."
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeItem": {
+            "comment": "Menus & toolbars: one swipe action."
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeItems": {
+            "comment": "Menus & toolbars: a group of swipe actions and what invoking one does."
+        },
+        "Microsoft.UI.Xaml.Input.XamlUICommand": {
+            "comment": "Menus & toolbars: a command shared by every control that shows it."
+        },
+        "Microsoft.UI.Xaml.Input.StandardUICommand": {
+            "comment": "Menus & toolbars: a command the system names and gives a glyph and a key."
+        },
+        "Microsoft.UI.Xaml.Controls.SymbolIconSource": {
+            "comment": "Menus & toolbars: the symbol of a command or swipe item."
+        },
+        "Microsoft.UI.Xaml.Controls.BitmapIconSource": {
+            "comment": "Menus & toolbars: the bitmap of a command or swipe item."
+        },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
             "members": [
