@@ -273,3 +273,15 @@ struct optional_selector<wxl::Rect> {
 };
 
 }  // namespace wxl::core
+
+namespace wxl::core {
+
+// A point that may be absent -- FlyoutShowOptions.Position, where empty means
+// "by the flyout's own rule". Two floats that are both real coordinates, so
+// nullable<Point> is std::optional<Point>, like Rect's.
+template <>
+struct optional_selector<wxl::Offset> {
+    using nullable = std::optional<wxl::Offset>;
+};
+
+}  // namespace wxl::core

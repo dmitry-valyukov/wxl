@@ -11,7 +11,7 @@ namespace {
 
 // ---- Описание -------------------------------------------------------------
 
-constexpr char8_t description[] = {
+constexpr char8_t introText[] = {
 #include "Snippets/GaussianBlur/page.html.embed"
 };
 
@@ -90,5 +90,5 @@ constexpr effects::Sample samples[] = {
 }  // namespace
 
 wxl::FrameworkElement effects::gaussianBlurPage() {
-    return showcase(effects::snippet(description), samples);
+    return showcase(effects::snippet(introText), samples);
 }
