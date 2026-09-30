@@ -1,10 +1,10 @@
 // Раскладка одного примера — ControlExample оригинала: введение сверху, под
 // ним один блок в рамке — показ, справа от него «Output:» и параметры, а
-// внизу раскрывающийся «Source code» с вкладкой языка и кнопкой копирования.
+// внизу раскрывающийся «Source code» с кнопкой копирования.
 //
 // Введение оригинал даёт статичным TextBlock, исходник — SampleCodePresenter;
 // здесь введение — HtmlBlock, исходник — RsdnBlock с подсветкой, как в Effects.
-// Вкладок XAML и C# у оригинала здесь одна: код примера на C++.
+// Вкладок языка нет: у оригинала XAML и C#, здесь всё без альтернатив C++.
 
 #include "Pages.h"
 
@@ -131,11 +131,6 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
     code.theme(flatCode());
     code.rsdn(L"[code=cpp]" + source + L"[/code]");
 
-    auto language = SelectorBar {Margin {4, 0, 0, 0}};
-    auto cpp = SelectorBarItem {text = u"C++"};
-    language.items().append(cpp);
-    language.selectedItem(cpp);
-
     return StackPanel {
         Margin {0, 16, 0, 0},
         HtmlBlock {
@@ -157,12 +152,11 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
             CornerRadius {0, 0, 8, 8},
             background = brushes.Card.BackgroundFillColor.Secondary,
             header = u"Source code",
-            // Кнопка копирования — в строке вкладки, а не над кодом: у оригинала
-            // она внутри поля кода.
+            // Кнопка копирования — над кодом, в правом углу: у оригинала она
+            // внутри поля кода.
             content = Grid {
                 rowDefinitions = u"auto,*",
                 rowSpacing = 16.0,
-                language,
                 copyButton(source),
                 ScrollViewer {
                     row = 1,
