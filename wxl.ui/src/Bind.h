@@ -10,7 +10,7 @@
 //     ToggleSwitch { isOn = Bind{settings.minimizeOnClose} }   // both ways: the control edits
 //     ToggleSwitch { Bind{settings.minimizeOnClose} }          // the same, by the data's type
 //     CheckBox { isChecked = BindInput{model->done} }          // a checked box writes the field
-//     CheckBox { isChecked = Bind{model->enabled, std::logical_not{}} }  // "disable" over "enabled"
+//     CheckBox { isChecked = BindInput{model->enabled, std::logical_not{}} }  // "disable" over "enabled"
 //     Button { isEnabled = BindOutput{model->done, std::logical_not{}} } // shows fn of the field
 //     TextBlock { text = BindOutput{calc->entry} }        // from the field: the control shows
 //     TextBox { text = BindInput{search.query} }          // into the field: the control writes
@@ -37,8 +37,8 @@
 // property the control writes has an event to read it under; a pair may take
 // it and nothing else -- NumberBox's intermediateValue, the number as it is
 // being typed, is read off the control and has no setter to show it with.
-// The control opens as the description left it, and the field keeps its value
-// until the control's first change.
+// The field takes the control's value as the binding is made, and every value
+// after; the control is left as the description made it.
 //
 // Unnamed, `Bind{field}` inside the braces rides the route every unnamed
 // argument does -- a callable applied to the object -- and binds the control's
@@ -84,6 +84,10 @@ struct bound_field {
             bind_mirrored(*model, fn, [&](core::observable<T>& mirror) {
                 apply_bind(control, mirror, direction);
             });
+        } else if constexpr (direction == bind_direction::input) {
+            bind_transformed_input(*model, fn, [&](core::observable<T>& own) {
+                apply_bind(control, own, direction);
+            });
         } else {
             static_assert(bind_always_false<Fn>,
                           "wxl: a function on BindOutput{} is written with the property named: "
@@ -108,13 +112,17 @@ Bind(core::observable<T>&) -> Bind<T>;
 template <class T, class Fn>
 Bind(core::observable<T>&, Fn) -> Bind<T, Fn>;
 
-template <class T>
-struct BindInput : impl::bound_field<T, impl::bind_direction::input> {
-    using impl::bound_field<T, impl::bind_direction::input>::bound_field;
+// `BindInput{field, fn}` writes fn of what the control says into the field.
+template <class T, class Fn>
+struct BindInput : impl::bound_field<T, impl::bind_direction::input, Fn> {
+    using impl::bound_field<T, impl::bind_direction::input, Fn>::bound_field;
 };
 
 template <class T>
 BindInput(core::observable<T>&) -> BindInput<T>;
+
+template <class T, class Fn>
+BindInput(core::observable<T>&, Fn) -> BindInput<T, Fn>;
 
 // `BindOutput{field, fn}` shows fn of the field: any function, any result the
 // property takes.

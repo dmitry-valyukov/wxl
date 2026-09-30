@@ -13,5 +13,5 @@ auto link = HyperlinkButton {
 
 auto disable = CheckBox {
     content = u"Disable hyperlink button",
-    isChecked = Bind {model->enabled, std::logical_not {}},
+    isChecked = BindInput {model->enabled, std::logical_not {}},
 };

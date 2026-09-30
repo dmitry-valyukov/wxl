@@ -606,6 +606,8 @@ struct BoundModel : core::sta_refcounted {
     CheckBox{isChecked = BindOutput{model->busy}};
 
     // Through a function: two ways when it is its own inverse, one way for any.
+    CheckBox{isChecked = BindInput{model->busy, std::logical_not{}}};
+    CheckBox{BindInput{model->busy, std::logical_not{}}};
     CheckBox{isChecked = Bind{model->busy, std::logical_not{}}};
     CheckBox{Bind{model->busy, std::logical_not{}}};
     Button{isEnabled = BindOutput{model->busy, std::logical_not{}}};

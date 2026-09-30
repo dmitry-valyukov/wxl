@@ -115,7 +115,7 @@ struct identity_fn {
 
 template <class T, class Fn = impl::identity_fn>
 struct Bind;
-template <class T>
+template <class T, class Fn = impl::identity_fn>
 struct BindInput;
 template <class T, class Fn = impl::identity_fn>
 struct BindOutput;
@@ -132,14 +132,27 @@ inline constexpr bool is_bind = false;
 template <typename T, typename Fn>
 inline constexpr bool is_bind<Bind<T, Fn>> = true;
 
-template <typename T>
-inline constexpr bool is_bind<BindInput<T>> = true;
+template <typename T, typename Fn>
+inline constexpr bool is_bind<BindInput<T, Fn>> = true;
 
 template <typename T, typename Fn>
 inline constexpr bool is_bind<BindOutput<T, Fn>> = true;
 
 template <typename>
 inline constexpr bool bind_always_false = false;
+
+// An input binding through a function: the control is bound to a field of its
+// own, which takes the control's value as the binding is made and after every
+// change, and the field the binding names takes fn of it. The field of its own
+// lives in the named field's watch, and goes with it.
+template <class T, class Fn, class Bind>
+void bind_transformed_input(core::observable<T>& model, Fn const& fn, Bind&& bind) {
+    auto const own = std::make_shared<core::observable<T>>();
+    bind(*own);
+    model.set(T(fn(own->get())));
+    own->on_change([&model, fn](T const& value) noexcept { model.set(T(fn(value))); });
+    model.watch_for_binding([own](T const&) noexcept {});
+}
 
 // A two-way binding through a function that is its own inverse (std::logical_not,
 // std::negate): the control is bound to a mirror of the field, the mirror holds
@@ -196,11 +209,11 @@ void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) 
                       "so there is no way into it. Write BindInput{}.");
         if constexpr (plain) {
             Pair::bind(object, model, direction);
+        } else if constexpr (direction == bind_direction::input) {
+            bind_transformed_input(model, fn, [&](core::observable<T>& own) {
+                Pair::bind(object, own, direction);
+            });
         } else {
-            static_assert(direction == bind_direction::both,
-                          "wxl: a function on BindInput{} has no way to know what the control "
-                          "starts as. Write Bind{field, fn}: two ways, through a function that is "
-                          "its own inverse.");
             bind_mirrored(model, fn, [&](core::observable<T>& mirror) {
                 Pair::bind(object, mirror, direction);
             });

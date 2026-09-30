@@ -17,5 +17,5 @@ auto button = RepeatButton {
 
 auto disable = CheckBox {
     content = u"Disable RepeatButton",
-    isChecked = Bind {model->enabled, std::logical_not {}},
+    isChecked = BindInput {model->enabled, std::logical_not {}},
 };

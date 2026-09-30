@@ -83,7 +83,13 @@ void bind_pair(Control const& control, core::observable<T>& model, bind_directio
     bool const shows = direction != bind_direction::input;
     bool const edits = direction != bind_direction::output;
 
-    if (shows) set(control, model.get());
+    if (shows) {
+        set(control, model.get());
+    } else if (edits) {
+        // Input alone: the field takes what the control has right now, so the
+        // two agree from the first moment and the first change is a change.
+        model.set(get(control));
+    }
 
     EventToken token;
     if (edits) {
@@ -123,16 +129,19 @@ void apply_bind(ToggleButton const& control, core::observable<bool>& model,
     bool const edits = direction != bind_direction::output;
 
     auto const set = [](ToggleButton const& c, bool v) { c.isChecked(v); };
-    if (shows) set(control, model.get());
+    auto const get = [](ToggleButton const& c) { return c.isChecked().value_or(false); };
+    if (shows) {
+        set(control, model.get());
+    } else if (edits) {
+        model.set(get(control));
+    }
 
     EventToken checked;
     EventToken unchecked;
     if (edits) {
-        auto const get = [&model](ToggleButton const& sender, Args&) {
-            model.set(sender.isChecked().value_or(false));
-        };
-        checked = EventAdder<EventKey::Checked>::add(control, get);
-        unchecked = EventAdder<EventKey::Unchecked>::add(control, get);
+        auto const write = [&model, get](ToggleButton const& sender, Args&) { model.set(get(sender)); };
+        checked = EventAdder<EventKey::Checked>::add(control, write);
+        unchecked = EventAdder<EventKey::Unchecked>::add(control, write);
     }
 
     handler_guard<EventKey::Checked, ToggleButton> onChecked{control, checked};
