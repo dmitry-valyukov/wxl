@@ -242,6 +242,7 @@
             "members": [
                 "KeyboardAccelerators",
                 "ContextRequested",
+                "ContextFlyout",
                 "Measure",
                 "Arrange"
             ],
@@ -357,6 +358,18 @@
         },
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions": {
             "comment": "Menus & toolbars: how a flyout is shown -- where it stands and whether it takes the focus."
+        },
+        "Microsoft.UI.Xaml.Input.ExecuteRequestedEventArgs": {
+            "comment": "Menus & toolbars: what a command was asked to run with.",
+            "members": [
+                "Parameter"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.Pointer": {
+            "comment": "Menus & toolbars: a hover button shows for a mouse or a pen and not for a finger, which has no hover.",
+            "members": [
+                "PointerDeviceType"
+            ]
         },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",

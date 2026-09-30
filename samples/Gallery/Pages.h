@@ -88,6 +88,8 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement standardUICommandPage();
+wxl::FrameworkElement xamlUICommandPage();
 wxl::FrameworkElement swipeControlPage();
 wxl::FrameworkElement commandBarFlyoutPage();
 wxl::FrameworkElement menuFlyoutPage();

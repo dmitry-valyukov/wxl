@@ -1,5 +1,7 @@
 #include "Object.impl.h"
 
+#include "impl/conversions.h"
+
 // Out-of-line on purpose: Object::Impl is incomplete in Object.h, so the
 // copy/move/destroy of the intrusive_ptr member -- which has to touch the
 // reference count, and therefore the type -- cannot be generated there.
@@ -27,6 +29,17 @@ Object::~Object() = default;
 // Both casts are the reinterpretation winrt::get_abi performs -- a winrt
 // smart pointer is one raw pointer and nothing else -- and both are why this
 // pair costs the public header only a forward declaration.
+bool Object::is_text() const {
+    if (!impl_) return false;
+    auto const value = impl_->inspectable_.try_as<winrt::Windows::Foundation::IPropertyValue>();
+    return value && value.Type() == winrt::Windows::Foundation::PropertyType::String;
+}
+
+hstring Object::text() const {
+    assert(is_text() && "wxl: text() of an object that is not a boxed string");
+    return impl::from_winrt(impl_->inspectable_.as<winrt::Windows::Foundation::IPropertyValue>().GetString());
+}
+
 ::IInspectable* Object::get_abi() const noexcept {
     return reinterpret_cast<::IInspectable*>(winrt::get_abi(impl_->inspectable_));
 }

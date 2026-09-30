@@ -45,6 +45,8 @@ constexpr Entry ported[] = {
     {L"StackPanel", &gallery::stackPanelPage},
     {L"VariableSizedWrapGrid", &gallery::variableSizedWrapGridPage},
     {L"Viewbox", &gallery::viewboxPage},
+    {L"StandardUICommand", &gallery::standardUICommandPage},
+    {L"XamlUICommand", &gallery::xamlUICommandPage},
     {L"SwipeControl", &gallery::swipeControlPage},
     {L"CommandBarFlyout", &gallery::commandBarFlyoutPage},
     {L"MenuFlyout", &gallery::menuFlyoutPage},
