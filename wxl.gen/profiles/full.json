@@ -99,7 +99,8 @@
             "comment": "The search box in the Gallery's title bar: its query icon, and the text of the query it submits.",
             "members": [
                 "QueryIcon",
-                "UpdateTextOnSelect"
+                "UpdateTextOnSelect",
+                "ItemsSource"
             ]
         },
         "Microsoft.UI.Xaml.Controls.AutoSuggestBoxQuerySubmittedEventArgs": {
@@ -114,12 +115,8 @@
             "members": [
                 "Reason"
             ]
-        },        "Microsoft.UI.Xaml.Controls.TextBlock": {
-            "comment": "Selectable text: the Gallery's API details flyout lets the namespace be copied.",
-            "members": [
-                "IsTextSelectionEnabled"
-            ]
-        },        "Microsoft.UI.Xaml.Controls.Primitives.RepeatButton": {
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.RepeatButton": {
             "comment": "Basic input: fires Click again and again while it is held.",
             "members": [
                 "Delay",
@@ -211,7 +208,8 @@
             "comment": "Text and paragraph formatting of a range (and so of a selection).",
             "members": [
                 "SetText",
-                "ParagraphFormat"
+                "ParagraphFormat",
+                "FindText"
             ]
         },
         "Microsoft.UI.Text.ITextSelection": {
@@ -221,7 +219,8 @@
         "Microsoft.UI.Text.ITextCharacterFormat": {
             "comment": "The colour of the characters.",
             "members": [
-                "ForegroundColor"
+                "ForegroundColor",
+                "BackgroundColor"
             ]
         },
         "Microsoft.UI.Text.ITextParagraphFormat": {
@@ -255,7 +254,144 @@
                 "RequestedOperation"
             ]
         },
-        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
+        "Microsoft.UI.Xaml.Documents.TextElement": {
+            "comment": "Text group: the look every piece of inline text shares (Run, Span, Bold, Paragraph...).",
+            "members": [
+                "FontFamily",
+                "FontSize",
+                "FontStyle",
+                "FontWeight",
+                "Foreground",
+                "CharacterSpacing"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Inline": {
+            "comment": "The base of everything a TextBlock's Inlines holds.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Run": {
+            "comment": "A run of text with one look.",
+            "members": [
+                "Text"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Span": {
+            "comment": "Inline text that holds inline text: Bold, Italic, Underline, Hyperlink.",
+            "members": [
+                "Inlines"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Bold": {
+            "comment": "Bold inline.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Italic": {
+            "comment": "Italic inline.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Underline": {
+            "comment": "Underlined inline.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.LineBreak": {
+            "comment": "A line break inside a TextBlock or a Paragraph.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Hyperlink": {
+            "comment": "A link inside a paragraph.",
+            "members": [
+                "NavigateUri"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Block": {
+            "comment": "The base of what a RichTextBlock's Blocks holds.",
+            "members": [
+                "Margin"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Paragraph": {
+            "comment": "A paragraph of inline text.",
+            "members": [
+                "Inlines",
+                "TextIndent"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.TextBlock": {
+            "comment": "Text group: the italic face, the selection colour and the inline collection.",
+            "members": [
+                "IsTextSelectionEnabled",
+                "FontStyle",
+                "SelectionHighlightColor",
+                "Inlines"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RichTextBlock": {
+            "comment": "Text group: blocks, the overflow chain and highlighters.",
+            "members": [
+                "Blocks",
+                "FontStyle",
+                "SelectionHighlightColor",
+                "OverflowContentTarget"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RichTextBlockOverflow": {
+            "comment": "A container the text of a RichTextBlock flows on into.",
+            "members": [
+                "OverflowContentTarget"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Control": {
+            "comment": "Text group: what a TextBox is set up with beyond base -- the italic face and letter spacing.",
+            "members": [
+                "FontStyle",
+                "CharacterSpacing",
+                "Foreground"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TextBox": {
+            "comment": "Text group: spell checking and the selection colour.",
+            "members": [
+                "IsSpellCheckEnabled",
+                "SelectionHighlightColor"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PasswordBox": {
+            "comment": "Text group: the mask character and the change event.",
+            "members": [
+                "PasswordChar",
+                "PasswordChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NumberBox": {
+            "comment": "Text group: expressions, the large step and the formatter.",
+            "members": [
+                "AcceptsExpression",
+                "LargeChange",
+                "NumberFormatter"
+            ]
+        },
+        "Windows.Globalization.NumberFormatting.DecimalFormatter": {
+            "comment": "How a NumberBox writes its number: digits and rounding.",
+            "members": [
+                "IntegerDigits",
+                "FractionDigits",
+                "NumberRounder"
+            ]
+        },
+        "Windows.Globalization.NumberFormatting.IncrementNumberRounder": {
+            "comment": "Rounds to a multiple of an increment.",
+            "members": [
+                "Increment",
+                "RoundingAlgorithm"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBoxSuggestionChosenEventArgs": {
+            "comment": "The suggestion the list is on: what the text of the box is completed with.",
+            "members": [
+                "SelectedItem"
+            ]
+        },        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
             "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
             "members": [
                 "Content",

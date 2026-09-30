@@ -119,6 +119,8 @@ add_library(wxl.ui STATIC
     src/FontFamily.h
     src/ImageSource.h
     src/ImageSource.cpp
+    src/StringList.h
+    src/StringList.cpp
     src/launch.h
     src/launch.cpp
 

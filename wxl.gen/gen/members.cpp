@@ -243,6 +243,11 @@ void collect_method(MethodDef const& method, std::string_view field_view, TypeIn
 
     auto const names = parameter_names(method);
     size_t position = 0;
+    size_t count = 0;
+    for (auto&& param : signature.Params()) {
+        static_cast<void>(param);
+        ++count;
+    }
     for (auto&& param : signature.Params()) {
         auto use = map_type(param.Type(), index);
         if (!use.supported) {
@@ -250,6 +255,15 @@ void collect_method(MethodDef const& method, std::string_view field_view, TypeIn
             return;
         }
         if (param.ByRef()) {
+            // The one shape mapped: the last parameter, in a method that
+            // returns nothing else. Anything more (an out beside a result, two
+            // outs) is not something a return value can carry.
+            if (position + 1 == count && info.returns_void && !use.parameter_only) {
+                info.result = std::move(use);
+                info.returns_void = false;
+                info.out_result = true;
+                break;
+            }
             skipped.push_back({info.name, "out parameters are not mapped yet"});
             return;
         }
