@@ -294,8 +294,11 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.ScrollViewer": {
-            "comment": "Gallery: a code block in a horizontal ScrollViewer must not keep the wheel from the page around it.",
-            "members": [],
+            "comment": "Gallery: the chaining of a viewer that cannot scroll, and a code block in a horizontal ScrollViewer must not keep the wheel from the page around it.",
+            "members": [
+                "IsVerticalScrollChainingEnabled",
+                "IsHorizontalScrollChainingEnabled"
+            ],
             "syntheticMembers": {
                 "WheelToParent": {
                     "comment": "A wheel turn this viewer cannot use (nothing to scroll up or down, no modifier key) goes on up to the panel that scrolls the page. The viewer takes the wheel and marks it handled even when it scrolls nothing, so without this a horizontal strip of code stops the page.",
