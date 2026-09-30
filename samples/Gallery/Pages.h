@@ -88,6 +88,7 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement commandBarFlyoutPage();
 wxl::FrameworkElement menuFlyoutPage();
 wxl::FrameworkElement menuBarPage();
 wxl::FrameworkElement commandBarPage();

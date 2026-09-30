@@ -241,6 +241,7 @@
             "comment": "Status & info: a tip that is an element of its own (ToolTipService.ToolTip over an object), beside toolTip, which is the text. Layout: Measure and Arrange, which a custom layout calls on its children.",
             "members": [
                 "KeyboardAccelerators",
+                "ContextRequested",
                 "Measure",
                 "Arrange"
             ],
@@ -333,6 +334,9 @@
         },
         "Microsoft.UI.Xaml.Controls.BitmapIconSource": {
             "comment": "Menus & toolbars: the bitmap of a command or swipe item."
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions": {
+            "comment": "Menus & toolbars: how a flyout is shown -- where it stands and whether it takes the focus."
         },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
