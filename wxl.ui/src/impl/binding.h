@@ -35,6 +35,8 @@ class RadioButtons;
 class Slider;
 class RatingControl;
 class ColorPicker;
+class ToggleMenuFlyoutItem;
+class RadioMenuFlyoutItem;
 }  // namespace wxl
 
 namespace wxl::impl {
@@ -85,6 +87,17 @@ void apply_bind(RatingControl const& control, core::observable<double>& model,
 
 /// ColorPicker.color <-> observable<Color>, under ColorChanged.
 void apply_bind(ColorPicker const& control, core::observable<Color>& model,
+                bind_direction direction = bind_direction::both);
+
+/// ToggleMenuFlyoutItem.isChecked <-> observable<bool>, under Click -- the item
+/// flips itself when it is chosen, and says nothing else.
+void apply_bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
+                bind_direction direction = bind_direction::both);
+
+/// RadioMenuFlyoutItem.isChecked <-> observable<bool>, under Click. The group
+/// unchecks the others without a click of theirs: a field per item that must
+/// follow its group reads the group's choice from one field instead.
+void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
                 bind_direction direction = bind_direction::both);
 
 /// NumberBox.intermediateValue -> observable<double>: the number as it is
@@ -183,6 +196,24 @@ template <>
 struct PropertyBinder<PropertyKey::Color, ColorPicker> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ColorPicker const& control, core::observable<Color>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::IsChecked, ToggleMenuFlyoutItem> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
                      bind_direction direction) {
         apply_bind(control, model, direction);
     }

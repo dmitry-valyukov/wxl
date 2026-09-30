@@ -191,6 +191,22 @@ void apply_bind(ColorPicker const& control, core::observable<Color>& model,
         [](ColorPicker const& c, Color v) { c.color(v); });        // set
 }
 
+void apply_bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::Click>(
+        control, model, direction,                                    //
+        [](ToggleMenuFlyoutItem const& c) { return c.isChecked(); },  // get
+        [](ToggleMenuFlyoutItem const& c, bool v) { c.isChecked(v); });  // set
+}
+
+void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::Click>(
+        control, model, direction,                                    //
+        [](RadioMenuFlyoutItem const& c) { return c.isChecked(); },   // get
+        [](RadioMenuFlyoutItem const& c, bool v) { c.isChecked(v); });   // set
+}
+
 void apply_bind(NumberBox const& control, core::observable<int>& model, bind_direction direction) {
     bind_pair<EventKey::ValueChanged>(
         control, model, direction,                                       //
