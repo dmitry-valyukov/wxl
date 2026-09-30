@@ -94,8 +94,17 @@ wxl::Teardown wxl_launched() {
     document->members.on_change([right](core::intrusive_ptr<TreeModel> const& model) noexcept {
         right->model(model);
     });
+    auto const typesItem = SelectorBarItem {text = typesTab, isSelected = true};
     auto const details = HtmlBlock {textWrapping.wrap};
     document->info.on_change([details](std::wstring const& markup) noexcept { details.html(markup); });
+    // Ссылка в сведениях — тип: он открывается в дереве Types.
+    details.onLink([left, document, typesItem](std::wstring_view target) {
+        if (auto const row = document->reveal(target)) {
+            typesItem.isSelected(true);
+            left->model(document->types());
+            left->reveal(*row);
+        }
+    });
 
     document->revision.on_change([left, right](uint32_t) noexcept {
         left->refresh();
@@ -287,7 +296,7 @@ wxl::Teardown wxl_launched() {
                                 left->model(resources ? document->resources() : document->types());
                             }
                         },
-                        SelectorBarItem {text = typesTab, isSelected = true},
+                        typesItem,
                         SelectorBarItem {text = resourcesTab},
                     },
                     // Дерево — на сплошном фоне, белом в светлой теме.

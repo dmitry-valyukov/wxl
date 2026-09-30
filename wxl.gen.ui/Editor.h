@@ -30,6 +30,10 @@ public:
     // Левое дерево, вкладка Resources: стили по своим типам и кисти.
     wxl::core::intrusive_ptr<TreeModel> resources() const;
 
+    // Переход по ссылке из сведений: раскрывает тип в дереве Types и выбирает
+    // его; номер его строки среди видимых, если такой тип там есть.
+    wxl::core::nullable<uint32_t> reveal(std::wstring_view type) const;
+
     // Правое дерево: члены выбранного типа; пусто, пока тип не выбран.
     wxl::core::observable<wxl::core::intrusive_ptr<TreeModel>> members;
 

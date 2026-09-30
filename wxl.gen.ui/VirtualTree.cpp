@@ -192,9 +192,20 @@ Template<RadialGradientBrush> iconFill(Color outer, Color inner) {
 }
 
 void VirtualTree::model(intrusive_ptr<TreeModel> value) {
-    model_ = std::move(value);
-    top_ = 0;
+    if (value != model_) {
+        model_ = std::move(value);
+        top_ = 0;
+    }
     updateBar();
+    render();
+}
+
+void VirtualTree::reveal(uint32_t index) {
+    updateBar();
+    if (index < top_ || index >= top_ + visible_) {
+        top_ = index > visible_ / 3 ? index - visible_ / 3 : 0;
+        updateBar();
+    }
     render();
 }
 
