@@ -155,6 +155,8 @@ struct Shell {
     std::vector<int> parents;
     std::vector<Destination> back;
     std::vector<Destination> forward;
+    // Модели показанной страницы (см. holdModel).
+    std::vector<std::shared_ptr<void>> models;
     Destination current;
     bool hasCurrent = false;
     // Выбор в панели ставит сам `select`; его событие не должно вести
@@ -242,6 +244,9 @@ void show(Destination destination, bool record) {
         }
     }
 
+    // Модели прежней страницы отпускаются, когда новая уже на месте.
+    auto const previous = std::move(s.models);
+    s.models.clear();
     s.host.child(buildPage(destination));
     s.titleBar.isBackButtonVisible(!s.back.empty());
     select(destination);
@@ -405,6 +410,10 @@ void clearFavorites() {
 
 void navigate(Destination destination) {
     show(std::move(destination), true);
+}
+
+void holdModel(std::shared_ptr<void> model) {
+    shell->models.push_back(std::move(model));
 }
 
 Window createMainWindow() {

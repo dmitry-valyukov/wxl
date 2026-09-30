@@ -5,6 +5,7 @@
 
 #include "pch.h"
 
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,6 +21,17 @@ struct Destination {
 };
 
 void navigate(Destination destination);
+
+// Модель, поля которой привязаны к элементам страницы, живёт, пока страница
+// на экране: привязка держит поле по адресу и не владеет им, а поле держит
+// элемент. Страницу сменили — модель отпускается, и вместе с ней элементы.
+void holdModel(std::shared_ptr<void> model);
+
+template <class Model>
+std::shared_ptr<Model> hold(std::shared_ptr<Model> model) {
+    holdModel(model);
+    return model;
+}
 
 // Последние открытые контролы, новые первыми, и избранные — SettingsHelper
 // оригинала; здесь они живут, пока живёт окно.

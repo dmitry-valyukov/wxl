@@ -111,6 +111,40 @@ void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
         [](ToggleSwitch const& c, bool v) { c.isOn(v); });  // set
 }
 
+// A checked box says so under two events, Checked and Unchecked, so it has two
+// guards, and the field's watch keeps both: they come off together with the
+// watch. Indeterminate (a third state of a three-state box) is neither: a bool
+// field reads it as not checked, as isChecked().value_or(false) does.
+void apply_bind(ToggleButton const& control, core::observable<bool>& model,
+                bind_direction direction) {
+    using Args = typename EventAdder<EventKey::Checked>::template args_t<ToggleButton>;
+
+    bool const shows = direction != bind_direction::input;
+    bool const edits = direction != bind_direction::output;
+
+    auto const set = [](ToggleButton const& c, bool v) { c.isChecked(v); };
+    if (shows) set(control, model.get());
+
+    EventToken checked;
+    EventToken unchecked;
+    if (edits) {
+        auto const get = [&model](ToggleButton const& sender, Args&) {
+            model.set(sender.isChecked().value_or(false));
+        };
+        checked = EventAdder<EventKey::Checked>::add(control, get);
+        unchecked = EventAdder<EventKey::Unchecked>::add(control, get);
+    }
+
+    handler_guard<EventKey::Checked, ToggleButton> onChecked{control, checked};
+    handler_guard<EventKey::Unchecked, ToggleButton> onUnchecked{control, unchecked};
+    if (shows) {
+        model.watch_for_binding([a = std::move(onChecked), b = std::move(onUnchecked),
+                                 set](bool value) noexcept { set(a.control, value); });
+    } else {
+        model.watch_for_binding([a = std::move(onChecked), b = std::move(onUnchecked)](bool) noexcept {});
+    }
+}
+
 void apply_bind(ComboBox const& control, core::observable<int>& model, bind_direction direction) {
     bind_pair<EventKey::SelectionChanged>(
         control, model, direction,                                  //

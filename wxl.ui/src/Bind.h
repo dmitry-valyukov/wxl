@@ -9,6 +9,7 @@
 //
 //     ToggleSwitch { isOn = Bind{settings.minimizeOnClose} }   // both ways: the control edits
 //     ToggleSwitch { Bind{settings.minimizeOnClose} }          // the same, by the data's type
+//     CheckBox { isChecked = BindInput{model->disabled} }      // a checked box writes the field
 //     TextBlock { text = BindOutput{calc->entry} }        // from the field: the control shows
 //     TextBox { text = BindInput{search.query} }          // into the field: the control writes
 //     NumberBox { intermediateValue = BindInput{eq.a} }   // into the field, as typed

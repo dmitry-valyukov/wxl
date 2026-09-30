@@ -586,6 +586,9 @@ struct BoundModel : core::sta_refcounted {
     ToggleSwitch{Bind{model->busy}};             // by the data's type
     ComboBox{selectedIndex = Bind{model->row}};
     NumberBox{value = Bind{model->amount}};
+    CheckBox{isChecked = Bind{model->busy}};
+    CheckBox{Bind{model->busy}};
+    ToggleButton{isChecked = Bind{model->busy}};
 
     // From the field: the control shows, pair or no pair.
     TextBlock{text = BindOutput{model->title}};  // no pair: the only form a TextBlock's text takes
@@ -599,6 +602,8 @@ struct BoundModel : core::sta_refcounted {
     ToggleSwitch{isOn = BindInput{model->busy}};
     ComboBox{selectedIndex = BindInput{model->row}};
     NumberBox{intermediateValue = BindInput{model->amount}};  // input alone: the number as typed
+    CheckBox{isChecked = BindInput{model->busy}};
+    CheckBox{isChecked = BindOutput{model->busy}};
 
     // And unnamed, by the data's type, the way Bind{} goes.
     ToggleSwitch{BindInput{model->busy}};

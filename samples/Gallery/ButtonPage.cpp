@@ -2,6 +2,7 @@
 // те же, что там. Код каждого — файл в Snippets/Button/ (см. Pages.h).
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;
