@@ -310,16 +310,31 @@ struct WindowState : core::refcounted {
     bool ownButtonRegions{false};
     bool regionsQueued{false};
 
-    // Заголовок-элемент переживает окно, если его держит приложение, -- его
-    // обратные вызовы указывают сюда и снимаются вместе с состоянием.
-    //
-    // Состояние может умирать и после того, как XAML уже закрыт: хендл окна
-    // держит обработчик в дереве острова, и последним его отпускает сам остров,
-    // уходя вместе с приложением. Тогда снимать подписки уже не с кого -- вызов
-    // бросает, а из деструктора исключению идти некуда.
+    // XAML этого окна закрыт (closeXaml): остров заново не заводится.
+    bool xamlClosed{false};
+
+    // Состояние живёт дольше окна: его держат хендлы приложения, и последний
+    // бывает отпущен уже после Application::Start, когда XAML закрыт. От XAML
+    // к тому времени ничего не осталось -- всё отпущено при уничтожении окна
+    // (closeXaml); здесь -- подписка на модель масштаба, она не из XAML.
     ~WindowState() {
+        if (zoomFactorCookie) appZoom->zoomFactor().remove_change(core::cookie_t {zoomFactorCookie});
+    }
+
+    // Окно уничтожается (WM_DESTROY), XAML ещё жив: всё, что состояние держит от
+    // XAML, отпускается сейчас, как у Microsoft.UI.Xaml.Window при закрытии
+    // (DesktopWindowImpl::CloseImpl и Shutdown в исходниках WinUI 3): подписки
+    // сняты, содержимое убрано, источник XAML закрыт. XamlRoot, отпущенный
+    // после закрытия XAML, падал в своём деструкторе нарушением доступа --
+    // Беседка при закрытии, но только после клавиш масштаба: деструктор
+    // разбирает службы, заведённые по требованию, а всплывающее их заводит
+    // (Flyout -- ApplicationBarService). Заголовок-элемент,
+    // если его держит приложение, переживает окно -- его обратные вызовы
+    // снимаются здесь же. С ними -- подписки на неклиентский ввод: окно ещё
+    // есть, и снимать их есть с кого.
+    void closeXaml() {
+        xamlClosed = true;
         try {
-            if (zoomFactorCookie) appZoom->zoomFactor().remove_change(core::cookie_t {zoomFactorCookie});
             dropTitleBar();
             if (xamlRoot) xamlRoot.Changed(xamlRootChanged);
             if (nonClient) {
@@ -329,10 +344,33 @@ struct WindowState : core::refcounted {
                 nonClient.PointerPressed(captionPressed);
                 nonClient.PointerReleased(captionReleased);
             }
+            if (zoomIndicatorTimer) zoomIndicatorTimer.Stop();
+            if (zoomIndicator) zoomIndicator.IsOpen(false);
+            if (chrome) {
+                chrome.Content(nullptr);
+                chrome.Close();
+            }
         } catch (winrt::hresult_error const& error) {
-            ::OutputDebugStringW((L"wxl::CompositionWindow: подписки не сняты: " +
+            ::OutputDebugStringW((L"wxl::CompositionWindow: XAML окна закрыт не чисто: " +
                                   std::wstring{error.message()} + L"\n").c_str());
         }
+        nonClient = nullptr;
+        xamlRoot = nullptr;
+        zoomIndicatorTimer = nullptr;
+        zoomIndicator = nullptr;
+        zoomIndicatorText = nullptr;
+        zoomIndicatorAnchor = nullptr;
+        zoomSensor = nullptr;
+        page = nullptr;
+        closeButton = nullptr;
+        maximizeButton = nullptr;
+        minimizeButton = nullptr;
+        captionButtons = nullptr;
+        bar = nullptr;
+        root = nullptr;
+        chrome = nullptr;
+        contentShown = false;
+        islandFocusPending = false;
     }
 
     void resize(float width, float height) {
@@ -489,6 +527,9 @@ struct WindowState : core::refcounted {
 
     void ensureIsland() {
         if (chrome) return;
+        // Окно уничтожено -- острову не на чем стоять: RO_E_CLOSED, как у
+        // всякого закрытого объекта WinRT.
+        if (xamlClosed) throw winrt::hresult_error{RO_E_CLOSED, L"wxl::CompositionWindow: окно уже закрыто"};
         chrome = xaml::Hosting::DesktopWindowXamlSource{};
         chrome.Initialize(windowIdOf(hwnd));
 
@@ -1235,8 +1276,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             return 0;
 
         case WM_DESTROY:
-            // Своё окно закрылось -- гасим приложение; после этого
-            // Application::Start возвращается и отрабатывает Teardown.
+            // Своё окно закрылось -- его XAML отпускается, пока XAML жив, и
+            // гасится приложение; после этого Application::Start возвращается
+            // и отрабатывает Teardown.
+            if (state) state->closeXaml();
             xaml::Application::Current().Exit();
             return 0;
 
