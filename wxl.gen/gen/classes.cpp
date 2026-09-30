@@ -745,6 +745,19 @@ public:
                            route.param_type, route.statement);
             }
         }
+        if (get_category(info.type) == category::interface_type) {
+            // A wrapped interface has no class of its own above it: what
+            // implements it is AppBarButton, AppBarSeparator, anything, and
+            // none of them derives from this wrapper. Any object converts,
+            // by the QueryInterface the interface needs -- which is how a
+            // collection of the interface takes the classes that implement
+            // it, `primaryCommands = {AppBarButton {...}, AppBarSeparator {}}`.
+            std::print(out,
+                       "\n    /// Any object that implements {}: asked for it on the way in,\n"
+                       "    /// and a wiring mistake when it does not.\n"
+                       "    {}(Object const& object);\n",
+                       info.type.TypeName(), info.name);
+        }
         std::print(out, "\nprotected:\n");
         if (info.construction == Construction::ProtectedOnly) {
             // Mirrors `protected extern X()` in the real class: only a type
@@ -1021,6 +1034,11 @@ struct runtime_class_name_of<{}::{}> {{
         if (!info.statics_only) {
             std::print(out, "\n{}::{}(Impl* impl) noexcept : base_t(impl) {{}}\n", info.name,
                        info.name);
+            if (get_category(info.type) == category::interface_type) {
+                std::print(out,
+                           "\n{0}::{0}(Object const& object) : {0}(object.try_as<{0}>()) {{}}\n",
+                           info.name);
+            }
         }
 
         switch (info.construction) {

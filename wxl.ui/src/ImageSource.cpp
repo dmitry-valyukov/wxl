@@ -19,16 +19,22 @@ std::wstring application_folder_uri() {
 
 }  // namespace
 
-winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value) {
+winrt::Windows::Foundation::Uri to_winrt(Uri const& value) {
     if (value.empty()) {
         return nullptr;
     }
 
-    winrt::hstring const& text = to_winrt(value.source().text());
+    winrt::hstring const& text = to_winrt(value.text());
     auto const absolute = std::wstring_view{text}.find(L"://") != std::wstring_view::npos;
-    return winrt::Microsoft::UI::Xaml::Media::Imaging::BitmapImage{
-        absolute ? winrt::Windows::Foundation::Uri{text}
-                 : winrt::Windows::Foundation::Uri{application_folder_uri(), text}};
+    return absolute ? winrt::Windows::Foundation::Uri{text}
+                    : winrt::Windows::Foundation::Uri{application_folder_uri(), text};
+}
+
+winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value) {
+    if (value.empty()) {
+        return nullptr;
+    }
+    return winrt::Microsoft::UI::Xaml::Media::Imaging::BitmapImage{to_winrt(value.source())};
 }
 
 // An image source that came back from the framework is a real object of

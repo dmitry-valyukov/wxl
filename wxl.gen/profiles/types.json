@@ -112,6 +112,14 @@
             "fromString": true
         },
 
+        // A shape is a path in the XAML mini-language and nothing else worth
+        // reaching; the framework's converter builds the real geometry.
+        {
+            "type": "Microsoft.UI.Xaml.Media.Geometry",
+            "wxl": "Geometry",
+            "include": "../XamlGeometry.h",
+            "fromString": true
+        },
         // WinRT's nullable box is wxl's nullable in everything but name, and
         // for most element types it costs nothing over the bare value: the
         // sentinel beside the type says which value means empty. The metadata
