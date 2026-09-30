@@ -39,7 +39,7 @@ ImageSource from_winrt(winrt::Microsoft::UI::Xaml::Media::ImageSource const& val
     if (!bitmap || !bitmap.UriSource()) {
         return {};
     }
-    return ImageSource{Uri{bitmap.UriSource().ToString()}};
+    return ImageSource{Uri{std::wstring_view{bitmap.UriSource().ToString()}}};
 }
 
 }  // namespace wxl::impl

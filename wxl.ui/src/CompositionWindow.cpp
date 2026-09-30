@@ -1455,7 +1455,7 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     state_->resize(static_cast<float>(client.right), static_cast<float>(client.bottom));
 }
 
-CompositionWindow::CompositionWindow(std::wstring_view title, SizeInt32 minSize) : CompositionWindow() {
+CompositionWindow::CompositionWindow(string_param title, SizeInt32 minSize) : CompositionWindow() {
     this->title(title);
     this->minSize(minSize);
 }
@@ -1640,11 +1640,11 @@ DispatcherQueue CompositionWindow::dispatcherQueue() const {
     return Object::Impl::wrap<DispatcherQueue>(mud::DispatcherQueue::GetForCurrentThread());
 }
 
-void CompositionWindow::placement(std::wstring_view saved) const {
+void CompositionWindow::placement(string_param saved) const {
     // Та же строка, что у генерируемого Window; разбор формата и подгонку к
     // сегодняшним мониторам берём общими -- impl::parse_placement и
     // fit_placement_to_displays из WindowPlacement.cpp.
-    auto const wanted = impl::parse_placement(saved);
+    auto const wanted = impl::parse_placement(saved.wide());
     if (!wanted) {
         return;  // пусто или мусор: окно остаётся там, где создано
     }

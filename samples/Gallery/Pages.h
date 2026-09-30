@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -73,6 +74,13 @@ wxl::FrameworkElement radioButtonPage();
 wxl::FrameworkElement ratingControlPage();
 wxl::FrameworkElement sliderPage();
 wxl::FrameworkElement toggleSwitchPage();
+wxl::FrameworkElement textBlockPage();
+wxl::FrameworkElement textBoxPage();
+wxl::FrameworkElement passwordBoxPage();
+wxl::FrameworkElement numberBoxPage();
+wxl::FrameworkElement autoSuggestBoxPage();
+wxl::FrameworkElement richTextBlockPage();
+wxl::FrameworkElement richEditBoxPage();
 
 // Плитка контрола (ControlItemTemplate оригинала) и сетка плиток: GridView,
 // клик по плитке — переход на страницу контрола.
@@ -86,6 +94,17 @@ std::wstring htmlEscape(std::wstring_view text);
 inline std::wstring wide(std::u16string_view text) {
     return std::wstring(text.begin(), text.end());
 }
+
+// Каталог для примеров с поиском: все слова запроса есть в тексте (без учёта
+// регистра); названия перенесённых контролов, подходящие под запрос; контрол
+// по названию; путь к картинке из каталога (`ms-appx:///Assets/…`).
+bool containsWords(std::u16string_view text, std::u16string_view query);
+std::vector<std::u16string> controlTitles(std::u16string_view query);
+ControlInfo const* controlByTitle(std::u16string_view title);
+std::wstring assetPath(std::wstring_view imagePath);
+
+// XML с отступами по вложенности: элемент с одним текстом остаётся в строке.
+std::wstring indentXml(std::wstring_view xml);
 
 // Служебные страницы оригинала (Pages/).
 wxl::FrameworkElement homePage();

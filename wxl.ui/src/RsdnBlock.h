@@ -33,15 +33,15 @@ public:
     }
 
     // Заменяет всё содержимое разобранной разметкой.
-    void rsdn(std::wstring_view markup) const;
+    void rsdn(string_param markup) const;
 
     // Дописывает кусок после уже показанного, ничего не перечитывая.
-    void append(std::wstring_view markup) const;
+    void append(string_param markup) const;
 
     // Голая строка в декларативной записи — разметка:
     // RsdnBlock{ L"[q]цитата[/q] ответ" }.
     using base_t::setPositional;
-    void setPositional(std::wstring_view markup) const { rsdn(markup); }
+    void setPositional(string_param markup) const { rsdn(markup); }
 
 protected:
     explicit RsdnBlock(Impl* impl) noexcept;

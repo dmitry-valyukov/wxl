@@ -254,10 +254,10 @@ TrayIcon::~TrayIcon() {
     hide();
 }
 
-bool TrayIcon::show(std::wstring_view tooltip) {
+bool TrayIcon::show(string_param tooltip) {
     if (window_) return true;
 
-    tooltip_.assign(tooltip);
+    tooltip_.assign(tooltip.wide());
 
     // The application's own icon, unless one was already set with icon(): a
     // caller naming the icon before show() means that icon, not the default.
@@ -312,8 +312,8 @@ void TrayIcon::hide() {
     window_ = nullptr;
 }
 
-void TrayIcon::tooltip(std::wstring_view text) {
-    tooltip_.assign(text);
+void TrayIcon::tooltip(string_param text) {
+    tooltip_.assign(text.wide());
 
     if (!window_) return;
 

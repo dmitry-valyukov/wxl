@@ -29,29 +29,29 @@ HtmlBlock::HtmlBlock() : base_t(new Impl{}) {
     impl::ActivationFactory<HtmlBlock>::activate(put_abi());
 }
 
-void HtmlBlock::html(std::wstring_view markup) const {
+void HtmlBlock::html(string_param markup) const {
     clear();
     append(markup);
 }
 
-void HtmlBlock::append(std::wstring_view markup) const {
-    const html::document parsed = html::parse(markup);
+void HtmlBlock::append(string_param markup) const {
+    const html::document parsed = html::parse(markup.wide());
     build_markup(*this, *static_cast<Impl*>(impl()), parsed);
 }
 
-void HtmlBlock::registerStyle(std::wstring_view name, HtmlStyle const& style) const {
+void HtmlBlock::registerStyle(string_param name, HtmlStyle const& style) const {
     auto& styles = static_cast<Impl*>(impl())->namedStyles_;
     for (auto& existing : styles) {
-        if (existing.name == name) {
+        if (existing.name == name.wide()) {
             existing.style = style;
             return;
         }
     }
-    styles.push_back({sta_wstring{name}, style});
+    styles.push_back({sta_wstring{name.wide()}, style});
 }
 
 void HtmlBlock::registerStyles(
-    std::initializer_list<std::pair<std::wstring_view, HtmlStyle>> styles) const {
+    std::initializer_list<std::pair<string_param, HtmlStyle>> styles) const {
     for (const auto& [name, style] : styles) registerStyle(name, style);
 }
 

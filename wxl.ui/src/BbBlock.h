@@ -30,15 +30,15 @@ public:
     }
 
     // Заменяет всё содержимое разобранной разметкой.
-    void bb(std::wstring_view markup) const;
+    void bb(string_param markup) const;
 
     // Дописывает кусок после уже показанного, ничего не перечитывая.
-    void append(std::wstring_view markup) const;
+    void append(string_param markup) const;
 
     // Голая строка в декларативной записи — разметка:
     // BbBlock{ L"Привет, [b]мир[/b]!" }.
     using base_t::setPositional;
-    void setPositional(std::wstring_view markup) const { bb(markup); }
+    void setPositional(string_param markup) const { bb(markup); }
 
 protected:
     explicit BbBlock(Impl* impl) noexcept;

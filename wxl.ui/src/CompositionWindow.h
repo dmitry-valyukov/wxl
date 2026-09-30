@@ -125,7 +125,7 @@ public:
     CompositionWindow();
 
     /// То же с именем и нижним пределом клиентской области.
-    CompositionWindow(std::wstring_view title, SizeInt32 minSize);
+    CompositionWindow(string_param title, SizeInt32 minSize);
 
     /// Окно в скобках декларативного синтаксиса: свойства, события и
     /// безымянные аргументы -- содержимое и заголовок -- применяются по порядку.
@@ -329,7 +329,7 @@ public:
     /// Запомненное место окна (та же строка, что у генерируемого Window): при
     /// восстановлении проверяются мониторы, при отсутствии строки не делается
     /// ничего.
-    void placement(std::wstring_view saved) const;
+    void placement(string_param saved) const;
     std::wstring placement() const;
 
     /// Полноэкранный режим -- на своём HWND через Win32 (стиль и рамка), а не

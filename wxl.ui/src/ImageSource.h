@@ -22,14 +22,14 @@ public:
     ImageSource() = default;
 
     // Not explicit, on purpose: a string literal is an image source
-    // wherever a property asks for one. The pointer overload is what makes
-    // the literal itself work -- through the view alone it would take two
-    // user-defined conversions, which an implicit sequence never has.
+    // wherever a property asks for one. Anything string_param takes is a
+    // string here; it is a template for the reason Uri's is (a literal would
+    // otherwise take two user-defined conversions).
     ImageSource(Uri source) noexcept : source_(std::move(source)) {}
-    ImageSource(std::wstring_view text) noexcept : source_(text) {}
-    ImageSource(wchar_t const* text) noexcept : source_(text) {}
-    ImageSource(std::u16string_view text) noexcept : source_(text) {}
-    ImageSource(char16_t const* text) noexcept : source_(text) {}
+
+    template <typename Text>
+        requires std::convertible_to<Text const&, string_param>
+    ImageSource(Text const& text) noexcept : source_(text) {}
 
     Uri const& source() const noexcept { return source_; }
 

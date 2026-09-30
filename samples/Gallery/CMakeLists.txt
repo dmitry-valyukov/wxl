@@ -54,6 +54,13 @@ wxl_add_executable(sample.gallery
     RatingControlPage.cpp
     SliderPage.cpp
     ToggleSwitchPage.cpp
+    TextBlockPage.cpp
+    TextBoxPage.cpp
+    PasswordBoxPage.cpp
+    NumberBoxPage.cpp
+    AutoSuggestBoxPage.cpp
+    RichTextBlockPage.cpp
+    RichEditBoxPage.cpp
     ${_gallery_snippets}
     ${_gallery_embedded}
     embed.cmake
