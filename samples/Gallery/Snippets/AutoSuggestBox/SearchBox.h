@@ -16,7 +16,7 @@ auto const show = [picture, nameText, subtitleText, details](std::u16string_view
         details.visibility(Visibility::Visible);
         picture.source(gallery::assetPath(control->imagePath).c_str());
         nameText.text(name);
-        subtitleText.text(std::wstring_view {control->subtitle});
+        subtitleText.text(control->subtitle);
     }
 };
 

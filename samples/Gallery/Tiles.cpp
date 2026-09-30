@@ -34,12 +34,12 @@ wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
                 vAlign.center,
                 spacing = 4.0,
                 TextBlock {
-                    std::wstring_view{item.title},
+                    item.title,
                     styles.TextBlock.BodyStrong,
                     textWrapping.noWrap,
                 },
                 TextBlock {
-                    std::wstring_view{item.subtitle},
+                    item.subtitle,
                     styles.TextBlock.Caption,
                     foreground = brushes.Text.FillColor.Secondary,
                     textTrimming = TextTrimming::WordEllipsis,
