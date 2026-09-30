@@ -229,6 +229,8 @@ add_library(wxl.ui STATIC
     src/impl/grid_definitions.cpp
     src/impl/tool_tip.h
     src/impl/tool_tip.cpp
+    src/impl/swipe_items_mode.h
+    src/impl/swipe_items_mode.cpp
     src/impl/wheel_to_parent.h
     src/impl/wheel_to_parent.cpp
     src/impl/automation_name.h

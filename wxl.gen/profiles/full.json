@@ -315,7 +315,27 @@
             "comment": "Menus & toolbars: a command bar in a flyout."
         },
         "Microsoft.UI.Xaml.Controls.SwipeControl": {
-            "comment": "Menus & toolbars: items revealed or invoked by swiping."
+            "comment": "Menus & toolbars: items revealed or invoked by swiping. LeftItems and RightItems are the collections themselves (SwipeItems is a vector and wxl stands it for the collection), so the Mode the class carries has a property of its own here.",
+            "syntheticMembers": {
+                "LeftItemsMode": {
+                    "comment": "SwipeItems.Mode of the left items: Reveal shows the buttons, Execute runs the first on a full swipe.",
+                    "type": "Microsoft.UI.Xaml.Controls.SwipeMode",
+                    "function": "impl::set_left_items_mode",
+                    "include": "../impl/swipe_items_mode.h"
+                },
+                "RightItemsMode": {
+                    "comment": "SwipeItems.Mode of the right items.",
+                    "type": "Microsoft.UI.Xaml.Controls.SwipeMode",
+                    "function": "impl::set_right_items_mode",
+                    "include": "../impl/swipe_items_mode.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeItemInvokedEventArgs": {
+            "comment": "Menus & toolbars: which control the item was invoked on.",
+            "members": [
+                "SwipeControl"
+            ]
         },
         "Microsoft.UI.Xaml.Controls.SwipeItem": {
             "comment": "Menus & toolbars: one swipe action."
