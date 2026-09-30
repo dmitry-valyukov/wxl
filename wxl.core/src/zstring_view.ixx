@@ -88,6 +88,13 @@ public:
         requires std::same_as<CharT, char16_t>
         : ptr_(reinterpret_cast<const char16_t*>(text.c_str())), size_(text.size()) {}
 
+    /// The terminated wchar_t view as the char16_t one, with the terminator it
+    /// carries: the same seam, one level up.
+    template <typename Unit>
+        requires(std::same_as<CharT, char16_t> && std::same_as<Unit, wchar_t>)
+    basic_zstring_view(basic_zstring_view<Unit> other) noexcept
+        : ptr_(reinterpret_cast<const char16_t*>(other.data())), size_(other.size()) {}
+
     constexpr const_pointer data() const noexcept { return ptr_; }
     constexpr const_pointer c_str() const noexcept { return ptr_; }
     constexpr size_type size() const noexcept { return size_; }
@@ -97,6 +104,8 @@ public:
     constexpr const_iterator begin() const noexcept { return ptr_; }
     constexpr const_iterator end() const noexcept { return ptr_ + size_; }
     constexpr CharT operator[](size_type at) const noexcept { return ptr_[at]; }
+    constexpr CharT front() const noexcept { return ptr_[0]; }
+    constexpr CharT back() const noexcept { return ptr_[size_ - 1]; }
 
     /// Terminated, so the pointer alone is enough for a callee that wants one,
     /// in the unit the callee spells.

@@ -114,6 +114,8 @@ TEST(hstring, comparing) {
     EXPECT_TRUE(text == hstring{u"abc"});
     EXPECT_TRUE(text == u"abc");
     EXPECT_TRUE(text == std::u16string_view{u"abc"});
+    EXPECT_TRUE(text == zstring_view{u"abc"});
+    EXPECT_FALSE(text == zstring_view{u"abd"});
     EXPECT_FALSE(text == u"abd");
 }
 

@@ -131,6 +131,19 @@ public:
     /// the cost of this type, and it is written where it is paid.
     explicit hstring(std::u16string_view text) : header_(create(text)) {}
 
+    /// A string of any allocator, taken as the view it is: the view and the borrowed
+    /// reference would otherwise both fit it through one conversion each.
+    template <typename Traits, typename Alloc>
+    explicit hstring(const std::basic_string<char16_t, Traits, Alloc>& text)
+        : header_(create(std::u16string_view(text.data(), text.size()))) {}
+
+    /// What a borrowed reference was lent from, kept: an hstring it was made from
+    /// is one more count, and text that only lay under a fast-pass header is
+    /// copied, once, into a string of its own. This is how a value that has to
+    /// outlive the call -- a Uri, a font name, a model field -- takes what a
+    /// parameter brought.
+    explicit hstring(const hstring_param& borrowed);
+
     /// A C string, which is also what a literal is: a literal would otherwise
     /// reach the view, the checked view and the checked string through one
     /// conversion each, and none of them would be the better one.
@@ -191,6 +204,13 @@ public:
 
     friend bool operator==(const hstring& left, std::u16string_view right) noexcept {
         return left.text().view() == right;
+    }
+
+    /// Against a terminated view as itself: through the view it would be one
+    /// conversion on the right, and through zstring_view's own comparison one on
+    /// the left, and neither is better.
+    friend bool operator==(const hstring& left, zstring_view right) noexcept {
+        return left.text().view() == right.view();
     }
 
     friend bool operator==(const hstring& left, const char16_t* right) noexcept {
@@ -261,9 +281,14 @@ public:
     std::size_t size() const noexcept { return handle_ == nullptr ? 0 : handle_->length; }
     bool empty() const noexcept { return handle_ == nullptr; }
 
-    /// The handle to lend to a call, for the layer that speaks WinRT: this is the
-    /// one value that layer reinterprets as its own hstring const&.
+    /// The handle to lend to a call, for the layer that speaks WinRT.
     void* get_abi() const noexcept { return handle_; }
+
+    /// The same handle as an hstring const&, unowned -- it is what the object
+    /// holds first, in the layout of an hstring. For the layer that speaks WinRT,
+    /// which reinterprets it once more as its own hstring const& and lends it to
+    /// a method that borrows: no count moves and nothing is copied.
+    const hstring& as_hstring() const noexcept { return *reinterpret_cast<const hstring*>(&handle_); }
 
 private:
     void reference(zstring_view text) noexcept {
@@ -286,6 +311,9 @@ private:
     impl::hstring_header* handle_ = nullptr;
     impl::hstring_header header_;
 };
+
+inline hstring::hstring(const hstring_param& borrowed)
+    : header_(impl::duplicate_hstring(static_cast<impl::hstring_header*>(borrowed.get_abi()))) {}
 
 }  // export
 
