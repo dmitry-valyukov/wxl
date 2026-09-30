@@ -134,6 +134,14 @@ TEST(highlight, python_docstring_is_a_comment_and_prefixes_are_strings) {
               "K<def>P< f():\n    >C<\"\"\"doc\"\"\">P<\n    >K<return>P< >S<r\"x\">");
 }
 
+TEST(highlight, cpp_string_prefixes_are_strings) {
+    EXPECT_EQ(pieces(L"cpp", L"a = u\"x\"; b = L'y'; c = u8\"z\"; d = U\"w\";"),
+              "P<a = >S<u\"x\">P<; b = >S<L'y'>P<; c = >S<u8\"z\">P<; d = >S<U\"w\">P<;>");
+    // Префикс -- начало слова: в середине идентификатора это не он.
+    EXPECT_EQ(pieces(L"cpp", L"menu\"q\""), "P<menu>S<\"q\">");
+    EXPECT_EQ(pieces(L"python", L"bar\"q\""), "P<bar>S<\"q\">");
+}
+
 TEST(highlight, lisp_form_head_after_paren) {
     EXPECT_EQ(pieces(L"lisp", L"(defun f () defun) ; c"),
               "P<(>K<defun>P< f () defun) >C<; c>");

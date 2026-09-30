@@ -39,6 +39,11 @@ struct member_info {
     TypeUse result;     // unused when `returns_void`
     bool returns_void = true;
     std::vector<param_info> params;
+
+    // A method whose last parameter is an out value and which returns nothing
+    // else: the wxl member returns that value (`GetText(options, out string)`
+    // becomes `getText(options)`), and the call passes a local for it.
+    bool out_result = false;
     std::string args_type;  // events only: what the handler is handed besides the sender
 
     // Whether that args type is an ordinary wrapper rather than an EventArgs

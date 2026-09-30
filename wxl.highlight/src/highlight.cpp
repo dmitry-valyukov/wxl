@@ -138,12 +138,19 @@ std::optional<scanner::found> scanner::probe(std::size_t at) const noexcept {
 std::optional<scanner::found> scanner::delimited_at(std::size_t at) const noexcept {
     for (const delimited_rule& rule : language_->delimiters) {
         std::size_t open_at = at;
-        if (!rule.prefixes.empty() && rule.prefixes.find(code_[at]) != npos &&
-            starts_at(code_, at + 1, rule.open)) {
-            open_at = at + 1;
-        } else if (!starts_at(code_, at, rule.open)) {
-            continue;
+        bool prefixed = false;
+        if (!rule.prefixes.empty() && (at == 0 || !is_word(code_[at - 1]))) {
+            if (rule.prefixes.find(code_[at]) != npos && starts_at(code_, at + 1, rule.open)) {
+                open_at = at + 1;
+                prefixed = true;
+            } else if (code_[at] == L'u' && rule.prefixes.find(L'8') != npos &&
+                       at + 1 < code_.size() && code_[at + 1] == L'8' &&
+                       starts_at(code_, at + 2, rule.open)) {
+                open_at = at + 2;
+                prefixed = true;
+            }
         }
+        if (!prefixed && !starts_at(code_, at, rule.open)) continue;
 
         // Решётка shell: комментарий она открывает только с начала слова,
         // иначе ${имя#хвост} и $# съели бы остаток строки.

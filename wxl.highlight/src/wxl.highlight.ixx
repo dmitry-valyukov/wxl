@@ -59,7 +59,9 @@ struct delimited_rule {
     kind_t kind;
     std::wstring_view open;
     std::wstring_view close;     ///< пусто -- до конца строки
-    std::wstring_view prefixes;  ///< один из них может стоять перед open: u"..." в Python
+    std::wstring_view prefixes;  ///< один из них может стоять перед open: u"..." в Python; цифра 8
+                                 ///< в списке разрешает и двухбуквенный u8"..." (C++). Префикс --
+                                 ///< начало слова: в середине идентификатора он строку не открывает
     wchar_t escape;              ///< символ экранирования внутри; 0 -- нет
     bool doubled_close;          ///< удвоенный close внутри -- не конец: 'it''s'
     bool multiline;              ///< может пересечь перевод строки; иначе кончается с ней

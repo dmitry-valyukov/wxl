@@ -171,8 +171,8 @@ constexpr delimited_rule kCDelimiters[] = {
     {comment, L"//", L"", L"", 0, false, false, false, false, false},
     {comment, L"/*", L"*/", L"", 0, false, true, false, false, false},
     {string, L"@\"", L"\"", L"", 0, true, true, false, false, false},
-    {string, L"\"", L"\"", L"", L'\\', false, false, false, false, false},
-    {string, L"'", L"'", L"", L'\\', false, false, false, true, false},
+    {string, L"\"", L"\"", L"uUL8", L'\\', false, false, false, false, false},
+    {string, L"'", L"'", L"uUL8", L'\\', false, false, false, true, false},
 };
 
 constexpr std::wstring_view kCWords0[] = {

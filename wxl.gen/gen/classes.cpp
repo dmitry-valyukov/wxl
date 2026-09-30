@@ -1154,6 +1154,15 @@ struct runtime_class_name_of<{}::{}> {{
                 }
             }
 
+            // The out value of a method that has nothing else to return goes
+            // last in the call, into a local the body then hands back.
+            if (member.out_result) {
+                if (!arguments.empty()) {
+                    arguments += ", ";
+                }
+                arguments += "result";
+            }
+
             // A static member is reached through the statics proxy, which
             // resolves the class's activation factory once and then answers
             // from a cached pointer; an instance member goes through the
@@ -1166,6 +1175,13 @@ struct runtime_class_name_of<{}::{}> {{
                                   member.method_call.empty() ? member.winrt_name
                                                              : member.method_call,
                                   arguments);
+
+            if (member.out_result) {
+                std::print(out, "\n{} {{\n    {} result{{}};\n    {};\n    return {};\n}}\n",
+                           signature, member.result.winrt_type, call,
+                           substitute(member.result.from_winrt, "result"));
+                continue;
+            }
 
             std::print(out, "\n{} {{\n    {}{};\n}}\n", signature,
                        member.returns_void ? "" : "return ",
