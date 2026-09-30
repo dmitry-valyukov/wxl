@@ -37,6 +37,7 @@ module;
 export module wxl.core:unicode;
 
 import :compressed_optional;
+import :zstring_view;
 import std;
 
 namespace wxl::core {
@@ -678,6 +679,16 @@ public:
         requires is_utf16
     {
         return std::wstring(wchars());
+    }
+
+    /// The text with its terminator, in the type that says so. The string keeps
+    /// a zero after its last unit, so this is a pointer and a length and no
+    /// look -- which is what makes text that owns its buffer the cheapest way in
+    /// to a zstring_view, and through it to a WinRT string. It is the
+    /// terminator that crosses, not the well-formedness: a zstring_view is a
+    /// plain view once it is out.
+    constexpr operator basic_zstring_view<CharT, Traits>() const noexcept {
+        return basic_zstring_view<CharT, Traits>(text_);
     }
 
     /// Null-terminated, for the calls that take a pointer and no length --
