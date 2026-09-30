@@ -476,6 +476,15 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
         return interface_parameter(winrt_name, winrt_header);
     }
 
+    // DependencyObject is given from above: it is written by hand (Object.h)
+    // and has no entry among the generated names, but a member handing one over
+    // or taking one in -- FrameworkElement.Parent, FlyoutBase.ShowAt -- is as
+    // wrappable as any class.
+    if (get_category(type) == category::class_type &&
+        full_name(type) == "Microsoft.UI.Xaml.DependencyObject") {
+        return wrapper_type("DependencyObject", winrt_name, "../Object.h");
+    }
+
     auto const name = index.names.find(type);
     auto const header = index.headers.find(type);
     if (name == index.names.end() || header == index.headers.end()) {
