@@ -1091,8 +1091,8 @@ void MarkupBlock::theme(HtmlTheme const& value) const {
     static_cast<Impl*>(impl())->theme_ = value;
 }
 
-void MarkupBlock::baseDirectory(std::wstring_view directory) const {
-    static_cast<Impl*>(impl())->baseDirectory_ = directory;
+void MarkupBlock::baseDirectory(string_param directory) const {
+    static_cast<Impl*>(impl())->baseDirectory_ = directory.wide();
 }
 
 }  // namespace wxl

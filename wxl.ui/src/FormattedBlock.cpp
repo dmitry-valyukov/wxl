@@ -173,7 +173,7 @@ void FormattedBlock::appendParagraph(BlockStyle const& style) const {
     get<&Impl::richTextBlock_>().Blocks().Append(paragraph);
 }
 
-void FormattedBlock::appendText(std::wstring_view text) const {
+void FormattedBlock::appendText(string_param text) const {
     Impl* self = static_cast<Impl*>(impl());
     docs::Run run;
     // The view goes into WinRT as it is: param::hstring is a string
@@ -182,7 +182,7 @@ void FormattedBlock::appendText(std::wstring_view text) const {
     // class's stated precondition for every text parameter. Literals,
     // basic_strings and wxl.html's arena views all satisfy it for free;
     // no copy is bought here to insure against the caller.
-    run.Text(text);
+    run.Text(text.wide());
     apply(run, merged(self->styles_));
     if (self->link_) {
         self->link_.Inlines().Append(run);
@@ -196,13 +196,13 @@ void FormattedBlock::appendLineBreak() const {
     reopen_split_link(*this, static_cast<Impl*>(impl()));
 }
 
-void FormattedBlock::appendLink(std::wstring_view text, std::wstring_view target) const {
+void FormattedBlock::appendLink(string_param text, string_param target) const {
     pushLink(target);
     appendText(text);
     popLink();
 }
 
-void FormattedBlock::pushLink(std::wstring_view target) const {
+void FormattedBlock::pushLink(string_param target) const {
     Impl* self = static_cast<Impl*>(impl());
 
     docs::Hyperlink link;
@@ -211,7 +211,7 @@ void FormattedBlock::pushLink(std::wstring_view target) const {
     // never the Impl: the XAML tree owns the control and may outlive the
     // wrapper, and a click through a dead Impl would be a crash, while a
     // box kept alive by the closure is just a handler that still works.
-    link.Click([box = self->onLink_, errors = self->onError_, target = sta_wstring{target}](
+    link.Click([box = self->onLink_, errors = self->onError_, target = sta_wstring{target.wide()}](
                    docs::Hyperlink const&, docs::HyperlinkClickEventArgs const&) {
         if (auto const& handler = box->get()) {
             (*handler)(std::wstring_view{target});
@@ -231,7 +231,7 @@ void FormattedBlock::pushLink(std::wstring_view target) const {
 
     last_paragraph(get<&Impl::richTextBlock_>()).Inlines().Append(link);
     self->link_ = std::move(link);
-    self->linkTarget_ = target;
+    self->linkTarget_ = target.wide();
 }
 
 void FormattedBlock::popLink() const {
@@ -240,13 +240,13 @@ void FormattedBlock::popLink() const {
     self->linkTarget_.clear();
 }
 
-void FormattedBlock::appendScript(std::wstring_view text, double scale, double drop) const {
+void FormattedBlock::appendScript(string_param text, double scale, double drop) const {
     Impl* self = static_cast<Impl*>(impl());
     const TextStyle style = merged(self->styles_);
     const double base = style.fontSize ? *style.fontSize : get<&Impl::richTextBlock_>().FontSize();
 
     winrt::Microsoft::UI::Xaml::Controls::TextBlock script;
-    script.Text(text);
+    script.Text(text.wide());
     script.FontSize(base * scale);
     if (style.bold.value_or(false)) {
         script.FontWeight(winrt::Microsoft::UI::Text::FontWeights::Bold());
@@ -274,26 +274,26 @@ void FormattedBlock::appendScript(std::wstring_view text, double scale, double d
     reopen_split_link(*this, self);
 }
 
-void FormattedBlock::appendImage(std::wstring_view source, Size size,
-                                 std::wstring_view toolTip) const {
+void FormattedBlock::appendImage(string_param source, Size size,
+                                 string_param toolTip) const {
     Impl* self = static_cast<Impl*>(impl());
 
     media::Imaging::BitmapImage bitmap;
-    bitmap.UriSource(to_uri(source));
+    bitmap.UriSource(to_uri(source.wide()));
 
     winrt::Microsoft::UI::Xaml::Controls::Image image;
     image.Source(bitmap);
     image.Width(size.width);
     image.Height(size.height);
     if (!toolTip.empty()) {
-        impl::set_tool_tip(image, toolTip);
+        impl::set_tool_tip(image, toolTip.wide());
     }
 
     // The load is asynchronous, so a missing or unreadable file surfaces
     // long after this call returns -- as a blank box of the given size and
     // a record in the diagnostic sink. The closure holds the box and its
     // own copy of the source, never the Impl (see pushLink).
-    image.ImageFailed([box = self->onError_, file = sta_wstring{source}](
+    image.ImageFailed([box = self->onError_, file = sta_wstring{source.wide()}](
                           winrt::Windows::Foundation::IInspectable const&,
                           winrt::Microsoft::UI::Xaml::ExceptionRoutedEventArgs const&) {
         box->invoke(HtmlError{HtmlErrorKind::ImageFailed, std::wstring_view{file}});

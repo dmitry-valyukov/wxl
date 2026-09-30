@@ -115,7 +115,7 @@ public:
     // Каталог, от которого разрешается голый относительный <img src>: для
     // разметки из файла — каталог этого файла. Пустой (умолчание) —
     // рабочий каталог процесса, что верно для ресурсов приложения.
-    void baseDirectory(std::wstring_view directory) const;
+    void baseDirectory(string_param directory) const;
 
 protected:
     explicit MarkupBlock(Impl* impl) noexcept;

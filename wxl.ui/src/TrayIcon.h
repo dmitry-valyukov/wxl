@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.h"
+#include "string_param.h"
 #include "geometry.h"
 
 // wxl::TrayIcon -- an icon in the notification area, and the menu behind it.
@@ -67,7 +68,7 @@ public:
     ///
     /// \return false if the window could not be created or the shell refused
     ///         the icon.
-    bool show(std::wstring_view tooltip);
+    bool show(string_param tooltip);
 
     /// The icon shown in the notification area, replacing whatever is there --
     /// the application's own by default. Set before show() it is what show()
@@ -85,7 +86,7 @@ public:
 
     /// The text the shell shows on hover. Up to 127 characters, which is the
     /// shell's limit rather than ours; longer text is cut.
-    void tooltip(std::wstring_view text);
+    void tooltip(string_param text);
 
     /// What builds the menu for a right-click. Without one, a right-click does
     /// nothing.

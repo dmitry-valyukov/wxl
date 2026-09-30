@@ -24,6 +24,7 @@
 #include <string_view>
 
 #include "Thickness.h"
+#include "string_param.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "geometry.h"
 
@@ -123,14 +124,14 @@ public:
     void appendParagraph(BlockStyle const& style) const;
 
     // Text in the current effective style (the merge of the pushed levels).
-    void appendText(std::wstring_view text) const;
+    void appendText(string_param text) const;
 
     void appendLineBreak() const;
 
     // A link. Clicks go to the onLink handler; without one, an http/https
     // target opens in the default browser and every other scheme is
     // silently dropped -- the target came with foreign content.
-    void appendLink(std::wstring_view text, std::wstring_view target) const;
+    void appendLink(string_param text, string_param target) const;
 
     // The same link as a scope, for content richer than one flat run:
     // between pushLink() and popLink(), appendText goes inside the link and
@@ -140,7 +141,7 @@ public:
     // around it: the element sits between two halves that share the target,
     // and the text keeps its order. A second pushLink closes the first:
     // links do not nest, in HTML or here.
-    void pushLink(std::wstring_view target) const;
+    void pushLink(string_param target) const;
     void popLink() const;
 
     // Text in its own small block riding the baseline: the sub/sup trick
@@ -148,14 +149,14 @@ public:
     // and a Run cannot shift vertically. `scale` is the size against the
     // current effective one; `drop` shifts down in fractions of that size
     // (negative lifts).
-    void appendScript(std::wstring_view text, double scale, double drop) const;
+    void appendScript(string_param text, double scale, double drop) const;
 
     // An image from a local file or resource URI. The size is required by
     // design (wxl.html/design.md): the bitmap loads asynchronously, and a
     // line that grows after the fact is a jump the reader sees. toolTip
     // doubles as the automation name, same as the toolTip tag everywhere.
-    void appendImage(std::wstring_view source, Size size,
-                     std::wstring_view toolTip = {}) const;
+    void appendImage(string_param source, Size size,
+                     string_param toolTip = {}) const;
 
     // Any element inline with the text -- the door <sub>/<sup> tricks
     // come through.

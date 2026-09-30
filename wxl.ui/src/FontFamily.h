@@ -22,16 +22,13 @@ public:
     FontFamily() = default;
 
     // Not explicit, on purpose: the whole point is that a string literal is
-    // a font wherever a property asks for one. Both spellings of it, which
-    // is string_param's whole job -- including the one user-defined
-    // conversion an implicit sequence allows, so a bare literal still works.
-    FontFamily(string_param name) noexcept : name_(name.text()) {}
-
-    // The pointer overloads are what make a bare literal a font: reaching
-    // string_param from one and this type from that would be two
+    // a font wherever a property asks for one. What counts as a string is
+    // string_param's business; it is a template, not `FontFamily(string_param)`,
+    // because through that a literal or a std::wstring would take two
     // user-defined conversions, which an implicit sequence never has.
-    FontFamily(wchar_t const* name) noexcept : FontFamily(string_param{name}) {}
-    FontFamily(char16_t const* name) noexcept : FontFamily(string_param{name}) {}
+    template <typename Text>
+        requires std::convertible_to<Text const&, string_param>
+    FontFamily(Text const& name) noexcept : name_(string_param{name}.text()) {}
 
     // The reinterpret_cast is between wchar_t and char16_t, the same 16-bit
     // code unit on Windows differing only in type.
