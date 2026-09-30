@@ -33,7 +33,19 @@
 // С ключом --info-flyout (фокус -- как с --window-like) -- информационный
 // flyout, как у ZoomEffect (Transient, текст «110 %» под кнопкой): берёт ли он
 // фокус при показе, от щелчка и от Tab -- как есть и с запретами фокуса и
-// попадания (этапы F1-F6 в infoFlyoutPhases()). Проба прогоняет их сама и
+// попадания (этапы F1-F6 в infoFlyoutPhases()).
+//
+// С ключом --flyout-scale клавиши не нажимаются: масштаб острова меняется
+// OverrideScale при открытом и закрытом flyout (этапы S, D в
+// flyoutScalePhases(); A -- уход окна из активных, R -- растяжка окна, H --
+// своё закрытие). С --popup индикатор -- простой Popup под кнопкой, и в
+// журнале -- где он стоит относительно неё. Открытый до смены масштаба flyout закрывается сам --
+// его Popup с лёгким закрытием закрывается на смену размера XamlRoot
+// (Popup::OnXamlRootChanged в исходниках WinUI), мимо Closing и после того,
+// как вызывающий уже проверил IsOpen. --cancel-closing отменяет в Closing
+// закрытия, которых не просили (отменять нечего -- Closing не приходит);
+// --windowed-flyout -- flyout в своём окне (ShouldConstrainToRootBounds =
+// false), закрывается так же. Проба прогоняет этапы сама и
 // закрывается; всё пишет в keyboard-zoom-probe.log рядом с исполняемым файлом.
 // SendInput нажимает настоящие клавиши и щёлкает настоящей мышью: на время
 // пробы клавиатура и мышь -- её.
@@ -430,55 +442,152 @@ std::vector<Phase> phases() {
 // Как ZoomEffect на каждое изменение модели: сначала масштаб острова
 // (OverrideScale моста, как applyZoom), потом flyout -- ShowAt, только если он
 // закрыт. Второй ряд этапов показывает flyout отложенно, после пересчёта.
+// С --popup индикатор -- простой Popup под кнопкой (PlacementTarget,
+// DesiredPlacement Bottom) с текстом в рамке, без Flyout.
 
 controls::Flyout scaleFlyout{nullptr};
+controls::Primitives::Popup scalePopup{nullptr};
 controls::TextBlock scaleText{nullptr};
+bool cancelClosing = false;  // --cancel-closing: закрытие, которое просили не мы, отменяется
+bool windowedFlyout = false;  // --windowed-flyout: ShouldConstrainToRootBounds = false -- flyout в своём окне
+bool popupIndicator = false;  // --popup: индикатор -- простой Popup, а не Flyout
+bool hidingOnPurpose = false;
+
+bool indicatorOpen() { return popupIndicator ? scalePopup && scalePopup.IsOpen() : scaleFlyout && scaleFlyout.IsOpen(); }
+
+// Открыт ли индикатор, масштаб и размер XamlRoot; у Popup -- где он стоит
+// относительно кнопки, в единицах корня: сдвиг середин и зазор под кнопкой.
+void describeIndicator(const char* when) {
+    auto const xamlRoot = probe->root.XamlRoot();
+    auto const size = xamlRoot.Size();
+    say("  %s: indicator open %d; XamlRoot %.1f x %.1f, scale %.2f", when, indicatorOpen() ? 1 : 0, size.Width,
+        size.Height, xamlRoot.RasterizationScale());
+    if (!popupIndicator || !scalePopup.IsOpen()) return;
+    try {
+        auto const child = scalePopup.Child().as<xaml::FrameworkElement>();
+        auto const at = child.TransformToVisual(probe->root).TransformPoint({0.0f, 0.0f});
+        auto const target = probe->button.TransformToVisual(probe->root).TransformPoint({0.0f, 0.0f});
+        double const centreOffset =
+            (at.X + child.ActualWidth() / 2) - (target.X + probe->button.ActualWidth() / 2);
+        double const gap = at.Y - (target.Y + probe->button.ActualHeight());
+        say("    popup %.1f,%.1f %.1f x %.1f, placement %d; button %.1f,%.1f %.1f x %.1f; centre offset %.1f, gap "
+            "below %.1f",
+            at.X, at.Y, child.ActualWidth(), child.ActualHeight(), static_cast<int>(scalePopup.ActualPlacement()),
+            target.X, target.Y, probe->button.ActualWidth(), probe->button.ActualHeight(), centreOffset, gap);
+    } catch (winrt::hresult_error const& error) {
+        say("    popup position: error %08x", static_cast<unsigned>(error.code().value));
+    }
+}
+
+void ensurePopupIndicator() {
+    if (scalePopup) return;
+    scaleText = controls::TextBlock{};
+    scaleText.Foreground(xaml::Media::SolidColorBrush{mu::Colors::White()});
+    controls::Border frame;
+    frame.Child(scaleText);
+    frame.Padding(xaml::ThicknessHelper::FromLengths(12, 8, 12, 8));
+    frame.CornerRadius(xaml::CornerRadiusHelper::FromUniformRadius(8));
+    frame.Background(xaml::Media::SolidColorBrush{mu::ColorHelper::FromArgb(255, 60, 60, 60)});
+    frame.IsHitTestVisible(false);
+    scalePopup = controls::Primitives::Popup{};
+    scalePopup.Child(frame);
+    scalePopup.PlacementTarget(probe->button);
+    scalePopup.DesiredPlacement(controls::Primitives::PopupPlacementMode::Bottom);
+    if (windowedFlyout) scalePopup.ShouldConstrainToRootBounds(false);
+    scalePopup.XamlRoot(probe->root.XamlRoot());
+    scalePopup.Opened([](auto&&, auto&&) { say("  scale popup Opened"); });
+    scalePopup.Closed([](auto&&, auto&&) { say("  scale popup Closed"); });
+}
+
+void showIndicator() {
+    if (indicatorOpen()) {
+        say("  indicator open -- not shown again");
+        return;
+    }
+    if (popupIndicator) {
+        scalePopup.IsOpen(true);
+        say("  IsOpen(true)");
+        return;
+    }
+    controls::Primitives::FlyoutShowOptions options;
+    options.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+    options.Placement(controls::Primitives::FlyoutPlacementMode::Bottom);
+    scaleFlyout.ShowAt(probe->button, options);
+    say("  ShowAt");
+}
 
 void zoomStep(float scale, bool deferShow) {
-    if (!scaleFlyout) {
+    if (popupIndicator) ensurePopupIndicator();
+    if (!popupIndicator && !scaleFlyout) {
         scaleText = controls::TextBlock{};
         scaleFlyout = controls::Flyout{};
         scaleFlyout.Content(scaleText);
         scaleFlyout.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
+        if (windowedFlyout) scaleFlyout.ShouldConstrainToRootBounds(false);
         scaleFlyout.Opened([](auto&&, auto&&) { say("  scale flyout Opened"); });
+        scaleFlyout.Closing([](auto&&, controls::Primitives::FlyoutBaseClosingEventArgs const& args) {
+            if (cancelClosing && !hidingOnPurpose) {
+                args.Cancel(true);
+                say("  scale flyout Closing -- canceled");
+            } else {
+                say("  scale flyout Closing");
+            }
+        });
         scaleFlyout.Closed([](auto&&, auto&&) { say("  scale flyout Closed"); });
     }
-    say("  OverrideScale %.2f; flyout open before: %d", scale, scaleFlyout.IsOpen() ? 1 : 0);
+    say("  OverrideScale %.2f; indicator open before: %d", scale, indicatorOpen() ? 1 : 0);
     probe->xamlSource.SiteBridge().OverrideScale(scale);
     scaleText.Text(winrt::hstring{std::to_wstring(std::lround(scale * 100)) + L" %"});
-    auto show = [] {
-        if (scaleFlyout.IsOpen()) {
-            say("  flyout open -- no ShowAt");
-            return;
-        }
-        controls::Primitives::FlyoutShowOptions options;
-        options.ShowMode(controls::Primitives::FlyoutShowMode::Transient);
-        options.Placement(controls::Primitives::FlyoutPlacementMode::Bottom);
-        scaleFlyout.ShowAt(probe->button, options);
-        say("  ShowAt");
-    };
     if (deferShow) {
         winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread().TryEnqueue(
-            winrt::Microsoft::UI::Dispatching::DispatcherQueuePriority::Low, show);
+            winrt::Microsoft::UI::Dispatching::DispatcherQueuePriority::Low, showIndicator);
     } else {
-        show();
+        showIndicator();
     }
 }
 
 std::vector<Phase> flyoutScalePhases() {
     std::vector<Phase> result;
-    static char const* names[] = {"S1 110 %, flyout as ZoomEffect", "S2 125 %, flyout as ZoomEffect",
-                                  "S3 150 %, flyout as ZoomEffect", "S4 125 %, flyout as ZoomEffect",
-                                  "D1 110 %, flyout shown deferred", "D2 125 %, flyout shown deferred",
-                                  "D3 150 %, flyout shown deferred", "D4 125 %, flyout shown deferred"};
+    static char const* names[] = {"S1 110 %, indicator as ZoomEffect", "S2 125 %, indicator as ZoomEffect",
+                                  "S3 150 %, indicator as ZoomEffect", "S4 125 %, indicator as ZoomEffect",
+                                  "D1 110 %, indicator shown deferred", "D2 125 %, indicator shown deferred",
+                                  "D3 150 %, indicator shown deferred", "D4 125 %, indicator shown deferred"};
     static float const scales[] = {1.1f, 1.25f, 1.5f, 1.25f, 1.1f, 1.25f, 1.5f, 1.25f};
     for (int i = 0; i < 8; ++i) {
         float const scale = scales[i];
         bool const defer = i >= 4;
         result.push_back({names[i],
                           {{0, [scale, defer] { zoomStep(scale, defer); }},
-                           {25, [] { say("  flyout open after 400 ms: %d", scaleFlyout.IsOpen() ? 1 : 0); }}}});
+                           {25, [] { describeIndicator("after 400 ms"); }},
+                           {70, [] { describeIndicator("after 1100 ms"); }}}});
     }
+    // Уход окна из активных: Flyout закрывается (FlyoutBase::HideFlyout), Popup
+    // без лёгкого закрытия -- по исходникам нет.
+    result.push_back({"A another window activated, then back",
+                      {{0, [] { showIndicator(); }},
+                       {10, [] { ::SetForegroundWindow(probe->other); }},
+                       {30, [] { describeIndicator("other window active"); }},
+                       {40, [] { ::SetForegroundWindow(probe->hwnd); }},
+                       {60, [] { describeIndicator("back"); }}}});
+    // Растяжка окна меняет размер XamlRoot, как смена масштаба острова.
+    result.push_back({"R window resized",
+                      {{0, [] { showIndicator(); }},
+                       {10, [] { ::SetWindowPos(probe->hwnd, nullptr, 0, 0, 760, 560, SWP_NOMOVE | SWP_NOZORDER); }},
+                       {30, [] { describeIndicator("resized"); }},
+                       {40, [] { ::SetWindowPos(probe->hwnd, nullptr, 0, 0, 900, 640, SWP_NOMOVE | SWP_NOZORDER); }},
+                       {60, [] { describeIndicator("size back"); }}}});
+    // Своё закрытие (как таймер скрытия у ZoomEffect) должно пройти и при отмене чужих.
+    result.push_back({"H hide on purpose",
+                      {{0, [] {
+                            hidingOnPurpose = true;
+                            if (popupIndicator) {
+                                scalePopup.IsOpen(false);
+                            } else {
+                                scaleFlyout.Hide();
+                            }
+                            hidingOnPurpose = false;
+                        }},
+                       {25, [] { describeIndicator("after 400 ms"); }}}});
     return result;
 }
 
@@ -543,6 +652,9 @@ std::vector<Phase> windowLikePhases() {
 }
 
 void tick() {
+    // Этапы -- только после загрузки острова: ShowAt у элемента вне живого
+    // дерева бросает hresult_invalid_argument (первый тик таймера бывает раньше).
+    if (!probe->root.XamlRoot()) return;
     int const s = probe->step++;
     std::size_t const index = static_cast<std::size_t>(s / phaseTicks);
     int const offset = s % phaseTicks;
@@ -742,6 +854,9 @@ wxl::Teardown wxl_launched() {
     bool const infoFlyoutMode = commandLine.find(L"--info-flyout") != std::wstring_view::npos;
     probe->windowLike = infoFlyoutMode || commandLine.find(L"--window-like") != std::wstring_view::npos;
     probe->sensorHandles = commandLine.find(L"--sensor-handles") != std::wstring_view::npos;
+    cancelClosing = commandLine.find(L"--cancel-closing") != std::wstring_view::npos;
+    windowedFlyout = commandLine.find(L"--windowed-flyout") != std::wstring_view::npos;
+    popupIndicator = commandLine.find(L"--popup") != std::wstring_view::npos;
     bool const flyoutScaleMode = commandLine.find(L"--flyout-scale") != std::wstring_view::npos;
     if (flyoutScaleMode) {
         probe->windowLike = true;
