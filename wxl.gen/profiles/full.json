@@ -231,7 +231,9 @@
         },
         "Microsoft.UI.Xaml.UIElement": {
             "comment": "Status & info: a tip that is an element of its own (ToolTipService.ToolTip over an object), beside toolTip, which is the text.",
-            "members": [],
+            "members": [
+                "KeyboardAccelerators"
+            ],
             "syntheticMembers": {
                 "ToolTipElement": {
                     "comment": "The tip as a ToolTip element: content that is not text, a placement, an offset. The hover half of toolTip only -- an element has no words to give a screen reader.",
@@ -240,6 +242,29 @@
                     "include": "../impl/tool_tip.h"
                 }
             }
+        },
+        "Microsoft.UI.Xaml.Input.KeyboardAccelerator": {
+            "comment": "Menus & toolbars: the key chord that invokes a command, written beside the command.",
+            "members": [
+                "Key",
+                "Modifiers"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PathIcon": {
+            "comment": "Menus & toolbars: an icon drawn from a path.",
+            "members": [
+                "Data"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.CommandBar": {
+            "comment": "Menus & toolbars: a bar that stays open until told to close.",
+            "members": [
+                "IsSticky"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ICommandBarElement": {
+            "comment": "Menus & toolbars: what a command bar holds -- AppBarButton, AppBarToggleButton, AppBarSeparator -- which has no class of its own, only this interface.",
+            "members": []
         },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
@@ -306,10 +331,12 @@
             "members": [
                 "ListType"
             ]
-        },        "Microsoft.UI.Xaml.FrameworkElement": {
-            "comment": "Parent: a handler reads its siblings from the panel it is in, so that no handler has to capture an element (a captured sibling that captures back is a cycle nothing breaks).",
+        },
+        "Microsoft.UI.Xaml.FrameworkElement": {
+            "comment": "AllowFocusOnInteraction: a button that opens a flyout holding an input keeps focus when pressed. Parent: a handler reads its siblings from the panel it is in, so that no handler has to capture an element (a captured sibling that captures back is a cycle nothing breaks).",
             "members": [
-                "Parent"
+                "Parent",
+                "AllowFocusOnInteraction"
             ]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {

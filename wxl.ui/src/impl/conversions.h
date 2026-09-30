@@ -21,6 +21,7 @@
 #include "../Color.h"
 #include "../DateTime.h"
 #include "../FontFamily.h"
+#include "../XamlGeometry.h"
 #include "../ImageSource.h"
 #include "../Uri.h"
 #include "../generated/collections.h"
@@ -150,9 +151,10 @@ inline Color from_winrt(winrt::Windows::UI::Color const& value) {
 // A URI. The real one parses its text, so an empty wxl::Uri must not be
 // handed to it -- a property left unset stays a null Uri, which is what the
 // runtime itself uses for "no link".
-inline winrt::Windows::Foundation::Uri to_winrt(Uri const& value) {
-    return value.empty() ? nullptr : winrt::Windows::Foundation::Uri{to_winrt(value.text())};
-}
+// A text with a scheme is an absolute URI as it stands; one without is the
+// application's own file, resolved next to the executable like an image path
+// (defined in ImageSource.cpp beside the folder it resolves against).
+winrt::Windows::Foundation::Uri to_winrt(Uri const& value);
 
 inline Uri from_winrt(winrt::Windows::Foundation::Uri const& value) {
     return value ? Uri{from_winrt(value.ToString())} : Uri{};
@@ -217,6 +219,11 @@ core::nullable<T> from_reference(WinRT const& value, Convert convert) {
 // image.
 winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value);
 ImageSource from_winrt(winrt::Microsoft::UI::Xaml::Media::ImageSource const& value);
+
+// A geometry. Declared here and defined in XamlGeometry.cpp, where the XAML
+// converter that reads the path language is.
+winrt::Microsoft::UI::Xaml::Media::Geometry to_winrt(Geometry const& value);
+Geometry from_winrt(winrt::Microsoft::UI::Xaml::Media::Geometry const& value);
 
 // The four edges. Margin, Padding and BorderThickness are tags over this
 // same type, and each of them is one, so the pair below covers them too.
