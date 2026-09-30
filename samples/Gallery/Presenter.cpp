@@ -59,8 +59,7 @@ FrameworkElement copyButton(std::wstring text) {
         vAlign.center,
         Padding {11, 5, 11, 6},
         styles.Button.Subtle,
-        // Как у кнопок панели в примере Effects.
-        MagnifyEffect {1.2, maximum = 1.35, minimum = 0.95},
+        gallery::appPop(),
         toolTip = u"Copy code",
         content = FontIcon {glyph = u"", fontSize = 16},
         onClick = [text = std::move(text)](Button const& self) {

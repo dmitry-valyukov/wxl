@@ -44,6 +44,13 @@ struct ExampleParts {
 // Один ControlExample: введение, показ с параметрами и исходник под ним.
 wxl::FrameworkElement controlExample(ExampleParts const& parts);
 
+// Рост под указателем для кнопок самого приложения (заголовок страницы,
+// настройки, копирование кода), а не примеров: как у кнопок панели в примере
+// Effects.
+inline wxl::MagnifyEffect appPop() {
+    return wxl::MagnifyEffect {1.2, wxl::dsl::maximum = 1.35, wxl::dsl::minimum = 0.95};
+}
+
 // Функция, строящая страницу примеров одного контрола.
 using ControlPage = wxl::FrameworkElement (*)();
 
