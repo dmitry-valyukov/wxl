@@ -79,6 +79,15 @@ wxl::FrameworkElement textBoxPage();
 wxl::FrameworkElement passwordBoxPage();
 wxl::FrameworkElement numberBoxPage();
 wxl::FrameworkElement autoSuggestBoxPage();
+wxl::FrameworkElement borderPage();
+wxl::FrameworkElement canvasPage();
+wxl::FrameworkElement expanderPage();
+wxl::FrameworkElement gridPage();
+wxl::FrameworkElement relativePanelPage();
+wxl::FrameworkElement splitViewPage();
+wxl::FrameworkElement stackPanelPage();
+wxl::FrameworkElement variableSizedWrapGridPage();
+wxl::FrameworkElement viewboxPage();
 wxl::FrameworkElement richTextBlockPage();
 wxl::FrameworkElement richEditBoxPage();
 

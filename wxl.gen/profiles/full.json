@@ -173,7 +173,8 @@
             "members": [
                 "TickFrequency",
                 "TickPlacement",
-                "SnapsTo"
+                "SnapsTo",
+                "IsDirectionReversed"
             ]
         },
         "Microsoft.UI.Xaml.Controls.ComboBox": {
@@ -192,10 +193,49 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.VariableSizedWrapGrid": {
-            "comment": "The swatch grid of the SplitButton text example.",
+            "comment": "The swatch grid of the SplitButton text example, and the Layout group's own page: the size of a cell, and the spans an item takes.",
             "members": [
                 "MaximumRowsOrColumns",
-                "Orientation"
+                "Orientation",
+                "ItemHeight",
+                "ItemWidth",
+                "SetRowSpan",
+                "SetColumnSpan"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SplitView": {
+            "comment": "Layout: the pane's own paint, which the page changes from a list.",
+            "members": [
+                "PaneBackground"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Viewbox": {
+            "comment": "Layout: what the viewbox holds and how it stretches it.",
+            "members": [
+                "Child",
+                "Stretch",
+                "StretchDirection"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RelativePanel": {
+            "comment": "Layout: the panel, and every attached property its children are placed by -- against a sibling or against the panel.",
+            "members": [
+                "SetAbove",
+                "SetBelow",
+                "SetLeftOf",
+                "SetRightOf",
+                "SetAlignHorizontalCenterWith",
+                "SetAlignVerticalCenterWith",
+                "SetAlignLeftWith",
+                "SetAlignTopWith",
+                "SetAlignRightWith",
+                "SetAlignBottomWith",
+                "SetAlignLeftWithPanel",
+                "SetAlignTopWithPanel",
+                "SetAlignRightWithPanel",
+                "SetAlignBottomWithPanel",
+                "SetAlignHorizontalCenterWithPanel",
+                "SetAlignVerticalCenterWithPanel"
             ]
         },
         "Microsoft.UI.Text.RichEditTextDocument": {

@@ -116,12 +116,16 @@ struct Dsl {
     // Button reaches Grid::setRow(button, 1). The tag is a property tag like
     // any other; only the setter behind it belongs to a different class than
     // the object it is written on.
+    //
+    // Several parents may declare a property of one name -- Grid.RowSpan and
+    // VariableSizedWrapGrid.RowSpan -- and the child cannot know which parent
+    // it will land in, so the one tag sets every one of them the object fits.
     struct Attached {
         std::string owner;       // "Grid"
         std::string setter;      // "setRow"
         std::string value_type;  // "int32_t", for the braced form
     };
-    std::map<std::string, Attached> attached;
+    std::map<std::string, std::vector<Attached>> attached;
 
     // Enum type (spelled as the value types above spell it, `wxl::Orientation`)
     // -> its enumerators, each as the member name a tag surfaces it under and

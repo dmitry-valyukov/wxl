@@ -59,6 +59,15 @@ wxl_add_executable(sample.gallery
     PasswordBoxPage.cpp
     NumberBoxPage.cpp
     AutoSuggestBoxPage.cpp
+    BorderPage.cpp
+    CanvasPage.cpp
+    ExpanderPage.cpp
+    GridPage.cpp
+    RelativePanelPage.cpp
+    SplitViewPage.cpp
+    StackPanelPage.cpp
+    VariableSizedWrapGridPage.cpp
+    ViewboxPage.cpp
     RichTextBlockPage.cpp
     RichEditBoxPage.cpp
     ${_gallery_snippets}

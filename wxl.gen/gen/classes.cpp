@@ -1529,9 +1529,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                 if (member.winrt_name.starts_with("Set") && member.params.size() == 2 &&
                     std::find(attached_here.begin(), attached_here.end(),
                               member.winrt_name.substr(3)) != attached_here.end()) {
-                    dsl.attached.emplace(member.winrt_name.substr(3),
-                                         Dsl::Attached{info.name, member.name,
-                                                       member.params[1].type.value_type});
+                    dsl.attached[member.winrt_name.substr(3)].push_back(Dsl::Attached{info.name, member.name, member.params[1].type.value_type});
                     attached_elsewhere.emplace_back(
                         member.params.front().type.value_type,
                         Schema::Member{Schema::Member::Kind::Property,
