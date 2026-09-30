@@ -1,15 +1,10 @@
-// The option is a field of a model: the checkbox writes it, the button shows
-// it. The model lives while the page is on the screen.
+// The option is one field of a model: the checkbox says "disable" over it and
+// the control shows it as it is. The model lives while the page is on the
+// screen.
 struct Model {
-    core::observable<bool> disabled{false};
     core::observable<bool> enabled{true};
-
-    Model() {
-        enabled.follow(disabled, [](bool off) { return !off; });
-    }
 };
 auto const model = gallery::hold(std::make_shared<Model>());
-
 auto output = TextBlock {Margin {8, 0, 0, 0}, vAlign.center};
 
 auto button = RepeatButton {
@@ -22,5 +17,5 @@ auto button = RepeatButton {
 
 auto disable = CheckBox {
     content = u"Disable RepeatButton",
-    isChecked = BindInput {model->disabled},
+    isChecked = Bind {model->enabled, std::logical_not {}},
 };

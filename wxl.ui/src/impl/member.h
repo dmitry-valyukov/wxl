@@ -101,11 +101,23 @@ constexpr void check_owner() {
 // A binding written on the right of the `=`: `text = Bind{field}`, or
 // `BindInput{field}` / `BindOutput{field}` for one half of it. Defined in
 // Bind.h; named here so that SetterOp can tell one from a value.
-template <class T>
+namespace impl {
+
+// What a binding does to a value on its way when no function was written.
+struct identity_fn {
+    template <typename V>
+    constexpr V const& operator()(V const& value) const noexcept {
+        return value;
+    }
+};
+
+}  // namespace impl
+
+template <class T, class Fn = impl::identity_fn>
 struct Bind;
 template <class T>
 struct BindInput;
-template <class T>
+template <class T, class Fn = impl::identity_fn>
 struct BindOutput;
 
 namespace impl {
@@ -117,14 +129,33 @@ enum class bind_direction { both, input, output };
 template <typename T>
 inline constexpr bool is_bind = false;
 
-template <typename T>
-inline constexpr bool is_bind<Bind<T>> = true;
+template <typename T, typename Fn>
+inline constexpr bool is_bind<Bind<T, Fn>> = true;
 
 template <typename T>
 inline constexpr bool is_bind<BindInput<T>> = true;
 
-template <typename T>
-inline constexpr bool is_bind<BindOutput<T>> = true;
+template <typename T, typename Fn>
+inline constexpr bool is_bind<BindOutput<T, Fn>> = true;
+
+template <typename>
+inline constexpr bool bind_always_false = false;
+
+// A two-way binding through a function that is its own inverse (std::logical_not,
+// std::negate): the control is bound to a mirror of the field, the mirror holds
+// fn of the field and writes fn of itself back, and a value that comes round is
+// the one already there, which observable::set says nothing about. The field's
+// watch owns the mirror, so it lives exactly as long as the binding.
+template <class T, class Fn, class Bind>
+void bind_mirrored(core::observable<T>& model, Fn const& fn, Bind&& bind) {
+    static_assert(std::is_convertible_v<std::invoke_result_t<Fn const&, T const&>, T>,
+                  "wxl: the function of a binding returns the field's own type, and is its own "
+                  "inverse. For a one-way view of another type write BindOutput{field, fn}.");
+    auto const mirror = std::make_shared<core::observable<T>>(T(fn(model.get())));
+    bind(*mirror);
+    mirror->on_change([&model, fn](T const& value) noexcept { model.set(T(fn(value))); });
+    model.watch_for_binding([mirror, fn](T const& value) noexcept { mirror->set(T(fn(value))); });
+}
 
 // `property = Bind{field}`: the field's value now, and every value after.
 //
@@ -139,18 +170,19 @@ inline constexpr bool is_bind<BindOutput<T>> = true;
 // Written where its shape is not there, a form is refused with the form to
 // write instead: a property the control only shows takes BindOutput, one it
 // only reports takes BindInput.
-template <PropertyKey key, bind_direction direction, typename Obj, typename T>
-void bind_property(Obj const& object, core::observable<T>& model) {
+template <PropertyKey key, bind_direction direction, typename Obj, typename T, typename Fn>
+void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) {
     using Pair = PropertyBinder<key, Obj>;
+    constexpr bool plain = std::is_same_v<Fn, identity_fn>;
     constexpr bool paired = requires { Pair::bind(object, model, direction); };
 
     if constexpr (direction == bind_direction::output) {
-        static_assert(requires { PropertySetter<key>::set(object, model.get()); },
+        static_assert(requires { PropertySetter<key>::set(object, fn(model.get())); },
                       "wxl: BindOutput{} names a property this control only reports and never "
                       "shows, so there is nothing to write to. It takes BindInput{}.");
-        PropertySetter<key>::set(object, model.get());
+        PropertySetter<key>::set(object, fn(model.get()));
         model.watch_for_binding(
-            [object](T const& value) noexcept { PropertySetter<key>::set(object, value); });
+            [object, fn](T const& value) noexcept { PropertySetter<key>::set(object, fn(value)); });
     } else if constexpr (!paired) {
         static_assert(direction != bind_direction::input,
                       "wxl: BindInput{} names a property this control never writes itself, so "
@@ -162,7 +194,17 @@ void bind_property(Obj const& object, core::observable<T>& model) {
         static_assert(direction == bind_direction::input || Pair::direction == bind_direction::both,
                       "wxl: Bind{} names a property this control only reports and never shows, "
                       "so there is no way into it. Write BindInput{}.");
-        Pair::bind(object, model, direction);
+        if constexpr (plain) {
+            Pair::bind(object, model, direction);
+        } else {
+            static_assert(direction == bind_direction::both,
+                          "wxl: a function on BindInput{} has no way to know what the control "
+                          "starts as. Write Bind{field, fn}: two ways, through a function that is "
+                          "its own inverse.");
+            bind_mirrored(model, fn, [&](core::observable<T>& mirror) {
+                Pair::bind(object, mirror, direction);
+            });
+        }
     }
 }
 
@@ -182,7 +224,7 @@ struct SetterOp {
     void operator()(Obj const& object) const {
         impl::check_owner<Owner, Obj>();
         if constexpr (impl::is_bind<T>) {
-            impl::bind_property<key, T::direction>(object, *value_.model);
+            impl::bind_property<key, T::direction>(object, *value_.model, value_.fn);
         } else {
             impl::PropertySetter<key>::set(object, value_);
         }

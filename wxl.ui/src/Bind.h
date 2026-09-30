@@ -9,7 +9,9 @@
 //
 //     ToggleSwitch { isOn = Bind{settings.minimizeOnClose} }   // both ways: the control edits
 //     ToggleSwitch { Bind{settings.minimizeOnClose} }          // the same, by the data's type
-//     CheckBox { isChecked = BindInput{model->disabled} }      // a checked box writes the field
+//     CheckBox { isChecked = BindInput{model->done} }          // a checked box writes the field
+//     CheckBox { isChecked = Bind{model->enabled, std::logical_not{}} }  // "disable" over "enabled"
+//     Button { isEnabled = BindOutput{model->done, std::logical_not{}} } // shows fn of the field
 //     TextBlock { text = BindOutput{calc->entry} }        // from the field: the control shows
 //     TextBox { text = BindInput{search.query} }          // into the field: the control writes
 //     NumberBox { intermediateValue = BindInput{eq.a} }   // into the field, as typed
@@ -61,29 +63,50 @@ namespace impl {
 
 // What the three spellings share: the field by address, and the direction,
 // applied to whatever control the braces are building.
-template <class T, bind_direction way>
+template <class T, bind_direction way, class Fn = identity_fn>
 struct bound_field {
     static constexpr bind_direction direction = way;
 
     core::observable<T>* model;
+    [[no_unique_address]] Fn fn;
 
-    explicit bound_field(core::observable<T>& field) noexcept : model(&field) {}
+    explicit bound_field(core::observable<T>& field) noexcept
+        requires std::is_same_v<Fn, identity_fn>
+        : model(&field) {}
+
+    bound_field(core::observable<T>& field, Fn function) : model(&field), fn(std::move(function)) {}
 
     template <class Control>
     void operator()(Control const& control) const {
-        apply_bind(control, *model, direction);
+        if constexpr (std::is_same_v<Fn, identity_fn>) {
+            apply_bind(control, *model, direction);
+        } else if constexpr (direction == bind_direction::both) {
+            bind_mirrored(*model, fn, [&](core::observable<T>& mirror) {
+                apply_bind(control, mirror, direction);
+            });
+        } else {
+            static_assert(bind_always_false<Fn>,
+                          "wxl: a function on BindOutput{} is written with the property named: "
+                          "`isEnabled = BindOutput{field, fn}`.");
+        }
     }
 };
 
 }  // namespace impl
 
-template <class T>
-struct Bind : impl::bound_field<T, impl::bind_direction::both> {
-    using impl::bound_field<T, impl::bind_direction::both>::bound_field;
+// `Bind{field, fn}` runs both ways through a function that is its own inverse --
+// `std::logical_not{}` for a box that says "disable" over a field that says
+// "enabled" -- so the field is one and its opposite is never a second field.
+template <class T, class Fn>
+struct Bind : impl::bound_field<T, impl::bind_direction::both, Fn> {
+    using impl::bound_field<T, impl::bind_direction::both, Fn>::bound_field;
 };
 
 template <class T>
 Bind(core::observable<T>&) -> Bind<T>;
+
+template <class T, class Fn>
+Bind(core::observable<T>&, Fn) -> Bind<T, Fn>;
 
 template <class T>
 struct BindInput : impl::bound_field<T, impl::bind_direction::input> {
@@ -93,12 +116,17 @@ struct BindInput : impl::bound_field<T, impl::bind_direction::input> {
 template <class T>
 BindInput(core::observable<T>&) -> BindInput<T>;
 
-template <class T>
-struct BindOutput : impl::bound_field<T, impl::bind_direction::output> {
-    using impl::bound_field<T, impl::bind_direction::output>::bound_field;
+// `BindOutput{field, fn}` shows fn of the field: any function, any result the
+// property takes.
+template <class T, class Fn>
+struct BindOutput : impl::bound_field<T, impl::bind_direction::output, Fn> {
+    using impl::bound_field<T, impl::bind_direction::output, Fn>::bound_field;
 };
 
 template <class T>
 BindOutput(core::observable<T>&) -> BindOutput<T>;
+
+template <class T, class Fn>
+BindOutput(core::observable<T>&, Fn) -> BindOutput<T, Fn>;
 
 }  // namespace wxl
