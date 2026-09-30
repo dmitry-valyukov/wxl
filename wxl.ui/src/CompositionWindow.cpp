@@ -540,6 +540,11 @@ struct WindowState : core::refcounted {
             row.Height(height);
             root.RowDefinitions().Append(row);
         }
+        // Прозрачный фон -- чтобы пустые места корня принимали указатель: без
+        // кисти их нет для попадания, и Ctrl+колесо над ними доставалось
+        // датчику масштаба мимо обработчика колеса у корня, а датчик
+        // масштабировал сам (Беседка: ступени скакали, остров съезжал от угла).
+        root.Background(xaml::Media::SolidColorBrush{winrt::Microsoft::UI::Colors::Transparent()});
         root.Loaded([this](auto&&, auto&&) { onRootLoaded(); });
         chrome.Content(root);
         chrome.TakeFocusRequested(
