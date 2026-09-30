@@ -21,7 +21,7 @@ FrameworkElement simple() {
 
     return gallery::controlExample({
         .header = gallery::snippet(simpleHeader),
-        .example = button,
+        .example = StackPanel {orientation.horizontal, spacing = 8.0, button, disabled},
         .output = {output},
         .options = {disable},
         .code = gallery::snippet(simpleCode),

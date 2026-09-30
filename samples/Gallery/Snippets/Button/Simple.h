@@ -17,3 +17,9 @@ auto disable = CheckBox {
     content = u"Disable button",
     isChecked = BindInput {model->enabled, std::logical_not {}},
 };
+
+// A button that is never enabled: the state is written like any other property.
+auto disabled = Button {
+    content = u"Disabled button",
+    isEnabled = false,
+};
