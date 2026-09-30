@@ -44,19 +44,22 @@ FrameworkElement linkRow(std::wstring_view title, std::wstring_view uri) {
     };
 }
 
-// Кнопка «API details»: пространство имён и цепочка наследования.
+// Кнопка «API details»: пространство имён и цепочка наследования — здесь
+// это обёртки wxl, а не типы WinUI: все они в одном пространстве `wxl` и
+// повторяют цепочку наследования своих оригиналов. Панель флайута задана
+// шириной: презентер флайута по умолчанию уже, чем цепочка.
 FrameworkElement apiDetails(gallery::ControlInfo const& item) {
     if (item.apiNamespace.empty() && item.baseClasses.empty()) {
         return Border {};
     }
-    auto panel = StackPanel {spacing = 16.0};
+    auto panel = StackPanel {width = 420, spacing = 16.0};
     if (!item.apiNamespace.empty()) {
         panel.children().append(StackPanel {
             spacing = 8.0,
             orientation.horizontal,
             caption(u"Namespace"),
             TextBlock {
-                std::wstring_view{item.apiNamespace},
+                u"wxl",
                 vAlign.center,
                 fontFamily = u"Consolas",
                 isTextSelectionEnabled = true,
@@ -77,6 +80,7 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
             TextBlock {
                 std::wstring_view{chain},
                 fontFamily = u"Consolas",
+                isTextSelectionEnabled = true,
                 styles.TextBlock.Caption,
                 textWrapping.wrap,
             },
@@ -95,7 +99,6 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         },
     };
 }
-
 FrameworkElement documentation(gallery::ControlInfo const& item) {
     if (item.docs.empty()) {
         return Border {};
