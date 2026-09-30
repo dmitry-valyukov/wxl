@@ -37,6 +37,7 @@ module;
 export module wxl.core:unicode;
 
 import :compressed_optional;
+import :zstring_view;
 import std;
 
 namespace wxl::core {
@@ -680,6 +681,16 @@ public:
         return std::wstring(wchars());
     }
 
+    /// The text with its terminator, in the type that says so. The string keeps
+    /// a zero after its last unit, so this is a pointer and a length and no
+    /// look -- which is what makes text that owns its buffer the cheapest way in
+    /// to a zstring_view, and through it to a WinRT string. It is the
+    /// terminator that crosses, not the well-formedness: a zstring_view is a
+    /// plain view once it is out.
+    constexpr operator basic_zstring_view<CharT, Traits>() const noexcept {
+        return basic_zstring_view<CharT, Traits>(text_);
+    }
+
     /// Null-terminated, for the calls that take a pointer and no length --
     /// which is most of Windows. std::basic_string keeps the terminator, so
     /// this is the same guarantee its own c_str() gives, read as the character
@@ -857,9 +868,11 @@ void append_utf8(std::basic_string<char, Traits, Allocator>& out, char32_t code_
 }
 
 /// Appends one code point to a UTF-16 string, as a pair above the basic plane.
-/// The code point must be a scalar value.
-template <typename Traits, typename Allocator>
-void append_utf16(std::basic_string<wchar_t, Traits, Allocator>& out, char32_t code_point) {
+/// The code point must be a scalar value. The string is char16_t, the unit UTF-16
+/// is written in, or wchar_t, its other spelling.
+template <typename CharT, typename Traits, typename Allocator>
+    requires(std::same_as<CharT, char16_t> || std::same_as<CharT, wchar_t>)
+void append_utf16(std::basic_string<CharT, Traits, Allocator>& out, char32_t code_point) {
     ensure(is_scalar_value(code_point));
     impl::push_utf16(out, code_point);
 }
@@ -867,15 +880,16 @@ void append_utf16(std::basic_string<wchar_t, Traits, Allocator>& out, char32_t c
 /// Appends the text, transcoded, to a string of any allocator: the size is
 /// measured first, so the buffer grows once and the conversion writes straight
 /// into it.
-template <typename Traits, typename Allocator>
-void append_utf16(std::basic_string<wchar_t, Traits, Allocator>& out, u8_view utf8) {
+template <typename CharT, typename Traits, typename Allocator>
+    requires(std::same_as<CharT, char16_t> || std::same_as<CharT, wchar_t>)
+void append_utf16(std::basic_string<CharT, Traits, Allocator>& out, u8_view utf8) {
     const std::size_t was = out.size();
 
     // resize_and_overwrite keeps what the string already held and leaves the
     // rest untouched, so the transcoder writes into raw storage instead of
     // over a zero-fill nobody asked for.
-    out.resize_and_overwrite(was + utf16_size(utf8), [was, utf8](wchar_t* buffer, std::size_t size) {
-        write_utf16(buffer + was, utf8);
+    out.resize_and_overwrite(was + utf16_size(utf8), [was, utf8](CharT* buffer, std::size_t size) {
+        write_utf16(reinterpret_cast<wchar_t*>(buffer + was), utf8);
         return size;
     });
 }

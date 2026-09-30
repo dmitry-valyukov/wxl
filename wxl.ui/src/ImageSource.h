@@ -10,7 +10,7 @@
 // whose only construction is a concrete subclass, so a generated wrapper
 // for it could express nothing at all. This holds the text and builds the
 // real BitmapImage on the way into the property, which keeps
-// `source = L"Assets/logo.png"` to exactly those characters.
+// `source = u"Assets/logo.png"` to exactly those characters.
 //
 // A path without a scheme is the application's own file, resolved next to
 // the executable -- the folder a build puts its assets in, packaged or not.
@@ -21,17 +21,18 @@ class ImageSource {
 public:
     ImageSource() = default;
 
-    // Not explicit, on purpose: a string literal is an image source
-    // wherever a property asks for one. Anything string_param takes is a
-    // string here; it is a template for the reason Uri's is (a literal would
-    // otherwise take two user-defined conversions).
+    /// Not explicit, on purpose: a string literal is an image source
+    /// wherever a property asks for one. Anything that is a Uri is one; any
+    /// string is a Uri on its own (see Uri.h), and this is a template for the
+    /// same reason that one is -- a literal would otherwise take two
+    /// user-defined conversions.
     ImageSource(Uri source) noexcept : source_(std::move(source)) {}
 
     template <typename Text>
-        requires std::convertible_to<Text const&, string_param>
-    ImageSource(Text const& text) noexcept : source_(text) {}
+        requires(!std::same_as<Text, Uri> && std::convertible_to<const Text&, Uri>)
+    ImageSource(const Text& text) : source_(text) {}
 
-    Uri const& source() const noexcept { return source_; }
+    const Uri& source() const noexcept { return source_; }
 
     bool empty() const noexcept { return source_.empty(); }
 

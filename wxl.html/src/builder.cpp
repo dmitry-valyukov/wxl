@@ -23,38 +23,38 @@ tree_builder::tree_builder(xml::arena& arena, xml::sta_vector<parse_error>& erro
 // trims block edges without ever un-writing anything -- a space that
 // would end a block simply never gets written.
 
-void tree_builder::character(wchar_t c) {
+void tree_builder::character(char16_t c) {
     if (pre_depth_ > 0) {
         pre_char(c);
         return;
     }
-    if (c == L' ' || c == L'\t' || c == L'\r' || c == L'\n' || c == L'\f') {
+    if (c == u' ' || c == u'\t' || c == u'\r' || c == u'\n' || c == u'\f') {
         if (has_content_) pending_space_ = true;
         return;
     }
     foster_cell();
     if (pending_space_) {
-        text_ += L' ';
+        text_ += u' ';
         pending_space_ = false;
     }
     text_ += c;
     has_content_ = true;
 }
 
-void tree_builder::pre_char(wchar_t c) {
+void tree_builder::pre_char(char16_t c) {
     // \r\n and a lone \r both become \n; the newline right after <pre>
     // is dropped, as HTML has it.
-    if (c == L'\n' && last_was_cr_) {
+    if (c == u'\n' && last_was_cr_) {
         last_was_cr_ = false;
         return;
     }
-    last_was_cr_ = c == L'\r';
-    if (last_was_cr_) c = L'\n';
+    last_was_cr_ = c == u'\r';
+    if (last_was_cr_) c = u'\n';
     if (pre_fresh_) {
         pre_fresh_ = false;
-        if (c == L'\n') return;
+        if (c == u'\n') return;
     }
-    if (c == L'\n') {
+    if (c == u'\n') {
         // A line of its own plus an explicit break node -- the spec's
         // "\n becomes a LineBreak" done right here, so every text piece
         // the tree hands out is one whole arena string with its zero,
@@ -89,7 +89,7 @@ void tree_builder::flush_text() {
 }
 
 void tree_builder::materialize_pending() {
-    if (pending_space_ && has_content_) text_ += L' ';
+    if (pending_space_ && has_content_) text_ += u' ';
     pending_space_ = false;
 }
 
@@ -102,27 +102,30 @@ void tree_builder::block_boundary() {
 }
 
 // Copies scratch text into the arena -- with the zero after it. One
-// wchar_t buys the whole tree the param::hstring contract: every view
-// the DOM hands out crosses into COM/WinRT as a string reference, no
-// copy at the call. The scratch is always a basic_string, so reading
-// its terminator at data()[size] is its own guarantee.
-std::wstring_view tree_builder::copy(const xml::sta_wstring& text) {
-    const std::span<const wchar_t> copied =
-        arena_.copy(std::span<const wchar_t>(text.data(), text.size() + 1));
-    return {copied.data(), copied.size() - 1};
+// char16_t buys the whole tree the terminated-view contract: every view
+// the DOM hands out is a zstring_view, so it crosses into WinRT as a
+// string reference with no copy at the call. The scratch is always a
+// basic_string, so its terminator at data()[size] is its own guarantee;
+// the copy takes it along, and assume_terminated() reads it back inside
+// the copied buffer -- the one door the tree needs, used here and nowhere
+// else.
+core::zstring_view tree_builder::copy(const core::sta_u16string& text) {
+    const std::span<const char16_t> copied =
+        arena_.copy(std::span<const char16_t>(text.data(), text.size() + 1));
+    return core::assume_terminated(std::u16string_view(copied.data(), copied.size() - 1));
 }
 
 attribute_span tree_builder::copy_attributes(std::span<const attribute_t> attributes) {
     return arena_.copy(attributes);
 }
 
-void tree_builder::record(error_t code, std::wstring_view detail) {
+void tree_builder::record(error_t code, core::zstring_view detail) {
     // The cap keeps hostile input from growing the list without bound:
     // diagnostics need the shape of the problem, not every instance of it.
     if (errors_.size() < kMaxErrors) errors_.push_back({code, detail});
 }
 
-void tree_builder::record_copied(error_t code, const xml::sta_wstring& detail) {
+void tree_builder::record_copied(error_t code, const core::sta_u16string& detail) {
     if (errors_.size() < kMaxErrors) errors_.push_back({code, copy(detail)});
 }
 

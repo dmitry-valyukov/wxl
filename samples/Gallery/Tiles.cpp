@@ -78,7 +78,7 @@ wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
         BorderThickness {1},
         CornerRadius {8},
         opacity = ported ? 1.0 : 0.5,
-        name = std::wstring_view{item.uniqueId},
+        name = item.uniqueId,
         tile,
     };
 }

@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 
-#include "../string_param.h"
+#include "../hstring_param.h"
 
 // What stands behind a Grid's rows and columns written as text.
 //
@@ -24,8 +24,8 @@
 namespace wxl::impl {
 
 void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                         string_param spec);
+                         hstring_param const& spec);
 void set_column_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                            string_param spec);
+                            hstring_param const& spec);
 
 }  // namespace wxl::impl

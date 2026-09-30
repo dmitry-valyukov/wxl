@@ -101,7 +101,7 @@ wxl::FrameworkElement effects::showcase(Snippet description,
                 content = HtmlBlock {
                     isTextSelectionEnabled = true,
                     Margin {20, 14},
-                    std::wstring_view{html},
+                    html,
                 },
             },
         },

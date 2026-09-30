@@ -219,6 +219,18 @@ TEST(unicode, appending_grows_what_is_already_there) {
     EXPECT_EQ(narrow, "<<" + std::string(russian));
 }
 
+// The same appends into the string UTF-16 is written in: char16_t, with a
+// pair above the basic plane going in as two units.
+TEST(unicode, appending_grows_a_char16_string) {
+    std::u16string text = u"<<";
+    wxl::core::unicode::append_utf16(text, assume_valid(russian));
+    wxl::core::unicode::append_utf16(text, U'>');
+    wxl::core::unicode::append_utf16(text, U'\U0001F4D6');
+
+    const wxl::core::u16_text wide_russian = assume_valid(russian).to_utf16();
+    EXPECT_EQ(text, u"<<" + std::u16string(wide_russian.plain()) + u">\U0001F4D6");
+    EXPECT_EQ(text.size(), 2 + wide_russian.size() + 1 + 2);
+}
 }  // namespace
 
 // The platform this tree is written for, asserted once here rather than at

@@ -367,18 +367,15 @@ if(WXL_BUILD_BENCHMARKS)
 endif()
 
 if(BUILD_TESTING)
-    # The contract of winrt::param::hstring over a bare wstring_view --
-    # zero after the viewed range, abort() otherwise -- proven where words
-    # about it would otherwise have to be believed. Needs only cppwinrt's
-    # base header, no WinUI runtime.
-    # string_param joins it here rather than in the surface test, because
-    # what it has to prove -- that the two spellings of UTF-16 carry the same
-    # units and the same count -- is about values, and the surface test never
-    # runs.
+    # The layout facts hstring_param crossing into WinRT rests on -- one
+    # pointer wide on both sides, the handle lent as it is, a fast-pass header
+    # cppwinrt reads as a string of its own -- proven where words about them
+    # would otherwise have to be believed. Needs only cppwinrt's base header,
+    # no WinUI runtime. What hstring_param takes and refuses is in wxl.core's
+    # tests; the surface test never runs, so what is about values goes here.
     wxl_add_gtest(wxl.ui.tests
         SRC
-            test/param_hstring_test.cpp
-            test/string_param_test.cpp
+            test/hstring_param_test.cpp
         DEPS
             Microsoft::CppWinRT
             wxl::core

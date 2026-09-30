@@ -7,6 +7,7 @@ add_executable(wxl.core.tests
     file_tests.cpp
     function_tests.cpp
     grapheme_tests.cpp
+    hstring_tests.cpp
     intrusive_list_tests.cpp
     intrusive_slist_tests.cpp
     module_cleanup_tests.cpp
@@ -25,12 +26,14 @@ add_executable(wxl.core.tests
     time_tests.cpp
     timeout_timer_tests.cpp
     unicode_tests.cpp
+    zstring_view_tests.cpp
 )
 
 target_link_libraries(wxl.core.tests
     PRIVATE
         wxl::core
         wxl::test-support
+        runtimeobject
 )
 
 # GraphemeBreakTest.txt of the Unicode version the grapheme table was

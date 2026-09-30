@@ -14,6 +14,7 @@
 
 #include "core.h"
 #include "generated/collections.h"
+#include "hstring_param.h"
 
 namespace wxl {
 
@@ -24,6 +25,6 @@ class Window;
 /// Worth reading before going full-screen rather than after: it reports the
 /// rectangle the window returns to, and a window told to cover the display
 /// has been told nothing about where that is.
-wstring window_placement(Window const& window);
+hstring window_placement(Window const& window);
 
 }  // namespace wxl

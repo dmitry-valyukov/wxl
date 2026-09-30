@@ -25,6 +25,22 @@ import std;
 
 namespace wxl::core::impl {
 
+/// UTF-16 text as bytes, one for one, for a number that is ASCII by definition;
+/// a unit that does not narrow is the answer "not a number". Either spelling of
+/// the unit, since the two are the same sixteen bits.
+template <typename Narrow, typename CharT>
+bool narrow_ascii(std::basic_string_view<CharT> text, Narrow& narrow) {
+    narrow.resize(text.size());
+
+    char* out = narrow.data();
+    for (const CharT unit : text) {
+        if (static_cast<std::uint16_t>(unit) >= 0x80) return false;
+        *out++ = static_cast<char>(unit);
+    }
+
+    return true;
+}
+
 /// Enough for every built-in arithmetic type in every format to_chars offers:
 /// a 128-bit integer takes 40 characters and a long double in fixed notation
 /// with full precision stays well under this.
@@ -101,19 +117,23 @@ std::optional<number_prefix<T>> parse_prefix(std::string_view text) noexcept {
 /// value), and the default heap is for the threads that own no pool. `T` needs
 /// no default of its own for that -- it is deduced from `result`.
 template <template <typename> class Allocator = std::allocator, typename T>
-bool try_parse(std::wstring_view text, T& result) {
+bool try_parse(std::u16string_view text, T& result) {
     // A number fits in the string's own small buffer; only a text longer than
     // that is allocated at all, and then from the allocator named. "Longer
     // than the buffer" is not the same answer as "not a number", and saying
     // so would be a lie about the text rather than about the buffer.
     std::basic_string<char, std::char_traits<char>, Allocator<char>> narrow;
-    narrow.resize(text.size());
+    if (!impl::narrow_ascii(text, narrow)) return false;
 
-    char* out = narrow.data();
-    for (const wchar_t unit : text) {
-        if (static_cast<std::uint16_t>(unit) >= 0x80) return false;
-        *out++ = static_cast<char>(unit);
-    }
+    return try_parse(std::string_view(narrow), result);
+}
+
+/// The same for the wchar_t spelling of it, the seam of code that is still written
+/// that way.
+template <template <typename> class Allocator = std::allocator, typename T>
+bool try_parse(std::wstring_view text, T& result) {
+    std::basic_string<char, std::char_traits<char>, Allocator<char>> narrow;
+    if (!impl::narrow_ascii(text, narrow)) return false;
 
     return try_parse(std::string_view(narrow), result);
 }
@@ -132,9 +152,11 @@ void append_number(std::basic_string<char, Traits, Allocator>& out, T value, For
     out.append(buffer.data(), stop);
 }
 
-/// The same into UTF-16 text. Digits are ASCII, so the widening is a copy.
-template <typename T, typename Traits, typename Allocator, typename... Format>
-void append_number(std::basic_string<wchar_t, Traits, Allocator>& out, T value, Format... format) {
+/// The same into UTF-16 text, in either of the units it is written in. Digits are
+/// ASCII, so the widening is a copy.
+template <typename CharT, typename T, typename Traits, typename Allocator, typename... Format>
+    requires(std::same_as<CharT, char16_t> || std::same_as<CharT, wchar_t>)
+void append_number(std::basic_string<CharT, Traits, Allocator>& out, T value, Format... format) {
     std::array<char, impl::number_buffer_size> buffer;
 
     const auto [stop, error] =
@@ -145,9 +167,9 @@ void append_number(std::basic_string<wchar_t, Traits, Allocator>& out, T value, 
     const auto digits = static_cast<std::size_t>(stop - buffer.data());
     const std::size_t was = out.size();
 
-    out.resize_and_overwrite(was + digits, [&buffer, was, digits](wchar_t* room, std::size_t size) {
+    out.resize_and_overwrite(was + digits, [&buffer, was, digits](CharT* room, std::size_t size) {
         for (std::size_t at = 0; at != digits; ++at)
-            room[was + at] = static_cast<wchar_t>(buffer[at]);
+            room[was + at] = static_cast<CharT>(buffer[at]);
         return size;
     });
 }

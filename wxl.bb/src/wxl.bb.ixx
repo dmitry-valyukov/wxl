@@ -24,7 +24,7 @@ export namespace wxl::bb {
 
 /// Разбирает BB-код. Не бросает ни на каком входе; восстановления пишутся
 /// в document::errors(), как у wxl.html.
-html::document parse(std::wstring_view input);
+html::document parse(std::u16string_view input);
 
 /// То же для проверенного UTF-8: текст, пришедший из сети и заверенный
 /// наверху. Перекодируется один раз.

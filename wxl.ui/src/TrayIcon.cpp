@@ -163,7 +163,7 @@ struct TrayIconAccess {
         // szTip is the shell's buffer and its size is the shell's rule; a tooltip
         // longer than it holds is cut rather than refused.
         std::size_t const fits = std::min(icon.tooltip_.size(), std::size(data.szTip) - 1);
-        icon.tooltip_.copy(data.szTip, fits);
+        zstring_view{icon.tooltip_}.wide().copy(data.szTip, fits);
         data.szTip[fits] = L'\0';
 
         if (!::Shell_NotifyIconW(NIM_ADD, &data)) return false;
@@ -254,10 +254,10 @@ TrayIcon::~TrayIcon() {
     hide();
 }
 
-bool TrayIcon::show(string_param tooltip) {
+bool TrayIcon::show(hstring_param const& tooltip) {
     if (window_) return true;
 
-    tooltip_.assign(tooltip.wide());
+    tooltip_ = hstring{tooltip};
 
     // The application's own icon, unless one was already set with icon(): a
     // caller naming the icon before show() means that icon, not the default.
@@ -312,8 +312,8 @@ void TrayIcon::hide() {
     window_ = nullptr;
 }
 
-void TrayIcon::tooltip(string_param text) {
-    tooltip_.assign(text.wide());
+void TrayIcon::tooltip(hstring_param const& text) {
+    tooltip_ = hstring{text};
 
     if (!window_) return;
 
@@ -324,7 +324,7 @@ void TrayIcon::tooltip(string_param text) {
     data.uFlags = NIF_TIP | NIF_SHOWTIP;
 
     std::size_t const fits = std::min(tooltip_.size(), std::size(data.szTip) - 1);
-    tooltip_.copy(data.szTip, fits);
+    zstring_view{tooltip_}.wide().copy(data.szTip, fits);
     data.szTip[fits] = L'\0';
 
     ::Shell_NotifyIconW(NIM_MODIFY, &data);

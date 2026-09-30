@@ -511,14 +511,24 @@ struct iterate {
 
     constexpr operator element_t() const noexcept { return value; }
 
+    // The elements again, each followed by the zero that makes it a string of
+    // one -- a terminated run of its own in static storage, so 	ext() below
+    // is a zstring_view and needs nothing from where the object lies. Only
+    // characters are text, so only characters need it.
+    static constexpr std::array<element_t, 2 * count> terminated = [] {
+        std::array<element_t, 2 * count> all{};
+        for (int i = 0; i < count; ++i) {
+            all[static_cast<std::size_t>(2 * i)] = elements[static_cast<std::size_t>(i)];
+        }
+        return all;
+    }();
+
     // Text only where the elements are text: the property that takes a
-    // string is the one this exists for. It refers into this object, which
-    // lives as long as the full expression building the child -- the
-    // property has copied it long before that ends.
-    constexpr std::basic_string_view<element_t> text() const noexcept
+    // string is the one this exists for. A string of one, with its zero.
+    constexpr core::basic_zstring_view<element_t> text() const noexcept
         requires impl::is_character<element_t>
     {
-        return {&value, 1};
+        return core::basic_zstring_view<element_t>{&terminated[static_cast<std::size_t>(2 * index)]};
     }
 };
 

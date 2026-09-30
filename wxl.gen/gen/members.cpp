@@ -208,8 +208,8 @@ void collect_property(Property const& property, std::string_view field_view, Typ
             if (boxes_strings) {
                 member_info boxed{member_info::Kind::BoxedString, wxl_name, winrt_name, field};
                 boxed.params.push_back({"value", {}});
-                boxed.params.back().type.param_type = "string_param";
-                boxed.params.back().type.public_includes = {"string_param.h"};
+                boxed.params.back().type.param_type = "hstring_param const&";
+                boxed.params.back().type.public_includes = {"hstring_param.h"};
                 boxed.params.back().type.impl_includes = {"../impl/conversions.h"};
                 members.push_back(std::move(boxed));
             }

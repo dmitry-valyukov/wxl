@@ -45,13 +45,13 @@ std::wstring itemName(std::wstring_view id) {
 // у них свои значки и подписи.
 struct SpecialItem {
     std::wstring_view id;
-    std::wstring_view content;
-    std::wstring_view glyph;  // пусто — без значка
+    zstring_view content;
+    zstring_view glyph;  // пусто — без значка
 };
 
 struct SpecialSection {
-    std::wstring_view content;
-    std::wstring_view glyph;
+    zstring_view content;
+    zstring_view glyph;
     std::vector<SpecialItem> items;
 };
 
@@ -90,7 +90,7 @@ FrameworkElement itemContent(ControlInfo const& item) {
         columnSpacing = 8.0,
         hAlign.stretch,
         TextBlock {
-            std::wstring_view{item.title},
+            item.title,
             vAlign.center,
             textTrimming = TextTrimming::CharacterEllipsis,
         },
@@ -359,9 +359,9 @@ void buildMenu(Shell& s) {
     });
 
     for (auto const* group : ordered) {
-        auto row = NavigationViewItem {content = std::wstring_view{group->title}};
+        auto row = NavigationViewItem {content = group->title};
         if (!group->iconGlyph.empty()) {
-            row.icon(FontIcon {glyph = std::wstring_view{group->iconGlyph}});
+            row.icon(FontIcon {glyph = group->iconGlyph});
         }
         addItem(s, groupName(group->uniqueId), -1, row);
         s.navigation.menuItems().append(row);

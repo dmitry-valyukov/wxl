@@ -34,8 +34,8 @@ struct TypeUse {
     bool supported = false;
     std::string reason;  // why not, when unsupported
 
-    std::string value_type;  // as returned:  "Object", "double", "wstring"
-    std::string param_type;  // as taken in:  "Object const&", "double", "std::wstring_view"
+    std::string value_type;  // as returned:  "Object", "double", "hstring"
+    std::string param_type;  // as taken in:  "Object const&", "double", "hstring_param const&"
     std::string winrt_type;  // the projection's own name, for the .cpp side
 
     // A wrapped class -- wxl::Object or a generated wrapper -- as opposed to

@@ -72,16 +72,16 @@ private:
 /// is: unknown tags vanish and leave their content, mismatched closes are
 /// recovered browser-fashion, a lone '<' is a character. What can throw is
 /// only allocation.
-document parse(std::wstring_view input);
+document parse(std::u16string_view input);
 
 /// The same, for checked UTF-8 -- the second explicit door the spec names:
 /// text that arrived from outside and was verified up top. Transcoded once
-/// and parsed as the wide overload.
+/// and parsed as the UTF-16 overload.
 document parse(core::u8_view input);
 
 /// The tree back as canonical markup: synonyms folded, whitespace already
 /// collapsed, recovery already done. The golden-test format of the whole
 /// family, and a debugging eye into any parsed tree.
-std::wstring serialized(const node& root);
+std::u16string serialized(const node& root);
 
 }  // namespace wxl::html

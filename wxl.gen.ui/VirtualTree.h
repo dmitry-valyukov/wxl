@@ -116,8 +116,8 @@ private:
     wxl::ScrollBar bar_;
     std::vector<Row> pool_;
     std::vector<std::pair<RowIcon const*, wxl::Brush>> fills_;
-    std::wstring text_;
-    std::wstring glyph_;
+    std::u16string text_;
+    std::u16string glyph_;
 
     wxl::core::intrusive_ptr<TreeModel> model_;
     uint32_t top_ = 0;

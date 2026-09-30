@@ -54,7 +54,7 @@ struct HtmlTheme {
     std::optional<Color> quoteColor[3];
 
     // <code> и <pre>.
-    sta_wstring monospace{L"Consolas"};
+    FontFamily monospace{u"Consolas"};
 
     // Подложка под <pre>: карточка, как wxl::Card, но в масштабе абзаца —
     // скругление мельче, подъём меньше, фон на ступень серее. Код на
@@ -115,7 +115,7 @@ public:
     // Каталог, от которого разрешается голый относительный <img src>: для
     // разметки из файла — каталог этого файла. Пустой (умолчание) —
     // рабочий каталог процесса, что верно для ресурсов приложения.
-    void baseDirectory(string_param directory) const;
+    void baseDirectory(hstring_param const& directory) const;
 
 protected:
     explicit MarkupBlock(Impl* impl) noexcept;

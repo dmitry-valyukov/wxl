@@ -10,7 +10,7 @@ namespace wxl::highlight {
 
 namespace {
 
-constexpr std::size_t npos = std::wstring_view::npos;
+constexpr std::size_t npos = std::u16string_view::npos;
 
 // Самое длинное ключевое слово в таблицах короче; кандидат длиннее и
 // сравнивать незачем.
@@ -18,37 +18,37 @@ constexpr std::size_t kMaxKeyword = 64;
 
 // Символ слова -- как \w у .NET: буквы, цифры, подчёркивание. Всё не-ASCII
 // считается буквой: ключевое слово внутри «переменнаяif» -- не слово.
-constexpr bool is_word(wchar_t c) noexcept {
-    return (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') || (c >= L'0' && c <= L'9') ||
-           c == L'_' || c >= 0x80;
+constexpr bool is_word(char16_t c) noexcept {
+    return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z') || (c >= u'0' && c <= u'9') ||
+           c == u'_' || c >= 0x80;
 }
 
-constexpr bool is_space(wchar_t c) noexcept {
-    return c == L' ' || c == L'\t' || c == L'\r' || c == L'\n' || c == L'\f' || c == L'\v';
+constexpr bool is_space(char16_t c) noexcept {
+    return c == u' ' || c == u'\t' || c == u'\r' || c == u'\n' || c == u'\f' || c == u'\v';
 }
 
-constexpr bool is_newline(wchar_t c) noexcept { return c == L'\n' || c == L'\r'; }
+constexpr bool is_newline(char16_t c) noexcept { return c == u'\n' || c == u'\r'; }
 
-constexpr bool is_hex(wchar_t c) noexcept {
-    return (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f') || (c >= L'A' && c <= L'F');
+constexpr bool is_hex(char16_t c) noexcept {
+    return (c >= u'0' && c <= u'9') || (c >= u'a' && c <= u'f') || (c >= u'A' && c <= u'F');
 }
 
-constexpr wchar_t to_lower_ascii(wchar_t c) noexcept {
-    return c >= L'A' && c <= L'Z' ? static_cast<wchar_t>(c + 32) : c;
+constexpr char16_t to_lower_ascii(char16_t c) noexcept {
+    return c >= u'A' && c <= u'Z' ? static_cast<char16_t>(c + 32) : c;
 }
 
-bool starts_at(std::wstring_view code, std::size_t at, std::wstring_view what) noexcept {
+bool starts_at(std::u16string_view code, std::size_t at, std::u16string_view what) noexcept {
     return at <= code.size() && code.size() - at >= what.size() &&
            code.compare(at, what.size(), what) == 0;
 }
 
 // Граница перед ключевым словом, как её проверяет TrieKeywordMatcher.
-bool boundary_before(boundary_t boundary, std::wstring_view code, std::size_t at) noexcept {
+bool boundary_before(boundary_t boundary, std::u16string_view code, std::size_t at) noexcept {
     const auto word = [&] { return at == 0 || !is_word(code[at - 1]); };
-    const auto dot = [&] { return at > 0 && code[at - 1] == L'.'; };
-    const auto at_sign = [&] { return at > 0 && code[at - 1] == L'@'; };
+    const auto dot = [&] { return at > 0 && code[at - 1] == u'.'; };
+    const auto at_sign = [&] { return at > 0 && code[at - 1] == u'@'; };
     const auto double_question = [&] {
-        return at >= 2 && code[at - 2] == L'?' && code[at - 1] == L'?';
+        return at >= 2 && code[at - 2] == u'?' && code[at - 1] == u'?';
     };
 
     switch (boundary) {
@@ -60,24 +60,24 @@ bool boundary_before(boundary_t boundary, std::wstring_view code, std::size_t at
         // Решётка, потом сколько угодно пробелов, потом слово: # define.
         std::size_t i = at;
         while (i > 0 && is_space(code[i - 1])) --i;
-        return i > 0 && code[i - 1] == L'#';
+        return i > 0 && code[i - 1] == u'#';
     }
     case boundary_t::at_or_word: return at_sign() || word();
     case boundary_t::dot_or_at_or_word: return dot() || at_sign() || word();
     case boundary_t::double_question: return double_question();
-    case boundary_t::not_ampersand: return at == 0 || code[at - 1] != L'&';
+    case boundary_t::not_ampersand: return at == 0 || code[at - 1] != u'&';
     case boundary_t::word_or_double_question: return word() || double_question();
     case boundary_t::exclamation_and_word: return word();
-    case boundary_t::open_paren: return at > 0 && code[at - 1] == L'(';
+    case boundary_t::open_paren: return at > 0 && code[at - 1] == u'(';
     }
     return true;
 }
 
 // Граница после: где кончается кусок, или npos, если границы нет.
-std::size_t boundary_after(boundary_t boundary, std::wstring_view code, std::size_t end) noexcept {
+std::size_t boundary_after(boundary_t boundary, std::u16string_view code, std::size_t end) noexcept {
     const auto word = [&] { return end >= code.size() || !is_word(code[end]); };
-    const auto dot = [&] { return end < code.size() && code[end] == L'.'; };
-    const auto at_sign = [&] { return end < code.size() && code[end] == L'@'; };
+    const auto dot = [&] { return end < code.size() && code[end] == u'.'; };
+    const auto at_sign = [&] { return end < code.size() && code[end] == u'@'; };
 
     switch (boundary) {
     case boundary_t::none:
@@ -89,7 +89,7 @@ std::size_t boundary_after(boundary_t boundary, std::wstring_view code, std::siz
     case boundary_t::dot_or_at_or_word: return dot() || at_sign() || word() ? end : npos;
     case boundary_t::exclamation_and_word:
         // Восклицательный знак -- часть слова: assert!, и за ним граница.
-        if (end < code.size() && code[end] == L'!' &&
+        if (end < code.size() && code[end] == u'!' &&
             (end + 1 >= code.size() || !is_word(code[end + 1])))
             return end + 1;
         return npos;
@@ -143,8 +143,8 @@ std::optional<scanner::found> scanner::delimited_at(std::size_t at) const noexce
             if (rule.prefixes.find(code_[at]) != npos && starts_at(code_, at + 1, rule.open)) {
                 open_at = at + 1;
                 prefixed = true;
-            } else if (code_[at] == L'u' && rule.prefixes.find(L'8') != npos &&
-                       at + 1 < code_.size() && code_[at + 1] == L'8' &&
+            } else if (code_[at] == u'u' && rule.prefixes.find(u'8') != npos &&
+                       at + 1 < code_.size() && code_[at + 1] == u'8' &&
                        starts_at(code_, at + 2, rule.open)) {
                 open_at = at + 2;
                 prefixed = true;
@@ -157,7 +157,7 @@ std::optional<scanner::found> scanner::delimited_at(std::size_t at) const noexce
         if (rule.after_space && at != 0 && !is_space(code_[at - 1])) continue;
 
         if (rule.line_start_only) {
-            if (at != 0 && code_[at - 1] != L'\n') continue;
+            if (at != 0 && code_[at - 1] != u'\n') continue;
             // Односимвольный открыватель в начале строки -- POD в Perl (=head1):
             // без буквы за ним это не он.
             if (rule.open.size() == 1) {
@@ -187,7 +187,7 @@ std::size_t scanner::delimited_end(const delimited_rule& rule, std::size_t at) c
         if (i >= size || is_newline(code_[i])) return npos;
         if (rule.escape != 0 && code_[i] == rule.escape) {
             ++i;
-            if (i < size && (code_[i] == L'x' || code_[i] == L'X')) {
+            if (i < size && (code_[i] == u'x' || code_[i] == u'X')) {
                 ++i;
                 for (int digits = 0; digits < 4 && i < size && is_hex(code_[i]); ++digits) ++i;
             } else if (i < size) {
@@ -202,7 +202,7 @@ std::size_t scanner::delimited_end(const delimited_rule& rule, std::size_t at) c
     }
 
     while (i < size) {
-        const wchar_t c = code_[i];
+        const char16_t c = code_[i];
         if (!rule.multiline && is_newline(c)) return i;  // незакрытая кончается со строкой
         if (rule.escape != 0 && c == rule.escape) {
             i = std::min(i + 2, size);
@@ -221,7 +221,7 @@ std::size_t scanner::delimited_end(const delimited_rule& rule, std::size_t at) c
 }
 
 std::optional<scanner::found> scanner::keyword_at(std::size_t at) const noexcept {
-    wchar_t candidate[kMaxKeyword];
+    char16_t candidate[kMaxKeyword];
     std::size_t prepared = 0;  // сколько символов кандидата уже уложено
 
     for (const keyword_set& set : language_->keywords) {
@@ -229,13 +229,13 @@ std::optional<scanner::found> scanner::keyword_at(std::size_t at) const noexcept
 
         const std::size_t longest = std::min({set.longest, code_.size() - at, kMaxKeyword});
         for (; prepared < longest; ++prepared) {
-            const wchar_t c = code_[at + prepared];
+            const char16_t c = code_[at + prepared];
             candidate[prepared] = language_->case_insensitive ? to_lower_ascii(c) : c;
         }
 
         // Самое длинное слово первым: у «foreach» не должен побеждать «for».
         for (std::size_t length = longest; length > 0; --length) {
-            const std::wstring_view word(candidate, length);
+            const std::u16string_view word(candidate, length);
             if (!std::ranges::binary_search(set.words, word)) continue;
             const std::size_t end = boundary_after(set.postfix, code_, at + length);
             if (end != npos) return found{end, kind_t::keyword};

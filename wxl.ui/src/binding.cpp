@@ -191,7 +191,7 @@ void apply_bind(TextBox const& control, core::observable<core::u16_text>& model,
         // reads the same text, and the model, seeing no change, ends the
         // echo there.
         [](TextBox const& c) { return core::unicode::repaired(c.text()); },
-        // set: the checked text goes to the control as it is -- string_param
+        // set: the checked text goes to the control as it is -- hstring_param
         // takes u16_text, and no unit is looked at on the way.
         [](TextBox const& c, core::u16_text const& v) { c.text(v); });
 }

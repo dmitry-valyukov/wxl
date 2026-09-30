@@ -18,30 +18,30 @@ using html::attribute_t;
 using html::tag_t;
 using html::tree_builder;
 
-constexpr bool is_ascii_letter(wchar_t c) noexcept {
-    return (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z');
+constexpr bool is_ascii_letter(char16_t c) noexcept {
+    return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z');
 }
 
-constexpr bool is_ascii_digit(wchar_t c) noexcept { return c >= L'0' && c <= L'9'; }
+constexpr bool is_ascii_digit(char16_t c) noexcept { return c >= u'0' && c <= u'9'; }
 
-constexpr wchar_t to_lower_ascii(wchar_t c) noexcept {
-    return c >= L'A' && c <= L'Z' ? static_cast<wchar_t>(c + 32) : c;
+constexpr char16_t to_lower_ascii(char16_t c) noexcept {
+    return c >= u'A' && c <= u'Z' ? static_cast<char16_t>(c + 32) : c;
 }
 
 class parser {
 public:
-    parser(std::wstring_view input, tree_builder& out) : in_(input), out_(out) {}
+    parser(std::u16string_view input, tree_builder& out) : in_(input), out_(out) {}
 
     void run() {
         while (pos_ < in_.size()) {
-            const wchar_t c = in_[pos_];
-            if (c == L'[' && tag()) continue;
-            if (c == L'\r') {  // \r\n и одинокий \r — одинаково: перевод несёт \n
+            const char16_t c = in_[pos_];
+            if (c == u'[' && tag()) continue;
+            if (c == u'\r') {  // \r\n и одинокий \r — одинаково: перевод несёт \n
                 ++pos_;
-                if (pos_ >= in_.size() || in_[pos_] != L'\n') newline();
+                if (pos_ >= in_.size() || in_[pos_] != u'\n') newline();
                 continue;
             }
-            if (c == L'\n') {
+            if (c == u'\n') {
                 newline();
                 ++pos_;
                 continue;
@@ -87,14 +87,14 @@ private:
     bool tag() {
         std::size_t i = pos_ + 1;
         bool closing = false;
-        if (i < in_.size() && in_[i] == L'/') {
+        if (i < in_.size() && in_[i] == u'/') {
             closing = true;
             ++i;
         }
 
         name_.clear();
-        if (!closing && i < in_.size() && in_[i] == L'*') {
-            name_ = L"*";
+        if (!closing && i < in_.size() && in_[i] == u'*') {
+            name_ = u"*";
             ++i;
         } else {
             while (i < in_.size() && (is_ascii_letter(in_[i]) || is_ascii_digit(in_[i]))) {
@@ -105,36 +105,36 @@ private:
         if (name_.empty()) return false;
 
         value_.clear();
-        if (!closing && i < in_.size() && in_[i] == L'=') {
+        if (!closing && i < in_.size() && in_[i] == u'=') {
             ++i;
             // Значение в кавычках или голое — до ']'.
-            const bool quoted = i < in_.size() && in_[i] == L'"';
+            const bool quoted = i < in_.size() && in_[i] == u'"';
             if (quoted) ++i;
-            while (i < in_.size() && in_[i] != L']') {
+            while (i < in_.size() && in_[i] != u']') {
                 value_ += in_[i];
                 ++i;
             }
-            if (quoted && !value_.empty() && value_.back() == L'"') value_.pop_back();
+            if (quoted && !value_.empty() && value_.back() == u'"') value_.pop_back();
         }
 
-        if (i >= in_.size() || in_[i] != L']' || i - pos_ > 256) return false;
+        if (i >= in_.size() || in_[i] != u']' || i - pos_ > 256) return false;
         const std::size_t past = i + 1;
 
         return closing ? close_tag(past) : open_tag(past);
     }
 
     bool open_tag(std::size_t past) {
-        if (name_ == L"b" || name_ == L"i" || name_ == L"u" || name_ == L"s" ||
-            name_ == L"sub" || name_ == L"sup") {
+        if (name_ == u"b" || name_ == u"i" || name_ == u"u" || name_ == u"s" ||
+            name_ == u"sub" || name_ == u"sup") {
             flush_breaks();
             out_.open(simple_tag());
             pos_ = past;
             return true;
         }
-        if (name_ == L"color") return font_tag(attr_t::color, past);
-        if (name_ == L"size") return font_tag(attr_t::size, past);
-        if (name_ == L"font") return font_tag(attr_t::face, past);
-        if (name_ == L"url") {
+        if (name_ == u"color") return font_tag(attr_t::color, past);
+        if (name_ == u"size") return font_tag(attr_t::size, past);
+        if (name_ == u"font") return font_tag(attr_t::face, past);
+        if (name_ == u"url") {
             flush_breaks();
             pos_ = past;
             if (!value_.empty()) {
@@ -144,33 +144,33 @@ private:
                 return true;
             }
             // [url]цель[/url]: содержимое — и адрес, и текст ссылки.
-            const std::wstring_view target = capture(L"url");
+            const std::u16string_view target = capture(u"url");
             value_.assign(target);
             attrs_.clear();
             attrs_.emplace_back(attr_t::href, out_.copy(value_));
             out_.open(tag_t::a, out_.copy_attributes(attrs_));
-            for (const wchar_t c : target) out_.character(c);
+            for (const char16_t c : target) out_.character(c);
             out_.close(tag_t::a);
             return true;
         }
-        if (name_ == L"img") {
+        if (name_ == u"img") {
             flush_breaks();
             pos_ = past;
-            const std::wstring_view source = capture(L"img");
+            const std::u16string_view source = capture(u"img");
             value_.assign(source);
             attrs_.clear();
             attrs_.emplace_back(attr_t::src, out_.copy(value_));
             out_.open(tag_t::img, out_.copy_attributes(attrs_));
             return true;
         }
-        if (name_ == L"quote") {
+        if (name_ == u"quote") {
             block_edge();
             out_.open(tag_t::blockquote);
             if (!value_.empty()) {
                 // Автор цитаты — жирной строкой над ней.
                 out_.open(tag_t::b);
-                for (const wchar_t c : value_) out_.character(c);
-                out_.character(L':');
+                for (const char16_t c : value_) out_.character(c);
+                out_.character(u':');
                 out_.close(tag_t::b);
                 out_.line_break();
             }
@@ -178,18 +178,18 @@ private:
             pos_ = past;
             return true;
         }
-        if (name_ == L"code") {
+        if (name_ == u"code") {
             block_edge();
             out_.open(tag_t::pre);
             pos_ = past;
             // Всё до [/code] — буквально: теги внутри кода не разметка.
-            const std::wstring_view body = capture(L"code");
-            for (const wchar_t c : body) out_.character(c);
+            const std::u16string_view body = capture(u"code");
+            for (const char16_t c : body) out_.character(c);
             out_.close(tag_t::pre);
             block_edge();
             return true;
         }
-        if (name_ == L"list") {
+        if (name_ == u"list") {
             block_edge();
             const bool ordered = !value_.empty();
             lists_.push_back(ordered);
@@ -197,7 +197,7 @@ private:
             pos_ = past;
             return true;
         }
-        if (name_ == L"*") {
+        if (name_ == u"*") {
             block_edge();
             out_.open(tag_t::li);
             pos_ = past;
@@ -207,32 +207,32 @@ private:
     }
 
     bool close_tag(std::size_t past) {
-        if (name_ == L"b" || name_ == L"i" || name_ == L"u" || name_ == L"s" ||
-            name_ == L"sub" || name_ == L"sup") {
+        if (name_ == u"b" || name_ == u"i" || name_ == u"u" || name_ == u"s" ||
+            name_ == u"sub" || name_ == u"sup") {
             flush_breaks();
             out_.close(simple_tag());
             pos_ = past;
             return true;
         }
-        if (name_ == L"color" || name_ == L"size" || name_ == L"font") {
+        if (name_ == u"color" || name_ == u"size" || name_ == u"font") {
             flush_breaks();
             out_.close(tag_t::font);
             pos_ = past;
             return true;
         }
-        if (name_ == L"url") {
+        if (name_ == u"url") {
             flush_breaks();
             out_.close(tag_t::a);
             pos_ = past;
             return true;
         }
-        if (name_ == L"quote") {
+        if (name_ == u"quote") {
             out_.close(tag_t::blockquote);
             block_edge();
             pos_ = past;
             return true;
         }
-        if (name_ == L"list") {
+        if (name_ == u"list") {
             const bool ordered = !lists_.empty() && lists_.back();
             if (!lists_.empty()) lists_.pop_back();
             out_.close(ordered ? tag_t::ol : tag_t::ul);
@@ -244,11 +244,11 @@ private:
     }
 
     tag_t simple_tag() const noexcept {
-        if (name_ == L"b") return tag_t::b;
-        if (name_ == L"i") return tag_t::i;
-        if (name_ == L"u") return tag_t::u;
-        if (name_ == L"s") return tag_t::s;
-        if (name_ == L"sub") return tag_t::sub;
+        if (name_ == u"b") return tag_t::b;
+        if (name_ == u"i") return tag_t::i;
+        if (name_ == u"u") return tag_t::u;
+        if (name_ == u"s") return tag_t::s;
+        if (name_ == u"sub") return tag_t::sub;
         return tag_t::sup;
     }
 
@@ -263,12 +263,12 @@ private:
 
     // Содержимое до парного закрывающего [/имя], буквально; pos_ уезжает за
     // него. Нет закрывающего — до конца входа: обрезанный пост дороже тега.
-    std::wstring_view capture(std::wstring_view name) {
+    std::u16string_view capture(std::u16string_view name) {
         const std::size_t start = pos_;
         std::size_t at = start;
         while (at < in_.size()) {
-            const std::size_t open = in_.find(L'[', at);
-            if (open == std::wstring_view::npos) break;
+            const std::size_t open = in_.find(u'[', at);
+            if (open == std::u16string_view::npos) break;
             if (matches_close(open, name)) {
                 pos_ = open + name.size() + 3;  // "[/имя]"
                 return trimmed(in_.substr(start, open - start));
@@ -279,26 +279,26 @@ private:
         return trimmed(in_.substr(start));
     }
 
-    bool matches_close(std::size_t at, std::wstring_view name) const {
+    bool matches_close(std::size_t at, std::u16string_view name) const {
         if (at + name.size() + 3 > in_.size()) return false;
-        if (in_[at + 1] != L'/') return false;
+        if (in_[at + 1] != u'/') return false;
         for (std::size_t i = 0; i < name.size(); ++i) {
             if (to_lower_ascii(in_[at + 2 + i]) != name[i]) return false;
         }
-        return in_[at + 2 + name.size()] == L']';
+        return in_[at + 2 + name.size()] == u']';
     }
 
-    static std::wstring_view trimmed(std::wstring_view text) {
-        while (!text.empty() && (text.front() == L' ' || text.front() == L'\r' ||
-                                 text.front() == L'\n' || text.front() == L'\t'))
+    static std::u16string_view trimmed(std::u16string_view text) {
+        while (!text.empty() && (text.front() == u' ' || text.front() == u'\r' ||
+                                 text.front() == u'\n' || text.front() == u'\t'))
             text.remove_prefix(1);
-        while (!text.empty() && (text.back() == L' ' || text.back() == L'\r' ||
-                                 text.back() == L'\n' || text.back() == L'\t'))
+        while (!text.empty() && (text.back() == u' ' || text.back() == u'\r' ||
+                                 text.back() == u'\n' || text.back() == u'\t'))
             text.remove_suffix(1);
         return text;
     }
 
-    std::wstring_view in_;
+    std::u16string_view in_;
     std::size_t pos_ = 0;
     tree_builder& out_;
 
@@ -309,20 +309,23 @@ private:
     // тот тег, который открывался.
     xml::sta_vector<bool> lists_;
 
-    xml::sta_wstring name_;
-    xml::sta_wstring value_;
+    core::sta_u16string name_;
+    core::sta_u16string value_;
     xml::sta_vector<attribute_t> attrs_;
 };
 
 }  // namespace
 
-html::document parse(std::wstring_view input) {
+html::document parse(std::u16string_view input) {
     html::document_builder building;
     parser reader(input, building.tree());
     reader.run();
     return std::move(building).finish();
 }
 
-html::document parse(core::u8_view input) { return parse(input.to_utf16().wchars()); }
+html::document parse(core::u8_view input) {
+    const core::u16_text text = input.to_utf16();
+    return parse(text.plain());
+}
 
 }  // namespace wxl::bb

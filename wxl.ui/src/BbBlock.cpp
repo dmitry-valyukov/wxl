@@ -30,13 +30,13 @@ BbBlock::BbBlock() : base_t(new Impl{}) {
     impl::ActivationFactory<BbBlock>::activate(put_abi());
 }
 
-void BbBlock::bb(string_param markup) const {
+void BbBlock::bb(hstring_param const& markup) const {
     clear();
     append(markup);
 }
 
-void BbBlock::append(string_param markup) const {
-    const html::document parsed = wxl::bb::parse(markup.wide());
+void BbBlock::append(hstring_param const& markup) const {
+    const html::document parsed = wxl::bb::parse(markup.text().view());
     build_markup(*this, *static_cast<Impl*>(impl()), parsed);
 }
 

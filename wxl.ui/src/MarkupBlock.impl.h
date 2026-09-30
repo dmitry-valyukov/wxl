@@ -20,13 +20,13 @@ public:
     // регистрирует горсть имён, а не таблицу стилей. На STA-пуле:
     // регистрация повторяется на каждый блок.
     struct named_style {
-        sta_wstring name;
+        hstring name;
         HtmlStyle style;
     };
 
     std::vector<named_style, core::sta_allocator<named_style>> namedStyles_;
 
-    const HtmlStyle* findStyle(std::wstring_view name) const noexcept {
+    const HtmlStyle* findStyle(std::u16string_view name) const noexcept {
         for (const named_style& candidate : namedStyles_) {
             if (candidate.name == name) return &candidate.style;
         }
@@ -37,7 +37,7 @@ public:
     HtmlTheme theme_;
 
     // База голых относительных <img src>; пусто — рабочий каталог процесса.
-    sta_wstring baseDirectory_;
+    hstring baseDirectory_;
 };
 
 }  // namespace wxl

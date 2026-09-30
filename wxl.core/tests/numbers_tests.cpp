@@ -209,4 +209,28 @@ TEST(numbers, scaling_a_byte_count) {
     EXPECT_EQ(wxl::core::scale_bytes(0).unit, byte_unit::bytes);
 }
 
+// The same numbers in char16_t, the unit a string is written in: the wide
+// readers and writers take either spelling of UTF-16 and mean the same by it.
+TEST(numbers, try_parse_reads_char16_text) {
+    int value = 0;
+    EXPECT_TRUE(wxl::core::try_parse(u"42"sv, value));
+    EXPECT_EQ(value, 42);
+    EXPECT_FALSE(wxl::core::try_parse(u"４２"sv, value));  // full-width digits are not
+    EXPECT_FALSE(wxl::core::try_parse(u"42px"sv, value));
+    EXPECT_EQ(value, 42);  // a refusal leaves the result as it was
+
+    double real = 0;
+    EXPECT_TRUE(wxl::core::try_parse<std::allocator>(u"1.5"sv, real));
+    EXPECT_EQ(real, 1.5);
+}
+
+TEST(numbers, append_number_writes_char16_text) {
+    std::u16string text = u"страница ";
+    wxl::core::append_number(text, 7);
+    EXPECT_EQ(text, u"страница 7");
+
+    std::u16string wide_and_narrow;
+    wxl::core::append_number(wide_and_narrow, -12);
+    EXPECT_EQ(wide_and_narrow, u"-12");
+}
 }  // namespace

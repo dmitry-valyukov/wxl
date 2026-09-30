@@ -44,97 +44,97 @@ struct pooled_tree_builder : tree_builder {
     }
 };
 
-constexpr bool is_ws(wchar_t c) noexcept {
-    return c == L' ' || c == L'\t' || c == L'\r' || c == L'\n' || c == L'\f';
+constexpr bool is_ws(char16_t c) noexcept {
+    return c == u' ' || c == u'\t' || c == u'\r' || c == u'\n' || c == u'\f';
 }
 
-constexpr bool is_ascii_letter(wchar_t c) noexcept {
-    return (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z');
+constexpr bool is_ascii_letter(char16_t c) noexcept {
+    return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z');
 }
 
-constexpr wchar_t to_lower_ascii(wchar_t c) noexcept {
-    return c >= L'A' && c <= L'Z' ? static_cast<wchar_t>(c + 32) : c;
+constexpr char16_t to_lower_ascii(char16_t c) noexcept {
+    return c >= u'A' && c <= u'Z' ? static_cast<char16_t>(c + 32) : c;
 }
 
 // The tag of an element name (already lowercased), with the input's
 // synonyms folded into their canonical spelling; nullopt for a name the
 // subset does not know -- the tag then vanishes and its content stays.
-std::optional<tag_t> element_tag(std::wstring_view name) noexcept {
-    if (name == L"p") return tag_t::p;
-    if (name == L"div") return tag_t::div;
-    if (name == L"br") return tag_t::br;
-    if (name == L"h1") return tag_t::h1;
-    if (name == L"h2") return tag_t::h2;
-    if (name == L"h3") return tag_t::h3;
-    if (name == L"blockquote") return tag_t::blockquote;
-    if (name == L"ul") return tag_t::ul;
-    if (name == L"ol") return tag_t::ol;
-    if (name == L"li") return tag_t::li;
-    if (name == L"pre") return tag_t::pre;
-    if (name == L"hr") return tag_t::hr;
-    if (name == L"table") return tag_t::table;
-    if (name == L"tr") return tag_t::tr;
-    if (name == L"td") return tag_t::td;
-    if (name == L"th") return tag_t::th;
-    if (name == L"details") return tag_t::details;
-    if (name == L"summary") return tag_t::summary;
-    if (name == L"b" || name == L"strong") return tag_t::b;
-    if (name == L"i" || name == L"em") return tag_t::i;
-    if (name == L"u") return tag_t::u;
-    if (name == L"s" || name == L"del" || name == L"strike") return tag_t::s;
-    if (name == L"code") return tag_t::code;
-    if (name == L"a") return tag_t::a;
-    if (name == L"img") return tag_t::img;
-    if (name == L"sub") return tag_t::sub;
-    if (name == L"sup") return tag_t::sup;
-    if (name == L"font") return tag_t::font;
-    if (name == L"span") return tag_t::span;
+std::optional<tag_t> element_tag(std::u16string_view name) noexcept {
+    if (name == u"p") return tag_t::p;
+    if (name == u"div") return tag_t::div;
+    if (name == u"br") return tag_t::br;
+    if (name == u"h1") return tag_t::h1;
+    if (name == u"h2") return tag_t::h2;
+    if (name == u"h3") return tag_t::h3;
+    if (name == u"blockquote") return tag_t::blockquote;
+    if (name == u"ul") return tag_t::ul;
+    if (name == u"ol") return tag_t::ol;
+    if (name == u"li") return tag_t::li;
+    if (name == u"pre") return tag_t::pre;
+    if (name == u"hr") return tag_t::hr;
+    if (name == u"table") return tag_t::table;
+    if (name == u"tr") return tag_t::tr;
+    if (name == u"td") return tag_t::td;
+    if (name == u"th") return tag_t::th;
+    if (name == u"details") return tag_t::details;
+    if (name == u"summary") return tag_t::summary;
+    if (name == u"b" || name == u"strong") return tag_t::b;
+    if (name == u"i" || name == u"em") return tag_t::i;
+    if (name == u"u") return tag_t::u;
+    if (name == u"s" || name == u"del" || name == u"strike") return tag_t::s;
+    if (name == u"code") return tag_t::code;
+    if (name == u"a") return tag_t::a;
+    if (name == u"img") return tag_t::img;
+    if (name == u"sub") return tag_t::sub;
+    if (name == u"sup") return tag_t::sup;
+    if (name == u"font") return tag_t::font;
+    if (name == u"span") return tag_t::span;
     return std::nullopt;
 }
 
-std::optional<attr_t> attribute_name(std::wstring_view name) noexcept {
-    if (name == L"href") return attr_t::href;
-    if (name == L"src") return attr_t::src;
-    if (name == L"width") return attr_t::width;
-    if (name == L"height") return attr_t::height;
-    if (name == L"alt") return attr_t::alt;
-    if (name == L"color") return attr_t::color;
-    if (name == L"face") return attr_t::face;
-    if (name == L"size") return attr_t::size;
-    if (name == L"style") return attr_t::style;
-    if (name == L"type") return attr_t::type;
-    if (name == L"colspan") return attr_t::colspan;
-    if (name == L"rowspan") return attr_t::rowspan;
+std::optional<attr_t> attribute_name(std::u16string_view name) noexcept {
+    if (name == u"href") return attr_t::href;
+    if (name == u"src") return attr_t::src;
+    if (name == u"width") return attr_t::width;
+    if (name == u"height") return attr_t::height;
+    if (name == u"alt") return attr_t::alt;
+    if (name == u"color") return attr_t::color;
+    if (name == u"face") return attr_t::face;
+    if (name == u"size") return attr_t::size;
+    if (name == u"style") return attr_t::style;
+    if (name == u"type") return attr_t::type;
+    if (name == u"colspan") return attr_t::colspan;
+    if (name == u"rowspan") return attr_t::rowspan;
     return std::nullopt;
 }
 
 // The named entities of the subset (design.md: the full HTML set is
 // deliberately not wanted). An unknown name stays literal text.
-std::optional<wchar_t> named_entity(std::wstring_view name) noexcept {
-    if (name == L"amp") return L'&';
-    if (name == L"lt") return L'<';
-    if (name == L"gt") return L'>';
-    if (name == L"quot") return L'"';
-    if (name == L"apos") return L'\'';
-    if (name == L"nbsp") return L' ';
-    if (name == L"mdash") return L'—';
-    if (name == L"ndash") return L'–';
-    if (name == L"laquo") return L'«';
-    if (name == L"raquo") return L'»';
-    if (name == L"hellip") return L'…';
-    if (name == L"copy") return L'©';
+std::optional<char16_t> named_entity(std::u16string_view name) noexcept {
+    if (name == u"amp") return u'&';
+    if (name == u"lt") return u'<';
+    if (name == u"gt") return u'>';
+    if (name == u"quot") return u'"';
+    if (name == u"apos") return u'\'';
+    if (name == u"nbsp") return u' ';
+    if (name == u"mdash") return u'—';
+    if (name == u"ndash") return u'–';
+    if (name == u"laquo") return u'«';
+    if (name == u"raquo") return u'»';
+    if (name == u"hellip") return u'…';
+    if (name == u"copy") return u'©';
     return std::nullopt;
 }
 
 class parser {
 public:
-    parser(std::wstring_view input, tree_builder& out) : in_(input), out_(out) {}
+    parser(std::u16string_view input, tree_builder& out) : in_(input), out_(out) {}
 
     void run() {
         while (pos_ < in_.size()) {
-            const wchar_t c = in_[pos_];
-            if (c == L'<' && markup()) continue;
-            if (c == L'&') {
+            const char16_t c = in_[pos_];
+            if (c == u'<' && markup()) continue;
+            if (c == u'&') {
                 entity();
                 continue;
             }
@@ -150,21 +150,21 @@ private:
     // is just a character.
     bool markup() {
         if (pos_ + 1 >= in_.size()) return false;
-        const wchar_t next = in_[pos_ + 1];
+        const char16_t next = in_[pos_ + 1];
 
-        if (next == L'!') {
+        if (next == u'!') {
             skip_declaration();
             return true;
         }
-        if (next == L'?') {
-            skip_until(L'>');
+        if (next == u'?') {
+            skip_until(u'>');
             return true;
         }
-        if (next == L'/') {
+        if (next == u'/') {
             if (pos_ + 2 >= in_.size() || !is_ascii_letter(in_[pos_ + 2])) return false;
             pos_ += 2;
             const std::optional<tag_t> tag = element_tag(scan_name());
-            skip_until(L'>');
+            skip_until(u'>');
             if (tag) out_.close(*tag);
             return true;
         }
@@ -189,19 +189,19 @@ private:
         for (;;) {
             skip_ws();
             if (pos_ >= in_.size()) break;
-            wchar_t c = in_[pos_];
-            if (c == L'>') {
+            char16_t c = in_[pos_];
+            if (c == u'>') {
                 ++pos_;
                 break;
             }
-            if (c == L'/') {
+            if (c == u'/') {
                 ++pos_;
                 continue;
             }
             const std::optional<attr_t> name = attribute_name(scan_attribute_name());
             skip_ws();
             value_.clear();
-            if (pos_ < in_.size() && in_[pos_] == L'=') {
+            if (pos_ < in_.size() && in_[pos_] == u'=') {
                 ++pos_;
                 skip_ws();
                 scan_attribute_value();
@@ -213,21 +213,21 @@ private:
         out_.open(*tag, out_.copy_attributes(attributes_));
     }
 
-    std::wstring_view scan_name() {
+    std::u16string_view scan_name() {
         name_.clear();
         while (pos_ < in_.size() &&
-               (is_ascii_letter(in_[pos_]) || (in_[pos_] >= L'0' && in_[pos_] <= L'9'))) {
+               (is_ascii_letter(in_[pos_]) || (in_[pos_] >= u'0' && in_[pos_] <= u'9'))) {
             name_ += to_lower_ascii(in_[pos_]);
             ++pos_;
         }
         return name_;
     }
 
-    std::wstring_view scan_attribute_name() {
+    std::u16string_view scan_attribute_name() {
         name_.clear();
         while (pos_ < in_.size()) {
-            const wchar_t c = in_[pos_];
-            if (is_ws(c) || c == L'=' || c == L'>' || c == L'/') break;
+            const char16_t c = in_[pos_];
+            if (is_ws(c) || c == u'=' || c == u'>' || c == u'/') break;
             name_ += to_lower_ascii(c);
             ++pos_;
         }
@@ -236,18 +236,18 @@ private:
 
     void scan_attribute_value() {
         if (pos_ >= in_.size()) return;
-        const wchar_t quote = in_[pos_];
-        if (quote == L'"' || quote == L'\'') {
+        const char16_t quote = in_[pos_];
+        if (quote == u'"' || quote == u'\'') {
             ++pos_;
             while (pos_ < in_.size() && in_[pos_] != quote) value_char();
             if (pos_ < in_.size()) ++pos_;  // the closing quote
             return;
         }
-        while (pos_ < in_.size() && !is_ws(in_[pos_]) && in_[pos_] != L'>') value_char();
+        while (pos_ < in_.size() && !is_ws(in_[pos_]) && in_[pos_] != u'>') value_char();
     }
 
     void value_char() {
-        if (in_[pos_] == L'&') {
+        if (in_[pos_] == u'&') {
             entity_into(value_);
             return;
         }
@@ -257,17 +257,17 @@ private:
 
     void skip_declaration() {
         // <!-- ... --> as a unit; any other <!...> to the first '>'.
-        if (in_.compare(pos_, 4, L"<!--") == 0) {
-            const std::size_t end = in_.find(L"-->", pos_ + 4);
-            pos_ = end == std::wstring_view::npos ? in_.size() : end + 3;
+        if (in_.compare(pos_, 4, u"<!--") == 0) {
+            const std::size_t end = in_.find(u"-->", pos_ + 4);
+            pos_ = end == std::u16string_view::npos ? in_.size() : end + 3;
             return;
         }
-        skip_until(L'>');
+        skip_until(u'>');
     }
 
-    void skip_until(wchar_t stop) {
+    void skip_until(char16_t stop) {
         const std::size_t at = in_.find(stop, pos_);
-        pos_ = at == std::wstring_view::npos ? in_.size() : at + 1;
+        pos_ = at == std::u16string_view::npos ? in_.size() : at + 1;
     }
 
     void skip_ws() {
@@ -281,19 +281,19 @@ private:
     void entity() {
         entity_buf_.clear();
         if (decode_entity(entity_buf_)) {
-            for (const wchar_t c : entity_buf_) out_.character(c);
+            for (const char16_t c : entity_buf_) out_.character(c);
         } else {
-            out_.character(L'&');
+            out_.character(u'&');
             ++pos_;
         }
     }
 
-    void entity_into(xml::sta_wstring& out) {
+    void entity_into(core::sta_u16string& out) {
         entity_buf_.clear();
         if (decode_entity(entity_buf_)) {
             out += entity_buf_;
         } else {
-            out += L'&';
+            out += u'&';
             ++pos_;
         }
     }
@@ -306,14 +306,14 @@ private:
     // A bare '&' with no ';'-terminated body is *not* recorded as an error:
     // "Tom & Jerry" is prose, not a broken entity. Only a body that looked
     // like a reference and failed to decode is.
-    bool decode_entity(xml::sta_wstring& out) {
-        const std::size_t semicolon = in_.find(L';', pos_ + 1);
-        if (semicolon == std::wstring_view::npos || semicolon == pos_ + 1 ||
+    bool decode_entity(core::sta_u16string& out) {
+        const std::size_t semicolon = in_.find(u';', pos_ + 1);
+        if (semicolon == std::u16string_view::npos || semicolon == pos_ + 1 ||
             semicolon - pos_ > 32)
             return false;
-        const std::wstring_view body = in_.substr(pos_ + 1, semicolon - pos_ - 1);
+        const std::u16string_view body = in_.substr(pos_ + 1, semicolon - pos_ - 1);
 
-        if (body[0] == L'#') {
+        if (body[0] == u'#') {
             std::uint32_t point = 0;
             if (!numeric_reference(body.substr(1), point)) return bad_entity(body);
             // Zero is rejected too: an embedded NUL inside a text piece is
@@ -321,16 +321,16 @@ private:
             if (point == 0 || point > 0x10FFFF || (point >= 0xD800 && point <= 0xDFFF))
                 return bad_entity(body);
             if (point >= 0x10000) {
-                out += static_cast<wchar_t>(0xD800 + ((point - 0x10000) >> 10));
-                out += static_cast<wchar_t>(0xDC00 + ((point - 0x10000) & 0x3FF));
+                out += static_cast<char16_t>(0xD800 + ((point - 0x10000) >> 10));
+                out += static_cast<char16_t>(0xDC00 + ((point - 0x10000) & 0x3FF));
             } else {
-                out += static_cast<wchar_t>(point);
+                out += static_cast<char16_t>(point);
             }
             pos_ = semicolon + 1;
             return true;
         }
 
-        const std::optional<wchar_t> named = named_entity(body);
+        const std::optional<char16_t> named = named_entity(body);
         if (!named) return bad_entity(body);
         out += *named;
         pos_ = semicolon + 1;
@@ -339,26 +339,26 @@ private:
 
     // The failed reference, recorded; false so the call reads as `return
     // bad_entity(body)` on the failure paths above.
-    bool bad_entity(std::wstring_view body) {
+    bool bad_entity(std::u16string_view body) {
         error_buf_.assign(body);
         out_.record_copied(error_t::bad_entity, error_buf_);
         return false;
     }
 
-    static bool numeric_reference(std::wstring_view digits, std::uint32_t& point) {
+    static bool numeric_reference(std::u16string_view digits, std::uint32_t& point) {
         if (digits.empty()) return false;
         std::uint32_t base = 10;
-        if (digits[0] == L'x' || digits[0] == L'X') {
+        if (digits[0] == u'x' || digits[0] == u'X') {
             base = 16;
             digits.remove_prefix(1);
             if (digits.empty()) return false;
         }
         std::uint32_t value = 0;
-        for (const wchar_t c : digits) {
+        for (const char16_t c : digits) {
             std::uint32_t digit;
-            if (c >= L'0' && c <= L'9') digit = c - L'0';
-            else if (base == 16 && c >= L'a' && c <= L'f') digit = c - L'a' + 10;
-            else if (base == 16 && c >= L'A' && c <= L'F') digit = c - L'A' + 10;
+            if (c >= u'0' && c <= u'9') digit = c - u'0';
+            else if (base == 16 && c >= u'a' && c <= u'f') digit = c - u'a' + 10;
+            else if (base == 16 && c >= u'A' && c <= u'F') digit = c - u'A' + 10;
             else return false;
             value = value * base + digit;
             if (value > 0x110000) return false;  // clamp against overflow
@@ -367,7 +367,7 @@ private:
         return true;
     }
 
-    std::wstring_view in_;
+    std::u16string_view in_;
     std::size_t pos_ = 0;
     tree_builder& out_;
 
@@ -375,10 +375,10 @@ private:
     // message, so the allocations repeat and the pool is the right home
     // (unlike wxl.xml's per-document buffers, which stayed std:: for the
     // opposite reason).
-    xml::sta_wstring name_;
-    xml::sta_wstring value_;
-    xml::sta_wstring entity_buf_;
-    xml::sta_wstring error_buf_;
+    core::sta_u16string name_;
+    core::sta_u16string value_;
+    core::sta_u16string entity_buf_;
+    core::sta_u16string error_buf_;
     xml::sta_vector<attribute_t> attributes_;
 };
 
@@ -419,44 +419,47 @@ document document_builder::finish() && noexcept {
     return document(state);
 }
 
-document parse(std::wstring_view input) {
+document parse(std::u16string_view input) {
     document_builder building;
     parser reader(input, building.tree());
     reader.run();
     return std::move(building).finish();
 }
 
-document parse(core::u8_view input) { return parse(input.to_utf16().wchars()); }
+document parse(core::u8_view input) {
+    const core::u16_text text = input.to_utf16();
+    return parse(text.plain());
+}
 
 // ---- canonical serialization ----
 
 namespace {
 
-std::wstring_view serialized_attribute_name(attr_t name) noexcept {
+std::u16string_view serialized_attribute_name(attr_t name) noexcept {
     switch (name) {
-    case attr_t::href: return L"href";
-    case attr_t::src: return L"src";
-    case attr_t::width: return L"width";
-    case attr_t::height: return L"height";
-    case attr_t::alt: return L"alt";
-    case attr_t::color: return L"color";
-    case attr_t::face: return L"face";
-    case attr_t::size: return L"size";
-    case attr_t::style: return L"style";
-    case attr_t::type: return L"type";
-    case attr_t::colspan: return L"colspan";
-    case attr_t::rowspan: return L"rowspan";
+    case attr_t::href: return u"href";
+    case attr_t::src: return u"src";
+    case attr_t::width: return u"width";
+    case attr_t::height: return u"height";
+    case attr_t::alt: return u"alt";
+    case attr_t::color: return u"color";
+    case attr_t::face: return u"face";
+    case attr_t::size: return u"size";
+    case attr_t::style: return u"style";
+    case attr_t::type: return u"type";
+    case attr_t::colspan: return u"colspan";
+    case attr_t::rowspan: return u"rowspan";
     }
-    return L"?";
+    return u"?";
 }
 
-void escape_into(std::wstring& out, std::wstring_view text) {
-    for (const wchar_t c : text) {
+void escape_into(std::u16string& out, std::u16string_view text) {
+    for (const char16_t c : text) {
         switch (c) {
-        case L'&': out += L"&amp;"; break;
-        case L'<': out += L"&lt;"; break;
-        case L'>': out += L"&gt;"; break;
-        case L'"': out += L"&quot;"; break;
+        case u'&': out += u"&amp;"; break;
+        case u'<': out += u"&lt;"; break;
+        case u'>': out += u"&gt;"; break;
+        case u'"': out += u"&quot;"; break;
         default: out += c;
         }
     }
@@ -464,8 +467,8 @@ void escape_into(std::wstring& out, std::wstring_view text) {
 
 }  // namespace
 
-std::wstring serialized(const node& root) {
-    std::wstring out;
+std::u16string serialized(const node& root) {
+    std::u16string out;
 
     // Обход со своим стеком, не рекурсией: дерево глубиной в тысячи узлов --
     // законный результат разбора, и сериализатор обязан его пройти, а не
@@ -483,9 +486,9 @@ std::wstring serialized(const node& root) {
             const node* leaving = top.element;
             stack.pop_back();
             if (!stack.empty()) {
-                out += L"</";
+                out += u"</";
                 out += canonical_name(leaving->tag());
-                out += L'>';
+                out += u'>';
             }
             continue;
         }
@@ -496,16 +499,16 @@ std::wstring serialized(const node& root) {
             escape_into(out, child.value());
             continue;
         }
-        out += L'<';
+        out += u'<';
         out += canonical_name(child.tag());
         for (const attribute_t& attr : child.attributes()) {
-            out += L' ';
+            out += u' ';
             out += serialized_attribute_name(attr.name());
-            out += L"=\"";
+            out += u"=\"";
             escape_into(out, attr.value());
-            out += L'"';
+            out += u'"';
         }
-        out += L'>';
+        out += u'>';
         if (is_void(child.tag())) continue;
         stack.push_back({&child, child.children().begin()});
     }

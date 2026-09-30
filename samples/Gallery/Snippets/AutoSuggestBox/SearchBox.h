@@ -1,14 +1,14 @@
 // The model holds what was chosen and follows it: the control is looked up
 // once, and what the details show is read off that.
 struct Model {
-    core::observable<std::u16string> name;
+    core::observable<hstring> name;
     core::observable<gallery::ControlInfo const*> control;
     core::observable<Visibility> visibility;
     core::observable<std::wstring> image;
     core::observable<std::wstring> subtitle;
 
     Model() {
-        control.follow(name, [](std::u16string const& name) { return gallery::controlByTitle(name); });
+        control.follow(name, [](hstring const& name) { return gallery::controlByTitle(name); });
         visibility.follow(control, [](gallery::ControlInfo const* control) {
             return control ? Visibility::Visible : Visibility::Collapsed;
         });
@@ -63,12 +63,12 @@ auto box = AutoSuggestBox {
     },
     onQuerySubmitted = [model](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
         if (args.chosenSuggestion()) {
-            model->name.set(std::u16string{stringOf(args.chosenSuggestion())});
+            model->name.set(stringOf(args.chosenSuggestion()));
         } else if (!args.queryText().empty()) {
             // No suggestion picked: the first control that matches the text.
             auto const found = gallery::controlTitles(args.queryText());
             if (!found.empty()) {
-                model->name.set(std::u16string{found.front()});
+                model->name.set(hstring{found.front()});
             }
         }
     },

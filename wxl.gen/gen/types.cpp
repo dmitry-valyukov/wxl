@@ -65,24 +65,26 @@ char const* primitive_name(ElementType element) {
     }
 }
 
-// WinRT strings are HSTRINGs; wxl reads them as its own UTF-16 string, whose
-// unit is char16_t, and writes them from string_param, which takes that unit
-// and wchar_t's alike -- so a bare L"..." literal still goes into the builder
-// syntax while the code around it moves to u"...". See string_param.h for why
-// the move is happening at all.
+// WinRT strings are HSTRINGs. A string read off a member is an hstring -- a
+// reference to the very HSTRING the object holds, so reading a Text is a count
+// and not a copy of its text -- and one written is an hstring_param, which
+// borrows: an hstring's handle as it is, or text with a terminator under a
+// fast-pass header. Both are wxl.core's, named in hstring_param.h; the unit is
+// char16_t, and a wchar_t literal still goes in through the seam in
+// zstring_view. See hstring_param.h for why the move away from wchar_t is
+// happening at all.
 TypeUse string_type() {
     TypeUse use;
     use.supported = true;
-    use.value_type = "wstring";
-    use.param_type = "string_param";
+    use.value_type = "hstring";
+    use.param_type = "hstring_param const&";
     use.winrt_type = "winrt::hstring";
     use.to_winrt = "impl::to_winrt($)";
     use.from_winrt = "impl::from_winrt($)";
-    use.public_includes = {"collections.h", "string_param.h"};
+    use.public_includes = {"hstring_param.h"};
     use.impl_includes = {std::string{conversions_include}};
     return use;
 }
-
 // Any wrapped object -- wxl::Object itself, or a generated wrapper.
 //
 // Crossing in hands the call the argument's own Impl: each level declares a

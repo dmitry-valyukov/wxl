@@ -34,23 +34,23 @@ std::wstring load(std::wstring const& path) {
 }
 
 // Что случилось, по-русски: подпись рода ошибки для строки состояния.
-std::wstring_view error_name(HtmlErrorKind kind) {
+zstring_view error_name(HtmlErrorKind kind) {
     switch (kind) {
-    case HtmlErrorKind::UnknownTag: return L"незнакомый тег";
-    case HtmlErrorKind::UnpairedClose: return L"непарный закрывающий";
-    case HtmlErrorKind::MisnestedTags: return L"перепутанная вложенность";
-    case HtmlErrorKind::BadEntity: return L"кривая сущность";
-    case HtmlErrorKind::MisplacedTag: return L"тег не на своём месте";
-    case HtmlErrorKind::UnknownStyle: return L"незнакомый стиль";
-    case HtmlErrorKind::BadColor: return L"кривой цвет";
-    case HtmlErrorKind::BadFontSize: return L"кривой кегль";
-    case HtmlErrorKind::BadDimension: return L"кривой размер";
-    case HtmlErrorKind::MissingImage: return L"картинка без источника";
-    case HtmlErrorKind::RemoteImage: return L"удалённая картинка отброшена";
-    case HtmlErrorKind::ImageFailed: return L"картинка не загрузилась";
-    case HtmlErrorKind::BlockedLink: return L"клик по ссылке погашен";
+    case HtmlErrorKind::UnknownTag: return u"незнакомый тег";
+    case HtmlErrorKind::UnpairedClose: return u"непарный закрывающий";
+    case HtmlErrorKind::MisnestedTags: return u"перепутанная вложенность";
+    case HtmlErrorKind::BadEntity: return u"кривая сущность";
+    case HtmlErrorKind::MisplacedTag: return u"тег не на своём месте";
+    case HtmlErrorKind::UnknownStyle: return u"незнакомый стиль";
+    case HtmlErrorKind::BadColor: return u"кривой цвет";
+    case HtmlErrorKind::BadFontSize: return u"кривой кегль";
+    case HtmlErrorKind::BadDimension: return u"кривой размер";
+    case HtmlErrorKind::MissingImage: return u"картинка без источника";
+    case HtmlErrorKind::RemoteImage: return u"удалённая картинка отброшена";
+    case HtmlErrorKind::ImageFailed: return u"картинка не загрузилась";
+    case HtmlErrorKind::BlockedLink: return u"клик по ссылке погашен";
     }
-    return L"?";
+    return u"?";
 }
 
 }  // namespace
@@ -72,8 +72,8 @@ wxl::Teardown wxl_launched() {
     // The named styles the appended chunk below exercises; foreign markup
     // whose style="..." holds real CSS finds nothing here and stays plain.
     view.registerStyles({
-        {L"warn", {.text = {.color = rgb(192, 57, 43), .bold = true}}},
-        {L"note", {.text = {.color = rgb(128, 128, 128), .italic = true}}},
+        {u"warn", {.text = {.color = rgb(192, 57, 43), .bold = true}}},
+        {u"note", {.text = {.color = rgb(128, 128, 128), .italic = true}}},
     });
 
     auto status = TextBlock {
@@ -87,16 +87,18 @@ wxl::Teardown wxl_launched() {
     // состояния (последнее восстановление видно; их может быть несколько).
     const std::wstring assets = std::filesystem::absolute(L"Assets").wstring();
     const auto wire = [status, &assets](auto const& block) {
-        block.onLink([status](std::wstring_view target) {
-            status.text(L"Клик по ссылке: " + std::wstring{target});
+        block.onLink([status](zstring_view target) {
+            std::u16string line{u"Клик по ссылке: "};
+            line += target.view();
+            status.text(line);
         });
         block.onError([status](HtmlError const& error) {
-            std::wstring line{L"Ошибка разметки: "};
-            line += error_name(error.kind);
+            std::u16string line{u"Ошибка разметки: "};
+            line += error_name(error.kind).view();
             if (!error.detail.empty()) {
-                line += L" («";
-                line += error.detail;
-                line += L"»)";
+                line += u" («";
+                line += error.detail.view();
+                line += u"»)";
             }
             status.text(line);
         });

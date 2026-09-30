@@ -33,7 +33,7 @@ export namespace wxl::rsdn {
 
 /// Разбирает разметку RSDN. Не бросает ни на каком входе; восстановления
 /// пишутся в document::errors(), как у всего семейства.
-html::document parse(std::wstring_view input);
+html::document parse(std::u16string_view input);
 
 /// То же для проверенного UTF-8.
 html::document parse(core::u8_view input);

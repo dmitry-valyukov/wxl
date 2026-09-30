@@ -16,8 +16,8 @@ using namespace wxl::dsl;
 namespace {
 
 // Плитка ссылки в шапке (Tile оригинала).
-FrameworkElement headerTile(std::wstring_view title, std::wstring_view description,
-                            std::wstring_view link, FrameworkElement const& source) {
+FrameworkElement headerTile(zstring_view title, zstring_view description,
+                            zstring_view link, FrameworkElement const& source) {
     return HyperlinkButton {
         width = 232,
         height = 172,
@@ -48,7 +48,7 @@ FrameworkElement headerTile(std::wstring_view title, std::wstring_view descripti
     };
 }
 
-FrameworkElement picture(std::u16string_view path) {
+FrameworkElement picture(zstring_view path) {
     return Image {source = path, height = 36};
 }
 
@@ -106,7 +106,7 @@ FrameworkElement heroHeader() {
     };
 }
 
-FrameworkElement heading(std::u16string_view label, Thickness space) {
+FrameworkElement heading(zstring_view label, Thickness space) {
     return TextBlock {label, margin = space, fontSize = 16, styles.TextBlock.BodyStrong};
 }
 

@@ -19,15 +19,15 @@ using winrt::Microsoft::UI::Xaml::GridUnitType;
 
 // "*", "2*", "auto", "120" -- the four forms, in the order they are told
 // apart. A star with no number in front of it is one share.
-std::optional<GridLength> parse_length(std::wstring_view entry) {
+std::optional<GridLength> parse_length(std::u16string_view entry) {
     if (entry.empty()) {
         return std::nullopt;
     }
-    if (entry == L"auto" || entry == L"Auto") {
+    if (entry == u"auto" || entry == u"Auto") {
         return GridLength{1.0, GridUnitType::Auto};
     }
 
-    bool const star = entry.back() == L'*';
+    bool const star = entry.back() == u'*';
     if (star) {
         entry.remove_suffix(1);
         if (entry.empty()) {
@@ -50,8 +50,8 @@ std::optional<GridLength> parse_length(std::wstring_view entry) {
 
 // Each comma-separated entry in turn, as a GridLength.
 template <typename Add>
-void parse_each(std::wstring_view spec, Add add) {
-    for (std::wstring_view const entry : wxl::core::split(spec, L',')) {
+void parse_each(std::u16string_view spec, Add add) {
+    for (std::u16string_view const entry : wxl::core::split(spec, u',')) {
         if (auto const length = parse_length(wxl::core::trim(entry))) {
             add(*length);
         }
@@ -61,8 +61,8 @@ void parse_each(std::wstring_view spec, Add add) {
 }  // namespace
 
 void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                         string_param text) {
-    std::wstring_view const spec = text.wide();
+                         hstring_param const& text) {
+    std::u16string_view const spec = text.text().view();
     auto const rows = grid.RowDefinitions();
     rows.Clear();
     parse_each(spec, [&](GridLength const& length) {
@@ -73,8 +73,8 @@ void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
 }
 
 void set_column_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                            string_param text) {
-    std::wstring_view const spec = text.wide();
+                            hstring_param const& text) {
+    std::u16string_view const spec = text.text().view();
     auto const columns = grid.ColumnDefinitions();
     columns.Clear();
     parse_each(spec, [&](GridLength const& length) {

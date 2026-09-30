@@ -12,6 +12,7 @@
 #include <string>
 
 #include "Object.h"
+#include "hstring_param.h"
 
 namespace wxl {
 
@@ -19,7 +20,8 @@ namespace wxl {
 /// call, so a control given it keeps a list nobody changes under it.
 Object stringList(std::span<std::u16string const> items);
 
-/// The text of a boxed string; empty for an object that is anything else.
-std::u16string stringOf(Object const& boxed);
+/// The text of a boxed string, as the very HSTRING the box holds -- one
+/// reference more and no copy; empty for an object that is anything else.
+hstring stringOf(Object const& boxed);
 
 }  // namespace wxl

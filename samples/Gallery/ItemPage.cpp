@@ -16,7 +16,7 @@ constexpr std::wstring_view winUIBaseUrl =
     L"https://github.com/microsoft/microsoft-ui-xaml/tree/main/controls/dev";
 
 // Подпись-подсказка малого размера над ссылкой или значением во flyout.
-FrameworkElement caption(std::u16string_view text) {
+FrameworkElement caption(zstring_view text) {
     return TextBlock {
         text,
         styles.TextBlock.Caption,
@@ -25,7 +25,7 @@ FrameworkElement caption(std::u16string_view text) {
 }
 
 // Кнопка-значок «i» с подсказкой, как в заголовке оригинала.
-FrameworkElement infoGlyph(std::u16string_view tip) {
+FrameworkElement infoGlyph(zstring_view tip) {
     return FontIcon {
         glyph = u"",
         fontSize = 14,
@@ -34,7 +34,7 @@ FrameworkElement infoGlyph(std::u16string_view tip) {
     };
 }
 
-FrameworkElement linkRow(std::wstring_view title, std::wstring_view uri) {
+FrameworkElement linkRow(zstring_view title, zstring_view uri) {
     return HyperlinkButton {
         hAlign.stretch,
         horizontalContentAlignment = HorizontalAlignment::Left,
@@ -78,7 +78,7 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         panel.children().append(StackPanel {
             caption(u"Inheritance"),
             TextBlock {
-                std::wstring_view{chain},
+                chain,
                 fontFamily = u"Consolas",
                 isTextSelectionEnabled = true,
                 styles.TextBlock.Caption,
@@ -197,7 +197,7 @@ FrameworkElement pageHeader(gallery::ControlInfo const& item) {
             orientation.horizontal,
             spacing = 4.0,
             TextBlock {
-                std::wstring_view{item.title},
+                item.title,
                 styles.TextBlock.Title,
                 textTrimming = TextTrimming::CharacterEllipsis,
                 textWrapping.noWrap,
@@ -239,7 +239,7 @@ wxl::FrameworkElement gallery::itemPage(ControlInfo const& item) {
             hAlign.left,
             Margin {0, 4, 24, 0},
             isTextSelectionEnabled = true,
-            std::wstring_view{description},
+            description,
         });
     }
     if (auto const page = gallery::pageFor(item.uniqueId)) {

@@ -12,6 +12,7 @@
 #include "ThemeBrush.h"
 #include "generated/Microsoft.UI.Xaml.Media.impl.h"
 #include "generated/Microsoft.UI.Xaml.impl.h"
+#include "impl/conversions.h"
 
 namespace wxl {
 
@@ -22,7 +23,7 @@ void ThemeBrush::write(FrameworkElement const& element) const {
     // Insert rather than the indexer, and the answer is discarded: replacing
     // is what a second entry under one name means, and there is nothing to
     // report about it.
-    native.Resources().Insert(winrt::box_value(winrt::hstring{key_}),
+    native.Resources().Insert(winrt::box_value(impl::to_winrt(key_)),
                               *Object::Impl::get_typed<Brush>(brush_));
 }
 
