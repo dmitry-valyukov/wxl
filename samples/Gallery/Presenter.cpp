@@ -54,9 +54,9 @@ HtmlTheme flatCode() {
 // ушёл с кнопки.
 FrameworkElement copyButton(std::wstring text) {
     return Button {
-        Margin {0, 0, 8, 0},
+        Margin {0, 8, 8, 0},
         hAlign.right,
-        vAlign.center,
+        vAlign.top,
         Padding {11, 5, 11, 6},
         styles.Button.Subtle,
         gallery::appPop(),
@@ -127,7 +127,7 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
         });
     }
 
-    auto code = RsdnBlock {isTextSelectionEnabled = true, Padding {16, 0, 16, 16}};
+    auto code = RsdnBlock {isTextSelectionEnabled = true, Padding {16, 12, 56, 12}};
     code.theme(flatCode());
     code.rsdn(L"[code=cpp]" + source + L"[/code]");
 
@@ -152,17 +152,14 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
             CornerRadius {0, 0, 8, 8},
             background = brushes.Card.BackgroundFillColor.Secondary,
             header = u"Source code",
-            // Кнопка копирования — над кодом, в правом углу: у оригинала она
-            // внутри поля кода.
+            // Кнопка копирования лежит поверх кода в правом верхнем углу, как у
+            // оригинала: своей строки у неё нет, и код начинается сразу.
             content = Grid {
-                rowDefinitions = u"auto,*",
-                rowSpacing = 16.0,
-                copyButton(source),
                 ScrollViewer {
-                    row = 1,
                     horizontalScrollBarVisibility = ScrollBarVisibility::Auto,
                     content = code,
                 },
+                copyButton(source),
             },
         },
     };
