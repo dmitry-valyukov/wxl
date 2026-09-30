@@ -170,8 +170,7 @@ void sta_loop::worker::run() {
 
             io_op* const op = io_op::from(entry.lpOverlapped);
 
-            op->completed();
-            from_worker_.send(op);
+            if (op->completed()) from_worker_.send(op);
         }
 
         if (!worked && to_worker_.closed()) break;

@@ -39,7 +39,6 @@ awaitable<async_file> async_file::create(const core::path& path) {
 
 awaitable<std::size_t> async_file::read(std::span<std::byte> into) {
     ensure(file_.opened() && "async_file: no file was opened");
-    ensure(into.size() <= io_op::max_size && "async_file: one read carries a gigabyte at most");
 
     std::unique_ptr<io_op> op(new io_op(io_op::kind::read, file_.native_handle(), into.data(),
                                         into.size(), position_, skips_port_));
@@ -54,7 +53,6 @@ awaitable<std::size_t> async_file::read(std::span<std::byte> into) {
 
 awaitable<std::size_t> async_file::write(std::span<const std::byte> from) {
     ensure(file_.opened() && "async_file: no file was opened");
-    ensure(from.size() <= io_op::max_size && "async_file: one write carries a gigabyte at most");
 
     std::unique_ptr<async_op_t<std::size_t>> op(
         new io_op(io_op::kind::write, file_.native_handle(), const_cast<std::byte*>(from.data()),

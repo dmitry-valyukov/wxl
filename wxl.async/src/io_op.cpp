@@ -10,56 +10,63 @@ namespace wxl::async {
 io_op::io_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
              bool skips_port) noexcept
     : file_(file),
-      data_(data),
-      size_(static_cast<DWORD>(size)),
+      data_(static_cast<std::byte*>(data)),
+      left_(size),
       kind_(what),
       skips_port_(skips_port) {
-    assert(size <= max_size);
-
     overlapped_.Offset = static_cast<DWORD>(at);
     overlapped_.OffsetHigh = static_cast<DWORD>(at >> 32);
 }
 
 bool io_op::start() noexcept {
-    DWORD transferred = 0;
+    for (;;) {
+        asked_ = static_cast<DWORD>(std::min(left_, call_size));
 
-    const BOOL finished = kind_ == kind::read
-                              ? ::ReadFile(file_, data_, size_, &transferred, &overlapped_)
-                              : ::WriteFile(file_, data_, size_, &transferred, &overlapped_);
+        DWORD transferred = 0;
 
-    if (finished) {
+        const BOOL finished = kind_ == kind::read
+                                  ? ::ReadFile(file_, data_, asked_, &transferred, &overlapped_)
+                                  : ::WriteFile(file_, data_, asked_, &transferred, &overlapped_);
+
+        if (!finished) {
+            const DWORD error = ::GetLastError();
+
+            if (error == ERROR_IO_PENDING) return false;
+
+            // A call that failed queues nothing.
+            finish(error);
+            return true;
+        }
+
         // Without the skip a packet is on its way all the same, and the operation is
         // the port's until it arrives.
         if (!skips_port_) [[unlikely]]
             return false;
 
-        finish(ERROR_SUCCESS, transferred);
+        if (!advance(transferred)) return true;
+    }
+}
+
+bool io_op::completed() noexcept {
+    DWORD transferred = 0;
+
+    if (!::GetOverlappedResult(file_, &overlapped_, &transferred, FALSE)) {
+        finish(::GetLastError());
         return true;
     }
 
-    const DWORD error = ::GetLastError();
+    if (!advance(transferred)) return true;
 
-    if (error == ERROR_IO_PENDING) return false;
-
-    // A call that failed queues nothing.
-    finish(error, 0);
-    return true;
-}
-
-void io_op::completed() noexcept {
-    DWORD transferred = 0;
-
-    if (::GetOverlappedResult(file_, &overlapped_, &transferred, FALSE))
-        finish(ERROR_SUCCESS, transferred);
-    else
-        finish(::GetLastError(), transferred);
+    return start_on_worker();
 }
 
 io_op* io_op::from(OVERLAPPED* overlapped) noexcept {
     return core::object_from_field(&io_op::overlapped_, overlapped);
 }
 
-bool io_op::execute() {
+bool io_op::execute() { return start_on_worker(); }
+
+bool io_op::start_on_worker() noexcept {
     if (start()) return true;
 
     if (canceled()) [[unlikely]]
@@ -70,11 +77,29 @@ bool io_op::execute() {
 
 void io_op::on_cancel() noexcept { ::CancelIoEx(file_, &overlapped_); }
 
-void io_op::finish(DWORD error, DWORD transferred) noexcept {
+bool io_op::advance(DWORD transferred) noexcept {
+    done_ += transferred;
+    left_ -= transferred;
+    data_ += transferred;
+
+    const std::uint64_t at = (std::uint64_t{overlapped_.OffsetHigh} << 32 | overlapped_.Offset) +
+                             transferred;
+
+    overlapped_.Offset = static_cast<DWORD>(at);
+    overlapped_.OffsetHigh = static_cast<DWORD>(at >> 32);
+
+    if (transferred == asked_ && left_ != 0) [[unlikely]]
+        return true;
+
+    finish(ERROR_SUCCESS);
+    return false;
+}
+
+void io_op::finish(DWORD error) noexcept {
     if (kind_ == kind::read) {
-        // The end of the file is an answer, not a failure: nothing was read.
+        // The end of the file is an answer, not a failure: what was read before it.
         if (error == ERROR_SUCCESS || error == ERROR_HANDLE_EOF) [[likely]] {
-            set_value(std::size_t{transferred});
+            set_value(std::size_t{done_});
             return;
         }
 
@@ -82,8 +107,8 @@ void io_op::finish(DWORD error, DWORD transferred) noexcept {
         return;
     }
 
-    if (error == ERROR_SUCCESS && transferred == size_) [[likely]] {
-        set_value(std::size_t{transferred});
+    if (error == ERROR_SUCCESS && left_ == 0) [[likely]] {
+        set_value(std::size_t{done_});
         return;
     }
 

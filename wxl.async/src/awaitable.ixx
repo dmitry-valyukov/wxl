@@ -37,11 +37,13 @@ public:
 
     ~awaitable() { give_up(); }
 
-    /// Ready only once the loop has taken the operation out of the return channel --
-    /// which happens when it came back before anybody awaited it. An operation that is
-    /// merely finished may still be sitting in the channel, and the loop, finding it
-    /// there, would hand it to a coroutine that is no longer waiting for it.
-    bool await_ready() const noexcept { return op_->delivered(); }
+    /// Whether a co_await would go on without suspending: the loop has taken the
+    /// operation out of the return channel, and its answer -- the value or the failure
+    /// -- is here. Not whether the operation has finished: one that has may still be in
+    /// the channel, and until the loop takes it out it is not the coroutine's.
+    bool ready() const noexcept { return op_->delivered(); }
+
+    bool await_ready() const noexcept { return ready(); }
 
     void await_suspend(std::coroutine_handle<> coro) noexcept { op_->suspend(coro); }
 

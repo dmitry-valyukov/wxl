@@ -157,6 +157,21 @@ task returns_seven(int& out) {
     out = co_await sta_loop::async_call([] { return 7; });
 }
 
+/// The first operation is ahead of the second in every queue, so by the time the second
+/// has been awaited the loop has taken the first out as well, with nobody waiting for it.
+task watches_readiness(bool& before, bool& after, bool& here) {
+    auto first = sta_loop::async_call([] { return 3; });
+
+    before = first.ready();
+
+    co_await sta_loop::async_call([] {});
+
+    after = first.ready();
+    here = sta_loop::call_here([] { return 1; }).ready();
+
+    co_await first;
+}
+
 /// Writes down, as the frame goes, what `watched` held at that moment.
 class snapshot_at_exit
 {
@@ -353,6 +368,20 @@ TEST(StaLoopAbandonTest, AnOperationBackBeforeItsCoAwaitIsTakenThereWithoutAResu
 
     EXPECT_EQ(first, 1);
     EXPECT_EQ(second, 2);
+}
+
+TEST(StaLoopAbandonTest, AnAwaitableIsReadyOnceTheLoopHasTakenItsOperationOut) {
+    bool before = true;
+    bool after = false;
+    bool here = false;
+    task work = watches_readiness(before, after, here);
+
+    sta_loop::run_until([&] { return work.done(); });
+    work.result();
+
+    EXPECT_FALSE(before);
+    EXPECT_TRUE(after);
+    EXPECT_TRUE(here);
 }
 
 TEST(StaLoopAbandonTest, AnOperationNeverAwaitedIsWaitedForByTheFrameThatStartedIt) {

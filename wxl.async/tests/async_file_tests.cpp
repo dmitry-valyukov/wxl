@@ -224,6 +224,23 @@ task reads_in_large_pieces(path file_path, std::string& out) {
         out.append(buffer.data(), n);
 }
 
+/// Writes the whole of `content` in one write and reads it back in one read, each of
+/// them more than one call to the system carries.
+task writes_and_reads_in_one_go(path file_path, std::span<const std::byte> content,
+                                std::vector<std::byte>& got, std::size_t& brought) {
+    {
+        async_file out = co_await async_file::create(file_path);
+
+        EXPECT_EQ(co_await out.write(content), content.size());
+
+        co_await out.close();
+    }
+
+    async_file in = co_await async_file::open_read(file_path);
+
+    brought = co_await in.read(got);
+}
+
 std::string large_content() {
     std::string content;
 
@@ -259,6 +276,27 @@ TEST_F(AsyncFileTest, ALargeReadGoesThroughTheWorkerAndBringsTheSame) {
     run(reads_in_large_pieces(root_ / L"large.bin", got));
 
     EXPECT_EQ(got, content);
+}
+
+TEST_F(AsyncFileTest, AReadOrAWriteLargerThanOneCallGoesInAChainOfThem) {
+    // A megabyte over what one call takes: two calls each way.
+    const std::size_t size = io_op::call_size + 1024 * 1024;
+
+    std::vector<std::byte> content(size);
+
+    // Word by word: a byte at a time is a second of a Debug build.
+    std::uint64_t word = 0x9E37'79B97F4A7C15;
+
+    for (std::size_t at = 0; at + 8 <= size; at += 8, word += (word << 5) | 1)
+        std::memcpy(content.data() + at, &word, 8);
+
+    std::vector<std::byte> got(size + 4096);
+    std::size_t brought = 0;
+
+    run(writes_and_reads_in_one_go(root_ / L"chain.bin", content, got, brought));
+
+    ASSERT_EQ(brought, size);
+    EXPECT_EQ(std::memcmp(content.data(), got.data(), size), 0);
 }
 
 #ifndef WXL_ASYNC_TESTS_DISPATCHED
