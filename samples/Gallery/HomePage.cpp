@@ -92,7 +92,7 @@ FrameworkElement heroHeader() {
                            L"https://github.com/dmitry-valyukov/wxl",
                            FontIcon {glyph = u"", fontSize = 24}),
                 headerTile(L"Code samples", L"Find samples that demonstrate specific tasks, features, and APIs.",
-                           L"https://learn.microsoft.com/windows/apps/get-started/samples",
+                           L"https://github.com/dmitry-valyukov/wxl/blob/main/samples/README.md",
                            FontIcon {glyph = u"", fontSize = 24}),
                 headerTile(L"Partner Center", L"Upload your app to the Store.",
                            L"https://developer.microsoft.com/windows/",
