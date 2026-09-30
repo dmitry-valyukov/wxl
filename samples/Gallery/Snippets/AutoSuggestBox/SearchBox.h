@@ -37,6 +37,7 @@ auto details = StackPanel {
         },
     },
 };
+
 auto box = AutoSuggestBox {
     width = 300,
     hAlign.left,
