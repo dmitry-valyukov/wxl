@@ -2,6 +2,7 @@
 // те же, что там. Код каждого — файл в Snippets/Button/ (см. Pages.h).
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;
@@ -20,7 +21,7 @@ FrameworkElement simple() {
 
     return gallery::controlExample({
         .header = gallery::snippet(simpleHeader),
-        .example = button,
+        .example = StackPanel {orientation.horizontal, spacing = 8.0, button, disabled},
         .output = {output},
         .options = {disable},
         .code = gallery::snippet(simpleCode),

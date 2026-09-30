@@ -25,6 +25,8 @@
 
 namespace wxl {
 class ToggleSwitch;
+class ToggleButton;
+class CheckBox;
 class ComboBox;
 class NumberBox;
 class TextBox;
@@ -34,6 +36,12 @@ namespace wxl::impl {
 
 /// ToggleSwitch.isOn <-> observable<bool>, under Toggled.
 void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
+                bind_direction direction = bind_direction::both);
+
+/// ToggleButton.isChecked <-> observable<bool>, under Checked and Unchecked --
+/// a CheckBox, a RadioButton or a ToggleButton itself. Indeterminate is not
+/// a bool and is left alone: a field that has it is a nullable, not this.
+void apply_bind(ToggleButton const& control, core::observable<bool>& model,
                 bind_direction direction = bind_direction::both);
 
 /// ComboBox.selectedIndex <-> observable<int>, under SelectionChanged -- the
@@ -72,6 +80,28 @@ template <>
 struct PropertyBinder<PropertyKey::IsOn, ToggleSwitch> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ToggleSwitch const& control, core::observable<bool>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::IsChecked, ToggleButton> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(ToggleButton const& control, core::observable<bool>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+// A template member, not a function: converting a CheckBox to its ToggleButton
+// base needs the CheckBox complete, and this header only declares it. The body
+// is compiled where the binding is written, which has the whole class.
+template <>
+struct PropertyBinder<PropertyKey::IsChecked, CheckBox> {
+    static constexpr bind_direction direction = bind_direction::both;
+    template <class Control>
+    static void bind(Control const& control, core::observable<bool>& model,
                      bind_direction direction) {
         apply_bind(control, model, direction);
     }

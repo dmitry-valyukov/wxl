@@ -5,6 +5,7 @@
 // подсветкой) и точка входа.
 
 #include "ui.h"
+#include "Bind.h"
 #include "Card.h"
 #include "Panels.h"
 #include "HtmlBlock.h"
