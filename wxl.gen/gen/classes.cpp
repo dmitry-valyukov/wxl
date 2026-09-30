@@ -557,7 +557,11 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
                 includes.insert(member.result.public_includes.begin(),
                                 member.result.public_includes.end());
             }
-            if (member.braced) {
+            // A property a profile wrote by hand over a wrapped class (a tip
+            // that is a ToolTip) is announced like a narrowed setter: its
+            // class is routinely on the far side of a circle of includes.
+            if (member.braced || (!member.synthetic_call.empty() &&
+                                  member.params.front().type.is_wrapper)) {
                 announced.insert(member.params.front().type.value_type);
                 continue;
             }

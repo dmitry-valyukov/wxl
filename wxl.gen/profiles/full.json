@@ -77,7 +77,8 @@
             "comment": "The group rows: they expand and are not themselves a page.",
             "members": [
                 "IsExpanded",
-                "SelectsOnInvoked"
+                "SelectsOnInvoked",
+                "InfoBadge"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs": {
@@ -202,6 +203,43 @@
                 "SetRowSpan",
                 "SetColumnSpan"
             ]
+        },
+        "Microsoft.UI.Xaml.Controls.InfoBadge": {
+            "comment": "Status & info: the badge, whole -- its value, its icon, its dot."
+        },
+        "Microsoft.UI.Xaml.Controls.FontIconSource": {
+            "comment": "Status & info: the icon an InfoBadge takes as a glyph of a font.",
+            "members": [
+                "Glyph",
+                "FontFamily",
+                "FontSize"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InfoBar": {
+            "comment": "Status & info: the one button an InfoBar carries.",
+            "members": [
+                "ActionButton"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToolTip": {
+            "comment": "Status & info: where a tip stands, and the rectangle it keeps clear.",
+            "members": [
+                "VerticalOffset",
+                "HorizontalOffset",
+                "PlacementRect"
+            ]
+        },
+        "Microsoft.UI.Xaml.UIElement": {
+            "comment": "Status & info: a tip that is an element of its own (ToolTipService.ToolTip over an object), beside toolTip, which is the text.",
+            "members": [],
+            "syntheticMembers": {
+                "ToolTipElement": {
+                    "comment": "The tip as a ToolTip element: content that is not text, a placement, an offset. The hover half of toolTip only -- an element has no words to give a screen reader.",
+                    "type": "Microsoft.UI.Xaml.Controls.ToolTip",
+                    "function": "impl::set_tool_tip_element",
+                    "include": "../impl/tool_tip.h"
+                }
+            }
         },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",

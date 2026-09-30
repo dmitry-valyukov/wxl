@@ -45,6 +45,11 @@ constexpr Entry ported[] = {
     {L"StackPanel", &gallery::stackPanelPage},
     {L"VariableSizedWrapGrid", &gallery::variableSizedWrapGridPage},
     {L"Viewbox", &gallery::viewboxPage},
+    {L"ToolTip", &gallery::toolTipPage},
+    {L"ProgressRing", &gallery::progressRingPage},
+    {L"ProgressBar", &gallery::progressBarPage},
+    {L"InfoBar", &gallery::infoBarPage},
+    {L"InfoBadge", &gallery::infoBadgePage},
 };
 
 }  // namespace

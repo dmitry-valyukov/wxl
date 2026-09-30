@@ -260,3 +260,16 @@ inline constexpr Matrix4x4 identity_matrix() {
     return {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
 }
 }  // namespace wxl
+
+namespace wxl::core {
+
+// A rectangle that may be absent -- ToolTip.PlacementRect, which WinRT boxes as
+// IReference<Rect> and which means "no rectangle to keep clear" when empty.
+// Four floats, each a real coordinate, so there is no bit pattern to spend as
+// the empty state, and nullable<Rect> is std::optional<Rect>, as Color's is.
+template <>
+struct optional_selector<wxl::Rect> {
+    using nullable = std::optional<wxl::Rect>;
+};
+
+}  // namespace wxl::core
