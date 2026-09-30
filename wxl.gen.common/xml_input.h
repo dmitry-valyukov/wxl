@@ -1,8 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <memory>
+#include <optional>
 #include <string>
-#include <unordered_map>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -37,9 +39,8 @@ struct DictionaryResource {
 // Every resource in the dictionary that carries a key, in document order.
 std::vector<DictionaryResource> dictionary_resources(std::filesystem::path const& dictionary);
 
-// One member of a .NET documentation file -- the .xml a .winmd ships beside
-// it, or the Windows SDK's reference for a contract. Text as written, with its
-// runs of white space folded into single spaces.
+// One member of a .NET documentation file. Text as written, with its runs of
+// white space folded into single spaces.
 struct MemberDocumentation {
     std::string summary;
     std::vector<std::pair<std::string, std::string>> params;  // name, text
@@ -47,6 +48,24 @@ struct MemberDocumentation {
     std::string deprecated;
 };
 
-// Every <member> of a documentation file by its documentation ID
-// ("T:Ns.Type", "M:Ns.Type.Method(System.String)").
-std::unordered_map<std::string, MemberDocumentation> documentation_members(std::filesystem::path const& file);
+// A .NET documentation file -- the .xml a .winmd ships beside it, or the
+// Windows SDK's reference for a contract -- read once and kept. Opening it costs
+// the parse and one sorted index of the members; a member's text is taken out
+// of the document only when it is asked for.
+class DocumentationFile {
+public:
+    explicit DocumentationFile(std::filesystem::path const& file);
+    DocumentationFile(DocumentationFile&&) noexcept;
+    DocumentationFile& operator=(DocumentationFile&&) noexcept;
+    ~DocumentationFile();
+
+    // The member by its documentation ID ("T:Ns.Type",
+    // "M:Ns.Type.Method(System.String)"), if the file has it.
+    std::optional<MemberDocumentation> find(std::string_view id) const;
+
+    std::size_t size() const noexcept;
+
+private:
+    struct State;
+    std::unique_ptr<State> state_;
+};

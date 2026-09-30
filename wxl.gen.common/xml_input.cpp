@@ -94,52 +94,109 @@ std::vector<DictionaryResource> dictionary_resources(std::filesystem::path const
     return found;
 }
 
-std::unordered_map<std::string, MemberDocumentation> documentation_members(std::filesystem::path const& file) {
-    auto const folded = [](wxl::xml::node const& node) {
-        std::string text;
-        bool space = false;
-        for (auto const piece : node.text_pieces()) {
-            for (char const c : piece.chars()) {
-                if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
-                    space = !text.empty();
-                    continue;
-                }
-                if (space) {
-                    text += ' ';
-                    space = false;
-                }
-                text += c;
+namespace {
+
+// The text under a node, its runs of white space folded into single spaces.
+std::string folded(wxl::xml::node const& node) {
+    std::string text;
+    bool space = false;
+    for (auto const piece : node.text_pieces()) {
+        for (char const c : piece.chars()) {
+            if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+                space = !text.empty();
+                continue;
             }
+            if (space) {
+                text += ' ';
+                space = false;
+            }
+            text += c;
         }
-        return text;
+    }
+    return text;
+}
+
+}  // namespace
+
+// The document and an index of its members: an open-addressing table in one
+// vector, keyed by views of the IDs into the document -- one allocation for the
+// whole index, nothing to sort, and no member's text copied until asked for.
+struct DocumentationFile::State {
+    struct Slot {
+        std::string_view id;
+        wxl::xml::node const* member = nullptr;  // null: the slot is free
     };
 
-    std::unordered_map<std::string, MemberDocumentation> found;
     wxl::xml::document document;
-    auto const* members = document.load_file(file).find("members");
-    if (!members) {
-        return found;
+    std::vector<Slot> slots;  // a power of two, at most half full
+    std::size_t size = 0;
+
+    std::size_t home(std::string_view id) const noexcept { return std::hash<std::string_view> {}(id) & (slots.size() - 1); }
+
+    Slot const* find(std::string_view id) const noexcept {
+        if (slots.empty()) {
+            return nullptr;
+        }
+        for (std::size_t at = home(id);; at = (at + 1) & (slots.size() - 1)) {
+            if (!slots[at].member) {
+                return nullptr;
+            }
+            if (slots[at].id == id) {
+                return &slots[at];
+            }
+        }
     }
+};
+
+DocumentationFile::DocumentationFile(std::filesystem::path const& file) : state_(std::make_unique<State>()) {
+    auto const* members = state_->document.load_file(file).find("members");
+    if (!members) {
+        return;
+    }
+    State& state = *state_;
+    state.slots.resize(std::bit_ceil(2 * static_cast<std::size_t>(std::ranges::distance(members->children())) + 1));
     for (auto&& member : members->children_named("member")) {
         auto const name = member.attribute("name");
         if (!name) {
             continue;
         }
-        MemberDocumentation documentation;
-        for (auto&& part : member.children()) {
-            std::string_view const kind{part.name().chars()};
-            if (kind == "summary") {
-                documentation.summary = folded(part);
-            } else if (kind == "returns") {
-                documentation.returns = folded(part);
-            } else if (kind == "deprecated") {
-                documentation.deprecated = folded(part);
-            } else if (kind == "param") {
-                auto const param = part.attribute("name");
-                documentation.params.emplace_back(param ? std::string{param->chars()} : std::string{}, folded(part));
-            }
+        std::string_view const id = name->chars();
+        std::size_t at = state.home(id);
+        while (state.slots[at].member && state.slots[at].id != id) {
+            at = (at + 1) & (state.slots.size() - 1);
         }
-        found.insert_or_assign(std::string{name->chars()}, std::move(documentation));
+        state.size += state.slots[at].member ? 0 : 1;
+        state.slots[at] = {id, &member};
     }
-    return found;
+}
+
+DocumentationFile::DocumentationFile(DocumentationFile&&) noexcept = default;
+DocumentationFile& DocumentationFile::operator=(DocumentationFile&&) noexcept = default;
+DocumentationFile::~DocumentationFile() = default;
+
+std::optional<MemberDocumentation> DocumentationFile::find(std::string_view id) const {
+    auto const* const found = state_->find(id);
+    if (!found) {
+        return std::nullopt;
+    }
+
+    MemberDocumentation documentation;
+    for (auto&& part : found->member->children()) {
+        std::string_view const kind {part.name().chars()};
+        if (kind == "summary") {
+            documentation.summary = folded(part);
+        } else if (kind == "returns") {
+            documentation.returns = folded(part);
+        } else if (kind == "deprecated") {
+            documentation.deprecated = folded(part);
+        } else if (kind == "param") {
+            auto const param = part.attribute("name");
+            documentation.params.emplace_back(param ? std::string {param->chars()} : std::string {}, folded(part));
+        }
+    }
+    return documentation;
+}
+
+std::size_t DocumentationFile::size() const noexcept {
+    return state_->size;
 }

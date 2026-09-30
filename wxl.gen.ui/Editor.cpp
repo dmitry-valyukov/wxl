@@ -233,29 +233,43 @@ std::string contract_of(md::TypeDef const& type) {
 // интерфейса, а без него на английском.
 class Documentation {
 public:
-    MemberDocumentation const* find(md::TypeDef const& type, std::string const& id) {
-        auto const& members = load(type);
-        auto const found = members.find(id);
-        return found == members.end() ? nullptr : &found->second;
+    std::optional<MemberDocumentation> find(md::TypeDef const& type, std::string const& id) {
+        DocumentationFile const* const file = fileOf(type);
+        return file ? file->find(id) : std::nullopt;
     }
 
 private:
-    using Members = std::unordered_map<std::string, MemberDocumentation>;
+    using File = std::unique_ptr<DocumentationFile>;
 
-    Members const& load(md::TypeDef const& type) {
-        std::filesystem::path file = std::filesystem::path {type.get_database().path()}.replace_extension(L".xml");
-        if (!std::filesystem::exists(file)) {
-            file = sdkFile(contract_of(type));
+    // Файл находится по файлу метаданных, а у метаданных Windows — по
+    // контракту; и тот, и другой ищется и читается один раз.
+    DocumentationFile const* fileOf(md::TypeDef const& type) {
+        auto const& database = type.get_database();
+        auto [beside, fresh] = beside_.try_emplace(&database);
+        if (fresh) {
+            beside->second = open(std::filesystem::path {database.path()}.replace_extension(L".xml"));
         }
-        auto [at, added] = files_.try_emplace(file);
-        if (added && !file.empty()) {
-            try {
-                at->second = documentation_members(file);
-            } catch (std::exception const&) {
-                // Без документации сведения остаются сигнатурой.
-            }
+        if (beside->second) {
+            return beside->second.get();
         }
-        return at->second;
+
+        auto [contract, added] = contracts_.try_emplace(contract_of(type));
+        if (added) {
+            contract->second = open(sdkFile(contract->first));
+        }
+        return contract->second.get();
+    }
+
+    static File open(std::filesystem::path const& file) {
+        if (file.empty() || !std::filesystem::exists(file)) {
+            return {};
+        }
+        try {
+            return std::make_unique<DocumentationFile>(file);
+        } catch (std::exception const&) {
+            // Без документации сведения остаются сигнатурой.
+            return {};
+        }
     }
 
     std::filesystem::path sdkFile(std::string const& contract) {
@@ -280,7 +294,8 @@ private:
 
     std::vector<std::wstring> const languages_ = documentation_languages();
     std::filesystem::path references_;
-    std::map<std::filesystem::path, Members> files_;
+    std::map<md::database const*, File> beside_;
+    std::map<std::string, File> contracts_;
 };
 
 }  // namespace
@@ -912,7 +927,7 @@ std::wstring TypesModel::typeInfo(Namespace const& space, TypeEntry const& type)
     auto const& types = editor_.data_->profile.types;
     auto const found = types.find(full_name(type.def));
     append_filter(html, found == types.end() ? nullptr : &found->second);
-    if (auto const* documentation = editor_.data_->documentation.find(type.def, DocumentationId::of(type.def))) {
+    if (auto const documentation = editor_.data_->documentation.find(type.def, DocumentationId::of(type.def))) {
         append_documentation(html, *documentation);
     }
     return html;
@@ -1012,7 +1027,7 @@ public:
         if (std::ranges::any_of(declarations, [this](MemberDeclaration const& each) { return each.source == entry_.def; })) {
             std::erase_if(declarations, [this](MemberDeclaration const& each) { return each.source != entry_.def; });
         }
-        std::vector<std::pair<std::wstring, MemberDocumentation const*>> lines;
+        std::vector<std::pair<std::wstring, std::optional<MemberDocumentation>>> lines;
         for (MemberDeclaration const& declaration : declarations) {
             std::wstring line;
             SignatureWriter {line, *editor_.types_, declaration.source}.write(declaration, name);
