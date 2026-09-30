@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -35,3 +36,17 @@ struct DictionaryResource {
 
 // Every resource in the dictionary that carries a key, in document order.
 std::vector<DictionaryResource> dictionary_resources(std::filesystem::path const& dictionary);
+
+// One member of a .NET documentation file -- the .xml a .winmd ships beside
+// it, or the Windows SDK's reference for a contract. Text as written, with its
+// runs of white space folded into single spaces.
+struct MemberDocumentation {
+    std::string summary;
+    std::vector<std::pair<std::string, std::string>> params;  // name, text
+    std::string returns;
+    std::string deprecated;
+};
+
+// Every <member> of a documentation file by its documentation ID
+// ("T:Ns.Type", "M:Ns.Type.Method(System.String)").
+std::unordered_map<std::string, MemberDocumentation> documentation_members(std::filesystem::path const& file);

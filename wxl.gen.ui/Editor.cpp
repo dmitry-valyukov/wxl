@@ -152,6 +152,139 @@ void mark_member(Profile& profile, std::string const& type, std::string_view mem
 
 }  // namespace
 
+namespace {
+
+// Язык интерфейса — именем папки справочника Windows SDK: ru, de, jp,
+// zh-hans; справочник на английском есть всегда.
+std::vector<std::wstring> documentation_languages() {
+    std::vector<std::wstring> languages;
+    wchar_t locale[LOCALE_NAME_MAX_LENGTH] {};
+    if (::LCIDToLocaleName(::GetUserDefaultUILanguage(), locale, LOCALE_NAME_MAX_LENGTH, 0) > 0) {
+        std::wstring name {locale};
+        std::ranges::transform(name, name.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+        std::wstring_view const language = std::wstring_view {name}.substr(0, name.find(L'-'));
+        if (language == L"zh") {
+            bool const traditional = name == L"zh-tw" || name == L"zh-hk" || name == L"zh-mo" || name.contains(L"hant");
+            languages.emplace_back(traditional ? L"zh-hant" : L"zh-hans");
+        } else if (language == L"ja") {
+            languages.emplace_back(L"jp");
+        } else {
+            languages.emplace_back(name);
+            languages.emplace_back(language);
+        }
+    }
+    languages.emplace_back(L"en");
+    return languages;
+}
+
+// Справочники Windows SDK: References\<версия SDK>\<контракт>\<версия>\<язык>.
+std::filesystem::path sdk_references() {
+    wchar_t root[MAX_PATH] {};
+    DWORD size = sizeof(root);
+    if (::RegGetValueW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots", L"KitsRoot10",
+                       RRF_RT_REG_SZ | RRF_SUBKEY_WOW6432KEY, nullptr, root, &size) != ERROR_SUCCESS) {
+        return {};
+    }
+    return std::filesystem::path {root} / L"References";
+}
+
+// Самая новая из версий-папок: имена вида 10.0.26100.0 и 19.0.0.0.
+std::filesystem::path newest_version(std::filesystem::path const& directory) {
+    std::filesystem::path newest;
+    std::vector<int> best;
+    std::error_code error;
+    for (auto&& item : std::filesystem::directory_iterator {directory, error}) {
+        if (!item.is_directory()) {
+            continue;
+        }
+        std::vector<int> parts;
+        for (auto&& part : std::views::split(item.path().filename().wstring(), L'.')) {
+            parts.push_back(std::wcstol(std::wstring {part.begin(), part.end()}.c_str(), nullptr, 10));
+        }
+        if (parts > best) {
+            best = std::move(parts);
+            newest = item.path();
+        }
+    }
+    return newest;
+}
+
+// Контракт, которому принадлежит тип Windows: ContractVersionAttribute.
+std::string contract_of(md::TypeDef const& type) {
+    for (auto&& attribute : type.CustomAttribute()) {
+        auto const [ns, name] = attribute.TypeNamespaceAndName();
+        if (ns != "Windows.Foundation.Metadata" || name != "ContractVersionAttribute") {
+            continue;
+        }
+        for (auto&& argument : attribute.Value().FixedArgs()) {
+            if (auto const* element = std::get_if<md::ElemSig>(&argument.value)) {
+                if (auto const* contract = std::get_if<md::ElemSig::SystemType>(&element->value)) {
+                    return std::string {contract->name};
+                }
+            }
+        }
+    }
+    return {};
+}
+
+// Документация метаданных, по файлу при первой нужде. Файл — .xml рядом с
+// .winmd, как её кладёт Windows App SDK; у метаданных Windows рядом ничего нет,
+// и их документация — справочник Windows SDK по контракту типа, на языке
+// интерфейса, а без него на английском.
+class Documentation {
+public:
+    MemberDocumentation const* find(md::TypeDef const& type, std::string const& id) {
+        auto const& members = load(type);
+        auto const found = members.find(id);
+        return found == members.end() ? nullptr : &found->second;
+    }
+
+private:
+    using Members = std::unordered_map<std::string, MemberDocumentation>;
+
+    Members const& load(md::TypeDef const& type) {
+        std::filesystem::path file = std::filesystem::path {type.get_database().path()}.replace_extension(L".xml");
+        if (!std::filesystem::exists(file)) {
+            file = sdkFile(contract_of(type));
+        }
+        auto [at, added] = files_.try_emplace(file);
+        if (added && !file.empty()) {
+            try {
+                at->second = documentation_members(file);
+            } catch (std::exception const&) {
+                // Без документации сведения остаются сигнатурой.
+            }
+        }
+        return at->second;
+    }
+
+    std::filesystem::path sdkFile(std::string const& contract) {
+        if (contract.empty()) {
+            return {};
+        }
+        if (references_.empty()) {
+            references_ = sdk_references();
+        }
+        std::filesystem::path const versions = newest_version(newest_version(references_) / contract);
+        if (versions.empty()) {
+            return {};
+        }
+        for (std::wstring const& language : languages_) {
+            auto const file = versions / language / (contract + ".xml");
+            if (std::filesystem::exists(file)) {
+                return file;
+            }
+        }
+        return {};
+    }
+
+    std::vector<std::wstring> const languages_ = documentation_languages();
+    std::filesystem::path references_;
+    std::map<std::filesystem::path, Members> files_;
+};
+
+}  // namespace
+
 struct Editor::Data {
     Data(Profile own, std::vector<std::string> const& files)
         : profile(std::move(own)), db(files) {}
@@ -166,6 +299,8 @@ struct Editor::Data {
 
     // Полные имена типов, у которых в словарях есть стили.
     std::set<std::string, std::less<>> styled;
+
+    Documentation documentation;
 };
 
 // Тип в левом дереве; адрес постоянен, пока жив редактор.
@@ -440,6 +575,131 @@ private:
 
 namespace {
 
+// Ключ документации .NET, которым файлы документации называют члены:
+// "M:Ns.Type.Method(System.String,Ns.Other@)". Типы — полными именами,
+// встроенные — именами System, аргументы обобщённого — в фигурных скобках,
+// параметр по ссылке (выходной) — с @.
+class DocumentationId {
+public:
+    static std::string of(md::TypeDef const& type) { return std::format("T:{}.{}", type.TypeNamespace(), type.TypeName()); }
+
+    static std::string of(md::TypeDef const& owner, MemberDeclaration const& declaration, std::string_view name) {
+        DocumentationId id;
+        std::visit([&](auto const& definition) { id.member(owner, definition, name); }, declaration.definition);
+        return std::move(id.text_);
+    }
+
+private:
+    void head(char kind, md::TypeDef const& owner, std::string_view name) {
+        text_ = std::format("{}:{}.{}.{}", kind, owner.TypeNamespace(), owner.TypeName(), name);
+    }
+
+    void member(md::TypeDef const& owner, md::Property const&, std::string_view name) { head('P', owner, name); }
+    void member(md::TypeDef const& owner, md::Event const&, std::string_view name) { head('E', owner, name); }
+    void member(md::TypeDef const& owner, md::Field const&, std::string_view name) { head('F', owner, name); }
+
+    void member(md::TypeDef const& owner, md::MethodDef const& method, std::string_view name) {
+        head('M', owner, name);
+        auto const signature = method.Signature();
+        bool first = true;
+        for (auto&& param : signature.Params()) {
+            text_ += first ? '(' : ',';
+            first = false;
+            type(param.Type());
+            if (param.ByRef()) {
+                text_ += '@';
+            }
+        }
+        if (!first) {
+            text_ += ')';
+        }
+    }
+
+    void type(md::TypeSig const& signature) {
+        std::visit([this](auto const& value) { element(value); }, signature.Type());
+        if (signature.is_szarray()) {
+            text_ += "[]";
+        }
+    }
+
+    void element(md::coded_index<md::TypeDefOrRef> const& ref) {
+        if (ref.type() == md::TypeDefOrRef::TypeSpec) {
+            element(ref.TypeSpec().Signature().GenericTypeInst());
+            return;
+        }
+        auto const [ns, name] = md::get_type_namespace_and_name(ref);
+        text_ += std::format("{}.{}", ns, name);
+    }
+
+    void element(md::GenericTypeInstSig const& instance) {
+        auto const [ns, name] = md::get_type_namespace_and_name(instance.GenericType());
+        text_ += std::format("{}.{}{{", ns, name.substr(0, name.find('`')));
+        bool first = true;
+        for (auto&& argument : instance.GenericArgs()) {
+            text_ += first ? "" : ",";
+            first = false;
+            type(argument);
+        }
+        text_ += '}';
+    }
+
+    void element(md::GenericTypeIndex index) { text_ += std::format("`{}", index.index); }
+    void element(md::GenericMethodTypeIndex index) { text_ += std::format("``{}", index.index); }
+
+    void element(md::ElementType element) {
+        switch (element) {
+            case md::ElementType::Boolean: text_ += "System.Boolean"; break;
+            case md::ElementType::Char: text_ += "System.Char"; break;
+            case md::ElementType::I1: text_ += "System.SByte"; break;
+            case md::ElementType::U1: text_ += "System.Byte"; break;
+            case md::ElementType::I2: text_ += "System.Int16"; break;
+            case md::ElementType::U2: text_ += "System.UInt16"; break;
+            case md::ElementType::I4: text_ += "System.Int32"; break;
+            case md::ElementType::U4: text_ += "System.UInt32"; break;
+            case md::ElementType::I8: text_ += "System.Int64"; break;
+            case md::ElementType::U8: text_ += "System.UInt64"; break;
+            case md::ElementType::R4: text_ += "System.Single"; break;
+            case md::ElementType::R8: text_ += "System.Double"; break;
+            case md::ElementType::String: text_ += "System.String"; break;
+            case md::ElementType::Object: text_ += "System.Object"; break;
+            default: break;
+        }
+    }
+
+    std::string text_;
+};
+
+// Документация члена или типа под сведениями о нём.
+void append_documentation(std::wstring& html, MemberDocumentation const& documentation) {
+    if (!documentation.deprecated.empty()) {
+        html += L"<p><b>Deprecated:</b> ";
+        append_text(html, documentation.deprecated);
+        html += L"</p>";
+    }
+    if (!documentation.summary.empty()) {
+        html += L"<p><b>Summary:</b><br>";
+        append_text(html, documentation.summary);
+        html += L"</p>";
+    }
+    // Параметр без описания — такие в файлах есть — не показывается.
+    auto const described = [](auto const& param) { return !param.second.empty(); };
+    if (std::ranges::any_of(documentation.params, described)) {
+        html += L"<p><b>Parameters:</b>";
+        for (auto const& [name, text] : documentation.params | std::views::filter(described)) {
+            html += L"<br><i>";
+            append_text(html, name);
+            html += L"</i> — ";
+            append_text(html, text);
+        }
+        html += L"</p>";
+    }
+    if (!documentation.returns.empty()) {
+        html += L"<p><b>Returns:</b><br>";
+        append_text(html, documentation.returns);
+        html += L"</p>";
+    }
+}
+
 // Сигнатура члена в разметку сведений. Типы — полными именами; тип, который
 // есть в левом дереве, — ссылкой на него.
 class SignatureWriter {
@@ -652,6 +912,9 @@ std::wstring TypesModel::typeInfo(Namespace const& space, TypeEntry const& type)
     auto const& types = editor_.data_->profile.types;
     auto const found = types.find(full_name(type.def));
     append_filter(html, found == types.end() ? nullptr : &found->second);
+    if (auto const* documentation = editor_.data_->documentation.find(type.def, DocumentationId::of(type.def))) {
+        append_documentation(html, *documentation);
+    }
     return html;
 }
 
@@ -749,22 +1012,33 @@ public:
         if (std::ranges::any_of(declarations, [this](MemberDeclaration const& each) { return each.source == entry_.def; })) {
             std::erase_if(declarations, [this](MemberDeclaration const& each) { return each.source != entry_.def; });
         }
-        std::vector<std::wstring> lines;
+        std::vector<std::pair<std::wstring, MemberDocumentation const*>> lines;
         for (MemberDeclaration const& declaration : declarations) {
             std::wstring line;
             SignatureWriter {line, *editor_.types_, declaration.source}.write(declaration, name);
-            if (std::ranges::find(lines, line) == lines.end()) {
-                lines.push_back(std::move(line));
+            if (std::ranges::find(lines, line, &decltype(lines)::value_type::first) == lines.end()) {
+                auto const id = DocumentationId::of(declaration.source, declaration, name);
+                lines.emplace_back(std::move(line), editor_.data_->documentation.find(declaration.source, id));
             }
         }
         std::wstring html;
-        for (std::wstring const& line : lines) {
+        for (auto const& [line, documentation] : lines) {
             html += line;
             html += L"<br>";
         }
         html += L"Member of ";
         SignatureWriter {html, *editor_.types_, entry_.def}.type(entry_.def.coded_index<md::TypeDefOrRef>());
         html += allows(name) ? L"<p>Profile: generated</p>" : L"<p>Profile: not generated</p>";
+
+        // У перегрузок документация у каждой своя — под её сигнатурой.
+        for (auto const& [line, documentation] : lines) {
+            if (documentation) {
+                if (lines.size() > 1) {
+                    html += L"<p>" + line + L"</p>";
+                }
+                append_documentation(html, *documentation);
+            }
+        }
         return html;
     }
 

@@ -93,3 +93,53 @@ std::vector<DictionaryResource> dictionary_resources(std::filesystem::path const
     }
     return found;
 }
+
+std::unordered_map<std::string, MemberDocumentation> documentation_members(std::filesystem::path const& file) {
+    auto const folded = [](wxl::xml::node const& node) {
+        std::string text;
+        bool space = false;
+        for (auto const piece : node.text_pieces()) {
+            for (char const c : piece.chars()) {
+                if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+                    space = !text.empty();
+                    continue;
+                }
+                if (space) {
+                    text += ' ';
+                    space = false;
+                }
+                text += c;
+            }
+        }
+        return text;
+    };
+
+    std::unordered_map<std::string, MemberDocumentation> found;
+    wxl::xml::document document;
+    auto const* members = document.load_file(file).find("members");
+    if (!members) {
+        return found;
+    }
+    for (auto&& member : members->children_named("member")) {
+        auto const name = member.attribute("name");
+        if (!name) {
+            continue;
+        }
+        MemberDocumentation documentation;
+        for (auto&& part : member.children()) {
+            std::string_view const kind{part.name().chars()};
+            if (kind == "summary") {
+                documentation.summary = folded(part);
+            } else if (kind == "returns") {
+                documentation.returns = folded(part);
+            } else if (kind == "deprecated") {
+                documentation.deprecated = folded(part);
+            } else if (kind == "param") {
+                auto const param = part.attribute("name");
+                documentation.params.emplace_back(param ? std::string{param->chars()} : std::string{}, folded(part));
+            }
+        }
+        found.insert_or_assign(std::string{name->chars()}, std::move(documentation));
+    }
+    return found;
+}
