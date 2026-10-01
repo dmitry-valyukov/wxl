@@ -927,7 +927,60 @@
             "members": []
         },
         "Microsoft.UI.Xaml.Window": {
-            "comment": "Window is an implicit root with the whole surface; listed only so that SystemBackdrop stays in the profile if that ever changes."
+            "comment": "Window is an implicit root with the whole surface; listed only so that SystemBackdrop stays in the profile if that ever changes. A controller of the system backdrop is given to the window it draws under: the window is the target of its material.",
+            "syntheticMembers": {
+                "NoSystemBackdrop": {
+                    "comment": "Takes the system backdrop off the window: `noSystemBackdrop = true`. A wrapper is never empty, so there is no empty backdrop to give systemBackdrop; false leaves the window as it is.",
+                    "cppType": "bool",
+                    "cppInclude": "../core.h",
+                    "function": "impl::clear_system_backdrop",
+                    "include": "../impl/backdrop_controller.h"
+                },
+                "MicaController": {
+                    "comment": "The Mica controller of this window: the window becomes its target. The controller still needs its configuration, and Close when the window closes.",
+                    "type": "Microsoft.UI.Composition.SystemBackdrops.MicaController",
+                    "function": "impl::set_mica_controller",
+                    "include": "../impl/backdrop_controller.h"
+                },
+                "DesktopAcrylicController": {
+                    "comment": "The desktop acrylic controller of this window, the same way.",
+                    "type": "Microsoft.UI.Composition.SystemBackdrops.DesktopAcrylicController",
+                    "function": "impl::set_desktop_acrylic_controller",
+                    "include": "../impl/backdrop_controller.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.WindowActivatedEventArgs": {
+            "comment": "Windowing: whether the window is the active one, which the controllers of a system backdrop are told (an inactive window shows the material faded).",
+            "members": [
+                "WindowActivationState"
+            ]
+        },
+        "Microsoft.UI.Composition.SystemBackdrops.SystemBackdropConfiguration": {
+            "comment": "Windowing: the policy a system backdrop controller follows: whether the window takes input, which theme it is in, and whether the system is in high contrast.",
+            "members": [
+                "IsInputActive",
+                "Theme",
+                "IsHighContrast"
+            ]
+        },
+        "Microsoft.UI.Composition.SystemBackdrops.MicaController": {
+            "comment": "Windowing: the Mica material under a window, with its kind and its configuration; IsSupported says whether the system can draw it.",
+            "members": [
+                "Kind",
+                "IsSupported",
+                "SetSystemBackdropConfiguration",
+                "Close"
+            ]
+        },
+        "Microsoft.UI.Composition.SystemBackdrops.DesktopAcrylicController": {
+            "comment": "Windowing: the desktop acrylic material under a window, the same way.",
+            "members": [
+                "Kind",
+                "IsSupported",
+                "SetSystemBackdropConfiguration",
+                "Close"
+            ]
         }
     }
 }

@@ -231,6 +231,8 @@ add_library(wxl.ui STATIC
     src/impl/resource.cpp
     src/impl/title_bar_drag.h
     src/impl/title_bar_drag.cpp
+    src/impl/backdrop_controller.h
+    src/impl/backdrop_controller.cpp
     src/Resource.h
     src/impl/geometry_from_text.h
     src/impl/geometry_from_text.cpp
