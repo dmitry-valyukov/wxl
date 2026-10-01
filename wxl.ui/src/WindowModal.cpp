@@ -29,14 +29,16 @@ void makeModalDialog(Window const& dialog, Window const& owner) {
     // asking outright covers the switcher too.
     appWindow.isShownInSwitchers(false);
 
-    // The default presenter of an ordinary window is an OverlappedPresenter;
-    // recover it and make the window modal and fixed.
-    if (OverlappedPresenter const presenter =
-            appWindow.presenter().try_as<OverlappedPresenter>()) {
-        presenter.isModal(true);
-        presenter.isMinimizable(false);
-        presenter.isMaximizable(false);
-    }
+    // A presenter made for a dialog, with the modal property set before it is
+    // given to the window: IsModal set on the presenter a window already has
+    // changes the property and nothing else -- the owner stays enabled -- while
+    // a presenter handed over with it set disables the owner for as long as the
+    // dialog is open.
+    OverlappedPresenter const presenter = OverlappedPresenter::createForDialog();
+    presenter.isModal(true);
+    presenter.isMinimizable(false);
+    presenter.isMaximizable(false);
+    appWindow.setPresenter(presenter);
 }
 
 }  // namespace wxl

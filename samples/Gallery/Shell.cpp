@@ -163,6 +163,8 @@ struct Shell {
         std::shared_ptr<void> state;
     };
     std::vector<Tracked> windows;
+    // Главное окно: владелец модальных окон примеров (см. mainWindow).
+    std::shared_ptr<Window> main;
     // Модели показанной страницы (см. holdModel).
     std::vector<std::shared_ptr<void>> models;
     Destination current;
@@ -442,6 +444,7 @@ Window createMainWindow() {
     };
     window.setTitleBar(s.titleBar);
     window.appWindow().resize({1280, 800});
+    s.main = std::make_shared<Window>(window);
 
     show({Place::Home, {}}, true);
 
@@ -450,6 +453,10 @@ Window createMainWindow() {
         show({Place::Item, page}, true);
     }
     return window;
+}
+
+Window const& mainWindow() {
+    return *shell->main;
 }
 
 void trackWindow(Window const& window, std::shared_ptr<void> state) {

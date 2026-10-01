@@ -226,9 +226,10 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.InfoBar": {
-            "comment": "Status & info: the one button an InfoBar carries.",
+            "comment": "Status & info: the one button an InfoBar carries, and the content under its message (Windowing: the warning with formatted text).",
             "members": [
-                "ActionButton"
+                "ActionButton",
+                "Content"
             ]
         },
         "Microsoft.UI.Xaml.Controls.ToolTip": {
@@ -361,9 +362,11 @@
             }
         },
         "Microsoft.UI.Windowing.AppWindow": {
-            "comment": "Windowing: the size of the client area in physical pixels, independent of the frame around it.",
+            "comment": "Windowing: the size of the client area in physical pixels, independent of the frame around it; the icon of the taskbar and the icon of the title bar, each by itself.",
             "members": [
-                "ResizeClient"
+                "ResizeClient",
+                "SetTaskbarIcon",
+                "SetTitleBarIcon"
             ]
         },
         "Microsoft.UI.Xaml.Controls.PersonPicture": {
@@ -379,6 +382,19 @@
                 "ForegroundColor",
                 "InactiveBackgroundColor",
                 "InactiveForegroundColor"
+            ]
+        },
+        "Microsoft.UI.Windowing.OverlappedPresenter": {
+            "comment": "Windowing: a presenter made for a dialog -- a window that is not a main one -- beside the ordinary one extended asks for.",
+            "members": [
+                "CreateForDialog"
+            ]
+        },
+        "Microsoft.UI.Windowing.CompactOverlayPresenter": {
+            "comment": "Windowing: a small window that stays above all others (picture-in-picture), and how big it starts.",
+            "members": [
+                "Create",
+                "InitialSize"
             ]
         },
         "Microsoft.UI.Xaml.Media.Geometry": {

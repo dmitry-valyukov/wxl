@@ -33,6 +33,9 @@ void holdModel(std::shared_ptr<void> model);
 // окна захватывают её слабой ссылкой, а владеет ею окно, поэтому цикла нет.
 void trackWindow(wxl::Window const& window, std::shared_ptr<void> state = {});
 
+// Главное окно: владелец модальных окон примеров.
+wxl::Window const& mainWindow();
+
 // Строит модель и отдаёт её оболочке: `auto const model = gallery::hold<Model>();`
 template <class Model, class... Arguments>
 std::shared_ptr<Model> hold(Arguments&&... arguments) {
