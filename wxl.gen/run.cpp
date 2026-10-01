@@ -139,5 +139,6 @@ void run(ProfileSet const& profiles, Output const& out) {
     Model model = build_model(closure);
     model.styles = profiles.styles;
     model.brushes = profiles.brushes;
+    model.from_text = profiles.from_text;
     write_all(out, model, profiles.resources);
 }

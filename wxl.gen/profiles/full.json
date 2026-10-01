@@ -280,6 +280,135 @@
             "comment": "Menus & toolbars: what a command bar holds -- AppBarButton, AppBarToggleButton, AppBarSeparator -- which has no class of its own, only this interface.",
             "members": []
         },
+        "Microsoft.UI.Xaml.Media.RadialGradientBrush": {
+            "comment": "Styles: what the base profile leaves out of the radial brush -- how the gradient continues past its last stop.",
+            "members": [
+                "SpreadMethod"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedIcon": {
+            "comment": "Styles: an icon that plays an animation as its state changes -- the state is set by name, \"PointerOver\" and \"Normal\" by the control it sits in or by hand.",
+            "members": [
+                "Source",
+                "FallbackIconSource",
+                "SetState"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.IAnimatedVisualSource2": {
+            "comment": "Styles: what an AnimatedIcon plays -- any of the animated visuals below.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedBackVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronRightDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronUpDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedFindVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedGlobalNavigationButtonVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedSettingsVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Media.AcrylicBrush": {
+            "comment": "Styles: in-app acrylic -- frosted glass over what is behind it in the window, with a tint and a colour to fall back on where the effect is switched off.",
+            "members": [
+                "TintColor",
+                "TintOpacity",
+                "TintLuminosityOpacity",
+                "FallbackColor"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.Geometry": {
+            "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
+            "fromText": {
+                "function": "impl::geometry_from_text",
+                "include": "../impl/geometry_from_text.h"
+            }
+        },
+        "Microsoft.UI.Xaml.Media.GeometryGroup": {
+            "comment": "Shapes: geometries drawn as one.",
+            "members": [
+                "Children",
+                "FillRule"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.LineGeometry": {
+            "comment": "Shapes: a segment between two points.",
+            "members": [
+                "StartPoint",
+                "EndPoint"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.EllipseGeometry": {
+            "comment": "Shapes: an ellipse by its centre and radii.",
+            "members": [
+                "Center",
+                "RadiusX",
+                "RadiusY"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.RectangleGeometry": {
+            "comment": "Shapes: a rectangle by its Rect.",
+            "members": [
+                "Rect"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Line": {
+            "comment": "Shapes: a straight line between two points.",
+            "members": [
+                "X1",
+                "Y1",
+                "X2",
+                "Y2"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Polyline": {
+            "comment": "Shapes: connected straight lines.",
+            "members": [],
+            "syntheticMembers": {
+                "Points": {
+                    "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
+                    "type": "String",
+                    "function": "impl::set_points",
+                    "include": "../impl/points_from_text.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Shapes.Polygon": {
+            "comment": "Shapes: connected straight lines that close.",
+            "members": [],
+            "syntheticMembers": {
+                "Points": {
+                    "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
+                    "type": "String",
+                    "function": "impl::set_points",
+                    "include": "../impl/points_from_text.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Shapes.Path": {
+            "comment": "Shapes: a shape drawn from a geometry.",
+            "members": [
+                "Data"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.WrapPanel": {
             "comment": "Layout: items that flow and wrap."
         },
@@ -601,7 +730,8 @@
         "Microsoft.UI.Xaml.Documents.Hyperlink": {
             "comment": "A link inside a paragraph.",
             "members": [
-                "NavigateUri"
+                "NavigateUri",
+                "Click"
             ]
         },
         "Microsoft.UI.Xaml.Documents.Block": {
@@ -712,8 +842,17 @@
             ]
         },
         "Microsoft.UI.Xaml.Media.MicaBackdrop": {
-            "comment": "The Gallery window's system backdrop.",
-            "members": []
+            "comment": "The Gallery window's system backdrop; Kind switches Base and BaseAlt.",
+            "members": [
+                "Kind"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SystemBackdropElement": {
+            "comment": "Styles: an element that is itself a piece of system backdrop -- acrylic or Mica inside the window, with rounded corners -- instead of the backdrop of the whole window.",
+            "members": [
+                "SystemBackdrop",
+                "CornerRadius"
+            ]
         },
         "Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop": {
             "comment": "The acrylic sibling of MicaBackdrop.",

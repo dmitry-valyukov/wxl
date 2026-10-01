@@ -221,6 +221,8 @@ struct class_info {
     // The factory interface a composable class is created through, in
     // metadata form; empty for every other class.
     std::string composable_factory;
+    std::string from_text_function;  // see FromText in profile.h
+    std::string from_text_include;
     std::vector<TypeDef> interfaces;  // survived the filter; one Impl field each
     std::vector<TypeDef> statics;     // the interfaces its static members live on
     std::vector<member_info> members;
@@ -382,6 +384,10 @@ class_info analyze_class(TypeDef const& type, std::set<TypeDef> const& generated
     auto const creation = construction_of(type);
     info.construction = creation.kind;
     info.composable_factory = creation.factory;
+    if (auto const it = model.from_text.find(full_name(type)); it != model.from_text.end()) {
+        info.from_text_function = it->second.function;
+        info.from_text_include = it->second.include;
+    }
 
     if (auto const it = model.interfaces_of.find(type); it != model.interfaces_of.end()) {
         info.interfaces = it->second;
@@ -727,14 +733,20 @@ public:
             // anything at all would make every wrapper a candidate
             // conversion in unrelated overload resolutions -- a string
             // argument would be as good a FontFamily as it is a string.
+            // A class a string builds leaves that one argument to its converting
+            // constructor: the pack would take a literal exactly, and only then
+            // find that no route in the object takes text.
             std::print(out, R"(    template <typename... Setters>
-        requires impl::setter_pack<{0}, Setters...>
+        requires impl::setter_pack<{0}, Setters...>{1}
     explicit {0}(Setters&&... setters) : {0}() {{
         (impl::apply_argument(*this, std::forward<Setters>(setters)), ...);
     }}
 
 )",
-                       info.name);
+                       info.name,
+                       info.from_text_function.empty()
+                           ? ""
+                           : " &&\n                 !(sizeof...(Setters) == 1 && ((std::same_as<std::remove_cvref_t<Setters>, hstring_param> || std::convertible_to<Setters, hstring_param>) && ...))");
         }
 
         // The constructors that take arguments, which is what WinRT means
@@ -774,6 +786,21 @@ public:
                 std::print(out, "    void setPositional({} value) const {{ {}; }}\n",
                            route.param_type, route.statement);
             }
+        }
+        if (!info.from_text_function.empty()) {
+            // The class an application writes as a string: the path of a shape, which
+            // the framework turns into a Geometry. A template, not one more
+            // overload, so that a literal takes one conversion and not two.
+            std::print(out, R"(
+    /// Built from text, as XAML builds it from an attribute.
+    {0}(const hstring_param& text);
+
+    template <typename Text>
+        requires(!std::derived_from<Text, Object> && !std::same_as<Text, hstring_param> &&
+                 std::convertible_to<const Text&, hstring_param>)
+    {0}(const Text& text) : {0}(hstring_param(text)) {{}}
+)",
+                       info.name);
         }
         if (get_category(info.type) == category::interface_type) {
             // A wrapped interface has no class of its own above it: what
@@ -978,6 +1005,9 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
         // The factory interface a composable class is created through is
         // named in the body, so its namespace's projection header is needed
         // even when nothing else in this file names that namespace.
+        if (!info.from_text_include.empty()) {
+            includes.insert(info.from_text_include);
+        }
         if (!info.composable_factory.empty()) {
             auto const dot = info.composable_factory.rfind('.');
             includes.insert(winrt_include(std::string_view{info.composable_factory}.substr(0, dot)));
@@ -1064,6 +1094,10 @@ struct runtime_class_name_of<{}::{}> {{
         if (!info.statics_only) {
             std::print(out, "\n{}::{}(Impl* impl) noexcept : base_t(impl) {{}}\n", info.name,
                        info.name);
+            if (!info.from_text_function.empty()) {
+                std::print(out, "\n{0}::{0}(const hstring_param& text)\n    : base_t(new Impl{{{1}(text)}}) {{}}\n",
+                           info.name, info.from_text_function);
+            }
             if (get_category(info.type) == category::interface_type) {
                 std::print(out,
                            "\n{0}::{0}(Object const& object) : {0}(object.try_as<{0}>()) {{}}\n",

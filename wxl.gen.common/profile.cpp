@@ -490,6 +490,15 @@ Profile load_profile(std::filesystem::path const& path) {
             if (auto setters = read_setter_methods(entry, path, name); !setters.empty()) {
                 profile.setter_methods.emplace(name, std::move(setters));
             }
+            if (value const* const converted = entry.find("fromText")) {
+                if (!converted->is_object() || !converted->find("function") || !converted->find("include")) {
+                    fail(path, std::format("type '{}': 'fromText' must be an object with 'function' "
+                                           "and 'include'",
+                                           name));
+                }
+                profile.from_text[name] = {text(*converted->find("function")),
+                                           text(*converted->find("include"))};
+            }
         }
     }
 
@@ -573,6 +582,9 @@ struct ProfileLoader {
                     known.push_back(member);
                 }
             }
+        }
+        for (auto&& [name, converted] : profile.from_text) {
+            result.from_text[name] = converted;
         }
         // Setter methods compose the same way, by the method's name.
         for (auto&& [name, setters] : profile.setter_methods) {

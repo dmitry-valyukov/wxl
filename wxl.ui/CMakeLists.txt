@@ -125,8 +125,6 @@ add_library(wxl.ui STATIC
     src/FontFamily.h
     src/ImageSource.h
     src/ImageSource.cpp
-    src/XamlGeometry.h
-    src/XamlGeometry.cpp
     src/StringList.h
     src/StringList.cpp
     src/launch.h
@@ -229,6 +227,10 @@ add_library(wxl.ui STATIC
     src/impl/grid_definitions.cpp
     src/impl/tool_tip.h
     src/impl/tool_tip.cpp
+    src/impl/geometry_from_text.h
+    src/impl/geometry_from_text.cpp
+    src/impl/points_from_text.h
+    src/impl/points_from_text.cpp
     src/impl/scroll_controller.h
     src/impl/scroll_controller.cpp
     src/impl/swipe_items_mode.h
