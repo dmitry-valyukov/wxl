@@ -65,9 +65,13 @@ private:
     /// start() on the worker, with the second look at the flag.
     bool start_on_worker() noexcept;
 
+    /// How much the next call asks for -- and, until advance() has moved on, how much the
+    /// one in flight was asked for.
+    inline DWORD asking() const noexcept { return static_cast<DWORD>(std::min(left_, call_size)); }
+
     /// Accounts for a completed call.
     /// \return `true` if another call is to be issued: the buffer is not full yet and
-    ///         the call brought all it was asked for.
+    ///         the call brought all it was asked for; less is the end of the file.
     bool advance(DWORD transferred) noexcept;
 
     /// Ends the operation: with what has been transferred, or with the error.
@@ -82,9 +86,6 @@ private:
 
     /// Transferred by the calls that have completed.
     std::size_t done_ = 0;
-
-    /// What the call in flight was asked for; less brought is the end of the file.
-    DWORD asked_ = 0;
 
     kind kind_;
     bool skips_port_;

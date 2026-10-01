@@ -20,13 +20,13 @@ io_op::io_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t
 
 bool io_op::start() noexcept {
     for (;;) {
-        asked_ = static_cast<DWORD>(std::min(left_, call_size));
+        const DWORD asked = asking();
 
         DWORD transferred = 0;
 
         const BOOL finished = kind_ == kind::read
-                                  ? ::ReadFile(file_, data_, asked_, &transferred, &overlapped_)
-                                  : ::WriteFile(file_, data_, asked_, &transferred, &overlapped_);
+                                  ? ::ReadFile(file_, data_, asked, &transferred, &overlapped_)
+                                  : ::WriteFile(file_, data_, asked, &transferred, &overlapped_);
 
         if (!finished) {
             const DWORD error = ::GetLastError();
@@ -78,6 +78,8 @@ bool io_op::start_on_worker() noexcept {
 void io_op::on_cancel() noexcept { ::CancelIoEx(file_, &overlapped_); }
 
 bool io_op::advance(DWORD transferred) noexcept {
+    const bool whole = transferred == asking();
+
     done_ += transferred;
     left_ -= transferred;
     data_ += transferred;
@@ -88,7 +90,7 @@ bool io_op::advance(DWORD transferred) noexcept {
     overlapped_.Offset = static_cast<DWORD>(at);
     overlapped_.OffsetHigh = static_cast<DWORD>(at >> 32);
 
-    if (transferred == asked_ && left_ != 0) [[unlikely]]
+    if (whole && left_ != 0) [[unlikely]]
         return true;
 
     finish(ERROR_SUCCESS);
@@ -117,5 +119,9 @@ void io_op::finish(DWORD error) noexcept {
     set_error(std::make_exception_ptr(system_exception(
         "WriteFile", static_cast<int>(error == ERROR_SUCCESS ? ERROR_DISK_FULL : error))));
 }
+
+// At the edge of the pool's 128-byte class: one more field, and every operation costs a
+// 256-byte block and a second cache line.
+static_assert(sizeof(io_op) <= 128);
 
 }  // namespace wxl::async
