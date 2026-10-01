@@ -1,9 +1,10 @@
-// What a documentation file costs, phase by phase: the XML reader's parse on
-// its own, opening the file -- the parse and the index on top of it -- and
-// finding one member.
+// What a documentation file costs, phase by phase: the XML reader's parse of
+// the whole document for comparison, opening the file -- reading it and
+// indexing its members --, finding one member, and parsing the rest in slices.
 //
 // Usage: wxl.gen.common.bench <documentation.xml> [rounds] [id]
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -49,24 +50,39 @@ int main(int argc, char** argv) {
     best_time parse;
     best_time open;
     best_time find;
+    best_time rest;
+    double longest = 0;
     std::size_t members = 0;
+    std::size_t slices = 0;
     bool found = false;
     for (int round = 0; round < rounds; ++round) {
         time(parse, [&] {
             wxl::xml::document document;
             document.load_file(file);
         });
-        DocumentationFile const* opened = nullptr;
-        std::optional<DocumentationFile> kept;
-        time(open, [&] { opened = &kept.emplace(file); });
+
+        std::optional<DocumentationFile> opened;
+        time(open, [&] { opened.emplace(file); });
         members = opened->size();
         time(find, [&] { found = opened->find(id).has_value(); });
+
+        // The rest in 4 ms slices, the way the editor takes it between events;
+        // the longest slice is what one step keeps the window waiting.
+        slices = 0;
+        time(rest, [&] {
+            for (bool more = true; more; ++slices) {
+                auto const start = clock::now();
+                more = opened->parse_some(start + std::chrono::milliseconds {4});
+                longest = std::max(longest, std::chrono::duration<double, std::milli>(clock::now() - start).count());
+            }
+        });
     }
 
     std::printf("  %zu members, %d rounds, %s %s\n\n", members, rounds, id, found ? "found" : "missing");
-    std::printf("  parse (wxl.xml)    %9.2f ms\n", parse.milliseconds);
-    std::printf("  open               %9.2f ms\n", open.milliseconds);
-    std::printf("    of which ours    %9.2f ms\n", open.milliseconds - parse.milliseconds);
-    std::printf("  find one member    %9.3f ms\n", find.milliseconds);
+    std::printf("  whole document (wxl.xml)   %9.2f ms\n", parse.milliseconds);
+    std::printf("  open: read and index        %9.2f ms\n", open.milliseconds);
+    std::printf("  find one member, parsed     %9.3f ms\n", find.milliseconds);
+    std::printf("  the rest, %5zu slices      %9.2f ms\n", slices, rest.milliseconds);
+    std::printf("  longest slice               %9.2f ms\n", longest);
     return 0;
 }

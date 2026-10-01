@@ -60,6 +60,13 @@ public:
     // Отметка изменила профиль: деревья перечитывают видимые строки.
     wxl::core::observable<uint32_t> revision;
 
+    // Открыта документация, разобранная не вся: сведениям хватает найти член,
+    // а остальное окно дочитывает в фоне, шагами prepareDocumentation().
+    wxl::core::observable<bool> documentationPending;
+
+    // Один шаг фонового разбора, в несколько миллисекунд; остался ли ещё.
+    bool prepareDocumentation();
+
 private:
     Editor();
 

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 
@@ -26,7 +27,7 @@ TEST(xml_input, documentation_file_finds_members_by_id) {
 </doc>
 )xml";
 
-    DocumentationFile const members {file};
+    DocumentationFile members {file};
     std::filesystem::remove(file);
 
     ASSERT_EQ(members.size(), 2u);
@@ -41,4 +42,28 @@ TEST(xml_input, documentation_file_finds_members_by_id) {
     EXPECT_EQ(method->params[1].second, "Whether it changed.");
     EXPECT_EQ(method->returns, "Nothing & nobody.");
     EXPECT_EQ(method->deprecated, "Use Scale.");
+}
+
+TEST(xml_input, documentation_file_parses_the_rest_by_slices) {
+    auto const file = std::filesystem::temp_directory_path() / "wxl.gen.common.slices.xml";
+    {
+        std::ofstream out {file};
+        out << "<doc><members>";
+        for (int i = 0; i < 100; ++i) {
+            out << "<member name=\"T:N.T" << i << "\"><summary>Type " << i << "</summary></member>";
+        }
+        out << "<member name=\"T:N.Empty\"/></members></doc>";
+    }
+    DocumentationFile members {file};
+    std::filesystem::remove(file);
+    ASSERT_EQ(members.size(), 101u);
+
+    // A deadline already past still takes one member per call.
+    std::size_t calls = 0;
+    while (members.parse_some(std::chrono::steady_clock::time_point {})) {
+        ++calls;
+    }
+    EXPECT_EQ(calls, 100u);
+    EXPECT_EQ(members.find("T:N.T42")->summary, "Type 42");
+    EXPECT_EQ(members.find("T:N.Empty")->summary, "");
 }

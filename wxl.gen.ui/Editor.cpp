@@ -7,6 +7,7 @@
 #include "Editor.h"
 
 #include <algorithm>
+#include <chrono>
 #include <format>
 #include <map>
 #include <set>
@@ -230,12 +231,30 @@ std::string contract_of(md::TypeDef const& type) {
 // Документация метаданных, по файлу при первой нужде. Файл — .xml рядом с
 // .winmd, как её кладёт Windows App SDK; у метаданных Windows рядом ничего нет,
 // и их документация — справочник Windows SDK по контракту типа, на языке
-// интерфейса, а без него на английском.
+// интерфейса, а без него на английском. Открытый файл знает только, где какой
+// член; остальное разбирается шагами parseSome().
 class Documentation {
 public:
+    // opened — открылся файл, где разобрано ещё не всё.
+    explicit Documentation(wxl::core::function<void()> opened) : opened_(std::move(opened)) {}
+
     std::optional<MemberDocumentation> find(md::TypeDef const& type, std::string const& id) {
-        DocumentationFile const* const file = fileOf(type);
+        DocumentationFile* const file = fileOf(type);
         return file ? file->find(id) : std::nullopt;
+    }
+
+    // Разбирает члены открытых файлов до срока; остались ли неразобранные.
+    bool parseSome(std::chrono::steady_clock::time_point deadline) {
+        while (!unfinished_.empty()) {
+            if (unfinished_.front()->parse_some(deadline)) {
+                return true;
+            }
+            unfinished_.erase(unfinished_.begin());
+            if (std::chrono::steady_clock::now() >= deadline) {
+                break;
+            }
+        }
+        return !unfinished_.empty();
     }
 
 private:
@@ -243,11 +262,12 @@ private:
 
     // Файл находится по файлу метаданных, а у метаданных Windows — по
     // контракту; и тот, и другой ищется и читается один раз.
-    DocumentationFile const* fileOf(md::TypeDef const& type) {
+    DocumentationFile* fileOf(md::TypeDef const& type) {
         auto const& database = type.get_database();
         auto [beside, fresh] = beside_.try_emplace(&database);
         if (fresh) {
             beside->second = open(std::filesystem::path {database.path()}.replace_extension(L".xml"));
+            started(beside->second);
         }
         if (beside->second) {
             return beside->second.get();
@@ -256,8 +276,16 @@ private:
         auto [contract, added] = contracts_.try_emplace(contract_of(type));
         if (added) {
             contract->second = open(sdkFile(contract->first));
+            started(contract->second);
         }
         return contract->second.get();
+    }
+
+    void started(File const& file) {
+        if (file && file->size() > 0) {
+            unfinished_.push_back(file.get());
+            opened_();
+        }
     }
 
     static File open(std::filesystem::path const& file) {
@@ -292,17 +320,19 @@ private:
         return {};
     }
 
+    wxl::core::function<void()> opened_;
     std::vector<std::wstring> const languages_ = documentation_languages();
     std::filesystem::path references_;
     std::map<md::database const*, File> beside_;
     std::map<std::string, File> contracts_;
+    std::vector<DocumentationFile*> unfinished_;  // в порядке открытия
 };
 
 }  // namespace
 
 struct Editor::Data {
-    Data(Profile own, std::vector<std::string> const& files)
-        : profile(std::move(own)), db(files) {}
+    Data(Profile own, std::vector<std::string> const& files, wxl::core::function<void()> opened)
+        : profile(std::move(own)), db(files), documentation(std::move(opened)) {}
 
     // Отметки — то, что говорит сам файл, без профилей, которые он продолжает.
     Profile profile;
@@ -1384,6 +1414,14 @@ intrusive_ptr<TreeModel> Editor::resources() const {
     return resources_;
 }
 
+bool Editor::prepareDocumentation() {
+    bool const more = data_->documentation.parseSome(std::chrono::steady_clock::now() + std::chrono::milliseconds {4});
+    if (!more) {
+        documentationPending.set(false);
+    }
+    return more;
+}
+
 wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) const {
     std::string utf8;
     if (auto const text = wxl::core::unicode::checked(type)) {
@@ -1403,7 +1441,8 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& profile) {
         files.push_back(file.string());
     }
 
-    editor->data_ = std::make_unique<Data>(load_profile(profile), files);
+    editor->data_ = std::make_unique<Data>(load_profile(profile), files,
+                                         [raw = editor.get()] { raw->documentationPending.set(true); });
     for (auto&& dictionary : resolved.resources) {
         auto declared = dictionary_resources(dictionary);
         editor->data_->resources.insert(editor->data_->resources.end(), std::move_iterator {declared.begin()},

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -49,9 +50,10 @@ struct MemberDocumentation {
 };
 
 // A .NET documentation file -- the .xml a .winmd ships beside it, or the
-// Windows SDK's reference for a contract -- read once and kept. Opening it costs
-// the parse and one sorted index of the members; a member's text is taken out
-// of the document only when it is asked for.
+// Windows SDK's reference for a contract -- read once and kept. Opening it only
+// finds where each <member> stands and what it is called; a member is parsed
+// when it is first asked for, or by parse_some(), which takes the rest a slice
+// at a time.
 class DocumentationFile {
 public:
     explicit DocumentationFile(std::filesystem::path const& file);
@@ -61,7 +63,11 @@ public:
 
     // The member by its documentation ID ("T:Ns.Type",
     // "M:Ns.Type.Method(System.String)"), if the file has it.
-    std::optional<MemberDocumentation> find(std::string_view id) const;
+    std::optional<MemberDocumentation> find(std::string_view id);
+
+    // Parses members not parsed yet until the deadline passes; whether any are
+    // left.
+    bool parse_some(std::chrono::steady_clock::time_point deadline);
 
     std::size_t size() const noexcept;
 

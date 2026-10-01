@@ -17,6 +17,7 @@
 #include "DrawingSurface.h"
 #include "FormattedBlock.h"
 #include "HtmlBlock.h"
+#include "Idle.h"
 #include "RsdnBlock.h"
 #include "ShowDialog.h"
 #include "SplitPanel.h"
@@ -1653,6 +1654,13 @@ struct probe_task {
     ::wxl::SplitPanel const split{orientation.vertical, panePlacement.right, openPaneLength = 200.0,
                                   content = top, pane = bottom};
     (void)split;
+}
+
+// idle -- written by hand: awaited in a detached task, between steps of work.
+[[maybe_unused]] ::wxl::async::detached_task idle_between_steps(int steps) {
+    while (steps-- > 0) {
+        co_await ::wxl::idle();
+    }
 }
 
 }  // namespace

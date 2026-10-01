@@ -118,55 +118,109 @@ std::string folded(wxl::xml::node const& node) {
 
 }  // namespace
 
-// The document and an index of its members: an open-addressing table in one
-// vector, keyed by views of the IDs into the document -- one allocation for the
-// whole index, nothing to sort, and no member's text copied until asked for.
+// The file's text, owned and kept, and where each member stands in it. The
+// index is an open-addressing table of member numbers: one allocation for the
+// whole of it and nothing to sort. Parsed members live in one arena, their
+// nodes viewing the text in place.
 struct DocumentationFile::State {
-    struct Slot {
+    struct Member {
         std::string_view id;
-        wxl::xml::node const* member = nullptr;  // null: the slot is free
+        std::uint32_t begin = 0;  // the member's element, from '<' to after its end tag
+        std::uint32_t end = 0;
+        wxl::xml::node const* node = nullptr;
+        bool parsed = false;
     };
 
-    wxl::xml::document document;
-    std::vector<Slot> slots;  // a power of two, at most half full
-    std::size_t size = 0;
+    std::string text;
+    wxl::xml::arena arena;
+    std::vector<Member> members;       // in document order
+    std::vector<std::uint32_t> table;  // a member's number plus one, 0 free; a power of two, at most half full
+    std::size_t next = 0;              // the first member parse_some() has not looked at
 
-    std::size_t home(std::string_view id) const noexcept { return std::hash<std::string_view> {}(id) & (slots.size() - 1); }
+    std::size_t home(std::string_view id) const noexcept {
+        return std::hash<std::string_view> {}(id) & (table.size() - 1);
+    }
 
-    Slot const* find(std::string_view id) const noexcept {
-        if (slots.empty()) {
+    Member* find(std::string_view id) noexcept {
+        if (table.empty()) {
             return nullptr;
         }
-        for (std::size_t at = home(id);; at = (at + 1) & (slots.size() - 1)) {
-            if (!slots[at].member) {
-                return nullptr;
-            }
-            if (slots[at].id == id) {
-                return &slots[at];
+        for (std::size_t at = home(id); table[at]; at = (at + 1) & (table.size() - 1)) {
+            if (members[table[at] - 1].id == id) {
+                return &members[table[at] - 1];
             }
         }
+        return nullptr;
+    }
+
+    // The member's element parsed where it stands: the byte after its end tag
+    // becomes the zero the parser stops at, and then is put back. A member
+    // that does not parse is left without a node.
+    void parse(Member& member) {
+        member.parsed = true;
+        char& after = text[member.end];
+        char const kept = after;
+        after = '\0';
+        try {
+            std::string_view const fragment {text.data() + member.begin, member.end - member.begin};
+            wxl::xml::validate_utf8(fragment);
+            wxl::xml::parser reader {fragment, arena};
+            member.node = &reader.parse();
+        } catch (wxl::xml::exception const&) {
+        }
+        after = kept;
     }
 };
 
 DocumentationFile::DocumentationFile(std::filesystem::path const& file) : state_(std::make_unique<State>()) {
-    auto const* members = state_->document.load_file(file).find("members");
-    if (!members) {
-        return;
-    }
     State& state = *state_;
-    state.slots.resize(std::bit_ceil(2 * static_cast<std::size_t>(std::ranges::distance(members->children())) + 1));
-    for (auto&& member : members->children_named("member")) {
-        auto const name = member.attribute("name");
-        if (!name) {
+    state.text = wxl::xml::read_file(file);
+    std::string_view const text = state.text;
+
+    // A member is found by its start tag and its end tag, and named by its
+    // name attribute -- a documentation ID, which never holds a character a
+    // document would have to escape.
+    constexpr std::string_view open = "<member";
+    constexpr std::string_view close = "</member>";
+    for (std::size_t at = text.find(open); at != std::string_view::npos; at = text.find(open, at)) {
+        std::size_t const tag_end = text.find('>', at);
+        if (tag_end == std::string_view::npos) {
+            break;
+        }
+        char const after = text[at + open.size()];
+        if (after != ' ' && after != '\t' && after != '\r' && after != '\n') {
+            at = tag_end;  // <members>, or a <member> without attributes
             continue;
         }
-        std::string_view const id = name->chars();
-        std::size_t at = state.home(id);
-        while (state.slots[at].member && state.slots[at].id != id) {
-            at = (at + 1) & (state.slots.size() - 1);
+        std::string_view const tag = text.substr(at, tag_end + 1 - at);
+        std::size_t end = tag_end + 1;
+        if (!tag.ends_with("/>")) {
+            std::size_t const closing = text.find(close, tag_end);
+            if (closing == std::string_view::npos) {
+                break;
+            }
+            end = closing + close.size();
         }
-        state.size += state.slots[at].member ? 0 : 1;
-        state.slots[at] = {id, &member};
+
+        std::size_t const name = tag.find("name=");
+        if (name != std::string_view::npos && name + 5 < tag.size()) {
+            std::size_t const value_end = tag.find(tag[name + 5], name + 6);
+            if (value_end != std::string_view::npos) {
+                state.members.push_back({tag.substr(name + 6, value_end - name - 6), static_cast<std::uint32_t>(at),
+                                         static_cast<std::uint32_t>(end)});
+            }
+        }
+        at = end;
+    }
+
+    state.table.assign(std::bit_ceil(2 * state.members.size() + 1), 0);
+    for (std::uint32_t number = 0; number < state.members.size(); ++number) {
+        std::string_view const id = state.members[number].id;
+        std::size_t at = state.home(id);
+        while (state.table[at] && state.members[state.table[at] - 1].id != id) {
+            at = (at + 1) & (state.table.size() - 1);
+        }
+        state.table[at] = number + 1;  // a later member of the same ID wins
     }
 }
 
@@ -174,14 +228,20 @@ DocumentationFile::DocumentationFile(DocumentationFile&&) noexcept = default;
 DocumentationFile& DocumentationFile::operator=(DocumentationFile&&) noexcept = default;
 DocumentationFile::~DocumentationFile() = default;
 
-std::optional<MemberDocumentation> DocumentationFile::find(std::string_view id) const {
-    auto const* const found = state_->find(id);
-    if (!found) {
+std::optional<MemberDocumentation> DocumentationFile::find(std::string_view id) {
+    State::Member* const member = state_->find(id);
+    if (!member) {
+        return std::nullopt;
+    }
+    if (!member->parsed) {
+        state_->parse(*member);
+    }
+    if (!member->node) {
         return std::nullopt;
     }
 
     MemberDocumentation documentation;
-    for (auto&& part : found->member->children()) {
+    for (auto&& part : member->node->children()) {
         std::string_view const kind {part.name().chars()};
         if (kind == "summary") {
             documentation.summary = folded(part);
@@ -197,6 +257,20 @@ std::optional<MemberDocumentation> DocumentationFile::find(std::string_view id) 
     return documentation;
 }
 
+bool DocumentationFile::parse_some(std::chrono::steady_clock::time_point deadline) {
+    State& state = *state_;
+    while (state.next < state.members.size()) {
+        State::Member& member = state.members[state.next++];
+        if (!member.parsed) {
+            state.parse(member);
+        }
+        if (std::chrono::steady_clock::now() >= deadline) {
+            break;
+        }
+    }
+    return state.next < state.members.size();
+}
+
 std::size_t DocumentationFile::size() const noexcept {
-    return state_->size;
+    return state_->members.size();
 }

@@ -11,6 +11,7 @@
 #include "CompositionWindow.h"
 #include "Editor.h"
 #include "HtmlBlock.h"
+#include "Idle.h"
 #include "MagnifyEffect.h"
 #include "SplitPanel.h"
 #include "ThemeBrush.h"
@@ -70,6 +71,14 @@ struct ZoomLabel {
     core::observable<core::u16_text> text;
 };
 
+// Документация дочитывается в потоке окна: шаг в несколько миллисекунд, и
+// окно отрабатывает ввод и отрисовку до следующего.
+async::detached_task prepareDocumentation(core::intrusive_ptr<Editor> document) {
+    do {
+        co_await idle();
+    } while (document->prepareDocumentation());
+}
+
 }  // namespace
 
 wxl::Teardown wxl_launched() {
@@ -109,6 +118,13 @@ wxl::Teardown wxl_launched() {
     document->revision.on_change([left, right](uint32_t) noexcept {
         left->refresh();
         right->refresh();
+    });
+
+    // Флаг поднимается, только когда опущен, так что дочитывает одна корутина.
+    document->documentationPending.on_change([raw = document.get()](bool pending) noexcept {
+        if (pending) {
+            prepareDocumentation(core::intrusive_ptr<Editor> {raw});
+        }
     });
 
     // Панель инструментов — одна на всё окно, карточкой, как в образце HelloHere.
