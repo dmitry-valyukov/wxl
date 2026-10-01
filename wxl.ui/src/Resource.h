@@ -14,6 +14,7 @@
 
 #include "Color.h"
 #include "CornerRadius.h"
+#include "generated/Microsoft.UI.Xaml.Enums.h"
 #include "Thickness.h"
 #include "core.h"
 #include "hstring_param.h"
@@ -21,7 +22,7 @@
 namespace wxl {
 
 struct Resource {
-    using Value = std::variant<bool, double, hstring, Thickness, CornerRadius, Color>;
+    using Value = std::variant<bool, double, hstring, Thickness, CornerRadius, Color, HorizontalAlignment>;
 
     hstring key;
     Value value;
@@ -35,6 +36,7 @@ struct Resource {
     Resource(hstring_param const& key, Thickness const& value) : key(key), value(value) {}
     Resource(hstring_param const& key, CornerRadius const& value) : key(key), value(value) {}
     Resource(hstring_param const& key, Color value) : key(key), value(value) {}
+    Resource(hstring_param const& key, HorizontalAlignment value) : key(key), value(value) {}
 };
 
 }  // namespace wxl

@@ -52,6 +52,10 @@ inline wxl::MagnifyEffect appPop() {
     return wxl::MagnifyEffect {1.2, wxl::dsl::maximum = 1.35, wxl::dsl::minimum = 0.95};
 }
 
+// Страница-образец окон примеров Windowing (SamplePage1..4 оригинала): плитки
+// и абзац текста; номер — от 1 до 4.
+wxl::FrameworkElement samplePage(int number);
+
 // Функция, строящая страницу примеров одного контрола.
 using ControlPage = wxl::FrameworkElement (*)();
 
@@ -88,6 +92,7 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement titleBarPage();
 wxl::FrameworkElement windowingPage();
 wxl::FrameworkElement compactSizingPage();
 wxl::FrameworkElement systemBackdropElementPage();

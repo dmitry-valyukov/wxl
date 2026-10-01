@@ -13,6 +13,8 @@ void add_resource(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictiona
             using type = std::remove_cvref_t<decltype(value)>;
             if constexpr (std::same_as<type, bool> || std::same_as<type, double>) {
                 return winrt::box_value(value);
+            } else if constexpr (std::same_as<type, HorizontalAlignment>) {
+                return winrt::box_value(static_cast<winrt::Microsoft::UI::Xaml::HorizontalAlignment>(value));
             } else {
                 return winrt::box_value(to_winrt(value));
             }

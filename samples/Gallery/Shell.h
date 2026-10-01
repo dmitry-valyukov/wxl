@@ -28,8 +28,10 @@ void navigate(Destination destination);
 void holdModel(std::shared_ptr<void> model);
 
 // Окно, открытое примером, оболочка помнит, пока оно не закрыто, и закрывает
-// вместе с главным (WindowHelper.TrackWindow оригинала).
-void trackWindow(wxl::Window const& window);
+// вместе с главным (WindowHelper.TrackWindow оригинала). state — то, что окно
+// держит живым до закрытия, например модель его содержимого: обработчики
+// окна захватывают её слабой ссылкой, а владеет ею окно, поэтому цикла нет.
+void trackWindow(wxl::Window const& window, std::shared_ptr<void> state = {});
 
 // Строит модель и отдаёт её оболочке: `auto const model = gallery::hold<Model>();`
 template <class Model, class... Arguments>

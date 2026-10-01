@@ -67,9 +67,10 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.TitleBar": {
-            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar.",
+            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar. AutoRefreshDragRegions: whether the regions that drag and the regions that take clicks are worked out again by themselves when content is added to or removed from the title bar at run time (the newer RecomputeDragRegions, a call to do it by hand, is in a WinUI package that nuget.org does not carry).",
             "members": [
-                "IconSource"
+                "IconSource",
+                "AutoRefreshDragRegions"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationView": {
@@ -247,6 +248,13 @@
                 "Arrange"
             ],
             "syntheticMembers": {
+                "IsDragRegion": {
+                    "comment": "Windowing: whether an element in a TitleBar drags the window (true), takes clicks (false) or leaves the choice to the TitleBar (empty) -- TitleBar.IsDragRegion, the attached property.",
+                    "cppType": "core::nullable<bool>",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_drag_region",
+                    "include": "../impl/title_bar_drag.h"
+                },
                 "ToolTipElement": {
                     "comment": "The tip as a ToolTip element: content that is not text, a placement, an offset. The hover half of toolTip only -- an element has no words to give a screen reader.",
                     "type": "Microsoft.UI.Xaml.Controls.ToolTip",
@@ -355,6 +363,12 @@
             "comment": "Windowing: the size of the client area in physical pixels, independent of the frame around it.",
             "members": [
                 "ResizeClient"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PersonPicture": {
+            "comment": "Windowing: the round avatar the title bar of the Gallery windows carries -- the initials of the person.",
+            "members": [
+                "Initials"
             ]
         },
         "Microsoft.UI.Xaml.Media.Geometry": {

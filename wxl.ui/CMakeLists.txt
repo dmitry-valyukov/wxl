@@ -229,6 +229,8 @@ add_library(wxl.ui STATIC
     src/impl/tool_tip.cpp
     src/impl/resource.h
     src/impl/resource.cpp
+    src/impl/title_bar_drag.h
+    src/impl/title_bar_drag.cpp
     src/Resource.h
     src/impl/geometry_from_text.h
     src/impl/geometry_from_text.cpp

@@ -158,7 +158,11 @@ struct Shell {
     std::vector<Destination> back;
     std::vector<Destination> forward;
     // Окна, открытые примерами (см. trackWindow).
-    std::vector<Window> windows;
+    struct Tracked {
+        Window window;
+        std::shared_ptr<void> state;
+    };
+    std::vector<Tracked> windows;
     // Модели показанной страницы (см. holdModel).
     std::vector<std::shared_ptr<void>> models;
     Destination current;
@@ -448,19 +452,19 @@ Window createMainWindow() {
     return window;
 }
 
-void trackWindow(Window const& window) {
-    shell->windows.push_back(window);
+void trackWindow(Window const& window, std::shared_ptr<void> state) {
+    shell->windows.push_back({window, std::move(state)});
     window.add_onClosed([](Object const& sender, auto&) {
         if (shell) {
-            std::erase_if(shell->windows, [&](Window const& each) { return each.is_same_object(sender); });
+            std::erase_if(shell->windows, [&](Shell::Tracked const& each) { return each.window.is_same_object(sender); });
         }
     });
 }
 
 void destroyMainWindow() {
     // Закрытие убирает окно из списка, поэтому закрываем копию.
-    for (auto const& window : std::vector<Window>(shell->windows)) {
-        window.close();
+    for (auto const& tracked : std::vector<Shell::Tracked>(shell->windows)) {
+        tracked.window.close();
     }
     shell.reset();
 }
