@@ -335,6 +335,22 @@
                 "FallbackColor"
             ]
         },
+        "Microsoft.UI.Xaml.ResourceDictionary": {
+            "comment": "Resources: values looked up by key from the element down -- a dictionary merged from a file (Source, MergedDictionaries) and entries written in place (Entry). The framework's own density dictionary and the page's overrides of one key are how the Gallery's Compact Sizing page works.",
+            "members": [
+                "Source",
+                "MergedDictionaries"
+            ],
+            "syntheticMembers": {
+                "Entry": {
+                    "comment": "One key and its value. The same tag repeated adds one entry each.",
+                    "cppType": "Resource",
+                    "cppInclude": "../Resource.h",
+                    "function": "impl::add_resource",
+                    "include": "../impl/resource.h"
+                }
+            }
+        },
         "Microsoft.UI.Xaml.Media.Geometry": {
             "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
             "fromText": {
@@ -661,7 +677,8 @@
             "members": [
                 "Parent",
                 "Language",
-                "AllowFocusOnInteraction"
+                "AllowFocusOnInteraction",
+                "Resources"
             ]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {

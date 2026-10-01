@@ -88,6 +88,7 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement compactSizingPage();
 wxl::FrameworkElement systemBackdropElementPage();
 wxl::FrameworkElement acrylicPage();
 wxl::FrameworkElement animatedIconPage();

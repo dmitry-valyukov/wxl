@@ -227,6 +227,9 @@ add_library(wxl.ui STATIC
     src/impl/grid_definitions.cpp
     src/impl/tool_tip.h
     src/impl/tool_tip.cpp
+    src/impl/resource.h
+    src/impl/resource.cpp
+    src/Resource.h
     src/impl/geometry_from_text.h
     src/impl/geometry_from_text.cpp
     src/impl/points_from_text.h
