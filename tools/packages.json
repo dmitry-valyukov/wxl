@@ -17,6 +17,11 @@
             "id": "Microsoft.WindowsAppSDK.WinUI",
             "version": "2.3.10-experimental",
             "why": "The metadata of WrapPanel and LayoutPanel: the stable WinUI package keeps them out of Microsoft.UI.Xaml.winmd, the experimental channel declares them."
+        },
+        {
+            "id": "Microsoft.WindowsAppSDK.Runtime",
+            "version": "2.5.4-experimental",
+            "why": "The installers of the experimental Windows App Runtime (framework 2-experimentalF), which is what has the interfaces the experimental metadata declares: WrapPanel, TitleBar.RecomputeDragRegions, the size properties of Window. tools/install-runtime.ps1 installs them; the version is the newest the experimental Windows App SDK (2.5.4-experimental) depends on, whose WinUI is the 2.3.10-experimental above."
         }
     ]
 }
