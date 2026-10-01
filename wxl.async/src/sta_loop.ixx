@@ -372,8 +372,8 @@ public:
     /// coroutine that reaches this point was one the caller had promised to
     /// finish before stopping.
     inline static void enqueue(core::not_null<async_op> op) {
-        ++outstanding_;
         to_worker_.send(op.get());
+        ++outstanding_;
     }
 
     /// The port the worker sleeps on, for whoever opens a file: that is where the
@@ -451,6 +451,10 @@ public:
     /// Only for what is known not to hold the calling thread. The rest goes through
     /// async_run(), and is started on the worker.
     [[nodiscard]] inline static awaitable<std::size_t> async_start(std::unique_ptr<io_op> op) {
+        // A completion with no worker to take it would never arrive; enqueue() fails the
+        // same way, through send().
+        assert(running() && "sta_loop: the loop is not running");
+
         if (op->start())
             op->deliver_here();
         else
@@ -557,7 +561,9 @@ private:
 
             if (!driven) return resumed;
 
-            from_worker_.arm();
+            // Set rather than asserted clear: a continuation delivered above may have run
+            // a modal loop, and a drain nested in it leaves the trigger armed.
+            from_worker_.rearm();
             std::atomic_thread_fence(std::memory_order_seq_cst);
 
             async_op* op = nullptr;

@@ -53,7 +53,11 @@ export namespace wxl::async {
 /// Everything else borrows this object and the
 /// caller's buffer, and an awaitable giving one of those up waits until the
 /// operation has come back -- which a read or a write the kernel holds is told
-/// to do at once, by CancelIoEx.
+/// to do at once, by CancelIoEx. Borrowed means what it means for a reference:
+/// the file and the buffer outlive the operation, which a frame unwinding sees
+/// to by itself, locals going in reverse order; closing or moving the file with
+/// an operation not yet awaited is the same mistake as using what a dangling
+/// reference points to.
 ///
 /// **The path is copied into the operation, and that is deliberate.** Borrowing
 /// it looks free and is a trap: the operation is handed to the worker inside the

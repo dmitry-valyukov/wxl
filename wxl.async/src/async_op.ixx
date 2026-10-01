@@ -212,7 +212,16 @@ public:
         // "done" without producing what it promised.
         ensure(value_.has_value() && "async_op: finished without a result");
 
+#ifdef NDEBUG
         return std::move(*value_);
+#else
+        // A second co_await of the same awaitable is a moved-from value and nothing else,
+        // like reading from anything after std::move; a Debug build has it fail the check
+        // above instead.
+        R taken = std::move(*value_);
+        value_.reset();
+        return taken;
+#endif
     }
 
 protected:

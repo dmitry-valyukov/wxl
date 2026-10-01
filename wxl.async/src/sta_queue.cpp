@@ -86,7 +86,11 @@ IDispatcherQueue* queue_of_this_thread() {
 
     const HRESULT got = own_controller->get_DispatcherQueue(&queue);
 
-    if (FAILED(got)) throw system_exception("IDispatcherQueueController::get_DispatcherQueue", got);
+    if (FAILED(got)) {
+        own_controller->Release();
+        own_controller = nullptr;
+        throw system_exception("IDispatcherQueueController::get_DispatcherQueue", got);
+    }
 
     return queue;
 }
@@ -231,16 +235,31 @@ void __stdcall run_on_pool(PTP_CALLBACK_INSTANCE, void* context) noexcept {
 void sta_loop::start_dispatched(std::string_view worker_name) {
     ensure(!worker_ && "sta_loop: the loop is already running");
 
-    sta_queue = queue_of_this_thread();
-    shape_ = &on_queue;
-
     on_drain = []() noexcept { run_pending(); };
     on_return = [](async_op& op) noexcept {
         --outstanding_;
         op.come_back();
     };
 
-    start_driven([]() noexcept { post(drain); }, worker_name);
+    sta_queue = queue_of_this_thread();
+
+    // The shape changes last: a start that failed leaves a loop that was never started,
+    // and stop() has nothing to let go of.
+    try {
+        start_driven([]() noexcept { post(drain); }, worker_name);
+    } catch (...) {
+        sta_queue->Release();
+        sta_queue = nullptr;
+
+        if (own_controller) {
+            own_controller->Release();
+            own_controller = nullptr;
+        }
+
+        throw;
+    }
+
+    shape_ = &on_queue;
 }
 
 void sta_loop::send_to_pool(async_op& op) {

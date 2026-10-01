@@ -1,3 +1,7 @@
+module;
+
+#include <cassert>
+
 export module wxl.async:awaitable;
 
 import :async_op;
@@ -13,7 +17,9 @@ export namespace wxl::async {
 /// the two threads carry the same pointer borrowed.
 ///
 /// **It is an ordinary object, and every use of it is a legal one**: awaited at once,
-/// awaited after others started later, moved, or never awaited at all. Going away with
+/// awaited after others started later, moved, or never awaited at all. What is not is
+/// what is not for any object: awaiting one that has been moved from, or awaiting the
+/// same one twice, which hands over a moved-from value. Going away with
 /// the operation still out gives the operation up (`async_op::abandon`): the operation
 /// is asked to cancel, and unless it is orphanable, this waits until the worker has let
 /// go of it -- so a frame unwinding past a read into its own buffer is gone only once
@@ -41,7 +47,10 @@ public:
     /// operation out of the return channel, and its answer -- the value or the failure
     /// -- is here. Not whether the operation has finished: one that has may still be in
     /// the channel, and until the loop takes it out it is not the coroutine's.
-    bool ready() const noexcept { return op_->delivered(); }
+    bool ready() const noexcept {
+        assert(op_ && "awaitable: moved-from");
+        return op_->delivered();
+    }
 
     bool await_ready() const noexcept { return ready(); }
 
@@ -50,7 +59,10 @@ public:
     /// \throw whatever the body threw on the worker thread: an operation that
     ///        failed fails at the co_await, where the coroutine can catch it as
     ///        its own.
-    R await_resume() { return op_->take_result(); }
+    R await_resume() {
+        assert(op_ && "awaitable: moved-from");
+        return op_->take_result();
+    }
 
 private:
     /// A delivered operation is the awaitable's alone, and goes with it; one still out
