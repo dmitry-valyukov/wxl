@@ -29,6 +29,11 @@ Object::~Object() = default;
 // Both casts are the reinterpretation winrt::get_abi performs -- a winrt
 // smart pointer is one raw pointer and nothing else -- and both are why this
 // pair costs the public header only a forward declaration.
+bool Object::is_same_object(Object const& other) const {
+    if (!impl_ || !other.impl_) return impl_ == other.impl_;
+    return impl_->inspectable_ == other.impl_->inspectable_;
+}
+
 bool Object::is_text() const {
     if (!impl_) return false;
     auto const value = impl_->inspectable_.try_as<winrt::Windows::Foundation::IPropertyValue>();

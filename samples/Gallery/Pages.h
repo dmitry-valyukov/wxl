@@ -52,6 +52,14 @@ inline wxl::MagnifyEffect appPop() {
     return wxl::MagnifyEffect {1.2, wxl::dsl::maximum = 1.35, wxl::dsl::minimum = 0.95};
 }
 
+// Страница-образец окон примеров Windowing (SamplePage1..4 оригинала): плитки
+// и абзац текста; номер — от 1 до 4.
+wxl::FrameworkElement samplePage(int number);
+
+// Выбор цвета: образец на кнопке и ColorPicker в её выпадающей части
+// (ColorSelector оригинала). Цвет — поле модели.
+wxl::FrameworkElement colorSelector(wxl::core::observable<wxl::Color>& color, char16_t const* name);
+
 // Функция, строящая страницу примеров одного контрола.
 using ControlPage = wxl::FrameworkElement (*)();
 
@@ -88,6 +96,10 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement appWindowTitleBarPage();
+wxl::FrameworkElement titleBarPage();
+wxl::FrameworkElement windowingPage();
+wxl::FrameworkElement compactSizingPage();
 wxl::FrameworkElement systemBackdropElementPage();
 wxl::FrameworkElement acrylicPage();
 wxl::FrameworkElement animatedIconPage();
