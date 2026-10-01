@@ -151,6 +151,11 @@ public:
     /// The string this object boxes.
     hstring text() const;
 
+    /// Whether both are the same runtime object -- the identity COM defines,
+    /// which two wrappers of one window or one element share even when they
+    /// were obtained apart (an event's sender, a handle kept in a list).
+    bool is_same_object(Object const& other) const;
+
     /// A string boxed into an object, for what takes any object and is given a text:
     /// the content of a label, of a tooltip.
     static Object from_text(hstring_param const& text);

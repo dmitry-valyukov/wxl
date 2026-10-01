@@ -27,6 +27,10 @@ void navigate(Destination destination);
 // элемент. Страницу сменили — модель отпускается, и вместе с ней элементы.
 void holdModel(std::shared_ptr<void> model);
 
+// Окно, открытое примером, оболочка помнит, пока оно не закрыто, и закрывает
+// вместе с главным (WindowHelper.TrackWindow оригинала).
+void trackWindow(wxl::Window const& window);
+
 // Строит модель и отдаёт её оболочке: `auto const model = gallery::hold<Model>();`
 template <class Model, class... Arguments>
 std::shared_ptr<Model> hold(Arguments&&... arguments) {

@@ -351,6 +351,12 @@
                 }
             }
         },
+        "Microsoft.UI.Windowing.AppWindow": {
+            "comment": "Windowing: the size of the client area in physical pixels, independent of the frame around it.",
+            "members": [
+                "ResizeClient"
+            ]
+        },
         "Microsoft.UI.Xaml.Media.Geometry": {
             "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
             "fromText": {
@@ -817,7 +823,8 @@
             "members": [
                 "AcceptsExpression",
                 "LargeChange",
-                "NumberFormatter"
+                "NumberFormatter",
+                "ValidationMode"
             ]
         },
         "Windows.Globalization.NumberFormatting.DecimalFormatter": {
