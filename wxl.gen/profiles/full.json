@@ -842,8 +842,17 @@
             ]
         },
         "Microsoft.UI.Xaml.Media.MicaBackdrop": {
-            "comment": "The Gallery window's system backdrop.",
-            "members": []
+            "comment": "The Gallery window's system backdrop; Kind switches Base and BaseAlt.",
+            "members": [
+                "Kind"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SystemBackdropElement": {
+            "comment": "Styles: an element that is itself a piece of system backdrop -- acrylic or Mica inside the window, with rounded corners -- instead of the backdrop of the whole window.",
+            "members": [
+                "SystemBackdrop",
+                "CornerRadius"
+            ]
         },
         "Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop": {
             "comment": "The acrylic sibling of MicaBackdrop.",
