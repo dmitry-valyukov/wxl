@@ -280,6 +280,52 @@
             "comment": "Menus & toolbars: what a command bar holds -- AppBarButton, AppBarToggleButton, AppBarSeparator -- which has no class of its own, only this interface.",
             "members": []
         },
+        "Microsoft.UI.Xaml.Media.RadialGradientBrush": {
+            "comment": "Styles: what the base profile leaves out of the radial brush -- how the gradient continues past its last stop.",
+            "members": [
+                "SpreadMethod"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedIcon": {
+            "comment": "Styles: an icon that plays an animation as its state changes -- the state is set by name, \"PointerOver\" and \"Normal\" by the control it sits in or by hand.",
+            "members": [
+                "Source",
+                "FallbackIconSource",
+                "SetState"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.IAnimatedVisualSource2": {
+            "comment": "Styles: what an AnimatedIcon plays -- any of the animated visuals below.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedBackVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronRightDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronUpDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedFindVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedGlobalNavigationButtonVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedSettingsVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
         "Microsoft.UI.Xaml.Media.Geometry": {
             "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
             "fromText": {
