@@ -95,8 +95,8 @@ struct Model {
                 TextBlock {
                     foreground = brushes.Text.FillColor.Secondary,
                     textWrapping = TextWrapping::WrapWholeWords,
-                    u"When you add or remove elements in TitleBar.Content at runtime, the drag regions are refreshed "
-                    u"for you while AutoRefreshDragRegions is on. Turn it off to see the regions go stale.",
+                    u"When you add or remove elements in TitleBar.Content at runtime, call RecomputeDragRegions() to "
+                    u"refresh.",
                 },
                 StackPanel {
                     orientation = Orientation::Horizontal,
@@ -106,18 +106,20 @@ struct Model {
                         onClick = [this](Button const&) {
                             if (!hasExtraButton) {
                                 rightHeader.children().insertAt(0, extraButton);
-                                status.text(u"Added a Button to TitleBar.Content.");
+                                status.text(u"Added a Button to TitleBar.Content. Call RecomputeDragRegions() to refresh drag regions.");
                             } else {
                                 rightHeader.children().removeAt(0);
-                                status.text(u"Removed the Button.");
+                                status.text(u"Removed the Button. Call RecomputeDragRegions() to refresh drag regions.");
                             }
                             hasExtraButton = !hasExtraButton;
                         },
                     },
-                    ToggleSwitch {
-                        header = u"AutoRefreshDragRegions",
-                        isOn = true,
-                        onToggled = [this](ToggleSwitch const& self) { titleBar.autoRefreshDragRegions(self.isOn()); },
+                    Button {
+                        content = u"RecomputeDragRegions()",
+                        onClick = [this](Button const&) {
+                            titleBar.recomputeDragRegions();
+                            status.text(u"RecomputeDragRegions() called.");
+                        },
                     },
                 },
                 status,
@@ -148,7 +150,7 @@ auto example = StackPanel {
         textAlignment = TextAlignment::Center,
         textWrapping = TextWrapping::WrapWholeWords,
         u"Drag regions can only be observed on a real window. Click the button below to open a sample window where "
-        u"you can toggle TitleBar.IsDragRegion on a status badge and switch AutoRefreshDragRegions while dynamic content "
+        u"you can toggle TitleBar.IsDragRegion on a status badge and call RecomputeDragRegions() after dynamic content "
         u"changes.",
     },
     Button {hAlign.center, styles.Button.Accent, content = u"Show window", onClick = [openWindow](Button const&) { openWindow(); }},

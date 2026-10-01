@@ -158,7 +158,18 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         // Returns when the application exits; OnLaunched above runs inside.
         winrt::Microsoft::UI::Xaml::Application::Start(
             [](auto&&) { winrt::make<App>(); });
+    } catch (winrt::hresult_error const& failure) {
+        // The teardown handler is told it was an error, and nothing else:
+        // without this line nobody learns what it was.
+        std::wcerr << L"wxl: the application stopped on an error: "
+                   << static_cast<std::wstring_view>(failure.message()) << L" (0x" << std::hex
+                   << static_cast<uint32_t>(failure.code()) << L")\n";
+        reason = wxl::TeardownReason::Error;
+    } catch (std::exception const& failure) {
+        std::cerr << "wxl: the application stopped on an error: " << failure.what() << '\n';
+        reason = wxl::TeardownReason::Error;
     } catch (...) {
+        std::cerr << "wxl: the application stopped on a foreign exception\n";
         reason = wxl::TeardownReason::Error;
     }
     wxl::impl::set_application_launched(false);

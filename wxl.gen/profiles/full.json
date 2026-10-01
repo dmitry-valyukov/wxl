@@ -67,10 +67,11 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.TitleBar": {
-            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar. AutoRefreshDragRegions: whether the regions that drag and the regions that take clicks are worked out again by themselves when content is added to or removed from the title bar at run time (the newer RecomputeDragRegions, a call to do it by hand, is in a WinUI package that nuget.org does not carry).",
+            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar. RecomputeDragRegions: the regions that drag and the regions that take clicks, worked out again after content is added to or removed from the title bar at run time; AutoRefreshDragRegions says whether that is done without being asked.",
             "members": [
                 "IconSource",
-                "AutoRefreshDragRegions"
+                "AutoRefreshDragRegions",
+                "RecomputeDragRegions"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationView": {

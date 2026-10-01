@@ -280,6 +280,18 @@ target_include_directories(wxl.ui PRIVATE
 # that paint a GDI surface lift it for themselves.
 target_compile_definitions(wxl.ui PRIVATE NOGDI)
 
+# The channel of the Windows App Runtime the application starts on. The WinUI
+# metadata the wrappers are generated from is the experimental channel's (see
+# tools/packages.json: WrapPanel, TitleBar.AutoRefreshDragRegions and the Window
+# size properties are declared nowhere else), and a stable runtime answers a call
+# to any of them with "no such interface". So the default is the experimental
+# framework package, Microsoft.WindowsAppRuntime.2-experimentalF (tag experimentalF), which
+# tools/restore-packages.ps1 fetches the installer of. An empty value is the
+# stable channel, for a tree whose metadata is the stable package's.
+set(WXL_WINDOWSAPPSDK_VERSION_TAG "experimentalF"
+    CACHE STRING "Version tag of the Windows App Runtime framework package: experimentalF, or empty for the stable channel")
+target_compile_definitions(wxl.ui PRIVATE WXL_WINDOWSAPPSDK_VERSION_TAG=L"${WXL_WINDOWSAPPSDK_VERSION_TAG}")
+
 target_link_libraries(wxl.ui
     PUBLIC
         wxl::core
