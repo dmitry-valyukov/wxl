@@ -68,6 +68,8 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    LinePage.cpp
+    ShapePage.cpp
     IconElementPage.cpp
     ThemeShadowPage.cpp
     ScrollViewPage.cpp

@@ -59,6 +59,9 @@ struct Model {
     // as a property setter beside the method, whose body calls the method.
     std::map<md::TypeDef, std::vector<Closure::Setter>> setter_methods_of;
 
+    // Per class, by full name: the converter from text a profile gave it (see profile.h).
+    std::map<std::string, FromText> from_text;
+
     // Per class: the attached properties its statics declare (see crawl.h).
     // The tag is written on the child, the call goes to the owner.
     std::map<md::TypeDef, std::vector<std::string>> attached_of;

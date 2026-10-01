@@ -45,6 +45,8 @@ constexpr Entry ported[] = {
     {L"StackPanel", &gallery::stackPanelPage},
     {L"VariableSizedWrapGrid", &gallery::variableSizedWrapGridPage},
     {L"Viewbox", &gallery::viewboxPage},
+    {L"Line", &gallery::linePage},
+    {L"Shape", &gallery::shapePage},
     {L"IconElement", &gallery::iconElementPage},
     {L"ThemeShadow", &gallery::themeShadowPage},
     {L"ScrollView", &gallery::scrollViewPage},

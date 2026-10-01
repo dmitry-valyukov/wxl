@@ -21,7 +21,6 @@
 #include "../Color.h"
 #include "../DateTime.h"
 #include "../FontFamily.h"
-#include "../XamlGeometry.h"
 #include "../ImageSource.h"
 #include "../Uri.h"
 #include "../generated/collections.h"
@@ -220,10 +219,6 @@ core::nullable<T> from_reference(WinRT const& value, Convert convert) {
 winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value);
 ImageSource from_winrt(winrt::Microsoft::UI::Xaml::Media::ImageSource const& value);
 
-// A geometry. Declared here and defined in XamlGeometry.cpp, where the XAML
-// converter that reads the path language is.
-winrt::Microsoft::UI::Xaml::Media::Geometry to_winrt(Geometry const& value);
-Geometry from_winrt(winrt::Microsoft::UI::Xaml::Media::Geometry const& value);
 
 // The four edges. Margin, Padding and BorderThickness are tags over this
 // same type, and each of them is one, so the pair below covers them too.

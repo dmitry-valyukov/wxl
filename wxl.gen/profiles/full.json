@@ -280,6 +280,80 @@
             "comment": "Menus & toolbars: what a command bar holds -- AppBarButton, AppBarToggleButton, AppBarSeparator -- which has no class of its own, only this interface.",
             "members": []
         },
+        "Microsoft.UI.Xaml.Media.Geometry": {
+            "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
+            "fromText": {
+                "function": "impl::geometry_from_text",
+                "include": "../impl/geometry_from_text.h"
+            }
+        },
+        "Microsoft.UI.Xaml.Media.GeometryGroup": {
+            "comment": "Shapes: geometries drawn as one.",
+            "members": [
+                "Children",
+                "FillRule"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.LineGeometry": {
+            "comment": "Shapes: a segment between two points.",
+            "members": [
+                "StartPoint",
+                "EndPoint"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.EllipseGeometry": {
+            "comment": "Shapes: an ellipse by its centre and radii.",
+            "members": [
+                "Center",
+                "RadiusX",
+                "RadiusY"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.RectangleGeometry": {
+            "comment": "Shapes: a rectangle by its Rect.",
+            "members": [
+                "Rect"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Line": {
+            "comment": "Shapes: a straight line between two points.",
+            "members": [
+                "X1",
+                "Y1",
+                "X2",
+                "Y2"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Polyline": {
+            "comment": "Shapes: connected straight lines.",
+            "members": [],
+            "syntheticMembers": {
+                "Points": {
+                    "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
+                    "type": "String",
+                    "function": "impl::set_points",
+                    "include": "../impl/points_from_text.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Shapes.Polygon": {
+            "comment": "Shapes: connected straight lines that close.",
+            "members": [],
+            "syntheticMembers": {
+                "Points": {
+                    "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
+                    "type": "String",
+                    "function": "impl::set_points",
+                    "include": "../impl/points_from_text.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Shapes.Path": {
+            "comment": "Shapes: a shape drawn from a geometry.",
+            "members": [
+                "Data"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.WrapPanel": {
             "comment": "Layout: items that flow and wrap."
         },

@@ -90,6 +90,15 @@ struct SetterMethod {
     std::string type;    // "Microsoft.UI.Xaml.Controls.TitleBar", or empty
 };
 
+// A wrapped class that a string builds: the abstract Geometry, which is made from
+// the path language of XAML by a converter and by nothing else. The class gets an
+// implicit constructor from text, defined with the function named here -- one that
+// takes the text and returns the projection's own object.
+struct FromText {
+    std::string function;  // "impl::geometry_from_text"
+    std::string include;   // header declaring it, as the generated source writes it
+};
+
 // One NuGet package a profile draws metadata from. `metadata` names the
 // .winmd files to read out of `metadata_dir` inside the package; when it's
 // empty, every .winmd found there is read.
@@ -138,6 +147,7 @@ struct Profile {
     std::map<std::string, MemberFilter> types;  // "Microsoft.UI.Xaml.Controls.Button" -> filter
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // by the same type name
     std::map<std::string, std::vector<SetterMethod>> setter_methods;  // by the same type name
+    std::map<std::string, FromText> from_text;                        // by the same type name
 
     // The named styles of a listed type, by dictionary key: "styles": [...]
     // under the type's entry narrows them to those; a type listed without it
@@ -238,6 +248,7 @@ struct ProfileSet {
     std::map<std::string, MemberFilter> types;     // roots of the walk
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // properties wxl adds
     std::map<std::string, std::vector<SetterMethod>> setter_methods;  // methods written as tags
+    std::map<std::string, FromText> from_text;                        // classes a string builds
 
     // Merged the way members are, as a union: a profile that lists a type
     // without "styles", or has no "brushes", asks for all of them, and so
