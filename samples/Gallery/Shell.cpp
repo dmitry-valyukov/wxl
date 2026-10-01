@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <memory>
 
+#include "CompositionWindow.h"
 #include "generated/Microsoft.UI.Windowing.h"
 
 using namespace wxl;
@@ -163,6 +164,11 @@ struct Shell {
         std::shared_ptr<void> state;
     };
     std::vector<Tracked> windows;
+    struct TrackedComposition {
+        CompositionWindow window;
+        std::shared_ptr<void> state;
+    };
+    std::vector<TrackedComposition> compositionWindows;
     // Главное окно: владелец модальных окон примеров (см. mainWindow).
     std::shared_ptr<Window> main;
     // Модели показанной страницы (см. holdModel).
@@ -468,7 +474,20 @@ void trackWindow(Window const& window, std::shared_ptr<void> state) {
     });
 }
 
+void trackWindow(CompositionWindow const& window, std::shared_ptr<void> state) {
+    shell->compositionWindows.push_back({window, std::move(state)});
+    window.add_onClosed([handle = window.handle()](auto&&...) {
+        if (shell) {
+            std::erase_if(shell->compositionWindows,
+                          [&](Shell::TrackedComposition const& each) { return each.window.handle() == handle; });
+        }
+    });
+}
+
 void destroyMainWindow() {
+    for (auto const& tracked : std::vector<Shell::TrackedComposition>(shell->compositionWindows)) {
+        tracked.window.close();
+    }
     // Закрытие убирает окно из списка, поэтому закрываем копию.
     for (auto const& tracked : std::vector<Shell::Tracked>(shell->windows)) {
         tracked.window.close();

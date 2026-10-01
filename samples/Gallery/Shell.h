@@ -10,6 +10,10 @@
 #include <string_view>
 #include <vector>
 
+namespace wxl {
+class CompositionWindow;
+}
+
 namespace gallery {
 
 // Куда ведёт переход; `id` — контрол, группа или строка запроса.
@@ -35,6 +39,10 @@ void trackWindow(wxl::Window const& window, std::shared_ptr<void> state = {});
 
 // Главное окно: владелец модальных окон примеров.
 wxl::Window const& mainWindow();
+
+// То же для CompositionWindow wxl: окно помнится, пока не закрыто, закрывается
+// вместе с главным, а state живёт, пока оно открыто.
+void trackWindow(wxl::CompositionWindow const& window, std::shared_ptr<void> state = {});
 
 // Строит модель и отдаёт её оболочке: `auto const model = gallery::hold<Model>();`
 template <class Model, class... Arguments>
