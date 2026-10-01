@@ -6,7 +6,7 @@
 
 // Crossing into WinRT is where an image source stops being text: the
 // framework wants an ImageSource object, and the one that loads from a URI
-// is a BitmapImage.
+// is a BitmapImage, or an SvgImageSource for a vector image.
 
 namespace wxl::impl {
 namespace {
@@ -34,7 +34,15 @@ winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value
     if (value.empty()) {
         return nullptr;
     }
-    return winrt::Microsoft::UI::Xaml::Media::Imaging::BitmapImage{to_winrt(value.source())};
+    // A vector image is not a bitmap: the extension tells which of the two the framework
+    // has to be given. The query or fragment of a URL is not part of it.
+    auto const uri = to_winrt(value.source());
+    auto const owned = uri.Path();
+    std::wstring_view const path = owned;
+    if (path.size() >= 4 && _wcsicmp(path.data() + path.size() - 4, L".svg") == 0) {
+        return winrt::Microsoft::UI::Xaml::Media::Imaging::SvgImageSource{uri};
+    }
+    return winrt::Microsoft::UI::Xaml::Media::Imaging::BitmapImage{uri};
 }
 
 // An image source that came back from the framework is a real object of
