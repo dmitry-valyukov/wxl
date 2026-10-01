@@ -455,6 +455,12 @@
                 "NewValue"
             ]
         },
+        "Microsoft.UI.Xaml.Media.ThemeShadow": {
+            "comment": "Styles: the elements a theme shadow falls on.",
+            "members": [
+                "Receivers"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
             "members": [
@@ -637,11 +643,12 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.Control": {
-            "comment": "Text group: what a TextBox is set up with beyond base -- the italic face and letter spacing.",
+            "comment": "Text group: what a TextBox is set up with beyond base -- the italic face and letter spacing. Styles: whether a slider takes the arrow keys only after Enter.",
             "members": [
                 "FontStyle",
                 "CharacterSpacing",
-                "Foreground"
+                "Foreground",
+                "IsFocusEngagementEnabled"
             ]
         },
         "Microsoft.UI.Xaml.Controls.TextBox": {
