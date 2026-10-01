@@ -17,6 +17,16 @@
 // condition variable -- because a reader that sleeps while there is nothing to take is what
 // all three are for, and what that sleep costs is the question.
 //
+// The channels go to sleep in the kernel the moment they find nothing, while the ring's
+// condition variable, by its numbers, wakes its reader without the kernel at short pauses --
+// so each channel has two more rows, with a short wait before its own sleep: a number of
+// attempts to take an element without blocking, and only then receive(). Between two
+// attempts the reader either executes the pause instruction or goes straight on. The two
+// rows wait equally long, not equally many times: `tries` is the count with the pause, and
+// the count without it is matched at start by timing both waits through the reader's own
+// code, on its own core, with nothing coming. The waits that run out in the streams are
+// timed as well and printed at the end, which is what says the two really waited alike.
+//
 // Nothing is allocated while a number is being taken. spsc_channel and the ring keep the
 // elements by value, and spsc_channel's blocks are grown by a warm-up and recycled after it.
 // mpsc_channel carries intrusive nodes, and those come from one preallocated array which the
@@ -33,8 +43,9 @@
 // medians came out in milliseconds, for every queue alike -- numbers about the scheduler, not
 // about any queue.
 //
-// Usage: wxl.async.channels-benchmark [samples [elements [rounds [writer_cpu reader_cpu]]]]
-//        samples per latency round, elements per throughput round
+// Usage: wxl.async.channels-benchmark [samples [elements [rounds [tries [writer_cpu reader_cpu]]]]]
+//        samples per latency round, elements per throughput round, attempts with the pause
+//        before sleeping
 
 #include "platform.h"
 
@@ -137,6 +148,9 @@ public:
     {
     public:
         explicit reader(spsc_contender& contender) : reader_(contender.channel_) {}
+
+        /// Takes an element if one is there, never waiting.
+        bool try_receive(sample& element) { return reader_.read(element); }
 
         sample receive() {
             sample element;
@@ -247,6 +261,16 @@ public:
     public:
         explicit reader(mpsc_contender& contender) : contender_(&contender) {}
 
+        /// Takes an element if one is there, never waiting.
+        bool try_receive(sample& element) {
+            lent_node taken;
+
+            if (!contender_->channel_.try_receive(taken)) return false;
+
+            element = take_from(taken);
+            return true;
+        }
+
         sample receive() {
             lent_node taken;
 
@@ -254,18 +278,113 @@ public:
             while (!contender_->channel_.receive(taken)) {
             }
 
+            return take_from(taken);
+        }
+
+    private:
+        sample take_from(const lent_node taken) {
             const sample element = taken.pointer->value;
             contender_->nodes_.give_back();
             return element;
         }
 
-    private:
         mpsc_contender* contender_;
     };
 
 private:
     node_ring nodes_;
     mpsc_channel<node, counted_event> channel_;
+};
+
+/// What the reader does between two attempts of its wait before sleeping.
+enum class between_tries
+{
+    pause,   // the pause instruction
+    nothing  // straight on to the next attempt
+};
+
+/// A channel whose reader waits a little before the channel's own sleep: up to `tries`
+/// attempts to take an element without blocking, and only then receive(). The channel itself
+/// is untouched -- the wait is what a caller can put in front of receive() today, and the
+/// question is whether it pays.
+///
+/// A wait that runs out is timed, from the first failed attempt to the last: those are the
+/// waits that ended in a sleep, and their length says whether two rows that were meant to
+/// wait equally long really did, in the stream rather than on an idle channel. The clock is
+/// read only once the first attempt has failed, so a reader that finds its element at once
+/// pays nothing for it.
+template <class contender_t, between_tries how>
+class waiting_first : public contender_t
+{
+public:
+    template <class... args_t>
+    explicit waiting_first(const std::size_t tries, args_t&&... args)
+        : contender_t(std::forward<args_t>(args)...), tries_(tries) {}
+
+    /// Read by the reader at every wait, so it may change between two jobs.
+    void tries(const std::size_t count) noexcept { tries_ = count; }
+
+    std::size_t tries() const noexcept { return tries_; }
+
+    /// How many waits ran out in the streams so far, and how long they lasted on average.
+    std::size_t ran_out() const noexcept { return ran_out_; }
+
+    std::uint64_t ran_out_ticks() const noexcept { return ran_out_ticks_; }
+
+    class reader
+    {
+    public:
+        explicit reader(waiting_first& contender) : reader_(contender), contender_(&contender) {}
+
+        sample receive() {
+            sample element;
+
+            if (reader_.try_receive(element)) return element;
+
+            const std::uint64_t started = ticks();
+
+            if (keep_trying(element)) return element;
+
+            contender_->ran_out_ticks_ += ticks() - started;
+            ++contender_->ran_out_;
+
+            return reader_.receive();
+        }
+
+        /// One whole wait on the empty channel, timed exactly as receive() times it: the
+        /// figure the counts of the two rows are matched by.
+        std::uint64_t idle_wait() {
+            sample element;
+            [[maybe_unused]] const bool taken = reader_.try_receive(element);
+
+            const std::uint64_t started = ticks();
+            [[maybe_unused]] const bool kept = keep_trying(element);
+
+            return ticks() - started;
+        }
+
+    private:
+        /// The attempts after the first failed one, the pause or nothing before each.
+        bool keep_trying(sample& element) {
+            const std::size_t tries = contender_->tries_;
+
+            for (std::size_t attempt = 1; attempt < tries; ++attempt) {
+                if constexpr (how == between_tries::pause) wxl::core::cpu_pause();
+
+                if (reader_.try_receive(element)) return true;
+            }
+
+            return false;
+        }
+
+        typename contender_t::reader reader_;
+        waiting_first* contender_;
+    };
+
+private:
+    std::size_t tries_;
+    std::size_t ran_out_{};
+    std::uint64_t ran_out_ticks_{};
 };
 
 /// The textbook bounded buffer: a ring of slots in a std::vector, one mutex over all of it,
@@ -391,9 +510,9 @@ class session : public wxl::core::noncopyable
 {
 public:
     template <class... args_t>
-    session(const char* name, const double ticks_per_ns, const std::size_t reader_cpu,
+    session(std::string name, const double ticks_per_ns, const std::size_t reader_cpu,
             args_t&&... args)
-        : name_(name),
+        : name_(std::move(name)),
           ticks_per_ns_(ticks_per_ns),
           reader_cpu_(reader_cpu),
           queue_(std::forward<args_t>(args)...),
@@ -405,7 +524,26 @@ public:
         reader_thread_.join();
     }
 
-    const char* name() const noexcept { return name_; }
+    const char* name() const noexcept { return name_.c_str(); }
+
+    void rename(std::string name) { name_ = std::move(name); }
+
+    /// The queue itself, for what only some contenders have. Touched only between jobs.
+    contender_t& queue() noexcept { return queue_; }
+
+    /// How long one whole wait before sleeping lasts with nothing coming, in nanoseconds: the
+    /// median of `count` of them, on the reader's own thread and core and through its own
+    /// code, since that is where the wait runs in the stream.
+    double idle_wait_ns(const std::size_t count) {
+        arrived_.assign(count, 0);
+        start({job_kind::idle_waits, count});
+        job_done_.acquire();
+
+        std::vector<std::uint64_t> taken = arrived_;
+        std::sort(taken.begin(), taken.end());
+
+        return static_cast<double>(taken[taken.size() / 2]) / ticks_per_ns_;
+    }
 
     /// `warmup` elements go first at the same pause and are left out of the numbers: they
     /// carry the reader's start and whatever the queue still had to grow.
@@ -462,6 +600,7 @@ private:
     {
         latency,
         throughput,
+        idle_waits,
         stop
     };
 
@@ -508,6 +647,9 @@ private:
                     arrived_[i] = ticks_after() - element.stamp;
                     out_of_order_ += element.sequence != i;
                 }
+            } else if (current.kind == job_kind::idle_waits) {
+                if constexpr (requires { reader.idle_wait(); })
+                    for (std::size_t i = 0; i < current.count; ++i) arrived_[i] = reader.idle_wait();
             } else {
                 for (std::size_t i = 0; i < current.count; ++i)
                     out_of_order_ += reader.receive().sequence != i;
@@ -530,7 +672,7 @@ private:
         return converted;
     }
 
-    const char* name_;
+    std::string name_;
     double ticks_per_ns_;
     std::size_t reader_cpu_;
     contender_t queue_;
@@ -598,7 +740,7 @@ void latency_row(const session<contender_t>& queue, const latency_rounds& rounds
         out_of_order += r.out_of_order;
     }
 
-    std::printf("  %-20s %7.2f %7.2f %7.2f %7.2f %7.2f %8.2f   %6.0f %7.0f   %5.1f\n",
+    std::printf("  %-24s %7.2f %7.2f %7.2f %7.2f %7.2f %8.2f   %6.0f %7.0f   %5.1f\n",
                 queue.name(), m([](auto& r) { return r.latency_ns.min; }) / 1000,
                 m([](auto& r) { return r.latency_ns.median; }) / 1000,
                 m([](auto& r) { return r.latency_ns.p90; }) / 1000,
@@ -611,6 +753,28 @@ void latency_row(const session<contender_t>& queue, const latency_rounds& rounds
                     static_cast<double>(per_round * rounds.taken.size()));
 
     if (out_of_order) std::printf("  %zu elements arrived out of order\n", out_of_order);
+}
+
+/// One pause of the stream, every queue given: the rounds go round the queues in turn, so
+/// that whatever else the machine does during the run falls on all of them alike.
+template <class... sessions_t>
+void latency_table(const std::chrono::nanoseconds pause, const int rounds,
+                   const std::size_t warmup, const std::size_t samples, sessions_t&... queues) {
+    std::array<latency_rounds, sizeof...(sessions_t)> taken;
+
+    for (int round = 0; round < rounds; ++round) {
+        std::size_t row = 0;
+        (taken[row++].taken.push_back(queues.latency(warmup, samples, pause)), ...);
+    }
+
+    print_pause(pause);
+    std::printf("  %-24s %7s %7s %7s %7s %7s %8s   %6s %7s   %5s\n", "", "min", "median", "p90",
+                "p99", "p99.9", "max", "send", "p99", "waits");
+
+    std::size_t row = 0;
+    (latency_row(queues, taken[row++], warmup + samples), ...);
+
+    std::putchar('\n');
 }
 
 struct throughput_rounds {
@@ -640,12 +804,104 @@ void throughput_row(const char* name, throughput_rounds rounds) {
         return 1000.0 * static_cast<double>(count) / static_cast<double>(rounds.elements);
     };
 
-    std::printf("  %-20s %9.2f %9.1f %9.2f %9.1f %9.2f   %7.2f %7.2f\n", name, best, 1000.0 / best,
+    std::printf("  %-24s %9.2f %9.1f %9.2f %9.1f %9.2f   %7.2f %7.2f\n", name, best, 1000.0 / best,
                 median, 1000.0 / median, rounds.writer.front(), per_thousand(rounds.waited.reader),
                 per_thousand(rounds.waited.writer));
 
     if (rounds.out_of_order)
         std::printf("  %zu elements arrived out of order\n", rounds.out_of_order);
+}
+
+template <class... sessions_t>
+void throughput_table(const std::size_t elements, const int rounds, sessions_t&... queues) {
+    // One lap first, untimed: it grows spsc_channel to whatever backlog a writer at full
+    // speed builds, so that no timed round pays for a block.
+    (queues.throughput(elements), ...);
+
+    std::array<throughput_rounds, sizeof...(sessions_t)> taken;
+
+    for (int round = 0; round < rounds; ++round) {
+        std::size_t row = 0;
+        (taken[row++].add(queues.throughput(elements), elements), ...);
+    }
+
+    std::printf(
+        "throughput: %zu elements as fast as the writer can send them, %d rounds; delivered\n"
+        "is the first send to the last receive, writer is the first send to the last send;\n"
+        "waits are per thousand elements, over all the rounds\n\n",
+        elements, rounds);
+    std::printf("  %-24s %19s %19s %9s   %15s\n", "", "best", "median", "writer", "waits");
+    std::printf("  %-24s %9s %9s %9s %9s %9s   %7s %7s\n", "", "ns/elem", "Melem/s", "ns/elem",
+                "Melem/s", "ns/elem", "reader", "writer");
+
+    std::size_t row = 0;
+    (throughput_row(queues.name(), std::move(taken[row++])), ...);
+}
+
+// ---------------------------------------------------------------------------------------
+// How long the wait before sleeping lasts: a number of attempts says nothing on its own,
+// since both the pause instruction and an attempt cost what the machine makes them cost.
+
+/// What one pause instruction holds the core for.
+double pause_ns(const double ticks_per_ns) {
+    constexpr int count = 1'000'000;
+
+    const std::uint64_t started = ticks();
+
+    for (int i = 0; i < count; ++i) wxl::core::cpu_pause();
+
+    return static_cast<double>(ticks() - started) / ticks_per_ns / count;
+}
+
+/// The waits of the two rows of one channel, matched by time.
+struct matched {
+    double with_pause_ns;
+    double without_pause_ns;
+    std::size_t tries;
+};
+
+/// Gives the row without the pause as many attempts as make its wait as long as the row's
+/// with it. Both waits are timed through the reader's own code on its own thread and core,
+/// since an attempt timed anywhere else -- in a loop of its own, on another core -- came out
+/// shorter than the same attempt in the stream; the count is scaled by the ratio and timed
+/// again until the two agree within a percent.
+template <class paused_t, class running_t>
+matched match_waits(session<paused_t>& paused, session<running_t>& running,
+                    const double pause) {
+    constexpr std::size_t waits = 2'001;
+
+    const double target = paused.idle_wait_ns(waits);
+
+    // A first guess that is roughly right on any machine: an attempt costs a nanosecond or so.
+    auto tries = static_cast<std::size_t>(
+        std::max(1.0, static_cast<double>(paused.queue().tries()) * (pause + 1.0)));
+    double reached = 0;
+
+    for (int step = 0;; ++step) {
+        running.queue().tries(tries);
+        reached = running.idle_wait_ns(waits);
+
+        // A wait of one attempt has nothing after the first one to time, and nothing to scale.
+        if (reached <= 0 || std::abs(reached - target) <= target / 100 || step == 8) break;
+
+        tries = static_cast<std::size_t>(
+            std::max(1.0, std::round(static_cast<double>(tries) * target / reached)));
+    }
+
+    running.rename(std::format("  + {} tries, no pause", tries));
+    return {target, reached, tries};
+}
+
+/// How long the waits that ran out in the streams really lasted: whether the two rows of a
+/// channel waited equally long in the stream, not only on an idle channel.
+template <class contender_t>
+void ran_out_row(const char* channel, session<contender_t>& queue, const double ticks_per_ns) {
+    const std::size_t count = queue.queue().ran_out();
+    const double mean = count ? static_cast<double>(queue.queue().ran_out_ticks()) /
+                                    static_cast<double>(count) / ticks_per_ns
+                              : 0.0;
+
+    std::printf("  %-12s %-24s %10zu %10.0f\n", channel, queue.name(), count, mean);
 }
 
 }  // namespace
@@ -655,11 +911,12 @@ int main(int argc, char** argv) {
     const std::size_t elements =
         argc > 2 ? static_cast<std::size_t>(std::atoll(argv[2])) : 4'000'000;
     const int rounds = argc > 3 ? std::atoi(argv[3]) : 5;
+    const std::size_t tries = argc > 4 ? static_cast<std::size_t>(std::atoll(argv[4])) : 10;
 
     // Logical processors of two different physical cores: two siblings of one core would
     // share the cache the elements travel through, and that is a different machine.
-    const std::size_t writer_cpu = argc > 5 ? static_cast<std::size_t>(std::atoi(argv[4])) : 2;
-    const std::size_t reader_cpu = argc > 5 ? static_cast<std::size_t>(std::atoi(argv[5])) : 0;
+    const std::size_t writer_cpu = argc > 6 ? static_cast<std::size_t>(std::atoi(argv[5])) : 2;
+    const std::size_t reader_cpu = argc > 6 ? static_cast<std::size_t>(std::atoi(argv[6])) : 0;
 
     constexpr std::size_t warmup = 1'000;
     constexpr std::size_t small_ring = 1'024;
@@ -669,81 +926,72 @@ int main(int argc, char** argv) {
     thread::priority(THREAD_PRIORITY_TIME_CRITICAL);
 
     const double ticks_per_ns = calibrate_ticks_per_ns();
+    const double pause = pause_ns(ticks_per_ns);
 
+    using spsc_pausing = waiting_first<spsc_contender, between_tries::pause>;
+    using spsc_running = waiting_first<spsc_contender, between_tries::nothing>;
+    using mpsc_pausing = waiting_first<mpsc_contender, between_tries::pause>;
+    using mpsc_running = waiting_first<mpsc_contender, between_tries::nothing>;
+
+    const std::string with_pause = std::format("  + {} tries, pause", tries);
+
+    // The rows without the pause get their count from match_waits() below.
     session<spsc_contender> spsc("spsc_channel<256>", ticks_per_ns, reader_cpu);
+    session<spsc_pausing> spsc_paused(with_pause, ticks_per_ns, reader_cpu, tries);
+    session<spsc_running> spsc_unpaused("", ticks_per_ns, reader_cpu, tries);
     session<mpsc_contender> mpsc("mpsc_channel", ticks_per_ns, reader_cpu, large_ring);
+    session<mpsc_pausing> mpsc_paused(with_pause, ticks_per_ns, reader_cpu, tries, large_ring);
+    session<mpsc_running> mpsc_unpaused("", ticks_per_ns, reader_cpu, tries, large_ring);
     session<ring_contender> ring("ring/1024", ticks_per_ns, reader_cpu, small_ring);
     session<ring_contender> big_ring("ring/65536", ticks_per_ns, reader_cpu, large_ring);
+
+    const matched spsc_waits = match_waits(spsc_paused, spsc_unpaused, pause);
+    const matched mpsc_waits = match_waits(mpsc_paused, mpsc_unpaused, pause);
 
     std::printf("wxl.async channels, one writer and one reader\n");
     std::printf("writer on cpu %zu, reader on cpu %zu, TSC at %.3f GHz\n\n", writer_cpu,
                 reader_cpu, ticks_per_ns);
 
     std::printf(
-        "latency: a steady stream, one element per pause; microseconds from the writer's call\n"
-        "to the reader holding the element; what the send cost the writer, in nanoseconds; and\n"
-        "how often the reader found the queue empty and went to wait, in percent of the\n"
-        "elements. %d rounds of %zu elements after %zu of warm-up, taking turns between the\n"
-        "queues; each figure is its median over the rounds\n\n",
-        rounds, samples, warmup);
-
-    for (const std::chrono::nanoseconds pause : pauses) {
-        latency_rounds spsc_rounds, mpsc_rounds, ring_rounds;
-
-        for (int round = 0; round < rounds; ++round) {
-            spsc_rounds.taken.push_back(spsc.latency(warmup, samples, pause));
-            mpsc_rounds.taken.push_back(mpsc.latency(warmup, samples, pause));
-            ring_rounds.taken.push_back(ring.latency(warmup, samples, pause));
-        }
-
-        print_pause(pause);
-        std::printf("  %-20s %7s %7s %7s %7s %7s %8s   %6s %7s   %5s\n", "", "min", "median",
-                    "p90", "p99", "p99.9", "max", "send", "p99", "waits");
-
-        latency_row(spsc, spsc_rounds, warmup + samples);
-        latency_row(mpsc, mpsc_rounds, warmup + samples);
-        latency_row(ring, ring_rounds, warmup + samples);
-
-        std::putchar('\n');
-    }
-
-    // One lap first, untimed: it grows spsc_channel to whatever backlog a writer at full
-    // speed builds, so that no timed round pays for a block.
-    spsc.throughput(elements);
-    mpsc.throughput(elements);
-    ring.throughput(elements);
-    big_ring.throughput(elements);
-
-    throughput_rounds spsc_rounds, mpsc_rounds, ring_rounds, big_ring_rounds;
-
-    // Round by round across the queues rather than queue by queue, so that whatever else the
-    // machine does during the run falls on all of them alike.
-    for (int round = 0; round < rounds; ++round) {
-        spsc_rounds.add(spsc.throughput(elements), elements);
-        mpsc_rounds.add(mpsc.throughput(elements), elements);
-        ring_rounds.add(ring.throughput(elements), elements);
-        big_ring_rounds.add(big_ring.throughput(elements), elements);
-    }
+        "the wait before sleeping: attempts to take an element, then receive(). The pause\n"
+        "instruction holds the core for %.1f ns. Timed on the reader's core with nothing coming:\n"
+        "  spsc_channel  %zu attempts with the pause %.0f ns, %zu without it %.0f ns\n"
+        "  mpsc_channel  %zu attempts with the pause %.0f ns, %zu without it %.0f ns\n\n",
+        pause, tries, spsc_waits.with_pause_ns, spsc_waits.tries, spsc_waits.without_pause_ns,
+        tries, mpsc_waits.with_pause_ns, mpsc_waits.tries, mpsc_waits.without_pause_ns);
 
     std::printf(
-        "throughput: %zu elements as fast as the writer can send them, %d rounds; delivered\n"
-        "is the first send to the last receive, writer is the first send to the last send;\n"
-        "waits are per thousand elements, over all the rounds\n\n",
-        elements, rounds);
-    std::printf("  %-20s %19s %19s %9s   %15s\n", "", "best", "median", "writer", "waits");
-    std::printf("  %-20s %9s %9s %9s %9s %9s   %7s %7s\n", "", "ns/elem", "Melem/s", "ns/elem",
-                "Melem/s", "ns/elem", "reader", "writer");
+        "latency: a steady stream, one element per pause; microseconds from the writer's call\n"
+        "to the reader holding the element; what the send cost the writer, in nanoseconds; and\n"
+        "how often the reader called the wait of its event or condition variable -- a sleep,\n"
+        "unless a signal was already there -- in percent of the elements. %d rounds of %zu\n"
+        "elements after %zu of warm-up, taking turns between the queues; each figure is its\n"
+        "median over the rounds\n\n",
+        rounds, samples, warmup);
 
-    throughput_row(spsc.name(), std::move(spsc_rounds));
-    throughput_row(mpsc.name(), std::move(mpsc_rounds));
-    throughput_row(ring.name(), std::move(ring_rounds));
-    throughput_row(big_ring.name(), std::move(big_ring_rounds));
+    for (const std::chrono::nanoseconds pause_between : pauses)
+        latency_table(pause_between, rounds, warmup, samples, spsc, spsc_paused, spsc_unpaused,
+                      mpsc, mpsc_paused, mpsc_unpaused, ring);
+
+    throughput_table(elements, rounds, spsc, spsc_paused, spsc_unpaused, mpsc, mpsc_paused,
+                     mpsc_unpaused, ring, big_ring);
+
+    std::printf(
+        "\nthe waits that ran out in all the streams above and ended in a sleep: how many, and\n"
+        "how long they lasted on average, in nanoseconds\n\n");
+    std::printf("  %-12s %-24s %10s %10s\n", "", "", "ran out", "lasted");
+
+    ran_out_row("spsc_channel", spsc_paused, ticks_per_ns);
+    ran_out_row("", spsc_unpaused, ticks_per_ns);
+    ran_out_row("mpsc_channel", mpsc_paused, ticks_per_ns);
+    ran_out_row("", mpsc_unpaused, ticks_per_ns);
 
     std::printf(
         "\n  The channels never make their writer wait. mpsc_channel's writer column is the\n"
         "  node supply: a preallocated ring of %zu nodes the reader hands back through one\n"
-        "  counter, where a real user would pay for a pool -- so that row is a floor. The\n"
-        "  ring's writer waits while the ring is full.\n",
+        "  counter, where a real user would pay for a pool -- so those rows are a floor. The\n"
+        "  ring's writer waits while the ring is full. A reader's wait in the rows with tries\n"
+        "  is counted only when the tries came to nothing and it went to sleep.\n",
         large_ring);
 
     return 0;
