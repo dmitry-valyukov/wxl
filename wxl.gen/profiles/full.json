@@ -326,6 +326,15 @@
             "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
             "members": []
         },
+        "Microsoft.UI.Xaml.Media.AcrylicBrush": {
+            "comment": "Styles: in-app acrylic -- frosted glass over what is behind it in the window, with a tint and a colour to fall back on where the effect is switched off.",
+            "members": [
+                "TintColor",
+                "TintOpacity",
+                "TintLuminosityOpacity",
+                "FallbackColor"
+            ]
+        },
         "Microsoft.UI.Xaml.Media.Geometry": {
             "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
             "fromText": {
@@ -721,7 +730,8 @@
         "Microsoft.UI.Xaml.Documents.Hyperlink": {
             "comment": "A link inside a paragraph.",
             "members": [
-                "NavigateUri"
+                "NavigateUri",
+                "Click"
             ]
         },
         "Microsoft.UI.Xaml.Documents.Block": {
