@@ -434,6 +434,27 @@
         "Microsoft.UI.Xaml.Controls.SemanticZoom": {
             "comment": "Scrolling: two views of one collection, close and far."
         },
+        "Microsoft.UI.Xaml.Controls.ScrollingScrollAnimationStartingEventArgs": {
+            "comment": "Scrolling: the animation a programmatic scroll is about to run, which the handler may replace.",
+            "members": [
+                "Animation",
+                "StartPosition",
+                "EndPosition"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollingScrollOptions": {
+            "comment": "Scrolling: how a programmatic scroll goes -- animated or at once, and whether it snaps."
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollingZoomOptions": {
+            "comment": "Scrolling: the same for a programmatic zoom."
+        },
+        "Microsoft.UI.Xaml.Controls.NumberBoxValueChangedEventArgs": {
+            "comment": "Scrolling: the value before and after, which a velocity box turns round on.",
+            "members": [
+                "OldValue",
+                "NewValue"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.SplitView": {
             "comment": "Layout: the pane's own paint, which the page changes from a list.",
             "members": [

@@ -45,6 +45,7 @@ constexpr Entry ported[] = {
     {L"StackPanel", &gallery::stackPanelPage},
     {L"VariableSizedWrapGrid", &gallery::variableSizedWrapGridPage},
     {L"Viewbox", &gallery::viewboxPage},
+    {L"ScrollView", &gallery::scrollViewPage},
     {L"AnnotatedScrollBar", &gallery::annotatedScrollBarPage},
     {L"PipsPager", &gallery::pipsPagerPage},
     // PagerControl не включён: уже пустой `PagerControl {}` роняет XAML (0xC000027B) на

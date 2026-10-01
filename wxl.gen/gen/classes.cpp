@@ -1122,6 +1122,14 @@ struct runtime_class_name_of<{}::{}> {{
                 arguments += substitute(param.type.to_winrt, param.name);
             }
 
+            if (ctor.method.composable_constructor) {
+                // The pair composition adds to the factory method is the projection's
+                // business: its own constructor takes the arguments alone.
+                std::print(out, "\n{}::{}({})\n    : base_t(new Impl{{{}{{{}}}}}) {{}}\n", info.name,
+                           info.name, parameter_list(ctor.method), winrt_type_name(full_name(info.type)),
+                           arguments);
+                continue;
+            }
             std::print(out, "\n{}::{}({})\n    : base_t(new Impl{{impl::Statics<{}>->{}({})}}) {{}}\n",
                        info.name, info.name, parameter_list(ctor.method), ctor.statics_interface,
                        ctor.method.winrt_name, arguments);
@@ -1424,6 +1432,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         // way members are and then checked for the one thing that makes a
         // method a constructor here: it hands back an instance of this very
         // class.
+        bool composable_default = false;  // its factory has the parameterless method too
         for (auto&& iface : [&]() -> std::vector<TypeDef> const& {
                  static std::vector<TypeDef> const none;
                  auto const it = model.factories_of.find(info.type);
@@ -1436,6 +1445,20 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
             std::vector<member_info> collected;
             collect_interface_members(iface, members->second, index, collected, skipped);
             for (auto&& member : collected) {
+                // The parameterless factory method of a composable class is its default
+                // constructor, which the class has already.
+                if (member.composable_constructor && member.params.empty()) {
+                    composable_default = true;
+                    continue;
+                }
+                // A parameter that can only be taken in -- a delegate, an interface -- has no
+                // conversion the projection's own constructor would accept as it is.
+                if (member.composable_constructor &&
+                    std::any_of(member.params.begin(), member.params.end(),
+                                [](auto const& param) { return param.type.parameter_only; })) {
+                    skipped.push_back({member.name, "constructor: a parameter that can only be taken in"});
+                    continue;
+                }
                 if (member.returns_void || member.result.value_type != info.name) {
                     skipped.push_back({member.name, std::format("constructor: {} hands back {}, "
                                                                 "not an instance of the class",
@@ -1448,6 +1471,14 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                                  iface.TypeName()),
                      winrt_include(iface.TypeNamespace()), std::move(member)});
             }
+        }
+
+        // A composable class whose factory has constructors with arguments and no
+        // parameterless one is made from arguments alone: no default constructor,
+        // and so no pack constructor that would call it.
+        if (info.construction == Construction::PublicComposition && !info.constructors.empty() &&
+            !composable_default) {
+            info.construction = Construction::PublicFactory;
         }
 
         // The properties a profile added to this class. They are ordinary

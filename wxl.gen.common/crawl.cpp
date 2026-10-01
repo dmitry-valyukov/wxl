@@ -186,7 +186,43 @@ std::vector<TypeDef> activation_factories(TypeDef const& type, cache const& db) 
             }
         }
     }
-    return found;
+    // A composable class made from arguments alone -- ScrollingZoomOptions, which
+    // has constructors and no default one -- declares them on its composable
+    // factory. That factory is taken in when it has a method with arguments of
+    // its own: the usual one, with only the pair composition adds, is the
+    // default constructor, which the class has anyway.
+    for (auto&& attribute : type.CustomAttribute()) {
+        auto const [ns, name] = attribute.TypeNamespaceAndName();
+        if (ns != "Windows.Foundation.Metadata" || name != "ComposableAttribute") {
+            continue;
+        }
+        for (auto&& argument : attribute.Value().FixedArgs()) {
+            auto const* element = std::get_if<ElemSig>(&argument.value);
+            auto const* named = element ? std::get_if<ElemSig::SystemType>(&element->value) : nullptr;
+            if (!named) {
+                continue;
+            }
+            auto const factory = db.find(named->name);
+            if (!factory) {
+                break;
+            }
+            bool with_arguments = false;
+            for (auto&& method : factory.MethodList()) {
+                size_t parameters = 0;
+                // Named, not a temporary: Params() is a view into the signature.
+                auto const signature = method.Signature();
+                for (auto&& parameter : signature.Params()) {
+                    static_cast<void>(parameter);
+                    ++parameters;
+                }
+                with_arguments = with_arguments || parameters > 2;
+            }
+            if (with_arguments) {
+                found.push_back(factory);
+            }
+            break;
+        }
+    }    return found;
 }
 
 // The walk itself. Types are (re)processed whenever their member surface
