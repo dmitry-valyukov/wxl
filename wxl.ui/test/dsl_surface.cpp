@@ -17,7 +17,6 @@
 #include "DrawingSurface.h"
 #include "FormattedBlock.h"
 #include "HtmlBlock.h"
-#include "Idle.h"
 #include "RsdnBlock.h"
 #include "ShowDialog.h"
 #include "SplitPanel.h"
@@ -1656,10 +1655,10 @@ struct probe_task {
     (void)split;
 }
 
-// idle -- written by hand: awaited in a detached task, between steps of work.
+// UiThread::onIdle -- written by hand: awaited in a detached task, between steps of work.
 [[maybe_unused]] ::wxl::async::detached_task idle_between_steps(int steps) {
     while (steps-- > 0) {
-        co_await ::wxl::idle();
+        co_await ::wxl::UiThread::onIdle();
     }
 }
 

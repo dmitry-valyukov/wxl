@@ -261,12 +261,17 @@ bool DocumentationFile::parse_some(std::chrono::steady_clock::time_point deadlin
     State& state = *state_;
     while (state.next < state.members.size()) {
         State::Member& member = state.members[state.next++];
-        if (!member.parsed) {
-            state.parse(member);
+        // Parsed already by find(), at once, when it was asked for.
+        if (member.parsed) {
+            continue;
         }
+        state.parse(member);
         if (std::chrono::steady_clock::now() >= deadline) {
             break;
         }
+    }
+    while (state.next < state.members.size() && state.members[state.next].parsed) {
+        ++state.next;
     }
     return state.next < state.members.size();
 }

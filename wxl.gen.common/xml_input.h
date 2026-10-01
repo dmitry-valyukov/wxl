@@ -65,8 +65,8 @@ public:
     // "M:Ns.Type.Method(System.String)"), if the file has it.
     std::optional<MemberDocumentation> find(std::string_view id);
 
-    // Parses members not parsed yet until the deadline passes; whether any are
-    // left.
+    // Parses members not parsed yet until the deadline passes, passing over
+    // those find() has parsed already; whether any are left.
     bool parse_some(std::chrono::steady_clock::time_point deadline);
 
     std::size_t size() const noexcept;

@@ -90,8 +90,6 @@ add_library(wxl.ui STATIC
     src/Object.cpp
     src/events.h
     src/event_awaitable.h
-    src/Idle.h
-    src/Idle.cpp
     src/BevelEffect.h
     src/BevelEffect.cpp
     src/Button3DEffect.h

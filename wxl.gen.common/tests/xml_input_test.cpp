@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
 
 #include "xml_input.h"
@@ -66,4 +67,29 @@ TEST(xml_input, documentation_file_parses_the_rest_by_slices) {
     EXPECT_EQ(calls, 100u);
     EXPECT_EQ(members.find("T:N.T42")->summary, "Type 42");
     EXPECT_EQ(members.find("T:N.Empty")->summary, "");
+}
+
+TEST(xml_input, documentation_file_passes_over_what_find_parsed) {
+    auto const file = std::filesystem::temp_directory_path() / "wxl.gen.common.eager.xml";
+    {
+        std::ofstream out {file};
+        out << "<doc><members>";
+        for (int i = 0; i < 100; ++i) {
+            out << "<member name=\"T:N.T" << i << "\"><summary>Type " << i << "</summary></member>";
+        }
+        out << "</members></doc>";
+    }
+    DocumentationFile members {file};
+    std::filesystem::remove(file);
+
+    // Every tenth asked for first, the last among them: the slices parse only
+    // the other ninety, one each, and the last call has nothing left to walk.
+    for (int i = 9; i < 100; i += 10) {
+        EXPECT_EQ(members.find(std::format("T:N.T{}", i))->summary, std::format("Type {}", i));
+    }
+    std::size_t calls = 1;
+    while (members.parse_some(std::chrono::steady_clock::time_point {})) {
+        ++calls;
+    }
+    EXPECT_EQ(calls, 90u);
 }

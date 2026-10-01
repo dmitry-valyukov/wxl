@@ -76,4 +76,33 @@ bool UiThread::post(std::function<void()> work) const {
     return native.TryEnqueue(handler_t{std::move(work)});
 }
 
+UiThread::Idle::~Idle() {
+    if (self_) {
+        *self_ = nullptr;
+    }
+    if (waiting()) {
+        disarm();
+    }
+}
+
+bool UiThread::Idle::await_suspend(std::coroutine_handle<> waiter) {
+    self_ = std::make_shared<Idle*>(this);
+    arm(waiter);
+
+    // Low: everything the queue holds at normal priority -- input among it --
+    // runs before the coroutine does.
+    auto const queue = queue_t::GetForCurrentThread();
+    if (queue && queue.TryEnqueue(winrt::Microsoft::UI::Dispatching::DispatcherQueuePriority::Low, [self = self_] {
+            if (Idle* const wait = *self) {
+                wait->deliver();
+            }
+        })) {
+        return true;
+    }
+
+    disarm();
+    refused_ = true;
+    return false;
+}
+
 }  // namespace wxl

@@ -11,7 +11,7 @@
 #include "CompositionWindow.h"
 #include "Editor.h"
 #include "HtmlBlock.h"
-#include "Idle.h"
+#include "UiThread.h"
 #include "MagnifyEffect.h"
 #include "SplitPanel.h"
 #include "ThemeBrush.h"
@@ -75,7 +75,7 @@ struct ZoomLabel {
 // окно отрабатывает ввод и отрисовку до следующего.
 async::detached_task prepareDocumentation(core::intrusive_ptr<Editor> document) {
     do {
-        co_await idle();
+        co_await UiThread::onIdle();
     } while (document->prepareDocumentation());
 }
 
