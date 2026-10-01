@@ -44,6 +44,12 @@ struct member_info {
     // else: the wxl member returns that value (`GetText(options, out string)`
     // becomes `getText(options)`), and the call passes a local for it.
     bool out_result = false;
+
+    // A constructor of a composable class: its factory method carries the two parameters of
+    // composition after its own (the object being composed into, and the inner one handed
+    // back). They are dropped here, and the constructor is made through the projection's
+    // own, which supplies them.
+    bool composable_constructor = false;
     std::string args_type;  // events only: what the handler is handed besides the sender
 
     // Whether that args type is an ordinary wrapper rather than an EventArgs

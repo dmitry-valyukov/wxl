@@ -438,6 +438,11 @@ Window createMainWindow() {
     window.appWindow().resize({1280, 800});
 
     show({Place::Home, {}}, true);
+
+    // Для проверки страницы без ввода: GALLERY_PAGE=<UniqueId> открывает её сразу.
+    if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE")) {
+        show({Place::Item, page}, true);
+    }
     return window;
 }
 

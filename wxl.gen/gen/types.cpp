@@ -423,8 +423,7 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
         return unsupported("unresolved type reference");
     }
 
-    std::string const winrt_name =
-        std::format("{}::{}", winrt_namespace(type.TypeNamespace()), type.TypeName());
+    std::string const winrt_name = winrt_type_name(type.TypeNamespace(), type.TypeName());
     std::string const winrt_header = winrt_include(type.TypeNamespace());
 
     // A projected type has a wxl equivalent that is not a wrapper at all,
