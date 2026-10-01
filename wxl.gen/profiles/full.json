@@ -371,6 +371,15 @@
                 "Initials"
             ]
         },
+        "Microsoft.UI.Windowing.AppWindowTitleBar": {
+            "comment": "Windowing: the colours of the caption itself, active and inactive; the colours of its buttons are already asked for by extended.",
+            "members": [
+                "BackgroundColor",
+                "ForegroundColor",
+                "InactiveBackgroundColor",
+                "InactiveForegroundColor"
+            ]
+        },
         "Microsoft.UI.Xaml.Media.Geometry": {
             "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
             "fromText": {
