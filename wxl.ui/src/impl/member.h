@@ -101,11 +101,23 @@ constexpr void check_owner() {
 // A binding written on the right of the `=`: `text = Bind{field}`, or
 // `BindInput{field}` / `BindOutput{field}` for one half of it. Defined in
 // Bind.h; named here so that SetterOp can tell one from a value.
-template <class T>
+namespace impl {
+
+// What a binding does to a value on its way when no function was written.
+struct identity_fn {
+    template <typename V>
+    constexpr V const& operator()(V const& value) const noexcept {
+        return value;
+    }
+};
+
+}  // namespace impl
+
+template <class T, class Fn = impl::identity_fn>
 struct Bind;
-template <class T>
+template <class T, class Fn = impl::identity_fn>
 struct BindInput;
-template <class T>
+template <class T, class Fn = impl::identity_fn>
 struct BindOutput;
 
 namespace impl {
@@ -117,14 +129,46 @@ enum class bind_direction { both, input, output };
 template <typename T>
 inline constexpr bool is_bind = false;
 
-template <typename T>
-inline constexpr bool is_bind<Bind<T>> = true;
+template <typename T, typename Fn>
+inline constexpr bool is_bind<Bind<T, Fn>> = true;
 
-template <typename T>
-inline constexpr bool is_bind<BindInput<T>> = true;
+template <typename T, typename Fn>
+inline constexpr bool is_bind<BindInput<T, Fn>> = true;
 
-template <typename T>
-inline constexpr bool is_bind<BindOutput<T>> = true;
+template <typename T, typename Fn>
+inline constexpr bool is_bind<BindOutput<T, Fn>> = true;
+
+template <typename>
+inline constexpr bool bind_always_false = false;
+
+// An input binding through a function: the control is bound to a field of its
+// own, which takes the control's value as the binding is made and after every
+// change, and the field the binding names takes fn of it. The field of its own
+// lives in the named field's watch, and goes with it.
+template <class T, class Fn, class Bind>
+void bind_transformed_input(core::observable<T>& model, Fn const& fn, Bind&& bind) {
+    auto const own = std::make_shared<core::observable<T>>();
+    bind(*own);
+    model.set(T(fn(own->get())));
+    own->on_change([&model, fn](T const& value) noexcept { model.set(T(fn(value))); });
+    model.watch_for_binding([own](T const&) noexcept {});
+}
+
+// A two-way binding through a function that is its own inverse (std::logical_not,
+// std::negate): the control is bound to a mirror of the field, the mirror holds
+// fn of the field and writes fn of itself back, and a value that comes round is
+// the one already there, which observable::set says nothing about. The field's
+// watch owns the mirror, so it lives exactly as long as the binding.
+template <class T, class Fn, class Bind>
+void bind_mirrored(core::observable<T>& model, Fn const& fn, Bind&& bind) {
+    static_assert(std::is_convertible_v<std::invoke_result_t<Fn const&, T const&>, T>,
+                  "wxl: the function of a binding returns the field's own type, and is its own "
+                  "inverse. For a one-way view of another type write BindOutput{field, fn}.");
+    auto const mirror = std::make_shared<core::observable<T>>(T(fn(model.get())));
+    bind(*mirror);
+    mirror->on_change([&model, fn](T const& value) noexcept { model.set(T(fn(value))); });
+    model.watch_for_binding([mirror, fn](T const& value) noexcept { mirror->set(T(fn(value))); });
+}
 
 // `property = Bind{field}`: the field's value now, and every value after.
 //
@@ -139,18 +183,19 @@ inline constexpr bool is_bind<BindOutput<T>> = true;
 // Written where its shape is not there, a form is refused with the form to
 // write instead: a property the control only shows takes BindOutput, one it
 // only reports takes BindInput.
-template <PropertyKey key, bind_direction direction, typename Obj, typename T>
-void bind_property(Obj const& object, core::observable<T>& model) {
+template <PropertyKey key, bind_direction direction, typename Obj, typename T, typename Fn>
+void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) {
     using Pair = PropertyBinder<key, Obj>;
+    constexpr bool plain = std::is_same_v<Fn, identity_fn>;
     constexpr bool paired = requires { Pair::bind(object, model, direction); };
 
     if constexpr (direction == bind_direction::output) {
-        static_assert(requires { PropertySetter<key>::set(object, model.get()); },
+        static_assert(requires { PropertySetter<key>::set(object, fn(model.get())); },
                       "wxl: BindOutput{} names a property this control only reports and never "
                       "shows, so there is nothing to write to. It takes BindInput{}.");
-        PropertySetter<key>::set(object, model.get());
+        PropertySetter<key>::set(object, fn(model.get()));
         model.watch_for_binding(
-            [object](T const& value) noexcept { PropertySetter<key>::set(object, value); });
+            [object, fn](T const& value) noexcept { PropertySetter<key>::set(object, fn(value)); });
     } else if constexpr (!paired) {
         static_assert(direction != bind_direction::input,
                       "wxl: BindInput{} names a property this control never writes itself, so "
@@ -162,7 +207,17 @@ void bind_property(Obj const& object, core::observable<T>& model) {
         static_assert(direction == bind_direction::input || Pair::direction == bind_direction::both,
                       "wxl: Bind{} names a property this control only reports and never shows, "
                       "so there is no way into it. Write BindInput{}.");
-        Pair::bind(object, model, direction);
+        if constexpr (plain) {
+            Pair::bind(object, model, direction);
+        } else if constexpr (direction == bind_direction::input) {
+            bind_transformed_input(model, fn, [&](core::observable<T>& own) {
+                Pair::bind(object, own, direction);
+            });
+        } else {
+            bind_mirrored(model, fn, [&](core::observable<T>& mirror) {
+                Pair::bind(object, mirror, direction);
+            });
+        }
     }
 }
 
@@ -182,7 +237,7 @@ struct SetterOp {
     void operator()(Obj const& object) const {
         impl::check_owner<Owner, Obj>();
         if constexpr (impl::is_bind<T>) {
-            impl::bind_property<key, T::direction>(object, *value_.model);
+            impl::bind_property<key, T::direction>(object, *value_.model, value_.fn);
         } else {
             impl::PropertySetter<key>::set(object, value_);
         }
@@ -456,14 +511,24 @@ struct iterate {
 
     constexpr operator element_t() const noexcept { return value; }
 
+    // The elements again, each followed by the zero that makes it a string of
+    // one -- a terminated run of its own in static storage, so 	ext() below
+    // is a zstring_view and needs nothing from where the object lies. Only
+    // characters are text, so only characters need it.
+    static constexpr std::array<element_t, 2 * count> terminated = [] {
+        std::array<element_t, 2 * count> all{};
+        for (int i = 0; i < count; ++i) {
+            all[static_cast<std::size_t>(2 * i)] = elements[static_cast<std::size_t>(i)];
+        }
+        return all;
+    }();
+
     // Text only where the elements are text: the property that takes a
-    // string is the one this exists for. It refers into this object, which
-    // lives as long as the full expression building the child -- the
-    // property has copied it long before that ends.
-    constexpr std::basic_string_view<element_t> text() const noexcept
+    // string is the one this exists for. A string of one, with its zero.
+    constexpr core::basic_zstring_view<element_t> text() const noexcept
         requires impl::is_character<element_t>
     {
-        return {&value, 1};
+        return core::basic_zstring_view<element_t>{&terminated[static_cast<std::size_t>(2 * index)]};
     }
 };
 

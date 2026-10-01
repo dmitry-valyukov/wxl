@@ -28,13 +28,13 @@ RsdnBlock::RsdnBlock() : base_t(new Impl{}) {
     impl::ActivationFactory<RsdnBlock>::activate(put_abi());
 }
 
-void RsdnBlock::rsdn(std::wstring_view markup) const {
+void RsdnBlock::rsdn(hstring_param const& markup) const {
     clear();
     append(markup);
 }
 
-void RsdnBlock::append(std::wstring_view markup) const {
-    const html::document parsed = wxl::rsdn::parse(markup);
+void RsdnBlock::append(hstring_param const& markup) const {
+    const html::document parsed = wxl::rsdn::parse(markup.text().view());
     build_markup(*this, *static_cast<Impl*>(impl()), parsed);
 }
 

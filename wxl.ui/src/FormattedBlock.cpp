@@ -99,7 +99,7 @@ void apply(docs::TextElement const& element, TextStyle const& style) {
         element.FontSize(*style.fontSize);
     }
     if (style.fontFamily) {
-        element.FontFamily(media::FontFamily{std::wstring_view{*style.fontFamily}});
+        element.FontFamily(impl::to_winrt(*style.fontFamily));
     }
     if (style.color) {
         element.Foreground(media::SolidColorBrush{impl::to_winrt(*style.color)});
@@ -111,13 +111,14 @@ void apply(docs::TextElement const& element, TextStyle const& style) {
 // relative path is resolved against the working directory here and now:
 // "file:///logo.png" would name the root of the drive, not the folder the
 // content came from.
-winrt::Windows::Foundation::Uri to_uri(std::wstring_view source) {
-    if (source.find(L"://") != std::wstring_view::npos) {
+winrt::Windows::Foundation::Uri to_uri(winrt::hstring const& source) {
+    std::wstring_view const text{source};
+    if (text.find(L"://") != std::wstring_view::npos) {
         return winrt::Windows::Foundation::Uri{source};
     }
     std::wstring file{L"file:///"};
-    file += std::filesystem::absolute(std::filesystem::path{source}).wstring();
-    return winrt::Windows::Foundation::Uri{std::wstring_view{file}};
+    file += std::filesystem::absolute(std::filesystem::path{text}).wstring();
+    return winrt::Windows::Foundation::Uri{file};
 }
 
 }  // namespace
@@ -133,7 +134,7 @@ void FormattedBlock::clear() const {
     Impl* self = static_cast<Impl*>(impl());
     self->styles_.clear();
     self->link_ = nullptr;
-    self->linkTarget_.clear();
+    self->linkTarget_ = {};
     self->wide_->entries.clear();
     self->folds_.clear();
 }
@@ -146,7 +147,7 @@ namespace {
 // element stays linked *and* stays after it.
 void reopen_split_link(FormattedBlock const& block, FormattedBlock::Impl* self) {
     if (!self->link_) return;
-    const sta_wstring target = self->linkTarget_;
+    const hstring target = self->linkTarget_;
     block.pushLink(target);
 }
 
@@ -160,7 +161,7 @@ void FormattedBlock::appendParagraph(BlockStyle const& style) const {
     // A link belongs to one paragraph; a new paragraph closes it.
     Impl* self = static_cast<Impl*>(impl());
     self->link_ = nullptr;
-    self->linkTarget_.clear();
+    self->linkTarget_ = {};
 
     docs::Paragraph paragraph;
     if (style.margin) {
@@ -173,7 +174,7 @@ void FormattedBlock::appendParagraph(BlockStyle const& style) const {
     get<&Impl::richTextBlock_>().Blocks().Append(paragraph);
 }
 
-void FormattedBlock::appendText(std::wstring_view text) const {
+void FormattedBlock::appendText(hstring_param const& text) const {
     Impl* self = static_cast<Impl*>(impl());
     docs::Run run;
     // The view goes into WinRT as it is: param::hstring is a string
@@ -182,7 +183,7 @@ void FormattedBlock::appendText(std::wstring_view text) const {
     // class's stated precondition for every text parameter. Literals,
     // basic_strings and wxl.html's arena views all satisfy it for free;
     // no copy is bought here to insure against the caller.
-    run.Text(text);
+    run.Text(impl::to_winrt(text));
     apply(run, merged(self->styles_));
     if (self->link_) {
         self->link_.Inlines().Append(run);
@@ -196,13 +197,13 @@ void FormattedBlock::appendLineBreak() const {
     reopen_split_link(*this, static_cast<Impl*>(impl()));
 }
 
-void FormattedBlock::appendLink(std::wstring_view text, std::wstring_view target) const {
+void FormattedBlock::appendLink(hstring_param const& text, hstring_param const& target) const {
     pushLink(target);
     appendText(text);
     popLink();
 }
 
-void FormattedBlock::pushLink(std::wstring_view target) const {
+void FormattedBlock::pushLink(hstring_param const& target) const {
     Impl* self = static_cast<Impl*>(impl());
 
     docs::Hyperlink link;
@@ -211,42 +212,43 @@ void FormattedBlock::pushLink(std::wstring_view target) const {
     // never the Impl: the XAML tree owns the control and may outlive the
     // wrapper, and a click through a dead Impl would be a crash, while a
     // box kept alive by the closure is just a handler that still works.
-    link.Click([box = self->onLink_, errors = self->onError_, target = sta_wstring{target}](
+    link.Click([box = self->onLink_, errors = self->onError_, target = hstring{target}](
                    docs::Hyperlink const&, docs::HyperlinkClickEventArgs const&) {
         if (auto const& handler = box->get()) {
-            (*handler)(std::wstring_view{target});
+            (*handler)(zstring_view{target});
             return;
         }
         // No handler: the spec's default policy. A web link opens in the
         // default browser; any other scheme arrived with foreign content
         // and is dropped -- silently for the reader, as a record for the
         // diagnostic sink.
-        if (target.starts_with(L"http://") || target.starts_with(L"https://")) {
+        if (zstring_view{target}.view().starts_with(u"http://") ||
+            zstring_view{target}.view().starts_with(u"https://")) {
             winrt::Windows::System::Launcher::LaunchUriAsync(
-                winrt::Windows::Foundation::Uri{std::wstring_view{target}});
+                winrt::Windows::Foundation::Uri{impl::to_winrt(target)});
         } else {
-            errors->invoke(HtmlError{HtmlErrorKind::BlockedLink, std::wstring_view{target}});
+            errors->invoke(HtmlError{HtmlErrorKind::BlockedLink, zstring_view{target}});
         }
     });
 
     last_paragraph(get<&Impl::richTextBlock_>()).Inlines().Append(link);
     self->link_ = std::move(link);
-    self->linkTarget_ = target;
+    self->linkTarget_ = hstring{target};
 }
 
 void FormattedBlock::popLink() const {
     Impl* self = static_cast<Impl*>(impl());
     self->link_ = nullptr;
-    self->linkTarget_.clear();
+    self->linkTarget_ = {};
 }
 
-void FormattedBlock::appendScript(std::wstring_view text, double scale, double drop) const {
+void FormattedBlock::appendScript(hstring_param const& text, double scale, double drop) const {
     Impl* self = static_cast<Impl*>(impl());
     const TextStyle style = merged(self->styles_);
     const double base = style.fontSize ? *style.fontSize : get<&Impl::richTextBlock_>().FontSize();
 
     winrt::Microsoft::UI::Xaml::Controls::TextBlock script;
-    script.Text(text);
+    script.Text(impl::to_winrt(text));
     script.FontSize(base * scale);
     if (style.bold.value_or(false)) {
         script.FontWeight(winrt::Microsoft::UI::Text::FontWeights::Bold());
@@ -255,7 +257,7 @@ void FormattedBlock::appendScript(std::wstring_view text, double scale, double d
         script.FontStyle(winrt::Windows::UI::Text::FontStyle::Italic);
     }
     if (style.fontFamily) {
-        script.FontFamily(media::FontFamily{std::wstring_view{*style.fontFamily}});
+        script.FontFamily(impl::to_winrt(*style.fontFamily));
     }
     if (style.color) {
         script.Foreground(media::SolidColorBrush{impl::to_winrt(*style.color)});
@@ -274,12 +276,12 @@ void FormattedBlock::appendScript(std::wstring_view text, double scale, double d
     reopen_split_link(*this, self);
 }
 
-void FormattedBlock::appendImage(std::wstring_view source, Size size,
-                                 std::wstring_view toolTip) const {
+void FormattedBlock::appendImage(hstring_param const& source, Size size,
+                                 hstring_param const& toolTip) const {
     Impl* self = static_cast<Impl*>(impl());
 
     media::Imaging::BitmapImage bitmap;
-    bitmap.UriSource(to_uri(source));
+    bitmap.UriSource(to_uri(impl::to_winrt(source)));
 
     winrt::Microsoft::UI::Xaml::Controls::Image image;
     image.Source(bitmap);
@@ -293,10 +295,10 @@ void FormattedBlock::appendImage(std::wstring_view source, Size size,
     // long after this call returns -- as a blank box of the given size and
     // a record in the diagnostic sink. The closure holds the box and its
     // own copy of the source, never the Impl (see pushLink).
-    image.ImageFailed([box = self->onError_, file = sta_wstring{source}](
+    image.ImageFailed([box = self->onError_, file = hstring{source}](
                           winrt::Windows::Foundation::IInspectable const&,
                           winrt::Microsoft::UI::Xaml::ExceptionRoutedEventArgs const&) {
-        box->invoke(HtmlError{HtmlErrorKind::ImageFailed, std::wstring_view{file}});
+        box->invoke(HtmlError{HtmlErrorKind::ImageFailed, zstring_view{file}});
     });
 
     docs::InlineUIContainer container;

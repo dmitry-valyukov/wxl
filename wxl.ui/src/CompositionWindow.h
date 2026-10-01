@@ -11,7 +11,7 @@
 #include "Color.h"
 #include "DrawingSurface.h"
 #include "events.h"
-#include "string_param.h"
+#include "hstring_param.h"
 #include "impl/member.h"
 
 #include <filesystem>
@@ -125,7 +125,7 @@ public:
     CompositionWindow();
 
     /// То же с именем и нижним пределом клиентской области.
-    CompositionWindow(std::wstring_view title, SizeInt32 minSize);
+    CompositionWindow(hstring_param const& title, SizeInt32 minSize);
 
     /// Окно в скобках декларативного синтаксиса: свойства, события и
     /// безымянные аргументы -- содержимое и заголовок -- применяются по порядку.
@@ -198,7 +198,10 @@ public:
 
     /// XAML-оснастка островом поверх сцены -- по требованию: оглавление,
     /// настройки, визард обложки, витрина. Ставит содержимое острова и
-    /// показывает его; пока остров показан, ввод идёт ему. В режиме чтения
+    /// показывает его; пока остров показан, ввод идёт ему. Фокус клавиатуры --
+    /// как у Microsoft.UI.Xaml.Window: при активации окна он уходит острову и
+    /// возвращается элементу, у которого был; Tab за крайний элемент ведёт по
+    /// кругу в тот же остров. В режиме чтения
     /// острова нет вовсе (hideContent), и ввод идёт со сцены -- см. onKeyDown и
     /// onPointer* ниже. Если у окна есть заголовок (`titleBar`), содержимое
     /// стоит под ним.
@@ -277,8 +280,8 @@ public:
     // ---- Само окно ----
 
     /// Текст окна: его Windows показывает на панели задач и в Alt+Tab.
-    void title(string_param value) const;
-    wstring title() const;
+    void title(hstring_param const& value) const;
+    hstring title() const;
 
     /// Нижний предел клиентской области -- в пикселях клиента, рамку окно
     /// прибавляет само.
@@ -326,8 +329,8 @@ public:
     /// Запомненное место окна (та же строка, что у генерируемого Window): при
     /// восстановлении проверяются мониторы, при отсутствии строки не делается
     /// ничего.
-    void placement(std::wstring_view saved) const;
-    std::wstring placement() const;
+    void placement(hstring_param const& saved) const;
+    hstring placement() const;
 
     /// Полноэкранный режим -- на своём HWND через Win32 (стиль и рамка), а не
     /// через presenter WinUI, которого у своего окна нет.

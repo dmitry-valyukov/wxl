@@ -21,6 +21,7 @@
 #include <winrt/Microsoft.UI.Xaml.Hosting.h>
 #include <winrt/Microsoft.UI.Xaml.Input.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
+#include <winrt/Microsoft.UI.Xaml.Media.Animation.h>   // PopupThemeTransition -- въезд индикатора масштаба
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.h>
@@ -31,6 +32,7 @@
 
 #include <cmath>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include <d2d1_1.h>     // ID2D1DeviceContext, DrawBitmap -- фон-картинка рисуется через DrawingSurface
@@ -221,6 +223,33 @@ struct WindowState : core::refcounted {
     bool zoomHandlersAdded{false};
     int32_t accumulatedWheelDelta{0};
 
+    // Датчик жеста масштабирования: ScrollViewer над корнем острова со своим
+    // масштабом и без прокрутки. Жест со вложенных списков доходит до него по
+    // цепочке масштабирования; пока пальцы движутся, он увеличивает остров как
+    // картинку, а в конце модель встаёт на ближайшую ступень, и он -- обратно к
+    // 1 (проба sandbox/ZoomGestureProbe). Ctrl+колесо до него не доходит:
+    // обработчик колеса у корня помечает его обработанным, и шаги остаются за
+    // моделью.
+    controls::ScrollViewer zoomSensor{nullptr};
+
+    // Индикатор текущего масштаба: появляется, пока масштаб меняется, и сам
+    // прячется через zoomIndicatorDelay после последнего изменения. Простой
+    // Popup, а не Flyout: у Flyout лёгкое закрытие, и открытый, он закрывался
+    // на каждой смене масштаба острова -- она меняет размер XamlRoot, а на это
+    // Popup с лёгким закрытием закрывается сам (Popup::OnXamlRootChanged в
+    // исходниках WinUI), -- и ещё при уходе окна из активных и растяжке.
+    // Popup без лёгкого закрытия остаётся открытым и только меняет текст
+    // (проба sandbox/KeyboardZoomProbe --flyout-scale --popup). Внутри --
+    // FlyoutPresenter: вид тот же, что у Flyout. Фокуса Popup не берёт:
+    // следующее Ctrl+«+» идёт окну.
+    controls::Primitives::Popup zoomIndicator{nullptr};
+    controls::TextBlock zoomIndicatorText{nullptr};
+    // Без строки заголовка индикатор встаёт под этот пустой элемент во всю
+    // ширину верха корня.
+    controls::Border zoomIndicatorAnchor{nullptr};
+    winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer zoomIndicatorTimer{nullptr};
+    static constexpr std::chrono::milliseconds zoomIndicatorDelay{1500};
+
     // Раскладка острова: корень в две строки -- заголовок с кнопками окна и под
     // ним содержимое приложения. Заводится вместе с островом.
     controls::Grid root{nullptr};
@@ -230,6 +259,23 @@ struct WindowState : core::refcounted {
     controls::Button maximizeButton{nullptr};
     controls::Button closeButton{nullptr};
     xaml::UIElement page{nullptr};               // содержимое приложения
+
+    // Фокус клавиатуры -- как у Microsoft.UI.Xaml.Window (DesktopWindowImpl в
+    // исходниках WinUI 3). Пока остров показан, WM_ACTIVATE не доходит до
+    // DefWindowProc: тот ставит фокус на само окно, и клавиши идут в WndProc
+    // мимо XAML. Окно отдаёт фокус острову и возвращает его элементу, у
+    // которого он был; уходя, запоминает дочернее окно с фокусом. Снаружи
+    // остров виден только через XamlRoot содержимого, а он появляется не
+    // сразу: пришла активация раньше него -- передача фокуса ждёт загрузки
+    // (проба sandbox/KeyboardZoomProbe).
+    HWND lastFocusedChild{nullptr};
+    bool initialActivation{true};
+    bool islandFocusPending{false};
+    winrt::guid lastTakeFocusCorrelation{};
+    // Остров показан (showPage) и не спрятан (hideContent, режим чтения). Не
+    // IsVisible моста: тот ложен и у показанного острова, пока не видно само
+    // окно, -- а первый WM_ACTIVATE приходит изнутри ShowWindow.
+    bool contentShown{false};
 
     // Заголовок окна -- то, что у Microsoft.UI.Xaml.Window держит WindowChrome.
     // AppWindow и источник неклиентского ввода заводятся при первой нужде: окну,
@@ -264,16 +310,31 @@ struct WindowState : core::refcounted {
     bool ownButtonRegions{false};
     bool regionsQueued{false};
 
-    // Заголовок-элемент переживает окно, если его держит приложение, -- его
-    // обратные вызовы указывают сюда и снимаются вместе с состоянием.
-    //
-    // Состояние может умирать и после того, как XAML уже закрыт: хендл окна
-    // держит обработчик в дереве острова, и последним его отпускает сам остров,
-    // уходя вместе с приложением. Тогда снимать подписки уже не с кого -- вызов
-    // бросает, а из деструктора исключению идти некуда.
+    // XAML этого окна закрыт (closeXaml): остров заново не заводится.
+    bool xamlClosed{false};
+
+    // Состояние живёт дольше окна: его держат хендлы приложения, и последний
+    // бывает отпущен уже после Application::Start, когда XAML закрыт. От XAML
+    // к тому времени ничего не осталось -- всё отпущено при уничтожении окна
+    // (closeXaml); здесь -- подписка на модель масштаба, она не из XAML.
     ~WindowState() {
+        if (zoomFactorCookie) appZoom->zoomFactor().remove_change(core::cookie_t {zoomFactorCookie});
+    }
+
+    // Окно уничтожается (WM_DESTROY), XAML ещё жив: всё, что состояние держит от
+    // XAML, отпускается сейчас, как у Microsoft.UI.Xaml.Window при закрытии
+    // (DesktopWindowImpl::CloseImpl и Shutdown в исходниках WinUI 3): подписки
+    // сняты, содержимое убрано, источник XAML закрыт. XamlRoot, отпущенный
+    // после закрытия XAML, падал в своём деструкторе нарушением доступа --
+    // Беседка при закрытии, но только после клавиш масштаба: деструктор
+    // разбирает службы, заведённые по требованию, а всплывающее их заводит
+    // (Flyout -- ApplicationBarService). Заголовок-элемент,
+    // если его держит приложение, переживает окно -- его обратные вызовы
+    // снимаются здесь же. С ними -- подписки на неклиентский ввод: окно ещё
+    // есть, и снимать их есть с кого.
+    void closeXaml() {
+        xamlClosed = true;
         try {
-            if (zoomFactorCookie) appZoom->zoomFactor().remove_change(core::cookie_t {zoomFactorCookie});
             dropTitleBar();
             if (xamlRoot) xamlRoot.Changed(xamlRootChanged);
             if (nonClient) {
@@ -283,10 +344,33 @@ struct WindowState : core::refcounted {
                 nonClient.PointerPressed(captionPressed);
                 nonClient.PointerReleased(captionReleased);
             }
+            if (zoomIndicatorTimer) zoomIndicatorTimer.Stop();
+            if (zoomIndicator) zoomIndicator.IsOpen(false);
+            if (chrome) {
+                chrome.Content(nullptr);
+                chrome.Close();
+            }
         } catch (winrt::hresult_error const& error) {
-            ::OutputDebugStringW((L"wxl::CompositionWindow: подписки не сняты: " +
+            ::OutputDebugStringW((L"wxl::CompositionWindow: XAML окна закрыт не чисто: " +
                                   std::wstring{error.message()} + L"\n").c_str());
         }
+        nonClient = nullptr;
+        xamlRoot = nullptr;
+        zoomIndicatorTimer = nullptr;
+        zoomIndicator = nullptr;
+        zoomIndicatorText = nullptr;
+        zoomIndicatorAnchor = nullptr;
+        zoomSensor = nullptr;
+        page = nullptr;
+        closeButton = nullptr;
+        maximizeButton = nullptr;
+        minimizeButton = nullptr;
+        captionButtons = nullptr;
+        bar = nullptr;
+        root = nullptr;
+        chrome = nullptr;
+        contentShown = false;
+        islandFocusPending = false;
     }
 
     void resize(float width, float height) {
@@ -443,6 +527,9 @@ struct WindowState : core::refcounted {
 
     void ensureIsland() {
         if (chrome) return;
+        // Окно уничтожено -- острову не на чем стоять: RO_E_CLOSED, как у
+        // всякого закрытого объекта WinRT.
+        if (xamlClosed) throw winrt::hresult_error{RO_E_CLOSED, L"wxl::CompositionWindow: окно уже закрыто"};
         chrome = xaml::Hosting::DesktopWindowXamlSource{};
         chrome.Initialize(windowIdOf(hwnd));
 
@@ -453,13 +540,106 @@ struct WindowState : core::refcounted {
             row.Height(height);
             root.RowDefinitions().Append(row);
         }
-        root.Loaded([this](auto&&, auto&&) { watchXamlRoot(); });
+        // Прозрачный фон -- чтобы пустые места корня принимали указатель: без
+        // кисти их нет для попадания, и Ctrl+колесо над ними доставалось
+        // датчику масштаба мимо обработчика колеса у корня, а датчик
+        // масштабировал сам (Беседка: ступени скакали, остров съезжал от угла).
+        root.Background(xaml::Media::SolidColorBrush{winrt::Microsoft::UI::Colors::Transparent()});
+        root.Loaded([this](auto&&, auto&&) { onRootLoaded(); });
         chrome.Content(root);
+        chrome.TakeFocusRequested(
+            [this](auto&&, xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+                onTakeFocusRequested(args);
+            });
 
         RECT client{};
         ::GetClientRect(hwnd, &client);
         chrome.SiteBridge().MoveAndResize({0, 0, client.right, client.bottom});
         applyZoom();
+    }
+
+    void onRootLoaded() {
+        watchXamlRoot();
+        // Остров стал виден снаружи: передача фокуса, которую окно отложило.
+        if (!islandFocusPending) return;
+        islandFocusPending = false;
+        if (islandShown() && ::GetActiveWindow() == hwnd) focusIsland();
+    }
+
+    // ---- Фокус клавиатуры: как у Microsoft.UI.Xaml.Window ----
+
+    bool islandShown() const { return chrome && contentShown; }
+
+    // Окно ввода острова -- дочернее у окна его моста.
+    bool islandOwns(HWND window) const {
+        auto const bridge = reinterpret_cast<HWND>(static_cast<std::uintptr_t>(chrome.SiteBridge().WindowId().Value));
+        return window == bridge || ::IsChild(bridge, window);
+    }
+
+    // DesktopWindowImpl::SetFocusToContentIsland: фокус Windows -- окну ввода острова.
+    void focusIsland() {
+        xaml::XamlRoot const current = root ? root.XamlRoot() : nullptr;
+        if (!current) {
+            islandFocusPending = true;
+            return;
+        }
+        islandFocusPending = false;
+        auto const controller = input::InputFocusController::GetForIsland(current.ContentIsland());
+        if (!controller.HasFocus()) controller.TrySetFocus();
+    }
+
+    // DesktopWindowImpl::RestoreFocus: фокус XAML -- элементу, у которого он был.
+    void restoreXamlFocus() {
+        chrome.NavigateFocus(xaml::Hosting::XamlSourceFocusNavigationRequest{
+            xaml::Hosting::XamlSourceFocusNavigationReason::Restore});
+    }
+
+    // WM_ACTIVATE -- DesktopWindowImpl::OnActivate. false -- острова нет или он
+    // спрятан (режим чтения): фокус ставит DefWindowProc на само окно, и
+    // клавиши идут сцене (onKeyDown).
+    bool onActivate(WPARAM wparam) {
+        if (!islandShown()) return false;
+        bool const minimized = HIWORD(wparam) != 0;
+        bool const inactive = LOWORD(wparam) == WA_INACTIVE;
+        if (inactive && !minimized) {
+            // У свёрнутого GetFocus пуст -- запомненное остаётся прежним.
+            HWND const focus = ::GetFocus();
+            if (focus && ::IsChild(hwnd, focus)) lastFocusedChild = focus;
+        }
+        if (!minimized && !inactive) {
+            if (!lastFocusedChild || islandOwns(lastFocusedChild)) {
+                focusIsland();
+                restoreXamlFocus();
+            } else {
+                ::SetFocus(lastFocusedChild);
+            }
+        }
+        if (!minimized && initialActivation) {
+            focusIsland();
+            initialActivation = false;
+        }
+        return true;
+    }
+
+    // Tab за последний элемент острова (Shift+Tab -- за первый): остров отдаёт
+    // фокус окну, а кроме острова в окне ничего нет -- фокус идёт по кругу в
+    // тот же остров, как у Window (OnDesktopWindowXamlSourceTakeFocusRequested).
+    void onTakeFocusRequested(xaml::Hosting::DesktopWindowXamlSourceTakeFocusRequestedEventArgs const& args) {
+        auto const request = args.Request();
+        winrt::guid const correlation = request.CorrelationId();
+        if (correlation == lastTakeFocusCorrelation) {
+            // Запрос вернулся с тем же номером: в острове один элемент, фокус
+            // остаётся на нём.
+            restoreXamlFocus();
+            return;
+        }
+        lastTakeFocusCorrelation = correlation;
+        auto const reason = request.Reason();
+        if (reason == xaml::Hosting::XamlSourceFocusNavigationReason::First ||
+            reason == xaml::Hosting::XamlSourceFocusNavigationReason::Last) {
+            chrome.NavigateFocus(
+                xaml::Hosting::XamlSourceFocusNavigationRequest{reason, winrt::Windows::Foundation::Rect{}, correlation});
+        }
     }
 
     // Смена масштаба острова -- DPI или увеличение -- меняет прямоугольники в
@@ -478,17 +658,156 @@ struct WindowState : core::refcounted {
         if (value <= 0 || value == zoomFactor) return;
         zoomFactor = value;
         applyZoom();
+        limitZoomGesture();
         clientSizeChanged.fire(clientSize());
         queueRegions();
     }
 
-    // Клавиши -- у корня острова, в PreviewKeyDown: он идёт от корня раньше
-    // элемента в фокусе, и Ctrl+0 не достаётся полю ввода. Колесо -- с
-    // handledEventsToo: ScrollViewer и списки помечают его обработанным.
+    // ---- Жест масштабирования и индикатор масштаба (ZoomEffect) ----
+
+    // Датчик ставится над корнем, когда присоединён эффект и есть остров.
+    void ensureZoomSensor() {
+        if (zoomSensor || !appZoom || !chrome) return;
+        zoomSensor = controls::ScrollViewer{};
+        zoomSensor.ZoomMode(controls::ZoomMode::Enabled);
+        // Без инерции: ступень выбирается там, где пальцы остановились. С ней
+        // быстрый жест, остановленный на 200 %, доезжал до 300 % (проба на
+        // wxl.gen.ui касанием InjectSyntheticPointerInput).
+        zoomSensor.IsZoomInertiaEnabled(false);
+        zoomSensor.HorizontalScrollMode(controls::ScrollMode::Disabled);
+        zoomSensor.VerticalScrollMode(controls::ScrollMode::Disabled);
+        zoomSensor.HorizontalScrollBarVisibility(controls::ScrollBarVisibility::Disabled);
+        zoomSensor.VerticalScrollBarVisibility(controls::ScrollBarVisibility::Disabled);
+        limitZoomGesture();
+        zoomSensor.ViewChanged([this](auto&&, controls::ScrollViewerViewChangedEventArgs const& args) {
+            onZoomGesture(args.IsIntermediate());
+        });
+        chrome.Content(zoomSensor);
+        zoomSensor.Content(root);
+    }
+
+    // Жест не уходит за ступени модели: пределы датчика -- относительно
+    // масштаба, в котором остров уже стоит.
+    void limitZoomGesture() {
+        if (!zoomSensor) return;
+        zoomSensor.MinZoomFactor(static_cast<float>(AppZoom::minZoomFactor / zoomFactor));
+        zoomSensor.MaxZoomFactor(static_cast<float>(AppZoom::maxZoomFactor / zoomFactor));
+    }
+
+    void onZoomGesture(bool intermediate) {
+        double const gesture = zoomSensor.ZoomFactor();
+        // ScrollViewer хранит масштаб во float: единица -- с допуском.
+        if (std::abs(gesture - 1.0) < 1e-4) return;
+        double const wanted = zoomFactor * gesture;
+        if (intermediate) {
+            showZoomIndicator(wanted);
+            return;
+        }
+        // Сначала датчик обратно к единице, потом модель на ступень: остров
+        // берёт новый масштаб уже без увеличения картинкой поверх.
+        zoomSensor.ChangeView(nullptr, nullptr, 1.0f, true);
+        double const before = zoomFactor;
+        appZoom->setZoomFactor(wanted);
+        // Сменилась ступень -- индикатор уже показала подписка на модель;
+        // нет -- он всё ещё показывает промежуточное число жеста.
+        if (zoomFactor == before) showZoomIndicator(zoomFactor);
+    }
+
+    static winrt::hstring percent(double factor) {
+        return winrt::hstring{std::to_wstring(std::lround(factor * 100)) + L" %"};
+    }
+
+    // Зовётся и из подписки на модель, а она noexcept: ошибка XAML здесь --
+    // пропущенный индикатор, а не конец программы. Острову, которого ещё не
+    // показали, индикатор не нужен.
+    void showZoomIndicator(double factor) noexcept {
+        if (!root || !root.XamlRoot()) return;
+        try {
+            showZoomIndicatorNow(factor);
+        } catch (winrt::hresult_error const& error) {
+            ::OutputDebugStringW((L"wxl::ZoomEffect: индикатор масштаба не показан: " +
+                                  std::wstring{error.message()} + L"\n").c_str());
+        }
+    }
+
+    void showZoomIndicatorNow(double factor) {
+        if (!zoomIndicator) makeZoomIndicator();
+        zoomIndicatorText.Text(percent(factor));
+        if (!zoomIndicator.IsOpen()) {
+            // Под строкой заголовка, посередине: Bottom ставит Popup по
+            // середине элемента и держит там, когда тот меняет размер. Строка
+            // заголовка может появиться позже индикатора -- цель выбирается
+            // при каждом показе.
+            if (bar) {
+                zoomIndicator.PlacementTarget(bar);
+            } else {
+                ensureZoomIndicatorAnchor();
+                zoomIndicator.PlacementTarget(zoomIndicatorAnchor);
+            }
+            zoomIndicator.IsOpen(true);
+        }
+        zoomIndicatorTimer.Stop();
+        zoomIndicatorTimer.Start();
+    }
+
+    void makeZoomIndicator() {
+        zoomIndicatorText = controls::TextBlock{};
+        controls::FlyoutPresenter presenter;
+        presenter.Content(zoomIndicatorText);
+        // Индикатор только показывает число: мышь и клавиатура до него не
+        // доходят. Щелчок по всплывающему ставил фокус XAML на его Popup;
+        // запрет фокуса (AllowFocusOnInteraction, IsTabStop) этого не снимает,
+        // снимает только IsHitTestVisible: щелчок проходит насквозь. IsTabStop
+        // -- чтобы Tab до него не доходил (проба sandbox/KeyboardZoomProbe
+        // --info-flyout).
+        presenter.IsHitTestVisible(false);
+        presenter.IsTabStop(false);
+        // Зазор под целью и въезд сверху -- как у Flyout под элементом
+        // (FlyoutBase в исходниках WinUI: FlyoutMargin 4, PopupThemeTransition
+        // со сдвигом -50).
+        presenter.Margin(xaml::ThicknessHelper::FromLengths(0, 4, 0, 0));
+        xaml::Media::Animation::PopupThemeTransition entrance;
+        entrance.FromVerticalOffset(-50);
+        xaml::Media::Animation::TransitionCollection transitions;
+        transitions.Append(entrance);
+        zoomIndicator = controls::Primitives::Popup{};
+        zoomIndicator.Child(presenter);
+        zoomIndicator.ChildTransitions(transitions);
+        zoomIndicator.DesiredPlacement(controls::Primitives::PopupPlacementMode::Bottom);
+        zoomIndicator.XamlRoot(root.XamlRoot());
+
+        zoomIndicatorTimer = winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread().CreateTimer();
+        zoomIndicatorTimer.Interval(zoomIndicatorDelay);
+        zoomIndicatorTimer.IsRepeating(false);
+        zoomIndicatorTimer.Tick([this](auto&&, auto&&) {
+            if (zoomIndicator) zoomIndicator.IsOpen(false);
+        });
+    }
+
+    void ensureZoomIndicatorAnchor() {
+        if (zoomIndicatorAnchor) return;
+        zoomIndicatorAnchor = controls::Border{};
+        zoomIndicatorAnchor.Height(0);
+        zoomIndicatorAnchor.VerticalAlignment(xaml::VerticalAlignment::Top);
+        zoomIndicatorAnchor.IsHitTestVisible(false);
+        controls::Grid::SetRow(zoomIndicatorAnchor, 0);
+        root.Children().Append(zoomIndicatorAnchor);
+    }
+
+    // Клавиши -- у верхнего элемента острова (датчика жеста), в PreviewKeyDown:
+    // он идёт сверху раньше элемента в фокусе, и Ctrl+0 не достаётся полю
+    // ввода. Не у корня: фокус бывает и над ним -- на самом датчике или ни на
+    // чём, -- и во всплывающем окне, где корень клавишу не видит. Такую клавишу
+    // датчик масштабировал сам, как любой ScrollViewer, и оставался не в 1:
+    // остров уменьшался дважды и съезжал от угла (Беседка; проба
+    // sandbox/KeyboardZoomProbe). Колесо -- у корня, с handledEventsToo: оно
+    // всплывает снизу, и корень видит его раньше датчика; ScrollViewer и
+    // списки помечают его обработанным.
     void addZoomHandlers() {
         if (zoomHandlersAdded) return;
         zoomHandlersAdded = true;
-        root.PreviewKeyDown([this](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
+        xaml::UIElement const top = zoomSensor ? xaml::UIElement{zoomSensor} : xaml::UIElement{root};
+        top.PreviewKeyDown([this](auto&&, xaml::Input::KeyRoutedEventArgs const& args) {
             if (appZoom && onPreviewKeyDown(static_cast<int>(args.Key()))) args.Handled(true);
         });
         root.AddHandler(
@@ -562,6 +881,14 @@ struct WindowState : core::refcounted {
             root.Children().Append(page);
         }
         chrome.SiteBridge().Show();
+        contentShown = true;
+        // Фокус на самом окне -- он там для сцены (режим чтения) или остров
+        // показан уже после активации. Показанному острову -- фокус, как при
+        // активации.
+        if (::GetFocus() == hwnd) {
+            focusIsland();
+            restoreXamlFocus();
+        }
     }
 
     // ---- Заголовок и кнопки окна ----
@@ -917,6 +1244,12 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             }
             break;
 
+        case WM_ACTIVATE:
+            // Пока остров показан, фокус ведётся, как у Microsoft.UI.Xaml.Window:
+            // DefWindowProc поставил бы его на само окно, мимо XAML.
+            if (state && state->onActivate(wparam)) return 0;
+            break;
+
         case WM_EXITSIZEMOVE:
             // Конец перетаскивания рамки: и сдвиг, и растяжка кончаются здесь.
             if (state) state->geometryChanged.fire(Object::Impl::empty<Object>());
@@ -948,8 +1281,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             return 0;
 
         case WM_DESTROY:
-            // Своё окно закрылось -- гасим приложение; после этого
-            // Application::Start возвращается и отрабатывает Teardown.
+            // Своё окно закрылось -- его XAML отпускается, пока XAML жив, и
+            // гасится приложение; после этого Application::Start возвращается
+            // и отрабатывает Teardown.
+            if (state) state->closeXaml();
             xaml::Application::Current().Exit();
             return 0;
 
@@ -1200,7 +1535,7 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     state_->resize(static_cast<float>(client.right), static_cast<float>(client.bottom));
 }
 
-CompositionWindow::CompositionWindow(std::wstring_view title, SizeInt32 minSize) : CompositionWindow() {
+CompositionWindow::CompositionWindow(hstring_param const& title, SizeInt32 minSize) : CompositionWindow() {
     this->title(title);
     this->minSize(minSize);
 }
@@ -1238,7 +1573,10 @@ void CompositionWindow::hideContent() const {
     // идти сцене, а пустой, но показанный остров перехватывал бы его над собой.
     if (state_->chrome) {
         state_->showPage(nullptr);
+        // Фокус, оставшийся в спрятанном острове, увёл бы туда и клавиши сцены.
+        if (HWND const focus = ::GetFocus(); focus && state_->islandOwns(focus)) ::SetFocus(state_->hwnd);
         state_->chrome.SiteBridge().Hide();
+        state_->contentShown = false;
     }
 }
 
@@ -1250,11 +1588,18 @@ void CompositionWindow::attachZoom(core::intrusive_ptr<AppZoom> zoom) const {
     state.appZoom = std::move(zoom);
     // Состояние снимает эту подписку в деструкторе, поэтому ей хватает
     // простого указателя.
+    // Масштаб, с которым эффект пришёл (восстановленный приложением), --
+    // без индикатора: его никто не регулировал. Индикатор -- на каждое
+    // изменение после присоединения.
     state.zoomFactorCookie = state.appZoom->zoomFactor()
-                             .on_change([self = state_.get()](double const& value) noexcept { self->setZoomFactor(value); })
+                             .on_change([self = state_.get()](double const& value) noexcept {
+                                 self->setZoomFactor(value);
+                                 self->showZoomIndicator(value);
+                             })
                              .get();
     state.setZoomFactor(state.appZoom->zoomFactor().get());
     state.ensureIsland();
+    state.ensureZoomSensor();
     state.addZoomHandlers();
 }
 
@@ -1308,17 +1653,17 @@ AppWindow CompositionWindow::appWindow() const {
 
 // ---- Само окно ----------------------------------------------------------------
 
-void CompositionWindow::title(string_param value) const {
-    std::wstring const text{value.wide()};
-    ::SetWindowTextW(state_->hwnd, text.c_str());
+void CompositionWindow::title(hstring_param const& value) const {
+    // The text is terminated -- the parameter's contract -- so the pointer goes to
+    // Windows as it lies.
+    ::SetWindowTextW(state_->hwnd, value.text().wc_str());
 }
 
-wstring CompositionWindow::title() const {
+hstring CompositionWindow::title() const {
     int const length = ::GetWindowTextLengthW(state_->hwnd);
-    wstring text(static_cast<std::size_t>(length) + 1, L'\0');
+    core::sta_u16string text(static_cast<std::size_t>(length) + 1, u'\0');
     ::GetWindowTextW(state_->hwnd, reinterpret_cast<wchar_t*>(text.data()), length + 1);
-    text.resize(static_cast<std::size_t>(length));
-    return text;
+    return hstring{std::u16string_view{text.data(), static_cast<std::size_t>(length)}};
 }
 
 void CompositionWindow::minSize(SizeInt32 const& value) const { state_->minSize = value; }
@@ -1375,11 +1720,11 @@ DispatcherQueue CompositionWindow::dispatcherQueue() const {
     return Object::Impl::wrap<DispatcherQueue>(mud::DispatcherQueue::GetForCurrentThread());
 }
 
-void CompositionWindow::placement(std::wstring_view saved) const {
+void CompositionWindow::placement(hstring_param const& saved) const {
     // Та же строка, что у генерируемого Window; разбор формата и подгонку к
     // сегодняшним мониторам берём общими -- impl::parse_placement и
     // fit_placement_to_displays из WindowPlacement.cpp.
-    auto const wanted = impl::parse_placement(saved);
+    auto const wanted = impl::parse_placement(saved.text().view());
     if (!wanted) {
         return;  // пусто или мусор: окно остаётся там, где создано
     }
@@ -1402,7 +1747,7 @@ void CompositionWindow::placement(std::wstring_view saved) const {
     }
 }
 
-std::wstring CompositionWindow::placement() const {
+hstring CompositionWindow::placement() const {
     WINDOWPLACEMENT placement{};
     placement.length = sizeof(placement);
     if (!::GetWindowPlacement(state_->hwnd, &placement)) {
@@ -1420,12 +1765,12 @@ std::wstring CompositionWindow::placement() const {
         : placement.showCmd == SW_SHOWMAXIMIZED ? impl::placement_state::maximized
                                                 : impl::placement_state::normal;
 
-    std::wstring text{impl::name_of(state)};
+    std::u16string text{impl::name_of(state)};
     for (long const value : {rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top}) {
-        text += L' ';
+        text += u' ';
         wxl::core::append_number(text, value);
     }
-    return text;
+    return hstring{text};
 }
 
 bool CompositionWindow::fullScreen() const { return state_->fullScreen; }

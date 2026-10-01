@@ -17,17 +17,17 @@ using wxl::core::intrusive_ptr;
 namespace {
 
 // Шевроны Segoe Fluent Icons: ChevronRight и ChevronDown.
-constexpr std::u16string_view collapsedGlyph = u"\uE76C";
-constexpr std::u16string_view expandedGlyph = u"\uE70D";
+constexpr zstring_view collapsedGlyph = u"\uE76C";
+constexpr zstring_view expandedGlyph = u"\uE70D";
 
 // Отметка — знак шрифта значков, а не CheckBox: у того галочка — AnimatedIcon,
 // и при листании, когда строка получает другой тип, она рисовалась заново.
 // checkbox_checked, checkbox_unchecked и checkbox_indeterminate, размер 20.
-constexpr std::u16string_view checkedGlyph = u"\uF28D";
-constexpr std::u16string_view uncheckedGlyph = u"\uF291";
-constexpr std::u16string_view indeterminateGlyph = u"\uE2FE";
+constexpr zstring_view checkedGlyph = u"\uF28D";
+constexpr zstring_view uncheckedGlyph = u"\uF291";
+constexpr zstring_view indeterminateGlyph = u"\uE2FE";
 
-constexpr std::u16string_view iconFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
+constexpr zstring_view iconFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
 
 // Колесо даёт 120 на щелчок; щелчок листает три строки, как в проводнике.
 constexpr int32_t wheelUnitsPerLine = 40;
@@ -284,7 +284,7 @@ void VirtualTree::render() {
         row.indent.width(data.depth * indentStep_);
         row.glyph.text(data.expander == Expander::Collapsed ? collapsedGlyph
                        : data.expander == Expander::Expanded ? expandedGlyph
-                                                             : std::u16string_view{});
+                                                             : zstring_view{});
         row.check.visibility(data.check == Check::None ? Visibility::Collapsed : Visibility::Visible);
         bool const checked = data.check != Check::Unchecked;
         row.check.text(data.check == Check::Checked         ? checkedGlyph
@@ -298,13 +298,13 @@ void VirtualTree::render() {
             core::unicode::append_utf16(glyph_, data.icon->glyph);
             row.icon.foreground(iconBrush(*data.icon));
         }
-        row.icon.text(std::wstring_view {glyph_});
+        row.icon.text(glyph_);
 
         text_.clear();
         if (auto const utf8 = core::unicode::checked(data.text)) {
             core::unicode::append_utf16(text_, *utf8);
         }
-        row.text.text(std::wstring_view {text_});
+        row.text.text(text_);
     }
 
     // Строки запаса сверху уходят за край: панель сдвинута на их высоту.

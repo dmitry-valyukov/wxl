@@ -24,8 +24,8 @@ winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value
         return nullptr;
     }
 
-    auto const text = value.source().text();
-    auto const absolute = text.find(L"://") != std::wstring_view::npos;
+    winrt::hstring const& text = to_winrt(value.source().text());
+    auto const absolute = std::wstring_view{text}.find(L"://") != std::wstring_view::npos;
     return winrt::Microsoft::UI::Xaml::Media::Imaging::BitmapImage{
         absolute ? winrt::Windows::Foundation::Uri{text}
                  : winrt::Windows::Foundation::Uri{application_folder_uri(), text}};
@@ -39,7 +39,7 @@ ImageSource from_winrt(winrt::Microsoft::UI::Xaml::Media::ImageSource const& val
     if (!bitmap || !bitmap.UriSource()) {
         return {};
     }
-    return ImageSource{Uri{bitmap.UriSource().ToString()}};
+    return ImageSource{Uri{from_winrt(bitmap.UriSource().ToString())}};
 }
 
 }  // namespace wxl::impl

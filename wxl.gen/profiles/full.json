@@ -1,0 +1,428 @@
+{
+    "name": "full",
+    "description": "The rich profile plus every WinUI3 type that the WinUI 3 Gallery port (samples/Gallery) builds its pages from and the smaller profiles leave out. The port is meant to show that the whole Gallery can be written without XAML, with the same types, so this file grows by one group per stage of the porting plan, never by a type nobody asked for.",
+    "extends": [
+        "rich"
+    ],
+
+    "windowsAppSdk": "2.4.0",
+    "windowsMetadata": true,
+
+    "types": {
+        "Microsoft.UI.Xaml.Controls.UserControl": {
+            "comment": "The base of the Gallery's own controls (ControlExample, PageHeader) and of Page. Whole surface.",
+            "members": [
+                "Content"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Page": {
+            "comment": "The page the Gallery's Frame shows. Never created by Frame.Navigate here -- that takes a TypeName of a XAML class -- but built directly and put into Frame.Content.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.Frame": {
+            "comment": "The Gallery's rootFrame and the Frame of its sample pages.",
+            "members": [
+                "Content",
+                "CanGoBack",
+                "CanGoForward",
+                "GoBack",
+                "GoForward",
+                "Navigated",
+                "Navigating"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItemHeader": {
+            "comment": "The \"Controls\" caption between the Gallery navigation view's groups.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.GridView": {
+            "comment": "The tile grid of the Gallery's Home, All controls and section pages. Everything a ListViewBase gives (selection mode, item click) comes from base.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.BitmapIcon": {
+            "comment": "The Gallery's navigation group icon when the catalogue names a .png.",
+            "members": [
+                "UriSource",
+                "ShowAsMonochrome"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ImageIcon": {
+            "comment": "An icon from an image source.",
+            "members": [
+                "Source"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ImageIconSource": {
+            "comment": "The icon a TitleBar carries beside its title.",
+            "members": [
+                "ImageSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TitleBar": {
+            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar.",
+            "members": [
+                "IconSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationView": {
+            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over.",
+            "members": [
+                "DisplayMode",
+                "DisplayModeChanged",
+                "IsPaneToggleButtonVisible",
+                "IsPaneVisible"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItem": {
+            "comment": "The group rows: they expand and are not themselves a page.",
+            "members": [
+                "IsExpanded",
+                "SelectsOnInvoked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs": {
+            "comment": "Which item the selection landed on.",
+            "members": [
+                "SelectedItem",
+                "IsSettingsSelected"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NavigationViewItemInvokedEventArgs": {
+            "comment": "Which item was clicked, a group row included: SelectsOnInvoked false rows raise only this.",
+            "members": [
+                "InvokedItem",
+                "InvokedItemContainer",
+                "IsSettingsInvoked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBox": {
+            "comment": "The search box in the Gallery's title bar: its query icon, and the text of the query it submits.",
+            "members": [
+                "QueryIcon",
+                "UpdateTextOnSelect",
+                "ItemsSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBoxQuerySubmittedEventArgs": {
+            "comment": "What was typed when the query was submitted.",
+            "members": [
+                "QueryText",
+                "ChosenSuggestion"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBoxTextChangedEventArgs": {
+            "comment": "Why the text changed: only a user's typing refreshes suggestions.",
+            "members": [
+                "Reason"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.RepeatButton": {
+            "comment": "Basic input: fires Click again and again while it is held.",
+            "members": [
+                "Delay",
+                "Interval"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToggleSplitButton": {
+            "comment": "Basic input: a SplitButton whose main part toggles.",
+            "members": [
+                "IsChecked",
+                "IsCheckedChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToggleSplitButtonIsCheckedChangedEventArgs": {
+            "comment": "Carries nothing of its own; the new state is read from the button.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.ColorPicker": {
+            "comment": "Basic input: the colour picker page turns each of its parts on and off and reads the colour back.",
+            "members": [
+                "Color",
+                "ColorSpectrumShape",
+                "IsAlphaEnabled",
+                "IsAlphaSliderVisible",
+                "IsAlphaTextInputVisible",
+                "IsColorChannelTextInputVisible",
+                "IsColorSliderVisible",
+                "IsHexInputVisible",
+                "IsMoreButtonVisible",
+                "ColorChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ColorChangedEventArgs": {
+            "comment": "The colour before and after.",
+            "members": [
+                "NewColor",
+                "OldColor"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RatingControl": {
+            "comment": "Basic input: stars, with a caption, a placeholder value and clearing.",
+            "members": [
+                "Caption",
+                "IsClearEnabled",
+                "IsReadOnly",
+                "Value",
+                "PlaceholderValue",
+                "MaxRating",
+                "ValueChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Slider": {
+            "comment": "Ticks and their snapping on top of what base asks for.",
+            "members": [
+                "TickFrequency",
+                "TickPlacement",
+                "SnapsTo"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ComboBox": {
+            "comment": "The text of an editable box and the moment it is submitted.",
+            "members": [
+                "Header",
+                "Text",
+                "TextSubmitted"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ComboBoxTextSubmittedEventArgs": {
+            "comment": "What was typed, and whether the handler took it over.",
+            "members": [
+                "Text",
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.VariableSizedWrapGrid": {
+            "comment": "The swatch grid of the SplitButton text example.",
+            "members": [
+                "MaximumRowsOrColumns",
+                "Orientation"
+            ]
+        },
+        "Microsoft.UI.Text.RichEditTextDocument": {
+            "comment": "The selection: SplitButton and ToggleSplitButton pages format it.",
+            "members": [
+                "Selection"
+            ]
+        },
+        "Microsoft.UI.Text.ITextRange": {
+            "comment": "Text and paragraph formatting of a range (and so of a selection).",
+            "members": [
+                "SetText",
+                "ParagraphFormat",
+                "FindText"
+            ]
+        },
+        "Microsoft.UI.Text.ITextSelection": {
+            "comment": "What Document.Selection hands out: a range with a caret. Everything it does comes from ITextRange.",
+            "members": []
+        },
+        "Microsoft.UI.Text.ITextCharacterFormat": {
+            "comment": "The colour of the characters.",
+            "members": [
+                "ForegroundColor",
+                "BackgroundColor"
+            ]
+        },
+        "Microsoft.UI.Text.ITextParagraphFormat": {
+            "comment": "The marker of a list paragraph (bullets, Roman numerals).",
+            "members": [
+                "ListType"
+            ]
+        },        "Microsoft.UI.Xaml.FrameworkElement": {
+            "comment": "Parent: a handler reads its siblings from the panel it is in, so that no handler has to capture an element (a captured sibling that captures back is a cycle nothing breaks).",
+            "members": [
+                "Parent"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
+            "comment": "Target: the element a flyout is attached to. A coroutine started when the flyout opens finds its owner there, so no handler has to capture the owner (which holds the flyout: a cycle).",
+            "members": [
+                "Target"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.Clipboard": {
+            "comment": "The copy button under every example puts the code on the clipboard; the Clipboard page of the Gallery reads it back.",
+            "members": [
+                "SetContent",
+                "Flush"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.DataPackage": {
+            "comment": "What goes on the clipboard: text, and whether it is a copy.",
+            "members": [
+                "SetText",
+                "RequestedOperation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.TextElement": {
+            "comment": "Text group: the look every piece of inline text shares (Run, Span, Bold, Paragraph...).",
+            "members": [
+                "FontFamily",
+                "FontSize",
+                "FontStyle",
+                "FontWeight",
+                "Foreground",
+                "CharacterSpacing"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Inline": {
+            "comment": "The base of everything a TextBlock's Inlines holds.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Run": {
+            "comment": "A run of text with one look.",
+            "members": [
+                "Text"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Span": {
+            "comment": "Inline text that holds inline text: Bold, Italic, Underline, Hyperlink.",
+            "members": [
+                "Inlines"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Bold": {
+            "comment": "Bold inline.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Italic": {
+            "comment": "Italic inline.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Underline": {
+            "comment": "Underlined inline.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.LineBreak": {
+            "comment": "A line break inside a TextBlock or a Paragraph.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Documents.Hyperlink": {
+            "comment": "A link inside a paragraph.",
+            "members": [
+                "NavigateUri"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Block": {
+            "comment": "The base of what a RichTextBlock's Blocks holds.",
+            "members": [
+                "Margin"
+            ]
+        },
+        "Microsoft.UI.Xaml.Documents.Paragraph": {
+            "comment": "A paragraph of inline text.",
+            "members": [
+                "Inlines",
+                "TextIndent"
+            ]
+        },
+
+        "Microsoft.UI.Xaml.Controls.TextBlock": {
+            "comment": "Text group: the italic face, the selection colour and the inline collection.",
+            "members": [
+                "IsTextSelectionEnabled",
+                "FontStyle",
+                "SelectionHighlightColor",
+                "Inlines"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RichTextBlock": {
+            "comment": "Text group: blocks, the overflow chain and highlighters.",
+            "members": [
+                "Blocks",
+                "FontStyle",
+                "SelectionHighlightColor",
+                "OverflowContentTarget"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RichTextBlockOverflow": {
+            "comment": "A container the text of a RichTextBlock flows on into.",
+            "members": [
+                "OverflowContentTarget"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Control": {
+            "comment": "Text group: what a TextBox is set up with beyond base -- the italic face and letter spacing.",
+            "members": [
+                "FontStyle",
+                "CharacterSpacing",
+                "Foreground"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TextBox": {
+            "comment": "Text group: spell checking and the selection colour.",
+            "members": [
+                "IsSpellCheckEnabled",
+                "SelectionHighlightColor"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PasswordBox": {
+            "comment": "Text group: the mask character and the change event.",
+            "members": [
+                "PasswordChar",
+                "PasswordChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.NumberBox": {
+            "comment": "Text group: expressions, the large step and the formatter.",
+            "members": [
+                "AcceptsExpression",
+                "LargeChange",
+                "NumberFormatter"
+            ]
+        },
+        "Windows.Globalization.NumberFormatting.DecimalFormatter": {
+            "comment": "How a NumberBox writes its number: digits and rounding.",
+            "members": [
+                "IntegerDigits",
+                "FractionDigits",
+                "NumberRounder"
+            ]
+        },
+        "Windows.Globalization.NumberFormatting.IncrementNumberRounder": {
+            "comment": "Rounds to a multiple of an increment.",
+            "members": [
+                "Increment",
+                "RoundingAlgorithm"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AutoSuggestBoxSuggestionChosenEventArgs": {
+            "comment": "The suggestion the list is on: what the text of the box is completed with.",
+            "members": [
+                "SelectedItem"
+            ]
+        },        "Microsoft.UI.Xaml.Controls.ContentPresenter": {
+            "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
+            "members": [
+                "Content",
+                "ContentTemplate"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RadioButtons": {
+            "comment": "The group of radio buttons the settings page and many samples use.",
+            "members": [
+                "Items",
+                "SelectedIndex",
+                "SelectedItem",
+                "Header",
+                "MaxColumns",
+                "SelectionChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.MicaBackdrop": {
+            "comment": "The Gallery window's system backdrop.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop": {
+            "comment": "The acrylic sibling of MicaBackdrop.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Media.SystemBackdrop": {
+            "comment": "The base of both backdrops; what Window.systemBackdrop holds.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Window": {
+            "comment": "Window is an implicit root with the whole surface; listed only so that SystemBackdrop stays in the profile if that ever changes."
+        }
+    }
+}
