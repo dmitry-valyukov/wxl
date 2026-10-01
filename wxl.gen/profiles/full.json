@@ -13,6 +13,13 @@
             "id": "Microsoft.WindowsAppSDK.WinUI",
             "overrideVersion": "2.3.10-experimental",
             "comment": "WrapPanel and LayoutPanel: the stable WinUI package keeps them out of Microsoft.UI.Xaml.winmd, this channel declares them. The whole WinUI metadata and style catalogue are read from it, the rest of the release is the stable one. tools/packages.json pins the same version for tools/restore-packages.ps1."
+        },
+        {
+            "id": "Microsoft.WindowsAppSDK.Foundation",
+            "comment": "System and Shell pages: what the Windows App SDK adds outside the UI -- the badge of the taskbar button, the notifications, the storage pickers.",
+            "metadata": [
+                "Microsoft.Windows.BadgeNotifications.winmd"
+            ]
         }
     ],
 
@@ -395,6 +402,15 @@
             "members": [
                 "Create",
                 "InitialSize"
+            ]
+        },
+        "Microsoft.Windows.BadgeNotifications.BadgeNotificationManager": {
+            "comment": "System: the badge on the application's taskbar button -- a count or a glyph, set and cleared. It needs a packaged application: an unpackaged one has no taskbar identity for the shell to put it on.",
+            "members": [
+                "Current",
+                "SetBadgeAsCount",
+                "SetBadgeAsGlyph",
+                "ClearBadge"
             ]
         },
         "Microsoft.UI.Xaml.Media.Geometry": {
