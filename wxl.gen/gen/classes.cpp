@@ -1537,7 +1537,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                 }
                 // The hand-written function behind it is what the body
                 // calls, so its header belongs to the .cpp side.
-                use.impl_includes = {declaration.include};
+                use.impl_includes.insert(declaration.include);
 
                 member_info member{member_info::Kind::Forward, member_name(declaration.name),
                                    declaration.name, {}, {},

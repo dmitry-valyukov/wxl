@@ -4316,6 +4316,42 @@
             "AppWindowTitleBar",
             "TitleBar"
           ]
+        },
+        {
+          "UniqueId": "CompositionWindow",
+          "Tags": [
+            "wxl",
+            "composition",
+            "scene",
+            "background",
+            "no redirection surface",
+            "title bar",
+            "zoom",
+            "full screen",
+            "drag and drop"
+          ],
+          "Title": "CompositionWindow",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A top-level window whose pixels the compositor lays down, with a scene under a XAML island.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Windowing.png",
+          "Description": "wxl's own window: without a redirection surface, with a scene of composition visuals (a background and a page the application draws) under a transparent XAML island. Its title bar, background, zoom, size, full-screen mode, input and drag-and-drop are all written in the window's braces.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "CompositionWindow - header",
+              "Uri": "https://github.com/dmitry-valyukov/wxl/blob/main/wxl.ui/src/CompositionWindow.h"
+            },
+            {
+              "Title": "Composition - overview",
+              "Uri": "https://learn.microsoft.com/windows/apps/windows-app-sdk/composition"
+            }
+          ],
+          "RelatedControls": [
+            "AppWindow",
+            "AppWindowTitleBar",
+            "TitleBar",
+            "Windowing"
+          ]
         }
       ]
     },
