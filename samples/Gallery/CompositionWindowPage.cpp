@@ -64,8 +64,43 @@ FrameworkElement visuals() {
     });
 }
 
+constexpr char8_t sizeAndModeHeader[] = {
+#include "Snippets/CompositionWindow/SizeZoomAndMode.html.embed"
+};
+constexpr char8_t sizeAndModeCode[] = {
+#include "Snippets/CompositionWindow/SizeZoomAndMode.h.embed"
+};
+
+FrameworkElement sizeAndMode() {
+#include "Snippets/CompositionWindow/SizeZoomAndMode.h"
+
+    return gallery::controlExample({
+        .header = gallery::snippet(sizeAndModeHeader),
+        .example = example,
+        .options = {options},
+        .code = gallery::snippet(sizeAndModeCode),
+    });
+}
+
+constexpr char8_t inputHeader[] = {
+#include "Snippets/CompositionWindow/InputDropsAndPlace.html.embed"
+};
+constexpr char8_t inputCode[] = {
+#include "Snippets/CompositionWindow/InputDropsAndPlace.h.embed"
+};
+
+FrameworkElement input() {
+#include "Snippets/CompositionWindow/InputDropsAndPlace.h"
+
+    return gallery::controlExample({
+        .header = gallery::snippet(inputHeader),
+        .example = example,
+        .code = gallery::snippet(inputCode),
+    });
+}
+
 }  // namespace
 
 wxl::FrameworkElement gallery::compositionWindowPage() {
-    return StackPanel {creating(), sceneBackground(), visuals()};
+    return StackPanel {creating(), sceneBackground(), visuals(), sizeAndMode(), input()};
 }

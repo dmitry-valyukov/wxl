@@ -39,6 +39,11 @@ void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
         }
     }
 
+    // small is a macro of the Windows SDK (rpcndr.h: #define small char), and the value tags of an
+    // enum are spelled with the enum's own names -- CompactOverlaySize::Small is the tag
+    // small. The tags are spelled below, after whatever Windows header was included first.
+    std::print(file, "\n#ifdef small\n#undef small\n#endif\n");
+
     std::print(file, "\nnamespace wxl {{\n\nnamespace impl {{\n");
 
     // The key enums keep the metadata name; everything the DSL and the
