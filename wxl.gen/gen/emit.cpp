@@ -92,7 +92,7 @@ std::string member_name(std::string_view metadata_name) {
         "const",    "default", "delete", "double", "else",     "enum",   "explicit",
         "export",   "extern",  "false",  "float",  "for",      "friend", "goto",
         "if",       "inline",  "int",    "long",   "mutable",  "new",    "operator",
-        "private",  "public",  "return", "short",  "signed",   "sizeof", "static",
+        "private",  "public",  "register", "return", "short",  "signed",   "sizeof", "static",
         "struct",   "switch",  "template", "this", "throw",    "true",   "try",
         "typedef",  "typename", "union", "unsigned", "using",  "virtual", "void",
         "volatile", "while",

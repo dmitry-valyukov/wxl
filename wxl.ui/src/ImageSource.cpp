@@ -2,6 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 
+#include "Object.impl.h"
 #include "impl/application_folder.h"
 
 // Crossing into WinRT is where an image source stops being text: the
@@ -33,6 +34,9 @@ winrt::Windows::Foundation::Uri to_winrt(Uri const& value) {
 winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value) {
     if (value.empty()) {
         return nullptr;
+    }
+    if (value.bitmap()) {
+        return Object::Impl::as<winrt::Microsoft::UI::Xaml::Media::ImageSource>(*value.bitmap());
     }
     // A vector image is not a bitmap: the extension tells which of the two the framework
     // has to be given. The query or fragment of a URL is not part of it.

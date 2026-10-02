@@ -229,10 +229,17 @@ add_library(wxl.ui STATIC
     src/impl/tool_tip.cpp
     src/impl/resource.h
     src/impl/resource.cpp
+    src/impl/picker_file_types.h
+    src/impl/picker_file_types.cpp
+    src/PickerFileTypes.h
     src/impl/title_bar_drag.h
     src/impl/title_bar_drag.cpp
     src/impl/backdrop_controller.h
     src/impl/backdrop_controller.cpp
+    src/Packaged.h
+    src/Operation.h
+    src/impl/operation.h
+    src/Packaged.cpp
     src/Resource.h
     src/impl/geometry_from_text.h
     src/impl/geometry_from_text.cpp

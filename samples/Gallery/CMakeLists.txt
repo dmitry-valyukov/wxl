@@ -68,6 +68,12 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    ContentIslandPage.cpp
+    JumpListPage.cpp
+    StoragePickersPage.cpp
+    ClipboardPage.cpp
+    AppNotificationPage.cpp
+    BadgeNotificationManagerPage.cpp
     CompositionWindowPage.cpp
     SystemBackdropsPage.cpp
     AppWindowPage.cpp
