@@ -259,7 +259,10 @@
                 "Measure",
                 "Arrange",
                 "TransformToVisual",
-                "AllowDrop"
+                "AllowDrop",
+                "DragEnter",
+                "DragOver",
+                "Drop"
             ],
             "syntheticMembers": {
                 "IsDragRegion": {
@@ -801,6 +804,36 @@
                 "FlowDirection"
             ]
         },
+        "Microsoft.UI.Xaml.DragEventArgs": {
+            "comment": "Collections: an item dragged over or dropped on an element: what it may do there, the data, where the pointer is, the deferral that keeps the drop open while it is handled.",
+            "members": [
+                "AcceptedOperation",
+                "DataView",
+                "DragUIOverride",
+                "GetPosition",
+                "GetDeferral"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragUIOverride": {
+            "comment": "Collections: the look of the drag while it is over an element.",
+            "members": [
+                "IsGlyphVisible"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragOperationDeferral": {
+            "comment": "Collections: a drop that is not finished when its handler returns ends when this is completed.",
+            "members": [
+                "Complete"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.DragItemsStartingEventArgs": {
+            "comment": "Collections: the items a list starts to drag, and the data that goes with them.",
+            "members": [
+                "Items",
+                "Data",
+                "Cancel"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
             "comment": "Target: the element a flyout is attached to. A coroutine started when the flyout opens finds its owner there, so no handler has to capture the owner (which holds the flyout: a cycle).",
             "members": [
@@ -873,7 +906,8 @@
             "comment": "Collections: ListView and GridView -- dragging and reordering of items, and the item template written as a function (itemTemplate = [](Object const& item) { return ...; }), which fills the containers as they come into view.",
             "members": [
                 "CanDragItems",
-                "CanReorderItems"
+                "CanReorderItems",
+                "DragItemsStarting"
             ],
             "syntheticMembers": {
                 "ItemMargin": {
@@ -926,7 +960,9 @@
             "comment": "Collections: the default panel of a ListView -- what it does when items are added (keep the last in view) and whether group headers stick.",
             "members": [
                 "ItemsUpdatingScrollMode",
-                "AreStickyGroupHeadersEnabled"
+                "AreStickyGroupHeadersEnabled",
+                "FirstVisibleIndex",
+                "LastVisibleIndex"
             ]
         },
         "Microsoft.UI.Xaml.Controls.RefreshContainer": {
