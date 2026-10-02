@@ -1097,6 +1097,7 @@ static_assert(!background_takes<Color>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(content = L"a")>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(onClick = [](Button const&) {})>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(content)>>);
+    static_assert(impl::describes<std::remove_cvref_t<decltype(orientation)>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(onClick)>>);
     static_assert(impl::describes<Margin>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(styles.TextBlock.Header)>>);
@@ -1113,6 +1114,34 @@ static_assert(!background_takes<Color>);
     // mistake surfaces at the very next step.
     static_assert(!impl::describes<Button>);
     static_assert(!impl::describes<std::remove_cvref_t<decltype(hAlign.center)>>);
+}
+
+template <typename T>
+concept declares_orientation_tag = requires { typename T::OrientationTag; };
+
+template <typename T>
+concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
+
+// The values of an enumeration are written once, with the enumeration, and
+// every property over it carries them: the flat tag and the schema anchor
+// alike, and two properties over one enumeration share the one description.
+// A schema class offers its members and no helper type beside them.
+[[maybe_unused]] void an_enumeration_carries_its_values_once() {
+    namespace x = dsl::schema;
+
+    static_assert(orientation.horizontal == Orientation::Horizontal);
+    static_assert(x::Slider::orientation.vertical == Orientation::Vertical);
+    static_assert(x::StackPanel::orientation.horizontal == orientation.horizontal);
+
+    static_assert(horizontalContentAlignment.center == horizontalAlignment.center);
+    static_assert(horizontalContentAlignment.stretch == HorizontalAlignment::Stretch);
+
+    // A value taken from the tag is the op the enumerator itself makes.
+    static_assert(std::same_as<decltype(orientation = orientation.horizontal),
+                               decltype(orientation = Orientation::Horizontal)>);
+
+    static_assert(!declares_orientation_tag<x::Slider>);
+    static_assert(!declares_snaps_to_tag<x::Slider>);
 }
 
 // The schema, written the way it is meant to be read.

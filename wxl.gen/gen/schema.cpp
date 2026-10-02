@@ -27,9 +27,9 @@ import std;
 // `dsl::` and works here.
 //
 // AI note: everything emitted here is also exercised by the test file this
-// same writer produces. A new kind of schema element (a new tag shape, a new
-// member kind) has to be added in both halves below -- schema element and its
-// line of test -- or the test silently stops covering it.
+// same writer produces. A new kind of schema element (a new member kind, or a
+// new anchor type) has to be added in both halves below -- schema element and
+// its line of test -- or the test silently stops covering it.
 
 namespace gen {
 namespace {
@@ -108,49 +108,44 @@ std::string event_anchor(std::string_view key, std::string_view owner) {
     return std::format("::wxl::Event<::wxl::EventKey::{}, ::wxl::{}>", key, owner);
 }
 
-// One member of a class, as the schema declares it -- and, where the tag
-// carries more than the anchor does, the little type that carries it.
-//
-// The two shapes with a body of their own are the same two Members.h has:
-// an enum-typed property surfaces the values it accepts, so that
-// `severity.warning` needs no enum name, and a property that is both a
-// collection and assignable carries both forms at once.
-struct declaration {
-    std::string nested;  // the tag type, when the member needs one
-    std::string anchor;  // what the static member is declared as
-};
+// The same property said two ways -- `rowDefinitions[a, b]` and
+// `rowDefinitions = L"2*,*"` -- so the anchor carries both.
+std::string assignable_collection_anchor(std::string_view key, std::string_view value_type,
+                                         std::string_view owner) {
+    return std::format("::wxl::AssignableCollectionProperty<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
+                       key, value_type.empty() ? "void" : qualified(value_type), owner);
+}
 
-declaration declare(Schema::Class const& owner, Schema::Member const& member,
-                    std::vector<Schema::Member> const& all, Dsl const& dsl) {
+// What one member of a class is declared as in the schema, or nothing where
+// another member of the class already carries it.
+//
+// Every shape is an anchor over the types Members.h writes, and none needs a
+// type of its own: an enum-typed property carries the values it accepts
+// through its type (impl::enum_values), so that `severity.warning` needs no
+// enum name.
+std::string declare(Schema::Class const& owner, Schema::Member const& member,
+                    std::vector<Schema::Member> const& all) {
     using Kind = Schema::Member::Kind;
 
     if (member.kind == Kind::Event) {
-        return {{}, event_anchor(member.key, owner.name)};
+        return event_anchor(member.key, owner.name);
     }
 
     // A binding target has a plain anchor: the type it carries is the
     // observable's, and the only assignment it survives is a Bind form.
     if (member.kind == Kind::Bound) {
-        return {{}, property_anchor(member.key, member.type, owner.name)};
+        return property_anchor(member.key, member.type, owner.name);
     }
 
     if (member.kind == Kind::Collection) {
-        // The same property said two ways -- `rowDefinitions[a, b]` and
-        // `rowDefinitions = L"2*,*"`. The subscript comes from one base and
-        // the assignment from the other, and the using-declaration is what
-        // keeps the assignment reachable past the tag's own copy-assignment.
         auto const assignable = std::find_if(all.begin(), all.end(), [&member](auto&& other) {
             return other.kind == Kind::Property && other.key == member.key;
         });
         if (assignable == all.end()) {
-            return {{}, collection_anchor(member.key, owner.name)};
+            return collection_anchor(member.key, owner.name);
         }
 
-        std::string const property = property_anchor(member.key, assignable->type, owner.name);
-        return {std::format("    struct {0}Tag : {1}, {2} {{\n        using {2}::operator=;\n"
-                            "    }};\n",
-                            member.key, collection_anchor(member.key, owner.name), property),
-                std::format("{}Tag", member.key)};
+        return assignable_collection_anchor(member.key, assignable->type, owner.name);
     }
 
     // A property that is also a collection was written by the branch above.
@@ -161,33 +156,18 @@ declaration declare(Schema::Class const& owner, Schema::Member const& member,
     }
 
     if (!member.single_type) {
-        return {{}, property_anchor(member.key, {}, owner.name)};
-    }
-
-    if (auto const values = dsl.enumerators.find(member.type);
-        values != dsl.enumerators.end() && !values->second.empty()) {
-        std::string nested =
-            std::format("    struct {}Tag : {} {{\n        using Property::operator=;\n",
-                        member.key, property_anchor(member.key, member.type, owner.name));
-        for (auto&& [name, enumerator] : values->second) {
-            nested += std::format("        static constexpr {0} {1} = {0}::{2};\n",
-                                  qualified(member.type), name, enumerator);
-        }
-        nested += "    };\n";
-        return {std::move(nested), std::format("{}Tag", member.key)};
+        return property_anchor(member.key, {}, owner.name);
     }
 
     if (member.braced) {
-        return {{},
-                std::format("::wxl::BracedProperty<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
-                            member.key, qualified(member.type), owner.name)};
+        return std::format("::wxl::BracedProperty<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
+                           member.key, qualified(member.type), owner.name);
     }
 
-    return {{}, property_anchor(member.key, member.type, owner.name)};
+    return property_anchor(member.key, member.type, owner.name);
 }
 
-void write_schema_header(std::filesystem::path const& path, Schema const& schema,
-                         Dsl const& dsl) {
+void write_schema_header(std::filesystem::path const& path, Schema const& schema) {
     auto file = open_output(path);
 
     std::print(file, R"({}// The same vocabulary as Members.h, reached through the class that
@@ -236,14 +216,11 @@ namespace wxl::dsl::schema {{
         }
 
         for (auto&& member : klass.members) {
-            auto const [nested, anchor] = declare(klass, member, klass.members, dsl);
+            auto const anchor = declare(klass, member, klass.members);
             if (anchor.empty()) {
                 continue;
             }
 
-            if (!nested.empty()) {
-                std::print(file, "{}", nested);
-            }
             std::print(file, "    static constexpr {} {}{{}};\n", anchor, member.name);
         }
 
@@ -254,8 +231,8 @@ namespace wxl::dsl::schema {{
 }
 
 // The value a test line hands the member. A property takes one of its own
-// type; an enum-typed one takes it through the tag, which proves the
-// enumerators the tag carries are reachable as well.
+// type; an enum-typed one takes it through the anchor, which proves the
+// enumerators the anchor carries are reachable as well.
 std::string test_value(Schema::Class const& owner, Schema::Member const& member, Dsl const& dsl) {
     if (auto const values = dsl.enumerators.find(member.type);
         member.single_type && values != dsl.enumerators.end() && !values->second.empty()) {
@@ -362,7 +339,7 @@ namespace {{
 
 void write_schema(Output const& out, Schema const& schema, Dsl const& dsl, Emitted& emitted) {
     auto const header = out.dir / "schema.h";
-    write_schema_header(header, schema, dsl);
+    write_schema_header(header, schema);
     emitted.add(header);
 
     std::size_t members = 0;
