@@ -800,7 +800,8 @@ closure crawl(profile_set const& raw_profiles, type_map const& types, cache cons
     for (auto&& member : types.bound_members) {
         cr.result.property_names.insert(member.name);
     }
-    cr.result.event_names.insert(types.hand_written_events.begin(), types.hand_written_events.end());
+    cr.result.event_names.insert(types.hand_written_events.begin(),
+                                 types.hand_written_events.end());
 
     return std::move(cr.result);
 }

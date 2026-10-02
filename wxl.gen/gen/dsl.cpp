@@ -31,7 +31,8 @@ void write_enum_values(std::ostream& file, dsl const& d) {
         }
         std::print(file, "\ntemplate <>\nstruct enum_values<{}> {{\n", type);
         for (auto&& [member, enumerator] : values) {
-            std::print(file, "    static constexpr {0} {1} = {0}::{2};\n", type, member, enumerator);
+            std::print(file, "    static constexpr {0} {1} = {0}::{2};\n", type, member,
+                       enumerator);
         }
         std::print(file, "}};\n");
     }

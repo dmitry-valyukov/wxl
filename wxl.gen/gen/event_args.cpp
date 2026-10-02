@@ -210,7 +210,8 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
 // The headers declaring a wrapped class, which an args header must not
 // include: a class header already includes the args headers of the events it
 // declares, so including it back would close a cycle.
-std::set<std::string> class_headers_of(std::vector<TypeDef> const& classes, type_index const& index) {
+std::set<std::string> class_headers_of(std::vector<TypeDef> const& classes,
+                                       type_index const& index) {
     std::set<std::string> headers;
     for (auto&& type : classes) {
         if (is_event_args_class(type)) {

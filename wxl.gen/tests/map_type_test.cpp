@@ -95,3 +95,18 @@ TEST(map_type, a_collection_class_is_a_collection_of_its_element) {
     EXPECT_EQ(use.element_type, "UIElement");
     EXPECT_EQ(use.value_type, "Collection<UIElement>");
 }
+
+// Every generated type lives in the one namespace wxl, so two types of one
+// name would be two definitions of it: the run stops and names both.
+TEST(name_registry, refuses_two_types_of_one_name) {
+    std::vector<md::TypeDef> const types{type("Microsoft.UI.Xaml.Visibility"),
+                                         type("Windows.UI.Xaml.Visibility")};
+    try {
+        gen::build_name_registry(types);
+        FAIL() << "two Visibility enums took one name";
+    } catch (std::runtime_error const& error) {
+        EXPECT_STREQ(error.what(),
+                     "two types map to the same flat wxl name 'Visibility': "
+                     "Microsoft.UI.Xaml.Visibility and Windows.UI.Xaml.Visibility");
+    }
+}

@@ -396,6 +396,7 @@ struct model {
     std::vector<std::string> skipped_members;
     std::vector<std::string> content_collections;
     std::vector<std::string> withheld_routes;
+    std::vector<std::string> class_warnings;  // to stderr, ahead of the rest
 
     // Members.h and schema.h
     gen::dsl dsl;

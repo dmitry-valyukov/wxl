@@ -232,6 +232,11 @@ struct profile_set {
     member_filter brushes = member_filter::none();  // None until the first profile merges in
 
     member_filter discovered = member_filter::none();
+
+    // The Windows platform metadata directory a profile asked for
+    // ("windowsMetadata") and this machine does not have, or empty. The walk
+    // then stops at every Windows type it reaches, so a run says so.
+    std::filesystem::path missing_windows_metadata;
 };
 
 // Reads a single profile file. Throws std::runtime_error with the file

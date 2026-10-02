@@ -262,7 +262,8 @@ void describe_interfaces(class_source& source) {
 }
 
 class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generated,
-                           closure const& cl, type_map const& types) {
+                           closure const& cl, type_map const& types,
+                           std::vector<std::string>& warnings) {
     class_source source{type};
     auto& info = source.info;
     info.name = wxl_class_name(type);
@@ -282,10 +283,9 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
         // gen/event_args.cpp), so a class wrapper cannot derive from one.
         // Nothing in the current profiles hits this; report it rather than
         // emit a class that silently loses its real base.
-        std::print(stderr,
-                   "warning: {} derives from the EventArgs wrapper {} -- rooted at Object "
-                   "instead\n",
-                   full_name(type), base.TypeName());
+        warnings.push_back(
+            std::format("{} derives from the EventArgs wrapper {} -- rooted at Object instead",
+                        full_name(type), base.TypeName()));
         base = {};
     }
 
@@ -344,10 +344,9 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
     source.default_interface = facts.default_interface;
     info.primary_field = facts.primary_field;
     if (!source.default_interface) {
-        std::print(stderr,
-                   "warning: {} has no resolvable default interface -- nothing can hand this "
-                   "object over to a call\n",
-                   full_name(type));
+        warnings.push_back(std::format(
+            "{} has no resolvable default interface -- nothing can hand this object over to a call",
+            full_name(type)));
     }
     describe_interfaces(source);
     return source;
@@ -1186,7 +1185,8 @@ wrapped_types wrapped_types_of(type_kinds const& kinds, type_map const& types) {
     for (auto&& type : kinds.classes) {
         // A collection class is not wrapped either: it exists in metadata
         // only to name an IVector<T>, and wxl::Collection<T> already is that.
-        if (!is_event_args_class(type) && !project_type(type, types) && !is_collection_class(type)) {
+        if (!is_event_args_class(type) && !project_type(type, types) &&
+            !is_collection_class(type)) {
             wrapped.generated.insert(type);
         }
     }
@@ -1203,25 +1203,28 @@ wrapped_types wrapped_types_of(type_kinds const& kinds, type_map const& types) {
     return wrapped;
 }
 
-// Every wrapped class, analysed in closure order, and the file group of
-// every namespace. Namespaces that derive from each other share a file;
-// everything else gets its own. Grouping preserves the closure's dependency
-// order within each file, which is what lets a base class simply appear
-// earlier instead of needing an include.
+// Every wrapped class, analysed in closure order; the file group of every
+// namespace and what the analysis warns about go into the model. Namespaces
+// that derive from each other share a file; everything else gets its own.
+// Grouping preserves the closure's dependency order within each file, which
+// is what lets a base class simply appear earlier instead of needing an
+// include.
 std::vector<class_source> read_classes(wrapped_types const& wrapped, closure const& cl,
-                                       type_map const& types, std::map<std::string, std::string>& group_of) {
+                                       type_map const& types, model& m) {
     std::vector<class_source> sources;
-    std::set<std::string> written_names;
+    std::map<std::string, TypeDef> written_names;
     std::map<std::string, std::set<std::string>> namespace_deps;
     for (auto&& type : wrapped.ordered) {
         if (!wrapped.generated.count(type)) {
             continue;  // EventArgs wrappers and projected types are emitted elsewhere
         }
-        auto source = analyze_class(type, wrapped.generated, cl, types);
-        if (!written_names.insert(source.info.name).second) {
-            std::print(stderr, "warning: two classes map to the same flat wxl name '{}' ({})\n",
-                       source.info.name, full_name(type));
-            continue;
+        auto source = analyze_class(type, wrapped.generated, cl, types, m.class_warnings);
+        // Every wrapper lives in the one namespace wxl, so a second class of
+        // the same name would be a second definition of the first.
+        if (auto const [first, added] = written_names.emplace(source.info.name, type); !added) {
+            throw std::runtime_error(
+                std::format("two classes map to the same flat wxl name '{}': {} and {}",
+                            source.info.name, full_name(first->second), full_name(type)));
         }
         std::string const ns{type.TypeNamespace()};
         if (!source.info.base_namespace.empty() && source.info.base_namespace != ns) {
@@ -1230,7 +1233,7 @@ std::vector<class_source> read_classes(wrapped_types const& wrapped, closure con
         namespace_deps.try_emplace(ns);
         sources.push_back(std::move(source));
     }
-    group_of = group_namespaces(namespace_deps);
+    m.group_of = group_namespaces(namespace_deps);
     return sources;
 }
 
@@ -1803,7 +1806,7 @@ void finish_schema(std::vector<std::pair<std::string, schema::member>>& attached
 type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map const& types,
                            model& m) {
     auto const wrapped = wrapped_types_of(kinds, types);
-    auto sources = read_classes(wrapped, cl, types, m.group_of);
+    auto sources = read_classes(wrapped, cl, types, m);
 
     // Members come second, because naming a type in a signature means
     // knowing which file declares it, which is only settled once the
@@ -1841,6 +1844,10 @@ type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map 
 }
 
 void write_classes(output const& out, model const& m, emitted& em) {
+    for (auto&& line : m.class_warnings) {
+        std::print(stderr, "warning: {}\n", line);
+    }
+
     if (!m.skipped_members.empty()) {
         std::print("\nmembers skipped -- no wxl type for a signature yet ({}):\n",
                    m.skipped_members.size());

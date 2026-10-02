@@ -32,6 +32,12 @@ void report(profile_set const& profiles, closure const& cl) {
     }
     std::print("  roots: {}\n", profiles.types.size());
 
+    if (!profiles.missing_windows_metadata.empty()) {
+        std::print(stderr,
+                   "warning: no Windows metadata in {} -- the walk stops at every Windows type\n",
+                   profiles.missing_windows_metadata.string());
+    }
+
     for (auto&& name : cl.missing_types) {
         std::print(stderr, "warning: profile type not found in metadata: {}\n", name);
     }

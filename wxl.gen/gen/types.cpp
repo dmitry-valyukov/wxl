@@ -185,7 +185,8 @@ constexpr std::string_view reference_interface = "Windows.Foundation.IReference`
 // The generic type of an instantiation of one of `names` with a single
 // argument -- IVector`1, IObservableVector`1, IReference`1 -- or an empty
 // TypeDef for any other. The argument is single_argument(instantiation).
-TypeDef generic_of(GenericTypeInstSig const& instantiation, std::span<std::string_view const> names) {
+TypeDef generic_of(GenericTypeInstSig const& instantiation,
+                   std::span<std::string_view const> names) {
     auto const generic = instantiation.GenericType();
     if (generic.type() == TypeDefOrRef::TypeSpec) {
         return {};

@@ -87,8 +87,9 @@ std::map<TypeDef, std::string> build_name_registry(std::vector<TypeDef> const& t
     for (auto&& type : types) {
         std::string name{type.TypeName()};
         if (auto const it = name_owner.find(name); it != name_owner.end() && it->second != type) {
-            std::print(stderr, "warning: name collision in flat wxl namespace: '{}' ({} vs {})\n",
-                       name, it->second.TypeNamespace(), type.TypeNamespace());
+            throw std::runtime_error(
+                std::format("two types map to the same flat wxl name '{}': {} and {}", name,
+                            full_name(it->second), full_name(type)));
         }
         generated_names[type] = name;
         name_owner[std::move(name)] = type;

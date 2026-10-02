@@ -308,7 +308,8 @@ namespace {{
 
 void write_schema(output const& out, model const& m, emitted& em) {
     for (auto&& name : m.unplaced_bound_members) {
-        std::print("warning: bound member {} names a class the profile does not generate\n", name);
+        std::print(stderr, "warning: bound member {} names a class the profile does not generate\n",
+                   name);
     }
 
     auto const& sch = m.schema;

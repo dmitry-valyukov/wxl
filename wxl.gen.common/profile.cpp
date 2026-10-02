@@ -365,15 +365,14 @@ std::vector<std::filesystem::path> resolve_resources(package_ref const& package,
 
 // The projected Windows platform metadata (Windows.Foundation.IReference,
 // IVector<T>, EventHandler<T>, ...). WinUI's own .winmd only *references*
-// those; without this the walk silently stops at every such edge.
-std::vector<std::filesystem::path> windows_metadata_files() {
-    auto const dir = std::filesystem::path{env("SystemRoot").empty() ? "C:/Windows"
-                                                                    : env("SystemRoot")} /
-                     "System32" / "WinMetadata";
+// those; without them the walk stops at every such edge.
+std::filesystem::path windows_metadata_dir() {
+    return std::filesystem::path{env("SystemRoot").empty() ? "C:/Windows" : env("SystemRoot")} /
+           "System32" / "WinMetadata";
+}
+
+std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path const& dir) {
     std::vector<std::filesystem::path> files;
-    if (!std::filesystem::is_directory(dir)) {
-        return files;
-    }
     for (auto&& item : std::filesystem::directory_iterator{dir}) {
         if (item.is_regular_file() && item.path().extension() == ".winmd") {
             files.push_back(item.path());
@@ -685,8 +684,12 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
     }
 
     if (windows_metadata) {
-        for (auto&& file : windows_metadata_files()) {
-            metadata.insert(file);
+        if (auto const dir = windows_metadata_dir(); std::filesystem::is_directory(dir)) {
+            for (auto&& file : windows_metadata_files(dir)) {
+                metadata.insert(file);
+            }
+        } else {
+            result.missing_windows_metadata = dir;
         }
     }
 

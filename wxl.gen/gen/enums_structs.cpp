@@ -90,7 +90,8 @@ struct resolved_field {
     std::string_view include;  // non-empty for projected types
 };
 
-resolved_field resolve_field_type(TypeSig const& sig, std::map<TypeDef, std::string> const& generated_names,
+resolved_field resolve_field_type(TypeSig const& sig,
+                                  std::map<TypeDef, std::string> const& generated_names,
                                   type_map const& types) {
     if (auto const* prim = primitive_name(sig.element_type())) {
         return {prim, {}, {}};
@@ -106,7 +107,10 @@ resolved_field resolve_field_type(TypeSig const& sig, std::map<TypeDef, std::str
             }
         }
     }
-    return {"void*", {}, {}};  // unexpected field shape (array/generic/unresolved) -- placeholder
+    // An array, a generic, a type outside the closure: mirrors_abi() refuses
+    // a struct holding one, so none should get here, and the caller says
+    // which field did.
+    return {};
 }
 
 // A struct as analysis sees it: its TypeDef, and each field with where its
@@ -116,12 +120,17 @@ struct struct_source {
     std::vector<std::pair<std::string, resolved_field>> fields;  // camelCase name, type
 };
 
-struct_source read_struct(TypeDef const& type, std::map<TypeDef, std::string> const& generated_names,
+struct_source read_struct(TypeDef const& type,
+                          std::map<TypeDef, std::string> const& generated_names,
                           type_map const& types) {
     struct_source source{type, {}};
     for (auto&& field : type.FieldList()) {
-        source.fields.emplace_back(member_name(field.Name()),
-                                   resolve_field_type(field.Signature().Type(), generated_names, types));
+        auto resolved = resolve_field_type(field.Signature().Type(), generated_names, types);
+        if (resolved.cpp_type.empty()) {
+            throw std::runtime_error(std::format("{}.{}: a struct field wxl has no type for",
+                                                 full_name(type), field.Name()));
+        }
+        source.fields.emplace_back(member_name(field.Name()), std::move(resolved));
     }
     return source;
 }

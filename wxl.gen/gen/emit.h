@@ -130,8 +130,9 @@ private:
 };
 
 // The name a WinRT type gets in wxl's flat `namespace wxl`: its bare
-// TypeName. Collisions across source namespaces are reported, not
-// resolved -- the closures in use haven't produced one.
+// TypeName. Two types of one name in different namespaces are an error
+// (std::runtime_error naming both), not resolved -- the closures in use
+// haven't produced one.
 std::map<md::TypeDef, std::string> build_name_registry(
     std::vector<md::TypeDef> const& types);
 
