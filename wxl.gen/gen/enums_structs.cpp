@@ -22,43 +22,6 @@ using namespace md;
 namespace gen {
 namespace {
 
-// WinRT enum literals and struct fields only ever carry a primitive
-// ElementType, another enum/struct (TypeDefOrRef), or -- unseen so far
-// in practice -- something this generator doesn't understand yet.
-// Returns nullptr for anything that isn't a primitive; the caller
-// resolves those via the TypeDefOrRef alternative of TypeSig::Type()
-// instead.
-char const* primitive_cpp_type(ElementType et) {
-    switch (et) {
-        case ElementType::Boolean:
-            return "bool";
-        case ElementType::Char:
-            return "char16_t";
-        case ElementType::I1:
-            return "int8_t";
-        case ElementType::U1:
-            return "uint8_t";
-        case ElementType::I2:
-            return "int16_t";
-        case ElementType::U2:
-            return "uint16_t";
-        case ElementType::I4:
-            return "int32_t";
-        case ElementType::U4:
-            return "uint32_t";
-        case ElementType::I8:
-            return "int64_t";
-        case ElementType::U8:
-            return "uint64_t";
-        case ElementType::R4:
-            return "float";
-        case ElementType::R8:
-            return "double";
-        default:
-            return nullptr;
-    }
-}
-
 // Every alternative Constant::Value() can hold for an enum literal is
 // arithmetic, and the value is what the generated enumerator is written as.
 // The widening is what makes one code path do: std::format has no formatter
@@ -150,7 +113,7 @@ struct resolved_field {
 
 resolved_field resolve_field_type(TypeSig const& sig,
                                   std::map<TypeDef, std::string> const& generated_names) {
-    if (auto const* prim = primitive_cpp_type(sig.element_type())) {
+    if (auto const* prim = primitive_name(sig.element_type())) {
         return {prim, {}, {}};
     }
     if (auto const* ref = std::get_if<coded_index<TypeDefOrRef>>(&sig.Type());
@@ -189,45 +152,15 @@ struct_info analyze_struct(TypeDef const& type,
     return info;
 }
 
-// Orders `structs` so that any struct referenced by another struct's
-// field is emitted first -- C++ requires a field's type to be complete
-// at the point of use, so declaration order has to follow dependency
-// order. Enum dependencies don't participate (enums are always
-// self-contained, emitted into a separate file, and never depend on
-// anything themselves). DFS-based; WinRT structs are simple flat
-// aggregates in practice, so cycles aren't expected -- the `visiting`
-// guard just avoids infinite recursion if metadata ever surprised us.
-std::vector<struct_info> topological_sort(std::vector<struct_info> structs) {
-    std::map<TypeDef, struct_info const*> by_type;
-    for (auto&& s : structs) {
-        by_type[s.type] = &s;
-    }
-
-    std::set<TypeDef> done;
-    std::set<TypeDef> visiting;
-    std::vector<struct_info> order;
-    order.reserve(structs.size());
-
-    std::function<void(struct_info const&)> visit = [&](struct_info const& s) {
-        if (done.count(s.type) || !visiting.insert(s.type).second) {
-            return;
+// The structs a struct's fields hold, which have to be declared before it.
+// Enums don't take part: they live in a file of their own and depend on
+// nothing.
+void struct_dependencies(struct_info const& s, auto&& follow) {
+    for (auto&& field : s.fields) {
+        if (field.type.dependency && get_category(field.type.dependency) == category::struct_type) {
+            follow(field.type.dependency);
         }
-        for (auto&& field : s.fields) {
-            if (field.type.dependency &&
-                get_category(field.type.dependency) == category::struct_type) {
-                if (auto const it = by_type.find(field.type.dependency); it != by_type.end()) {
-                    visit(*it->second);
-                }
-            }
-        }
-        done.insert(s.type);
-        order.push_back(s);
-    };
-
-    for (auto&& s : structs) {
-        visit(s);
     }
-    return order;
 }
 
 void write_structs_file(std::filesystem::path const& path, std::vector<struct_info> const& structs,
@@ -247,15 +180,7 @@ void write_structs_file(std::filesystem::path const& path, std::vector<struct_in
         std::print(out, "#include <stdint.h>\n");
     }
 
-    for (auto&& include : includes) {
-        // Projections name standard headers (<chrono>); everything else is
-        // a generated file next door.
-        if (include.starts_with('<')) {
-            std::print(out, "#include {}\n", include);
-        } else {
-            std::print(out, "#include \"{}\"\n", include);
-        }
-    }
+    write_includes(out, includes);
     std::print(out, "\nnamespace wxl {{\n\n");
 
     for (auto&& s : structs) {
@@ -330,13 +255,7 @@ void write_struct_conversions(std::filesystem::path const& path,
 
 )",
                banner);
-    for (auto&& include : includes) {
-        if (include.starts_with('<')) {
-            std::print(out, "#include {}\n", include);
-        } else {
-            std::print(out, "#include \"{}\"\n", include);
-        }
-    }
+    write_includes(out, includes);
 
     std::print(out, "\nnamespace wxl::impl {{\n");
 
@@ -367,15 +286,6 @@ inline {1} from_winrt({0} const& value) {{
     }
 
     std::print(out, "\n}}  // namespace wxl::impl\n");
-}
-
-void write_umbrella_file(std::filesystem::path const& path, std::vector<std::string> const& files) {
-    auto out = open_output(path);
-
-    std::print(out, "{}#pragma once\n\n", banner);
-    for (auto&& file : files) {
-        std::print(out, "#include \"{}\"\n", file);
-    }
 }
 
 }  // namespace
@@ -419,7 +329,8 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
         }
         struct_infos.push_back(analyze_struct(type, generated_names));
     }
-    auto const sorted_structs = topological_sort(std::move(struct_infos));
+    auto const sorted_structs = topological_sort(
+        std::move(struct_infos), [](struct_info const& s, auto&& follow) { struct_dependencies(s, follow); });
 
     std::map<std::string, std::vector<struct_info>> structs_by_namespace;
     for (auto&& s : sorted_structs) {

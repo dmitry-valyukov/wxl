@@ -7,19 +7,6 @@ using namespace md;
 namespace gen {
 namespace {
 
-// XAML classes mark their default interface with DefaultAttribute; it is the
-// interface the projection's class type stands for, so it is also the one
-// wxl's wrapper holds.
-bool is_default_interface(InterfaceImpl const& implemented) {
-    for (auto&& attribute : implemented.CustomAttribute()) {
-        auto const [ns, name] = attribute.TypeNamespaceAndName();
-        if (ns == "Windows.Foundation.Metadata" && name == "DefaultAttribute") {
-            return true;
-        }
-    }
-    return false;
-}
-
 TypeDef resolved(coded_index<TypeDefOrRef> const& index) {
     if (!index || index.type() == TypeDefOrRef::TypeSpec) {
         return {};  // parameterized: no interface of its own to name
@@ -30,7 +17,10 @@ TypeDef resolved(coded_index<TypeDefOrRef> const& index) {
 type_facts compute(TypeDef const& type) {
     type_facts facts;
     for (auto&& implemented : type.InterfaceImpl()) {
-        if (!is_default_interface(implemented)) {
+        // XAML classes mark their default interface with DefaultAttribute; it
+        // is the interface the projection's class type stands for, so it is
+        // also the one wxl's wrapper holds.
+        if (!find_attribute(implemented, "DefaultAttribute")) {
             continue;
         }
         if (auto const iface = resolved(implemented.Interface())) {

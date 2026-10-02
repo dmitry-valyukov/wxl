@@ -42,6 +42,41 @@ struct by_full_name {
     }
 };
 
+// "Microsoft.UI.Xaml.Controls.Button"
+std::string full_name(winmd::reader::TypeDef const& type);
+
+// Accessors (get_X/put_X/add_X/remove_X) and .ctor are not methods of their
+// own: they are reached through the Property and Event tables, so neither the
+// walk nor the generator treats them as methods.
+bool is_plain_method(winmd::reader::MethodDef const& method);
+
+// Where the attributes describing a type's shape live: DefaultAttribute,
+// StaticAttribute, ActivatableAttribute, ComposableAttribute,
+// DeprecatedAttribute.
+inline constexpr std::string_view metadata_namespace = "Windows.Foundation.Metadata";
+
+// Whether `attribute` is `ns`.`name`.
+bool is_attribute(winmd::reader::CustomAttribute const& attribute, std::string_view ns,
+                  std::string_view name);
+
+// The first Windows.Foundation.Metadata attribute called `name` on `owner` --
+// a type, a member, an interface implementation -- or an empty one.
+template <typename Owner>
+winmd::reader::CustomAttribute find_attribute(Owner const& owner, std::string_view name) {
+    for (auto&& attribute : owner.CustomAttribute()) {
+        if (is_attribute(attribute, metadata_namespace, name)) {
+            return attribute;
+        }
+    }
+    return {};
+}
+
+// The types an attribute names among its fixed arguments, as metadata spells
+// them: the interface of a StaticAttribute, the factory of an
+// ActivatableAttribute or a ComposableAttribute. Empty when it names none --
+// a bare ActivatableAttribute, the one of a default constructor.
+std::vector<std::string_view> types_named_by(winmd::reader::CustomAttribute const& attribute);
+
 struct Closure {
     // Every discovered type, ordered from dependency sources to their
     // consumers: a type appears after everything it needs (base classes

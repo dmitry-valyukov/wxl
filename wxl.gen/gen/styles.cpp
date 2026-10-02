@@ -342,6 +342,16 @@ void write_name_table(Output const& out, Emitted& emitted, std::string_view file
     emitted.add(file);
 }
 
+// The bare names of the classes the run generates. A resource dictionary
+// names a target type, and a brush key starts with one, by that name alone.
+std::set<std::string> generated_class_names(Model const& model) {
+    std::set<std::string> generated;
+    for (auto&& type : model.classes) {
+        generated.insert(std::string{type.TypeName()});
+    }
+    return generated;
+}
+
 }  // namespace
 
 void write_styles(Output const& out, Model const& model,
@@ -358,10 +368,7 @@ void write_styles(Output const& out, Model const& model,
 
     // Only styles for controls that were generated: without the control there
     // is nothing to apply the style to.
-    std::set<std::string> generated;
-    for (auto&& type : model.classes) {
-        generated.insert(std::string{type.TypeName()});
-    }
+    auto const generated = generated_class_names(model);
 
     // And of those, the ones the profiles chose. The document names a target
     // by its bare name and the profile by the full one; the generated class
@@ -461,10 +468,7 @@ void write_brushes(Output const& out, Model const& model,
     // they exist to be *overridden* by templates, tripling the surface to
     // read them has no caller yet, and their type is only known by chasing
     // the alias chain.
-    std::set<std::string> generated;
-    for (auto&& type : model.classes) {
-        generated.insert(std::string{type.TypeName()});
-    }
+    auto const generated = generated_class_names(model);
 
     std::map<std::string, std::string> stems;        // stem -> key
     std::map<std::string, std::string> theme_stems;  // the same, for *ThemeBrush

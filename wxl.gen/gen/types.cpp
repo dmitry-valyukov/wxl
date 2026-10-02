@@ -34,37 +34,6 @@ TypeUse primitive(std::string_view cpp_type) {
     return use;
 }
 
-char const* primitive_name(ElementType element) {
-    switch (element) {
-        case ElementType::Boolean:
-            return "bool";
-        case ElementType::Char:
-            return "char16_t";
-        case ElementType::I1:
-            return "int8_t";
-        case ElementType::U1:
-            return "uint8_t";
-        case ElementType::I2:
-            return "int16_t";
-        case ElementType::U2:
-            return "uint16_t";
-        case ElementType::I4:
-            return "int32_t";
-        case ElementType::U4:
-            return "uint32_t";
-        case ElementType::I8:
-            return "int64_t";
-        case ElementType::U8:
-            return "uint64_t";
-        case ElementType::R4:
-            return "float";
-        case ElementType::R8:
-            return "double";
-        default:
-            return nullptr;
-    }
-}
-
 // WinRT strings are HSTRINGs. A string read off a member is an hstring -- a
 // reference to the very HSTRING the object holds, so reading a Text is a count
 // and not a copy of its text -- and one written is an hstring_param, which
@@ -538,6 +507,37 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
 }
 
 }  // namespace
+
+char const* primitive_name(ElementType element) {
+    switch (element) {
+        case ElementType::Boolean:
+            return "bool";
+        case ElementType::Char:
+            return "char16_t";
+        case ElementType::I1:
+            return "int8_t";
+        case ElementType::U1:
+            return "uint8_t";
+        case ElementType::I2:
+            return "int16_t";
+        case ElementType::U2:
+            return "uint16_t";
+        case ElementType::I4:
+            return "int32_t";
+        case ElementType::U4:
+            return "uint32_t";
+        case ElementType::I8:
+            return "int64_t";
+        case ElementType::U8:
+            return "uint64_t";
+        case ElementType::R4:
+            return "float";
+        case ElementType::R8:
+            return "double";
+        default:
+            return nullptr;
+    }
+}
 
 TypeUse map_type(TypeDef const& type, TypeIndex const& index) {
     return map_type_def(type, index);

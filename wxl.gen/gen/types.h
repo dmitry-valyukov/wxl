@@ -72,6 +72,11 @@ struct TypeUse {
 // Replaces every '$' in `expression` with `argument`.
 std::string substitute(std::string_view expression, std::string_view argument);
 
+// The C++ type a primitive ElementType is on both sides of the boundary --
+// "int32_t", "char16_t", "double" -- or nullptr for anything else: an enum, a
+// struct or a class is a TypeDefOrRef in the signature, not an ElementType.
+char const* primitive_name(md::ElementType element);
+
 // The mapping for one signature. `index` decides which types are wrapped
 // at all: anything it doesn't name and that isn't primitive, a string, an
 // object or a projected type comes back unsupported.

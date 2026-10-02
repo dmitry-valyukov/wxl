@@ -6,11 +6,34 @@ import std;
 
 using namespace winmd::reader;
 
-namespace {
-
 std::string full_name(TypeDef const& type) {
     return std::format("{}.{}", type.TypeNamespace(), type.TypeName());
 }
+
+bool is_plain_method(MethodDef const& method) {
+    return !method.Flags().SpecialName() && !method.Flags().RTSpecialName();
+}
+
+bool is_attribute(CustomAttribute const& attribute, std::string_view ns, std::string_view name) {
+    auto const [attribute_ns, attribute_name] = attribute.TypeNamespaceAndName();
+    return attribute_ns == ns && attribute_name == name;
+}
+
+std::vector<std::string_view> types_named_by(CustomAttribute const& attribute) {
+    std::vector<std::string_view> named;
+    for (auto&& argument : attribute.Value().FixedArgs()) {
+        auto const* element = std::get_if<ElemSig>(&argument.value);
+        if (!element) {
+            continue;
+        }
+        if (auto const* type = std::get_if<ElemSig::SystemType>(&element->value)) {
+            named.push_back(type->name);
+        }
+    }
+    return named;
+}
+
+namespace {
 
 // A member WinRT itself has withdrawn -- Window.CoreWindow is documented as
 // "always returns null for Desktop apps" and carries DeprecatedAttribute to
@@ -21,13 +44,7 @@ std::string full_name(TypeDef const& type) {
 // exactly that reason.
 template <typename T>
 bool has_deprecated_attribute(T const& member) {
-    for (auto&& attribute : member.CustomAttribute()) {
-        auto const [ns, name] = attribute.TypeNamespaceAndName();
-        if (ns == "Windows.Foundation.Metadata" && name == "DeprecatedAttribute") {
-            return true;
-        }
-    }
-    return false;
+    return static_cast<bool>(find_attribute(member, "DeprecatedAttribute"));
 }
 
 bool is_deprecated(MethodDef const& method) { return has_deprecated_attribute(method); }
@@ -65,13 +82,6 @@ bool is_dependency_property_accessor(Property const& property) {
     auto const resolved = winmd::reader::find(*ref);
     return resolved && resolved.TypeNamespace() == "Microsoft.UI.Xaml" &&
            resolved.TypeName() == "DependencyProperty";
-}
-
-// Accessors (get_X/put_X/add_X/remove_X) and .ctor: reached through the
-// Property/Event tables instead, so they never take part in filtering or
-// in the walk as methods of their own.
-bool is_plain_method(MethodDef const& method) {
-    return !method.Flags().SpecialName() && !method.Flags().RTSpecialName();
 }
 
 // Resolves an interface reference to its TypeDef, or an empty TypeDef for
@@ -133,56 +143,33 @@ std::set<std::string> declared_members(TypeDef const& type) {
     return names;
 }
 
-// The interfaces a class's *static* members live on. WinRT declares them
-// nowhere near the class's own interfaces: StaticAttribute names a separate
-// interface per version, implemented by the activation factory rather than
-// by the object, which is exactly how they are reached at run time too.
-std::vector<TypeDef> statics_interfaces(TypeDef const& type, cache const& db) {
-    std::vector<TypeDef> found;
-    for (auto&& attribute : type.CustomAttribute()) {
-        auto const [ns, name] = attribute.TypeNamespaceAndName();
-        if (ns != "Windows.Foundation.Metadata" || name != "StaticAttribute") {
-            continue;
-        }
-        for (auto&& argument : attribute.Value().FixedArgs()) {
-            auto const* element = std::get_if<ElemSig>(&argument.value);
-            if (!element) {
-                continue;
-            }
-            if (auto const* named = std::get_if<ElemSig::SystemType>(&element->value)) {
-                if (auto const resolved = db.find(named->name)) {
-                    found.push_back(resolved);
-                }
-            }
-        }
-    }
-    return found;
-}
-
-// The interfaces a class's *parameterised* constructors come from.
+// The interfaces every Windows.Foundation.Metadata attribute called
+// `attribute` on `type` names. Two of them, and neither is among the
+// interfaces the class implements -- both are implemented by the activation
+// factory rather than by the object, which is exactly how they are reached at
+// run time too:
 //
-// ActivatableAttribute is written once per constructor shape: bare, for the
-// default one, and naming a factory interface for every other. So a class
-// whose only ActivatableAttribute names a type has no default constructor at
-// all -- CanvasCommandList is made from a resource creator and from nothing
-// else -- and the factory interface is where its real constructors are
-// declared, one method each.
-std::vector<TypeDef> activation_factories(TypeDef const& type, cache const& db) {
+//   StaticAttribute       the interfaces a class's *static* members live on,
+//                         one per version
+//   ActivatableAttribute  the interfaces a class's *parameterised*
+//                         constructors come from. The attribute is written
+//                         once per constructor shape: bare for the default
+//                         one, naming a factory for every other. So a class
+//                         whose only ActivatableAttribute names a type has no
+//                         default constructor at all -- CanvasCommandList is
+//                         made from a resource creator and from nothing else
+//                         -- and the factory is where its real constructors
+//                         are declared, one method each.
+std::vector<TypeDef> interfaces_named_by(TypeDef const& type, std::string_view attribute,
+                                         cache const& db) {
     std::vector<TypeDef> found;
-    for (auto&& attribute : type.CustomAttribute()) {
-        auto const [ns, name] = attribute.TypeNamespaceAndName();
-        if (ns != "Windows.Foundation.Metadata" || name != "ActivatableAttribute") {
+    for (auto&& declared : type.CustomAttribute()) {
+        if (!is_attribute(declared, metadata_namespace, attribute)) {
             continue;
         }
-        for (auto&& argument : attribute.Value().FixedArgs()) {
-            auto const* element = std::get_if<ElemSig>(&argument.value);
-            if (!element) {
-                continue;
-            }
-            if (auto const* named = std::get_if<ElemSig::SystemType>(&element->value)) {
-                if (auto const resolved = db.find(named->name)) {
-                    found.push_back(resolved);
-                }
+        for (auto&& name : types_named_by(declared)) {
+            if (auto const resolved = db.find(name)) {
+                found.push_back(resolved);
             }
         }
     }
@@ -383,7 +370,7 @@ struct Crawler {
             // the class, exactly like the instance ones: a profile names
             // OverlappedPresenter.Create, not IOverlappedPresenterStatics.
             if (cat == category::class_type) {
-                for (auto&& iface : statics_interfaces(type, db)) {
+                for (auto&& iface : interfaces_named_by(type, "StaticAttribute", db)) {
                     depend(type, iface);
                     auto& known = result.statics[type];
                     if (std::find(known.begin(), known.end(), iface) == known.end()) {
@@ -399,7 +386,7 @@ struct Crawler {
                 // what it drags in with it is the types its constructors
                 // take. A constructor whose signature wxl cannot map yet is
                 // dropped by the generator, and reported there.
-                for (auto&& iface : activation_factories(type, db)) {
+                for (auto&& iface : interfaces_named_by(type, "ActivatableAttribute", db)) {
                     depend(type, iface);
                     auto& known = result.factories[type];
                     if (std::find(known.begin(), known.end(), iface) == known.end()) {

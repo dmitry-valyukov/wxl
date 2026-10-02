@@ -93,11 +93,6 @@ struct skipped_member {
     std::string reason;
 };
 
-// Accessors (get_X/put_X/add_X/remove_X) and .ctor reach the wrapper
-// through the Property and Event tables instead, never as methods of their
-// own.
-bool is_plain_method(md::MethodDef const& method);
-
 // Parameter names as the metadata spells them, indexed by position.
 std::vector<std::string> parameter_names(md::MethodDef const& method);
 

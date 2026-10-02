@@ -49,16 +49,6 @@ using namespace md;
 namespace gen {
 namespace {
 
-CustomAttribute find_attribute(TypeDef const& type, std::string_view name) {
-    for (auto&& attribute : type.CustomAttribute()) {
-        auto const [ns, attribute_name] = attribute.TypeNamespaceAndName();
-        if (ns == "Windows.Foundation.Metadata" && attribute_name == name) {
-            return attribute;
-        }
-    }
-    return {};
-}
-
 // The property unnamed children belong to, as the class itself declares it:
 // XAML marks every markup-facing class with ContentPropertyAttribute, and
 // that is exactly the question the builder syntax asks -- Panel says
@@ -69,9 +59,8 @@ CustomAttribute find_attribute(TypeDef const& type, std::string_view name) {
 // that came from it.
 std::string content_property_of(TypeDef const& type) {
     for (auto&& attribute : type.CustomAttribute()) {
-        auto const [ns, name] = attribute.TypeNamespaceAndName();
-        if (name != "ContentPropertyAttribute" ||
-            (ns != "Microsoft.UI.Xaml.Markup" && ns != "Windows.UI.Xaml.Markup")) {
+        if (!is_attribute(attribute, "Microsoft.UI.Xaml.Markup", "ContentPropertyAttribute") &&
+            !is_attribute(attribute, "Windows.UI.Xaml.Markup", "ContentPropertyAttribute")) {
             continue;
         }
         for (auto&& argument : attribute.Value().NamedArgs()) {
@@ -131,17 +120,9 @@ Creation construction_of(TypeDef const& type) {
     bool default_activation = false;
     bool factory_activation = false;
     for (auto&& attribute : type.CustomAttribute()) {
-        auto const [ns, name] = attribute.TypeNamespaceAndName();
-        if (ns != "Windows.Foundation.Metadata" || name != "ActivatableAttribute") {
-            continue;
+        if (is_attribute(attribute, metadata_namespace, "ActivatableAttribute")) {
+            (types_named_by(attribute).empty() ? default_activation : factory_activation) = true;
         }
-        bool names_factory = false;
-        for (auto&& argument : attribute.Value().FixedArgs()) {
-            auto const* element = std::get_if<ElemSig>(&argument.value);
-            names_factory = names_factory ||
-                            (element && std::get_if<ElemSig::SystemType>(&element->value));
-        }
-        (names_factory ? factory_activation : default_activation) = true;
     }
 
     if (default_activation) {
@@ -159,14 +140,11 @@ Creation construction_of(TypeDef const& type) {
     // ComposableAttribute(factory interface, CompositionType, version): the
     // first argument is the interface an instance comes from, the second is
     // what separates `public Button()` from `protected Control()`.
-    std::string factory;
+    auto const named = types_named_by(composable);
+    std::string factory = named.empty() ? std::string{} : std::string{named.front()};
     for (auto&& arg : composable.Value().FixedArgs()) {
         auto const* elem = std::get_if<ElemSig>(&arg.value);
         if (!elem) {
-            continue;
-        }
-        if (auto const* named = std::get_if<ElemSig::SystemType>(&elem->value)) {
-            factory = named->name;
             continue;
         }
         auto const* enum_value = std::get_if<ElemSig::EnumValue>(&elem->value);
@@ -337,12 +315,10 @@ bool universal_type(std::string_view value_type) {
 // convention, not meaning, and wxl names its types the way its classes are
 // named (getRange hands out a TextRange, nobody spells ITextRange).
 std::string wxl_class_name(TypeDef const& type) {
-    std::string_view name = type.TypeName();
-    if (get_category(type) == category::interface_type && name.size() > 1 && name[0] == 'I' &&
-        name[1] >= 'A' && name[1] <= 'Z') {
-        name.remove_prefix(1);
-    }
-    return std::string{name};
+    std::string_view const name = type.TypeName();
+    return std::string{get_category(type) == category::interface_type
+                           ? without_interface_prefix(name)
+                           : name};
 }
 
 class_info analyze_class(TypeDef const& type, std::set<TypeDef> const& generated,
@@ -459,16 +435,6 @@ std::set<std::string> file_includes(std::string_view group,
     return includes;
 }
 
-void write_includes(std::ostream& out, std::set<std::string> const& includes) {
-    for (auto&& include : includes) {
-        if (include.starts_with('<')) {
-            std::print(out, "#include {}\n", include);
-        } else {
-            std::print(out, "#include \"{}\"\n", include);
-        }
-    }
-}
-
 // What the private side of a group stands on: the private halves of its base
 // classes' groups, its own public header, and the projection headers of every
 // class and interface it names.
@@ -537,8 +503,7 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
     // statics-only classes has no such constructor and does not need it --
     // the only file that reaches this state today is Hosting, whose whole
     // content is ElementCompositionPreview.
-    if (std::any_of(classes.begin(), classes.end(),
-                    [](class_info const& info) { return !info.statics_only; })) {
+    if (has_impl(classes)) {
         includes.insert("../impl/member.h");
     }
 
@@ -887,15 +852,19 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
         // make every including TU parse it.
         std::print(out, "\nnamespace impl {{\n");
         for (auto&& info : classes) {
-            if (info.construction == Construction::PublicActivation ||
-                info.construction == Construction::PublicComposition) {
+            auto const name_class = [&out, &info](std::string_view key) {
                 std::print(out, R"(
 template <>
 struct runtime_class_name_of<{}> {{
     static constexpr wchar_t value[] = L"{}";
 }};
 )",
-                           info.name, full_name(info.type));
+                           key, full_name(info.type));
+            };
+
+            if (info.construction == Construction::PublicActivation ||
+                info.construction == Construction::PublicComposition) {
+                name_class(info.name);
             }
             // A factory interface is keyed on the same way a statics one is
             // -- it too is reached through the class's activation factory,
@@ -903,28 +872,15 @@ struct runtime_class_name_of<{}> {{
             // once per constructor: a factory routinely declares several.
             std::set<std::string> keyed;
             for (auto&& ctor : info.constructors) {
-                if (!keyed.insert(ctor.statics_interface).second) {
-                    continue;
+                if (keyed.insert(ctor.statics_interface).second) {
+                    name_class(ctor.statics_interface);
                 }
-                std::print(out, R"(
-template <>
-struct runtime_class_name_of<{}> {{
-    static constexpr wchar_t value[] = L"{}";
-}};
-)",
-                           ctor.statics_interface, full_name(info.type));
             }
             // A statics interface is keyed on directly: it already names
             // exactly one class, so it needs no marker type of its own.
             for (auto&& iface : info.statics) {
-                std::print(out, R"(
-template <>
-struct runtime_class_name_of<{}::{}> {{
-    static constexpr wchar_t value[] = L"{}";
-}};
-)",
-                           winrt_namespace(iface.TypeNamespace()), iface.TypeName(),
-                           full_name(info.type));
+                name_class(std::format("{}::{}", winrt_namespace(iface.TypeNamespace()),
+                                       iface.TypeName()));
             }
         }
         std::print(out, "}}  // namespace impl\n");
@@ -1766,15 +1722,17 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     // metadata declares it, and the dispatch behind a tag is a template on the
     // object, so a key and a tag are all such a member needs. A generated class
     // that declares the same name with another type leaves no definite one.
-    for (auto&& property : type_map().hand_written_properties) {
-        auto [it, inserted] =
-            dsl.property_value_type.emplace(property.name, property.value_type);
-        if (!inserted && it->second != property.value_type) {
+    auto const add_hand_written = [&dsl](auto const& member) {
+        auto [it, inserted] = dsl.property_value_type.emplace(member.name, member.value_type);
+        if (!inserted && it->second != member.value_type) {
             it->second.clear();
         }
-        if (!property.include.empty()) {
-            dsl.includes.insert(property.include);
+        if (!member.include.empty()) {
+            dsl.includes.insert(member.include);
         }
+    };
+    for (auto&& property : type_map().hand_written_properties) {
+        add_hand_written(property);
     }
     dsl.events.insert(type_map().hand_written_events.begin(),
                       type_map().hand_written_events.end());
@@ -1783,13 +1741,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     // dispatches to is constrained on the member's existence, so on a class
     // that has none the assignment is refused rather than compiled.
     for (auto&& member : type_map().bound_members) {
-        auto [it, inserted] = dsl.property_value_type.emplace(member.name, member.value_type);
-        if (!inserted && it->second != member.value_type) {
-            it->second.clear();
-        }
-        if (!member.include.empty()) {
-            dsl.includes.insert(member.include);
-        }
+        add_hand_written(member);
     }
 
     write_dsl(out, dsl, emitted);

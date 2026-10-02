@@ -527,10 +527,6 @@ private:
         TypeEntry* type;
     };
 
-    static std::string full_name(md::TypeDef const& type) {
-        return std::format("{}.{}", type.TypeNamespace(), type.TypeName());
-    }
-
     // Номера строк у свёрнутого не пересчитываются: к ним не спускаются.
     void recount() {
         uint32_t start = 0;

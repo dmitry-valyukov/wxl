@@ -83,41 +83,6 @@ event_args_info analyze_event_args(TypeDef const& type, std::set<TypeDef> const&
     return info;
 }
 
-// Same shape as the struct sort in gen/enums_structs.cpp, but ordering a
-// single-inheritance chain instead of multiple field dependencies -- a
-// base class must be a complete type before it's used, same requirement,
-// different edge kind.
-std::vector<event_args_info> topological_sort(std::vector<event_args_info> classes) {
-    std::map<TypeDef, event_args_info const*> by_type;
-    for (auto&& c : classes) {
-        by_type[c.type] = &c;
-    }
-
-    std::set<TypeDef> done;
-    std::set<TypeDef> visiting;
-    std::vector<event_args_info> order;
-    order.reserve(classes.size());
-
-    std::function<void(event_args_info const&)> visit = [&](event_args_info const& c) {
-        if (done.count(c.type) || !visiting.insert(c.type).second) {
-            return;
-        }
-        if (c.base) {
-            if (auto const it = by_type.find(c.base); it != by_type.end()) {
-                visit(*it->second);
-            }
-        }
-        done.insert(c.type);
-        order.push_back(c);
-    };
-
-    for (auto&& c : classes) {
-        visit(c);
-    }
-    return order;
-}
-
-
 // What an args view's own signatures need declared, and how. A wrapper type
 // is forward-declared rather than included; everything else -- enums,
 // structs, the standard headers a projection names -- comes in as the include
@@ -182,13 +147,7 @@ void write_event_args_file(std::filesystem::path const& path,
     auto out = open_output(path);
 
     std::print(out, "{}#pragma once\n\n#include \"../events.h\"\n", banner);
-    for (auto&& include : needs.includes) {
-        if (include.starts_with('<')) {
-            std::print(out, "#include {}\n", include);
-        } else {
-            std::print(out, "#include \"{}\"\n", include);
-        }
-    }
+    write_includes(out, needs.includes);
     std::print(out, "\nnamespace wxl {{\n");
 
     if (!needs.forwards.empty()) {
@@ -236,13 +195,7 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
     // header for the same reason, so leading with them is what gets the
     // standard headers winrt/base.h needs in ahead of the import.
     std::print(out, "{}", banner);
-    for (auto&& include : includes) {
-        if (include.starts_with('<')) {
-            std::print(out, "#include {}\n", include);
-        } else {
-            std::print(out, "#include \"{}\"\n", include);
-        }
-    }
+    write_includes(out, includes);
     std::print(out, "\n#include \"{}\"\n\nnamespace wxl {{\n", header);
 
     for (auto&& c : classes) {
@@ -280,15 +233,6 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
     }
 
     std::print(out, "\n}}  // namespace wxl\n");
-}
-
-void write_umbrella_file(std::filesystem::path const& path, std::vector<std::string> const& files) {
-    auto out = open_output(path);
-
-    std::print(out, "{}#pragma once\n\n", banner);
-    for (auto&& file : files) {
-        std::print(out, "#include \"{}\"\n", file);
-    }
 }
 
 // The headers declaring a wrapped class, which an args header must not
@@ -371,7 +315,13 @@ void write_event_args(Output const& out, Model const& model, ClassOutput const& 
         info.members = collect_args_members(type, model, classes.index, skipped_report);
         event_args_infos.push_back(std::move(info));
     }
-    auto const sorted_event_args = topological_sort(std::move(event_args_infos));
+    // A base args class has to be complete before the class deriving from it.
+    auto const sorted_event_args =
+        topological_sort(std::move(event_args_infos), [](event_args_info const& c, auto&& follow) {
+            if (c.base) {
+                follow(c.base);
+            }
+        });
 
     std::map<std::string, std::vector<event_args_info>> event_args_by_namespace;
     for (auto&& c : sorted_event_args) {

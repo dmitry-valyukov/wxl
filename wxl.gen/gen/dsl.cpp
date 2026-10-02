@@ -27,13 +27,7 @@ void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
 #include "Tags.h"
 )",
                banner);
-    for (auto&& include : dsl.includes) {
-        if (include.starts_with('<')) {
-            std::print(file, "#include {}\n", include);
-        } else {
-            std::print(file, "#include \"{}\"\n", include);
-        }
-    }
+    write_includes(file, dsl.includes);
 
     std::print(file, "\nnamespace wxl {{\n\nnamespace impl {{\n");
 

@@ -278,10 +278,6 @@ void collect_method(MethodDef const& method, std::string_view field_view, TypeIn
 
 }  // namespace
 
-bool is_plain_method(MethodDef const& method) {
-    return !method.Flags().SpecialName() && !method.Flags().RTSpecialName();
-}
-
 std::vector<std::string> parameter_names(MethodDef const& method) {
     std::vector<std::string> names;
     for (auto&& param : method.ParamList()) {

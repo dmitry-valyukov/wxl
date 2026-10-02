@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <ostream>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -51,6 +53,53 @@ private:
 // Every generated file passes through here.
 output_file open_output(std::filesystem::path const& path);
 
+// The #include lines for `includes`, in set order: a name in angle brackets
+// -- a projection header, a standard one a type mapping names (<chrono>) --
+// as it is, any other in quotes.
+void write_includes(std::ostream& out, std::set<std::string> const& includes);
+
+// A header that includes each of `files` in turn: Enums.h, Structs.h,
+// EventArgs.h.
+void write_umbrella_file(std::filesystem::path const& path, std::vector<std::string> const& files);
+
+// Orders `items` so that each comes after the items it depends on: a struct
+// after the structs its fields hold, an args class after its base. C++ needs
+// both complete where they are used, so declaration order has to follow
+// dependency order. Every item carries its TypeDef as `type`; `edges(item,
+// follow)` calls `follow` with each TypeDef the item depends on, and one that
+// is not among `items` is ignored. Depth-first; a cycle -- which neither kind
+// of edge should have -- is cut where it is met instead of recursing forever.
+template <typename Item, typename Edges>
+std::vector<Item> topological_sort(std::vector<Item> items, Edges edges) {
+    std::map<md::TypeDef, Item const*> by_type;
+    for (auto&& item : items) {
+        by_type[item.type] = &item;
+    }
+
+    std::set<md::TypeDef> done;
+    std::set<md::TypeDef> visiting;
+    std::vector<Item> order;
+    order.reserve(items.size());
+
+    auto const visit = [&](auto const& self, Item const& item) -> void {
+        if (done.count(item.type) || !visiting.insert(item.type).second) {
+            return;
+        }
+        edges(item, [&](md::TypeDef const& dependency) {
+            if (auto const it = by_type.find(dependency); it != by_type.end()) {
+                self(self, *it->second);
+            }
+        });
+        done.insert(item.type);
+        order.push_back(item);
+    };
+
+    for (auto&& item : items) {
+        visit(visit, item);
+    }
+    return order;
+}
+
 // What generation produced, in the order it was produced. The generated
 // CMakeLists.txt lists exactly these names, so anything written outside
 // this record would silently not take part in the build.
@@ -80,9 +129,6 @@ private:
     std::vector<std::string> targets_;  // parallel to files_
 };
 
-// "Microsoft.UI.Xaml.Controls.Button"
-std::string full_name(md::TypeDef const& type);
-
 // The name a WinRT type gets in wxl's flat `namespace wxl`: its bare
 // TypeName. Collisions across source namespaces are reported, not
 // resolved -- the closures in use haven't produced one.
@@ -103,6 +149,10 @@ std::map<md::TypeDef, std::string> build_name_registry(
 // A name that lands on a C++ keyword gets a trailing underscore --
 // `Control.Template` is `template_`, `ElementTheme.Default` is `default_`.
 std::string member_name(std::string_view metadata_name);
+
+// "IButtonBase" -> "ButtonBase": WinRT's I prefix dropped from an interface
+// name. Only before a capital, so a name that merely starts with I stays.
+std::string_view without_interface_prefix(std::string_view interface_name);
 
 // "IButtonBase" -> "buttonBase_": the Impl field holding that interface,
 // matching the validated prototype in sandbox/wxl/impl/interface_cache.cpp.

@@ -36,6 +36,25 @@ output_file open_output(std::filesystem::path const& path) {
     return output_file{path};
 }
 
+void write_includes(std::ostream& out, std::set<std::string> const& includes) {
+    for (auto&& include : includes) {
+        if (include.starts_with('<')) {
+            std::print(out, "#include {}\n", include);
+        } else {
+            std::print(out, "#include \"{}\"\n", include);
+        }
+    }
+}
+
+void write_umbrella_file(std::filesystem::path const& path, std::vector<std::string> const& files) {
+    auto out = open_output(path);
+
+    std::print(out, "{}#pragma once\n\n", banner);
+    for (auto&& file : files) {
+        std::print(out, "#include \"{}\"\n", file);
+    }
+}
+
 void Emitted::add(std::filesystem::path const& path, std::string_view target) {
     files_.push_back(path.filename().string());
     targets_.emplace_back(target);
@@ -59,10 +78,6 @@ std::vector<std::string> Emitted::targets() const {
         }
     }
     return named;
-}
-
-std::string full_name(TypeDef const& type) {
-    return std::format("{}.{}", type.TypeNamespace(), type.TypeName());
 }
 
 std::map<TypeDef, std::string> build_name_registry(std::vector<TypeDef> const& types) {
@@ -121,13 +136,16 @@ std::string member_name(std::string_view metadata_name) {
     return name;
 }
 
-std::string interface_field_name(std::string_view interface_name) {
-    // Drop the WinRT interface prefix: IButtonBase -> ButtonBase.
-    if (interface_name.size() > 1 && interface_name[0] == 'I' &&
-        std::isupper(static_cast<unsigned char>(interface_name[1]))) {
+std::string_view without_interface_prefix(std::string_view interface_name) {
+    if (interface_name.size() > 1 && interface_name[0] == 'I' && interface_name[1] >= 'A' &&
+        interface_name[1] <= 'Z') {
         interface_name.remove_prefix(1);
     }
-    return member_name(interface_name) + '_';
+    return interface_name;
+}
+
+std::string interface_field_name(std::string_view interface_name) {
+    return member_name(without_interface_prefix(interface_name)) + '_';
 }
 
 std::string winrt_namespace(std::string_view metadata_namespace) {
