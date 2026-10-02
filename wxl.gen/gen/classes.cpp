@@ -431,50 +431,6 @@ class_info analyze_class(TypeDef const& type, std::set<TypeDef> const& generated
     return info;
 }
 
-// Namespaces routinely derive from each other -- Controls.Button extends
-// Primitives.ButtonBase while Primitives.Selector extends
-// Controls.ItemsControl -- so "one file per namespace" only works if
-// mutually dependent namespaces share a file. This computes those groups
-// (the strongly connected components of the namespace graph, by closure
-// over a graph small enough that the naive algorithm is the right one) and
-// names each after its shortest member, which is the parent namespace in
-// every case seen so far.
-std::map<std::string, std::string> group_namespaces(
-    std::map<std::string, std::set<std::string>> edges) {
-    std::set<std::string> nodes;
-    for (auto&& [from, to_set] : edges) {
-        nodes.insert(from);
-        nodes.insert(to_set.begin(), to_set.end());
-    }
-
-    // Transitive closure.
-    auto reach = edges;
-    for (auto&& via : nodes) {
-        for (auto&& from : nodes) {
-            if (!reach[from].count(via)) {
-                continue;
-            }
-            auto const& onward = reach[via];
-            reach[from].insert(onward.begin(), onward.end());
-        }
-    }
-
-    std::map<std::string, std::string> group_of;
-    for (auto&& ns : nodes) {
-        std::string name = ns;
-        for (auto&& other : nodes) {
-            if (other == ns || !reach[ns].count(other) || !reach[other].count(ns)) {
-                continue;  // not mutually dependent
-            }
-            if (other.size() < name.size() || (other.size() == name.size() && other < name)) {
-                name = other;
-            }
-        }
-        group_of[ns] = name;
-    }
-    return group_of;
-}
-
 // The files a group has to include: where its base classes live. A base in
 // the same group needs nothing (dependency order put it earlier in the same
 // file); a given-from-above base pulls in the hand-written header instead.
@@ -1261,6 +1217,50 @@ TypeIndex build_type_index(Model const& model, std::set<TypeDef> const& generate
 }
 
 }  // namespace
+
+// Namespaces routinely derive from each other -- Controls.Button extends
+// Primitives.ButtonBase while Primitives.Selector extends
+// Controls.ItemsControl -- so "one file per namespace" only works if
+// mutually dependent namespaces share a file. This computes those groups
+// (the strongly connected components of the namespace graph, by closure
+// over a graph small enough that the naive algorithm is the right one) and
+// names each after its shortest member, which is the parent namespace in
+// every case seen so far.
+std::map<std::string, std::string> group_namespaces(
+    std::map<std::string, std::set<std::string>> edges) {
+    std::set<std::string> nodes;
+    for (auto&& [from, to_set] : edges) {
+        nodes.insert(from);
+        nodes.insert(to_set.begin(), to_set.end());
+    }
+
+    // Transitive closure.
+    auto reach = edges;
+    for (auto&& via : nodes) {
+        for (auto&& from : nodes) {
+            if (!reach[from].count(via)) {
+                continue;
+            }
+            auto const& onward = reach[via];
+            reach[from].insert(onward.begin(), onward.end());
+        }
+    }
+
+    std::map<std::string, std::string> group_of;
+    for (auto&& ns : nodes) {
+        std::string name = ns;
+        for (auto&& other : nodes) {
+            if (other == ns || !reach[ns].count(other) || !reach[other].count(ns)) {
+                continue;  // not mutually dependent
+            }
+            if (other.size() < name.size() || (other.size() == name.size() && other < name)) {
+                name = other;
+            }
+        }
+        group_of[ns] = name;
+    }
+    return group_of;
+}
 
 void write_classes(Output const& out, Model const& model, Emitted& emitted, ClassOutput& produced) {
     std::set<TypeDef> generated;

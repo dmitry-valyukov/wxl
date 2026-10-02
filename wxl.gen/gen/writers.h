@@ -228,4 +228,11 @@ std::vector<std::pair<std::string, std::string>> enum_members(
 // classes to the EventArgs writer.
 bool is_event_args_class(md::TypeDef const& type);
 
+// The file group of every namespace, keyed by namespace: namespaces that
+// depend on each other share one group, named after its shortest member.
+// `edges` maps a namespace to the ones its base classes live in. Defined in
+// gen/classes.cpp.
+std::map<std::string, std::string> group_namespaces(
+    std::map<std::string, std::set<std::string>> edges);
+
 }  // namespace gen

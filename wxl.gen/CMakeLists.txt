@@ -84,3 +84,7 @@ file(GLOB _wxl_gen_profiles CONFIGURE_DEPENDS "profiles/*.json")
 target_sources(winui-srcgen PRIVATE ${_wxl_gen_profiles})
 source_group("profiles" FILES ${_wxl_gen_profiles})
 set_source_files_properties(${_wxl_gen_profiles} PROPERTIES HEADER_FILE_ONLY ON)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
