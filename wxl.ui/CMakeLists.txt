@@ -117,6 +117,11 @@ add_library(wxl.ui STATIC
     src/ui.h
     src/Collection.h
     src/Collection.impl.h
+    src/VectorView.h
+    src/VectorView.impl.h
+    src/iterable_param.h
+    src/impl/index_iterator.h
+    src/impl/vector_element.h
     src/Color.h
     src/Relief.h
     src/Thickness.h
@@ -434,14 +439,26 @@ if(BUILD_TESTING)
     # would otherwise have to be believed. Needs only cppwinrt's base header,
     # no WinUI runtime. What hstring_param takes and refuses is in wxl.core's
     # tests; the surface test never runs, so what is about values goes here.
+    #
+    # VectorView and Collection are read over cppwinrt's own vector, which
+    # needs no runtime either. They are wrappers, so Object.cpp comes along --
+    # built here rather than linked through wxl.ui, whose INTERFACE
+    # /ENTRY:wWinMainCRTStartup would take main() away from gtest -- and with
+    # it the projection Object.impl.h names.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
+            test/vector_view_test.cpp
+            src/Object.cpp
         DEPS
             Microsoft::CppWinRT
+            runtimeobject.lib
             wxl::core
     )
-    target_include_directories(wxl.ui.tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_include_directories(wxl.ui.tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${WXL_CPPWINRT_PROJECTION_DIR}
+    )
 
     # Teardown is header-only over core::function, so its test needs only the
     # header and wxl.core -- not wxl.ui, whose INTERFACE
