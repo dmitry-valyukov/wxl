@@ -229,6 +229,9 @@ add_library(wxl.ui STATIC
     src/impl/tool_tip.cpp
     src/impl/resource.h
     src/impl/resource.cpp
+    src/impl/picker_file_types.h
+    src/impl/picker_file_types.cpp
+    src/PickerFileTypes.h
     src/impl/title_bar_drag.h
     src/impl/title_bar_drag.cpp
     src/impl/backdrop_controller.h

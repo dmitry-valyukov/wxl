@@ -1,5 +1,8 @@
 #pragma once
 
+#include <concepts>
+
+#include "Object.h"
 #include "Uri.h"
 
 // wxl::ImageSource -- where an image comes from, which in a declarative UI
@@ -14,6 +17,10 @@
 //
 // A path without a scheme is the application's own file, resolved next to
 // the executable -- the folder a build puts its assets in, packaged or not.
+//
+// The other thing an image source can be is a bitmap the application made
+// itself (a BitmapImage given a stream): then it is that very object and
+// nothing is loaded.
 
 namespace wxl {
 
@@ -32,12 +39,21 @@ public:
         requires(!std::same_as<Text, Uri> && std::convertible_to<const Text&, Uri>)
     ImageSource(const Text& text) : source_(text) {}
 
+    /// A bitmap the application made: handed to the property as it is.
+    template <typename Bitmap>
+        requires std::derived_from<Bitmap, Object>
+    ImageSource(const Bitmap& bitmap) : bitmap_(static_cast<const Object&>(bitmap)) {}
+
     const Uri& source() const noexcept { return source_; }
 
-    bool empty() const noexcept { return source_.empty(); }
+    /// The bitmap, when this source is one and not a path.
+    const Object* bitmap() const noexcept { return bitmap_ ? &*bitmap_ : nullptr; }
+
+    bool empty() const noexcept { return source_.empty() && !bitmap_; }
 
 private:
     Uri source_;
+    core::nullable<Object> bitmap_;
 };
 
 }  // namespace wxl

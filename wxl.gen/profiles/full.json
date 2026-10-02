@@ -20,7 +20,8 @@
             "metadata": [
                 "Microsoft.Windows.BadgeNotifications.winmd",
                 "Microsoft.Windows.AppNotifications.winmd",
-                "Microsoft.Windows.AppNotifications.Builder.winmd"
+                "Microsoft.Windows.AppNotifications.Builder.winmd",
+                "Microsoft.Windows.Storage.Pickers.winmd"
             ]
         }
     ],
@@ -256,7 +257,8 @@
                 "ContextRequested",
                 "ContextFlyout",
                 "Measure",
-                "Arrange"
+                "Arrange",
+                "TransformToVisual"
             ],
             "syntheticMembers": {
                 "IsDragRegion": {
@@ -804,17 +806,202 @@
             ]
         },
         "Windows.ApplicationModel.DataTransfer.Clipboard": {
-            "comment": "The copy button under every example puts the code on the clipboard; the Clipboard page of the Gallery reads it back.",
+            "comment": "The copy button under every example puts the code on the clipboard; the Clipboard page of the Gallery reads it back, clears it, asks whether its history and roaming are on, puts content with options, and hears it change.",
             "members": [
                 "SetContent",
-                "Flush"
+                "Flush",
+                "GetContent",
+                "Clear",
+                "IsHistoryEnabled",
+                "IsRoamingEnabled",
+                "SetContentWithOptions",
+                "ContentChanged"
             ]
         },
         "Windows.ApplicationModel.DataTransfer.DataPackage": {
-            "comment": "What goes on the clipboard: text, and whether it is a copy.",
+            "comment": "What goes on the clipboard: text, a picture, files, and whether it is a copy.",
             "members": [
                 "SetText",
+                "SetBitmap",
+                "SetStorageItems",
                 "RequestedOperation"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.DataPackageView": {
+            "comment": "What the clipboard holds, read: which formats, whether one is there, and its content -- the awaited operations are the ones that give it up.",
+            "members": [
+                "Contains",
+                "AvailableFormats",
+                "RequestedOperation",
+                "GetTextAsync",
+                "GetBitmapAsync",
+                "GetStorageItemsAsync"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.ClipboardContentOptions": {
+            "comment": "How content goes on the clipboard: whether it enters the history and whether it roams to the other devices.",
+            "members": [
+                "IsAllowedInHistory",
+                "IsRoamable"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.StandardDataFormats": {
+            "comment": "The names of the formats the clipboard is asked for.",
+            "members": [
+                "Text",
+                "Bitmap",
+                "StorageItems"
+            ]
+        },
+        "Windows.UI.StartScreen.JumpList": {
+            "comment": "System & Shell: the list the taskbar button of a packaged application opens: its items, loaded, changed and saved.",
+            "members": [
+                "LoadCurrentAsync",
+                "Items",
+                "SaveAsync"
+            ]
+        },
+        "Windows.UI.StartScreen.JumpListItem": {
+            "comment": "System & Shell: one line of a jump list -- a task, or an item of a named group. It starts the application with its arguments.",
+            "members": [
+                "CreateWithArguments",
+                "Description",
+                "Logo",
+                "GroupName"
+            ]
+        },
+        "Windows.Storage.Streams.RandomAccessStreamReference": {
+            "comment": "A reference to a stream to open: a picture of an address, as the clipboard takes it, and the bitmap the clipboard gives back. The interface IRandomAccessStreamReference has no wrapper of its own: it is this one.",
+            "members": [
+                "CreateFromUri",
+                "CreateFromFile",
+                "OpenReadAsync"
+            ]
+        },
+        "Windows.Storage.Streams.IRandomAccessStreamWithContentType": {
+            "comment": "The stream a bitmap is read from.",
+            "members": []
+        },
+        "Windows.Storage.StorageFile": {
+            "comment": "A file by its path, as the clipboard carries it.",
+            "members": [
+                "GetFileFromPathAsync",
+                "GetThumbnailAsync",
+                "Name",
+                "Path"
+            ]
+        },
+        "Windows.Storage.IStorageItem": {
+            "comment": "A file or a folder on the clipboard: what it is called.",
+            "members": [
+                "Name"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.Imaging.BitmapImage": {
+            "comment": "A picture a control shows, given a stream to read from.",
+            "members": [
+                "SetSource",
+                "SetSourceAsync"
+            ]
+        },
+        "Microsoft.UI.Xaml.XamlRoot": {
+            "comment": "The window a control hangs in, as the pickers want to know it: through the environment of the island, which names the window by its id; and the island itself, the parent of the islands of other frameworks.",
+            "members": [
+                "ContentIslandEnvironment",
+                "ContentIsland"
+            ]
+        },
+        "Microsoft.UI.Content.ContentIsland": {
+            "comment": "System: an island of content over a visual -- the unit that hosts another framework, or a scene drawn by hand, inside a window.",
+            "members": [
+                "Create"
+            ]
+        },
+        "Microsoft.UI.Content.ChildSiteLink": {
+            "comment": "System: where a child island sits in the parent island -- a visual to place it by, the size, the transform, the connection.",
+            "members": [
+                "Create",
+                "ActualSize",
+                "LocalToParentTransformMatrix",
+                "Connect"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.GeneralTransform": {
+            "comment": "Layout: the transform between the coordinates of two elements; a point goes through it.",
+            "members": [
+                "TransformPoint"
+            ]
+        },
+        "Microsoft.UI.Content.ContentIslandEnvironment": {
+            "comment": "The window id of the island: what a picker takes to open over the right window.",
+            "members": [
+                "AppWindowId"
+            ]
+        },
+        "Microsoft.Windows.Storage.Pickers.FileOpenPicker": {
+            "comment": "Storage pickers: choose one file or several. Made over the window it opens above. The types of files are the tag fileType, repeated.",
+            "members": [
+                "CommitButtonText",
+                "SuggestedStartLocation",
+                "ViewMode",
+                "PickSingleFileAsync",
+                "PickMultipleFilesAsync"
+            ],
+            "syntheticMembers": {
+                "FileType": {
+                    "comment": "One extension of the filter: \".txt\", or \"*\" for all. Each use of the tag adds one.",
+                    "type": "String",
+                    "function": "impl::add_file_type",
+                    "include": "../impl/picker_file_types.h"
+                }
+            }
+        },
+        "Microsoft.Windows.Storage.Pickers.FileSavePicker": {
+            "comment": "Storage pickers: name a file to save. The types the dialog offers are the tag fileTypeChoice, repeated.",
+            "members": [
+                "CommitButtonText",
+                "SuggestedStartLocation",
+                "SuggestedFileName",
+                "SuggestedFolder",
+                "DefaultFileExtension",
+                "PickSaveFileAsync"
+            ],
+            "syntheticMembers": {
+                "FileTypeChoice": {
+                    "comment": "One line of the list of types: the words and the extensions behind them. Each use of the tag adds one.",
+                    "cppType": "FileTypeChoice",
+                    "cppInclude": "../PickerFileTypes.h",
+                    "function": "impl::add_file_type_choice",
+                    "include": "../impl/picker_file_types.h"
+                }
+            }
+        },
+        "Microsoft.Windows.Storage.Pickers.FolderPicker": {
+            "comment": "Storage pickers: choose a folder.",
+            "members": [
+                "CommitButtonText",
+                "SuggestedStartLocation",
+                "ViewMode",
+                "PickSingleFolderAsync"
+            ]
+        },
+        "Microsoft.Windows.Storage.Pickers.PickFileResult": {
+            "comment": "Storage pickers: the file that was chosen, by its path.",
+            "members": [
+                "Path"
+            ]
+        },
+        "Microsoft.Windows.Storage.Pickers.PickFolderResult": {
+            "comment": "Storage pickers: the folder that was chosen, by its path.",
+            "members": [
+                "Path"
+            ]
+        },
+        "Windows.Storage.FileProperties.StorageItemThumbnail": {
+            "comment": "The picture the shell keeps of a file: its size before it was scaled to the one asked for, and the stream to read it from.",
+            "members": [
+                "OriginalWidth",
+                "OriginalHeight"
             ]
         },
         "Microsoft.UI.Xaml.Documents.TextElement": {

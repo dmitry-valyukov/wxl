@@ -210,6 +210,11 @@ constexpr std::string_view vector_interfaces[] = {
     "Windows.Foundation.Collections.IObservableVector`1",
 };
 
+// A read-only list handed back, and a sequence handed in: neither is a wxl::Collection (that holds
+// an IVector<T> to change), so they cross as a std::vector copy of the elements.
+constexpr std::string_view vector_view_interface = "Windows.Foundation.Collections.IVectorView`1";
+constexpr std::string_view iterable_interface = "Windows.Foundation.Collections.IIterable`1";
+
 // WinRT's nullable box, which is core::nullable in everything but name.
 constexpr std::string_view reference_interface = "Windows.Foundation.IReference`1";
 
@@ -383,13 +388,64 @@ TypeUse reference_of(TypeUse const& item, std::string_view winrt_name,
     return use;
 }
 
+// std::vector<E> out of an IVectorView<T>: the elements are converted one by one by the element's
+// own expression, and the list is a copy, as a string or a struct is.
+TypeUse list_result_of(TypeUse const& item) {
+    if (!item.supported) {
+        return unsupported(std::format("list element: {}", item.reason));
+    }
+    if (item.parameter_only || item.result_only) {
+        return unsupported(std::format("list element: {} cannot be handed back", item.value_type));
+    }
+
+    TypeUse use;
+    use.supported = true;
+    use.result_only = true;
+    use.is_list = true;
+    use.value_type = std::format("std::vector<{}>", item.value_type);
+    use.param_type = use.value_type;
+    use.winrt_type = "winrt::Windows::Foundation::IInspectable";
+    use.from_winrt = std::format("impl::from_vector_view<{}>($, [](auto const& v) {{ return {}; }})",
+                                 item.value_type, substitute(item.from_winrt, "v"));
+    use.public_includes = item.public_includes;
+    use.public_includes.insert("<vector>");
+    use.impl_includes = item.impl_includes;
+    use.impl_includes.insert(std::string{conversions_include});
+    return use;
+}
+
+// An IIterable<T> parameter: a std::vector the call copies into a WinRT vector of its own.
+TypeUse list_parameter_of(TypeUse const& item, std::string_view winrt_name, std::string_view winrt_header) {
+    if (!item.supported) {
+        return unsupported(std::format("list element: {}", item.reason));
+    }
+    if (item.parameter_only || item.result_only) {
+        return unsupported(std::format("list element: {} cannot be handed in", item.value_type));
+    }
+
+    TypeUse use;
+    use.supported = true;
+    use.parameter_only = true;
+    use.value_type = std::format("std::vector<{}>", item.value_type);
+    use.param_type = std::format("{} const&", use.value_type);
+    use.winrt_type = std::string{winrt_name};
+    use.to_winrt = std::format("impl::to_iterable<{}>($, [](auto const& v) -> {} {{ return {}; }})", item.winrt_type,
+                               item.winrt_type, substitute(item.to_winrt, "v"));
+    use.public_includes = item.public_includes;
+    use.public_includes.insert("<vector>");
+    use.impl_includes = item.impl_includes;
+    use.impl_includes.insert(std::string{conversions_include});
+    use.impl_includes.insert(std::string{winrt_header});
+    return use;
+}
+
 // wxl::Operation<R> -- the awaitable an asynchronous operation becomes. The result is converted
 // by the element's own expression, on the interface thread, once the operation has finished.
 TypeUse operation_of(TypeUse const& item) {
     if (!item.supported) {
         return unsupported(std::format("operation result: {}", item.reason));
     }
-    if (item.parameter_only || item.result_only) {
+    if (item.parameter_only || (item.result_only && !item.is_list)) {
         return unsupported(std::format("operation result: {} cannot be handed back", item.value_type));
     }
 
@@ -433,6 +489,14 @@ TypeUse map_generic(GenericTypeInstSig const& instantiation, TypeIndex const& in
         auto const item = map_type(shape->element, index);
         return reference_of(item, winrt_generic_name(shape->generic, item.winrt_type),
                             winrt_include(shape->generic.TypeNamespace()));
+    }
+    if (auto const shape = generic_shape(instantiation, {&vector_view_interface, 1})) {
+        return list_result_of(map_type(shape->element, index));
+    }
+    if (auto const shape = generic_shape(instantiation, {&iterable_interface, 1})) {
+        auto const item = map_type(shape->element, index);
+        return list_parameter_of(item, winrt_generic_name(shape->generic, item.winrt_type),
+                                 winrt_include(shape->generic.TypeNamespace()));
     }
     if (auto const shape = generic_shape(instantiation, {&async_operation_interface, 1})) {
         return operation_of(map_type(shape->element, index));

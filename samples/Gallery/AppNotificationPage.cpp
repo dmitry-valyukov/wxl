@@ -35,7 +35,7 @@ constexpr char8_t logoCode[] = {
 #include "Snippets/AppNotification/AppNotificationInformationalNotificationLogoCustom.h.embed"
 };
 
-FrameworkElement logo() {
+FrameworkElement customLogo() {
 #include "Snippets/AppNotification/AppNotificationInformationalNotificationLogoCustom.h"
 
     return gallery::controlExample({
@@ -100,5 +100,5 @@ FrameworkElement progress() {
 }  // namespace
 
 wxl::FrameworkElement gallery::appNotificationPage() {
-    return StackPanel {basic(), logo(), hero(), controls(), progress()};
+    return StackPanel {basic(), customLogo(), hero(), controls(), progress()};
 }

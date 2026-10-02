@@ -65,6 +65,10 @@ struct TypeUse {
     // awaits; there is nothing a caller could give in its place.
     bool result_only = false;
 
+    // A std::vector copy of a read-only list; it is result_only for a member, but a plain value
+    // once an operation has finished with it.
+    bool is_list = false;
+
     // Conversion expressions with '$' standing for the value being
     // converted; see substitute() below.
     std::string to_winrt;

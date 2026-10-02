@@ -1006,6 +1006,9 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
         }
         for (auto&& ctor : info.constructors) {
             includes.insert(ctor.include);
+            for (auto&& param : ctor.method.params) {
+                includes.insert(param.type.impl_includes.begin(), param.type.impl_includes.end());
+            }
         }
         // The factory interface a composable class is created through is
         // named in the body, so its namespace's projection header is needed
