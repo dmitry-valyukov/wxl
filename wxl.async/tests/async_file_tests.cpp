@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+#include "platform.h"
+
+#include <winioctl.h>
+
 #include "loop_environment.h"
 #include "test_directory.h"
 
@@ -241,6 +245,63 @@ task writes_and_reads_in_one_go(path file_path, std::span<const std::byte> conte
     brought = co_await in.read(got);
 }
 
+/// Reads once into the whole buffer and says how much came.
+task reads_once_into(path file_path, std::span<std::byte> into, std::size_t& brought) {
+    async_file in = co_await async_file::open_read(file_path);
+
+    brought = co_await in.read(into);
+}
+
+/// Writes nothing and reads into nothing.
+task reads_and_writes_nothing(path file_path, std::size_t& written, std::size_t& read) {
+    {
+        async_file out = co_await async_file::create(file_path);
+
+        written = co_await out.write(std::span<const std::byte>{});
+        co_await out.close();
+    }
+
+    async_file in = co_await async_file::open_read(file_path);
+
+    read = co_await in.read(std::span<std::byte>{});
+}
+
+/// Says, as it goes, that the operation carrying it has been deleted.
+class deletion_mark
+{
+public:
+    explicit deletion_mark(std::atomic<bool>& deleted) : deleted_(&deleted) {}
+
+    deletion_mark(deletion_mark&& other) noexcept
+        : deleted_(std::exchange(other.deleted_, nullptr)) {}
+
+    deletion_mark& operator=(deletion_mark&&) = delete;
+
+    ~deletion_mark() {
+        if (deleted_) *deleted_ = true;
+    }
+
+private:
+    std::atomic<bool>* deleted_;
+};
+
+/// Marks a file compressed, for a read that the system serves inside the call.
+bool make_compressed(const path& file_path) {
+    const HANDLE target = ::CreateFileW(file_path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+    if (target == INVALID_HANDLE_VALUE) return false;
+
+    USHORT format = COMPRESSION_FORMAT_DEFAULT;
+    DWORD returned = 0;
+
+    const bool set = ::DeviceIoControl(target, FSCTL_SET_COMPRESSION, &format, sizeof(format),
+                                       nullptr, 0, &returned, nullptr) != 0;
+
+    ::CloseHandle(target);
+    return set;
+}
+
 std::string large_content() {
     std::string content;
 
@@ -293,10 +354,117 @@ TEST_F(AsyncFileTest, AReadOrAWriteLargerThanOneCallGoesInAChainOfThem) {
     std::vector<std::byte> got(size + 4096);
     std::size_t brought = 0;
 
+#ifndef NDEBUG
+    const std::size_t chained_before = io_op::debug.chained.load();
+#endif
+
     run(writes_and_reads_in_one_go(root_ / L"chain.bin", content, got, brought));
 
     ASSERT_EQ(brought, size);
     EXPECT_EQ(std::memcmp(content.data(), got.data(), size), 0);
+
+#ifndef NDEBUG
+    // One call beyond the first for the write and one for the read.
+    EXPECT_EQ(io_op::debug.chained.load() - chained_before, 2u);
+#endif
+}
+
+TEST_F(AsyncFileTest, AnEmptyBufferReadsAndWritesNothing) {
+    std::size_t written = 1;
+    std::size_t read = 1;
+
+    run(reads_and_writes_nothing(root_ / L"nothing.bin", written, read));
+
+    EXPECT_EQ(written, 0u);
+    EXPECT_EQ(read, 0u);
+}
+
+TEST_F(AsyncFileTest, AReadOfACompressedFileIsStartedOnTheWorker) {
+    // The system serves such a read inside the call, so it must not be started where
+    // the coroutine runs. Compression is NTFS's: a test directory on ReFS cannot hold
+    // such a file, and the local application data folder, which is on the system
+    // drive, is tried then; where neither can, there is nothing to check.
+    const std::string content = test_content();
+    path packed = root_ / L"packed.bin";
+    path fallback;
+
+    given_a_file(L"packed.bin", content);
+
+    if (!make_compressed(packed)) {
+        wchar_t local[MAX_PATH];
+
+        if (!::GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH)) GTEST_SKIP();
+
+        fallback = path(local) / L"Temp" /
+                   (L"wxl.async.compressed-" + std::to_wstring(::GetCurrentProcessId()));
+
+        std::filesystem::remove_all(fallback.native());
+        ASSERT_TRUE(directory::create(fallback.c_str()));
+
+        packed = fallback / L"packed.bin";
+
+        file out = file::create(packed.c_str());
+
+        ASSERT_TRUE(out.opened());
+        ASSERT_EQ(out.write({reinterpret_cast<const std::byte*>(content.data()), content.size()}),
+                  content.size());
+        out.close();
+
+        if (!make_compressed(packed)) {
+            std::filesystem::remove_all(fallback.native());
+            GTEST_SKIP() << "no compression here either";
+        }
+    }
+
+#ifndef NDEBUG
+    const std::size_t on_worker_before = io_op::debug.started_on_worker.load();
+#endif
+
+    std::vector<std::byte> got(content.size() + 16);
+    std::size_t brought = 0;
+
+    run(reads_once_into(packed, got, brought));
+
+    if (!fallback.empty()) std::filesystem::remove_all(fallback.native());
+
+    ASSERT_EQ(brought, content.size());
+    EXPECT_EQ(std::memcmp(content.data(), got.data(), brought), 0);
+
+#ifndef NDEBUG
+    EXPECT_EQ(io_op::debug.started_on_worker.load() - on_worker_before, 1u);
+#endif
+}
+
+TEST_F(AsyncFileTest, AFileMadeByAnOrphanGivenUpWhileItRunsIsLetGoOfOnTheSpot) {
+    // The real thing behind the handle_like tests: a file made for writing, shared with
+    // nobody, by an orphan given up while its body still runs. The body lets go of it
+    // the moment the body ends, on its own thread, and the file can be made again.
+    const path target = root_ / L"orphaned.bin";
+    hevent made{true};
+    hevent gate{true};
+    std::atomic<bool> deleted{false};
+
+    {
+        auto making = sta_loop::async_call(
+            orphanable, [&made, &gate, target, mark = deletion_mark(deleted)] {
+                file out = file::create(target.c_str());
+
+                made.set();
+                gate.wait();
+
+                return out;
+            });
+
+        made.wait();
+    }
+
+    gate.set();
+
+    wait_until([&] { return deleted.load(); });
+
+    file again = file::create(target.c_str());
+
+    EXPECT_TRUE(again.opened()) << "the file given up was still held";
 }
 
 #ifndef WXL_ASYNC_TESTS_DISPATCHED

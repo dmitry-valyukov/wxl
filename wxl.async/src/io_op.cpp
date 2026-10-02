@@ -51,6 +51,10 @@ bool io_op::start() noexcept {
             finish(ERROR_OPERATION_ABORTED);
             return true;
         }
+
+#ifndef NDEBUG
+        debug.chained.fetch_add(1, std::memory_order_relaxed);
+#endif
     }
 }
 
@@ -69,6 +73,10 @@ bool io_op::completed() noexcept {
         return true;
     }
 
+#ifndef NDEBUG
+    debug.chained.fetch_add(1, std::memory_order_relaxed);
+#endif
+
     return start_on_worker();
 }
 
@@ -76,7 +84,13 @@ io_op* io_op::from(OVERLAPPED* overlapped) noexcept {
     return core::object_from_field(&io_op::overlapped_, overlapped);
 }
 
-bool io_op::execute() { return start_on_worker(); }
+bool io_op::execute() {
+#ifndef NDEBUG
+    debug.started_on_worker.fetch_add(1, std::memory_order_relaxed);
+#endif
+
+    return start_on_worker();
+}
 
 bool io_op::start_on_worker() noexcept {
     if (start()) return true;

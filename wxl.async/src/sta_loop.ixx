@@ -319,6 +319,10 @@ public:
     /// if the thread has none. The worker's handovers are posted to it, and so is
     /// every orphanable operation on its way back from the thread pool.
     ///
+    /// The queue has to outlive stop(): a post it refuses is an operation that never
+    /// comes back, and stop() waits for every one of them. One made here is shut
+    /// down by stop() itself; one the thread already had is its owner's to keep.
+    ///
     /// In sta_queue.cpp.
     static void start_dispatched(std::string_view worker_name = "sta_loop worker");
 

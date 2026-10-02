@@ -40,11 +40,15 @@ public:
     path name() const { return path(name_); }
 
     bool write(std::string_view text) const noexcept {
+        return write(std::as_bytes(std::span(text)));
+    }
+
+    bool write(std::span<const std::byte> bytes) const noexcept {
         DWORD written = 0;
 
-        return ::WriteFile(server_, text.data(), static_cast<DWORD>(text.size()), &written,
+        return ::WriteFile(server_, bytes.data(), static_cast<DWORD>(bytes.size()), &written,
                            nullptr) &&
-               written == text.size();
+               written == bytes.size();
     }
 
 private:
@@ -106,6 +110,38 @@ task first_read_fails_second_is_with_the_kernel(path refusing, path pipe_name) {
 
     co_await a;
     co_await b;
+}
+
+/// Opens, lets the test write, and only then reads: the data is in the pipe before the
+/// read starts, so the system can finish the read inside the call.
+task reads_what_is_already_there(path pipe_name, bool& opened, hevent& written, bool& inline_done,
+                                 std::string& got) {
+    async_file in = co_await async_file::open_read(pipe_name);
+
+    opened = true;
+
+    // The worker stands here until the test has written.
+    co_await sta_loop::async_call([&written] { written.wait(); });
+
+    char buffer[64];
+
+    auto read = in.read(buffer);
+
+    inline_done = read.ready();
+    got.assign(buffer, co_await read);
+}
+
+/// A read of more than one call carries, dropped once the first call has brought all it
+/// asked for and the second is in the kernel's hands.
+task reads_a_chain_and_is_dropped(path pipe_name, std::vector<std::byte>& buffer, bool& reading) {
+    async_file in = co_await async_file::open_read(pipe_name);
+
+    auto read = in.read(buffer);
+
+    reading = true;
+    co_await read;
+
+    ADD_FAILURE() << "resumed after its task was dropped";
 }
 
 task reads_and_is_dropped(path pipe_name, bool& reading) {
@@ -404,4 +440,81 @@ TEST(OrphanTest, ABodyOfSeveralCallsStopsAtTheOneCutShort) {
     done.release();
 
     EXPECT_EQ(calls.load(), 1);
+}
+
+TEST_F(AsyncFilePipeTest, AReadOfDataAlreadyInThePipeNeedNotSuspend) {
+    bool opened = false;
+    hevent written{true};
+    bool inline_done = false;
+    std::string got;
+
+    task work = reads_what_is_already_there(pipe_.name(), opened, written, inline_done, got);
+
+    wait_until([&] { return opened; });
+
+    ASSERT_TRUE(pipe_.write("there"));
+    written.set();
+
+    wait_until([&] { return work.done(); });
+    work.result();
+
+    EXPECT_EQ(got, "there");
+
+    // Whether the system finished the read inside the call is its choice; the test only
+    // reports it, since that is the one path a file on this machine never takes.
+    std::cout << "[          ] the read of data already in the pipe "
+              << (inline_done ? "finished inside the call" : "went through the port") << std::endl;
+}
+
+TEST_F(AsyncFilePipeTest, AFrameUnwindingBetweenTwoCallsOfAChainCancelsTheSecond) {
+    // The read asks for more than one call carries. The first call is answered in full
+    // by one write of exactly that much, the chain goes on to a second call, and that one
+    // waits in the kernel for data that never comes -- until the task is dropped.
+    std::vector<std::byte> buffer(io_op::call_size + 1024 * 1024);
+    const std::vector<std::byte> first_call(io_op::call_size, std::byte{5});
+    bool reading = false;
+
+#ifndef NDEBUG
+    const std::size_t chained_before = io_op::debug.chained.load();
+#endif
+
+    std::binary_semaphore done{0};
+    std::jthread watchdog([&] {
+        if (!done.try_acquire_for(std::chrono::seconds(20))) pipe_.write("rescue");
+    });
+
+    {
+        task work = reads_a_chain_and_is_dropped(pipe_.name(), buffer, reading);
+
+        wait_until([&] { return reading; });
+
+        // On a thread of its own: the write returns once the reader has taken it all,
+        // and a reader that took less would leave it standing.
+        hevent written{true};
+        bool wrote = false;
+        std::jthread writer([&] {
+            wrote = pipe_.write(first_call);
+            written.set();
+        });
+
+        const bool taken = written.wait_for(std::chrono::seconds(10));
+
+        if (!taken) ::CancelSynchronousIo(writer.native_handle());
+
+        ASSERT_TRUE(taken) << "the first call did not take the whole write";
+        EXPECT_TRUE(wrote);
+
+        // The worker issues the second call right after; a moment for it to get there.
+        ::Sleep(50);
+
+#ifndef NDEBUG
+        EXPECT_EQ(io_op::debug.chained.load() - chained_before, 1u);
+#endif
+    }
+
+    done.release();
+
+    EXPECT_TRUE(std::all_of(buffer.begin(), buffer.begin() + io_op::call_size,
+                            [](std::byte b) { return b == std::byte{5}; }));
+    EXPECT_EQ(sta_loop::run_pending(), 0u) << "a given-up operation resumed somebody";
 }

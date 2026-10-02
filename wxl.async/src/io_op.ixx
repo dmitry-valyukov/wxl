@@ -52,6 +52,21 @@ public:
     /// The operation a port entry belongs to.
     static io_op* from(OVERLAPPED* overlapped) noexcept;
 
+#ifndef NDEBUG
+    /// Debug tallies for the tests, which cannot otherwise tell where an operation ran
+    /// or whether it took more than one call. Not in a Release build.
+    struct tally
+    {
+        /// Calls issued beyond the first one of an operation.
+        std::atomic<std::size_t> chained{0};
+
+        /// Operations started on the worker rather than where they were made.
+        std::atomic<std::size_t> started_on_worker{0};
+    };
+
+    static inline tally debug;
+#endif
+
 protected:
     /// Started on the worker, the operation may have been given up while it stood in
     /// the queue, by a thread that found nothing to cancel yet. So the flag is read
