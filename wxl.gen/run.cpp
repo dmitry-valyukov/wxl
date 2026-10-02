@@ -140,5 +140,6 @@ void run(ProfileSet const& profiles, Output const& out) {
     model.styles = profiles.styles;
     model.brushes = profiles.brushes;
     model.from_text = profiles.from_text;
+    model.replaced_calls = profiles.replaced_calls;
     write_all(out, model, profiles.resources);
 }

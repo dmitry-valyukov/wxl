@@ -99,6 +99,18 @@ struct FromText {
     std::string include;   // header declaring it, as the generated source writes it
 };
 
+// A method of the platform whose call wxl replaces with its own: the class keeps the
+// method, with the signature the metadata gives it, and the body calls the function
+// named here instead of the projection. The function takes the arguments exactly as
+// the platform call would have been handed them -- already converted to the
+// projection's types -- and returns what the platform call returns, so it is a drop-in
+// for it. For a platform that refuses an argument the DSL has every reason to pass:
+// RandomAccessStreamReference.CreateFromUri takes an address and cannot read a file one.
+struct ReplacedCall {
+    std::string function;  // "impl::stream_reference_from_uri", under namespace wxl
+    std::string include;   // header declaring it, as the generated source writes it
+};
+
 // One NuGet package a profile draws metadata from. `metadata` names the
 // .winmd files to read out of `metadata_dir` inside the package; when it's
 // empty, every .winmd found there is read.
@@ -148,6 +160,7 @@ struct Profile {
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // by the same type name
     std::map<std::string, std::vector<SetterMethod>> setter_methods;  // by the same type name
     std::map<std::string, FromText> from_text;                        // by the same type name
+    std::map<std::string, std::map<std::string, ReplacedCall>> replaced_calls;  // type name -> method name
 
     // The named styles of a listed type, by dictionary key: "styles": [...]
     // under the type's entry narrows them to those; a type listed without it
@@ -249,6 +262,7 @@ struct ProfileSet {
     std::map<std::string, std::vector<SyntheticMember>> synthetic;  // properties wxl adds
     std::map<std::string, std::vector<SetterMethod>> setter_methods;  // methods written as tags
     std::map<std::string, FromText> from_text;                        // classes a string builds
+    std::map<std::string, std::map<std::string, ReplacedCall>> replaced_calls;  // type name -> method name
 
     // Merged the way members are, as a union: a profile that lists a type
     // without "styles", or has no "brushes", asks for all of them, and so

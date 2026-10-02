@@ -82,6 +82,12 @@ struct member_info {
     // of a hop into the projection.
     std::string synthetic_call;
 
+    // A method whose call a profile replaces (see ReplacedCall in profile.h): the body
+    // calls this hand-written function with the arguments the projection call would
+    // get, and the header declaring it belongs to the .cpp side.
+    std::string replaced_call;
+    std::string replaced_include;
+
     // A property setter made out of a method a profile names (see profile.h):
     // the member is spelled as the property, `titleBar`, and its body calls
     // this method of the projection, `SetTitleBar`.

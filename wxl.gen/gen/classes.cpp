@@ -1021,6 +1021,9 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
             includes.insert(winrt_include(std::string_view{info.composable_factory}.substr(0, dot)));
         }
         for (auto&& member : info.members) {
+            if (!member.replaced_include.empty()) {
+                includes.insert(member.replaced_include);
+            }
             if (!member.returns_void) {
                 includes.insert(member.result.impl_includes.begin(),
                                 member.result.impl_includes.end());
@@ -1270,7 +1273,9 @@ struct runtime_class_name_of<{}::{}> {{
             // from a cached pointer; an instance member goes through the
             // object's own lazily cached interface field.
             auto const call =
-                member.is_static
+                !member.replaced_call.empty()
+                    ? std::format("{}({})", member.replaced_call, arguments)
+                : member.is_static
                     ? std::format("impl::Statics<{}>->{}({})", member.statics_interface,
                                   member.winrt_name, arguments)
                     : std::format("get<&Impl::{}>().{}({})", member.field,
@@ -1604,6 +1609,28 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                     setter.braced = true;
                 }
                 info.members.push_back(std::move(setter));
+            }
+        }
+
+        // The calls a profile replaces. The member stays what the metadata made it --
+        // signature, key, tag -- and only the call in its body is another function.
+        if (auto const replaced = model.replaced_calls.find(full_name(info.type));
+            replaced != model.replaced_calls.end()) {
+            for (auto&& [method, call] : replaced->second) {
+                bool found = false;
+                for (auto&& member : info.members) {
+                    if (member.kind == member_info::Kind::Forward && member.winrt_name == method &&
+                        member.synthetic_call.empty() && member.method_call.empty()) {
+                        member.replaced_call = call.function;
+                        member.replaced_include = call.include;
+                        found = true;
+                    }
+                }
+                if (!found) {
+                    skipped.push_back({method,
+                                       "replaced call: the class declares no such method, or "
+                                       "the profile filtered it out"});
+                }
             }
         }
 
