@@ -797,7 +797,8 @@
                 "Parent",
                 "Language",
                 "AllowFocusOnInteraction",
-                "Resources"
+                "Resources",
+                "FlowDirection"
             ]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
@@ -855,8 +856,10 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.ItemsControl": {
-            "comment": "Collections: the panel the items are laid out in, as a direction -- a stack, in virtualizing form. ItemsPanel itself is a template that only XAML text makes.",
-            "members": [],
+            "comment": "Collections: the panel the items are laid out in -- ItemsPanelRoot, the panel itself once the control is loaded -- and its direction, as a virtualizing stack. ItemsPanel is a template that only XAML text makes.",
+            "members": [
+                "ItemsPanelRoot"
+            ],
             "syntheticMembers": {
                 "ItemsPanelOrientation": {
                     "comment": "A virtualizing stack in this direction: itemsPanelOrientation = Orientation::Vertical.",
@@ -873,6 +876,12 @@
                 "CanReorderItems"
             ],
             "syntheticMembers": {
+                "ItemMargin": {
+                    "comment": "The margin of every item container, as an ItemContainerStyle with a Setter for Margin would give it: itemMargin = Thickness {5}.",
+                    "type": "Microsoft.UI.Xaml.Thickness",
+                    "function": "impl::set_item_margin",
+                    "include": "../impl/item_template.h"
+                },
                 "ItemTemplate": {
                     "comment": "What an ItemTemplate says, as a function from the item to the element that shows it. A DataTemplate of XAML is text bound to the properties of a data object; here the data are C++ objects and the element is made by code.",
                     "cppType": "ItemBuilder",
@@ -903,6 +912,21 @@
             "members": [
                 "ItemsSource",
                 "IsExpanded"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsWrapGrid": {
+            "comment": "Collections: the default panel of a GridView -- items wrap after this many rows or columns.",
+            "members": [
+                "MaximumRowsOrColumns",
+                "ItemWidth",
+                "ItemHeight"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsStackPanel": {
+            "comment": "Collections: the default panel of a ListView -- what it does when items are added (keep the last in view) and whether group headers stick.",
+            "members": [
+                "ItemsUpdatingScrollMode",
+                "AreStickyGroupHeadersEnabled"
             ]
         },
         "Microsoft.UI.Xaml.Controls.RefreshContainer": {

@@ -3,6 +3,7 @@
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
 
 #include "../ItemBuilder.h"
+#include "../Thickness.h"
 
 // What stands behind `itemTemplate = [](Object const& item) {...}` on a ListView or GridView.
 //
@@ -17,5 +18,9 @@
 namespace wxl::impl {
 
 void set_item_template(winrt::Microsoft::UI::Xaml::Controls::ListViewBase const& list, ItemBuilder const& build);
+
+/// The margin of every container of the list, the ones on screen and the ones made later -- what an
+/// ItemContainerStyle with a Setter for Margin says.
+void set_item_margin(winrt::Microsoft::UI::Xaml::Controls::ListViewBase const& list, Thickness const& margin);
 
 }  // namespace wxl::impl

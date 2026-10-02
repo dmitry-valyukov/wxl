@@ -33,6 +33,8 @@ wxl_add_executable(sample.gallery
     main.cpp
     Presenter.cpp
     Catalog.cpp
+    Contact.cpp
+    CustomDataObject.cpp
     Shell.cpp
     Tiles.cpp
     ItemPages.cpp
@@ -68,6 +70,7 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    GridViewPage.cpp
     FlipViewPage.cpp
     TreeViewPage.cpp
     PullToRefreshPage.cpp
