@@ -241,6 +241,8 @@ add_library(wxl.ui STATIC
     src/impl/file_stream_reference.h
     src/impl/file_stream_reference.cpp
     src/PickerFileTypes.h
+    src/impl/item_factory.h
+    src/impl/item_factory.cpp
     src/impl/item_template.h
     src/impl/item_template.cpp
     src/ItemBuilder.h

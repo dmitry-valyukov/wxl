@@ -554,11 +554,100 @@
             "comment": "Layout: a panel that places its children by a layout object."
         },
         "Microsoft.UI.Xaml.Controls.StackLayout": {
-            "comment": "Layout: the layout LayoutPanel gets beside a custom one.",
+            "comment": "Layout: the layout LayoutPanel gets beside a custom one; the one an ItemsRepeater or an ItemsView stacks its items by.",
             "members": [
                 "Orientation",
                 "Spacing"
             ]
+        },
+        "Microsoft.UI.Xaml.Controls.UniformGridLayout": {
+            "comment": "Collections: items in rows and columns of one size.",
+            "members": [
+                "MinItemWidth",
+                "MinItemHeight",
+                "MinRowSpacing",
+                "MinColumnSpacing",
+                "ItemsStretch",
+                "ItemsJustification",
+                "MaximumRowsOrColumns",
+                "Orientation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.FlowLayout": {
+            "comment": "Collections: items one after another, wrapped into lines.",
+            "members": [
+                "LineAlignment",
+                "LineSpacing",
+                "MinItemSpacing",
+                "Orientation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.LinedFlowLayout": {
+            "comment": "Collections: items in lines of one height, each as wide as its picture is.",
+            "members": [
+                "LineHeight",
+                "LineSpacing",
+                "MinItemSpacing",
+                "ItemsStretch",
+                "ItemsJustification"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsRepeater": {
+            "comment": "Collections: a panel that makes elements for the items of a data source as they come into view. The item template is a function (itemTemplate = [](Object const& item) { return ...; }), made into the factory the control asks.",
+            "members": [
+                "ItemsSource",
+                "Layout",
+                "HorizontalCacheLength",
+                "VerticalCacheLength",
+                "ElementPrepared",
+                "ElementClearing"
+            ],
+            "syntheticMembers": {
+                "ItemTemplate": {
+                    "comment": "The function that makes the element of an item.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_repeater_template",
+                    "include": "../impl/item_factory.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsViewItemInvokedEventArgs": {
+            "comment": "Collections: the item an ItemsView was told to invoke.",
+            "members": [
+                "InvokedItem"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemContainer": {
+            "comment": "Collections: the container an ItemsView puts an item in: what it shows (Child) and whether it is selected.",
+            "members": [
+                "Child",
+                "IsSelected"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsView": {
+            "comment": "Collections: a scrolling collection of items in a layout of its choosing, with selection and invocation. The item template is a function, as on ItemsRepeater.",
+            "members": [
+                "ItemsSource",
+                "Layout",
+                "SelectionMode",
+                "IsItemInvokedEnabled",
+                "SelectedItem",
+                "SelectionChanged",
+                "ItemInvoked",
+                "ScrollView",
+                "SelectAll",
+                "DeselectAll"
+            ],
+            "syntheticMembers": {
+                "ItemTemplate": {
+                    "comment": "The function that makes the element of an item.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_items_view_template",
+                    "include": "../impl/item_factory.h"
+                }
+            }
         },
         "Microsoft.UI.Xaml.Controls.ScrollViewer": {
             "comment": "Gallery: the chaining of a viewer that cannot scroll, and a code block in a horizontal ScrollViewer must not keep the wheel from the page around it.",
