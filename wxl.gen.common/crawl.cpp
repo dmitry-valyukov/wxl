@@ -87,21 +87,21 @@ TypeDef resolve_interface(coded_index<TypeDefOrRef> const& ref) {
 // Every member a type declares itself, plus -- for a class -- the members of
 // the interfaces it implements directly, since that's where WinRT actually
 // declares a class's instance members. Handed to `visit` by kind and name, a
-// name as often as it is declared.
+// name as often as it is declared, with the declaration itself.
 template <typename Visit>
 void visit_declared_members(TypeDef const& type, Visit&& visit) {
     auto const collect = [&visit](TypeDef const& source) {
         for (auto&& property : source.PropertyList()) {
             if (!is_dependency_property_accessor(property)) {
-                visit(MemberKind::Property, property.Name());
+                visit(MemberKind::Property, property.Name(), MemberDeclaration {source, property});
             }
         }
         for (auto&& event : source.EventList()) {
-            visit(MemberKind::Event, event.Name());
+            visit(MemberKind::Event, event.Name(), MemberDeclaration {source, event});
         }
         for (auto&& method : source.MethodList()) {
             if (is_plain_method(method)) {
-                visit(MemberKind::Method, method.Name());
+                visit(MemberKind::Method, method.Name(), MemberDeclaration {source, method});
             }
         }
     };
@@ -119,7 +119,7 @@ void visit_declared_members(TypeDef const& type, Visit&& visit) {
     if (get_category(type) == category::enum_type) {
         for (auto&& field : type.FieldList()) {
             if (field.Flags().Literal()) {
-                visit(MemberKind::Constant, field.Name());
+                visit(MemberKind::Constant, field.Name(), MemberDeclaration {type, field});
             }
         }
     }
@@ -127,7 +127,7 @@ void visit_declared_members(TypeDef const& type, Visit&& visit) {
 
 std::set<std::string> declared_members(TypeDef const& type) {
     std::set<std::string> names;
-    visit_declared_members(type, [&names](MemberKind, std::string_view name) {
+    visit_declared_members(type, [&names](MemberKind, std::string_view name, MemberDeclaration const&) {
         names.insert(std::string(name));
     });
     return names;
@@ -767,7 +767,7 @@ bool is_given_from_above(TypeDef const& type) {
 
 DeclaredMembers declared_members_of(TypeDef const& type) {
     DeclaredMembers members;
-    visit_declared_members(type, [&members](MemberKind kind, std::string_view name) {
+    visit_declared_members(type, [&members](MemberKind kind, std::string_view name, MemberDeclaration const&) {
         switch (kind) {
             case MemberKind::Property: members.properties.push_back(name); break;
             case MemberKind::Method: members.methods.push_back(name); break;
@@ -782,6 +782,16 @@ DeclaredMembers declared_members_of(TypeDef const& type) {
         names->erase(std::ranges::unique(*names).begin(), names->end());
     }
     return members;
+}
+
+std::vector<MemberDeclaration> declarations_of(TypeDef const& type, MemberKind kind, std::string_view name) {
+    std::vector<MemberDeclaration> found;
+    visit_declared_members(type, [&](MemberKind declared, std::string_view member, MemberDeclaration const& declaration) {
+        if (declared == kind && member == name) {
+            found.push_back(declaration);
+        }
+    });
+    return found;
 }
 
 Closure crawl(ProfileSet const& raw_profiles, cache const& db) {

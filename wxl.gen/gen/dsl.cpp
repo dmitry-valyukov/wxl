@@ -46,6 +46,22 @@ void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
 
     std::print(file, "\nnamespace wxl {{\n\nnamespace impl {{\n");
 
+    // The values of every enumeration a property has, each written once. A tag
+    // over the enumeration inherits them (impl::enum_values), the flat
+    // vocabulary and the schema anchors alike, so `orientation.horizontal`
+    // needs no tag type of its own. Ahead of everything below: a specialisation
+    // has to precede the first Property over its enumeration.
+    for (auto&& [type, values] : dsl.enumerators) {
+        if (values.empty()) {
+            continue;
+        }
+        std::print(file, "\ntemplate <>\nstruct enum_values<{}> {{\n", type);
+        for (auto&& [member, enumerator] : values) {
+            std::print(file, "    static constexpr {0} {1} = {0}::{2};\n", type, member, enumerator);
+        }
+        std::print(file, "}};\n");
+    }
+
     // The key enums keep the metadata name; everything the DSL and the
     // wrappers spell is the member name, camelCase.
     //
@@ -155,39 +171,13 @@ struct EventAdder<EventKey::{0}> {{
     // scope the moment it names a wxl type.
     std::print(file, "\n}}  // namespace impl\n\nnamespace dsl {{\n\n// Property tags.\n");
     for (auto&& [name, value_type] : dsl.property_value_type) {
+        // A collection that a setter can also be given in one go --
+        // `rowDefinitions[a, b]` and `rowDefinitions = L"2*,*"` are the same
+        // property said two ways -- so the tag carries both.
         if (dsl.collection_element.count(name)) {
-            // A collection that a setter can also be given in one go --
-            // `rowDefinitions[a, b]` and `rowDefinitions = L"2*,*"` are the
-            // same property said two ways -- so the tag carries both. The
-            // subscript comes from one base, the assignment from the other,
-            // and the using-declaration is what keeps the assignment
-            // reachable past the tag's own copy-assignment.
-            std::print(file, R"(
-struct {0}Tag : CollectionProperty<PropertyKey::{0}>, Property<PropertyKey::{0}, {1}> {{
-    using Property<PropertyKey::{0}, {1}>::operator=;
-}};
-inline constexpr {0}Tag {2};
-)",
+            std::print(file,
+                       "inline constexpr AssignableCollectionProperty<PropertyKey::{}, {}> {};\n",
                        name, value_type.empty() ? "void" : value_type, member_name(name));
-            continue;
-        }
-        // An enum-typed tag carries the values it accepts, so the enum type
-        // is named once here instead of at every use:
-        // `orientation.horizontal`, not `orientation = Orientation::Horizontal`.
-        // The using-declaration is what keeps the assignments reachable --
-        // the derived tag's own copy-assignment would hide them.
-        if (auto const values = dsl.enumerators.find(value_type);
-            values != dsl.enumerators.end() && !values->second.empty()) {
-            std::print(file, R"(
-struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
-    using Property::operator=;
-)",
-                       name, value_type);
-            for (auto&& [member, enumerator] : values->second) {
-                std::print(file, "    static constexpr {0} {1} = {0}::{2};\n", value_type, member,
-                           enumerator);
-            }
-            std::print(file, "}};\ninline constexpr {}Tag {};\n\n", name, member_name(name));
             continue;
         }
 
@@ -202,7 +192,9 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
 
         // A property whose declarations disagree on the type gets no
         // definite one, and with it no braced form -- `void` leaves only
-        // the deduced assignment.
+        // the deduced assignment. An enum-typed property is written the same
+        // way: the values it accepts come with its type (impl::enum_values), so
+        // `orientation.horizontal` needs no enum name.
         std::print(file, "inline constexpr Property<PropertyKey::{}, {}> {};\n", name,
                    value_type.empty() ? "void" : value_type, member_name(name));
     }

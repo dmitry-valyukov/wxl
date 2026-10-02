@@ -22,9 +22,10 @@ constexpr zstring_view expandedGlyph = u"\uE70D";
 
 // Отметка — знак шрифта значков, а не CheckBox: у того галочка — AnimatedIcon,
 // и при листании, когда строка получает другой тип, она рисовалась заново.
-// checkbox_checked_20_regular и checkbox_unchecked_20_regular.
+// checkbox_checked, checkbox_unchecked и checkbox_indeterminate, размер 20.
 constexpr zstring_view checkedGlyph = u"\uF28D";
 constexpr zstring_view uncheckedGlyph = u"\uF291";
+constexpr zstring_view indeterminateGlyph = u"\uE2FE";
 
 constexpr zstring_view iconFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
 
@@ -191,9 +192,20 @@ Template<RadialGradientBrush> iconFill(Color outer, Color inner) {
 }
 
 void VirtualTree::model(intrusive_ptr<TreeModel> value) {
-    model_ = std::move(value);
-    top_ = 0;
+    if (value != model_) {
+        model_ = std::move(value);
+        top_ = 0;
+    }
     updateBar();
+    render();
+}
+
+void VirtualTree::reveal(uint32_t index) {
+    updateBar();
+    if (index < top_ || index >= top_ + visible_) {
+        top_ = index > visible_ / 3 ? index - visible_ / 3 : 0;
+        updateBar();
+    }
     render();
 }
 
@@ -274,8 +286,10 @@ void VirtualTree::render() {
                        : data.expander == Expander::Expanded ? expandedGlyph
                                                              : zstring_view{});
         row.check.visibility(data.check == Check::None ? Visibility::Collapsed : Visibility::Visible);
-        bool const checked = data.check == Check::Checked;
-        row.check.text(checked ? checkedGlyph : uncheckedGlyph);
+        bool const checked = data.check != Check::Unchecked;
+        row.check.text(data.check == Check::Checked         ? checkedGlyph
+                       : data.check == Check::Indeterminate ? indeterminateGlyph
+                                                            : uncheckedGlyph);
         row.check.foreground(checked ? static_cast<Brush const&>(brushes.Accent.FillColor.Default)
                                      : static_cast<Brush const&>(brushes.Text.FillColor.Secondary));
 
