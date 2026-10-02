@@ -33,7 +33,7 @@ auto example = StackPanel {
                u"Use tasks for common app-wide actions that are always relevant, such as composing a new message or opening settings. "
                u"Each task launches the app with a specific argument string that your app can handle on startup."},
     StackPanel {
-        orientation = Orientation::Horizontal,
+        orientation.horizontal,
         spacing = 8,
         Button {styles.Button.Accent, content = u"Add sample tasks", onClick = addTasks},
         Button {content = u"Clear all items", onClick = clearTasks},

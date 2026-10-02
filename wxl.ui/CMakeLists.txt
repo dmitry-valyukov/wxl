@@ -117,6 +117,11 @@ add_library(wxl.ui STATIC
     src/ui.h
     src/Collection.h
     src/Collection.impl.h
+    src/VectorView.h
+    src/VectorView.impl.h
+    src/iterable_param.h
+    src/impl/index_iterator.h
+    src/impl/vector_element.h
     src/Color.h
     src/Relief.h
     src/Thickness.h
@@ -231,7 +236,20 @@ add_library(wxl.ui STATIC
     src/impl/resource.cpp
     src/impl/picker_file_types.h
     src/impl/picker_file_types.cpp
+    src/impl/file_uri.h
+    src/impl/file_uri.cpp
+    src/impl/file_stream_reference.h
+    src/impl/file_stream_reference.cpp
     src/PickerFileTypes.h
+    src/impl/item_template.h
+    src/impl/item_template.cpp
+    src/ItemBuilder.h
+    src/Box.h
+    src/Box.cpp
+    src/impl/element_items.h
+    src/impl/element_items.cpp
+    src/impl/items_panel.h
+    src/impl/items_panel.cpp
     src/impl/title_bar_drag.h
     src/impl/title_bar_drag.cpp
     src/impl/backdrop_controller.h
@@ -421,14 +439,26 @@ if(BUILD_TESTING)
     # would otherwise have to be believed. Needs only cppwinrt's base header,
     # no WinUI runtime. What hstring_param takes and refuses is in wxl.core's
     # tests; the surface test never runs, so what is about values goes here.
+    #
+    # VectorView and Collection are read over cppwinrt's own vector, which
+    # needs no runtime either. They are wrappers, so Object.cpp comes along --
+    # built here rather than linked through wxl.ui, whose INTERFACE
+    # /ENTRY:wWinMainCRTStartup would take main() away from gtest -- and with
+    # it the projection Object.impl.h names.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
+            test/vector_view_test.cpp
+            src/Object.cpp
         DEPS
             Microsoft::CppWinRT
+            runtimeobject.lib
             wxl::core
     )
-    target_include_directories(wxl.ui.tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_include_directories(wxl.ui.tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${WXL_CPPWINRT_PROJECTION_DIR}
+    )
 
     # Teardown is header-only over core::function, so its test needs only the
     # header and wxl.core -- not wxl.ui, whose INTERFACE
@@ -459,4 +489,28 @@ if(BUILD_TESTING)
         CXX_SCAN_FOR_MODULES ON)
     wxl_set_target_folders(wxl.ui.app-zoom-test PREFIX "tests")
     add_test(NAME wxl.ui.app-zoom COMMAND wxl.ui.app-zoom-test)
+
+    # The path an address with the file scheme names is plain text work over wxl.core, tested
+    # the way AppZoom is.
+    add_executable(wxl.ui.file-uri-test test/file_uri_test.cpp src/impl/file_uri.cpp)
+    target_link_libraries(wxl.ui.file-uri-test PRIVATE wxl::core)
+    target_include_directories(wxl.ui.file-uri-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(wxl.ui.file-uri-test PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON)
+    wxl_set_target_folders(wxl.ui.file-uri-test PREFIX "tests")
+    add_test(NAME wxl.ui.file-uri COMMAND wxl.ui.file-uri-test)
+
+    # The reference made for a file address, on the real platform: Windows.Storage and the
+    # streams, no WinUI. Not linked with wxl.ui, whose entry point would take main() away;
+    # the two sources it tests are built into it.
+    add_executable(wxl.ui.stream-reference-test test/stream_reference_test.cpp
+        src/impl/file_stream_reference.cpp src/impl/file_uri.cpp)
+    target_link_libraries(wxl.ui.stream-reference-test PRIVATE wxl::core Microsoft::CppWinRT runtimeobject.lib)
+    target_include_directories(wxl.ui.stream-reference-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(wxl.ui.stream-reference-test PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON)
+    wxl_set_target_folders(wxl.ui.stream-reference-test PREFIX "tests")
+    add_test(NAME wxl.ui.stream-reference COMMAND wxl.ui.stream-reference-test)
 endif()

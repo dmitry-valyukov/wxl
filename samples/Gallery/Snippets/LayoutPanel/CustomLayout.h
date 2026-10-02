@@ -49,7 +49,7 @@ auto featured = CustomLayout {
     },
 };
 
-auto stack = StackLayout {orientation = Orientation::Vertical, spacing = BindOutput {model->spacing}};
+auto stack = StackLayout {orientation.vertical, spacing = BindOutput {model->spacing}};
 
 auto tile = [](double extent, char16_t const* text) {
     return Border {

@@ -26,7 +26,7 @@ auto example = StackPanel {
                         u"This is a modal window created using AppWindow with OverlappedPresenter.",
                     },
                     StackPanel {
-                        orientation = Orientation::Horizontal,
+                        orientation.horizontal,
                         hAlign.center,
                         spacing = 8,
                         okButton,

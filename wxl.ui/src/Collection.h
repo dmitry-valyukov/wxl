@@ -26,6 +26,7 @@
 // build, instead of instantiated afresh in every consuming translation unit.
 
 #include "Object.h"
+#include "impl/index_iterator.h"
 
 namespace wxl {
 
@@ -49,6 +50,9 @@ public:
     void append(T const& item) const;
     void removeAtEnd() const;
     void clear() const;
+
+    impl::index_iterator<Collection> begin() const noexcept { return {this, 0}; }
+    impl::index_iterator<Collection> end() const { return {this, size()}; }
 
 protected:
     class Impl;

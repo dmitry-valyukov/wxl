@@ -1,3 +1,5 @@
+#include <winrt/Windows.Foundation.Collections.h>
+
 #include "picker_file_types.h"
 
 #include "conversions.h"

@@ -10,7 +10,7 @@ auto behind = [] {
 auto swatch = [](Color color, char16_t const* name) {
     return ComboBoxItem {
         content = StackPanel {
-            orientation = Orientation::Horizontal,
+            orientation.horizontal,
             Rectangle {width = 20, height = 20, fill = color},
             TextBlock {Margin {4, 0, 0, 0}, name},
         },

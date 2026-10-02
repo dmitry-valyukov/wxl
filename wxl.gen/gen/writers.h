@@ -36,12 +36,12 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
 // opens. Written by gen/enums_structs.cpp alongside the structs themselves.
 
 // What the class writer worked out and the writers after it need: where
-// every generated type is declared, and which Collection specializations it
+// every generated type is declared, and which template specializations it
 // has already defined. Both are settled only once classes are grouped into
 // files, which is the class writer's own job.
 struct ClassOutput {
     TypeIndex index;
-    std::set<std::string> collection_elements;
+    std::set<std::string> instantiations;
 };
 
 // One <Namespace>.EventArgs.h per source namespace -- plus a .cpp beside it

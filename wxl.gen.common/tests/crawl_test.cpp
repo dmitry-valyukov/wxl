@@ -45,3 +45,18 @@ TEST(crawl, order_depends_on_the_metadata_alone) {
         ASSERT_EQ(names_of(first.boundary), names_of(next.boundary)) << "walk " << run;
     }
 }
+
+// A call a profile replaces comes out of the merged profiles under the type and the
+// method it was written for, with the function and the header that declares it.
+TEST(profile, a_replaced_call_reaches_the_merged_profiles) {
+    use_type_map(load_type_map(profiles_dir / "types.json"));
+    auto const profiles = resolve_profiles({profiles_dir / "full.json"}, default_nuget_root());
+
+    auto const type = profiles.replaced_calls.find("Windows.Storage.Streams.RandomAccessStreamReference");
+    ASSERT_NE(type, profiles.replaced_calls.end());
+    auto const call = type->second.find("CreateFromUri");
+    ASSERT_NE(call, type->second.end());
+    EXPECT_EQ(call->second.function, "impl::stream_reference_from_uri");
+    EXPECT_EQ(call->second.include, "../impl/file_stream_reference.h");
+    EXPECT_EQ(type->second.size(), 1u);
+}

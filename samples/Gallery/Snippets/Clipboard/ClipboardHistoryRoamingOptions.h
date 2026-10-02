@@ -40,8 +40,8 @@ auto example = StackPanel {
     verticalAlignment = VerticalAlignment::Top,
     spacing = 10,
     model->box,
-    StackPanel {orientation = Orientation::Horizontal, spacing = 16, model->history, model->roaming},
+    StackPanel {orientation.horizontal, spacing = 16, model->history, model->roaming},
     Button {content = u"Copy with Options", onClick = [model](Button const&) { model->copy(); }},
     model->status,
-    StackPanel {orientation = Orientation::Horizontal, spacing = 16, model->historyState, model->roamingState},
+    StackPanel {orientation.horizontal, spacing = 16, model->historyState, model->roamingState},
 };

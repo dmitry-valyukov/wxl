@@ -15,7 +15,7 @@ auto example = StackPanel {
                 hAlign.center,
                 automationName = u"Close",
                 content = StackPanel {
-                    orientation = Orientation::Horizontal,
+                    orientation.horizontal,
                     vAlign.center,
                     SymbolIcon {symbol = Symbol::Cancel, Margin {0, 0, 4, 0}, foreground = brushes.SystemFillColor.Critical},
                     TextBlock {foreground = brushes.SystemFillColor.Critical, u"Close"},

@@ -66,7 +66,7 @@ auto const pick = [](Model* model, Button button) -> async::detached_task {
 };
 
 auto example = StackPanel {
-    orientation = Orientation::Horizontal,
+    orientation.horizontal,
     spacing = 8,
     StackPanel {
         spacing = 8,

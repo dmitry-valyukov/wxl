@@ -81,7 +81,7 @@ auto example = StackPanel {
     Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }},
     model->sizeText,
     StackPanel {
-        orientation = Orientation::Horizontal,
+        orientation.horizontal,
         spacing = 8,
         Button {
             content = u"Centre, 960 x 600",

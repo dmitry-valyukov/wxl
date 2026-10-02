@@ -30,7 +30,7 @@ auto layoutHost = Border {
     CornerRadius {4},
     WrapPanel {
         orientation = BindOutput {model->orientation, [](int index) {
-                                      return index == 0 ? Orientation::Horizontal : Orientation::Vertical;
+                                      return index == 0 ? orientation.horizontal : orientation.vertical;
                                   }},
         itemSpacing = BindOutput {model->itemSpacing},
         lineSpacing = BindOutput {model->lineSpacing},
