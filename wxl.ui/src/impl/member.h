@@ -13,12 +13,13 @@
 // and declarative code are mixed.
 //
 // Nothing here names a property or an event: the vocabulary lives in the
-// generated Members.h. It specialises PropertySetter / EventAdder below once
-// per key, and in namespace dsl it declares one tag per property, then the
-// attached properties -- written on the child, applied by the parent's
-// statics, `Button { row = 1, column = 2 }` inside a Grid -- then the
-// collection tags, then one event tag per event. This header therefore stays
-// the same size whatever the profile generates.
+// generated Members.h. It specialises impl::enum_values below once per
+// enumeration a property has, PropertySetter / EventAdder once per key, and
+// in namespace dsl it declares one tag per property, then the attached
+// properties -- written on the child, applied by the parent's statics,
+// `Button { row = 1, column = 2 }` inside a Grid -- then the collection tags,
+// then one event tag per event. This header therefore stays the same size
+// whatever the profile generates.
 
 #include "../Color.h"
 #include "../Object.h"
@@ -301,6 +302,14 @@ struct PropertyTag {
     }
 };
 
+// The values of an enumeration as the syntax spells them: `orientation.horizontal`
+// instead of `orientation = Orientation::Horizontal`. Empty for every type the
+// generated Members.h does not specialise; a specialisation names each value once
+// and has to be visible before the first Property over that enumeration is
+// instantiated.
+template <typename E>
+struct enum_values {};
+
 }  // namespace impl
 
 // A property tag -- the object the DSL writes on the left of the `=`.
@@ -311,11 +320,14 @@ struct PropertyTag {
 // property name is declared with different types by different classes there
 // is no single such type, and the tag is generated with `void`, leaving only
 // the deduced form.
+// A tag over an enumeration also carries the values of that enumeration as
+// members, inherited from impl::enum_values, so the flat vocabulary and the
+// schema anchors spell them alike.
 // `Owner` is the class the tag was named through, or `void` for the plain
 // vocabulary of namespace `dsl`; see impl::check_owner above. It is the last
 // parameter because almost nothing writes it: only the generated schema does.
 template <PropertyKey key, typename Value = void, typename Owner = void>
-struct Property : impl::PropertyTag<key, Owner> {
+struct Property : impl::PropertyTag<key, Owner>, impl::enum_values<Value> {
     using impl::PropertyTag<key, Owner>::operator=;
 
     constexpr SetterOp<key, Value, Owner> operator=(Value value) const { return {std::move(value)}; }
@@ -630,6 +642,15 @@ struct CollectionProperty {
     CollectionArg<key, Owner, Items...> operator[](Items const&... items) const {
         return {std::tie(items...)};
     }
+};
+
+// A collection that can also be given in one value: `rowDefinitions[a, b]` and
+// `rowDefinitions = L"2*,*"` are the same property said two ways. The subscript
+// comes from one base and the assignment from the other; the using-declaration
+// keeps the assignment reachable past this type's own copy assignment.
+template <PropertyKey key, typename Value, typename Owner = void>
+struct AssignableCollectionProperty : CollectionProperty<key, Owner>, Property<key, Value, Owner> {
+    using Property<key, Value, Owner>::operator=;
 };
 
 namespace impl {

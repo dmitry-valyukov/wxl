@@ -84,8 +84,9 @@ void write_dsl(output const& out, dsl const& d, emitted& em);
 // schema_surface.cpp: one compile-only line per element of it, which is what
 // keeps the schema honest. Every new type and every new member lands in both
 // files by the same run, so coverage cannot drift from the surface. The dsl
-// is read for the enumerators a tag of enum type carries; everything else
-// the schema needs is in the schema itself.
+// comes in for the enumerators an anchor of enum type carries, which the test
+// reaches through the anchor; everything else the schema needs is in the
+// schema itself.
 void write_schema(output const& out, model const& m, emitted& em);
 
 // CMakeLists.txt adding everything above to the consuming target.

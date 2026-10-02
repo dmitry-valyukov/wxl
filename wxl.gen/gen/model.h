@@ -258,11 +258,12 @@ struct dsl {
     };
     std::map<std::string, attached_t> attached;
 
-    // Enum type (spelled as the value types above spell it, `wxl::Orientation`)
-    // -> its enumerators, each as the member name a tag surfaces it under and
-    // the enumerator's own name. A tag of such a type carries the values it
-    // accepts, so the DSL writes `orientation.horizontal` where the enum type
-    // would otherwise be named in full.
+    // Enum type (spelled as the value types above spell it, `Orientation`)
+    // -> its enumerators, each as the member name the syntax surfaces it under
+    // and the enumerator's own name. A property over such a type carries the
+    // values it accepts (impl::enum_values), so the DSL writes
+    // `orientation.horizontal` where the enum type would otherwise be named in
+    // full.
     std::map<std::string, std::vector<std::pair<std::string, std::string>>> enumerators;
 
     std::set<std::string> includes;  // public headers the value types live in

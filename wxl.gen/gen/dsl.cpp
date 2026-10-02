@@ -20,6 +20,23 @@ import std;
 namespace gen {
 namespace {
 
+// The values of every enumeration a property has, each written once, in
+// namespace impl. A tag over the enumeration inherits them
+// (impl::enum_values), the flat vocabulary and the schema anchors alike, so
+// `orientation.horizontal` needs no tag type of its own.
+void write_enum_values(std::ostream& file, dsl const& d) {
+    for (auto&& [type, values] : d.enumerators) {
+        if (values.empty()) {
+            continue;
+        }
+        std::print(file, "\ntemplate <>\nstruct enum_values<{}> {{\n", type);
+        for (auto&& [member, enumerator] : values) {
+            std::print(file, "    static constexpr {0} {1} = {0}::{2};\n", type, member, enumerator);
+        }
+        std::print(file, "}};\n");
+    }
+}
+
 // The dispatch behind the tags, in namespace impl: one specialisation per
 // key.
 void write_dispatch(std::ostream& file, dsl const& d) {
@@ -110,39 +127,12 @@ struct EventAdder<EventKey::{0}> {{
 // it.
 void write_property_tag(std::ostream& file, dsl const& d, std::string const& name,
                         std::string const& value_type) {
+    // A collection that a setter can also be given in one go --
+    // `rowDefinitions[a, b]` and `rowDefinitions = L"2*,*"` are the same
+    // property said two ways -- so the tag carries both.
     if (d.collection_element.count(name)) {
-        // A collection that a setter can also be given in one go --
-        // `rowDefinitions[a, b]` and `rowDefinitions = L"2*,*"` are the
-        // same property said two ways -- so the tag carries both. The
-        // subscript comes from one base, the assignment from the other,
-        // and the using-declaration is what keeps the assignment
-        // reachable past the tag's own copy-assignment.
-        std::print(file, R"(
-struct {0}Tag : CollectionProperty<PropertyKey::{0}>, Property<PropertyKey::{0}, {1}> {{
-    using Property<PropertyKey::{0}, {1}>::operator=;
-}};
-inline constexpr {0}Tag {2};
-)",
+        std::print(file, "inline constexpr AssignableCollectionProperty<PropertyKey::{}, {}> {};\n",
                    name, value_type.empty() ? "void" : value_type, member_name(name));
-        return;
-    }
-    // An enum-typed tag carries the values it accepts, so the enum type
-    // is named once here instead of at every use:
-    // `orientation.horizontal`, not `orientation = Orientation::Horizontal`.
-    // The using-declaration is what keeps the assignments reachable --
-    // the derived tag's own copy-assignment would hide them.
-    if (auto const values = d.enumerators.find(value_type);
-        values != d.enumerators.end() && !values->second.empty()) {
-        std::print(file, R"(
-struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
-    using Property::operator=;
-)",
-                   name, value_type);
-        for (auto&& [member, enumerator] : values->second) {
-            std::print(file, "    static constexpr {0} {1} = {0}::{2};\n", value_type, member,
-                       enumerator);
-        }
-        std::print(file, "}};\ninline constexpr {}Tag {};\n\n", name, member_name(name));
         return;
     }
 
@@ -157,7 +147,9 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
 
     // A property whose declarations disagree on the type gets no
     // definite one, and with it no braced form -- `void` leaves only
-    // the deduced assignment.
+    // the deduced assignment. An enum-typed property is written the same
+    // way: the values it accepts come with its type (impl::enum_values), so
+    // `orientation.horizontal` needs no enum name.
     std::print(file, "inline constexpr Property<PropertyKey::{}, {}> {};\n", name,
                value_type.empty() ? "void" : value_type, member_name(name));
 }
@@ -208,6 +200,9 @@ void write_dsl(output const& out, dsl const& d, emitted& em) {
     write_includes(file, d.includes);
 
     std::print(file, "\nnamespace wxl {{\n\nnamespace impl {{\n");
+    // Ahead of everything below: a specialisation has to precede the first
+    // Property over its enumeration.
+    write_enum_values(file, d);
     write_dispatch(file, d);
 
     // The tags live in a namespace of their own so that consuming code brings
