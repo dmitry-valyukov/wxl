@@ -3,52 +3,52 @@
 #include "profile.h"
 
 TEST(member_filter, allows) {
-    EXPECT_TRUE(MemberFilter::all().allows("Width"));
-    EXPECT_FALSE(MemberFilter::none().allows("Width"));
-    EXPECT_TRUE(MemberFilter::allow({"Width"}).allows("Width"));
-    EXPECT_FALSE(MemberFilter::allow({"Width"}).allows("Height"));
-    EXPECT_FALSE(MemberFilter::deny({"Width"}).allows("Width"));
-    EXPECT_TRUE(MemberFilter::deny({"Width"}).allows("Height"));
+    EXPECT_TRUE(member_filter::all().allows("Width"));
+    EXPECT_FALSE(member_filter::none().allows("Width"));
+    EXPECT_TRUE(member_filter::allow({"Width"}).allows("Width"));
+    EXPECT_FALSE(member_filter::allow({"Width"}).allows("Height"));
+    EXPECT_FALSE(member_filter::deny({"Width"}).allows("Width"));
+    EXPECT_TRUE(member_filter::deny({"Width"}).allows("Height"));
 }
 
 TEST(member_filter, all_and_none_absorb) {
-    auto all = MemberFilter::all();
-    all.merge(MemberFilter::allow({"Width"}));
-    EXPECT_EQ(all, MemberFilter::all());
+    auto all = member_filter::all();
+    all.merge(member_filter::allow({"Width"}));
+    EXPECT_EQ(all, member_filter::all());
 
-    auto some = MemberFilter::allow({"Width"});
-    some.merge(MemberFilter::none());
-    EXPECT_EQ(some, MemberFilter::allow({"Width"}));
+    auto some = member_filter::allow({"Width"});
+    some.merge(member_filter::none());
+    EXPECT_EQ(some, member_filter::allow({"Width"}));
 
-    auto none = MemberFilter::none();
-    none.merge(MemberFilter::deny({"Width"}));
-    EXPECT_EQ(none, MemberFilter::deny({"Width"}));
+    auto none = member_filter::none();
+    none.merge(member_filter::deny({"Width"}));
+    EXPECT_EQ(none, member_filter::deny({"Width"}));
 
-    auto denied = MemberFilter::deny({"Width"});
-    denied.merge(MemberFilter::all());
-    EXPECT_EQ(denied, MemberFilter::all());
+    auto denied = member_filter::deny({"Width"});
+    denied.merge(member_filter::all());
+    EXPECT_EQ(denied, member_filter::all());
 }
 
 TEST(member_filter, allow_lists_unite) {
-    auto filter = MemberFilter::allow({"Width"});
-    filter.merge(MemberFilter::allow({"Height"}));
-    EXPECT_EQ(filter, MemberFilter::allow({"Width", "Height"}));
+    auto filter = member_filter::allow({"Width"});
+    filter.merge(member_filter::allow({"Height"}));
+    EXPECT_EQ(filter, member_filter::allow({"Width", "Height"}));
 }
 
 TEST(member_filter, deny_lists_intersect) {
-    auto filter = MemberFilter::deny({"Width", "Height"});
-    filter.merge(MemberFilter::deny({"Height", "Margin"}));
-    EXPECT_EQ(filter, MemberFilter::deny({"Height"}));
+    auto filter = member_filter::deny({"Width", "Height"});
+    filter.merge(member_filter::deny({"Height", "Margin"}));
+    EXPECT_EQ(filter, member_filter::deny({"Height"}));
 }
 
 // Allow(A) + Deny(B) is everything except B, plus A: Deny(B \ A), whichever
 // side came first.
 TEST(member_filter, allow_and_deny_leave_the_difference_denied) {
-    auto allow_first = MemberFilter::allow({"Width"});
-    allow_first.merge(MemberFilter::deny({"Width", "Height"}));
-    EXPECT_EQ(allow_first, MemberFilter::deny({"Height"}));
+    auto allow_first = member_filter::allow({"Width"});
+    allow_first.merge(member_filter::deny({"Width", "Height"}));
+    EXPECT_EQ(allow_first, member_filter::deny({"Height"}));
 
-    auto deny_first = MemberFilter::deny({"Width", "Height"});
-    deny_first.merge(MemberFilter::allow({"Width"}));
-    EXPECT_EQ(deny_first, MemberFilter::deny({"Height"}));
+    auto deny_first = member_filter::deny({"Width", "Height"});
+    deny_first.merge(member_filter::allow({"Width"}));
+    EXPECT_EQ(deny_first, member_filter::deny({"Height"}));
 }

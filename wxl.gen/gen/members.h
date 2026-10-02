@@ -20,7 +20,7 @@ namespace gen {
 
 struct param_info {
     std::string name;
-    TypeUse type;
+    type_use type;
 };
 
 // One forwarded property accessor, method, or event accessor. A property
@@ -30,13 +30,13 @@ struct param_info {
 // them read as C++ overloads of one name, which is how the projection
 // itself spells them.
 struct member_info {
-    enum class Kind { Forward, EventAdd, EventRemove, BoxedString };
+    enum class kind_t { Forward, EventAdd, EventRemove, BoxedString };
 
-    Kind kind = Kind::Forward;
+    kind_t kind = kind_t::Forward;
     std::string name;        // as wxl spells it: camelCase
     std::string winrt_name;  // as the metadata and the projection spell it
     std::string field;       // the Impl field holding the interface declaring it
-    TypeUse result;     // unused when `returns_void`
+    type_use result;     // unused when `returns_void`
     bool returns_void = true;
     std::vector<param_info> params;
 
@@ -102,7 +102,7 @@ std::vector<std::string> parameter_names(md::MethodDef const& method);
 // how a class wrapper's body reaches it; an args view leaves it unused and
 // queries off its ABI pointer.
 void collect_interface_members(md::TypeDef const& iface,
-                               std::set<std::string> const& allowed, TypeIndex const& index,
+                               std::set<std::string> const& allowed, type_index const& index,
                                std::vector<member_info>& members,
                                std::vector<skipped_member>& skipped);
 

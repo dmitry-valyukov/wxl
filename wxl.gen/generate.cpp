@@ -13,8 +13,8 @@ namespace {
 // compiling (they're on the include path) but listed nowhere. Only files
 // carrying the generator's own banner are removed -- anything a human put
 // in the output directory is left alone.
-void prune_stale(Output const& out, gen::Emitted const& emitted) {
-    std::set<std::string> const current{emitted.files().begin(), emitted.files().end()};
+void prune_stale(output const& out, gen::emitted const& em) {
+    std::set<std::string> const current{em.files().begin(), em.files().end()};
 
     for (auto&& entry : std::filesystem::directory_iterator{out.dir}) {
         if (!entry.is_regular_file() || current.count(entry.path().filename().string())) {
@@ -41,9 +41,9 @@ void prune_stale(Output const& out, gen::Emitted const& emitted) {
 // The closure's types by category, in the closure's own dependency order:
 // category grouping only splits that one ordering into slices, it never
 // re-sorts.
-gen::type_kinds kinds_of(Closure const& closure) {
+gen::type_kinds kinds_of(closure const& cl) {
     gen::type_kinds kinds;
-    for (auto&& type : closure.ordered) {
+    for (auto&& type : cl.ordered) {
         switch (md::get_category(type)) {
             case md::category::enum_type:
                 kinds.enums.push_back(type);
@@ -55,7 +55,7 @@ gen::type_kinds kinds_of(Closure const& closure) {
                 kinds.classes.push_back(type);
                 break;
             case md::category::interface_type:
-                if (closure.listed_interfaces.contains(type)) {
+                if (cl.listed_interfaces.contains(type)) {
                     kinds.listed_interfaces.push_back(type);
                 }
                 break;
@@ -68,25 +68,26 @@ gen::type_kinds kinds_of(Closure const& closure) {
 
 }  // namespace
 
-Model analyze(Closure const& closure, ProfileSet const& profiles) {
-    auto const kinds = kinds_of(closure);
+model analyze(closure const& cl, profile_set const& profiles, type_map const& types,
+              std::vector<symbol> symbols) {
+    auto const kinds = kinds_of(cl);
 
-    Model model;
-    model.property_names = closure.property_names;
-    model.event_names = closure.event_names;
+    model m;
+    m.property_names = cl.property_names;
+    m.event_names = cl.event_names;
 
-    gen::analyze_tags(model);
-    gen::analyze_enums_and_structs(kinds, closure, model);
-    auto const index = gen::analyze_classes(kinds, closure, model);
-    gen::analyze_event_args(kinds, closure, index, model);
+    gen::analyze_tags(types, m);
+    gen::analyze_enums_and_structs(kinds, cl, types, m);
+    auto const index = gen::analyze_classes(kinds, cl, types, m);
+    gen::analyze_event_args(kinds, cl, index, m);
 
     // The dictionaries are read once and the writers pick what they know:
     // styles here, brushes there, and whatever a resource of another kind
     // needs when its writer appears.
     for (auto&& dictionary : profiles.resources) {
         auto declared = dictionary_resources(dictionary);
-        model.resources.insert(model.resources.end(), std::move_iterator{declared.begin()},
-                               std::move_iterator{declared.end()});
+        m.resources.insert(m.resources.end(), std::move_iterator{declared.begin()},
+                           std::move_iterator{declared.end()});
     }
 
     // A dictionary names a target type, and a brush key starts with one, by
@@ -94,33 +95,34 @@ Model analyze(Closure const& closure, ProfileSet const& profiles) {
     // the two -- the first of a name, where two namespaces share it.
     for (auto&& type : kinds.classes) {
         std::string name{type.TypeName()};
-        model.class_names.insert(name);
+        m.class_names.insert(name);
         if (auto const filter = profiles.styles.find(full_name(type)); filter != profiles.styles.end()) {
-            model.style_filters.emplace(std::move(name), filter->second);
+            m.style_filters.emplace(std::move(name), filter->second);
         }
     }
-    model.brushes = profiles.brushes;
-    return model;
+    m.brushes = profiles.brushes;
+    m.symbols = std::move(symbols);
+    return m;
 }
 
-void write_all(Output const& out, Model const& model) {
+void write_all(output const& out, model const& m) {
     std::filesystem::create_directories(out.dir);
 
-    gen::Emitted emitted;
-    gen::write_key_enums(out, model, emitted);
-    gen::write_tags(out, model, emitted);
-    gen::write_enums_and_structs(out, model, emitted);
-    gen::write_classes(out, model, emitted);
-    gen::write_dsl(out, model.dsl, emitted);
-    gen::write_schema(out, model, emitted);
-    gen::write_event_args(out, model, emitted);
-    gen::write_styles(out, model, emitted);
-    gen::write_brushes(out, model, emitted);
-    gen::write_alias_index(out, model.resources, emitted);
-    gen::write_symbols(out, emitted);
+    gen::emitted em;
+    gen::write_key_enums(out, m, em);
+    gen::write_tags(out, m, em);
+    gen::write_enums_and_structs(out, m, em);
+    gen::write_classes(out, m, em);
+    gen::write_dsl(out, m.dsl, em);
+    gen::write_schema(out, m, em);
+    gen::write_event_args(out, m, em);
+    gen::write_styles(out, m, em);
+    gen::write_brushes(out, m, em);
+    gen::write_alias_index(out, m.resources, em);
+    gen::write_symbols(out, m, em);
 
     // Last: drop whatever a previous run left behind, then list everything
     // this run produced.
-    prune_stale(out, emitted);
-    gen::write_cmake_lists(out, emitted);
+    prune_stale(out, em);
+    gen::write_cmake_lists(out, em);
 }

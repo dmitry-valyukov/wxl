@@ -29,7 +29,7 @@
 // Types "given from above": already written by hand in wxl.ui, so the
 // walk records them as a boundary and never expands their members. Which
 // ones those are comes from the type map (profiles/types.json).
-bool is_given_from_above(winmd::reader::TypeDef const& type);
+bool is_given_from_above(winmd::reader::TypeDef const& type, type_map const& types);
 
 // Namespace, then name: the order for any container of types whose order
 // reaches the output. winmd's own operator< compares the addresses of the
@@ -77,7 +77,7 @@ winmd::reader::CustomAttribute find_attribute(Owner const& owner, std::string_vi
 // a bare ActivatableAttribute, the one of a default constructor.
 std::vector<std::string_view> types_named_by(winmd::reader::CustomAttribute const& attribute);
 
-struct Closure {
+struct closure {
     // Every discovered type, ordered from dependency sources to their
     // consumers: a type appears after everything it needs (base classes
     // before derived ones, member/field types before the types using
@@ -88,7 +88,7 @@ struct Closure {
 
     // Effective member surface per discovered type, after merging every
     // profile that reached it.
-    std::map<winmd::reader::TypeDef, MemberFilter> surface;
+    std::map<winmd::reader::TypeDef, member_filter> surface;
 
     // The members that actually survived the filter, per type that
     // declares them.
@@ -98,8 +98,8 @@ struct Closure {
     // filter, i.e. still contribute at least one member. Those are
     // exactly the interfaces the wrapper has to hold -- one field per
     // interface on that level's `Impl`; an interface all of whose members
-    // needs no field, no lazy QueryInterface slot, no code.
-    std::map<winmd::reader::TypeDef, std::vector<winmd::reader::TypeDef>> interfaces;
+    // were filtered out needs no field, no lazy QueryInterface slot, no code.
+    std::map<winmd::reader::TypeDef, std::vector<winmd::reader::TypeDef>> held_interfaces;
 
     // Interfaces a class implements directly that did *not* survive --
     // reported so the trimming is visible rather than silent.
@@ -129,26 +129,26 @@ struct Closure {
     // A property a profile added to a class (see profile.h), with the type
     // of its value resolved: naming it is what pulls that type into the
     // closure, since no signature in the metadata mentions the member.
-    struct Synthetic {
-        SyntheticMember declaration;
+    struct synthetic_t {
+        synthetic_member declaration;
         winmd::reader::TypeDef type;
     };
 
     // Per class: the properties added to it. They take part in the key enum
     // and the DSL exactly like the real ones; only the body differs.
-    std::map<winmd::reader::TypeDef, std::vector<Synthetic>> synthetic;
+    std::map<winmd::reader::TypeDef, std::vector<synthetic_t>> synthetic;
 
     // A method a profile writes as a tag (see profile.h), with the class it
     // narrows the value to resolved -- empty when it keeps the parameter's own
     // type. The narrowed class is pulled into the closure the way a synthetic
     // member's type is.
-    struct Setter {
-        SetterMethod declaration;
+    struct setter {
+        setter_method declaration;
         winmd::reader::TypeDef type;
     };
 
     // Per class: the methods written as tags on it.
-    std::map<winmd::reader::TypeDef, std::vector<Setter>> setter_methods;
+    std::map<winmd::reader::TypeDef, std::vector<setter>> setter_methods;
 
     // Per class: the attached properties its statics declare. In metadata an
     // attached property is nothing but a Set<X>(element, value) / Get<X>
@@ -175,28 +175,30 @@ struct Closure {
     std::vector<std::string> unknown_members;  // "Ns.Type.Member" nothing declares
 };
 
-Closure crawl(ProfileSet const& profiles, winmd::reader::cache const& db);
+// The walk from the profiles' roots and the type map's implicit ones; the
+// type map also says where it stops and which keys wxl's own classes add.
+closure crawl(profile_set const& profiles, type_map const& types, winmd::reader::cache const& db);
 
 // The kinds of member a profile names. A Constant is an enumerator.
-enum class MemberKind : uint8_t { Property, Method, Event, Constant };
+enum class member_kind : uint8_t { Property, Method, Event, Constant };
 
 // The member names a profile can list for a type, by kind: what the type
 // declares itself plus, for a class, what the interfaces it implements
 // directly declare, and for an enum its enumerators -- the names the walk
 // filters by. Properties, methods and events sorted, each name once;
 // enumerators in declaration order. The views point into the metadata.
-struct DeclaredMembers {
+struct declared_members {
     std::vector<std::string_view> properties;
     std::vector<std::string_view> methods;
     std::vector<std::string_view> events;
     std::vector<std::string_view> constants;
 };
 
-DeclaredMembers declared_members_of(winmd::reader::TypeDef const& type);
+declared_members declared_members_of(winmd::reader::TypeDef const& type);
 
 // One declaration of a member: the type that declares it -- the type itself or
 // an interface it implements -- and its definition there.
-struct MemberDeclaration {
+struct member_declaration {
     winmd::reader::TypeDef source;
     std::variant<winmd::reader::Property, winmd::reader::MethodDef, winmd::reader::Event, winmd::reader::Field>
         definition;
@@ -204,5 +206,5 @@ struct MemberDeclaration {
 
 // Every declaration of one member of declared_members_of: a method once per
 // overload.
-std::vector<MemberDeclaration> declarations_of(winmd::reader::TypeDef const& type, MemberKind kind,
-                                               std::string_view name);
+std::vector<member_declaration> declarations_of(winmd::reader::TypeDef const& type,
+                                                member_kind kind, std::string_view name);

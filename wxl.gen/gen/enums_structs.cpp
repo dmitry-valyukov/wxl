@@ -90,15 +90,15 @@ struct resolved_field {
     std::string_view include;  // non-empty for projected types
 };
 
-resolved_field resolve_field_type(TypeSig const& sig,
-                                  std::map<TypeDef, std::string> const& generated_names) {
+resolved_field resolve_field_type(TypeSig const& sig, std::map<TypeDef, std::string> const& generated_names,
+                                  type_map const& types) {
     if (auto const* prim = primitive_name(sig.element_type())) {
         return {prim, {}, {}};
     }
     if (auto const* ref = std::get_if<coded_index<TypeDefOrRef>>(&sig.Type());
         ref && ref->type() != TypeDefOrRef::TypeSpec) {
         if (auto const resolved = md::find(*ref)) {
-            if (auto const* projection = project_type(resolved)) {
+            if (auto const* projection = project_type(resolved, types)) {
                 return {std::string{projection->cpp_name}, {}, projection->include};
             }
             if (auto const it = generated_names.find(resolved); it != generated_names.end()) {
@@ -116,11 +116,12 @@ struct struct_source {
     std::vector<std::pair<std::string, resolved_field>> fields;  // camelCase name, type
 };
 
-struct_source read_struct(TypeDef const& type, std::map<TypeDef, std::string> const& generated_names) {
+struct_source read_struct(TypeDef const& type, std::map<TypeDef, std::string> const& generated_names,
+                          type_map const& types) {
     struct_source source{type, {}};
     for (auto&& field : type.FieldList()) {
         source.fields.emplace_back(member_name(field.Name()),
-                                   resolve_field_type(field.Signature().Type(), generated_names));
+                                   resolve_field_type(field.Signature().Type(), generated_names, types));
     }
     return source;
 }
@@ -214,15 +215,15 @@ namespace wxl {{
     std::print(out, "}} // namespace wxl\n");
 }
 
-void write_structs_file(std::filesystem::path const& path, Model const& model,
+void write_structs_file(std::filesystem::path const& path, model const& m,
                         struct_file const& file) {
     auto out = open_output(path);
 
     // <stdint.h> rather than <cstdint>, for the same reason as in
     // write_enums_file() above: the emitted field types are unqualified. Only
     // where a field is one of them: a file of doubles and enums has no use for it.
-    bool const fixed_width = std::ranges::any_of(file.structs, [&model](size_t index) {
-        return std::ranges::any_of(model.structs[index].fields, [](auto const& field) {
+    bool const fixed_width = std::ranges::any_of(file.structs, [&m](size_t index) {
+        return std::ranges::any_of(m.structs[index].fields, [](auto const& field) {
             return field.cpp_type.ends_with("_t") && field.cpp_type.find("int") != std::string::npos;
         });
     });
@@ -235,7 +236,7 @@ void write_structs_file(std::filesystem::path const& path, Model const& model,
     std::print(out, "\nnamespace wxl {{\n\n");
 
     for (auto&& index : file.structs) {
-        auto const& s = model.structs[index];
+        auto const& s = m.structs[index];
         std::print(out, "struct {}\n{{\n", s.name);
         for (auto&& field : s.fields) {
             std::print(out, "    {} {}{{}};\n", field.cpp_type, field.name);
@@ -299,7 +300,8 @@ std::vector<std::pair<std::string, std::string>> enum_members(
     return values;
 }
 
-void analyze_enums_and_structs(type_kinds const& kinds, Closure const& closure, Model& model) {
+void analyze_enums_and_structs(type_kinds const& kinds, closure const& cl, type_map const& types,
+                               model& m) {
     std::vector<TypeDef> named;
     named.insert(named.end(), kinds.enums.begin(), kinds.enums.end());
     named.insert(named.end(), kinds.structs.begin(), kinds.structs.end());
@@ -310,27 +312,27 @@ void analyze_enums_and_structs(type_kinds const& kinds, Closure const& closure, 
     std::map<std::string, std::vector<enum_info>> enums_by_namespace;
     for (auto&& type : kinds.enums) {
         enums_by_namespace[std::string(type.TypeNamespace())].push_back(
-            analyze_enum(type, closure.members));
+            analyze_enum(type, cl.members));
     }
     for (auto&& [ns, enums] : enums_by_namespace) {
-        model.enum_files.push_back({ns, std::move(enums)});
+        m.enum_files.push_back({ns, std::move(enums)});
     }
 
     std::vector<struct_source> sources;
     sources.reserve(kinds.structs.size());
     for (auto&& type : kinds.structs) {
-        if (project_type(type)) {
+        if (project_type(type, types)) {
             continue;  // wxl::geometry already provides it
         }
-        if (!mirrors_abi(type)) {
+        if (!mirrors_abi(type, types)) {
             // A field wxl cannot mirror -- a String, today. Generating the
             // struct anyway would produce a bit_cast between two layouts
             // that only look alike, so it is dropped and said so; every
             // member naming it is dropped with it, and reported there.
-            model.dropped_structs.push_back(full_name(type));
+            m.dropped_structs.push_back(full_name(type));
             continue;
         }
-        sources.push_back(read_struct(type, generated_names));
+        sources.push_back(read_struct(type, generated_names, types));
     }
     auto const sorted = topological_sort(
         std::move(sources), [](struct_source const& s, auto&& follow) { struct_dependencies(s, follow); });
@@ -348,8 +350,8 @@ void analyze_enums_and_structs(type_kinds const& kinds, Closure const& closure, 
         std::string const ns{source.type.TypeNamespace()};
         auto& file = files[ns];
         file.ns = ns;
-        file.structs.push_back(model.structs.size());
-        model.structs.push_back(analyze_struct(source));
+        file.structs.push_back(m.structs.size());
+        m.structs.push_back(analyze_struct(source));
 
         for (auto&& [name, field] : source.fields) {
             if (!field.include.empty()) {
@@ -368,50 +370,50 @@ void analyze_enums_and_structs(type_kinds const& kinds, Closure const& closure, 
         }
     }
     for (auto&& [ns, file] : files) {
-        model.struct_files.push_back(std::move(file));
+        m.struct_files.push_back(std::move(file));
     }
 }
 
-void write_enums_and_structs(Output const& out, Model const& model, Emitted& emitted) {
+void write_enums_and_structs(output const& out, model const& m, emitted& em) {
     std::vector<std::string> enum_files;
-    for (auto&& file : model.enum_files) {
+    for (auto&& file : m.enum_files) {
         std::string const filename = file.ns + ".Enums.h";
         auto const path = out.dir / filename;
         write_enums_file(path, file.enums);
-        emitted.add(path);
+        em.add(path);
         std::print("generated {} ({} enums)\n", path.string(), file.enums.size());
         enum_files.push_back(filename);
     }
 
     std::vector<std::string> struct_files;
-    for (auto&& file : model.struct_files) {
+    for (auto&& file : m.struct_files) {
         std::string const filename = file.ns + ".Structs.h";
         auto const path = out.dir / filename;
-        write_structs_file(path, model, file);
-        emitted.add(path);
+        write_structs_file(path, m, file);
+        em.add(path);
         std::print("generated {} ({} structs)\n", path.string(), file.structs.size());
         struct_files.push_back(filename);
     }
 
     auto const enums_umbrella = out.dir / "Enums.h";
     write_umbrella_file(enums_umbrella, enum_files);
-    emitted.add(enums_umbrella);
+    em.add(enums_umbrella);
     std::print("generated {}\n", enums_umbrella.string());
 
     auto const structs_umbrella = out.dir / "Structs.h";
     write_umbrella_file(structs_umbrella, struct_files);
-    emitted.add(structs_umbrella);
+    em.add(structs_umbrella);
     std::print("generated {}\n", structs_umbrella.string());
 
     auto const struct_conversions = out.dir / "Structs.impl.h";
-    write_struct_conversions(struct_conversions, model.structs);
-    emitted.add(struct_conversions);
+    write_struct_conversions(struct_conversions, m.structs);
+    em.add(struct_conversions);
     std::print("generated {}\n", struct_conversions.string());
 
-    if (!model.dropped_structs.empty()) {
+    if (!m.dropped_structs.empty()) {
         std::print("\nstructs dropped -- a field wxl cannot mirror ({}):\n",
-                   model.dropped_structs.size());
-        for (auto&& name : model.dropped_structs) {
+                   m.dropped_structs.size());
+        for (auto&& name : m.dropped_structs) {
             std::print("  {}\n", name);
         }
     }

@@ -103,15 +103,16 @@ void visit_declared_members(TypeDef const& type, Visit&& visit) {
     auto const collect = [&visit](TypeDef const& source) {
         for (auto&& property : source.PropertyList()) {
             if (!is_dependency_property_accessor(property)) {
-                visit(MemberKind::Property, property.Name(), MemberDeclaration {source, property});
+                visit(member_kind::Property, property.Name(),
+                      member_declaration {source, property});
             }
         }
         for (auto&& event : source.EventList()) {
-            visit(MemberKind::Event, event.Name(), MemberDeclaration {source, event});
+            visit(member_kind::Event, event.Name(), member_declaration {source, event});
         }
         for (auto&& method : source.MethodList()) {
             if (is_plain_method(method)) {
-                visit(MemberKind::Method, method.Name(), MemberDeclaration {source, method});
+                visit(member_kind::Method, method.Name(), member_declaration {source, method});
             }
         }
     };
@@ -129,15 +130,15 @@ void visit_declared_members(TypeDef const& type, Visit&& visit) {
     if (get_category(type) == category::enum_type) {
         for (auto&& field : type.FieldList()) {
             if (field.Flags().Literal()) {
-                visit(MemberKind::Constant, field.Name(), MemberDeclaration {type, field});
+                visit(member_kind::Constant, field.Name(), member_declaration {type, field});
             }
         }
     }
 }
 
-std::set<std::string> declared_members(TypeDef const& type) {
+std::set<std::string> declared_names(TypeDef const& type) {
     std::set<std::string> names;
-    visit_declared_members(type, [&names](MemberKind, std::string_view name, MemberDeclaration const&) {
+    visit_declared_members(type, [&names](member_kind, std::string_view name, member_declaration const&) {
         names.insert(std::string(name));
     });
     return names;
@@ -179,27 +180,32 @@ std::vector<TypeDef> interfaces_named_by(TypeDef const& type, std::string_view a
 // The walk itself. Types are (re)processed whenever their member surface
 // widens -- merging is monotone over a finite set of names, so this
 // terminates.
-struct Crawler {
-    ProfileSet const& profiles;
+struct crawler {
+    profile_set const& profiles;
+    type_map const& types;
     cache const& db;
-    Closure result;
+    closure result;
 
     std::deque<TypeDef> queue;
     std::map<TypeDef, std::set<TypeDef, by_full_name>> dependencies;
+    // Per class (and listed interface): every interface it implements
+    // directly, in declaration order. Split once the walk is done into the
+    // held ones and the dropped ones (split_interfaces).
+    std::map<TypeDef, std::vector<TypeDef>> implemented;
     // Members a profile listed on a *derived* type although an ancestor
     // declares them; routed to that ancestor before the walk starts.
-    std::map<TypeDef, MemberFilter> inherited;
+    std::map<TypeDef, member_filter> inherited;
 
     // An interface the profile names directly is wrapped like a class (see
-    // Closure::listed_interfaces), so its own required interfaces are
+    // closure::listed_interfaces), so its own required interfaces are
     // recorded the way a class's are: they may carry fields of the wrapper.
     bool is_listed_interface(TypeDef const& type) const {
         return get_category(type) == category::interface_type &&
                profiles.types.contains(full_name(type));
     }
 
-    MemberFilter listed_filter(TypeDef const& type) const {
-        MemberFilter filter = profiles.discovered;
+    member_filter listed_filter(TypeDef const& type) const {
+        member_filter filter = profiles.discovered;
         if (auto const it = profiles.types.find(full_name(type)); it != profiles.types.end()) {
             filter = it->second;
         }
@@ -215,11 +221,11 @@ struct Crawler {
         }
     }
 
-    void enqueue(TypeDef const& type, MemberFilter const& filter) {
+    void enqueue(TypeDef const& type, member_filter const& filter) {
         if (!type) {
             return;
         }
-        if (is_given_from_above(type)) {
+        if (is_given_from_above(type, types)) {
             result.boundary.insert(type);
             return;
         }
@@ -317,7 +323,7 @@ struct Crawler {
             // some of them. An enum the profiles never name, reached through
             // the walk, keeps all: a signature needs the whole type. The
             // enumerators carry no further type references.
-            bool const all = filter.kind == MemberFilter::Kind::None;
+            bool const all = filter.kind == member_filter::kind_t::None;
             for (auto&& field : type.FieldList()) {
                 if (field.Flags().Literal() && (all || filter.allows(field.Name()))) {
                     result.members[type].insert(std::string(field.Name()));
@@ -333,7 +339,7 @@ struct Crawler {
     // profile names the *class*. So a class hands its own member filter down
     // to the interfaces it implements directly, merged with whatever the
     // profiles say about those interfaces themselves.
-    void process_inheritance(TypeDef const& type, category cat, MemberFilter const& filter) {
+    void process_inheritance(TypeDef const& type, category cat, member_filter const& filter) {
         if (auto const base = type.Extends()) {
             enqueue(base, type);
         }
@@ -346,10 +352,9 @@ struct Crawler {
             }
             depend(type, resolved);
             if (cat == category::class_type || is_listed_interface(type)) {
-                auto& implemented = result.dropped_interfaces[type];
-                if (std::find(implemented.begin(), implemented.end(), resolved) ==
-                    implemented.end()) {
-                    implemented.push_back(resolved);
+                auto& known = implemented[type];
+                if (std::find(known.begin(), known.end(), resolved) == known.end()) {
+                    known.push_back(resolved);
                 }
             }
             auto inherited_filter = filter;
@@ -400,7 +405,7 @@ struct Crawler {
     // What a class reaches through its activation factory rather than
     // through an object: the interfaces of its static members and those of
     // its parameterised constructors.
-    void process_activation_factory(TypeDef const& type, MemberFilter const& filter) {
+    void process_activation_factory(TypeDef const& type, member_filter const& filter) {
         // Static members are filtered by what the profile said about
         // the class, exactly like the instance ones: a profile names
         // OverlappedPresenter.Create, not IOverlappedPresenterStatics.
@@ -426,13 +431,13 @@ struct Crawler {
             if (std::find(known.begin(), known.end(), iface) == known.end()) {
                 known.push_back(iface);
             }
-            enqueue(iface, MemberFilter::all());
+            enqueue(iface, member_filter::all());
         }
     }
 
     // The properties, events and methods the type declares itself that the
     // filter keeps, and the types their signatures name.
-    void process_members(TypeDef const& type, MemberFilter const& filter) {
+    void process_members(TypeDef const& type, member_filter const& filter) {
         for (auto&& property : type.PropertyList()) {
             if (is_dependency_property_accessor(property) || !filter.allows(property.Name())) {
                 continue;
@@ -490,22 +495,20 @@ struct Crawler {
     // base (unlike the WinRT projection, where each class restates the
     // full set).
     void split_interfaces() {
-        std::map<TypeDef, std::vector<TypeDef>> dropped;
-        for (auto&& [type, implemented] : result.dropped_interfaces) {
+        for (auto&& [type, interfaces] : implemented) {
             auto const inherited_interfaces = interfaces_of_base_chain(type);
-            for (auto&& iface : implemented) {
+            for (auto&& iface : interfaces) {
                 if (inherited_interfaces.count(iface)) {
                     continue;  // that ancestor's level owns it
                 }
                 auto const members = result.members.find(iface);
                 if (members != result.members.end() && !members->second.empty()) {
-                    result.interfaces[type].push_back(iface);
+                    result.held_interfaces[type].push_back(iface);
                 } else {
-                    dropped[type].push_back(iface);
+                    result.dropped_interfaces[type].push_back(iface);
                 }
             }
         }
-        result.dropped_interfaces = std::move(dropped);
 
         // A statics interface nothing survived on is no interface at all
         // here: it would only mean an empty proxy and an unused runtime
@@ -683,7 +686,7 @@ struct Crawler {
                 continue;  // reported as a missing type
             }
 
-            auto const own = declared_members(type);
+            auto const own = declared_names(type);
             for (auto&& member : filter.names) {
                 if (own.count(member)) {
                     continue;
@@ -692,10 +695,10 @@ struct Crawler {
                 TypeDef owner;
                 for (auto ancestor = type; ancestor;) {
                     auto const base = base_of(ancestor);
-                    if (!base || is_given_from_above(base)) {
+                    if (!base || is_given_from_above(base, types)) {
                         break;
                     }
-                    if (declared_members(base).count(member)) {
+                    if (declared_names(base).count(member)) {
                         owner = base;
                         break;
                     }
@@ -706,8 +709,8 @@ struct Crawler {
                     result.unknown_members.push_back(std::format("{}.{}", name, member));
                     continue;
                 }
-                if (filter.kind == MemberFilter::Kind::Allow) {
-                    inherited[owner].merge(MemberFilter::allow({member}));
+                if (filter.kind == member_filter::kind_t::Allow) {
+                    inherited[owner].merge(member_filter::allow({member}));
                 }
                 // A deny list is deliberately *not* routed upwards:
                 // hiding a member at the level that declares it would
@@ -720,18 +723,18 @@ struct Crawler {
 
 }  // namespace
 
-bool is_given_from_above(TypeDef const& type) {
-    return type && type_map().given_from_above.count(full_name(type)) != 0;
+bool is_given_from_above(TypeDef const& type, type_map const& types) {
+    return type && types.given_from_above.count(full_name(type)) != 0;
 }
 
-DeclaredMembers declared_members_of(TypeDef const& type) {
-    DeclaredMembers members;
-    visit_declared_members(type, [&members](MemberKind kind, std::string_view name, MemberDeclaration const&) {
+declared_members declared_members_of(TypeDef const& type) {
+    declared_members members;
+    visit_declared_members(type, [&members](member_kind kind, std::string_view name, member_declaration const&) {
         switch (kind) {
-            case MemberKind::Property: members.properties.push_back(name); break;
-            case MemberKind::Method: members.methods.push_back(name); break;
-            case MemberKind::Event: members.events.push_back(name); break;
-            case MemberKind::Constant: members.constants.push_back(name); break;
+            case member_kind::Property: members.properties.push_back(name); break;
+            case member_kind::Method: members.methods.push_back(name); break;
+            case member_kind::Event: members.events.push_back(name); break;
+            case member_kind::Constant: members.constants.push_back(name); break;
         }
     });
     // A method overloaded by arity is declared once per overload, and a
@@ -743,9 +746,9 @@ DeclaredMembers declared_members_of(TypeDef const& type) {
     return members;
 }
 
-std::vector<MemberDeclaration> declarations_of(TypeDef const& type, MemberKind kind, std::string_view name) {
-    std::vector<MemberDeclaration> found;
-    visit_declared_members(type, [&](MemberKind declared, std::string_view member, MemberDeclaration const& declaration) {
+std::vector<member_declaration> declarations_of(TypeDef const& type, member_kind kind, std::string_view name) {
+    std::vector<member_declaration> found;
+    visit_declared_members(type, [&](member_kind declared, std::string_view member, member_declaration const& declaration) {
         if (declared == kind && member == name) {
             found.push_back(declaration);
         }
@@ -753,52 +756,51 @@ std::vector<MemberDeclaration> declarations_of(TypeDef const& type, MemberKind k
     return found;
 }
 
-Closure crawl(ProfileSet const& raw_profiles, cache const& db) {
-    ProfileSet profiles = raw_profiles;
-    for (auto&& root : type_map().implicit_roots) {
-        profiles.types.try_emplace(root, MemberFilter::all());
+closure crawl(profile_set const& raw_profiles, type_map const& types, cache const& db) {
+    profile_set profiles = raw_profiles;
+    for (auto&& root : types.implicit_roots) {
+        profiles.types.try_emplace(root, member_filter::all());
     }
 
-    Crawler crawler{profiles, db};
+    crawler cr{profiles, types, db};
 
     for (auto&& [name, filter] : profiles.types) {
         if (!db.find(name)) {
-            crawler.result.missing_types.push_back(name);
+            cr.result.missing_types.push_back(name);
         }
     }
 
-    crawler.route_inherited_members();
+    cr.route_inherited_members();
 
     for (auto&& [name, filter] : profiles.types) {
         auto const type = db.find(name);
         if (!type) {
             continue;
         }
-        crawler.enqueue(type, crawler.listed_filter(type));
+        cr.enqueue(type, cr.listed_filter(type));
     }
 
-    crawler.run();
+    cr.run();
 
-    for (auto&& [type, filter] : crawler.result.surface) {
-        if (crawler.is_listed_interface(type)) {
-            crawler.result.listed_interfaces.insert(type);
+    for (auto&& [type, filter] : cr.result.surface) {
+        if (cr.is_listed_interface(type)) {
+            cr.result.listed_interfaces.insert(type);
         }
     }
 
-    crawler.split_interfaces();
-    crawler.collect_attached();
-    crawler.order();
+    cr.split_interfaces();
+    cr.collect_attached();
+    cr.order();
 
     // The keys of the members wxl's hand-written classes add to the vocabulary
     // (types.json): the walk meets none of them, and the key enums are flat.
-    for (auto&& property : type_map().hand_written_properties) {
-        crawler.result.property_names.insert(property.name);
+    for (auto&& property : types.hand_written_properties) {
+        cr.result.property_names.insert(property.name);
     }
-    for (auto&& member : type_map().bound_members) {
-        crawler.result.property_names.insert(member.name);
+    for (auto&& member : types.bound_members) {
+        cr.result.property_names.insert(member.name);
     }
-    crawler.result.event_names.insert(type_map().hand_written_events.begin(),
-                                      type_map().hand_written_events.end());
+    cr.result.event_names.insert(types.hand_written_events.begin(), types.hand_written_events.end());
 
-    return std::move(crawler.result);
+    return std::move(cr.result);
 }

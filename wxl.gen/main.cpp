@@ -29,7 +29,7 @@ constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers fro
                  carrying a tag (default: types.json beside the first profile).
 )";
 
-struct Options {
+struct options {
     std::vector<std::filesystem::path> profiles;
     std::vector<std::filesystem::path> extra_metadata;
     // Default output lands in the library that consumes it; the generated
@@ -42,8 +42,8 @@ struct Options {
     bool help = false;
 };
 
-Options parse_options(int argc, char** argv) {
-    Options options;
+options parse_options(int argc, char** argv) {
+    options opts;
 
     auto const value = [&](int& i, std::string_view option) {
         if (++i >= argc) {
@@ -55,56 +55,57 @@ Options parse_options(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         std::string_view const argument{argv[i]};
         if (argument == "--profile" || argument == "-p") {
-            options.profiles.emplace_back(value(i, argument));
+            opts.profiles.emplace_back(value(i, argument));
         } else if (argument == "--out" || argument == "-o") {
-            options.out_dir = value(i, argument);
+            opts.out_dir = value(i, argument);
         } else if (argument == "--target") {
-            options.cmake_target = value(i, argument);
+            opts.cmake_target = value(i, argument);
         } else if (argument == "--nuget-root") {
-            options.nuget_root = value(i, argument);
+            opts.nuget_root = value(i, argument);
         } else if (argument == "--types") {
-            options.type_map = value(i, argument);
+            opts.type_map = value(i, argument);
         } else if (argument == "--winmd") {
-            options.extra_metadata.emplace_back(value(i, argument));
+            opts.extra_metadata.emplace_back(value(i, argument));
         } else if (argument == "--help" || argument == "-h") {
-            options.help = true;
+            opts.help = true;
         } else {
             throw std::runtime_error(std::format("unknown argument: {}", argument));
         }
     }
 
-    if (options.nuget_root.empty()) {
-        options.nuget_root = default_nuget_root();
+    if (opts.nuget_root.empty()) {
+        opts.nuget_root = default_nuget_root();
     }
     // Beside the first profile: the map belongs to the same tree the profiles
     // do, and naming it on every run would be noise.
-    if (options.type_map.empty() && !options.profiles.empty()) {
-        options.type_map = options.profiles.front().parent_path() / "types.json";
+    if (opts.type_map.empty() && !opts.profiles.empty()) {
+        opts.type_map = opts.profiles.front().parent_path() / "types.json";
     }
     // The icon names live beside it, and for the same reason.
-    if (options.symbols.empty() && !options.profiles.empty()) {
-        options.symbols = options.profiles.front().parent_path() / "fluent-symbols.json";
+    if (opts.symbols.empty() && !opts.profiles.empty()) {
+        opts.symbols = opts.profiles.front().parent_path() / "fluent-symbols.json";
     }
-    return options;
+    return opts;
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
     try {
-        auto const options = parse_options(argc, argv);
-        if (options.help || options.profiles.empty()) {
+        auto const opts = parse_options(argc, argv);
+        if (opts.help || opts.profiles.empty()) {
             std::print("{}", usage);
-            return options.help ? 0 : 1;
+            return opts.help ? 0 : 1;
         }
 
-        use_type_map(load_type_map(options.type_map));
-        if (std::filesystem::is_regular_file(options.symbols)) {
-            use_symbol_names(load_symbol_names(options.symbols));
+        auto const types = load_type_map(opts.type_map);
+        std::vector<symbol> symbols;
+        if (std::filesystem::is_regular_file(opts.symbols)) {
+            symbols = load_symbol_names(opts.symbols);
         }
 
-        auto profiles = resolve_profiles(options.profiles, options.nuget_root);
-        for (auto&& file : options.extra_metadata) {
+        auto profiles = resolve_profiles(opts.profiles, opts.nuget_root);
+        for (auto&& file : opts.extra_metadata) {
             if (!std::filesystem::is_regular_file(file)) {
                 throw std::runtime_error(std::format("no such metadata file: {}", file.string()));
             }
@@ -117,7 +118,7 @@ int main(int argc, char** argv) {
             throw std::runtime_error("no roots to walk: the profiles list no types");
         }
 
-        run(profiles, Output{options.out_dir, options.cmake_target});
+        run(profiles, types, std::move(symbols), output{opts.out_dir, opts.cmake_target});
     } catch (std::exception const& e) {
         // Covers profile loading, metadata reading and file writing alike.
         std::print(stderr, "Error: {}\n", e.what());

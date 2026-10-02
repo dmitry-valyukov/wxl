@@ -24,7 +24,11 @@ namespace gen {
 // Where a generated type can be found: its flat wxl name and the public
 // header declaring it. Built by the class analysis, which is where classes
 // are grouped into files.
-struct TypeIndex {
+struct type_index {
+    // What wxl owns itself: a projected type maps onto wxl's equivalent, not
+    // onto a wrapper, whatever the names below say.
+    type_map const& types;
+
     std::map<md::TypeDef, std::string> names;
     std::map<md::TypeDef, std::string> headers;
 
@@ -34,7 +38,7 @@ struct TypeIndex {
     std::set<md::TypeDef> without_default_interface;
 };
 
-struct TypeUse {
+struct type_use {
     bool supported = false;
     std::string reason;  // why not, when unsupported
 
@@ -55,7 +59,7 @@ struct TypeUse {
     bool is_collection = false;
     std::string element_type;
 
-    // A type a string literal turns into by itself (see TypeMap::Projection
+    // A type a string literal turns into by itself (see type_map::projection
     // in profile.h). Such a type claims no unnamed-argument route: a bare
     // literal already means the class's own text.
     bool from_string = false;
@@ -85,18 +89,18 @@ char const* primitive_name(md::ElementType element);
 // The mapping for one signature. `index` decides which types are wrapped
 // at all: anything it doesn't name and that isn't primitive, a string, an
 // object or a projected type comes back unsupported.
-TypeUse map_type(md::TypeSig const& sig, TypeIndex const& index);
+type_use map_type(md::TypeSig const& sig, type_index const& index);
 
 // The same for a type named directly rather than reached through a
 // signature -- which is how a profile's synthetic member names the type of
 // its value, there being no signature in the metadata to read it from.
-TypeUse map_type(md::TypeDef const& type, TypeIndex const& index);
+type_use map_type(md::TypeDef const& type, type_index const& index);
 
 // A type metadata carries as a signature element rather than as a TypeDef of
 // its own, named the way the metadata spells it: "String". A synthetic member
 // is the only thing that has to name one, since nothing resolves a TypeDef
 // for it.
-TypeUse map_element_type(std::string_view metadata_name);
+type_use map_element_type(std::string_view metadata_name);
 
 // Whether `type` is a class wxl represents as a wxl::Collection rather than
 // as a wrapper of its own -- UIElementCollection, ItemCollection and their
@@ -110,6 +114,6 @@ bool is_collection_class(md::TypeDef const& type);
 // metadata and crosses with a bit_cast. A struct carrying a String is not --
 // the projection holds an owning winrt::hstring there -- and is dropped
 // instead, along with every member naming it.
-bool mirrors_abi(md::TypeDef const& type);
+bool mirrors_abi(md::TypeDef const& type, type_map const& types);
 
 }  // namespace gen

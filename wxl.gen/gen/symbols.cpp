@@ -20,8 +20,8 @@ import std;
 
 namespace gen {
 
-void write_symbols(Output const& out, Emitted& emitted) {
-    auto const& symbols = symbol_names();
+void write_symbols(output const& out, model const& m, emitted& em) {
+    auto const& symbols = m.symbols;
     if (symbols.empty()) {
         return;
     }
@@ -32,12 +32,12 @@ void write_symbols(Output const& out, Emitted& emitted) {
     // code point, and 0xE700 is how the documentation, the font tools and the
     // XAML that spells it `&#xE700;` all write one.
     std::print(header, "enum class FluentSymbol : int32_t\n{{\n");
-    for (auto&& symbol : symbols) {
-        std::print(header, "    {} = 0x{:04X},\n", symbol.name, symbol.code);
+    for (auto&& sym : symbols) {
+        std::print(header, "    {} = 0x{:04X},\n", sym.name, sym.code);
     }
     std::print(header, "}};\n\n}} // namespace wxl\n");
 
-    emitted.add("FluentSymbol.h");
+    em.add("FluentSymbol.h");
     std::print("generated {}FluentSymbol.h ({} symbols)\n", out.dir.string() + "\\", symbols.size());
 }
 

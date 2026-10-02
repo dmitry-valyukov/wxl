@@ -15,16 +15,16 @@ namespace {
 // (geometry, Color, chrono).
 constexpr std::string_view conversions_include = "../impl/conversions.h";
 
-TypeUse unsupported(std::string reason) {
-    TypeUse use;
+type_use unsupported(std::string reason) {
+    type_use use;
     use.reason = std::move(reason);
     return use;
 }
 
 // A primitive crosses the boundary unchanged: the same C++ type on both
 // sides, so both conversions are the identity.
-TypeUse primitive(std::string_view cpp_type) {
-    TypeUse use;
+type_use primitive(std::string_view cpp_type) {
+    type_use use;
     use.supported = true;
     use.value_type = cpp_type;
     use.param_type = cpp_type;
@@ -42,8 +42,8 @@ TypeUse primitive(std::string_view cpp_type) {
 // char16_t, and a wchar_t literal still goes in through the seam in
 // zstring_view. See hstring_param.h for why the move away from wchar_t is
 // happening at all.
-TypeUse string_type() {
-    TypeUse use;
+type_use string_type() {
+    type_use use;
     use.supported = true;
     use.value_type = "hstring";
     use.param_type = "hstring_param const&";
@@ -62,9 +62,9 @@ TypeUse string_type() {
 // QueryInterface behind that field is paid once per object by the lazy cache
 // rather than once per call. Crossing out builds a fresh wrapper around the
 // returned object.
-TypeUse wrapper_type(std::string_view name, std::string_view winrt_name,
-                     std::string_view public_include) {
-    TypeUse use;
+type_use wrapper_type(std::string_view name, std::string_view winrt_name,
+                      std::string_view public_include) {
+    type_use use;
     use.supported = true;
     use.is_wrapper = true;
     use.value_type = std::string{name};
@@ -84,7 +84,7 @@ TypeUse wrapper_type(std::string_view name, std::string_view winrt_name,
     return use;
 }
 
-bool mirrorable_field(TypeSig const& sig);
+bool mirrorable_field(TypeSig const& sig, type_map const& types);
 
 // Whether a struct is the ABI struct field for field, which is what wxl
 // generating a struct at all rests on: the wxl copy is written from the same
@@ -95,19 +95,19 @@ bool mirrorable_field(TypeSig const& sig);
 // winrt::hstring -- an owning type, and one no cast produces. A struct like
 // that has no wxl form yet, and is dropped rather than generated as
 // something that claims to mirror an ABI it does not.
-bool struct_mirrors_abi(TypeDef const& type) {
+bool struct_mirrors_abi(TypeDef const& type, type_map const& types) {
     for (auto&& field : type.FieldList()) {
         if (field.Flags().Literal()) {
             continue;
         }
-        if (!mirrorable_field(field.Signature().Type())) {
+        if (!mirrorable_field(field.Signature().Type(), types)) {
             return false;
         }
     }
     return true;
 }
 
-bool mirrorable_field(TypeSig const& sig) {
+bool mirrorable_field(TypeSig const& sig, type_map const& types) {
     if (sig.is_szarray()) {
         return false;
     }
@@ -124,7 +124,7 @@ bool mirrorable_field(TypeSig const& sig) {
     if (!resolved) {
         return false;
     }
-    if (project_type(resolved)) {
+    if (project_type(resolved, types)) {
         // A type wxl has its own of -- Point, Size, Rect -- and those are
         // the ABI's own layout too.
         return true;
@@ -133,7 +133,7 @@ bool mirrorable_field(TypeSig const& sig) {
         case category::enum_type:
             return true;
         case category::struct_type:
-            return struct_mirrors_abi(resolved);
+            return struct_mirrors_abi(resolved, types);
         default:
             return false;
     }
@@ -157,8 +157,8 @@ bool mirrorable_field(TypeSig const& sig) {
 // interface branch in map_type_def). The unlisted interface *returned*
 // would have to become an owning wrapper of some class, and which class it
 // is is exactly what the signature does not say.
-TypeUse interface_parameter(std::string_view winrt_name, std::string_view winrt_header) {
-    TypeUse use;
+type_use interface_parameter(std::string_view winrt_name, std::string_view winrt_header) {
+    type_use use;
     use.supported = true;
     use.parameter_only = true;
     use.value_type = "Object";
@@ -182,51 +182,47 @@ constexpr std::string_view vector_interfaces[] = {
 // WinRT's nullable box, which is core::nullable in everything but name.
 constexpr std::string_view reference_interface = "Windows.Foundation.IReference`1";
 
-// What a one-argument generic instantiation is made of. Both pieces are
-// copies: the signature they came from is routinely a temporary, and a
-// TypeSig owns whatever it names.
-struct GenericShape {
-    TypeDef generic;  // IVector`1, IObservableVector`1, IReference`1
-    TypeSig element;
-};
-
-// An instantiation of one of `names` with a single argument, or nothing.
-std::optional<GenericShape> generic_shape(GenericTypeInstSig const& instantiation,
-                                          std::span<std::string_view const> names) {
+// The generic type of an instantiation of one of `names` with a single
+// argument -- IVector`1, IObservableVector`1, IReference`1 -- or an empty
+// TypeDef for any other. The argument is single_argument(instantiation).
+TypeDef generic_of(GenericTypeInstSig const& instantiation, std::span<std::string_view const> names) {
     auto const generic = instantiation.GenericType();
     if (generic.type() == TypeDefOrRef::TypeSpec) {
-        return std::nullopt;
+        return {};
     }
     auto const type = md::find(generic);
     if (!type) {
-        return std::nullopt;
+        return {};
     }
     if (std::find(names.begin(), names.end(), full_name(type)) == names.end()) {
-        return std::nullopt;
+        return {};
     }
 
     auto const arguments = instantiation.GenericArgs();
     if (arguments.second - arguments.first != 1) {
-        return std::nullopt;
+        return {};
     }
-    return GenericShape{type, *arguments.first};
+    return type;
 }
 
-std::optional<GenericShape> vector_shape(GenericTypeInstSig const& instantiation) {
-    return generic_shape(instantiation, vector_interfaces);
+// The one argument of an instantiation generic_of() accepted. A reference into
+// the instantiation, so good for as long as it is.
+TypeSig const& single_argument(GenericTypeInstSig const& instantiation) {
+    return *instantiation.GenericArgs().first;
 }
 
-std::optional<GenericShape> reference_shape(GenericTypeInstSig const& instantiation) {
-    return generic_shape(instantiation, {&reference_interface, 1});
-}
-
-// The same, for a *class* that implements one of those interfaces --
+// The same, for a *class* that implements one of the vector interfaces --
 // UIElementCollection, ItemCollection and their kind, which exist in metadata
 // only to give an IVector<T> a name. wxl represents them as the collection
 // itself rather than as a wrapper of their own.
-std::optional<GenericShape> class_vector_shape(TypeDef const& type) {
+//
+// Whether the class is one, and if it is, `use` is called with the
+// instantiation it implements. A call rather than a result: the
+// instantiation lives in a signature that does not outlive this function.
+template <typename Use>
+bool with_class_vector(TypeDef const& type, Use use) {
     if (!type || get_category(type) != category::class_type) {
-        return std::nullopt;
+        return false;
     }
     for (auto&& implemented : type.InterfaceImpl()) {
         auto const iface = implemented.Interface();
@@ -235,13 +231,15 @@ std::optional<GenericShape> class_vector_shape(TypeDef const& type) {
         }
         // Named, not a temporary: GenericTypeInst() hands back a reference
         // into the signature object, which a temporary would have destroyed
-        // before the shape could be read out of it.
+        // before the instantiation could be read out of it.
         auto const signature = iface.TypeSpec().Signature();
-        if (auto shape = vector_shape(signature.GenericTypeInst())) {
-            return shape;
+        auto const& instantiation = signature.GenericTypeInst();
+        if (generic_of(instantiation, vector_interfaces)) {
+            use(instantiation);
+            return true;
         }
     }
-    return std::nullopt;
+    return false;
 }
 
 // "Windows.Foundation.Collections.IVector`1" applied to one argument, as the
@@ -258,8 +256,8 @@ std::string winrt_generic_name(TypeDef const& generic, std::string_view argument
 // is whatever the member's signature actually declares (the concrete
 // collection class, or the parameterized interface itself), because that is
 // the IID the QueryInterface on the way in has to ask for.
-TypeUse collection_of(TypeUse const& item, std::string_view winrt_name,
-                      std::string_view winrt_header) {
+type_use collection_of(type_use const& item, std::string_view winrt_name,
+                       std::string_view winrt_header) {
     if (!item.supported) {
         return unsupported(std::format("collection element: {}", item.reason));
     }
@@ -268,7 +266,7 @@ TypeUse collection_of(TypeUse const& item, std::string_view winrt_name,
                                        item.value_type));
     }
 
-    TypeUse use;
+    type_use use;
     use.supported = true;
     use.is_collection = true;
     use.element_type = item.value_type;
@@ -290,8 +288,8 @@ TypeUse collection_of(TypeUse const& item, std::string_view winrt_name,
 // nullable, which is why both helpers take it as a lambda: the element may
 // be a primitive that crosses as itself, an enum that is cast, or a chrono
 // type that goes through impl::to_winrt.
-TypeUse reference_of(TypeUse const& item, std::string_view winrt_name,
-                     std::string_view winrt_header) {
+type_use reference_of(type_use const& item, std::string_view winrt_name,
+                      std::string_view winrt_header) {
     if (!item.supported) {
         return unsupported(std::format("optional element: {}", item.reason));
     }
@@ -301,7 +299,7 @@ TypeUse reference_of(TypeUse const& item, std::string_view winrt_name,
         return unsupported(std::format("IReference of the wrapper {}", item.value_type));
     }
 
-    TypeUse use;
+    type_use use;
     use.supported = true;
     use.value_type = std::format("core::nullable<{}>", item.value_type);
     use.param_type = std::format("{} const&", use.value_type);
@@ -320,16 +318,16 @@ TypeUse reference_of(TypeUse const& item, std::string_view winrt_name,
 
 // A parameterized type named directly in a signature -- IVector<MenuFlyoutItemBase>,
 // IObservableVector<Object>, IReference<int32_t>.
-TypeUse map_generic(GenericTypeInstSig const& instantiation, TypeIndex const& index) {
-    if (auto const shape = vector_shape(instantiation)) {
-        auto const item = map_type(shape->element, index);
-        return collection_of(item, winrt_generic_name(shape->generic, item.winrt_type),
-                             winrt_include(shape->generic.TypeNamespace()));
+type_use map_generic(GenericTypeInstSig const& instantiation, type_index const& index) {
+    if (auto const generic = generic_of(instantiation, vector_interfaces)) {
+        auto const item = map_type(single_argument(instantiation), index);
+        return collection_of(item, winrt_generic_name(generic, item.winrt_type),
+                             winrt_include(generic.TypeNamespace()));
     }
-    if (auto const shape = reference_shape(instantiation)) {
-        auto const item = map_type(shape->element, index);
-        return reference_of(item, winrt_generic_name(shape->generic, item.winrt_type),
-                            winrt_include(shape->generic.TypeNamespace()));
+    if (auto const generic = generic_of(instantiation, {&reference_interface, 1})) {
+        auto const item = map_type(single_argument(instantiation), index);
+        return reference_of(item, winrt_generic_name(generic, item.winrt_type),
+                            winrt_include(generic.TypeNamespace()));
     }
     return unsupported("generic instantiation");
 }
@@ -339,8 +337,8 @@ TypeUse map_generic(GenericTypeInstSig const& instantiation, TypeIndex const& in
 // of it, which is exactly what the callee needs: work handed to
 // DispatcherQueue.TryEnqueue runs after the call has returned, so nothing may
 // be held by reference.
-TypeUse map_delegate(TypeDef const& type, TypeIndex const& index, std::string_view winrt_name,
-                     std::string_view winrt_header) {
+type_use map_delegate(TypeDef const& type, type_index const& index, std::string_view winrt_name,
+                      std::string_view winrt_header) {
     for (auto&& method : type.MethodList()) {
         if (method.Name() != "Invoke") {
             continue;
@@ -350,7 +348,7 @@ TypeUse map_delegate(TypeDef const& type, TypeIndex const& index, std::string_vi
         // signature's own storage.
         auto const signature = method.Signature();
 
-        TypeUse use;
+        type_use use;
         use.public_includes = {"<functional>"};
         use.impl_includes = {std::string(winrt_header)};
 
@@ -387,7 +385,7 @@ TypeUse map_delegate(TypeDef const& type, TypeIndex const& index, std::string_vi
     return unsupported(std::format("{} declares no Invoke", full_name(type)));
 }
 
-TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
+type_use map_type_def(TypeDef const& type, type_index const& index) {
     if (!type) {
         return unsupported("unresolved type reference");
     }
@@ -399,11 +397,11 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
     // A projected type has a wxl equivalent that is not a wrapper at all,
     // so it converts through the hand-written overloads rather than
     // through the interface cache.
-    if (auto const* projection = project_type(type)) {
+    if (auto const* projection = project_type(type, index.types)) {
         if (projection->cpp_name == "core::nullable") {
             return unsupported("IReference<T> is not mapped yet");
         }
-        TypeUse use;
+        type_use use;
         use.supported = true;
         use.value_type = std::string{projection->cpp_name};
         use.param_type = std::format("{} const&", use.value_type);
@@ -419,8 +417,12 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
     // A class that is only a name for an IVector<T> becomes the collection
     // itself. Checked before the name registry, since no wrapper is
     // generated for such a class to be found under.
-    if (auto const shape = class_vector_shape(type)) {
-        return collection_of(map_type(shape->element, index), winrt_name, winrt_header);
+    type_use collection;
+    if (with_class_vector(type, [&](GenericTypeInstSig const& instantiation) {
+            collection = collection_of(map_type(single_argument(instantiation), index), winrt_name,
+                                       winrt_header);
+        })) {
+        return collection;
     }
 
     if (is_event_args_class(type)) {
@@ -464,7 +466,7 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
 
     switch (get_category(type)) {
         case category::enum_type: {
-            TypeUse use;
+            type_use use;
             use.supported = true;
             use.value_type = name->second;
             use.param_type = use.value_type;
@@ -476,7 +478,7 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
             return use;
         }
         case category::struct_type: {
-            TypeUse use;
+            type_use use;
             use.supported = true;
             use.value_type = name->second;
             use.param_type = std::format("{} const&", use.value_type);
@@ -535,11 +537,11 @@ char const* primitive_name(ElementType element) {
     }
 }
 
-TypeUse map_type(TypeDef const& type, TypeIndex const& index) {
+type_use map_type(TypeDef const& type, type_index const& index) {
     return map_type_def(type, index);
 }
 
-TypeUse map_element_type(std::string_view metadata_name) {
+type_use map_element_type(std::string_view metadata_name) {
     if (metadata_name == "String") {
         return string_type();
     }
@@ -559,7 +561,7 @@ std::string substitute(std::string_view expression, std::string_view argument) {
     return result;
 }
 
-TypeUse map_type(TypeSig const& sig, TypeIndex const& index) {
+type_use map_type(TypeSig const& sig, type_index const& index) {
     if (sig.is_szarray()) {
         return unsupported("arrays are not mapped yet");
     }
@@ -591,11 +593,11 @@ TypeUse map_type(TypeSig const& sig, TypeIndex const& index) {
 }
 
 bool is_collection_class(TypeDef const& type) {
-    return class_vector_shape(type).has_value();
+    return with_class_vector(type, [](GenericTypeInstSig const&) {});
 }
 
-bool mirrors_abi(TypeDef const& type) {
-    return struct_mirrors_abi(type);
+bool mirrors_abi(TypeDef const& type, type_map const& types) {
+    return struct_mirrors_abi(type, types);
 }
 
 }  // namespace gen

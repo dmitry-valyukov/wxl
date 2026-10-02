@@ -22,7 +22,7 @@ namespace {
 
 // The dispatch behind the tags, in namespace impl: one specialisation per
 // key.
-void write_dispatch(std::ostream& file, Dsl const& dsl) {
+void write_dispatch(std::ostream& file, dsl const& d) {
     // The key enums keep the metadata name; everything the DSL and the
     // wrappers spell is the member name, camelCase.
     //
@@ -30,7 +30,7 @@ void write_dispatch(std::ostream& file, Dsl const& dsl) {
     // refuses the assignment at the tag rather than inside this body -- and
     // so that a binding can ask, before it commits to writing, whether there
     // is anything to write to.
-    for (auto&& [name, value_type] : dsl.property_value_type) {
+    for (auto&& [name, value_type] : d.property_value_type) {
         std::print(file, R"(
 template <>
 struct PropertySetter<PropertyKey::{0}> {{
@@ -50,7 +50,7 @@ struct PropertySetter<PropertyKey::{0}> {{
     // member of that name itself: a hand-written class may take the same
     // tag for a property of its own -- zIndex on an effect, saying where its
     // layer lies -- and then the tag is the object's.
-    for (auto&& [name, attached] : dsl.attached) {
+    for (auto&& [name, attached] : d.attached) {
         std::print(file, R"(
 template <>
 struct PropertySetter<PropertyKey::{0}> {{
@@ -70,7 +70,7 @@ struct PropertySetter<PropertyKey::{0}> {{
     // A collection-valued property is filled, not assigned: the setter is
     // handed the whole run of items, so it can reach the collection once and
     // decide for itself how to put them in.
-    for (auto&& [name, element] : dsl.collection_element) {
+    for (auto&& [name, element] : d.collection_element) {
         std::print(file, R"(
 template <>
 struct CollectionSetter<PropertyKey::{0}> {{
@@ -84,7 +84,7 @@ struct CollectionSetter<PropertyKey::{0}> {{
                    name, member_name(name));
     }
 
-    for (auto&& name : dsl.events) {
+    for (auto&& name : d.events) {
         std::print(file, R"(
 template <>
 struct EventAdder<EventKey::{0}> {{
@@ -108,9 +108,9 @@ struct EventAdder<EventKey::{0}> {{
 
 // The tag of one property: what its type and the vocabulary around it make
 // it.
-void write_property_tag(std::ostream& file, Dsl const& dsl, std::string const& name,
+void write_property_tag(std::ostream& file, dsl const& d, std::string const& name,
                         std::string const& value_type) {
-    if (dsl.collection_element.count(name)) {
+    if (d.collection_element.count(name)) {
         // A collection that a setter can also be given in one go --
         // `rowDefinitions[a, b]` and `rowDefinitions = L"2*,*"` are the
         // same property said two ways -- so the tag carries both. The
@@ -131,8 +131,8 @@ inline constexpr {0}Tag {2};
     // `orientation.horizontal`, not `orientation = Orientation::Horizontal`.
     // The using-declaration is what keeps the assignments reachable --
     // the derived tag's own copy-assignment would hide them.
-    if (auto const values = dsl.enumerators.find(value_type);
-        values != dsl.enumerators.end() && !values->second.empty()) {
+    if (auto const values = d.enumerators.find(value_type);
+        values != d.enumerators.end() && !values->second.empty()) {
         std::print(file, R"(
 struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
     using Property::operator=;
@@ -149,7 +149,7 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
     // A class the tag builds from braces as well as takes built:
     // `titleBar = { leftHeader = ..., content = ... }`. Only with a
     // definite type -- a disagreement leaves nothing to build.
-    if (dsl.braced.count(name) && !value_type.empty()) {
+    if (d.braced.count(name) && !value_type.empty()) {
         std::print(file, "inline constexpr BracedProperty<PropertyKey::{}, {}> {};\n", name,
                    value_type, member_name(name));
         return;
@@ -164,23 +164,23 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
 
 // The tags, in namespace dsl: properties, attached properties, collections,
 // events.
-void write_tag_objects(std::ostream& file, Dsl const& dsl) {
-    for (auto&& [name, value_type] : dsl.property_value_type) {
-        write_property_tag(file, dsl, name, value_type);
+void write_tag_objects(std::ostream& file, dsl const& d) {
+    for (auto&& [name, value_type] : d.property_value_type) {
+        write_property_tag(file, d, name, value_type);
     }
 
-    if (!dsl.attached.empty()) {
+    if (!d.attached.empty()) {
         std::print(file, "\n");
-        for (auto&& [name, attached] : dsl.attached) {
+        for (auto&& [name, attached] : d.attached) {
             std::print(file, "inline constexpr Property<PropertyKey::{}, {}> {};\n", name,
                        attached.value_type, member_name(name));
         }
     }
 
-    if (!dsl.collection_element.empty()) {
+    if (!d.collection_element.empty()) {
         std::print(file, "\n");
-        for (auto&& [name, element] : dsl.collection_element) {
-            if (dsl.property_value_type.count(name)) {
+        for (auto&& [name, element] : d.collection_element) {
+            if (d.property_value_type.count(name)) {
                 continue;  // already written above, carrying both forms
             }
             std::print(file, "inline constexpr CollectionProperty<PropertyKey::{}> {};\n", name,
@@ -189,14 +189,14 @@ void write_tag_objects(std::ostream& file, Dsl const& dsl) {
     }
 
     std::print(file, "\n");
-    for (auto&& name : dsl.events) {
+    for (auto&& name : d.events) {
         std::print(file, "inline constexpr Event<EventKey::{}> on{};\n", name, name);
     }
 }
 
 }  // namespace
 
-void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
+void write_dsl(output const& out, dsl const& d, emitted& em) {
     auto const path = out.dir / "Members.h";
     auto file = open_output(path);
     std::print(file, R"({}#pragma once
@@ -205,21 +205,21 @@ void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
 #include "Tags.h"
 )",
                banner);
-    write_includes(file, dsl.includes);
+    write_includes(file, d.includes);
 
     std::print(file, "\nnamespace wxl {{\n\nnamespace impl {{\n");
-    write_dispatch(file, dsl);
+    write_dispatch(file, d);
 
     // The tags live in a namespace of their own so that consuming code brings
     // the vocabulary in deliberately rather than having every property name in
     // scope the moment it names a wxl type.
     std::print(file, "\n}}  // namespace impl\n\nnamespace dsl {{\n\n");
-    write_tag_objects(file, dsl);
+    write_tag_objects(file, d);
     std::print(file, "\n}}  // namespace dsl\n}}  // namespace wxl\n");
 
-    emitted.add(path);
+    em.add(path);
     std::print("generated {} ({} property tags, {} collection tags, {} event tags)\n", path.string(),
-               dsl.property_value_type.size(), dsl.collection_element.size(), dsl.events.size());
+               d.property_value_type.size(), d.collection_element.size(), d.events.size());
 }
 
 }  // namespace gen

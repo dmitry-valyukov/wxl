@@ -55,12 +55,12 @@ void write_umbrella_file(std::filesystem::path const& path, std::vector<std::str
     }
 }
 
-void Emitted::add(std::filesystem::path const& path, std::string_view target) {
+void emitted::add(std::filesystem::path const& path, std::string_view target) {
     files_.push_back(path.filename().string());
     targets_.emplace_back(target);
 }
 
-std::vector<std::string> Emitted::files_of(std::string_view target) const {
+std::vector<std::string> emitted::files_of(std::string_view target) const {
     std::vector<std::string> mine;
     for (std::size_t at = 0; at != files_.size(); ++at) {
         if (targets_[at] == target) {
@@ -70,7 +70,7 @@ std::vector<std::string> Emitted::files_of(std::string_view target) const {
     return mine;
 }
 
-std::vector<std::string> Emitted::targets() const {
+std::vector<std::string> emitted::targets() const {
     std::vector<std::string> named;
     for (auto&& target : targets_) {
         if (std::find(named.begin(), named.end(), target) == named.end()) {

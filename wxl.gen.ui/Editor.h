@@ -20,7 +20,7 @@ class ResourcesModel;
 class Editor : public wxl::core::sta_refcounted {
 public:
     // Читает профиль, открывает метаданные его пакетов и читает их словари.
-    static wxl::core::intrusive_ptr<Editor> open(std::filesystem::path const& profile);
+    static wxl::core::intrusive_ptr<Editor> open(std::filesystem::path const& prof);
 
     ~Editor() override;
 

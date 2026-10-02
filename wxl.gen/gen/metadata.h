@@ -6,7 +6,7 @@
 
 // The default interface of a class -- what a call hands the object over as --
 // and the name of the Impl field holding it. The class analysis asks once per
-// class; the type mapping reads the answer from the TypeIndex.
+// class; the type mapping reads the answer from the type_index.
 
 namespace gen {
 

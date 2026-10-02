@@ -79,13 +79,13 @@ std::string content_property_of(TypeDef const& type) {
     return {};
 }
 
-// How the real WinRT class is created (see Construction in gen/model.h).
-struct Creation {
-    Construction kind = Construction::None;
+// How the real WinRT class is created (see construction_t in gen/model.h).
+struct creation {
+    construction_t kind = construction_t::None;
     std::string factory;  // the composable factory interface, in metadata form
 };
 
-Creation construction_of(TypeDef const& type) {
+creation construction_of(TypeDef const& type) {
     // ActivatableAttribute is written once per constructor shape: bare for
     // the default one, naming a factory interface for every other. Reading
     // all of them is what tells a class with a default constructor from one
@@ -101,10 +101,10 @@ Creation construction_of(TypeDef const& type) {
     }
 
     if (default_activation) {
-        return {Construction::PublicActivation, {}};
+        return {construction_t::PublicActivation, {}};
     }
     if (factory_activation) {
-        return {Construction::PublicFactory, {}};
+        return {construction_t::PublicFactory, {}};
     }
 
     auto const composable = find_attribute(type, "ComposableAttribute");
@@ -127,10 +127,10 @@ Creation construction_of(TypeDef const& type) {
             continue;
         }
         if (enum_value->equals_enumerator("Public")) {
-            return {Construction::PublicComposition, std::move(factory)};
+            return {construction_t::PublicComposition, std::move(factory)};
         }
         if (enum_value->equals_enumerator("Protected")) {
-            return {Construction::ProtectedOnly, {}};
+            return {construction_t::ProtectedOnly, {}};
         }
     }
     return {};
@@ -233,7 +233,7 @@ std::string wxl_class_name(TypeDef const& type) {
 // gets, which collecting the members still has to read.
 struct class_source {
     TypeDef type;
-    std::vector<TypeDef> interfaces;  // survived the filter; one Impl field each
+    std::vector<TypeDef> held_interfaces;  // survived the filter; one Impl field each
     std::vector<TypeDef> statics;     // the interfaces its static members live on
     TypeDef default_interface;
     class_info info;
@@ -245,7 +245,7 @@ struct class_source {
 void describe_interfaces(class_source& source) {
     auto& info = source.info;
     info.projection_headers.insert(winrt_include(source.type.TypeNamespace()));
-    for (auto&& iface : source.interfaces) {
+    for (auto&& iface : source.held_interfaces) {
         info.projection_headers.insert(winrt_include(iface.TypeNamespace()));
         if (iface == source.default_interface) {
             continue;  // the class-typed primary field already stands for it
@@ -262,7 +262,7 @@ void describe_interfaces(class_source& source) {
 }
 
 class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generated,
-                           Closure const& closure) {
+                           closure const& cl, type_map const& types) {
     class_source source{type};
     auto& info = source.info;
     info.name = wxl_class_name(type);
@@ -289,23 +289,23 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
         base = {};
     }
 
-    if (base && !is_given_from_above(base) && generated.count(base)) {
+    if (base && !is_given_from_above(base, types) && generated.count(base)) {
         info.base_name = std::string{base.TypeName()};
         info.base_namespace = std::string{base.TypeNamespace()};
-    } else if (base && is_given_from_above(base)) {
+    } else if (base && is_given_from_above(base, types)) {
         info.base_name = std::string{base.TypeName()};
     } else {
         info.base_name = "Object";
     }
 
-    auto const creation = construction_of(type);
-    info.construction = creation.kind;
-    info.composable_factory = creation.factory;
+    auto const c = construction_of(type);
+    info.construction = c.kind;
+    info.composable_factory = c.factory;
 
-    if (auto const it = closure.interfaces.find(type); it != closure.interfaces.end()) {
-        source.interfaces = it->second;
+    if (auto const it = cl.held_interfaces.find(type); it != cl.held_interfaces.end()) {
+        source.held_interfaces = it->second;
     }
-    if (auto const it = closure.statics.find(type); it != closure.statics.end()) {
+    if (auto const it = cl.statics.find(type); it != cl.statics.end()) {
         source.statics = it->second;
     }
 
@@ -315,7 +315,7 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
     // Its required interfaces, if any survived, keep fields beside it like
     // a class's do.
     if (get_category(type) == category::interface_type) {
-        source.interfaces.insert(source.interfaces.begin(), type);
+        source.held_interfaces.insert(source.held_interfaces.begin(), type);
         source.default_interface = type;
         info.primary_field = interface_field_name(type.TypeName());
         describe_interfaces(source);
@@ -327,8 +327,8 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
     // a place to hang free functions. It gets none of what follows -- no
     // base, no default interface, no Impl -- because there is nothing for
     // any of it to point at.
-    info.statics_only = info.construction == Construction::None && source.interfaces.empty() &&
-                        !source.statics.empty();
+    info.statics_only = info.construction == construction_t::None &&
+                        source.held_interfaces.empty() && !source.statics.empty();
     if (info.statics_only) {
         info.base_name.clear();
         info.base_namespace.clear();
@@ -492,8 +492,8 @@ void write_constructor_declarations(std::ostream& out, class_info const& info) {
     // Activated or composed, the class is created the same way from
     // outside: a public default constructor. Which of the two it is
     // shows only in the body.
-    bool const public_constructor = info.construction == Construction::PublicActivation ||
-                                    info.construction == Construction::PublicComposition;
+    bool const public_constructor = info.construction == construction_t::PublicActivation ||
+                                    info.construction == construction_t::PublicComposition;
     if (public_constructor) {
         std::print(out, "\n    {}();\n\n", info.name);
 
@@ -582,7 +582,7 @@ public:
         }
     }
     std::print(out, "\nprotected:\n");
-    if (info.construction == Construction::ProtectedOnly) {
+    if (info.construction == construction_t::ProtectedOnly) {
         // Mirrors `protected extern X()` in the real class: only a type
         // deriving from it can construct one, so there is no activation
         // to do here.
@@ -762,8 +762,8 @@ struct factory_use {
 factory_use factory_use_of(std::vector<class_info> const& classes) {
     factory_use use;
     for (auto&& info : classes) {
-        use.activation = use.activation || info.construction == Construction::PublicActivation ||
-                         info.construction == Construction::PublicComposition;
+        use.activation = use.activation || info.construction == construction_t::PublicActivation ||
+                         info.construction == construction_t::PublicComposition;
         use.statics = use.statics || !info.statics.empty();
         use.constructors = use.constructors || !info.constructors.empty();
     }
@@ -823,8 +823,8 @@ struct runtime_class_name_of<{}> {{
                        key, info.metadata_name);
         };
 
-        if (info.construction == Construction::PublicActivation ||
-            info.construction == Construction::PublicComposition) {
+        if (info.construction == construction_t::PublicActivation ||
+            info.construction == construction_t::PublicComposition) {
             name_class(info.name);
         }
         // A factory interface is keyed on the same way a statics one is
@@ -856,7 +856,7 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
     }
 
     switch (info.construction) {
-        case Construction::PublicActivation:
+        case construction_t::PublicActivation:
             // Activated straight into the Impl's own field: the cached
             // factory writes the raw pointer into the slot cppwinrt
             // stores it in, so there is no temporary smart pointer and
@@ -868,7 +868,7 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
 )",
                        info.name, info.name, info.name);
             break;
-        case Construction::PublicComposition:
+        case construction_t::PublicComposition:
             // A composable class, which may or may not answer plain
             // activation; the factory below finds out once and keeps the
             // path that worked. The factory interface is named because
@@ -881,13 +881,13 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
 )",
                        info.name, info.name, info.name, winrt_type_name(info.composable_factory));
             break;
-        case Construction::ProtectedOnly:
+        case construction_t::ProtectedOnly:
             // No activation: the real class has no public constructor,
             // so an instance can only come from a derived type.
             std::print(out, "\n{}::{}() : base_t(new Impl{{}}) {{}}\n", info.name, info.name);
             break;
-        case Construction::PublicFactory:
-        case Construction::None:
+        case construction_t::PublicFactory:
+        case construction_t::None:
             break;
     }
 
@@ -960,7 +960,7 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
                                        member.name, parameter_list(member),
                                        member.is_static ? "" : " const");
 
-    if (member.kind == member_info::Kind::EventAdd) {
+    if (member.kind == member_info::kind_t::EventAdd) {
         write_event_add_body(out, signature, member);
         return;
     }
@@ -981,10 +981,10 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
             arguments += ", ";
         }
         switch (member.kind) {
-            case member_info::Kind::EventRemove:
+            case member_info::kind_t::EventRemove:
                 arguments += std::format("impl::to_winrt({})", param.name);
                 break;
-            case member_info::Kind::BoxedString:
+            case member_info::kind_t::BoxedString:
                 arguments += std::format("impl::box_text({})", param.name);
                 break;
             default:
@@ -1084,9 +1084,10 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
 // the flat wxl name and the public header declaring it. Enums and structs
 // sit in per-namespace files of their own; a class lives in its group's
 // file.
-TypeIndex build_type_index(type_kinds const& kinds, std::set<TypeDef> const& generated_classes,
-                           std::map<std::string, std::string> const& group_of) {
-    TypeIndex index;
+type_index build_type_index(type_kinds const& kinds, type_map const& types,
+                            std::set<TypeDef> const& generated_classes,
+                            std::map<std::string, std::string> const& group_of) {
+    type_index index{types};
 
     auto const add = [&index](TypeDef const& type, std::string header) {
         index.names.emplace(type, wxl_class_name(type));
@@ -1099,7 +1100,7 @@ TypeIndex build_type_index(type_kinds const& kinds, std::set<TypeDef> const& gen
     for (auto&& type : kinds.structs) {
         // A struct that does not mirror the ABI field for field is not
         // generated (see mirrors_abi), so nothing may name it either.
-        if (!project_type(type) && mirrors_abi(type)) {
+        if (!project_type(type, types) && mirrors_abi(type, types)) {
             add(type, std::format("{}.Structs.h", type.TypeNamespace()));
         }
     }
@@ -1180,12 +1181,12 @@ struct wrapped_types {
     std::vector<TypeDef> ordered;
 };
 
-wrapped_types wrapped_types_of(type_kinds const& kinds) {
+wrapped_types wrapped_types_of(type_kinds const& kinds, type_map const& types) {
     wrapped_types wrapped;
     for (auto&& type : kinds.classes) {
         // A collection class is not wrapped either: it exists in metadata
         // only to name an IVector<T>, and wxl::Collection<T> already is that.
-        if (!is_event_args_class(type) && !project_type(type) && !is_collection_class(type)) {
+        if (!is_event_args_class(type) && !project_type(type, types) && !is_collection_class(type)) {
             wrapped.generated.insert(type);
         }
     }
@@ -1207,8 +1208,8 @@ wrapped_types wrapped_types_of(type_kinds const& kinds) {
 // everything else gets its own. Grouping preserves the closure's dependency
 // order within each file, which is what lets a base class simply appear
 // earlier instead of needing an include.
-std::vector<class_source> read_classes(wrapped_types const& wrapped, Closure const& closure,
-                                       std::map<std::string, std::string>& group_of) {
+std::vector<class_source> read_classes(wrapped_types const& wrapped, closure const& cl,
+                                       type_map const& types, std::map<std::string, std::string>& group_of) {
     std::vector<class_source> sources;
     std::set<std::string> written_names;
     std::map<std::string, std::set<std::string>> namespace_deps;
@@ -1216,7 +1217,7 @@ std::vector<class_source> read_classes(wrapped_types const& wrapped, Closure con
         if (!wrapped.generated.count(type)) {
             continue;  // EventArgs wrappers and projected types are emitted elsewhere
         }
-        auto source = analyze_class(type, wrapped.generated, closure);
+        auto source = analyze_class(type, wrapped.generated, cl, types);
         if (!written_names.insert(source.info.name).second) {
             std::print(stderr, "warning: two classes map to the same flat wxl name '{}' ({})\n",
                        source.info.name, full_name(type));
@@ -1235,10 +1236,10 @@ std::vector<class_source> read_classes(wrapped_types const& wrapped, Closure con
 
 // The members one interface contributes, bounded by the names the profiles
 // kept of it -- none, for an interface they kept nothing of.
-std::vector<member_info> members_of(TypeDef const& iface, Closure const& closure,
-                                   TypeIndex const& index, std::vector<skipped_member>& skipped) {
+std::vector<member_info> members_of(TypeDef const& iface, closure const& cl,
+                                   type_index const& index, std::vector<skipped_member>& skipped) {
     std::vector<member_info> collected;
-    if (auto const members = closure.members.find(iface); members != closure.members.end()) {
+    if (auto const members = cl.members.find(iface); members != cl.members.end()) {
         collect_interface_members(iface, members->second, index, collected, skipped);
     }
     return collected;
@@ -1247,11 +1248,11 @@ std::vector<member_info> members_of(TypeDef const& iface, Closure const& closure
 // Static members are collected the same way and then marked: the
 // only difference is where the call goes -- through the cached
 // statics proxy rather than through the object's own Impl.
-void add_static_members(class_source& source, Closure const& closure, TypeIndex const& index,
+void add_static_members(class_source& source, closure const& cl, type_index const& index,
                        std::vector<skipped_member>& skipped) {
     auto& info = source.info;
     for (auto&& iface : source.statics) {
-        for (auto&& member : members_of(iface, closure, index, skipped)) {
+        for (auto&& member : members_of(iface, cl, index, skipped)) {
             member.is_static = true;
             member.field.clear();
             member.statics_interface =
@@ -1266,13 +1267,13 @@ void add_static_members(class_source& source, Closure const& closure, TypeIndex 
 // way members are and then checked for the one thing that makes a
 // method a constructor here: it hands back an instance of this very
 // class.
-void add_constructors(class_source& source, Closure const& closure, TypeIndex const& index,
+void add_constructors(class_source& source, closure const& cl, type_index const& index,
                       std::vector<skipped_member>& skipped) {
     auto& info = source.info;
-    if (auto const factories = closure.factories.find(source.type);
-        factories != closure.factories.end()) {
+    if (auto const factories = cl.factories.find(source.type);
+        factories != cl.factories.end()) {
         for (auto&& iface : factories->second) {
-            for (auto&& member : members_of(iface, closure, index, skipped)) {
+            for (auto&& member : members_of(iface, cl, index, skipped)) {
                 if (member.returns_void || member.result.value_type != info.name) {
                     skipped.push_back({member.name, std::format("constructor: {} hands back {}, "
                                                                 "not an instance of the class",
@@ -1292,18 +1293,18 @@ void add_constructors(class_source& source, Closure const& closure, TypeIndex co
 // The properties a profile added to this class. They are ordinary
 // members from here on -- key, tag, declaration, unnamed-argument
 // route -- and differ only in the body.
-void add_synthetic_members(class_source& source, Closure const& closure, TypeIndex const& index,
+void add_synthetic_members(class_source& source, closure const& cl, type_index const& index,
                           std::vector<skipped_member>& skipped) {
     auto& info = source.info;
-    if (auto const added = closure.synthetic.find(source.type); added != closure.synthetic.end()) {
+    if (auto const added = cl.synthetic.find(source.type); added != cl.synthetic.end()) {
         for (auto&& [declaration, value_type] : added->second) {
             // A value wxl owns has no metadata to map: the profile named
             // the C++ type outright, and it is taken by value.
             auto use = !declaration.cpp_type.empty()
-                           ? TypeUse{.supported = true,
-                                     .value_type = declaration.cpp_type,
-                                     .param_type = declaration.cpp_type,
-                                     .public_includes = {declaration.cpp_include}}
+                           ? type_use{.supported = true,
+                                      .value_type = declaration.cpp_type,
+                                      .param_type = declaration.cpp_type,
+                                      .public_includes = {declaration.cpp_include}}
                        : value_type ? map_type(value_type, index)
                                     : map_element_type(declaration.type);
             if (!use.supported) {
@@ -1315,7 +1316,7 @@ void add_synthetic_members(class_source& source, Closure const& closure, TypeInd
             // calls, so its header belongs to the .cpp side.
             use.impl_includes = {declaration.include};
 
-            member_info member{member_info::Kind::Forward, member_name(declaration.name),
+            member_info member{member_info::kind_t::Forward, member_name(declaration.name),
                                declaration.name, {}, {},
                                /*returns_void=*/true, {{"value", std::move(use)}}};
             member.is_property_setter = true;
@@ -1329,15 +1330,15 @@ void add_synthetic_members(class_source& source, Closure const& closure, TypeInd
 // beside the method it calls, and only a method that is a setter in
 // all but name qualifies: one argument, nothing handed back, an
 // instance to call it on.
-void add_setter_methods(class_source& source, Closure const& closure, TypeIndex const& index,
+void add_setter_methods(class_source& source, closure const& cl, type_index const& index,
                        std::vector<skipped_member>& skipped) {
     auto& info = source.info;
-    if (auto const setters = closure.setter_methods.find(source.type);
-        setters != closure.setter_methods.end()) {
+    if (auto const setters = cl.setter_methods.find(source.type);
+        setters != cl.setter_methods.end()) {
         for (auto&& [declaration, value_type] : setters->second) {
             auto const method =
                 std::find_if(info.members.begin(), info.members.end(), [&](auto&& member) {
-                    return member.kind == member_info::Kind::Forward &&
+                    return member.kind == member_info::kind_t::Forward &&
                            member.winrt_name == declaration.method;
                 });
             if (method == info.members.end()) {
@@ -1361,7 +1362,7 @@ void add_setter_methods(class_source& source, Closure const& closure, TypeIndex 
             setter.is_property_setter = true;
             if (!declaration.type.empty()) {
                 auto use = value_type ? map_type(value_type, index)
-                                      : TypeUse{.reason = std::format(
+                                      : type_use{.reason = std::format(
                                                     "no type {} in the metadata",
                                                     declaration.type)};
                 if (!use.supported || !use.is_wrapper) {
@@ -1404,24 +1405,24 @@ void drop_redeclared(std::vector<member_info>& members) {
 // the factory interfaces of its constructors, the properties a profile adds,
 // and the methods a profile writes as tags. What cannot be mapped is put in
 // `skipped`.
-void collect_members(class_source& source, Closure const& closure, TypeIndex const& index,
+void collect_members(class_source& source, closure const& cl, type_index const& index,
                      std::vector<skipped_member>& skipped) {
-    for (auto&& iface : source.interfaces) {
-        for (auto&& member : members_of(iface, closure, index, skipped)) {
+    for (auto&& iface : source.held_interfaces) {
+        for (auto&& member : members_of(iface, cl, index, skipped)) {
             source.info.members.push_back(std::move(member));
         }
     }
-    add_static_members(source, closure, index, skipped);
-    add_constructors(source, closure, index, skipped);
-    add_synthetic_members(source, closure, index, skipped);
-    add_setter_methods(source, closure, index, skipped);
+    add_static_members(source, cl, index, skipped);
+    add_constructors(source, cl, index, skipped);
+    add_synthetic_members(source, cl, index, skipped);
+    add_setter_methods(source, cl, index, skipped);
     drop_redeclared(source.info.members);
 }
 
 // What every class's vocabulary is added to, and what it is checked against.
 struct vocabulary_context {
-    TypeIndex const& index;
-    Model& model;
+    type_index const& index;
+    model& m;
 
     // The whole hierarchy up front: a positional route has to be checked
     // against levels *below* the class as well as above it, and those are
@@ -1433,7 +1434,7 @@ struct vocabulary_context {
     // takes -- which is a different class from the one being visited, and
     // may be visited later. Held here by that target's name and merged once
     // every class has been seen.
-    std::vector<std::pair<std::string, Schema::Member>>& attached_elsewhere;
+    std::vector<std::pair<std::string, schema::member>>& attached_elsewhere;
 
     std::map<std::string, bool>& chain_has_positional;  // by wxl class name
 };
@@ -1443,11 +1444,11 @@ struct vocabulary_context {
 // contributes a property: a read-only one has nothing to assign to.
 class class_vocabulary {
 public:
-    class_vocabulary(class_source& source, Closure const& closure, vocabulary_context& context)
+    class_vocabulary(class_source& source, closure const& cl, vocabulary_context& context)
         : source_(source),
           context_(context),
           content_property_(content_property_of(source.type)),
-          attached_here_(attached_of(source.type, closure)),
+          attached_here_(attached_of(source.type, cl)),
           klass_{source.info.name, source.info.base_name, {}, {}} {
         if (auto const header = context.index.headers.find(source.type);
             header != context.index.headers.end()) {
@@ -1471,9 +1472,9 @@ public:
             }
         }
 
-        if (member.kind == member_info::Kind::EventAdd) {
-            context_.model.dsl.events.insert(member.winrt_name);
-            klass_.members.push_back({Schema::Member::Kind::Event, member.winrt_name,
+        if (member.kind == member_info::kind_t::EventAdd) {
+            context_.m.dsl.events.insert(member.winrt_name);
+            klass_.members.push_back({schema::member::kind_t::Event, member.winrt_name,
                                       "on" + member.winrt_name});
             return;
         }
@@ -1482,14 +1483,14 @@ public:
         // not assigned to, so its tag is a subscript rather than an
         // assignment -- and it is the *getter* that reveals it, since a
         // collection property is read-only in metadata.
-        if (member.kind == member_info::Kind::Forward && !member.returns_void &&
+        if (member.kind == member_info::kind_t::Forward && !member.returns_void &&
             member.params.empty() && member.result.is_collection) {
             add_collection(member);
             return;
         }
 
         if (!member.is_property_setter) {
-            if (member.kind == member_info::Kind::BoxedString && member.winrt_name == "Content") {
+            if (member.kind == member_info::kind_t::BoxedString && member.winrt_name == "Content") {
                 content_route_ = member.name;
             }
             return;
@@ -1517,14 +1518,14 @@ public:
         info.base_has_positional = base_has;
         chain_has_positional[info.name] = base_has || !info.positional.empty();
 
-        context_.model.schema.classes.push_back(std::move(klass_));
+        context_.m.schema.classes.push_back(std::move(klass_));
     }
 
 private:
-    static std::vector<std::string> const& attached_of(TypeDef const& type, Closure const& closure) {
+    static std::vector<std::string> const& attached_of(TypeDef const& type, closure const& cl) {
         static std::vector<std::string> const none;
-        auto const it = closure.attached.find(type);
-        return it == closure.attached.end() ? none : it->second;
+        auto const it = cl.attached.find(type);
+        return it == cl.attached.end() ? none : it->second;
     }
 
     // One kind of static does get a tag, and it is written on somebody
@@ -1538,31 +1539,31 @@ private:
                 attached_here_.end()) {
             return;
         }
-        auto& dsl = context_.model.dsl;
-        dsl.attached.emplace(member.winrt_name.substr(3),
-                             Dsl::Attached{source_.info.name, member.name,
+        auto& d = context_.m.dsl;
+        d.attached.emplace(member.winrt_name.substr(3),
+                           dsl::attached_t{source_.info.name, member.name,
                                            member.params[1].type.value_type});
         context_.attached_elsewhere.emplace_back(
             member.params.front().type.value_type,
-            Schema::Member{Schema::Member::Kind::Property, member.winrt_name.substr(3),
+            schema::member{schema::member::kind_t::Property, member.winrt_name.substr(3),
                            member_name(member.winrt_name.substr(3)),
                            member.params[1].type.value_type, /*attached=*/true});
-        dsl.includes.insert(member.params[1].type.public_includes.begin(),
-                            member.params[1].type.public_includes.end());
+        d.includes.insert(member.params[1].type.public_includes.begin(),
+                          member.params[1].type.public_includes.end());
         if (auto const header = context_.index.headers.find(source_.type);
             header != context_.index.headers.end()) {
-            dsl.includes.insert(header->second);
+            d.includes.insert(header->second);
         }
     }
 
     void add_collection(member_info const& member) {
         auto& info = source_.info;
-        auto& dsl = context_.model.dsl;
-        dsl.collection_element.emplace(member.winrt_name, member.result.element_type);
-        dsl.includes.insert(member.result.public_includes.begin(),
-                            member.result.public_includes.end());
-        klass_.members.push_back({Schema::Member::Kind::Collection, member.winrt_name, member.name,
-                                  member.result.element_type});
+        auto& d = context_.m.dsl;
+        d.collection_element.emplace(member.winrt_name, member.result.element_type);
+        d.includes.insert(member.result.public_includes.begin(),
+                          member.result.public_includes.end());
+        klass_.members.push_back({schema::member::kind_t::Collection, member.winrt_name,
+                                  member.name, member.result.element_type});
 
         // The class's content property: an element written straight
         // inside its parent's braces is appended to it, so
@@ -1579,20 +1580,20 @@ private:
         if (member.winrt_name == content_property_) {
             info.positional.emplace_back(std::format("{} const&", member.result.element_type),
                                          std::format("{}().append(value)", member.name));
-            context_.model.content_collections.push_back(
+            context_.m.content_collections.push_back(
                 std::format("{}.{}: {}", info.name, member.name, member.result.element_type));
         }
     }
 
     void add_property(member_info const& member) {
         auto& info = source_.info;
-        auto& dsl = context_.model.dsl;
+        auto& d = context_.m.dsl;
         auto const& value = member.params.front().type;
-        auto [it, inserted] = dsl.property_value_type.emplace(member.winrt_name, value.value_type);
+        auto [it, inserted] = d.property_value_type.emplace(member.winrt_name, value.value_type);
         if (!inserted && it->second != value.value_type) {
             it->second.clear();  // no single type, so no braced form
         }
-        dsl.includes.insert(value.public_includes.begin(), value.public_includes.end());
+        d.includes.insert(value.public_includes.begin(), value.public_includes.end());
 
         // The schema keeps the type this class declares it with, which is
         // the disagreement above resolved rather than given up on -- for
@@ -1602,7 +1603,7 @@ private:
         // type, so no braced form, and one member rather than two.
         auto const declared =
             std::find_if(klass_.members.begin(), klass_.members.end(), [&member](auto&& already) {
-                return already.kind == Schema::Member::Kind::Property &&
+                return already.kind == schema::member::kind_t::Property &&
                        already.key == member.winrt_name;
             });
         if (declared != klass_.members.end()) {
@@ -1610,12 +1611,12 @@ private:
                 declared->single_type = false;
             }
         } else {
-            klass_.members.push_back({Schema::Member::Kind::Property, member.winrt_name,
+            klass_.members.push_back({schema::member::kind_t::Property, member.winrt_name,
                                       member.name, value.value_type});
             klass_.members.back().braced = member.braced;
         }
         if (member.braced) {
-            dsl.braced.insert(member.winrt_name);
+            d.braced.insert(member.winrt_name);
         }
 
         // A property whose type belongs to it alone is unambiguous as an
@@ -1636,7 +1637,7 @@ private:
             // A string literal is already the class's own text, and a
             // type it also turns into by itself would make the same
             // literal mean two things. The property keeps its name.
-            context_.model.withheld_routes.push_back(std::format(
+            context_.m.withheld_routes.push_back(std::format(
                 "{}.{}: a string literal is already the text route", info.name, member.name));
         } else if (value.value_type == member.winrt_name || is_content_element) {
             // A route has to say something. `Object` says nothing --
@@ -1647,7 +1648,7 @@ private:
                                    : positional_conflicts(value.value_type, info.name,
                                                           context_.base_of);
             if (refused) {
-                context_.model.withheld_routes.push_back(
+                context_.m.withheld_routes.push_back(
                     std::format("{}.{}: {} is related to the class by inheritance", info.name,
                                 member.name, value.value_type));
             } else {
@@ -1663,7 +1664,7 @@ private:
     vocabulary_context& context_;
     std::string const content_property_;
     std::vector<std::string> const& attached_here_;
-    Schema::Class klass_;
+    schema::class_t klass_;
     std::string text_route_;
     std::string content_route_;
 };
@@ -1673,12 +1674,12 @@ private:
 // is the one to define. An explicit instantiation definition may exist in
 // exactly one translation unit, so the first group naming an element takes
 // it.
-void group_classes(std::vector<class_source>& sources, Model& model) {
+void group_classes(std::vector<class_source>& sources, model& m) {
     std::map<std::string, std::vector<class_info>> by_group;
     for (auto&& source : sources) {
         std::string const ns{source.type.TypeNamespace()};
-        auto const it = model.group_of.find(ns);
-        by_group[it != model.group_of.end() ? it->second : ns].push_back(std::move(source.info));
+        auto const it = m.group_of.find(ns);
+        by_group[it != m.group_of.end() ? it->second : ns].push_back(std::move(source.info));
     }
 
     std::set<std::string> already_defined;
@@ -1692,21 +1693,21 @@ void group_classes(std::vector<class_source>& sources, Model& model) {
                 }
             }
         }
-        model.class_groups.push_back(std::move(group));
+        m.class_groups.push_back(std::move(group));
     }
 }
 
 // The values every enum-typed tag carries. Only the enums some property
 // actually has, since a tag is the only thing that surfaces them.
-void add_enumerators(type_kinds const& kinds, Closure const& closure, Dsl& dsl) {
+void add_enumerators(type_kinds const& kinds, closure const& cl, dsl& d) {
     std::set<std::string> enum_types;
-    for (auto&& [name, value_type] : dsl.property_value_type) {
+    for (auto&& [name, value_type] : d.property_value_type) {
         enum_types.insert(value_type);
     }
     for (auto&& type : kinds.enums) {
         auto const name = std::string{type.TypeName()};
         if (enum_types.count(name)) {
-            dsl.enumerators.emplace(name, enum_members(type, closure.members));
+            d.enumerators.emplace(name, enum_members(type, cl.members));
         }
     }
 }
@@ -1715,25 +1716,25 @@ void add_enumerators(type_kinds const& kinds, Closure const& closure, Dsl& dsl) 
 // metadata declares it, and the dispatch behind a tag is a template on the
 // object, so a key and a tag are all such a member needs. A generated class
 // that declares the same name with another type leaves no definite one.
-void add_hand_written_vocabulary(Dsl& dsl) {
-    auto const add = [&dsl](auto const& member) {
-        auto [it, inserted] = dsl.property_value_type.emplace(member.name, member.value_type);
+void add_hand_written_vocabulary(type_map const& types, dsl& d) {
+    auto const add = [&d](auto const& member) {
+        auto [it, inserted] = d.property_value_type.emplace(member.name, member.value_type);
         if (!inserted && it->second != member.value_type) {
             it->second.clear();
         }
         if (!member.include.empty()) {
-            dsl.includes.insert(member.include);
+            d.includes.insert(member.include);
         }
     };
-    for (auto&& property : type_map().hand_written_properties) {
+    for (auto&& property : types.hand_written_properties) {
         add(property);
     }
-    dsl.events.insert(type_map().hand_written_events.begin(), type_map().hand_written_events.end());
+    d.events.insert(types.hand_written_events.begin(), types.hand_written_events.end());
 
     // A bound-only member needs the same key and tag; the setter the tag
     // dispatches to is constrained on the member's existence, so on a class
     // that has none the assignment is refused rather than compiled.
-    for (auto&& member : type_map().bound_members) {
+    for (auto&& member : types.bound_members) {
         add(member);
     }
 }
@@ -1748,13 +1749,13 @@ void add_hand_written_vocabulary(Dsl& dsl) {
 // like ElementCompositionPreview would otherwise offer an empty list to
 // whoever typed its name -- which means a class below it has to inherit
 // from the nearest ancestor that does have one.
-void finish_schema(std::vector<std::pair<std::string, Schema::Member>>& attached_elsewhere,
-                   Model& model) {
-    auto& schema = model.schema;
+void finish_schema(std::vector<std::pair<std::string, schema::member>>& attached_elsewhere,
+                   type_map const& types, model& m) {
+    auto& sch = m.schema;
     for (auto&& [target, member] : attached_elsewhere) {
-        auto const owner = std::find_if(schema.classes.begin(), schema.classes.end(),
+        auto const owner = std::find_if(sch.classes.begin(), sch.classes.end(),
                                         [&target](auto&& klass) { return klass.name == target; });
-        if (owner != schema.classes.end()) {
+        if (owner != sch.classes.end()) {
             owner->members.push_back(std::move(member));
         }
     }
@@ -1762,27 +1763,27 @@ void finish_schema(std::vector<std::pair<std::string, Schema::Member>>& attached
     // A bound-only member joins the class it is written on (types.json). The
     // class has to be in the closure: a member on a class nobody generates
     // would anchor to nothing, and is reported rather than dropped.
-    for (auto&& bound : type_map().bound_members) {
+    for (auto&& bound : types.bound_members) {
         std::string const name = bound.class_name.substr(bound.class_name.rfind('.') + 1);
-        auto const owner = std::find_if(schema.classes.begin(), schema.classes.end(),
+        auto const owner = std::find_if(sch.classes.begin(), sch.classes.end(),
                                         [&name](auto&& klass) { return klass.name == name; });
-        if (owner == schema.classes.end()) {
-            model.unplaced_bound_members.push_back(std::format("{}.{}", bound.class_name, bound.name));
+        if (owner == sch.classes.end()) {
+            m.unplaced_bound_members.push_back(std::format("{}.{}", bound.class_name, bound.name));
             continue;
         }
-        Schema::Member member{Schema::Member::Kind::Bound, bound.name, member_name(bound.name),
+        schema::member member{schema::member::kind_t::Bound, bound.name, member_name(bound.name),
                               bound.value_type};
         member.direction = bound.direction;
         owner->members.push_back(std::move(member));
     }
 
     std::map<std::string, std::string> schema_base;  // every class -> its base, before pruning
-    for (auto&& klass : schema.classes) {
+    for (auto&& klass : sch.classes) {
         schema_base.emplace(klass.name, klass.base);
     }
 
     std::set<std::string> kept;
-    for (auto&& klass : schema.classes) {  // base before derived, so a base is decided already
+    for (auto&& klass : sch.classes) {  // base before derived, so a base is decided already
         std::string base = klass.base;
         while (!base.empty() && !kept.count(base)) {
             auto const above = schema_base.find(base);
@@ -1794,75 +1795,76 @@ void finish_schema(std::vector<std::pair<std::string, Schema::Member>>& attached
             kept.insert(klass.name);
         }
     }
-    std::erase_if(schema.classes, [&kept](auto&& klass) { return kept.count(klass.name) == 0; });
+    std::erase_if(sch.classes, [&kept](auto&& klass) { return kept.count(klass.name) == 0; });
 }
 
 }  // namespace
 
-TypeIndex analyze_classes(type_kinds const& kinds, Closure const& closure, Model& model) {
-    auto const wrapped = wrapped_types_of(kinds);
-    auto sources = read_classes(wrapped, closure, model.group_of);
+type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map const& types,
+                           model& m) {
+    auto const wrapped = wrapped_types_of(kinds, types);
+    auto sources = read_classes(wrapped, cl, types, m.group_of);
 
     // Members come second, because naming a type in a signature means
     // knowing which file declares it, which is only settled once the
     // grouping above is.
-    auto index = build_type_index(kinds, wrapped.generated, model.group_of);
+    auto index = build_type_index(kinds, types, wrapped.generated, m.group_of);
 
     std::map<std::string, std::string> base_of;
     for (auto&& source : sources) {
         base_of.emplace(source.info.name, source.info.base_name);
     }
-    std::vector<std::pair<std::string, Schema::Member>> attached_elsewhere;
+    std::vector<std::pair<std::string, schema::member>> attached_elsewhere;
     std::map<std::string, bool> chain_has_positional;
-    vocabulary_context context{index, model, base_of, attached_elsewhere, chain_has_positional};
+    vocabulary_context context{index, m, base_of, attached_elsewhere, chain_has_positional};
 
     for (auto&& source : sources) {
         std::vector<skipped_member> skipped;
-        collect_members(source, closure, index, skipped);
+        collect_members(source, cl, index, skipped);
         for (auto&& drop : skipped) {
-            model.skipped_members.push_back(
+            m.skipped_members.push_back(
                 std::format("{}.{}: {}", source.info.name, drop.name, drop.reason));
         }
 
-        class_vocabulary vocabulary{source, closure, context};
+        class_vocabulary vocabulary{source, cl, context};
         for (auto&& member : source.info.members) {
             vocabulary.add(member);
         }
         vocabulary.finish();
     }
 
-    group_classes(sources, model);
-    add_enumerators(kinds, closure, model.dsl);
-    add_hand_written_vocabulary(model.dsl);
-    finish_schema(attached_elsewhere, model);
+    group_classes(sources, m);
+    add_enumerators(kinds, cl, m.dsl);
+    add_hand_written_vocabulary(types, m.dsl);
+    finish_schema(attached_elsewhere, types, m);
     return index;
 }
 
-void write_classes(Output const& out, Model const& model, Emitted& emitted) {
-    if (!model.skipped_members.empty()) {
+void write_classes(output const& out, model const& m, emitted& em) {
+    if (!m.skipped_members.empty()) {
         std::print("\nmembers skipped -- no wxl type for a signature yet ({}):\n",
-                   model.skipped_members.size());
-        for (auto&& line : model.skipped_members) {
+                   m.skipped_members.size());
+        for (auto&& line : m.skipped_members) {
             std::print("  {}\n", line);
         }
         std::print("\n");
     }
 
-    if (!model.content_collections.empty()) {
+    if (!m.content_collections.empty()) {
         std::print("\ncontent collections ({}) -- an unnamed element of that type is\n"
                    "appended to this property:\n",
-                   model.content_collections.size());
-        for (auto&& line : model.content_collections) {
+                   m.content_collections.size());
+        for (auto&& line : m.content_collections) {
             std::print("  {}\n", line);
         }
         std::print("\n");
     }
 
-    if (!model.withheld_routes.empty()) {
+    if (!m.withheld_routes.empty()) {
         std::print("\nunnamed-argument routes withheld ({}) -- these properties keep their\n"
                    "named form only:\n",
-                   model.withheld_routes.size());
-        for (auto&& line : model.withheld_routes) {
+                   m.withheld_routes.size());
+        for (auto&& line : m.withheld_routes) {
             std::print("  {}\n", line);
         }
         std::print("\n");
@@ -1872,25 +1874,25 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted) {
     size_t activatable = 0;
     size_t constructors = 0;
     size_t members = 0;
-    for (auto&& group : model.class_groups) {
+    for (auto&& group : m.class_groups) {
         auto const header = out.dir / (group.name + ".h");
         auto const source = out.dir / (group.name + ".cpp");
 
-        write_public_header(header, group.name, group.classes, model.group_of, group.collections_used);
-        emitted.add(header);
+        write_public_header(header, group.name, group.classes, m.group_of, group.collections_used);
+        em.add(header);
 
         if (has_impl(group.classes)) {
             auto const impl_header = out.dir / (group.name + ".impl.h");
-            write_impl_header(impl_header, group.name, group.classes, model.group_of);
-            emitted.add(impl_header);
+            write_impl_header(impl_header, group.name, group.classes, m.group_of);
+            em.add(impl_header);
         }
 
-        write_source(source, group.name, group.classes, model.group_of, group.collections_defined);
-        emitted.add(source);
+        write_source(source, group.name, group.classes, m.group_of, group.collections_defined);
+        em.add(source);
 
         classes += group.classes.size();
         for (auto&& info : group.classes) {
-            activatable += info.construction == Construction::PublicActivation ? 1 : 0;
+            activatable += info.construction == construction_t::PublicActivation ? 1 : 0;
             constructors += info.constructors.size();
             members += info.members.size();
         }
@@ -1898,7 +1900,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted) {
 
     std::print("generated {} classes in {} file group(s), {} publicly activatable, {} constructors "
                "taking arguments, {} members\n",
-               classes, model.class_groups.size(), activatable, constructors, members);
+               classes, m.class_groups.size(), activatable, constructors, members);
 }
 
 }  // namespace gen

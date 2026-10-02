@@ -18,7 +18,7 @@
 // flat-namespace name registry.
 //
 // A writer opens its file with open_output, starts it with the banner and
-// records it with Emitted::add. A file written past these would be rewritten
+// records it with emitted::add. A file written past these would be rewritten
 // on every run whether it changed or not, would not be recognised as stale
 // once no longer produced (prune_stale looks for the banner), and would be
 // missing from the generated CMakeLists.txt.
@@ -103,7 +103,7 @@ std::vector<Item> topological_sort(std::vector<Item> items, Edges edges) {
 // What generation produced, in the order it was produced. The generated
 // CMakeLists.txt lists exactly these names, so anything written outside
 // this record would silently not take part in the build.
-class Emitted {
+class emitted {
 public:
     // `path` is the file just written; only its name is recorded, since
     // the generated CMakeLists.txt sits in the same directory.

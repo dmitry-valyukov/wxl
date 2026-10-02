@@ -15,7 +15,7 @@ import std;
 
 namespace gen {
 
-void write_cmake_lists(Output const& out, Emitted const& emitted) {
+void write_cmake_lists(output const& out, emitted const& em) {
     auto const path = out.dir / "CMakeLists.txt";
     auto file = open_output(path);
 
@@ -25,7 +25,7 @@ target_sources({} PRIVATE
 )",
                out.cmake_target);
 
-    for (auto&& name : emitted.files_of({})) {
+    for (auto&& name : em.files_of({})) {
         std::print(file, "    ${{CMAKE_CURRENT_SOURCE_DIR}}/{}\n", name);
     }
 
@@ -36,7 +36,7 @@ target_sources({} PRIVATE
     // test rather than linked into the library. Guarded, because the
     // directory is add_subdirectory()'d by the library's CMakeLists and the
     // test target beside it may not have been created yet.
-    for (auto&& target : emitted.targets()) {
+    for (auto&& target : em.targets()) {
         if (target.empty()) {
             continue;
         }
@@ -46,19 +46,19 @@ if(TARGET {})
     target_sources({} PRIVATE
 )",
                    target, target);
-        for (auto&& name : emitted.files_of(target)) {
+        for (auto&& name : em.files_of(target)) {
             std::print(file, "        ${{CMAKE_CURRENT_SOURCE_DIR}}/{}\n", name);
         }
         std::print(file, "    )\nelse()\n    message(FATAL_ERROR\n        \"{} is generated for "
                          "the target {}, which does not exist yet -- create it before \"\n"
                          "        \"add_subdirectory() of this directory.\")\nendif()\n",
-                   emitted.files_of(target).front(), target);
+                   em.files_of(target).front(), target);
     }
 
     std::print(file, "\ntarget_include_directories({} PUBLIC ${{CMAKE_CURRENT_SOURCE_DIR}})\n",
                out.cmake_target);
 
-    std::print("generated {} ({} sources)\n", path.string(), emitted.files().size());
+    std::print("generated {} ({} sources)\n", path.string(), em.files().size());
 }
 
 }  // namespace gen

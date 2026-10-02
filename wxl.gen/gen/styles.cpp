@@ -154,7 +154,7 @@ bool no_group_ends_on(std::string_view word) {
 // What a level's keys say about one word-boundary prefix: how many of them
 // start with it, and which words they go on with. The second is what
 // distinguishes a name that divides here from one that merely passes through.
-struct Prefix {
+struct prefix {
     size_t keys = 0;
     std::map<std::string, size_t> next;  // continuation -> how many keys take it
 
@@ -196,7 +196,7 @@ struct Prefix {
 // brushes.Card.StrokeColorDefault, not a pair of unrelated roots. Likewise
 // ComboBox, which continues twenty ways, keeps ComboBoxArrow in its leaf.
 size_t group_split(std::string_view stem, std::set<std::string> const& generated,
-                   std::map<std::string, Prefix, std::less<>> const& shared,
+                   std::map<std::string, prefix, std::less<>> const& shared,
                    std::set<std::string, std::less<>> const& taken) {
     auto const starts = word_starts(stem);
     size_t best = std::string_view::npos;
@@ -207,19 +207,19 @@ size_t group_split(std::string_view stem, std::set<std::string> const& generated
         if (no_group_ends_on(stem.substr(starts[w - 1], cut - starts[w - 1]))) {
             continue;
         }
-        auto const prefix = stem.substr(0, cut);
+        auto const pre = stem.substr(0, cut);
         // A brush of that very name is already a member here, and one member
         // cannot be both a brush and a group: ListViewItemBackground is a key
         // of its own, so `Background` stays a leaf and its seven states stay
         // beside it as BackgroundPointerOver and the rest.
-        if (taken.contains(prefix)) {
+        if (taken.contains(pre)) {
             continue;
         }
-        auto const here = shared.find(prefix);
+        auto const here = shared.find(pre);
         if (here == shared.end()) {
             continue;
         }
-        bool const is_type = generated.count(std::string{prefix}) != 0;
+        bool const is_type = generated.count(std::string{pre}) != 0;
         if (!is_type && here->second.keys < 3) {
             continue;
         }
@@ -233,8 +233,8 @@ size_t group_split(std::string_view stem, std::set<std::string> const& generated
 }
 
 // One level of the tree: what stayed a brush here, and what became a group.
-struct BrushNode {
-    std::map<std::string, BrushNode> groups;    // group name -> the level under it
+struct brush_node {
+    std::map<std::string, brush_node> groups;    // group name -> the level under it
     std::map<std::string, std::string> leaves;  // leaf -> the framework's key
 };
 
@@ -242,26 +242,26 @@ struct BrushNode {
 // The remainder handed down is strictly shorter than what came in, so the
 // recursion ends on its own -- SystemControl's 170 keys go to Highlight, to
 // Background, and no further than their words allow.
-BrushNode build_brush_tree(std::map<std::string, std::string> const& stems,
-                           std::set<std::string> const& generated) {
+brush_node build_brush_tree(std::map<std::string, std::string> const& stems,
+                            std::set<std::string> const& generated) {
     // How many keys of this level share each word-boundary prefix, which is
     // the second of the two signals group_split() weighs. Counted per level:
     // under SystemControl it is the 170 keys there that vote, not all 755.
-    std::map<std::string, Prefix, std::less<>> shared;
+    std::map<std::string, prefix, std::less<>> shared;
     std::set<std::string, std::less<>> taken;
     for (auto&& [stem, key] : stems) {
         taken.insert(stem);
         auto const starts = word_starts(stem);
         for (size_t w = 1; w < starts.size(); ++w) {
-            auto& prefix = shared[stem.substr(0, starts[w])];
-            ++prefix.keys;
+            auto& pre = shared[stem.substr(0, starts[w])];
+            ++pre.keys;
             auto const end = w + 1 < starts.size() ? starts[w + 1] : stem.size();
-            ++prefix.next[std::string{stem.substr(starts[w], end - starts[w])}];
+            ++pre.next[std::string{stem.substr(starts[w], end - starts[w])}];
         }
     }
 
     std::map<std::string, std::map<std::string, std::string>> groups;  // group -> stem -> key
-    BrushNode node;
+    brush_node node;
     for (auto&& [stem, key] : stems) {
         auto const cut = group_split(stem, generated, shared, taken);
         if (cut == std::string_view::npos) {
@@ -291,7 +291,7 @@ BrushNode build_brush_tree(std::map<std::string, std::string> const& stems,
 // member needs its type declared. `path` is what the enclosing groups were
 // called, which is what keeps SystemControlHighlightBrushes from colliding
 // with any other Highlight.
-void write_brush_node(std::ostream& header, BrushNode const& node, std::string_view path,
+void write_brush_node(std::ostream& header, brush_node const& node, std::string_view path,
                       std::string_view type, std::string_view group_suffix, size_t& index,
                       std::vector<std::string>& names) {
     for (auto&& [group, child] : node.groups) {
@@ -330,7 +330,7 @@ void write_brush_paths(std::ostream& header, std::string_view group_suffix,
 // src/resource_lookup.cpp, where the lookup lives -- and several hundred
 // wide-string literals have no business in a header every user of a path
 // includes.
-void write_name_table(Output const& out, Emitted& emitted, std::string_view file,
+void write_name_table(output const& out, emitted& em, std::string_view file,
                       std::string_view array, std::vector<std::string> const& names) {
     auto table = open_output(out.dir / file);
     std::print(table, "{}#pragma once\n\nnamespace wxl::resources {{\n\n", banner);
@@ -339,17 +339,17 @@ void write_name_table(Output const& out, Emitted& emitted, std::string_view file
         std::print(table, "    L\"{}\",\n", name);
     }
     std::print(table, "}};\n\n}}  // namespace wxl::resources\n");
-    emitted.add(file);
+    em.add(file);
 }
 
 }  // namespace
 
-void write_styles(Output const& out, Model const& model, Emitted& emitted) {
+void write_styles(output const& out, model const& m, emitted& em) {
     // Unscoped only: a style declared inside a template's own resources is
     // that template's business, and the run-time lookup behind style_at()
     // could never reach it anyway.
     std::vector<style> found;
-    for (auto&& declared : model.resources) {
+    for (auto&& declared : m.resources) {
         if (declared.type == "Style" && !declared.target_type.empty() && !declared.scoped) {
             found.push_back({declared.key, std::string{unprefixed(declared.target_type)}});
         }
@@ -357,8 +357,8 @@ void write_styles(Output const& out, Model const& model, Emitted& emitted) {
 
     // Only styles for controls that were generated: without the control there
     // is nothing to apply the style to; and of those, the ones the profiles
-    // chose (Model::style_filters).
-    auto const& generated = model.class_names;
+    // chose (model::style_filters).
+    auto const& generated = m.class_names;
 
     // Grouped by target type, and each group's members sorted, so the header
     // reads as a list rather than as the order a 3 MB document happened to
@@ -379,8 +379,8 @@ void write_styles(Output const& out, Model const& model, Emitted& emitted) {
             ++dropped;
             continue;
         }
-        if (auto const filter = model.style_filters.find(target);
-            filter != model.style_filters.end() && !filter->second.allows(key)) {
+        if (auto const filter = m.style_filters.find(target);
+            filter != m.style_filters.end() && !filter->second.allows(key)) {
             ++left_out;
             continue;
         }
@@ -425,10 +425,10 @@ void write_styles(Output const& out, Model const& model, Emitted& emitted) {
         }
         std::print(header,
                    "}};\n\ninline constexpr StylePaths styles;\n\n}}  // namespace wxl::dsl\n");
-        emitted.add("styles.h");
+        em.add("styles.h");
     }
 
-    write_name_table(out, emitted, "style_names.h", "style_names", names);
+    write_name_table(out, em, "style_names.h", "style_names", names);
 
     std::print("generated {}styles.h ({} styles in {} groups, {} dropped for a target type that is "
                "not generated{}{})\n",
@@ -437,7 +437,7 @@ void write_styles(Output const& out, Model const& model, Emitted& emitted) {
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
 }
 
-void write_brushes(Output const& out, Model const& model, Emitted& emitted) {
+void write_brushes(output const& out, model const& m, emitted& em) {
     // Concrete brush elements only -- SolidColorBrush, AcrylicBrush,
     // LinearGradientBrush; the suffix is what they have in common. The
     // StaticResource aliases the dictionary also carries (ButtonBackground
@@ -445,14 +445,14 @@ void write_brushes(Output const& out, Model const& model, Emitted& emitted) {
     // they exist to be *overridden* by templates, tripling the surface to
     // read them has no caller yet, and their type is only known by chasing
     // the alias chain.
-    auto const& generated = model.class_names;
+    auto const& generated = m.class_names;
 
     std::map<std::string, std::string> stems;        // stem -> key
     std::map<std::string, std::string> theme_stems;  // the same, for *ThemeBrush
     std::set<std::string> seen;
     size_t left_out = 0;
     size_t collisions = 0;
-    for (auto&& declared : model.resources) {
+    for (auto&& declared : m.resources) {
         // Unscoped only, and for a harder reason than tidiness: a brush
         // declared inside a template's resources is invisible to the
         // application-level lookup behind brush_at(), so a path to one
@@ -465,7 +465,7 @@ void write_brushes(Output const& out, Model const& model, Emitted& emitted) {
         if (!seen.insert(declared.key).second) {
             continue;
         }
-        if (!model.brushes.allows(declared.key)) {
+        if (!m.brushes.allows(declared.key)) {
             ++left_out;
             continue;
         }
@@ -501,10 +501,10 @@ void write_brushes(Output const& out, Model const& model, Emitted& emitted) {
         write_brush_paths(header, "ThemeBrushes", "ThemeBrushPaths", "themeBrushes", theme_stems,
                           generated, index, names);
         std::print(header, "\n}}  // namespace wxl::dsl\n");
-        emitted.add("brushes.h");
+        em.add("brushes.h");
     }
 
-    write_name_table(out, emitted, "brush_names.h", "brush_names", names);
+    write_name_table(out, em, "brush_names.h", "brush_names", names);
 
     std::print("generated {}brushes.h ({} brushes, {} theme brushes{}{})\n", out.dir.string() + "\\",
                stems.size(), theme_stems.size(),
@@ -512,8 +512,8 @@ void write_brushes(Output const& out, Model const& model, Emitted& emitted) {
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
 }
 
-void write_alias_index(Output const& out, std::vector<DictionaryResource> const& resources,
-                       Emitted& emitted) {
+void write_alias_index(output const& out, std::vector<dictionary_resource> const& resources,
+                       emitted& em) {
     // Key -> the target each theme declares, in the order the themes appear.
     // Most aliases agree across themes and print as one line; the rest --
     // typically HighContrast pointing at the SystemControl* palette -- print
@@ -569,7 +569,7 @@ void write_alias_index(Output const& out, std::vector<DictionaryResource> const&
         }
         std::print(file, "\n");
     }
-    emitted.add("aliases.txt");
+    em.add("aliases.txt");
 
     std::print("generated {}aliases.txt ({} alias keys)\n", out.dir.string() + "\\", aliases.size());
 }

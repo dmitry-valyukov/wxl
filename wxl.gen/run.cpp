@@ -25,24 +25,24 @@ char const* category_name(category cat) {
     return "?";
 }
 
-void report(ProfileSet const& profiles, Closure const& closure) {
+void report(profile_set const& profiles, closure const& cl) {
     std::print("profiles: {}\n", wxl::core::join(profiles.loaded, ", "));
     for (auto&& file : profiles.metadata) {
         std::print("  metadata: {}\n", file.string());
     }
     std::print("  roots: {}\n", profiles.types.size());
 
-    for (auto&& name : closure.missing_types) {
+    for (auto&& name : cl.missing_types) {
         std::print(stderr, "warning: profile type not found in metadata: {}\n", name);
     }
-    for (auto&& name : closure.unknown_members) {
+    for (auto&& name : cl.unknown_members) {
         std::print(stderr, "warning: profile names a member the type doesn't declare: {}\n", name);
     }
 
-    if (!closure.deprecated.empty()) {
+    if (!cl.deprecated.empty()) {
         std::print("\nmembers dropped -- WinRT marks them deprecated ({}):\n",
-                   closure.deprecated.size());
-        for (auto&& name : closure.deprecated) {
+                   cl.deprecated.size());
+        for (auto&& name : cl.deprecated) {
             std::print("  {}\n", name);
         }
     }
@@ -53,41 +53,42 @@ void report(ProfileSet const& profiles, Closure const& closure) {
     // the filter -- those are what the wrapper actually has to hold (one
     // `Impl` field each); interfaces whose every member was filtered out
     // are reported as dropped, so the trimming stays visible.
-    std::print("\ntype closure, in dependency order ({} types):\n", closure.ordered.size());
-    for (auto&& type : closure.ordered) {
+    std::print("\ntype closure, in dependency order ({} types):\n", cl.ordered.size());
+    for (auto&& type : cl.ordered) {
         std::print("  {:9} {}.{}\n", category_name(get_category(type)), type.TypeNamespace(),
                    type.TypeName());
 
-        if (auto const it = closure.interfaces.find(type); it != closure.interfaces.end()) {
+        if (auto const it = cl.held_interfaces.find(type); it != cl.held_interfaces.end()) {
             for (auto&& iface : it->second) {
                 std::print("      implements {}.{}\n", iface.TypeNamespace(), iface.TypeName());
             }
         }
-        if (auto const it = closure.dropped_interfaces.find(type);
-            it != closure.dropped_interfaces.end()) {
+        if (auto const it = cl.dropped_interfaces.find(type);
+            it != cl.dropped_interfaces.end()) {
             for (auto&& iface : it->second) {
                 std::print("      dropped    {}.{}\n", iface.TypeNamespace(), iface.TypeName());
             }
         }
-        if (auto const it = closure.members.find(type); it != closure.members.end()) {
+        if (auto const it = cl.members.find(type); it != cl.members.end()) {
             std::print("      members    {}\n", wxl::core::join(it->second, ", "));
         }
     }
 
-    if (!closure.boundary.empty()) {
-        std::print("\nstopped at given-from-above types ({}):\n", closure.boundary.size());
-        for (auto&& type : closure.boundary) {
+    if (!cl.boundary.empty()) {
+        std::print("\nstopped at given-from-above types ({}):\n", cl.boundary.size());
+        for (auto&& type : cl.boundary) {
             std::print("  {}.{}\n", type.TypeNamespace(), type.TypeName());
         }
     }
 
-    std::print("\nproperty keys: {}\n", closure.property_names.size());
-    std::print("event keys: {}\n", closure.event_names.size());
+    std::print("\nproperty keys: {}\n", cl.property_names.size());
+    std::print("event keys: {}\n", cl.event_names.size());
 }
 
 }  // namespace
 
-void run(ProfileSet const& profiles, Output const& out) {
+void run(profile_set const& profiles, type_map const& types, std::vector<symbol> symbols,
+         output const& out) {
     std::vector<std::string> files;
     files.reserve(profiles.metadata.size());
     for (auto&& file : profiles.metadata) {
@@ -95,8 +96,8 @@ void run(ProfileSet const& profiles, Output const& out) {
     }
 
     cache const db{files};
-    auto const closure = crawl(profiles, db);
-    report(profiles, closure);
+    auto const cl = crawl(profiles, types, db);
+    report(profiles, cl);
 
-    write_all(out, analyze(closure, profiles));
+    write_all(out, analyze(cl, profiles, types, std::move(symbols)));
 }

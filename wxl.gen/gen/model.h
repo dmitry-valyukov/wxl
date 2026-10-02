@@ -14,12 +14,12 @@
 
 // What the generator writes, worked out before anything is written.
 //
-// The walk (wxl.gen.common) hands over a Closure: which types and members take
+// The walk (wxl.gen.common) hands over a `closure`: which types and members take
 // part. Turning that into what each file says -- which file a class lives in,
 // what its members are as C++, which struct depends on which, what the builder
 // syntax's vocabulary is -- is analysis, and it happens once, in analyze(),
-// into the Model below. The writers in gen/*.cpp then read their part of the
-// Model and nothing else: no metadata, no profile, and none of each other's
+// into the `model` below. The writers in gen/*.cpp then read their part of the
+// model and nothing else: no metadata, no profile, and none of each other's
 // results. Everything here is text the output is made of.
 //
 // Analysis prints nothing. What a run reports -- members skipped, routes
@@ -85,7 +85,7 @@ struct struct_info {
 
 struct struct_file {
     std::string ns;
-    std::vector<size_t> structs;  // into Model::structs, in that order
+    std::vector<size_t> structs;  // into model::structs, in that order
     // Where the fields' types live: an enum always in its namespace's
     // Enums.h, a struct of another namespace in its Structs.h, a projected
     // type in the header wxl keeps it in. A struct of the same namespace
@@ -119,7 +119,14 @@ struct struct_file {
 // free to leave IActivationFactory::ActivateInstance unimplemented, and
 // RadialGradientBrush does exactly that (E_NOTIMPL). Going through the
 // factory interface is what the projection itself does for every such class.
-enum class Construction { None, PublicActivation, PublicFactory, PublicComposition, ProtectedOnly };
+enum class construction_t
+{
+    None,
+    PublicActivation,
+    PublicFactory,
+    PublicComposition,
+    ProtectedOnly
+};
 
 // One unnamed-argument route: what it takes, and what it does with it. A
 // property assigns, the content collection appends -- the statement is
@@ -157,7 +164,7 @@ struct class_info {
     std::string winrt_name;     // "winrt::Microsoft::UI::Xaml::Controls::Button"
     std::string base_name;
     std::string base_namespace;  // empty when the base is given from above
-    Construction construction = Construction::None;
+    construction_t construction = construction_t::None;
     // The factory interface a composable class is created through, in
     // metadata form; empty for every other class.
     std::string composable_factory;
@@ -223,7 +230,7 @@ struct class_group {
 
 // What the builder syntax needs to know about the members that were
 // generated, and about the members of the classes wxl writes by hand.
-struct Dsl {
+struct dsl {
     // Property name -> the wxl type of its value, empty when different
     // classes declare that name with different types (the braced form
     // `margin = {20}` needs one definite type; the deduced form does not).
@@ -244,12 +251,12 @@ struct Dsl {
     // Button reaches Grid::setRow(button, 1). The tag is a property tag like
     // any other; only the setter behind it belongs to a different class than
     // the object it is written on.
-    struct Attached {
+    struct attached_t {
         std::string owner;       // "Grid"
         std::string setter;      // "setRow"
         std::string value_type;  // "int32_t", for the braced form
     };
-    std::map<std::string, Attached> attached;
+    std::map<std::string, attached_t> attached;
 
     // Enum type (spelled as the value types above spell it, `wxl::Orientation`)
     // -> its enumerators, each as the member name a tag surfaces it under and
@@ -274,14 +281,14 @@ struct Dsl {
 // refused by name instead of deep inside a template, and it knows the type
 // that class declares the property with -- which the flat vocabulary has to
 // give up wherever two classes disagree.
-struct Schema {
-    struct Member {
+struct schema {
+    struct member {
         // Bound: a property that exists on this class as a binding target
         // alone -- no setter, a hand-written pair in impl/binding.h reads it
         // off the control -- so its anchor takes Bind forms and nothing else.
-        enum class Kind { Property, Collection, Event, Bound };
+        enum class kind_t { Property, Collection, Event, Bound };
 
-        Kind kind = Kind::Property;
+        kind_t kind = kind_t::Property;
         std::string key;   // the PropertyKey / EventKey enumerator
         std::string name;  // as the DSL spells it: camelCase
         // A property's value type, a collection's element type; empty for an
@@ -299,7 +306,7 @@ struct Schema {
         // because the test still has to hand it something it accepts.
         bool single_type = true;
 
-        // The tag builds its value from braces too (see Dsl::braced).
+        // The tag builds its value from braces too (see dsl::braced).
         bool braced = false;
 
         // Bound only: "input", "output" or "both" -- which Bind form the
@@ -307,7 +314,7 @@ struct Schema {
         std::string direction;
     };
 
-    struct Class {
+    struct class_t {
         std::string name;  // "Button"
         // The class it derives from, or empty where that base has no schema
         // of its own (Object and DependencyObject are hand-written).
@@ -317,12 +324,12 @@ struct Schema {
         // them all, which is more than Members.h needs: that one names only
         // the types properties are *valued* with.
         std::string header;
-        std::vector<Member> members;
+        std::vector<member> members;
     };
 
     // Base before derived, the order the classes are written in, so a schema
     // struct can simply name its base.
-    std::vector<Class> classes;
+    std::vector<class_t> classes;
 };
 
 // ---- <Namespace>.EventArgs.h / .cpp ----
@@ -364,7 +371,7 @@ struct event_args_file {
 }  // namespace gen
 
 // Everything the writers write, in the order write_all() writes it.
-struct Model {
+struct model {
     // PropertyKey.h / EventKey.h
     std::set<std::string> property_names;
     std::set<std::string> event_names;
@@ -390,8 +397,8 @@ struct Model {
     std::vector<std::string> withheld_routes;
 
     // Members.h and schema.h
-    gen::Dsl dsl;
-    gen::Schema schema;
+    gen::dsl dsl;
+    gen::schema schema;
     std::vector<std::string> unplaced_bound_members;  // "Ns.Class.Member", reported
 
     // EventArgs
@@ -401,16 +408,21 @@ struct Model {
     // styles.h, brushes.h, aliases.txt: the resources of the dictionaries the
     // profiles name, the bare names of the classes the run knows, the style
     // filter of every one of them the profiles named, and the brush filter.
-    std::vector<DictionaryResource> resources;
+    std::vector<dictionary_resource> resources;
     std::set<std::string> class_names;
-    std::map<std::string, MemberFilter> style_filters;
-    MemberFilter brushes = MemberFilter::all();
+    std::map<std::string, member_filter> style_filters;
+    member_filter brushes = member_filter::all();
+
+    // FluentSymbol.h, by code point; empty when the run has no symbol table.
+    std::vector<symbol> symbols;
 };
 
-// Works out the Model from what the walk found and what the profiles name.
-// Reads the metadata the closure points into and the profiles' resource
-// dictionaries; writes nothing and prints nothing.
-Model analyze(Closure const& closure, ProfileSet const& profiles);
+// Works out the model from what the walk found, what the profiles name and
+// what wxl owns itself (the type map, the icon font's names). Reads the
+// metadata the closure points into and the profiles' resource dictionaries;
+// writes nothing and prints nothing.
+model analyze(closure const& cl, profile_set const& profiles, type_map const& types,
+              std::vector<symbol> symbols);
 
 namespace gen {
 
@@ -429,13 +441,15 @@ struct type_kinds {
 
 // The analysis of each part, defined beside the writer of that part, called
 // by analyze() in this order: what a later one needs, an earlier one settled.
-void analyze_tags(Model& model);
-void analyze_enums_and_structs(type_kinds const& kinds, Closure const& closure, Model& model);
+void analyze_tags(type_map const& types, model& m);
+void analyze_enums_and_structs(type_kinds const& kinds, closure const& cl, type_map const& types,
+                               model& m);
 // Classes, and with them the builder syntax's vocabulary and the schema --
 // only the class analysis has read the signatures. Hands back where every
 // wrapped type is declared, which the args views' signatures need.
-TypeIndex analyze_classes(type_kinds const& kinds, Closure const& closure, Model& model);
-void analyze_event_args(type_kinds const& kinds, Closure const& closure, TypeIndex const& index,
-                        Model& model);
+type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map const& types,
+                           model& m);
+void analyze_event_args(type_kinds const& kinds, closure const& cl, type_index const& index,
+                        model& m);
 
 }  // namespace gen

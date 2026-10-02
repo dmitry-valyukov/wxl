@@ -63,17 +63,17 @@ void append_bold(std::wstring& html, std::string_view utf8) {
 }
 
 // Что профиль говорит о членах типа.
-void append_filter(std::wstring& html, MemberFilter const* filter) {
+void append_filter(std::wstring& html, member_filter const* filter) {
     html += L"<p>Profile: ";
-    if (!filter || filter->kind == MemberFilter::Kind::None) {
+    if (!filter || filter->kind == member_filter::kind_t::None) {
         html += L"not listed</p>";
         return;
     }
-    if (filter->kind == MemberFilter::Kind::All) {
+    if (filter->kind == member_filter::kind_t::All) {
         html += L"all members</p>";
         return;
     }
-    html += filter->kind == MemberFilter::Kind::Allow ? L"only " : L"all members except ";
+    html += filter->kind == member_filter::kind_t::Allow ? L"only " : L"all members except ";
     bool first = true;
     for (std::string const& name : filter->names) {
         html += first ? L"" : L", ";
@@ -102,47 +102,47 @@ std::u16string to_u16(std::string_view utf8) {
 // из профиля вместе с типом, если стилей тип не генерирует: тип без членов и
 // без стилей не генерирует ничего. Стили типа из профиля без своей записи —
 // все его стили, и styled говорит, есть ли они у него в словарях.
-void mark_member(Profile& profile, std::string const& type, std::string_view member, bool on,
+void mark_member(profile& prof, std::string const& type, std::string_view member, bool on,
                  bool unlistedKeepsAll, bool styled) {
-    auto& types = profile.types;
+    auto& types = prof.types;
     std::string const name {member};
     auto const found = types.find(type);
     if (found == types.end()) {
         if (on != unlistedKeepsAll) {
-            types.emplace(type, on ? MemberFilter::allow({name}) : MemberFilter::deny({name}));
+            types.emplace(type, on ? member_filter::allow({name}) : member_filter::deny({name}));
         }
         return;
     }
 
-    MemberFilter& filter = found->second;
+    member_filter& filter = found->second;
     switch (filter.kind) {
-        case MemberFilter::Kind::All:
-        case MemberFilter::Kind::None:
-            filter = on ? MemberFilter::all() : MemberFilter::deny({name});
+        case member_filter::kind_t::All:
+        case member_filter::kind_t::None:
+            filter = on ? member_filter::all() : member_filter::deny({name});
             break;
-        case MemberFilter::Kind::Allow:
+        case member_filter::kind_t::Allow:
             if (on) {
                 filter.names.insert(name);
             } else {
                 filter.names.erase(name);
-                auto const styles = profile.styles.find(type);
-                bool const generatesStyles = styles == profile.styles.end()
+                auto const styles = prof.styles.find(type);
+                bool const generatesStyles = styles == prof.styles.end()
                                                  ? styled
-                                                 : styles->second.kind != MemberFilter::Kind::Allow ||
+                                                 : styles->second.kind != member_filter::kind_t::Allow ||
                                                        !styles->second.names.empty();
                 if (filter.names.empty() && !generatesStyles) {
                     types.erase(found);
-                    if (styles != profile.styles.end()) {
-                        profile.styles.erase(styles);
+                    if (styles != prof.styles.end()) {
+                        prof.styles.erase(styles);
                     }
                 }
             }
             break;
-        case MemberFilter::Kind::Deny:
+        case member_filter::kind_t::Deny:
             if (on) {
                 filter.names.erase(name);
                 if (filter.names.empty()) {
-                    filter = MemberFilter::all();
+                    filter = member_filter::all();
                 }
             } else {
                 filter.names.insert(name);
@@ -238,9 +238,9 @@ public:
     // opened — открылся файл, где разобрано ещё не всё.
     explicit Documentation(wxl::core::function<void()> opened) : opened_(std::move(opened)) {}
 
-    std::optional<MemberDocumentation> find(md::TypeDef const& type, std::string const& id) {
-        DocumentationFile* const file = fileOf(type);
-        return file ? file->find(id) : std::nullopt;
+    wxl::core::nullable<member_documentation const> find(md::TypeDef const& type, std::string const& id) {
+        documentation_file* const file = fileOf(type);
+        return file ? file->find(id) : nullptr;
     }
 
     // Разбирает члены открытых файлов до срока; остались ли неразобранные.
@@ -258,11 +258,11 @@ public:
     }
 
 private:
-    using File = std::unique_ptr<DocumentationFile>;
+    using File = std::unique_ptr<documentation_file>;
 
     // Файл находится по файлу метаданных, а у метаданных Windows — по
     // контракту; и тот, и другой ищется и читается один раз.
-    DocumentationFile* fileOf(md::TypeDef const& type) {
+    documentation_file* fileOf(md::TypeDef const& type) {
         auto const& database = type.get_database();
         auto [beside, fresh] = beside_.try_emplace(&database);
         if (fresh) {
@@ -293,7 +293,7 @@ private:
             return {};
         }
         try {
-            return std::make_unique<DocumentationFile>(file);
+            return std::make_unique<documentation_file>(file);
         } catch (std::exception const&) {
             // Без документации сведения остаются сигнатурой.
             return {};
@@ -325,22 +325,22 @@ private:
     std::filesystem::path references_;
     std::map<md::database const*, File> beside_;
     std::map<std::string, File> contracts_;
-    std::vector<DocumentationFile*> unfinished_;  // в порядке открытия
+    std::vector<documentation_file*> unfinished_;  // в порядке открытия
 };
 
 }  // namespace
 
 struct Editor::Data {
-    Data(Profile own, std::vector<std::string> const& files, wxl::core::function<void()> opened)
-        : profile(std::move(own)), db(files), documentation(std::move(opened)) {}
+    Data(profile own, std::vector<std::string> const& files, wxl::core::function<void()> opened)
+        : prof(std::move(own)), db(files), documentation(std::move(opened)) {}
 
     // Отметки — то, что говорит сам файл, без профилей, которые он продолжает.
-    Profile profile;
+    profile prof;
     md::cache db;
 
     // Ресурсы словарей XAML с ключами, как их объявил документ; модель ресурсов
     // смотрит в их строки.
-    std::vector<DictionaryResource> resources;
+    std::vector<dictionary_resource> resources;
 
     // Полные имена типов, у которых в словарях есть стили.
     std::set<std::string, std::less<>> styled;
@@ -406,7 +406,7 @@ public:
             }
         }
 
-        for (auto&& [type, filter] : editor_.data_->profile.types) {
+        for (auto&& [type, filter] : editor_.data_->prof.types) {
             if (TypeEntry* entry = find(type)) {
                 entry->listed = true;
             }
@@ -457,13 +457,13 @@ public:
             return;
         }
 
-        Profile& profile = editor_.data_->profile;
+        profile& prof = editor_.data_->prof;
         std::string const name = full_name(entry->def);
         if (entry->listed) {
-            profile.types.erase(name);
-            profile.styles.erase(name);
+            prof.types.erase(name);
+            prof.styles.erase(name);
         } else {
-            profile.types.emplace(name, MemberFilter::all());
+            prof.types.emplace(name, member_filter::all());
         }
         entry->listed = !entry->listed;
         editor_.revision.set(editor_.revision.get() + 1);
@@ -475,7 +475,7 @@ public:
     // Тип внесли в профиль или вынесли из него не отсюда — отметкой стиля.
     void relist(std::string_view full) {
         if (TypeEntry* entry = find(full)) {
-            entry->listed = editor_.data_->profile.types.contains(std::string {full});
+            entry->listed = editor_.data_->prof.types.contains(std::string {full});
         }
     }
 
@@ -624,7 +624,7 @@ class DocumentationId {
 public:
     static std::string of(md::TypeDef const& type) { return std::format("T:{}.{}", type.TypeNamespace(), type.TypeName()); }
 
-    static std::string of(md::TypeDef const& owner, MemberDeclaration const& declaration, std::string_view name) {
+    static std::string of(md::TypeDef const& owner, member_declaration const& declaration, std::string_view name) {
         DocumentationId id;
         std::visit([&](auto const& definition) { id.member(owner, definition, name); }, declaration.definition);
         return std::move(id.text_);
@@ -711,7 +711,7 @@ private:
 };
 
 // Документация члена или типа под сведениями о нём.
-void append_documentation(std::wstring& html, MemberDocumentation const& documentation) {
+void append_documentation(std::wstring& html, member_documentation const& documentation) {
     if (!documentation.deprecated.empty()) {
         html += L"<p><b>Deprecated:</b> ";
         append_text(html, documentation.deprecated);
@@ -748,7 +748,7 @@ public:
     SignatureWriter(std::wstring& html, TypesModel const& types, md::TypeDef const& source)
         : html_(html), types_(types), source_(source) {}
 
-    void write(MemberDeclaration const& declaration, std::string_view name) {
+    void write(member_declaration const& declaration, std::string_view name) {
         std::visit([this, name](auto const& definition) { member(definition, name); }, declaration.definition);
     }
 
@@ -950,11 +950,11 @@ std::wstring TypesModel::typeInfo(Namespace const& space, TypeEntry const& type)
     html += L"<br>Member of ";
     append_bold(html, space.name);
 
-    auto const& types = editor_.data_->profile.types;
+    auto const& types = editor_.data_->prof.types;
     auto const found = types.find(full_name(type.def));
     append_filter(html, found == types.end() ? nullptr : &found->second);
     if (auto const documentation = editor_.data_->documentation.find(type.def, DocumentationId::of(type.def))) {
-        append_documentation(html, *documentation);
+        append_documentation(html, **documentation);
     }
     return html;
 }
@@ -968,11 +968,11 @@ public:
           enum_(md::get_category(entry.def) == md::category::enum_type) {
         auto declared = declared_members_of(entry.def);
         if (enum_) {
-            groups_.push_back({"Values", MemberKind::Constant, &constantIcon, std::move(declared.constants)});
+            groups_.push_back({"Values", member_kind::Constant, &constantIcon, std::move(declared.constants)});
         } else {
-            groups_.push_back({"Properties", MemberKind::Property, &propertyIcon, std::move(declared.properties)});
-            groups_.push_back({"Methods", MemberKind::Method, &methodIcon, std::move(declared.methods)});
-            groups_.push_back({"Events", MemberKind::Event, &eventIcon, std::move(declared.events)});
+            groups_.push_back({"Properties", member_kind::Property, &propertyIcon, std::move(declared.properties)});
+            groups_.push_back({"Methods", member_kind::Method, &methodIcon, std::move(declared.methods)});
+            groups_.push_back({"Events", member_kind::Event, &eventIcon, std::move(declared.events)});
         }
         // Пустая группа не показывается.
         std::erase_if(groups_, [](Group const& group) { return group.names.empty(); });
@@ -1012,21 +1012,21 @@ public:
 
     void toggleChecked(uint32_t index) override {
         auto const [group, member] = locate(index);
-        Profile& profile = editor_.data_->profile;
+        profile& prof = editor_.data_->prof;
         bool const styled = editor_.data_->styled.contains(name_);
         if (member == npos) {
             // Отмеченная целиком группа снимается, иначе отмечается целиком.
             bool const on = groupCheck(*group) != Check::Checked;
             for (std::string_view const name : group->names) {
                 if (allows(name) != on) {
-                    mark_member(profile, name_, name, on, enum_, styled);
+                    mark_member(prof, name_, name, on, enum_, styled);
                 }
             }
         } else {
             std::string_view const name = group->names[member];
-            mark_member(profile, name_, name, !allows(name), enum_, styled);
+            mark_member(prof, name_, name, !allows(name), enum_, styled);
         }
-        entry_.listed = profile.types.contains(name_);
+        entry_.listed = prof.types.contains(name_);
         editor_.revision.set(editor_.revision.get() + 1);
     }
 
@@ -1050,11 +1050,11 @@ public:
         // виртуальностью, — и интерфейсное тогда не показывается.
         std::string_view const name = group->names[member];
         auto declarations = declarations_of(entry_.def, group->kind, name);
-        if (std::ranges::any_of(declarations, [this](MemberDeclaration const& each) { return each.source == entry_.def; })) {
-            std::erase_if(declarations, [this](MemberDeclaration const& each) { return each.source != entry_.def; });
+        if (std::ranges::any_of(declarations, [this](member_declaration const& each) { return each.source == entry_.def; })) {
+            std::erase_if(declarations, [this](member_declaration const& each) { return each.source != entry_.def; });
         }
-        std::vector<std::pair<std::wstring, std::optional<MemberDocumentation>>> lines;
-        for (MemberDeclaration const& declaration : declarations) {
+        std::vector<std::pair<std::wstring, wxl::core::nullable<member_documentation const>>> lines;
+        for (member_declaration const& declaration : declarations) {
             std::wstring line;
             SignatureWriter {line, *editor_.types_, declaration.source}.write(declaration, name);
             if (std::ranges::find(lines, line, &decltype(lines)::value_type::first) == lines.end()) {
@@ -1077,7 +1077,7 @@ public:
                 if (lines.size() > 1) {
                     html += L"<p>" + line + L"</p>";
                 }
-                append_documentation(html, *documentation);
+                append_documentation(html, **documentation);
             }
         }
         return html;
@@ -1088,7 +1088,7 @@ private:
 
     struct Group {
         std::string_view title;
-        MemberKind kind;
+        member_kind kind;
         RowIcon const* icon = nullptr;
         std::vector<std::string_view> names;
         bool expanded = true;
@@ -1098,7 +1098,7 @@ private:
 
     // Перечисление, которого профиль не называет, генератор выпускает целиком.
     bool allows(std::string_view member) const {
-        auto const& types = editor_.data_->profile.types;
+        auto const& types = editor_.data_->prof.types;
         auto const found = types.find(name_);
         return found == types.end() ? enum_ : found->second.allows(member);
     }
@@ -1146,7 +1146,7 @@ public:
         std::map<std::string_view, std::vector<std::string_view>> styles;  // цель -> ключи
         std::vector<std::string_view> plain;
         std::vector<std::string_view> theme;
-        for (DictionaryResource const& declared : editor_.data_->resources) {
+        for (dictionary_resource const& declared : editor_.data_->resources) {
             if (declared.scoped || !seen.insert(declared.key).second) {
                 continue;
             }
@@ -1197,7 +1197,7 @@ public:
                     .icon = at.section->icon,
                     .expander = at.section->expanded ? Expander::Expanded : Expander::Collapsed};
         }
-        bool const chosen = editor_.data_->profile.brushes.allows(brushes_[at.key]);
+        bool const chosen = editor_.data_->prof.brushes.allows(brushes_[at.key]);
         return {.text = brushes_[at.key],
                 .depth = 1,
                 .icon = &brushIcon,
@@ -1220,33 +1220,33 @@ public:
             return;
         }
 
-        Profile& profile = editor_.data_->profile;
+        profile& prof = editor_.data_->prof;
         if (!at.group) {
-            toggle(profile.brushes, brushes_[at.key], brushes_);
+            toggle(prof.brushes, brushes_[at.key], brushes_);
         } else {
             StyleGroup const& group = *at.group;
             std::string_view const key = group.keys[at.key];
             if (group.type.empty()) {
                 return;
             }
-            if (auto const type = profile.types.find(group.type); type != profile.types.end()) {
-                auto const styles = profile.styles.try_emplace(group.type, MemberFilter::all()).first;
+            if (auto const type = prof.types.find(group.type); type != prof.types.end()) {
+                auto const styles = prof.styles.try_emplace(group.type, member_filter::all()).first;
                 toggle(styles->second, key, group.keys);
                 // Тип без членов и без стилей не генерирует ничего — уходит из
                 // профиля вместе с пустым списком стилей.
-                auto const empty = [](MemberFilter const& filter) {
-                    return filter.kind == MemberFilter::Kind::Allow && filter.names.empty();
+                auto const empty = [](member_filter const& filter) {
+                    return filter.kind == member_filter::kind_t::Allow && filter.names.empty();
                 };
                 if (empty(styles->second) && empty(type->second)) {
-                    profile.styles.erase(styles);
-                    profile.types.erase(type);
+                    prof.styles.erase(styles);
+                    prof.types.erase(type);
                     types_.relist(group.type);
                 }
             } else {
                 // Без своего типа стиль не генерируется: отметка вносит тип
                 // корнем обхода без собственных членов и с одним этим стилем.
-                profile.types.emplace(group.type, MemberFilter::allow({}));
-                profile.styles.insert_or_assign(group.type, MemberFilter::allow({std::string {key}}));
+                prof.types.emplace(group.type, member_filter::allow({}));
+                prof.styles.insert_or_assign(group.type, member_filter::allow({std::string {key}}));
                 types_.relist(group.type);
             }
         }
@@ -1301,18 +1301,18 @@ private:
         if (group.type.empty()) {
             return Check::None;
         }
-        Profile const& profile = editor_.data_->profile;
-        if (!profile.types.contains(group.type)) {
+        profile const& prof = editor_.data_->prof;
+        if (!prof.types.contains(group.type)) {
             return Check::Unchecked;
         }
-        auto const filter = profile.styles.find(group.type);
-        return filter == profile.styles.end() || filter->second.allows(key) ? Check::Checked : Check::Unchecked;
+        auto const filter = prof.styles.find(group.type);
+        return filter == prof.styles.end() || filter->second.allows(key) ? Check::Checked : Check::Unchecked;
     }
 
     // Отметка в списке, который без записи значит «все»: снятая превращает
     // «все» в список остальных, а список, где выбрано всё, снова становится «все».
-    static void toggle(MemberFilter& filter, std::string_view key, std::vector<std::string_view> const& all) {
-        if (filter.kind == MemberFilter::Kind::Allow) {
+    static void toggle(member_filter& filter, std::string_view key, std::vector<std::string_view> const& all) {
+        if (filter.kind == member_filter::kind_t::Allow) {
             std::string const name {key};
             if (!filter.names.erase(name)) {
                 filter.names.insert(name);
@@ -1325,10 +1325,10 @@ private:
                     names.emplace(each);
                 }
             }
-            filter = MemberFilter::allow(std::move(names));
+            filter = member_filter::allow(std::move(names));
         }
         if (std::ranges::all_of(all, [&filter](std::string_view each) { return filter.allows(each); })) {
-            filter = MemberFilter::all();
+            filter = member_filter::all();
         }
     }
 
@@ -1427,17 +1427,17 @@ wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) const {
 }
 Editor::~Editor() = default;
 
-intrusive_ptr<Editor> Editor::open(std::filesystem::path const& profile) {
+intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     intrusive_ptr<Editor> editor {new Editor {}, /*add_ref=*/false};
 
-    auto const resolved = resolve_profiles({profile}, default_nuget_root());
+    auto const resolved = resolve_profiles({prof}, default_nuget_root());
     std::vector<std::string> files;
     files.reserve(resolved.metadata.size());
     for (auto&& file : resolved.metadata) {
         files.push_back(file.string());
     }
 
-    editor->data_ = std::make_unique<Data>(load_profile(profile), files,
+    editor->data_ = std::make_unique<Data>(load_profile(prof), files,
                                          [raw = editor.get()] { raw->documentationPending.set(true); });
     for (auto&& dictionary : resolved.resources) {
         auto declared = dictionary_resources(dictionary);
@@ -1449,9 +1449,9 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& profile) {
     editor->info.follow(editor->selection, editor->revision, [](Selection const& chosen, uint32_t) {
         return chosen.model ? chosen.model->describe() : std::wstring {};
     });
-    auto const file = profile.filename().wstring();
+    auto const file = prof.filename().wstring();
     editor->title.set(std::u16string {file.begin(), file.end()} + u" — wxl.gen.ui");
-    editor->path.set(std::filesystem::path {profile}.make_preferred().u16string());
+    editor->path.set(std::filesystem::path {prof}.make_preferred().u16string());
     return editor;
 }
 

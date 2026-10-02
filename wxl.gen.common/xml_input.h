@@ -3,7 +3,6 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,7 +25,7 @@ std::vector<std::pair<std::string, std::string>> nuspec_dependencies(
 // everything it finds and interprets none of it: what a writer makes of a
 // Thickness, a Storyboard or a converter is that writer's business, and the
 // walk over a 3 MB document happens once instead of once per interest.
-struct DictionaryResource {
+struct dictionary_resource {
     std::string key;
     std::string type;         // the element's local name: SolidColorBrush, Style, Double...
     std::string target_type;  // styles: the TargetType, still carrying its prefix, if any
@@ -38,11 +37,11 @@ struct DictionaryResource {
 };
 
 // Every resource in the dictionary that carries a key, in document order.
-std::vector<DictionaryResource> dictionary_resources(std::filesystem::path const& dictionary);
+std::vector<dictionary_resource> dictionary_resources(std::filesystem::path const& dictionary);
 
 // One member of a .NET documentation file. Text as written, with its runs of
 // white space folded into single spaces.
-struct MemberDocumentation {
+struct member_documentation {
     std::string summary;
     std::vector<std::pair<std::string, std::string>> params;  // name, text
     std::string returns;
@@ -54,16 +53,18 @@ struct MemberDocumentation {
 // finds where each <member> stands and what it is called; a member is parsed
 // when it is first asked for, or by parse_some(), which takes the rest a slice
 // at a time.
-class DocumentationFile {
+class documentation_file {
 public:
-    explicit DocumentationFile(std::filesystem::path const& file);
-    DocumentationFile(DocumentationFile&&) noexcept;
-    DocumentationFile& operator=(DocumentationFile&&) noexcept;
-    ~DocumentationFile();
+    explicit documentation_file(std::filesystem::path const& file);
+    documentation_file(documentation_file&&) noexcept;
+    documentation_file& operator=(documentation_file&&) noexcept;
+    ~documentation_file();
 
     // The member by its documentation ID ("T:Ns.Type",
-    // "M:Ns.Type.Method(System.String)"), if the file has it.
-    std::optional<MemberDocumentation> find(std::string_view id);
+    // "M:Ns.Type.Method(System.String)"), or null when the file has no such
+    // member. Read off the member's element the first time it is asked for
+    // and kept by the file, so good for as long as the file is.
+    member_documentation const* find(std::string_view id);
 
     // Parses members not parsed yet until the deadline passes, passing over
     // those find() has parsed already; whether any are left.
@@ -72,6 +73,6 @@ public:
     std::size_t size() const noexcept;
 
 private:
-    struct State;
-    std::unique_ptr<State> state_;
+    struct state;
+    std::unique_ptr<state> state_;
 };
