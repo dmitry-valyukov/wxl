@@ -296,145 +296,12 @@ struct Crawler {
         auto const filter = result.surface.at(type);
 
         if (cat == category::class_type || cat == category::interface_type) {
-            if (auto const base = type.Extends()) {
-                enqueue(base, type);
-            }
-
-            // WinRT declares a class's instance members on the interfaces
-            // it implements (Command lives on IButtonBase, not on
-            // ButtonBase), while a profile names the *class*. So a class
-            // hands its own member filter down to the interfaces it
-            // implements directly, merged with whatever the profiles say
-            // about those interfaces themselves.
-            for (auto&& impl : type.InterfaceImpl()) {
-                auto const resolved = resolve_interface(impl.Interface());
-                if (!resolved) {
-                    enqueue(impl.Interface(), type);  // generic instantiation
-                    continue;
-                }
-                depend(type, resolved);
-                if (cat == category::class_type || is_listed_interface(type)) {
-                    auto& implemented = result.dropped_interfaces[type];
-                    if (std::find(implemented.begin(), implemented.end(), resolved) ==
-                        implemented.end()) {
-                        implemented.push_back(resolved);
-                    }
-                }
-                auto inherited_filter = filter;
-                inherited_filter.merge(listed_filter(resolved));
-                enqueue(resolved, inherited_filter);
-            }
-
-            // A property wxl adds where the metadata has none. Its value
-            // type is named by the profile and enqueued here: nothing else
-            // in the walk mentions it, and it still has to be generated.
+            process_inheritance(type, cat, filter);
             if (cat == category::class_type) {
-                if (auto const added = profiles.synthetic.find(full_name(type));
-                    added != profiles.synthetic.end()) {
-                    for (auto&& member : added->second) {
-                        // A value type that is a signature element rather
-                        // than a TypeDef (String) resolves to nothing here
-                        // and drags nothing in; the generator maps it by
-                        // name, and reports the name it cannot map. Only a
-                        // qualified name is a type to look up -- the cache
-                        // treats an unqualified one as an error.
-                        auto const value_type = member.type.contains('.')
-                                                    ? db.find(member.type)
-                                                    : TypeDef{};
-                        if (value_type) {
-                            depend(type, value_type);
-                            enqueue(value_type);
-                            result.synthetic[type].push_back({member, value_type});
-                        } else {
-                            result.synthetic[type].push_back({member, {}});
-                        }
-                        result.property_names.insert(member.name);
-                    }
-                }
-                if (auto const setters = profiles.setter_methods.find(full_name(type));
-                    setters != profiles.setter_methods.end()) {
-                    for (auto&& setter : setters->second) {
-                        TypeDef const value_type =
-                            setter.type.empty() ? TypeDef{} : db.find(setter.type);
-                        if (value_type) {
-                            depend(type, value_type);
-                            enqueue(value_type);
-                        }
-                        result.setter_methods[type].push_back({setter, value_type});
-                        result.property_names.insert(setter.method.substr(3));
-                    }
-                }
+                process_profile_additions(type);
+                process_activation_factory(type, filter);
             }
-
-            // Static members are filtered by what the profile said about
-            // the class, exactly like the instance ones: a profile names
-            // OverlappedPresenter.Create, not IOverlappedPresenterStatics.
-            if (cat == category::class_type) {
-                for (auto&& iface : interfaces_named_by(type, "StaticAttribute", db)) {
-                    depend(type, iface);
-                    auto& known = result.statics[type];
-                    if (std::find(known.begin(), known.end(), iface) == known.end()) {
-                        known.push_back(iface);
-                    }
-                    auto statics_filter = filter;
-                    statics_filter.merge(listed_filter(iface));
-                    enqueue(iface, statics_filter);
-                }
-
-                // A constructor is not a member a profile can name -- it has
-                // no name -- so the factory interface comes in whole, and
-                // what it drags in with it is the types its constructors
-                // take. A constructor whose signature wxl cannot map yet is
-                // dropped by the generator, and reported there.
-                for (auto&& iface : interfaces_named_by(type, "ActivatableAttribute", db)) {
-                    depend(type, iface);
-                    auto& known = result.factories[type];
-                    if (std::find(known.begin(), known.end(), iface) == known.end()) {
-                        known.push_back(iface);
-                    }
-                    enqueue(iface, MemberFilter::all());
-                }
-            }
-
-            for (auto&& property : type.PropertyList()) {
-                if (is_dependency_property_accessor(property) ||
-                    !filter.allows(property.Name())) {
-                    continue;
-                }
-                if (is_deprecated_member(property)) {
-                    result.deprecated.insert(
-                        std::format("{}.{}", full_name(type), property.Name()));
-                    continue;
-                }
-                result.property_names.insert(std::string(property.Name()));
-                result.members[type].insert(std::string(property.Name()));
-                visit_type_sig(property.Type().Type(), type);
-            }
-
-            for (auto&& event : type.EventList()) {
-                if (!filter.allows(event.Name())) {
-                    continue;
-                }
-                if (is_deprecated_member(event)) {
-                    result.deprecated.insert(std::format("{}.{}", full_name(type), event.Name()));
-                    continue;
-                }
-                result.event_names.insert(std::string(event.Name()));
-                result.members[type].insert(std::string(event.Name()));
-                enqueue(event.EventType(), type);
-            }
-
-            for (auto&& method : type.MethodList()) {
-                if (!is_plain_method(method) || !filter.allows(method.Name())) {
-                    continue;
-                }
-                if (is_deprecated(method)) {
-                    result.deprecated.insert(std::format("{}.{}", full_name(type), method.Name()));
-                    continue;
-                }
-                result.members[type].insert(std::string(method.Name()));
-                visit_method_signature(method.Signature(), type);
-            }
+            process_members(type, filter);
         } else if (cat == category::delegate_type) {
             for (auto&& method : type.MethodList()) {
                 if (method.Name() == "Invoke") {
@@ -456,6 +323,152 @@ struct Crawler {
                     result.members[type].insert(std::string(field.Name()));
                 }
             }
+        }
+    }
+
+    // A class's or an interface's base, and the interfaces it implements.
+    //
+    // WinRT declares a class's instance members on the interfaces it
+    // implements (Command lives on IButtonBase, not on ButtonBase), while a
+    // profile names the *class*. So a class hands its own member filter down
+    // to the interfaces it implements directly, merged with whatever the
+    // profiles say about those interfaces themselves.
+    void process_inheritance(TypeDef const& type, category cat, MemberFilter const& filter) {
+        if (auto const base = type.Extends()) {
+            enqueue(base, type);
+        }
+
+        for (auto&& impl : type.InterfaceImpl()) {
+            auto const resolved = resolve_interface(impl.Interface());
+            if (!resolved) {
+                enqueue(impl.Interface(), type);  // generic instantiation
+                continue;
+            }
+            depend(type, resolved);
+            if (cat == category::class_type || is_listed_interface(type)) {
+                auto& implemented = result.dropped_interfaces[type];
+                if (std::find(implemented.begin(), implemented.end(), resolved) ==
+                    implemented.end()) {
+                    implemented.push_back(resolved);
+                }
+            }
+            auto inherited_filter = filter;
+            inherited_filter.merge(listed_filter(resolved));
+            enqueue(resolved, inherited_filter);
+        }
+    }
+
+    // What a profile adds to a class beyond its metadata: properties wxl has
+    // where the metadata has none, and methods written as tags. Their value
+    // types are named by the profile and enqueued here: nothing else in the
+    // walk mentions them, and they still have to be generated.
+    void process_profile_additions(TypeDef const& type) {
+        if (auto const added = profiles.synthetic.find(full_name(type));
+            added != profiles.synthetic.end()) {
+            for (auto&& member : added->second) {
+                // A value type that is a signature element rather
+                // than a TypeDef (String) resolves to nothing here
+                // and drags nothing in; the generator maps it by
+                // name, and reports the name it cannot map. Only a
+                // qualified name is a type to look up -- the cache
+                // treats an unqualified one as an error.
+                auto const value_type = member.type.contains('.') ? db.find(member.type) : TypeDef{};
+                if (value_type) {
+                    depend(type, value_type);
+                    enqueue(value_type);
+                    result.synthetic[type].push_back({member, value_type});
+                } else {
+                    result.synthetic[type].push_back({member, {}});
+                }
+                result.property_names.insert(member.name);
+            }
+        }
+        if (auto const setters = profiles.setter_methods.find(full_name(type));
+            setters != profiles.setter_methods.end()) {
+            for (auto&& setter : setters->second) {
+                TypeDef const value_type = setter.type.empty() ? TypeDef{} : db.find(setter.type);
+                if (value_type) {
+                    depend(type, value_type);
+                    enqueue(value_type);
+                }
+                result.setter_methods[type].push_back({setter, value_type});
+                result.property_names.insert(setter.method.substr(3));
+            }
+        }
+    }
+
+    // What a class reaches through its activation factory rather than
+    // through an object: the interfaces of its static members and those of
+    // its parameterised constructors.
+    void process_activation_factory(TypeDef const& type, MemberFilter const& filter) {
+        // Static members are filtered by what the profile said about
+        // the class, exactly like the instance ones: a profile names
+        // OverlappedPresenter.Create, not IOverlappedPresenterStatics.
+        for (auto&& iface : interfaces_named_by(type, "StaticAttribute", db)) {
+            depend(type, iface);
+            auto& known = result.statics[type];
+            if (std::find(known.begin(), known.end(), iface) == known.end()) {
+                known.push_back(iface);
+            }
+            auto statics_filter = filter;
+            statics_filter.merge(listed_filter(iface));
+            enqueue(iface, statics_filter);
+        }
+
+        // A constructor is not a member a profile can name -- it has
+        // no name -- so the factory interface comes in whole, and
+        // what it drags in with it is the types its constructors
+        // take. A constructor whose signature wxl cannot map yet is
+        // dropped by the generator, and reported there.
+        for (auto&& iface : interfaces_named_by(type, "ActivatableAttribute", db)) {
+            depend(type, iface);
+            auto& known = result.factories[type];
+            if (std::find(known.begin(), known.end(), iface) == known.end()) {
+                known.push_back(iface);
+            }
+            enqueue(iface, MemberFilter::all());
+        }
+    }
+
+    // The properties, events and methods the type declares itself that the
+    // filter keeps, and the types their signatures name.
+    void process_members(TypeDef const& type, MemberFilter const& filter) {
+        for (auto&& property : type.PropertyList()) {
+            if (is_dependency_property_accessor(property) || !filter.allows(property.Name())) {
+                continue;
+            }
+            if (is_deprecated_member(property)) {
+                result.deprecated.insert(std::format("{}.{}", full_name(type), property.Name()));
+                continue;
+            }
+            result.property_names.insert(std::string(property.Name()));
+            result.members[type].insert(std::string(property.Name()));
+            visit_type_sig(property.Type().Type(), type);
+        }
+
+        for (auto&& event : type.EventList()) {
+            if (!filter.allows(event.Name())) {
+                continue;
+            }
+            if (is_deprecated_member(event)) {
+                result.deprecated.insert(std::format("{}.{}", full_name(type), event.Name()));
+                continue;
+            }
+            result.event_names.insert(std::string(event.Name()));
+            result.members[type].insert(std::string(event.Name()));
+            enqueue(event.EventType(), type);
+        }
+
+        for (auto&& method : type.MethodList()) {
+            if (!is_plain_method(method) || !filter.allows(method.Name())) {
+                continue;
+            }
+            if (is_deprecated(method)) {
+                result.deprecated.insert(std::format("{}.{}", full_name(type), method.Name()));
+                continue;
+            }
+            result.members[type].insert(std::string(method.Name()));
+            visit_method_signature(method.Signature(), type);
         }
     }
 
