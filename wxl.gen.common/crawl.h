@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 // winmd_reader.h includes <windows.h> as it is, and its min/max macros then
@@ -158,3 +159,16 @@ struct DeclaredMembers {
 };
 
 DeclaredMembers declared_members_of(winmd::reader::TypeDef const& type);
+
+// One declaration of a member: the type that declares it -- the type itself or
+// an interface it implements -- and its definition there.
+struct MemberDeclaration {
+    winmd::reader::TypeDef source;
+    std::variant<winmd::reader::Property, winmd::reader::MethodDef, winmd::reader::Event, winmd::reader::Field>
+        definition;
+};
+
+// Every declaration of one member of declared_members_of: a method once per
+// overload.
+std::vector<MemberDeclaration> declarations_of(winmd::reader::TypeDef const& type, MemberKind kind,
+                                               std::string_view name);

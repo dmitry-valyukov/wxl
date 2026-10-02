@@ -127,11 +127,12 @@ struct Dsl {
     };
     std::map<std::string, std::vector<Attached>> attached;
 
-    // Enum type (spelled as the value types above spell it, `wxl::Orientation`)
-    // -> its enumerators, each as the member name a tag surfaces it under and
-    // the enumerator's own name. A tag of such a type carries the values it
-    // accepts, so the DSL writes `orientation.horizontal` where the enum type
-    // would otherwise be named in full.
+    // Enum type (spelled as the value types above spell it, `Orientation`)
+    // -> its enumerators, each as the member name the syntax surfaces it under
+    // and the enumerator's own name. A property over such a type carries the
+    // values it accepts (impl::enum_values), so the DSL writes
+    // `orientation.horizontal` where the enum type would otherwise be named in
+    // full.
     std::map<std::string, std::vector<std::pair<std::string, std::string>>> enumerators;
 
     std::set<std::string> includes;  // public headers the value types live in
@@ -213,8 +214,9 @@ void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted);
 // schema_surface.cpp: one compile-only line per element of it, which is what
 // keeps the schema honest. Every new type and every new member lands in both
 // files by the same run, so coverage cannot drift from the surface. The Dsl
-// comes in for the enumerators a tag of enum type carries; everything else
-// the schema needs is in the Schema itself.
+// comes in for the enumerators an anchor of enum type carries, which the test
+// reaches through the anchor; everything else the schema needs is in the
+// Schema itself.
 void write_schema(Output const& out, Schema const& schema, Dsl const& dsl, Emitted& emitted);
 
 // CMakeLists.txt adding everything above to the consuming target.
