@@ -120,8 +120,8 @@ std::vector<event_args_info> topological_sort(std::vector<event_args_info> class
 
 // What an args view's own signatures need declared, and how. A wrapper type
 // is forward-declared rather than included; everything else -- enums,
-// structs, collections.h, <optional> -- comes in as the include the type
-// mapping named.
+// structs, the standard headers a projection names -- comes in as the include
+// the type mapping named.
 struct header_needs {
     std::set<std::string> includes;
     std::set<std::string> forwards;     // wrapper types a signature names
@@ -273,7 +273,7 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
     }
 
     if (!collection_definitions.empty()) {
-        std::print(out, "\n// Collection specializations no class file claimed.\n");
+        std::print(out, "\n");
         for (auto&& element : collection_definitions) {
             std::print(out, "template class Collection<{}>;\n", element);
         }

@@ -8,6 +8,23 @@
 // This is the one side of wxl where winrt:: names are allowed to appear:
 // the real cppwinrt projection types are used directly here, and the cost
 // of parsing their headers is paid inside wxl's own build only.
+//
+// A generated level's Impl holds one field per interface its class
+// implements *directly* and that survived the profile filter: an interface
+// whose every member was filtered out needs no field, no lazy
+// QueryInterface slot, no code. The base classes' interfaces belong to their
+// own levels.
+//
+// The exception is the level's own default interface. Its field is declared
+// as the projection *class*, and it exists whether or not any member
+// survived, because that is what a call hands the object over as: a
+// parameter typed as the class then binds to it directly, with no
+// QueryInterface and no conversion. Calling through it is equally free --
+// the class derives from that interface, so a method the interface declares
+// is reached without touching the held pointer. Methods of any *other*
+// interface reached through the class would not be: cppwinrt gets to those
+// through a conversion operator that queries every time, which is exactly
+// why every other interface keeps a field of its own.
 
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Windows.Foundation.h>

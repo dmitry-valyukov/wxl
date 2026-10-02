@@ -48,11 +48,9 @@ void write_all(Output const& out, Model const& model,
     std::filesystem::create_directories(out.dir);
 
     gen::Emitted emitted;
-    gen::write_collections(out, emitted);
     gen::write_key_enums(out, model, emitted);
     gen::write_tags(out, model, emitted);
     gen::write_enums_and_structs(out, model, emitted);
-    gen::write_interfaces(out, model, emitted);
 
     // The args views come after the classes: which file declares a type, and
     // which Collection specializations already have a definition, is settled

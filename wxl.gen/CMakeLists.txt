@@ -31,14 +31,12 @@ wxl_add_module_library(wxl.gen STATIC
         gen/projection.cpp
         gen/members.cpp
 
-        gen/collections.cpp
         gen/styles.cpp
         gen/symbols.cpp
         gen/keys.cpp
         gen/tags.cpp
         gen/enums_structs.cpp
         gen/event_args.cpp
-        gen/interfaces.cpp
         gen/classes.cpp
         gen/dsl.cpp
         gen/schema.cpp

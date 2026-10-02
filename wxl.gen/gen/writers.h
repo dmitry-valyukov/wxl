@@ -51,17 +51,10 @@ struct ClassOutput {
 void write_event_args(Output const& out, Model const& model, ClassOutput const& classes,
                       Emitted& emitted);
 
-// Interfaces.h -- reference list only, no C++ declarations yet.
-void write_interfaces(Output const& out, Model const& model, Emitted& emitted);
-
 // <Class>.h / <Class>.impl.h / <Class>.cpp for every wrapped class: the
 // public wrapper hierarchy and the matching `Impl` chain.
 void write_classes(Output const& out, Model const& model, Emitted& emitted,
                    ClassOutput& produced);
-
-// collections.h -- the STA-allocator-backed container aliases generated
-// code uses in place of the std ones.
-void write_collections(Output const& out, Emitted& emitted);
 
 // styles.h / styles.cpp -- the framework's named styles as a path,
 // `styles.textBlock.title`. Read out of the XAML resource dictionaries the

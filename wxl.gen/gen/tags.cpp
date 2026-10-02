@@ -28,11 +28,7 @@ void write_tags(Output const& out, Model const& model, Emitted& emitted) {
         }
     }
 
-    std::print(file, R"({}// A value that says which property it belongs to, so that the builder
-// syntax can take it without the property name: `Margin{{20}}` is a
-// Thickness that knows it is a margin. The property itself keeps the type
-// the metadata gives it -- the tag exists only for the unnamed form.
-#pragma once
+    std::print(file, R"({}#pragma once
 )",
                banner);
     for (auto&& include : includes) {

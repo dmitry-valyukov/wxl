@@ -543,8 +543,7 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
         includes.insert("../impl/member.h");
     }
 
-    std::print(out, R"({}// Public wrappers for {} -- in inheritance order, so every base class
-// is already complete where the class deriving from it appears.
+    std::print(out, R"({}// Public wrappers for {}.
 #pragma once
 
 )",
@@ -618,11 +617,9 @@ class {} : public {}
     using base_t = {};
 
 public:
-    // Defined in {}.impl.h -- this header deliberately never names a
-    // winrt:: type, so including it stays cheap.
     class Impl;
 )",
-                   full_name(info.type), info.name, info.base_name, info.base_name, ns);
+                   full_name(info.type), info.name, info.base_name, info.base_name);
 
         // Activated or composed, the class is created the same way from
         // outside: a public default constructor. Which of the two it is
@@ -685,7 +682,7 @@ public:
         }
 
         if (!info.positional.empty()) {
-            std::print(out, "\n    // Unnamed constructor arguments, routed by type alone.\n");
+            std::print(out, "\n");
             if (info.base_has_positional) {
                 // Otherwise these would hide the routes the base levels
                 // claim, and `Button { hAlign.center }` would stop
@@ -703,16 +700,6 @@ public:
             // deriving from it can construct one, so there is no activation
             // to do here.
             std::print(out, "    {}();\n\n", info.name);
-        } else if (info.construction == Construction::PublicFactory) {
-            std::print(out,
-                       "    // No default constructor: every constructor the real {}\n"
-                       "    // declares takes arguments, and they are above.\n\n",
-                       info.type.TypeName());
-        } else if (info.construction == Construction::None) {
-            std::print(out,
-                       "    // No default constructor: the real {} declares none,\n"
-                       "    // instances only ever arrive from somewhere else.\n\n",
-                       info.type.TypeName());
         }
 
         std::print(out, R"(    explicit {}(Impl* impl) noexcept;
@@ -729,8 +716,7 @@ public:
         // template itself -- exactly the per-translation-unit cost the
         // library exists to avoid; with it, the one definition compiled
         // inside wxl's own build is what every use links against.
-        std::print(out, "\n// The collection specializations this namespace hands out. Their\n"
-                        "// bodies are compiled once, inside wxl, never here.\n");
+        std::print(out, "\n");
         for (auto&& element : collection_elements) {
             std::print(out, "extern template class Collection<{}>;\n", element);
         }
@@ -747,8 +733,7 @@ public:
         for (auto&& info : classes) {
             if (info.statics_only) continue;
             if (!announced) {
-                std::print(out, "\n// Reading one of these out of an event's sender. The bodies\n"
-                                "// are compiled once, inside wxl, never here.\n");
+                std::print(out, "\n");
                 announced = true;
             }
             std::print(out, "extern template {0} Object::try_as<{0}>() const;\n", info.name);
@@ -765,23 +750,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
 
     auto const includes = private_includes(ns, classes, group_of);
 
-    std::print(out, R"({}// Private side of {} -- never included by consuming code.
-//
-// One field per interface a level implements *directly* and that survived
-// the profile filter: an interface whose every member was filtered out
-// needs no field, no lazy QueryInterface slot, no code. The base classes'
-// interfaces belong to their own levels.
-//
-// The exception is the level's own default interface. Its field is declared
-// as the projection *class*, and it exists whether or not any member
-// survived, because that is what a call hands the object over as: a
-// parameter typed as the class then binds to it directly, with no
-// QueryInterface and no conversion. Calling through it is equally free --
-// the class derives from that interface, so a method the interface declares
-// is reached without touching the held pointer. Methods of any *other*
-// interface reached through the class would not be: cppwinrt gets to those
-// through a conversion operator that queries every time, which is exactly
-// why every other interface keeps a field of its own.
+    std::print(out, R"({}// Private side of {}.
 #pragma once
 
 )",
@@ -920,8 +889,7 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
         // Deliberately here and not in a header: each name is used by
         // exactly one translation unit -- this one -- and a header would
         // make every including TU parse it.
-        std::print(out, "\nnamespace impl {{\n// Runtime class names, keyed on by the cached "
-                        "activation factory.\n");
+        std::print(out, "\nnamespace impl {{\n");
         for (auto&& info : classes) {
             if (info.construction == Construction::PublicActivation ||
                 info.construction == Construction::PublicComposition) {
@@ -1153,7 +1121,7 @@ struct runtime_class_name_of<{}::{}> {{
         // that file already includes everything the instantiation needs --
         // the element's own Impl, which is where Collection reads the WinRT
         // type it stands for.
-        std::print(out, "\n// Collection specializations defined here, once for the library.\n");
+        std::print(out, "\n");
         for (auto&& element : collection_elements) {
             std::print(out, "template class Collection<{}>;\n", element);
         }
@@ -1167,7 +1135,7 @@ struct runtime_class_name_of<{}::{}> {{
         for (auto&& info : classes) {
             if (info.statics_only) continue;
             if (!announced) {
-                std::print(out, "\n// try_as defined here, once for the library.\n");
+                std::print(out, "\n");
                 announced = true;
             }
             std::print(out, "template {0} Object::try_as<{0}>() const;\n", info.name);

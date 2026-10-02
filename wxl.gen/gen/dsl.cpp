@@ -21,10 +21,7 @@ namespace gen {
 void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
     auto const path = out.dir / "Members.h";
     auto file = open_output(path);
-    std::print(file, R"({}// The builder syntax's vocabulary: one tag per property and per event,
-// and the dispatch that turns an assignment to a tag into a call on the
-// object the enclosing constructor is building.
-#pragma once
+    std::print(file, R"({}#pragma once
 
 #include "../impl/member.h"
 #include "Tags.h"
@@ -125,7 +122,7 @@ struct EventAdder<EventKey::{0}> {{
     // The tags live in a namespace of their own so that consuming code brings
     // the vocabulary in deliberately rather than having every property name in
     // scope the moment it names a wxl type.
-    std::print(file, "\n}}  // namespace impl\n\nnamespace dsl {{\n\n// Property tags.\n");
+    std::print(file, "\n}}  // namespace impl\n\nnamespace dsl {{\n\n");
     for (auto&& [name, value_type] : dsl.property_value_type) {
         if (dsl.collection_element.count(name)) {
             // A collection that a setter can also be given in one go --
@@ -180,8 +177,7 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
     }
 
     if (!dsl.attached.empty()) {
-        std::print(file, "\n// Attached properties: written on the child, applied by the parent's\n"
-                         "// statics -- `Button {{ row = 1, column = 2 }}` inside a Grid.\n");
+        std::print(file, "\n");
         for (auto&& [name, attached] : dsl.attached) {
             std::print(file, "inline constexpr Property<PropertyKey::{}, {}> {};\n", name,
                        attached.value_type, member_name(name));
@@ -189,8 +185,7 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
     }
 
     if (!dsl.collection_element.empty()) {
-        std::print(file, "\n// Collection tags, subscripted rather than assigned to:\n"
-                         "// `children[first, second]`.\n");
+        std::print(file, "\n");
         for (auto&& [name, element] : dsl.collection_element) {
             if (dsl.property_value_type.count(name)) {
                 continue;  // already written above, carrying both forms
@@ -200,8 +195,7 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
         }
     }
 
-    std::print(file, "\n// Event tags: `on` + the metadata name, so an event is visibly not a\n"
-                     "// property inside the same braces.\n");
+    std::print(file, "\n");
     for (auto&& name : dsl.events) {
         std::print(file, "inline constexpr Event<EventKey::{}> on{};\n", name, name);
     }

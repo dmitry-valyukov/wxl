@@ -329,15 +329,7 @@ void write_struct_conversions(std::filesystem::path const& path,
         includes.insert(std::format("<winrt/{}.h>", s.type.TypeNamespace()));
     }
 
-    std::print(out, R"({}// Conversions between the generated structs and their WinRT originals,
-// joining the impl::to_winrt / impl::from_winrt overload sets that
-// impl/conversions.h opens. Private: generated .cpp files include this,
-// consuming code never does.
-//
-// A wxl struct is the ABI struct -- it is generated from the same metadata,
-// field for field -- so crossing is a bit_cast and the assert beside each
-// pair is what keeps that true.
-#pragma once
+    std::print(out, R"({}#pragma once
 
 )",
                banner);
