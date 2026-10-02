@@ -13,37 +13,38 @@ namespace gen {
 // One alias per tagged property the closure collected: a narrow profile that
 // never reaches Padding gets no Padding tag, and nothing here names a key
 // that PropertyKey.h does not declare.
+void analyze_tags(Model& model) {
+    model.tag_includes = {"../TaggedValue.h", "PropertyKey.h"};
+    for (auto&& tag : tagged_properties()) {
+        if (model.property_names.count(tag.property_name)) {
+            model.tags.push_back({tag.name, tag.value_type, tag.property_name});
+            if (!tag.include.empty()) {
+                model.tag_includes.insert(tag.include);
+            }
+        }
+    }
+}
+
 void write_tags(Output const& out, Model const& model, Emitted& emitted) {
     auto const path = out.dir / "Tags.h";
     auto file = open_output(path);
 
-    std::set<std::string> includes{"../TaggedValue.h", "PropertyKey.h"};
-    std::vector<TypeMap::Tag const*> present;
-    for (auto&& tag : tagged_properties()) {
-        if (model.property_names.count(std::string{tag.property_name})) {
-            present.push_back(&tag);
-            if (!tag.include.empty()) {
-                includes.insert(std::string{tag.include});
-            }
-        }
-    }
-
     std::print(file, R"({}#pragma once
 )",
                banner);
-    for (auto&& include : includes) {
+    for (auto&& include : model.tag_includes) {
         std::print(file, "#include \"{}\"\n", include);
     }
 
     std::print(file, "\nnamespace wxl {{\n\n");
-    for (auto&& tag : present) {
-        std::print(file, "using {} = TaggedValue<{}, PropertyKey::{}>;\n", tag->name,
-                   tag->value_type, tag->property_name);
+    for (auto&& tag : model.tags) {
+        std::print(file, "using {} = TaggedValue<{}, PropertyKey::{}>;\n", tag.name, tag.value_type,
+                   tag.property);
     }
     std::print(file, "\n}}  // namespace wxl\n");
 
     emitted.add(path);
-    std::print("generated {} ({} tags)\n", path.string(), present.size());
+    std::print("generated {} ({} tags)\n", path.string(), model.tags.size());
 }
 
 }  // namespace gen

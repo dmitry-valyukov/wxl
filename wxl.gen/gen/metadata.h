@@ -5,8 +5,8 @@
 #include "md.h"
 
 // The default interface of a class -- what a call hands the object over as --
-// and the name of the Impl field holding it. Asked by the class writer and by
-// the type mapping alike, so both read one answer.
+// and the name of the Impl field holding it. The class analysis asks once per
+// class; the type mapping reads the answer from the TypeIndex.
 
 namespace gen {
 
@@ -20,8 +20,6 @@ struct type_facts {
     std::string primary_field;
 };
 
-// Computed on first use and kept for the run -- the same type is asked about
-// by several writers.
-type_facts const& facts_of(md::TypeDef const& type);
+type_facts default_interface_of(md::TypeDef const& type);
 
 }  // namespace gen

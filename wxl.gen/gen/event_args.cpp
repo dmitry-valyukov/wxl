@@ -43,74 +43,53 @@ bool is_event_args_class(TypeDef const& type) {
 
 namespace {
 
-std::vector<TypeDef> collect_event_args(std::vector<TypeDef> const& classes) {
-    std::vector<TypeDef> result;
-    for (auto&& type : classes) {
-        if (is_event_args_class(type)) {
-            result.push_back(type);
-        }
-    }
-    return result;
-}
-
-// One member of an args view, together with the interface its body has to
-// query off abi_ -- which a class wrapper reads from a field instead, so
-// member_info has nowhere to carry it.
-struct args_member {
-    member_info info;
-    std::string winrt_interface;  // "winrt::Microsoft::UI::Xaml::IRoutedEventArgs"
-    std::string winrt_header;     // the projection header declaring it
-};
-
-struct event_args_info {
+// An args class as analysis sees it: its TypeDef, its base among the args
+// classes (empty for a root, which derives from EventArgsBase), and the
+// event_args_info a writer gets.
+struct args_source {
     TypeDef type;
-    TypeDef base;  // empty if this is a root -- derives from EventArgsBase
-    std::vector<args_member> members;
+    TypeDef base;
+    event_args_info info;
 };
 
 // `candidates` is keyed by TypeDef so a resolved base can be checked
 // for membership in the same EventArgs set this generator is emitting
 // wrappers for -- a base outside that set (typically just IInspectable
 // by way of no Extends() at all) makes this class a root.
-event_args_info analyze_event_args(TypeDef const& type, std::set<TypeDef> const& candidates) {
-    event_args_info info{type, {}};
+args_source read_event_args(TypeDef const& type, std::set<TypeDef> const& candidates) {
+    args_source source{type, {}, {std::string{type.TypeName()}, "EventArgsBase", {}}};
     if (auto const base = type.Extends()) {
         if (auto const resolved = md::find(base);
             resolved && candidates.count(resolved)) {
-            info.base = resolved;
+            source.base = resolved;
+            source.info.base = std::string{resolved.TypeName()};
         }
     }
-    return info;
+    return source;
 }
 
 // What an args view's own signatures need declared, and how. A wrapper type
 // is forward-declared rather than included; everything else -- enums,
 // structs, the standard headers a projection names -- comes in as the include
 // the type mapping named.
-struct header_needs {
-    std::set<std::string> includes;
-    std::set<std::string> forwards;     // wrapper types a signature names
-    std::set<std::string> collections;  // Collection<E> specializations used
-};
-
 void note_type(TypeUse const& use, std::set<std::string> const& class_headers,
-               header_needs& needs) {
+               event_args_file& file) {
     bool declared_elsewhere = false;
     for (auto&& include : use.public_includes) {
         if (class_headers.count(include)) {
             declared_elsewhere = true;
         } else {
-            needs.includes.insert(include);
+            file.includes.insert(include);
         }
     }
 
     // Only a type whose header was left out needs declaring: Object and the
     // hand-written wrappers come in as themselves.
     if (declared_elsewhere) {
-        needs.forwards.insert(use.is_collection ? use.element_type : use.value_type);
+        file.forwards.insert(use.is_collection ? use.element_type : use.value_type);
     }
     if (use.is_collection) {
-        needs.collections.insert(use.element_type);
+        file.collections.insert(use.element_type);
     }
 }
 
@@ -141,30 +120,26 @@ size_t member_count(std::vector<event_args_info> const& classes) {
     return total;
 }
 
-void write_event_args_file(std::filesystem::path const& path,
-                           std::vector<event_args_info> const& classes,
-                           header_needs const& needs) {
+void write_event_args_file(std::filesystem::path const& path, event_args_file const& file) {
     auto out = open_output(path);
 
     std::print(out, "{}#pragma once\n\n#include \"../events.h\"\n", banner);
-    write_includes(out, needs.includes);
+    write_includes(out, file.includes);
     std::print(out, "\nnamespace wxl {{\n");
 
-    if (!needs.forwards.empty()) {
+    if (!file.forwards.empty()) {
         std::print(out, "\n");
-        for (auto&& name : needs.forwards) {
+        for (auto&& name : file.forwards) {
             std::print(out, "class {};\n", name);
         }
     }
-    for (auto&& element : needs.collections) {
+    for (auto&& element : file.collections) {
         std::print(out, "\nextern template class Collection<{}>;\n", element);
     }
     std::print(out, "\n");
 
-    for (auto&& c : classes) {
-        auto const base = c.base ? std::string{c.base.TypeName()} : std::string{"EventArgsBase"};
-
-        std::print(out, "class {} : public {}\n{{\n", c.type.TypeName(), base);
+    for (auto&& c : file.classes) {
+        std::print(out, "class {} : public {}\n{{\n", c.name, c.base);
         if (!c.members.empty()) {
             std::print(out, "public:\n");
             for (auto&& member : c.members) {
@@ -176,16 +151,14 @@ void write_event_args_file(std::filesystem::path const& path,
         // the same non-owning view over the same ABI pointer, so no level
         // adds anything to construct.
         std::print(out, "protected:\n    using {}::{};\n\n    friend class Object::Impl;\n}};\n\n",
-                   base, base);
+                   c.base, c.base);
     }
 
     std::print(out, "}} // namespace wxl\n");
 }
 
 void write_event_args_source(std::filesystem::path const& path, std::string_view header,
-                             std::vector<event_args_info> const& classes,
-                             std::set<std::string> const& includes,
-                             std::set<std::string> const& collection_definitions) {
+                             event_args_file const& file) {
     auto out = open_output(path);
 
     // The private headers come first and the args header last, which is the
@@ -195,10 +168,10 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
     // header for the same reason, so leading with them is what gets the
     // standard headers winrt/base.h needs in ahead of the import.
     std::print(out, "{}", banner);
-    write_includes(out, includes);
+    write_includes(out, file.source_includes);
     std::print(out, "\n#include \"{}\"\n\nnamespace wxl {{\n", header);
 
-    for (auto&& c : classes) {
+    for (auto&& c : file.classes) {
         for (auto&& member : c.members) {
             auto const& info = member.info;
 
@@ -217,17 +190,16 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
             auto const call = std::format("impl::args_as<{}>(abi_).{}({})", member.winrt_interface,
                                           info.winrt_name, arguments);
 
-            std::print(out, "\n{} {}::{}({}){} {{\n    {}{};\n}}\n", result_type(info),
-                       c.type.TypeName(), info.name, parameter_list(info),
-                       info.is_property_getter ? " const" : "",
+            std::print(out, "\n{} {}::{}({}){} {{\n    {}{};\n}}\n", result_type(info), c.name,
+                       info.name, parameter_list(info), info.is_property_getter ? " const" : "",
                        info.returns_void ? "" : "return ",
                        info.returns_void ? call : substitute(info.result.from_winrt, call));
         }
     }
 
-    if (!collection_definitions.empty()) {
+    if (!file.collection_definitions.empty()) {
         std::print(out, "\n");
-        for (auto&& element : collection_definitions) {
+        for (auto&& element : file.collection_definitions) {
             std::print(out, "template class Collection<{}>;\n", element);
         }
     }
@@ -238,9 +210,9 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
 // The headers declaring a wrapped class, which an args header must not
 // include: a class header already includes the args headers of the events it
 // declares, so including it back would close a cycle.
-std::set<std::string> class_headers_of(Model const& model, TypeIndex const& index) {
+std::set<std::string> class_headers_of(std::vector<TypeDef> const& classes, TypeIndex const& index) {
     std::set<std::string> headers;
-    for (auto&& type : model.classes) {
+    for (auto&& type : classes) {
         if (is_event_args_class(type)) {
             continue;
         }
@@ -254,19 +226,19 @@ std::set<std::string> class_headers_of(Model const& model, TypeIndex const& inde
 // The members an args class contributes, read off the interfaces it
 // implements directly -- the same walk a class wrapper's members come from,
 // with the interface remembered rather than turned into an Impl field.
-std::vector<args_member> collect_args_members(TypeDef const& type, Model const& model,
+std::vector<args_member> collect_args_members(TypeDef const& type, Closure const& closure,
                                               TypeIndex const& index,
                                               std::vector<std::string>& skipped_report) {
     std::vector<args_member> result;
 
-    auto const interfaces = model.interfaces_of.find(type);
-    if (interfaces == model.interfaces_of.end()) {
+    auto const interfaces = closure.interfaces.find(type);
+    if (interfaces == closure.interfaces.end()) {
         return result;
     }
 
     for (auto&& iface : interfaces->second) {
-        auto const allowed = model.members.find(iface);
-        if (allowed == model.members.end()) {
+        auto const allowed = closure.members.find(iface);
+        if (allowed == closure.members.end()) {
             continue;
         }
 
@@ -301,97 +273,107 @@ std::vector<args_member> collect_args_members(TypeDef const& type, Model const& 
 
 }  // namespace
 
-void write_event_args(Output const& out, Model const& model, ClassOutput const& classes,
-                      Emitted& emitted) {
-    auto const all_event_args = collect_event_args(model.classes);
+void analyze_event_args(type_kinds const& kinds, Closure const& closure, TypeIndex const& index,
+                        Model& model) {
+    std::vector<TypeDef> all_event_args;
+    for (auto&& type : kinds.classes) {
+        if (is_event_args_class(type)) {
+            all_event_args.push_back(type);
+        }
+    }
     std::set<TypeDef> const event_args_set{all_event_args.begin(), all_event_args.end()};
-    auto const class_headers = class_headers_of(model, classes.index);
+    auto const class_headers = class_headers_of(kinds.classes, index);
 
-    std::vector<std::string> skipped_report;
-    std::vector<event_args_info> event_args_infos;
-    event_args_infos.reserve(all_event_args.size());
+    std::vector<args_source> sources;
+    sources.reserve(all_event_args.size());
     for (auto&& type : all_event_args) {
-        auto info = analyze_event_args(type, event_args_set);
-        info.members = collect_args_members(type, model, classes.index, skipped_report);
-        event_args_infos.push_back(std::move(info));
+        auto source = read_event_args(type, event_args_set);
+        source.info.members = collect_args_members(type, closure, index, model.skipped_args_members);
+        sources.push_back(std::move(source));
     }
     // A base args class has to be complete before the class deriving from it.
-    auto const sorted_event_args =
-        topological_sort(std::move(event_args_infos), [](event_args_info const& c, auto&& follow) {
-            if (c.base) {
-                follow(c.base);
-            }
-        });
-
-    std::map<std::string, std::vector<event_args_info>> event_args_by_namespace;
-    for (auto&& c : sorted_event_args) {
-        event_args_by_namespace[std::string(c.type.TypeNamespace())].push_back(c);
-    }
+    auto const sorted = topological_sort(std::move(sources), [](args_source const& c, auto&& follow) {
+        if (c.base) {
+            follow(c.base);
+        }
+    });
 
     // Which Collection specializations an args file is the one to define: the
-    // class writer already defined every element it named itself, so only an
-    // element nothing but an args member reaches is left over.
-    std::set<std::string> already_defined = classes.collection_elements;
+    // class files already define every element they name, so only an element
+    // nothing but an args member reaches is left over.
+    std::set<std::string> already_defined;
+    for (auto&& group : model.class_groups) {
+        already_defined.insert(group.collections_defined.begin(), group.collections_defined.end());
+    }
 
+    std::map<std::string, event_args_file> files;
+    for (auto&& c : sorted) {
+        std::string const ns{c.type.TypeNamespace()};
+        auto& file = files[ns];
+        file.ns = ns;
+        if (file.source_includes.empty()) {
+            file.source_includes = {"../Object.impl.h", "../impl/conversions.h",
+                                    "../impl/event_args.h"};
+        }
+
+        if (c.base) {
+            if (std::string const base_ns{c.base.TypeNamespace()}; base_ns != ns) {
+                file.includes.insert(base_ns + ".EventArgs.h");
+            }
+        }
+        for (auto&& member : c.info.members) {
+            file.source_includes.insert(member.winrt_header);
+
+            if (!member.info.returns_void) {
+                note_type(member.info.result, class_headers, file);
+                file.source_includes.insert(member.info.result.impl_includes.begin(),
+                                            member.info.result.impl_includes.end());
+            }
+            for (auto&& param : member.info.params) {
+                note_type(param.type, class_headers, file);
+                file.source_includes.insert(param.type.impl_includes.begin(),
+                                            param.type.impl_includes.end());
+            }
+        }
+        file.classes.push_back(c.info);
+    }
+
+    for (auto&& [ns, file] : files) {
+        for (auto&& element : file.collections) {
+            if (already_defined.insert(element).second) {
+                file.collection_definitions.insert(element);
+            }
+        }
+        model.event_args_files.push_back(std::move(file));
+    }
+}
+
+void write_event_args(Output const& out, Model const& model, Emitted& emitted) {
     std::vector<std::string> event_args_files;
     size_t members = 0;
-    for (auto&& [ns, infos] : event_args_by_namespace) {
-        header_needs needs;
-        std::set<std::string> source_includes{"../Object.impl.h", "../impl/conversions.h",
-                                              "../impl/event_args.h"};
-        std::set<std::string> collection_definitions;
-
-        for (auto&& c : infos) {
-            if (c.base) {
-                if (std::string const base_ns{c.base.TypeNamespace()}; base_ns != ns) {
-                    needs.includes.insert(base_ns + ".EventArgs.h");
-                }
-            }
-            for (auto&& member : c.members) {
-                source_includes.insert(member.winrt_header);
-
-                if (!member.info.returns_void) {
-                    note_type(member.info.result, class_headers, needs);
-                    source_includes.insert(member.info.result.impl_includes.begin(),
-                                           member.info.result.impl_includes.end());
-                }
-                for (auto&& param : member.info.params) {
-                    note_type(param.type, class_headers, needs);
-                    source_includes.insert(param.type.impl_includes.begin(),
-                                           param.type.impl_includes.end());
-                }
-            }
-        }
-
-        for (auto&& element : needs.collections) {
-            if (already_defined.insert(element).second) {
-                collection_definitions.insert(element);
-            }
-        }
-
-        std::string const filename = ns + ".EventArgs.h";
+    for (auto&& file : model.event_args_files) {
+        std::string const filename = file.ns + ".EventArgs.h";
         auto const path = out.dir / filename;
-        write_event_args_file(path, infos, needs);
+        write_event_args_file(path, file);
         emitted.add(path);
         event_args_files.push_back(filename);
 
-        size_t const emitted_members = member_count(infos);
+        size_t const emitted_members = member_count(file.classes);
         members += emitted_members;
 
         if (emitted_members != 0) {
-            auto const source = out.dir / (ns + ".EventArgs.cpp");
-            write_event_args_source(source, filename, infos, source_includes,
-                                    collection_definitions);
+            auto const source = out.dir / (file.ns + ".EventArgs.cpp");
+            write_event_args_source(source, filename, file);
             emitted.add(source);
         }
 
-        std::print("generated {} ({} EventArgs wrappers, {} members)\n", path.string(), infos.size(),
-                   emitted_members);
+        std::print("generated {} ({} EventArgs wrappers, {} members)\n", path.string(),
+                   file.classes.size(), emitted_members);
     }
 
-    if (!skipped_report.empty()) {
+    if (!model.skipped_args_members.empty()) {
         std::print("EventArgs members skipped:\n");
-        for (auto&& line : skipped_report) {
+        for (auto&& line : model.skipped_args_members) {
             std::print("{}\n", line);
         }
     }

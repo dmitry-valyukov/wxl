@@ -79,32 +79,7 @@ std::string content_property_of(TypeDef const& type) {
     return {};
 }
 
-// How the real WinRT class is created, which is also how its constructor is
-// declared -- the C# view of it (dotPeek) is `public extern Button()` against
-// `protected extern Control()`, and wxl mirrors that access exactly.
-//
-//   ActivatableAttribute, bare      -> public, plain activation
-//   ActivatableAttribute(factory)   -> public, but no default constructor:
-//                                      the class's constructors are the
-//                                      methods of the factory interface it
-//                                      names, one each. A class can carry
-//                                      both spellings, and then it has a
-//                                      default constructor as well
-//   ComposableAttribute(.., Public) -> public, through the factory interface
-//                                      the attribute names: an instance with
-//                                      no outer object, which is what a class
-//                                      nobody derives from is
-//   ComposableAttribute(.., Protected) -> protected, and no factory at all:
-//                                      nobody can create one directly, so
-//                                      there is nothing to activate
-//   neither                         -> no default constructor
-//
-// The composable path is not an optimisation to skip: a composable class is
-// free to leave IActivationFactory::ActivateInstance unimplemented, and
-// RadialGradientBrush does exactly that (E_NOTIMPL). Going through the
-// factory interface is what the projection itself does for every such class.
-enum class Construction { None, PublicActivation, PublicFactory, PublicComposition, ProtectedOnly };
-
+// How the real WinRT class is created (see Construction in gen/model.h).
 struct Creation {
     Construction kind = Construction::None;
     std::string factory;  // the composable factory interface, in metadata form
@@ -170,73 +145,6 @@ std::string given_header(std::string_view name, bool impl_side) {
         (name == "Object" || name == "DependencyObject" || name == "Statics") ? "Object" : name;
     return std::format("../{}{}.h", file, impl_side ? ".impl" : "");
 }
-
-// One unnamed-argument route: what it takes, and what it does with it. A
-// property assigns, the content collection appends -- the statement is
-// carried rather than the property name, so the two read the same here.
-struct positional_route {
-    std::string param_type;
-    std::string statement;  // uses `value`, the parameter's name
-};
-
-// One constructor of a class that has parameterised ones: the factory
-// interface it comes from, as the projection names it, and the method on
-// that interface. The method carries its own parameters, so the declaration
-// and the call are written from it exactly like an ordinary member's.
-struct factory_ctor {
-    std::string statics_interface;
-    std::string include;  // the projection header declaring that interface
-    member_info method;
-};
-
-struct class_info {
-    TypeDef type;
-    std::string name;
-    std::string base_name;
-    std::string base_namespace;  // empty when the base is given from above
-    Construction construction = Construction::None;
-    // The factory interface a composable class is created through, in
-    // metadata form; empty for every other class.
-    std::string composable_factory;
-    std::vector<TypeDef> interfaces;  // survived the filter; one Impl field each
-    std::vector<TypeDef> statics;     // the interfaces its static members live on
-    std::vector<member_info> members;
-
-    // The constructors that take arguments, one per method of every factory
-    // interface ActivatableAttribute named. Empty for almost every class:
-    // WinRT declares constructors this way only where there are some.
-    std::vector<factory_ctor> constructors;
-
-    // A class that is nothing but its static members -- WinRT's way of
-    // naming a group of free functions. Metadata says so in three parts at
-    // once: nothing constructs it, it implements no instance interface, and
-    // its statics are not empty. It gets no base, no Impl and no
-    // constructor, because an instance of it cannot exist: a wrapper for
-    // one would be a smart pointer that is always null, and its Impl field
-    // a projection object that is never filled.
-    bool statics_only = false;
-
-    // The interface this level *is* on the ABI, and the field holding it.
-    // That field is declared as the projection class, so handing the object
-    // to a WinRT call that wants the class costs nothing; every other field
-    // stays the interface it stands for.
-    TypeDef default_interface;
-    std::string primary_field;
-
-    // Unnamed constructor arguments this level claims. An argument is routed
-    // by its type alone, which is what lets the DSL leave the property name
-    // out where the type already says it: `hAlign.center`, `L"..."`,
-    // `Margin{20}`, and a child element inside its parent's braces.
-    std::vector<positional_route> positional;
-    bool base_has_positional = false;
-
-    // Element types of the wxl::Collection specializations this level's
-    // members name. The template's bodies are not in its public header, so
-    // every specialization has to be stated: `extern template` wherever it is
-    // used, one `template class` definition across the whole library.
-    std::set<std::string> collection_elements;
-};
-
 
 // A wxl class name and every level above it, itself included, up to the
 // hand-written level the walk stops at.
@@ -321,9 +229,45 @@ std::string wxl_class_name(TypeDef const& type) {
                            : name};
 }
 
-class_info analyze_class(TypeDef const& type, std::set<TypeDef> const& generated,
-                         Model const& model) {
-    class_info info{type, wxl_class_name(type)};
+// A class as analysis sees it: the TypeDefs behind the class_info a writer
+// gets, which collecting the members still has to read.
+struct class_source {
+    TypeDef type;
+    std::vector<TypeDef> interfaces;  // survived the filter; one Impl field each
+    std::vector<TypeDef> statics;     // the interfaces its static members live on
+    TypeDef default_interface;
+    class_info info;
+};
+
+// What the writers need of a class's interfaces, in their terms: the
+// projection headers of the private side, a field per interface beside the
+// default one, and the statics interfaces as the projection names them.
+void describe_interfaces(class_source& source) {
+    auto& info = source.info;
+    info.projection_headers.insert(winrt_include(source.type.TypeNamespace()));
+    for (auto&& iface : source.interfaces) {
+        info.projection_headers.insert(winrt_include(iface.TypeNamespace()));
+        if (iface == source.default_interface) {
+            continue;  // the class-typed primary field already stands for it
+        }
+        info.fields.push_back(
+            {std::format("{}::{}", winrt_namespace(iface.TypeNamespace()), iface.TypeName()),
+             interface_field_name(iface.TypeName())});
+    }
+    for (auto&& iface : source.statics) {
+        info.statics.push_back(
+            {std::format("{}::{}", winrt_namespace(iface.TypeNamespace()), iface.TypeName()),
+             winrt_include(iface.TypeNamespace())});
+    }
+}
+
+class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generated,
+                           Closure const& closure) {
+    class_source source{type};
+    auto& info = source.info;
+    info.name = wxl_class_name(type);
+    info.metadata_name = full_name(type);
+    info.winrt_name = std::format("{}::{}", winrt_namespace(type.TypeNamespace()), type.TypeName());
 
     // No Extends(), an unresolved one, or a base outside the closure all
     // mean the same thing here: this level sits directly on wxl::Object.
@@ -358,11 +302,11 @@ class_info analyze_class(TypeDef const& type, std::set<TypeDef> const& generated
     info.construction = creation.kind;
     info.composable_factory = creation.factory;
 
-    if (auto const it = model.interfaces_of.find(type); it != model.interfaces_of.end()) {
-        info.interfaces = it->second;
+    if (auto const it = closure.interfaces.find(type); it != closure.interfaces.end()) {
+        source.interfaces = it->second;
     }
-    if (auto const it = model.statics_of.find(type); it != model.statics_of.end()) {
-        info.statics = it->second;
+    if (auto const it = closure.statics.find(type); it != closure.statics.end()) {
+        source.statics = it->second;
     }
 
     // A wrapped interface is its own default interface: the object *is* the
@@ -371,10 +315,11 @@ class_info analyze_class(TypeDef const& type, std::set<TypeDef> const& generated
     // Its required interfaces, if any survived, keep fields beside it like
     // a class's do.
     if (get_category(type) == category::interface_type) {
-        info.interfaces.insert(info.interfaces.begin(), type);
-        info.default_interface = type;
+        source.interfaces.insert(source.interfaces.begin(), type);
+        source.default_interface = type;
         info.primary_field = interface_field_name(type.TypeName());
-        return info;
+        describe_interfaces(source);
+        return source;
     }
 
     // Nothing constructs it, it implements no instance interface, and its
@@ -382,28 +327,30 @@ class_info analyze_class(TypeDef const& type, std::set<TypeDef> const& generated
     // a place to hang free functions. It gets none of what follows -- no
     // base, no default interface, no Impl -- because there is nothing for
     // any of it to point at.
-    info.statics_only = info.construction == Construction::None && info.interfaces.empty() &&
-                        !info.statics.empty();
+    info.statics_only = info.construction == Construction::None && source.interfaces.empty() &&
+                        !source.statics.empty();
     if (info.statics_only) {
         info.base_name.clear();
         info.base_namespace.clear();
-        return info;
+        describe_interfaces(source);
+        return source;
     }
 
     // The primary field exists whether or not any member survived the
     // filter: it is what a *call* hands this object over as, so a class with
     // no members of its own at all (Style, say) still needs it. Every other
     // surviving interface gets a field of its own beside it.
-    auto const& facts = facts_of(type);
-    info.default_interface = facts.default_interface;
+    auto const facts = default_interface_of(type);
+    source.default_interface = facts.default_interface;
     info.primary_field = facts.primary_field;
-    if (!info.default_interface) {
+    if (!source.default_interface) {
         std::print(stderr,
                    "warning: {} has no resolvable default interface -- nothing can hand this "
                    "object over to a call\n",
                    full_name(type));
     }
-    return info;
+    describe_interfaces(source);
+    return source;
 }
 
 // The files a group has to include: where its base classes live. A base in
@@ -443,10 +390,7 @@ std::set<std::string> private_includes(std::string_view ns, std::vector<class_in
     auto includes = file_includes(ns, classes, group_of, /*impl_side=*/true);
     includes.insert(std::string(ns) + ".h");
     for (auto&& info : classes) {
-        includes.insert(winrt_include(info.type.TypeNamespace()));
-        for (auto&& iface : info.interfaces) {
-            includes.insert(winrt_include(iface.TypeNamespace()));
-        }
+        includes.insert(info.projection_headers.begin(), info.projection_headers.end());
     }
     return includes;
 }
@@ -558,7 +502,7 @@ class {1} final : public Statics
 {{
 public:
 )",
-                       full_name(info.type), info.name);
+                       info.metadata_name, info.name);
             for (auto&& member : info.members) {
                 std::print(out, "    static {} {}({});\n", result_type(member), member.name,
                            parameter_list(member));
@@ -583,7 +527,7 @@ class {} : public {}
 public:
     class Impl;
 )",
-                   full_name(info.type), info.name, info.base_name, info.base_name);
+                   info.metadata_name, info.name, info.base_name, info.base_name);
 
         // Activated or composed, the class is created the same way from
         // outside: a public default constructor. Which of the two it is
@@ -725,9 +669,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
             continue;  // no instance, no wrapper, nothing private to say
         }
 
-        std::string const winrt_class =
-            std::format("{}::{}", winrt_namespace(info.type.TypeNamespace()),
-                        info.type.TypeName());
+        auto const& winrt_class = info.winrt_name;
 
         // `winrt_t` is what the wrapper stands for, stated once per level.
         // Anything that needs the real WinRT type of a wxl type reads it
@@ -763,15 +705,9 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
                        winrt_class, info.primary_field);
         }
 
-        for (auto&& iface : info.interfaces) {
-            if (iface == info.default_interface) {
-                continue;  // the class-typed field above already stands for it
-            }
-            auto const iface_type =
-                std::format("{}::{}", winrt_namespace(iface.TypeNamespace()), iface.TypeName());
-            auto const field = interface_field_name(iface.TypeName());
+        for (auto&& field : info.fields) {
             std::print(out, "\n    {0} {1};\n    operator {0} const&() {{ return get<&Impl::{1}>(); }}\n",
-                       iface_type, field);
+                       field.winrt_type, field.name);
         }
         std::print(out, "}};\n");
     }
@@ -809,7 +745,7 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
     }
     for (auto&& info : classes) {
         for (auto&& iface : info.statics) {
-            includes.insert(winrt_include(iface.TypeNamespace()));
+            includes.insert(iface.projection_header);
         }
         for (auto&& ctor : info.constructors) {
             includes.insert(ctor.include);
@@ -859,7 +795,7 @@ struct runtime_class_name_of<{}> {{
     static constexpr wchar_t value[] = L"{}";
 }};
 )",
-                           key, full_name(info.type));
+                           key, info.metadata_name);
             };
 
             if (info.construction == Construction::PublicActivation ||
@@ -879,8 +815,7 @@ struct runtime_class_name_of<{}> {{
             // A statics interface is keyed on directly: it already names
             // exactly one class, so it needs no marker type of its own.
             for (auto&& iface : info.statics) {
-                name_class(std::format("{}::{}", winrt_namespace(iface.TypeNamespace()),
-                                       iface.TypeName()));
+                name_class(iface.winrt_type);
             }
         }
         std::print(out, "}}  // namespace impl\n");
@@ -1100,7 +1035,7 @@ struct runtime_class_name_of<{}> {{
 // the flat wxl name and the public header declaring it. Enums and structs
 // sit in per-namespace files of their own; a class lives in its group's
 // file.
-TypeIndex build_type_index(Model const& model, std::set<TypeDef> const& generated_classes,
+TypeIndex build_type_index(type_kinds const& kinds, std::set<TypeDef> const& generated_classes,
                            std::map<std::string, std::string> const& group_of) {
     TypeIndex index;
 
@@ -1109,10 +1044,10 @@ TypeIndex build_type_index(Model const& model, std::set<TypeDef> const& generate
         index.headers.emplace(type, std::move(header));
     };
 
-    for (auto&& type : model.enums) {
+    for (auto&& type : kinds.enums) {
         add(type, std::format("{}.Enums.h", type.TypeNamespace()));
     }
-    for (auto&& type : model.structs) {
+    for (auto&& type : kinds.structs) {
         // A struct that does not mirror the ABI field for field is not
         // generated (see mirrors_abi), so nothing may name it either.
         if (!project_type(type) && mirrors_abi(type)) {
@@ -1123,11 +1058,15 @@ TypeIndex build_type_index(Model const& model, std::set<TypeDef> const& generate
         std::string const ns{type.TypeNamespace()};
         auto const it = group_of.find(ns);
         add(type, std::format("{}.h", it != group_of.end() ? it->second : ns));
+        if (get_category(type) == category::class_type &&
+            default_interface_of(type).primary_field.empty()) {
+            index.without_default_interface.insert(type);
+        }
     }
     // Args views live in their own per-namespace files. They are in the
     // index so an event can name the one it hands its handler; map_type
     // still refuses them anywhere else.
-    for (auto&& type : model.classes) {
+    for (auto&& type : kinds.classes) {
         if (is_event_args_class(type)) {
             add(type, std::format("{}.EventArgs.h", type.TypeNamespace()));
         }
@@ -1181,9 +1120,9 @@ std::map<std::string, std::string> group_namespaces(
     return group_of;
 }
 
-void write_classes(Output const& out, Model const& model, Emitted& emitted, ClassOutput& produced) {
+TypeIndex analyze_classes(type_kinds const& kinds, Closure const& closure, Model& model) {
     std::set<TypeDef> generated;
-    for (auto&& type : model.classes) {
+    for (auto&& type : kinds.classes) {
         // A collection class is not wrapped either: it exists in metadata
         // only to name an IVector<T>, and wxl::Collection<T> already is that.
         if (!is_event_args_class(type) && !project_type(type) && !is_collection_class(type)) {
@@ -1195,51 +1134,46 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     // goes *after* the classes: it roots directly at Object, so no base
     // needs it earlier, and members naming it across the file are served
     // by the group's forward declarations like any other member edge.
-    std::vector<TypeDef> wrapped{model.classes};
-    for (auto&& type : model.listed_interfaces) {
+    std::vector<TypeDef> wrapped{kinds.classes};
+    for (auto&& type : kinds.listed_interfaces) {
         generated.insert(type);
         wrapped.push_back(type);
     }
 
-    std::vector<class_info> infos_in_order;
+    std::vector<class_source> sources;
     std::set<std::string> written_names;
     std::map<std::string, std::set<std::string>> namespace_deps;
     for (auto&& type : wrapped) {
         if (!generated.count(type)) {
             continue;  // EventArgs wrappers and projected types are emitted elsewhere
         }
-        auto info = analyze_class(type, generated, model);
-        if (!written_names.insert(info.name).second) {
+        auto source = analyze_class(type, generated, closure);
+        if (!written_names.insert(source.info.name).second) {
             std::print(stderr, "warning: two classes map to the same flat wxl name '{}' ({})\n",
-                       info.name, full_name(type));
+                       source.info.name, full_name(type));
             continue;
         }
         std::string const ns{type.TypeNamespace()};
-        if (!info.base_namespace.empty() && info.base_namespace != ns) {
-            namespace_deps[ns].insert(info.base_namespace);
+        if (!source.info.base_namespace.empty() && source.info.base_namespace != ns) {
+            namespace_deps[ns].insert(source.info.base_namespace);
         }
         namespace_deps.try_emplace(ns);
-        infos_in_order.push_back(std::move(info));
+        sources.push_back(std::move(source));
     }
 
     // Namespaces that derive from each other share a file; everything else
     // gets its own. Grouping preserves the closure's dependency order
     // within each file, which is what lets a base class simply appear
     // earlier instead of needing an include.
-    auto const group_of = group_namespaces(namespace_deps);
+    model.group_of = group_namespaces(namespace_deps);
 
     // Members come second, because naming a type in a signature means
     // knowing which file declares it, which is only settled once the
     // grouping above is.
-    auto const index = build_type_index(model, generated, group_of);
-    produced.index = index;
+    auto index = build_type_index(kinds, generated, model.group_of);
 
-    size_t emitted_members = 0;
-    std::vector<std::string> skipped_report;
-    std::vector<std::string> withheld_positional;
-    std::vector<std::string> content_collections;
-    Dsl dsl;
-    Schema schema;
+    auto& dsl = model.dsl;
+    auto& schema = model.schema;
     // An attached property is written on the child and applied by the
     // parent's statics, so it belongs to the schema of the class its setter
     // takes -- which is a different class from the one being visited, and
@@ -1252,16 +1186,16 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     // against levels *below* the class as well as above it, and those are
     // not yet visited in this dependency-ordered walk.
     std::map<std::string, std::string> base_of;
-    for (auto&& info : infos_in_order) {
-        base_of.emplace(info.name, info.base_name);
+    for (auto&& source : sources) {
+        base_of.emplace(source.info.name, source.info.base_name);
     }
 
-
-    for (auto&& info : infos_in_order) {
+    for (auto&& source : sources) {
+        auto& info = source.info;
         std::vector<skipped_member> skipped;
-        for (auto&& iface : info.interfaces) {
-            auto const members = model.members.find(iface);
-            if (members == model.members.end()) {
+        for (auto&& iface : source.interfaces) {
+            auto const members = closure.members.find(iface);
+            if (members == closure.members.end()) {
                 continue;
             }
             collect_interface_members(iface, members->second, index, info.members, skipped);
@@ -1270,9 +1204,9 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         // Static members are collected the same way and then marked: the
         // only difference is where the call goes -- through the cached
         // statics proxy rather than through the object's own Impl.
-        for (auto&& iface : info.statics) {
-            auto const members = model.members.find(iface);
-            if (members == model.members.end()) {
+        for (auto&& iface : source.statics) {
+            auto const members = closure.members.find(iface);
+            if (members == closure.members.end()) {
                 continue;
             }
             std::vector<member_info> collected;
@@ -1293,11 +1227,11 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         // class.
         for (auto&& iface : [&]() -> std::vector<TypeDef> const& {
                  static std::vector<TypeDef> const none;
-                 auto const it = model.factories_of.find(info.type);
-                 return it == model.factories_of.end() ? none : it->second;
+                 auto const it = closure.factories.find(source.type);
+                 return it == closure.factories.end() ? none : it->second;
              }()) {
-            auto const members = model.members.find(iface);
-            if (members == model.members.end()) {
+            auto const members = closure.members.find(iface);
+            if (members == closure.members.end()) {
                 continue;
             }
             std::vector<member_info> collected;
@@ -1320,8 +1254,8 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         // The properties a profile added to this class. They are ordinary
         // members from here on -- key, tag, declaration, unnamed-argument
         // route -- and differ only in the body.
-        if (auto const added = model.synthetic_of.find(info.type);
-            added != model.synthetic_of.end()) {
+        if (auto const added = closure.synthetic.find(source.type);
+            added != closure.synthetic.end()) {
             for (auto&& [declaration, value_type] : added->second) {
                 // A value wxl owns has no metadata to map: the profile named
                 // the C++ type outright, and it is taken by value.
@@ -1354,8 +1288,8 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         // beside the method it calls, and only a method that is a setter in
         // all but name qualifies: one argument, nothing handed back, an
         // instance to call it on.
-        if (auto const setters = model.setter_methods_of.find(info.type);
-            setters != model.setter_methods_of.end()) {
+        if (auto const setters = closure.setter_methods.find(source.type);
+            setters != closure.setter_methods.end()) {
             for (auto&& [declaration, value_type] : setters->second) {
                 auto const method =
                     std::find_if(info.members.begin(), info.members.end(), [&](auto&& member) {
@@ -1418,24 +1352,23 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
             return !seen.insert(std::move(signature)).second;
         });
 
-        emitted_members += info.members.size();
         for (auto&& drop : skipped) {
-            skipped_report.push_back(std::format("{}.{}: {}", info.name, drop.name, drop.reason));
+            model.skipped_members.push_back(std::format("{}.{}: {}", info.name, drop.name, drop.reason));
         }
 
         // The DSL vocabulary, and the type routes this level claims. Only a
         // setter contributes: a read-only property has nothing to assign to.
         std::string text_route;
         std::string content_route;
-        std::string const content_property = content_property_of(info.type);
+        std::string const content_property = content_property_of(source.type);
         auto const& attached_here = [&]() -> std::vector<std::string> const& {
             static std::vector<std::string> const none;
-            auto const it = model.attached_of.find(info.type);
-            return it == model.attached_of.end() ? none : it->second;
+            auto const it = closure.attached.find(source.type);
+            return it == closure.attached.end() ? none : it->second;
         }();
 
         Schema::Class klass{info.name, info.base_name, {}, {}};
-        if (auto const header = index.headers.find(info.type); header != index.headers.end()) {
+        if (auto const header = index.headers.find(source.type); header != index.headers.end()) {
             klass.header = header->second;
         }
 
@@ -1459,7 +1392,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                                        member.params[1].type.value_type, /*attached=*/true});
                     dsl.includes.insert(member.params[1].type.public_includes.begin(),
                                         member.params[1].type.public_includes.end());
-                    if (auto const header = index.headers.find(info.type);
+                    if (auto const header = index.headers.find(source.type);
                         header != index.headers.end()) {
                         dsl.includes.insert(header->second);
                     }
@@ -1512,7 +1445,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                     info.positional.emplace_back(
                         std::format("{} const&", member.result.element_type),
                         std::format("{}().append(value)", member.name));
-                    content_collections.push_back(
+                    model.content_collections.push_back(
                         std::format("{}.{}: {}", info.name, member.name,
                                     member.result.element_type));
                 }
@@ -1577,7 +1510,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                 // A string literal is already the class's own text, and a
                 // type it also turns into by itself would make the same
                 // literal mean two things. The property keeps its name.
-                withheld_positional.push_back(
+                model.withheld_routes.push_back(
                     std::format("{}.{}: a string literal is already the text route", info.name,
                                 member.name));
             } else if (value.value_type == member.winrt_name || is_content_element) {
@@ -1588,7 +1521,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                                          ? universal_type(value.value_type)
                                          : positional_conflicts(value.value_type, info.name, base_of);
                 if (refused) {
-                    withheld_positional.push_back(std::format(
+                    model.withheld_routes.push_back(std::format(
                         "{}.{}: {} is related to the class by inheritance", info.name, member.name,
                         value.value_type));
                 } else {
@@ -1616,40 +1549,11 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         schema.classes.push_back(std::move(klass));
     }
 
-    if (!skipped_report.empty()) {
-        std::print("\nmembers skipped -- no wxl type for a signature yet ({}):\n",
-                   skipped_report.size());
-        for (auto&& line : skipped_report) {
-            std::print("  {}\n", line);
-        }
-        std::print("\n");
-    }
-
-    if (!content_collections.empty()) {
-        std::print("\ncontent collections ({}) -- an unnamed element of that type is\n"
-                   "appended to this property:\n",
-                   content_collections.size());
-        for (auto&& line : content_collections) {
-            std::print("  {}\n", line);
-        }
-        std::print("\n");
-    }
-
-    if (!withheld_positional.empty()) {
-        std::print("\nunnamed-argument routes withheld ({}) -- these properties keep their\n"
-                   "named form only:\n",
-                   withheld_positional.size());
-        for (auto&& line : withheld_positional) {
-            std::print("  {}\n", line);
-        }
-        std::print("\n");
-    }
-
     std::map<std::string, std::vector<class_info>> by_group;
-    for (auto&& info : infos_in_order) {
-        std::string const ns{info.type.TypeNamespace()};
-        auto const it = group_of.find(ns);
-        by_group[it != group_of.end() ? it->second : ns].push_back(info);
+    for (auto&& source : sources) {
+        std::string const ns{source.type.TypeNamespace()};
+        auto const it = model.group_of.find(ns);
+        by_group[it != model.group_of.end() ? it->second : ns].push_back(std::move(source.info));
     }
 
     // Which collection specializations each file group needs stated, and
@@ -1657,50 +1561,19 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     // definition may exist in exactly one translation unit, so the first
     // group naming an element -- in the same order the files are written --
     // takes it.
-    std::map<std::string, std::set<std::string>> used_by_group;
-    std::map<std::string, std::set<std::string>> defined_by_group;
     std::set<std::string> already_defined;
-    for (auto&& [ns, infos] : by_group) {
-        for (auto&& info : infos) {
+    for (auto&& [name, infos] : by_group) {
+        class_group group{name, std::move(infos), {}, {}};
+        for (auto&& info : group.classes) {
             for (auto&& element : info.collection_elements) {
-                used_by_group[ns].insert(element);
+                group.collections_used.insert(element);
                 if (already_defined.insert(element).second) {
-                    defined_by_group[ns].insert(element);
+                    group.collections_defined.insert(element);
                 }
             }
         }
+        model.class_groups.push_back(std::move(group));
     }
-    produced.collection_elements = already_defined;
-
-    size_t classes = 0;
-    size_t activatable = 0;
-    size_t constructors = 0;
-    for (auto&& [ns, infos] : by_group) {
-        auto const header = out.dir / (ns + ".h");
-        auto const source = out.dir / (ns + ".cpp");
-
-        write_public_header(header, ns, infos, group_of, used_by_group[ns]);
-        emitted.add(header);
-
-        if (has_impl(infos)) {
-            auto const impl_header = out.dir / (ns + ".impl.h");
-            write_impl_header(impl_header, ns, infos, group_of);
-            emitted.add(impl_header);
-        }
-
-        write_source(source, ns, infos, group_of, defined_by_group[ns]);
-        emitted.add(source);
-
-        classes += infos.size();
-        for (auto&& info : infos) {
-            activatable += info.construction == Construction::PublicActivation ? 1 : 0;
-            constructors += info.constructors.size();
-        }
-    }
-
-    std::print("generated {} classes in {} file group(s), {} publicly activatable, {} constructors "
-               "taking arguments, {} members\n",
-               classes, by_group.size(), activatable, constructors, emitted_members);
 
     // The values every enum-typed tag carries. Only the enums some property
     // actually has, since a tag is the only thing that surfaces them.
@@ -1711,10 +1584,10 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         }
         return types;
     }()};
-    for (auto&& type : model.enums) {
+    for (auto&& type : kinds.enums) {
         auto const name = std::string{type.TypeName()};
         if (enum_types.count(name)) {
-            dsl.enumerators.emplace(name, enum_members(type, model.members));
+            dsl.enumerators.emplace(name, enum_members(type, closure.members));
         }
     }
 
@@ -1744,7 +1617,6 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         add_hand_written(member);
     }
 
-    write_dsl(out, dsl, emitted);
 
     // The schema, last, because it is the same vocabulary said per class and
     // wants the enumerators the tags carry, which are only just settled.
@@ -1772,8 +1644,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         auto const owner = std::find_if(schema.classes.begin(), schema.classes.end(),
                                         [&name](auto&& klass) { return klass.name == name; });
         if (owner == schema.classes.end()) {
-            std::print("warning: bound member {}.{} names a class the profile does not generate\n",
-                       bound.class_name, bound.name);
+            model.unplaced_bound_members.push_back(std::format("{}.{}", bound.class_name, bound.name));
             continue;
         }
         Schema::Member member{Schema::Member::Kind::Bound, bound.name, member_name(bound.name),
@@ -1803,7 +1674,71 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
     std::erase_if(schema.classes,
                   [&kept](auto&& klass) { return kept.count(klass.name) == 0; });
 
-    write_schema(out, schema, dsl, emitted);
+    return index;
+}
+
+
+void write_classes(Output const& out, Model const& model, Emitted& emitted) {
+    if (!model.skipped_members.empty()) {
+        std::print("\nmembers skipped -- no wxl type for a signature yet ({}):\n",
+                   model.skipped_members.size());
+        for (auto&& line : model.skipped_members) {
+            std::print("  {}\n", line);
+        }
+        std::print("\n");
+    }
+
+    if (!model.content_collections.empty()) {
+        std::print("\ncontent collections ({}) -- an unnamed element of that type is\n"
+                   "appended to this property:\n",
+                   model.content_collections.size());
+        for (auto&& line : model.content_collections) {
+            std::print("  {}\n", line);
+        }
+        std::print("\n");
+    }
+
+    if (!model.withheld_routes.empty()) {
+        std::print("\nunnamed-argument routes withheld ({}) -- these properties keep their\n"
+                   "named form only:\n",
+                   model.withheld_routes.size());
+        for (auto&& line : model.withheld_routes) {
+            std::print("  {}\n", line);
+        }
+        std::print("\n");
+    }
+
+    size_t classes = 0;
+    size_t activatable = 0;
+    size_t constructors = 0;
+    size_t members = 0;
+    for (auto&& group : model.class_groups) {
+        auto const header = out.dir / (group.name + ".h");
+        auto const source = out.dir / (group.name + ".cpp");
+
+        write_public_header(header, group.name, group.classes, model.group_of, group.collections_used);
+        emitted.add(header);
+
+        if (has_impl(group.classes)) {
+            auto const impl_header = out.dir / (group.name + ".impl.h");
+            write_impl_header(impl_header, group.name, group.classes, model.group_of);
+            emitted.add(impl_header);
+        }
+
+        write_source(source, group.name, group.classes, model.group_of, group.collections_defined);
+        emitted.add(source);
+
+        classes += group.classes.size();
+        for (auto&& info : group.classes) {
+            activatable += info.construction == Construction::PublicActivation ? 1 : 0;
+            constructors += info.constructors.size();
+            members += info.members.size();
+        }
+    }
+
+    std::print("generated {} classes in {} file group(s), {} publicly activatable, {} constructors "
+               "taking arguments, {} members\n",
+               classes, model.class_groups.size(), activatable, constructors, members);
 }
 
 }  // namespace gen

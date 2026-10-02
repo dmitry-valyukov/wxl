@@ -14,7 +14,9 @@ TypeDef resolved(coded_index<TypeDefOrRef> const& index) {
     return find(index);
 }
 
-type_facts compute(TypeDef const& type) {
+}  // namespace
+
+type_facts default_interface_of(TypeDef const& type) {
     type_facts facts;
     for (auto&& implemented : type.InterfaceImpl()) {
         // XAML classes mark their default interface with DefaultAttribute; it
@@ -29,18 +31,6 @@ type_facts compute(TypeDef const& type) {
         }
     }
     return facts;
-}
-
-}  // namespace
-
-type_facts const& facts_of(TypeDef const& type) {
-    static std::map<TypeDef, type_facts> known;
-
-    auto const [entry, added] = known.try_emplace(type);
-    if (added) {
-        entry->second = compute(type);
-    }
-    return entry->second;
 }
 
 }  // namespace gen

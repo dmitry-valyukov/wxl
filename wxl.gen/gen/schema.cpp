@@ -329,7 +329,14 @@ namespace {{
 
 }  // namespace
 
-void write_schema(Output const& out, Schema const& schema, Dsl const& dsl, Emitted& emitted) {
+void write_schema(Output const& out, Model const& model, Emitted& emitted) {
+    for (auto&& name : model.unplaced_bound_members) {
+        std::print("warning: bound member {} names a class the profile does not generate\n", name);
+    }
+
+    auto const& schema = model.schema;
+    auto const& dsl = model.dsl;
+
     auto const header = out.dir / "schema.h";
     write_schema_header(header, schema, dsl);
     emitted.add(header);

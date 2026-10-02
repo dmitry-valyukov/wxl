@@ -488,11 +488,7 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
             return use;
         }
         case category::class_type: {
-            // No default interface means nothing to hand the object over as:
-            // the member naming it is skipped and counted, rather than
-            // emitting a call that cannot compile.
-            auto const& facts = facts_of(type);
-            if (facts.primary_field.empty()) {
+            if (index.without_default_interface.contains(type)) {
                 return unsupported(
                     std::format("{} declares no default interface", full_name(type)));
             }

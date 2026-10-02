@@ -85,44 +85,6 @@ void report(ProfileSet const& profiles, Closure const& closure) {
     std::print("event keys: {}\n", closure.event_names.size());
 }
 
-// The Model's vectors keep the closure's dependency order (see
-// generate.h) -- category grouping only splits that one ordering into
-// per-category slices, it never re-sorts.
-Model build_model(Closure const& closure) {
-    Model model;
-    for (auto&& type : closure.ordered) {
-        switch (get_category(type)) {
-            case category::enum_type:
-                model.enums.push_back(type);
-                break;
-            case category::struct_type:
-                model.structs.push_back(type);
-                break;
-            case category::class_type:
-                model.classes.push_back(type);
-                break;
-            case category::interface_type:
-                model.interfaces.push_back(type);
-                if (closure.listed_interfaces.contains(type)) {
-                    model.listed_interfaces.push_back(type);
-                }
-                break;
-            case category::delegate_type:
-                break;  // no output of their own yet
-        }
-    }
-    model.interfaces_of = closure.interfaces;
-    model.statics_of = closure.statics;
-    model.factories_of = closure.factories;
-    model.synthetic_of = closure.synthetic;
-    model.setter_methods_of = closure.setter_methods;
-    model.attached_of = closure.attached;
-    model.members = closure.members;
-    model.property_names = closure.property_names;
-    model.event_names = closure.event_names;
-    return model;
-}
-
 }  // namespace
 
 void run(ProfileSet const& profiles, Output const& out) {
@@ -136,8 +98,5 @@ void run(ProfileSet const& profiles, Output const& out) {
     auto const closure = crawl(profiles, db);
     report(profiles, closure);
 
-    Model model = build_model(closure);
-    model.styles = profiles.styles;
-    model.brushes = profiles.brushes;
-    write_all(out, model, profiles.resources);
+    write_all(out, analyze(closure, profiles));
 }

@@ -20,6 +20,7 @@ wxl_add_module_library(wxl.gen STATIC
         gen/metadata.h
         gen/projection.h
         gen/members.h
+        gen/model.h
         gen/writers.h
     SRC
         generate.cpp

@@ -38,41 +38,85 @@ void prune_stale(Output const& out, gen::Emitted const& emitted) {
     }
 }
 
+// The closure's types by category, in the closure's own dependency order:
+// category grouping only splits that one ordering into slices, it never
+// re-sorts.
+gen::type_kinds kinds_of(Closure const& closure) {
+    gen::type_kinds kinds;
+    for (auto&& type : closure.ordered) {
+        switch (md::get_category(type)) {
+            case md::category::enum_type:
+                kinds.enums.push_back(type);
+                break;
+            case md::category::struct_type:
+                kinds.structs.push_back(type);
+                break;
+            case md::category::class_type:
+                kinds.classes.push_back(type);
+                break;
+            case md::category::interface_type:
+                if (closure.listed_interfaces.contains(type)) {
+                    kinds.listed_interfaces.push_back(type);
+                }
+                break;
+            case md::category::delegate_type:
+                break;  // no output of their own
+        }
+    }
+    return kinds;
+}
+
 }  // namespace
 
-// The order the artefacts are written in, each by its own gen/*.cpp (see
-// gen/writers.h), with the resource dictionaries read once on the way and
-// what a previous run left behind dropped at the end. The builder-syntax
-// vocabulary and the schema are written from inside write_classes.
+Model analyze(Closure const& closure, ProfileSet const& profiles) {
+    auto const kinds = kinds_of(closure);
 
-void write_all(Output const& out, Model const& model,
-               std::vector<std::filesystem::path> const& resource_dictionaries) {
+    Model model;
+    model.property_names = closure.property_names;
+    model.event_names = closure.event_names;
+
+    gen::analyze_tags(model);
+    gen::analyze_enums_and_structs(kinds, closure, model);
+    auto const index = gen::analyze_classes(kinds, closure, model);
+    gen::analyze_event_args(kinds, closure, index, model);
+
+    // The dictionaries are read once and the writers pick what they know:
+    // styles here, brushes there, and whatever a resource of another kind
+    // needs when its writer appears.
+    for (auto&& dictionary : profiles.resources) {
+        auto declared = dictionary_resources(dictionary);
+        model.resources.insert(model.resources.end(), std::move_iterator{declared.begin()},
+                               std::move_iterator{declared.end()});
+    }
+
+    // A dictionary names a target type, and a brush key starts with one, by
+    // its bare name; a profile names a class by its full one. The class joins
+    // the two -- the first of a name, where two namespaces share it.
+    for (auto&& type : kinds.classes) {
+        std::string name{type.TypeName()};
+        model.class_names.insert(name);
+        if (auto const filter = profiles.styles.find(full_name(type)); filter != profiles.styles.end()) {
+            model.style_filters.emplace(std::move(name), filter->second);
+        }
+    }
+    model.brushes = profiles.brushes;
+    return model;
+}
+
+void write_all(Output const& out, Model const& model) {
     std::filesystem::create_directories(out.dir);
 
     gen::Emitted emitted;
     gen::write_key_enums(out, model, emitted);
     gen::write_tags(out, model, emitted);
     gen::write_enums_and_structs(out, model, emitted);
-
-    // The args views come after the classes: which file declares a type, and
-    // which Collection specializations already have a definition, is settled
-    // by the class writer, and an args member's signature may name either.
-    gen::ClassOutput classes;
-    gen::write_classes(out, model, emitted, classes);
-    gen::write_event_args(out, model, classes, emitted);
-
-    // The dictionaries are read once and the writers pick what they know:
-    // styles here, brushes there, and whatever a resource of another kind
-    // needs when its writer appears.
-    std::vector<DictionaryResource> resources;
-    for (auto&& dictionary : resource_dictionaries) {
-        auto declared = dictionary_resources(dictionary);
-        resources.insert(resources.end(), std::move_iterator{declared.begin()},
-                         std::move_iterator{declared.end()});
-    }
-    gen::write_styles(out, model, resources, emitted);
-    gen::write_brushes(out, model, resources, emitted);
-    gen::write_alias_index(out, resources, emitted);
+    gen::write_classes(out, model, emitted);
+    gen::write_dsl(out, model.dsl, emitted);
+    gen::write_schema(out, model, emitted);
+    gen::write_event_args(out, model, emitted);
+    gen::write_styles(out, model, emitted);
+    gen::write_brushes(out, model, emitted);
+    gen::write_alias_index(out, model.resources, emitted);
     gen::write_symbols(out, emitted);
 
     // Last: drop whatever a previous run left behind, then list everything

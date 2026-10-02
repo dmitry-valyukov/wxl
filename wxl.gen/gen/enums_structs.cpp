@@ -44,60 +44,39 @@ std::string format_constant(Constant const& constant) {
         constant.Value());
 }
 
-struct enum_info {
-    TypeDef type;
+// The enumerators the profiles kept, and the type underneath. `kept` is what
+// the walk recorded as the enum's members: the enumerators the profiles kept
+// -- all of them for an enum they never name.
+struct enum_literals {
     char const* underlying = "int32_t";
     std::vector<Field> literals;
 };
 
-// `kept` is what the walk recorded as the enum's members: the enumerators the
-// profiles kept -- all of them for an enum they never name.
-enum_info analyze_enum(TypeDef const& type, std::map<TypeDef, std::set<std::string>> const& kept) {
-    enum_info info{type};
+enum_literals literals_of(TypeDef const& type, std::map<TypeDef, std::set<std::string>> const& kept) {
+    enum_literals found;
     auto const values = kept.find(type);
     for (auto&& field : type.FieldList()) {
         if (field.Flags().Literal()) {
             if (values != kept.end() && values->second.contains(std::string{field.Name()})) {
-                info.literals.push_back(field);
+                found.literals.push_back(field);
             }
         } else if (field.Signature().Type().element_type() == ElementType::U4) {
             // The non-literal "value__" backing field's own type is the
             // enum's real underlying type -- WinRT enums are Int32
             // unless [FlagsAttribute] makes them UInt32.
-            info.underlying = "uint32_t";
+            found.underlying = "uint32_t";
         }
     }
-    return info;
+    return found;
 }
 
-void write_enums_file(std::filesystem::path const& path, std::vector<TypeDef> const& enums,
-                      std::map<TypeDef, std::set<std::string>> const& kept) {
-    auto out = open_output(path);
-
-    // <stdint.h>, not <cstdint>: the emitted underlying types and field
-    // types are unqualified (int32_t, not std::int32_t), and only the C
-    // header is guaranteed to declare those in the global namespace.
-    std::print(out, R"({}#pragma once
-
-#include <stdint.h>
-
-namespace wxl {{
-
-)",
-               banner);
-
-    for (auto&& type : enums) {
-        auto const info = analyze_enum(type, kept);
-        // Every enumerator carries its value: with some of them left out by a
-        // profile, the rest must not move.
-        std::print(out, "enum class {} : {}\n{{\n", type.TypeName(), info.underlying);
-        for (auto&& literal : info.literals) {
-            std::print(out, "    {} = {},\n", literal.Name(), format_constant(literal.Constant()));
-        }
-        std::print(out, "}};\n\n");
+enum_info analyze_enum(TypeDef const& type, std::map<TypeDef, std::set<std::string>> const& kept) {
+    auto const found = literals_of(type, kept);
+    enum_info info{std::string{type.TypeName()}, found.underlying, {}};
+    for (auto&& literal : found.literals) {
+        info.values.push_back({std::string{literal.Name()}, format_constant(literal.Constant())});
     }
-
-    std::print(out, "}} // namespace wxl\n");
+    return info;
 }
 
 // A resolved struct field: a primitive C++ type, a projected wxl type
@@ -130,63 +109,104 @@ resolved_field resolve_field_type(TypeSig const& sig,
     return {"void*", {}, {}};  // unexpected field shape (array/generic/unresolved) -- placeholder
 }
 
-// A field is a member, so wxl spells it camelCase where the WinRT original
-// keeps the metadata PascalCase.
-struct field_info {
-    std::string name;
-    resolved_field type;
-};
-
-struct struct_info {
+// A struct as analysis sees it: its TypeDef, and each field with where its
+// type came from. What a writer gets is the struct_info made from it.
+struct struct_source {
     TypeDef type;
-    std::vector<field_info> fields;
+    std::vector<std::pair<std::string, resolved_field>> fields;  // camelCase name, type
 };
 
-struct_info analyze_struct(TypeDef const& type,
-                           std::map<TypeDef, std::string> const& generated_names) {
-    struct_info info{type};
+struct_source read_struct(TypeDef const& type, std::map<TypeDef, std::string> const& generated_names) {
+    struct_source source{type, {}};
     for (auto&& field : type.FieldList()) {
-        info.fields.push_back({member_name(field.Name()),
-                               resolve_field_type(field.Signature().Type(), generated_names)});
+        source.fields.emplace_back(member_name(field.Name()),
+                                   resolve_field_type(field.Signature().Type(), generated_names));
     }
-    return info;
+    return source;
 }
 
 // The structs a struct's fields hold, which have to be declared before it.
 // Enums don't take part: they live in a file of their own and depend on
 // nothing.
-void struct_dependencies(struct_info const& s, auto&& follow) {
-    for (auto&& field : s.fields) {
-        if (field.type.dependency && get_category(field.type.dependency) == category::struct_type) {
-            follow(field.type.dependency);
+void struct_dependencies(struct_source const& s, auto&& follow) {
+    for (auto&& [name, field] : s.fields) {
+        if (field.dependency && get_category(field.dependency) == category::struct_type) {
+            follow(field.dependency);
         }
     }
 }
 
-void write_structs_file(std::filesystem::path const& path, std::vector<struct_info> const& structs,
-                        std::set<std::string> const& includes) {
+struct_info analyze_struct(struct_source const& source) {
+    auto const& type = source.type;
+    struct_info info;
+    info.name = std::string{type.TypeName()};
+    info.winrt_name = std::format("{}::{}", winrt_namespace(type.TypeNamespace()), type.TypeName());
+    info.projection_header = winrt_include(type.TypeNamespace());
+
+    int next = 1;
+    for (auto&& [name, field] : source.fields) {
+        info.fields.push_back({name, field.cpp_type});
+        if (!info.probe_complete) {
+            continue;
+        }
+
+        if (!field.include.empty()) {
+            info.probe_complete = false;
+            continue;
+        }
+
+        std::string init;
+        std::string check;
+        if (field.dependency) {
+            if (get_category(field.dependency) != category::enum_type) {
+                info.probe_complete = false;
+                continue;
+            }
+            auto const winrt_enum = std::format("{}::{}", winrt_namespace(field.dependency.TypeNamespace()),
+                                                field.dependency.TypeName());
+            init = std::format("static_cast<{}>({})", winrt_enum, next);
+            check = std::format("v.{} == static_cast<{}>({})", name, field.cpp_type, next);
+        } else {
+            init = std::to_string(next);
+            check = std::format("v.{} == {}", name, next);
+        }
+
+        if (!info.probe_init.empty()) {
+            info.probe_init += ", ";
+            info.probe_check += " && ";
+        }
+        info.probe_init += init;
+        info.probe_check += check;
+        ++next;
+    }
+    if (!info.probe_complete) {
+        info.probe_init.clear();
+        info.probe_check.clear();
+    }
+    return info;
+}
+
+void write_enums_file(std::filesystem::path const& path, std::vector<enum_info> const& enums) {
     auto out = open_output(path);
 
-    // <stdint.h> rather than <cstdint>, for the same reason as in
-    // write_enums_file() above: the emitted field types are unqualified. Only
-    // where a field is one of them: a file of doubles and enums has no use for it.
-    bool const fixed_width = std::ranges::any_of(structs, [](struct_info const& s) {
-        return std::ranges::any_of(s.fields, [](auto const& field) {
-            return field.type.cpp_type.ends_with("_t") && field.type.cpp_type.find("int") != std::string::npos;
-        });
-    });
-    std::print(out, "{}#pragma once\n\n", banner);
-    if (fixed_width) {
-        std::print(out, "#include <stdint.h>\n");
-    }
+    // <stdint.h>, not <cstdint>: the emitted underlying types and field
+    // types are unqualified (int32_t, not std::int32_t), and only the C
+    // header is guaranteed to declare those in the global namespace.
+    std::print(out, R"({}#pragma once
 
-    write_includes(out, includes);
-    std::print(out, "\nnamespace wxl {{\n\n");
+#include <stdint.h>
 
-    for (auto&& s : structs) {
-        std::print(out, "struct {}\n{{\n", s.type.TypeName());
-        for (auto&& field : s.fields) {
-            std::print(out, "    {} {}{{}};\n", field.type.cpp_type, field.name);
+namespace wxl {{
+
+)",
+               banner);
+
+    for (auto&& info : enums) {
+        // Every enumerator carries its value: with some of them left out by a
+        // profile, the rest must not move.
+        std::print(out, "enum class {} : {}\n{{\n", info.name, info.underlying);
+        for (auto&& value : info.values) {
+            std::print(out, "    {} = {},\n", value.name, value.value);
         }
         std::print(out, "}};\n\n");
     }
@@ -194,52 +214,36 @@ void write_structs_file(std::filesystem::path const& path, std::vector<struct_in
     std::print(out, "}} // namespace wxl\n");
 }
 
-// What proves a struct is the ABI struct, which is what lets it cross whole
-// as a bit_cast. One distinct value per field, so that the assert catches a
-// reordering and not merely a resize: the WinRT struct is built from these,
-// bit-cast across and read back under the wxl names. A field that is neither
-// a primitive nor an enum has no such literal, and `complete` says so -- that
-// pair falls back to an assert on size and alignment alone.
-struct layout_probe {
-    bool complete = true;
-    std::string winrt_init;
-    std::string wxl_check;
-};
+void write_structs_file(std::filesystem::path const& path, Model const& model,
+                        struct_file const& file) {
+    auto out = open_output(path);
 
-layout_probe build_probe(struct_info const& s) {
-    layout_probe probe;
-    int next = 1;
-    for (auto&& field : s.fields) {
-        if (!field.type.include.empty()) {
-            return {false, {}, {}};
-        }
-
-        std::string init;
-        std::string check;
-        if (field.type.dependency) {
-            if (get_category(field.type.dependency) != category::enum_type) {
-                return {false, {}, {}};
-            }
-            auto const winrt_enum =
-                std::format("{}::{}", winrt_namespace(field.type.dependency.TypeNamespace()),
-                            field.type.dependency.TypeName());
-            init = std::format("static_cast<{}>({})", winrt_enum, next);
-            check = std::format("v.{} == static_cast<{}>({})", field.name, field.type.cpp_type,
-                                next);
-        } else {
-            init = std::to_string(next);
-            check = std::format("v.{} == {}", field.name, next);
-        }
-
-        if (!probe.winrt_init.empty()) {
-            probe.winrt_init += ", ";
-            probe.wxl_check += " && ";
-        }
-        probe.winrt_init += init;
-        probe.wxl_check += check;
-        ++next;
+    // <stdint.h> rather than <cstdint>, for the same reason as in
+    // write_enums_file() above: the emitted field types are unqualified. Only
+    // where a field is one of them: a file of doubles and enums has no use for it.
+    bool const fixed_width = std::ranges::any_of(file.structs, [&model](size_t index) {
+        return std::ranges::any_of(model.structs[index].fields, [](auto const& field) {
+            return field.cpp_type.ends_with("_t") && field.cpp_type.find("int") != std::string::npos;
+        });
+    });
+    std::print(out, "{}#pragma once\n\n", banner);
+    if (fixed_width) {
+        std::print(out, "#include <stdint.h>\n");
     }
-    return probe;
+
+    write_includes(out, file.includes);
+    std::print(out, "\nnamespace wxl {{\n\n");
+
+    for (auto&& index : file.structs) {
+        auto const& s = model.structs[index];
+        std::print(out, "struct {}\n{{\n", s.name);
+        for (auto&& field : s.fields) {
+            std::print(out, "    {} {}{{}};\n", field.cpp_type, field.name);
+        }
+        std::print(out, "}};\n\n");
+    }
+
+    std::print(out, "}} // namespace wxl\n");
 }
 
 void write_struct_conversions(std::filesystem::path const& path,
@@ -248,7 +252,7 @@ void write_struct_conversions(std::filesystem::path const& path,
 
     std::set<std::string> includes{"Structs.h", "../impl/conversions.h"};
     for (auto&& s : structs) {
-        includes.insert(std::format("<winrt/{}.h>", s.type.TypeNamespace()));
+        includes.insert(s.projection_header);
     }
 
     std::print(out, R"({}#pragma once
@@ -260,9 +264,6 @@ void write_struct_conversions(std::filesystem::path const& path,
     std::print(out, "\nnamespace wxl::impl {{\n");
 
     for (auto&& s : structs) {
-        auto const winrt_name =
-            std::format("{}::{}", winrt_namespace(s.type.TypeNamespace()), s.type.TypeName());
-
         std::print(out, R"(
 inline {0} to_winrt({1} const& value) {{
     return std::bit_cast<{0}>(value);
@@ -272,16 +273,15 @@ inline {1} from_winrt({0} const& value) {{
     return std::bit_cast<{1}>(value);
 }}
 )",
-                   winrt_name, s.type.TypeName());
+                   s.winrt_name, s.name);
 
-        auto const probe = build_probe(s);
-        if (probe.complete) {
+        if (s.probe_complete) {
             std::print(out, "\nstatic_assert(mirrors<{0}>({1}{{{2}}}, []({0} v) {{ return {3}; }}));\n",
-                       s.type.TypeName(), winrt_name, probe.winrt_init, probe.wxl_check);
+                       s.name, s.winrt_name, s.probe_init, s.probe_check);
         } else {
             std::print(out,
                        "\nstatic_assert(sizeof({0}) == sizeof({1}) && alignof({0}) == alignof({1}));\n",
-                       s.type.TypeName(), winrt_name);
+                       s.name, s.winrt_name);
         }
     }
 
@@ -293,29 +293,32 @@ inline {1} from_winrt({0} const& value) {{
 std::vector<std::pair<std::string, std::string>> enum_members(
     TypeDef const& type, std::map<TypeDef, std::set<std::string>> const& kept) {
     std::vector<std::pair<std::string, std::string>> values;
-    for (auto&& field : analyze_enum(type, kept).literals) {
+    for (auto&& field : literals_of(type, kept).literals) {
         values.emplace_back(member_name(field.Name()), std::string{field.Name()});
     }
     return values;
 }
 
-void write_enums_and_structs(Output const& out, Model const& model, Emitted& emitted) {
+void analyze_enums_and_structs(type_kinds const& kinds, Closure const& closure, Model& model) {
     std::vector<TypeDef> named;
-    named.insert(named.end(), model.enums.begin(), model.enums.end());
-    named.insert(named.end(), model.structs.begin(), model.structs.end());
+    named.insert(named.end(), kinds.enums.begin(), kinds.enums.end());
+    named.insert(named.end(), kinds.structs.begin(), kinds.structs.end());
     auto const generated_names = build_name_registry(named);
 
-    // Grouping only slices the model's dependency order per namespace; no
+    // Grouping only slices the closure's dependency order per namespace; no
     // re-sorting here, the order the closure produced is the order emitted.
-    std::map<std::string, std::vector<TypeDef>> enums_by_namespace;
-    for (auto&& type : model.enums) {
-        enums_by_namespace[std::string(type.TypeNamespace())].push_back(type);
+    std::map<std::string, std::vector<enum_info>> enums_by_namespace;
+    for (auto&& type : kinds.enums) {
+        enums_by_namespace[std::string(type.TypeNamespace())].push_back(
+            analyze_enum(type, closure.members));
+    }
+    for (auto&& [ns, enums] : enums_by_namespace) {
+        model.enum_files.push_back({ns, std::move(enums)});
     }
 
-    std::vector<struct_info> struct_infos;
-    std::vector<std::string> dropped;
-    struct_infos.reserve(model.structs.size());
-    for (auto&& type : model.structs) {
+    std::vector<struct_source> sources;
+    sources.reserve(kinds.structs.size());
+    for (auto&& type : kinds.structs) {
         if (project_type(type)) {
             continue;  // wxl::geometry already provides it
         }
@@ -324,18 +327,13 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
             // struct anyway would produce a bit_cast between two layouts
             // that only look alike, so it is dropped and said so; every
             // member naming it is dropped with it, and reported there.
-            dropped.push_back(full_name(type));
+            model.dropped_structs.push_back(full_name(type));
             continue;
         }
-        struct_infos.push_back(analyze_struct(type, generated_names));
+        sources.push_back(read_struct(type, generated_names));
     }
-    auto const sorted_structs = topological_sort(
-        std::move(struct_infos), [](struct_info const& s, auto&& follow) { struct_dependencies(s, follow); });
-
-    std::map<std::string, std::vector<struct_info>> structs_by_namespace;
-    for (auto&& s : sorted_structs) {
-        structs_by_namespace[std::string(s.type.TypeNamespace())].push_back(s);
-    }
+    auto const sorted = topological_sort(
+        std::move(sources), [](struct_source const& s, auto&& follow) { struct_dependencies(s, follow); });
 
     // Per-namespace-file #include sets: any field whose resolved type
     // came from a *different* file than the struct itself needs an
@@ -345,46 +343,53 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
     // (same-namespace struct deps are already ordered earlier in the same
     // file by the topological sort above), and a projected type needs the
     // header wxl keeps it in.
-    std::map<std::string, std::set<std::string>> struct_file_includes;
-    for (auto&& [ns, infos] : structs_by_namespace) {
-        std::set<std::string> includes;
-        for (auto&& s : infos) {
-            for (auto&& field : s.fields) {
-                if (!field.type.include.empty()) {
-                    includes.insert(std::string{field.type.include});
-                }
-                if (!field.type.dependency) {
-                    continue;
-                }
-                std::string const dep_ns{field.type.dependency.TypeNamespace()};
-                auto const dep_cat = get_category(field.type.dependency);
-                if (dep_cat == category::enum_type) {
-                    includes.insert(dep_ns + ".Enums.h");
-                } else if (dep_cat == category::struct_type && dep_ns != ns) {
-                    includes.insert(dep_ns + ".Structs.h");
-                }
+    std::map<std::string, struct_file> files;
+    for (auto&& source : sorted) {
+        std::string const ns{source.type.TypeNamespace()};
+        auto& file = files[ns];
+        file.ns = ns;
+        file.structs.push_back(model.structs.size());
+        model.structs.push_back(analyze_struct(source));
+
+        for (auto&& [name, field] : source.fields) {
+            if (!field.include.empty()) {
+                file.includes.insert(std::string{field.include});
+            }
+            if (!field.dependency) {
+                continue;
+            }
+            std::string const dep_ns{field.dependency.TypeNamespace()};
+            auto const dep_cat = get_category(field.dependency);
+            if (dep_cat == category::enum_type) {
+                file.includes.insert(dep_ns + ".Enums.h");
+            } else if (dep_cat == category::struct_type && dep_ns != ns) {
+                file.includes.insert(dep_ns + ".Structs.h");
             }
         }
-        struct_file_includes[ns] = std::move(includes);
     }
+    for (auto&& [ns, file] : files) {
+        model.struct_files.push_back(std::move(file));
+    }
+}
 
+void write_enums_and_structs(Output const& out, Model const& model, Emitted& emitted) {
     std::vector<std::string> enum_files;
-    for (auto&& [ns, types] : enums_by_namespace) {
-        std::string const filename = ns + ".Enums.h";
+    for (auto&& file : model.enum_files) {
+        std::string const filename = file.ns + ".Enums.h";
         auto const path = out.dir / filename;
-        write_enums_file(path, types, model.members);
+        write_enums_file(path, file.enums);
         emitted.add(path);
-        std::print("generated {} ({} enums)\n", path.string(), types.size());
+        std::print("generated {} ({} enums)\n", path.string(), file.enums.size());
         enum_files.push_back(filename);
     }
 
     std::vector<std::string> struct_files;
-    for (auto&& [ns, infos] : structs_by_namespace) {
-        std::string const filename = ns + ".Structs.h";
+    for (auto&& file : model.struct_files) {
+        std::string const filename = file.ns + ".Structs.h";
         auto const path = out.dir / filename;
-        write_structs_file(path, infos, struct_file_includes[ns]);
+        write_structs_file(path, model, file);
         emitted.add(path);
-        std::print("generated {} ({} structs)\n", path.string(), infos.size());
+        std::print("generated {} ({} structs)\n", path.string(), file.structs.size());
         struct_files.push_back(filename);
     }
 
@@ -399,13 +404,14 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
     std::print("generated {}\n", structs_umbrella.string());
 
     auto const struct_conversions = out.dir / "Structs.impl.h";
-    write_struct_conversions(struct_conversions, sorted_structs);
+    write_struct_conversions(struct_conversions, model.structs);
     emitted.add(struct_conversions);
     std::print("generated {}\n", struct_conversions.string());
 
-    if (!dropped.empty()) {
-        std::print("\nstructs dropped -- a field wxl cannot mirror ({}):\n", dropped.size());
-        for (auto&& name : dropped) {
+    if (!model.dropped_structs.empty()) {
+        std::print("\nstructs dropped -- a field wxl cannot mirror ({}):\n",
+                   model.dropped_structs.size());
+        for (auto&& name : model.dropped_structs) {
             std::print("  {}\n", name);
         }
     }

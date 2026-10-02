@@ -22,11 +22,16 @@
 namespace gen {
 
 // Where a generated type can be found: its flat wxl name and the public
-// header declaring it. Built by the class writer, which is the only place
-// that knows how classes are grouped into files.
+// header declaring it. Built by the class analysis, which is where classes
+// are grouped into files.
 struct TypeIndex {
     std::map<md::TypeDef, std::string> names;
     std::map<md::TypeDef, std::string> headers;
+
+    // Wrapped classes that declare no default interface: there is nothing to
+    // hand such an object over to a call as, so a member naming one is
+    // skipped and counted rather than emitted as a call that cannot compile.
+    std::set<md::TypeDef> without_default_interface;
 };
 
 struct TypeUse {
@@ -95,8 +100,9 @@ TypeUse map_element_type(std::string_view metadata_name);
 
 // Whether `type` is a class wxl represents as a wxl::Collection rather than
 // as a wrapper of its own -- UIElementCollection, ItemCollection and their
-// kind, which exist in metadata only to name an IVector<T>. The class writer
-// asks this to leave such a class out of the generated hierarchy entirely.
+// kind, which exist in metadata only to name an IVector<T>. The class
+// analysis asks this to leave such a class out of the generated hierarchy
+// entirely.
 bool is_collection_class(md::TypeDef const& type);
 
 // Whether a WinRT struct is the ABI struct field for field, and can

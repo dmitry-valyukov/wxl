@@ -342,45 +342,23 @@ void write_name_table(Output const& out, Emitted& emitted, std::string_view file
     emitted.add(file);
 }
 
-// The bare names of the classes the run generates. A resource dictionary
-// names a target type, and a brush key starts with one, by that name alone.
-std::set<std::string> generated_class_names(Model const& model) {
-    std::set<std::string> generated;
-    for (auto&& type : model.classes) {
-        generated.insert(std::string{type.TypeName()});
-    }
-    return generated;
-}
-
 }  // namespace
 
-void write_styles(Output const& out, Model const& model,
-                  std::vector<DictionaryResource> const& resources, Emitted& emitted) {
+void write_styles(Output const& out, Model const& model, Emitted& emitted) {
     // Unscoped only: a style declared inside a template's own resources is
     // that template's business, and the run-time lookup behind style_at()
     // could never reach it anyway.
     std::vector<style> found;
-    for (auto&& declared : resources) {
+    for (auto&& declared : model.resources) {
         if (declared.type == "Style" && !declared.target_type.empty() && !declared.scoped) {
             found.push_back({declared.key, std::string{unprefixed(declared.target_type)}});
         }
     }
 
     // Only styles for controls that were generated: without the control there
-    // is nothing to apply the style to.
-    auto const generated = generated_class_names(model);
-
-    // And of those, the ones the profiles chose. The document names a target
-    // by its bare name and the profile by the full one; the generated class
-    // joins the two.
-    std::map<std::string, MemberFilter const*> chosen;  // target -> its filter
-    for (auto&& type : model.classes) {
-        auto const filter =
-            model.styles.find(std::format("{}.{}", type.TypeNamespace(), type.TypeName()));
-        if (filter != model.styles.end()) {
-            chosen.emplace(std::string{type.TypeName()}, &filter->second);
-        }
-    }
+    // is nothing to apply the style to; and of those, the ones the profiles
+    // chose (Model::style_filters).
+    auto const& generated = model.class_names;
 
     // Grouped by target type, and each group's members sorted, so the header
     // reads as a list rather than as the order a 3 MB document happened to
@@ -401,8 +379,8 @@ void write_styles(Output const& out, Model const& model,
             ++dropped;
             continue;
         }
-        if (auto const filter = chosen.find(target);
-            filter != chosen.end() && !filter->second->allows(key)) {
+        if (auto const filter = model.style_filters.find(target);
+            filter != model.style_filters.end() && !filter->second.allows(key)) {
             ++left_out;
             continue;
         }
@@ -459,8 +437,7 @@ void write_styles(Output const& out, Model const& model,
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
 }
 
-void write_brushes(Output const& out, Model const& model,
-                   std::vector<DictionaryResource> const& resources, Emitted& emitted) {
+void write_brushes(Output const& out, Model const& model, Emitted& emitted) {
     // Concrete brush elements only -- SolidColorBrush, AcrylicBrush,
     // LinearGradientBrush; the suffix is what they have in common. The
     // StaticResource aliases the dictionary also carries (ButtonBackground
@@ -468,14 +445,14 @@ void write_brushes(Output const& out, Model const& model,
     // they exist to be *overridden* by templates, tripling the surface to
     // read them has no caller yet, and their type is only known by chasing
     // the alias chain.
-    auto const generated = generated_class_names(model);
+    auto const& generated = model.class_names;
 
     std::map<std::string, std::string> stems;        // stem -> key
     std::map<std::string, std::string> theme_stems;  // the same, for *ThemeBrush
     std::set<std::string> seen;
     size_t left_out = 0;
     size_t collisions = 0;
-    for (auto&& declared : resources) {
+    for (auto&& declared : model.resources) {
         // Unscoped only, and for a harder reason than tidiness: a brush
         // declared inside a template's resources is invisible to the
         // application-level lookup behind brush_at(), so a path to one

@@ -4,12 +4,12 @@
 
 #include "md.h"
 
-// The two questions the type map answers for the writers: does wxl already
+// The two questions the type map answers for the analysis: does wxl already
 // own an equivalent of this WinRT type, and does this property carry a tag
 // of its own.
 //
 // Both tables are data, read from profiles/types.json (see TypeMap in
-// profile.h) -- this is only where the writers ask about them. Everything
+// profile.h) -- this is only where the analysis asks about them. Everything
 // that names a type must consult project_type() *before* falling back to
 // the registry of generated names, or the projection would only half apply.
 
