@@ -83,7 +83,13 @@ void bind_pair(Control const& control, core::observable<T>& model, bind_directio
     bool const shows = direction != bind_direction::input;
     bool const edits = direction != bind_direction::output;
 
-    if (shows) set(control, model.get());
+    if (shows) {
+        set(control, model.get());
+    } else if (edits) {
+        // Input alone: the field takes what the control has right now, so the
+        // two agree from the first moment and the first change is a change.
+        model.set(get(control));
+    }
 
     EventToken token;
     if (edits) {
@@ -109,6 +115,43 @@ void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
         control, model, direction,                          //
         [](ToggleSwitch const& c) { return c.isOn(); },     // get
         [](ToggleSwitch const& c, bool v) { c.isOn(v); });  // set
+}
+
+// A checked box says so under two events, Checked and Unchecked, so it has two
+// guards, and the field's watch keeps both: they come off together with the
+// watch. Indeterminate (a third state of a three-state box) is neither: a bool
+// field reads it as not checked, as isChecked().value_or(false) does.
+void apply_bind(ToggleButton const& control, core::observable<bool>& model,
+                bind_direction direction) {
+    using Args = typename EventAdder<EventKey::Checked>::template args_t<ToggleButton>;
+
+    bool const shows = direction != bind_direction::input;
+    bool const edits = direction != bind_direction::output;
+
+    auto const set = [](ToggleButton const& c, bool v) { c.isChecked(v); };
+    auto const get = [](ToggleButton const& c) { return c.isChecked().value_or(false); };
+    if (shows) {
+        set(control, model.get());
+    } else if (edits) {
+        model.set(get(control));
+    }
+
+    EventToken checked;
+    EventToken unchecked;
+    if (edits) {
+        auto const write = [&model, get](ToggleButton const& sender, Args&) { model.set(get(sender)); };
+        checked = EventAdder<EventKey::Checked>::add(control, write);
+        unchecked = EventAdder<EventKey::Unchecked>::add(control, write);
+    }
+
+    handler_guard<EventKey::Checked, ToggleButton> onChecked{control, checked};
+    handler_guard<EventKey::Unchecked, ToggleButton> onUnchecked{control, unchecked};
+    if (shows) {
+        model.watch_for_binding([a = std::move(onChecked), b = std::move(onUnchecked),
+                                 set](bool value) noexcept { set(a.control, value); });
+    } else {
+        model.watch_for_binding([a = std::move(onChecked), b = std::move(onUnchecked)](bool) noexcept {});
+    }
 }
 
 void apply_bind(ComboBox const& control, core::observable<int>& model, bind_direction direction) {
@@ -148,7 +191,7 @@ void apply_bind(TextBox const& control, core::observable<core::u16_text>& model,
         // reads the same text, and the model, seeing no change, ends the
         // echo there.
         [](TextBox const& c) { return core::unicode::repaired(c.text()); },
-        // set: the checked text goes to the control as it is -- string_param
+        // set: the checked text goes to the control as it is -- hstring_param
         // takes u16_text, and no unit is looked at on the way.
         [](TextBox const& c, core::u16_text const& v) { c.text(v); });
 }

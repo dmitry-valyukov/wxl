@@ -79,7 +79,7 @@ public:
     // break, an image) can split the link and reopen it with the same
     // target.
     winrt::Microsoft::UI::Xaml::Documents::Hyperlink link_{nullptr};
-    sta_wstring linkTarget_;
+    hstring linkTarget_;
 
     // The handlers, boxed and shared: a closure on a WinRT element holds
     // the box, not the Impl -- an element that outlives the wrapper (the

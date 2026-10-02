@@ -38,7 +38,7 @@ constexpr double kFormWidth = 460.0;
 // row, under a label -- ComboBox has no Header in this profile. Built here
 // rather than in the window's braces because the rows come from a vector, and
 // the declarative form spreads fixed children, not a run-time list.
-StackPanel labeledCombo(std::wstring_view label, std::vector<std::wstring> const& options,
+StackPanel labeledCombo(zstring_view label, std::vector<std::wstring> const& options,
                         core::observable<int>& model) {
     ComboBox combo;
     for (std::wstring const& option : options) combo.setPositional(ComboBoxItem{option});

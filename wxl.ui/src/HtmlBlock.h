@@ -15,7 +15,7 @@
 //     parser state survives a call.
 //
 // The style attribute carries the *name* of a registered style, never CSS:
-// <div style="quote"> finds what registerStyle(L"quote", ...) put in, and
+// <div style="quote"> finds what registerStyle(u"quote", ...) put in, and
 // an unknown name -- real CSS from foreign markup included -- is ignored
 // with an onError record, per the spec's "the text is sacred" rule.
 
@@ -47,26 +47,26 @@ public:
     // and the headings are fractions of it, fixed as the runs are built. So
     // the size is set before the markup, not after -- in the declarative
     // form, where setters are applied left to right, the markup goes last.
-    void html(std::wstring_view markup) const;
+    void html(hstring_param const& markup) const;
 
     // Parses the markup and adds it after what is already there: bare
     // inline content continues the last paragraph, block tags open new
     // ones. The insertion is complete in itself -- see above.
-    void append(std::wstring_view markup) const;
+    void append(hstring_param const& markup) const;
 
     // The named styles style="..." resolves against. Registering a name
     // again replaces it; already-built content keeps the look it was built
     // with -- the registry is read at parse time, not live. One name per
     // attribute, by decision -- foreign markup's real CSS in style="..."
     // simply never finds a match.
-    void registerStyle(std::wstring_view name, HtmlStyle const& style) const;
+    void registerStyle(hstring_param const& name, HtmlStyle const& style) const;
     void registerStyles(
-        std::initializer_list<std::pair<std::wstring_view, HtmlStyle>> styles) const;
+        std::initializer_list<std::pair<zstring_view, HtmlStyle>> styles) const;
 
     // A bare string in the declarative form is the markup:
-    // HtmlBlock{ L"Привет, <b>мир</b>!" }.
+    // HtmlBlock{ u"Привет, <b>мир</b>!" }.
     using base_t::setPositional;
-    void setPositional(std::wstring_view markup) const { html(markup); }
+    void setPositional(hstring_param const& markup) const { html(markup); }
 
 protected:
     explicit HtmlBlock(Impl* impl) noexcept;

@@ -28,7 +28,7 @@
 #include "../CornerRadius.h"
 #include "event_token.h"
 #include "../geometry.h"
-#include "../string_param.h"
+#include "../hstring_param.h"
 #include "value_box.h"
 
 namespace wxl::impl {
@@ -62,40 +62,50 @@ consteval bool mirrors(WinRT probe, Check check) {
 using winrt_ticks = std::chrono::duration<int64_t, std::ratio<1, 10'000'000>>;
 // A point in time is wxl::DateTime, declared in DateTime.h beside its sentinel.
 
-// Strings, in the one form every generated setter takes. The text arrives as
-// char16_t and crosses as wchar_t, which is the same sixteen bits under
-// another name; the rename happens in string_param and nowhere else.
+// Strings, in the one form every generated setter takes. A borrowed string
+// crosses as the very handle it is: an hstring is lent as it is, and text that
+// lay under a fast-pass header is lent by that header -- WindowsCreateString-
+// Reference writes one into the object, a handle onto the caller's own
+// characters. Nothing is allocated and nothing is copied, which is the whole
+// reason hstring_param asks for a zero after the text. The object lives to the
+// end of the full expression, exactly as long as a WinRT method may borrow a
+// string: one that keeps it duplicates it, and duplicating a fast-pass string
+// is what makes a real one.
 //
-// What comes back is a *fast-pass* string: WindowsCreateStringReference
-// writes a header into the temporary this returns and hands back a handle
-// onto the caller's own characters. Nothing is allocated and nothing is
-// copied -- which is the whole reason string_param asks for a zero after the
-// text (see string_param.h). The temporary lives to the end of the full
-// expression, which is exactly as long as a WinRT method may borrow a string:
-// one that keeps it duplicates it, and duplicating a fast-pass string is what
-// makes a real one.
+// core::hstring and winrt::hstring are one pointer to the same header, so the
+// borrow is a reinterpretation of where the handle lies; the layout is checked
+// in wxl.ui's tests, where the two types meet.
 //
-// There is deliberately no overload over a bare std::wstring_view. A view
-// makes no promise about the character after it, and an overload taking one
-// would take the contract off the type that carries it.
-inline winrt::param::hstring to_winrt(string_param value) { return {value.wide()}; }
+// There is deliberately no overload over a bare std::u16string_view or
+// std::wstring_view. A view makes no promise about the character after it, and
+// an overload taking one would take the contract off the type that carries it.
+inline winrt::hstring const& to_winrt(hstring const& value) noexcept {
+    return *reinterpret_cast<winrt::hstring const*>(&value);
+}
+
+inline winrt::hstring const& to_winrt(hstring_param const& value) noexcept {
+    return to_winrt(value.as_hstring());
+}
 
 // A string as the IInspectable an object-typed property takes -- `content =
 // u"Click"` and its two dozen relatives.
 //
 // Through PropertyValue rather than through winrt::box_value, and that is not
 // a detour: box_value takes a winrt::hstring, so reaching it would undo the
-// fast pass above and put the copy back. CreateString takes the fast-pass
+// fast pass above and put the copy back. CreateString takes the borrowed
 // string itself, so the characters go in as they lie and the box the property
 // store keeps is made from them.
-inline winrt::Windows::Foundation::IInspectable box_text(string_param value) {
+inline winrt::Windows::Foundation::IInspectable box_text(hstring_param const& value) {
     return winrt::Windows::Foundation::PropertyValue::CreateString(to_winrt(value));
 }
 
-inline wstring from_winrt(winrt::hstring const& value) {
-    return wstring{reinterpret_cast<char16_t const*>(value.c_str()), value.size()};
+// What comes back is the same HSTRING, one reference more: reading a string
+// off a control is a count, not a copy of its text.
+inline hstring from_winrt(winrt::hstring const& value) {
+    hstring result;
+    winrt::copy_to_abi(value, *result.put_abi());
+    return result;
 }
-
 // The value types wxl declares itself are the ABI structs -- the same
 // fields, in the same order, of the same size -- so a value crosses by
 // being reinterpreted rather than copied member by member. It is also what
@@ -141,24 +151,23 @@ inline Color from_winrt(winrt::Windows::UI::Color const& value) {
 // handed to it -- a property left unset stays a null Uri, which is what the
 // runtime itself uses for "no link".
 inline winrt::Windows::Foundation::Uri to_winrt(Uri const& value) {
-    return value.empty() ? nullptr : winrt::Windows::Foundation::Uri{value.text()};
+    return value.empty() ? nullptr : winrt::Windows::Foundation::Uri{to_winrt(value.text())};
 }
 
 inline Uri from_winrt(winrt::Windows::Foundation::Uri const& value) {
-    return value ? Uri{value.ToString()} : Uri{};
+    return value ? Uri{from_winrt(value.ToString())} : Uri{};
 }
 
 // A font family. The runtime type is built from the name and remembers
 // nothing else, so an empty name is a null family -- which is what the
 // framework reads as "inherit".
 inline winrt::Microsoft::UI::Xaml::Media::FontFamily to_winrt(FontFamily const& value) {
-    return value.empty() ? nullptr : winrt::Microsoft::UI::Xaml::Media::FontFamily{value.name()};
+    return value.empty() ? nullptr
+                        : winrt::Microsoft::UI::Xaml::Media::FontFamily{to_winrt(value.name())};
 }
 
 inline FontFamily from_winrt(winrt::Microsoft::UI::Xaml::Media::FontFamily const& value) {
-    // The view is named rather than left to conversion: an hstring reaches
-    // one of its own, and that plus string_param's would be two.
-    return value ? FontFamily{std::wstring_view{value.Source()}} : FontFamily{};
+    return value ? FontFamily{from_winrt(value.Source())} : FontFamily{};
 }
 
 // WinRT's nullable box and wxl's nullable. cppwinrt's IReference<T> already

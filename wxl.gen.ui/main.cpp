@@ -11,6 +11,7 @@
 #include "CompositionWindow.h"
 #include "Editor.h"
 #include "HtmlBlock.h"
+#include "UiThread.h"
 #include "MagnifyEffect.h"
 #include "SplitPanel.h"
 #include "ThemeBrush.h"
@@ -56,8 +57,8 @@ namespace glyphs {
 }
 
 // Вкладки над левым деревом. Выбранную узнают по тексту: вкладка — это её имя.
-constexpr std::u16string_view typesTab = u"Types";
-constexpr std::u16string_view resourcesTab = u"Resources";
+constexpr zstring_view typesTab = u"Types";
+constexpr zstring_view resourcesTab = u"Resources";
 
 core::u16_text percent(double factor) {
     core::u16_text text = core::to_u16(factor * 100, std::chars_format::fixed, 0);
@@ -69,6 +70,14 @@ core::u16_text percent(double factor) {
 struct ZoomLabel {
     core::observable<core::u16_text> text;
 };
+
+// Документация дочитывается в потоке окна: шаг в несколько миллисекунд, и
+// окно отрабатывает ввод и отрисовку до следующего.
+async::detached_task prepareDocumentation(core::intrusive_ptr<Editor> document) {
+    do {
+        co_await UiThread::onIdle();
+    } while (document->prepareDocumentation());
+}
 
 }  // namespace
 
@@ -94,12 +103,28 @@ wxl::Teardown wxl_launched() {
     document->members.on_change([right](core::intrusive_ptr<TreeModel> const& model) noexcept {
         right->model(model);
     });
+    auto const typesItem = SelectorBarItem {text = typesTab, isSelected = true};
     auto const details = HtmlBlock {textWrapping.wrap};
     document->info.on_change([details](std::wstring const& markup) noexcept { details.html(markup); });
+    // Ссылка в сведениях — тип: он открывается в дереве Types.
+    details.onLink([left, document, typesItem](zstring_view target) {
+        if (auto const row = document->reveal(target.wide())) {
+            typesItem.isSelected(true);
+            left->model(document->types());
+            left->reveal(*row);
+        }
+    });
 
     document->revision.on_change([left, right](uint32_t) noexcept {
         left->refresh();
         right->refresh();
+    });
+
+    // Флаг поднимается, только когда опущен, так что дочитывает одна корутина.
+    document->documentationPending.on_change([raw = document.get()](bool pending) noexcept {
+        if (pending) {
+            prepareDocumentation(core::intrusive_ptr<Editor> {raw});
+        }
     });
 
     // Панель инструментов — одна на всё окно, карточкой, как в образце HelloHere.
@@ -283,11 +308,11 @@ wxl::Teardown wxl_launched() {
                         onSelectionChanged = [left, document](SelectorBar const& bar,
                                                               SelectorBarSelectionChangedEventArgs&) {
                             if (auto const item = bar.selectedItem()) {
-                                bool const resources = std::u16string_view {item.text()} == resourcesTab;
+                                bool const resources = item.text() == resourcesTab;
                                 left->model(resources ? document->resources() : document->types());
                             }
                         },
-                        SelectorBarItem {text = typesTab, isSelected = true},
+                        typesItem,
                         SelectorBarItem {text = resourcesTab},
                     },
                     // Дерево — на сплошном фоне, белом в светлой теме.

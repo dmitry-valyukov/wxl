@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.h>
 
-#include "../string_param.h"
+#include "../hstring_param.h"
 
 // What stands behind `toolTip = L"..."` on any element.
 //
@@ -17,6 +17,6 @@
 
 namespace wxl::impl {
 
-void set_tool_tip(winrt::Microsoft::UI::Xaml::UIElement const& element, string_param text);
+void set_tool_tip(winrt::Microsoft::UI::Xaml::UIElement const& element, hstring_param const& text);
 
 }  // namespace wxl::impl

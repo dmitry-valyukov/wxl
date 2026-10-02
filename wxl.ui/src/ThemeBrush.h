@@ -39,16 +39,13 @@
 #include "generated/Microsoft.UI.Xaml.Media.h"
 #include "generated/Microsoft.UI.Xaml.h"
 #include "impl/member.h"
-#include "string_param.h"
+#include "hstring_param.h"
 
 namespace wxl {
 
 class ThemeBrush {
 public:
-    // The key still kept in wchar_t, because the dictionary lookup in
-    // ThemeBrush.cpp is written that way; what changed is the door, so a
-    // caller may spell the name in either unit.
-    ThemeBrush(string_param key, Brush brush) : key_(key.wide()), brush_(std::move(brush)) {}
+    ThemeBrush(hstring_param const& key, Brush brush) : key_(key), brush_(std::move(brush)) {}
 
     template <typename Obj>
         requires std::derived_from<Obj, FrameworkElement>
@@ -66,7 +63,7 @@ private:
     // The name is kept rather than the caller's view of it: this is written
     // in the braces of a description, and a description outlives the
     // expression that built it -- a preset is worn long after.
-    core::sta_wstring key_;
+    hstring key_;
 
     Brush brush_;
 };

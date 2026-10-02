@@ -15,6 +15,7 @@ wxl_add_module_library(wxl.core STATIC
         function.ixx
         grapheme.ixx
         hevent.ixx
+        hstring.ixx
         intrusive_list.ixx
         intrusive_slist.ixx
         intrusive_ptr.ixx
@@ -43,6 +44,7 @@ wxl_add_module_library(wxl.core STATIC
         timeout_timer.ixx
         traceable.ixx
         unicode.ixx
+        zstring_view.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are
         # part of the public interface: a consumer compiles those interfaces
@@ -56,6 +58,7 @@ wxl_add_module_library(wxl.core STATIC
         environment.cpp
         grapheme.cpp
         hevent.cpp
+        hstring.cpp
         lightweight_semaphore.cpp
         module_cleanup.cpp
         mutex.cpp

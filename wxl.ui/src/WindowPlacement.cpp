@@ -31,9 +31,9 @@ namespace windowing = winrt::Microsoft::UI::Windowing;
 // reader who always works maximized gets a restored window every launch;
 // full-screen apart from both, because Windows does not know it -- it is a
 // WinUI presenter, or a borderless cover the composited window puts up itself.
-constexpr std::wstring_view normal_state = L"normal";
-constexpr std::wstring_view maximized_state = L"maximized";
-constexpr std::wstring_view full_screen_state = L"fullscreen";
+constexpr std::u16string_view normal_state = u"normal";
+constexpr std::u16string_view maximized_state = u"maximized";
+constexpr std::u16string_view full_screen_state = u"fullscreen";
 
 // The window's HWND, which is where Win32 keeps everything below.
 //
@@ -71,14 +71,14 @@ std::map<HWND, RECT>& remembered_restores() {
 
 namespace impl {
 
-std::optional<placement_geometry> parse_placement(std::wstring_view text) {
-    auto const word = [&text]() -> std::wstring_view {
-        while (!text.empty() && text.front() == L' ') {
+std::optional<placement_geometry> parse_placement(std::u16string_view text) {
+    auto const word = [&text]() -> std::u16string_view {
+        while (!text.empty() && text.front() == u' ') {
             text.remove_prefix(1);
         }
-        auto const end = text.find(L' ');
+        auto const end = text.find(u' ');
         auto const taken = text.substr(0, end);
-        text.remove_prefix(end == std::wstring_view::npos ? text.size() : end);
+        text.remove_prefix(end == std::u16string_view::npos ? text.size() : end);
         return taken;
     };
 
@@ -116,7 +116,7 @@ std::optional<placement_geometry> parse_placement(std::wstring_view text) {
     return result;
 }
 
-std::wstring_view name_of(placement_state state) {
+std::u16string_view name_of(placement_state state) {
     switch (state) {
         case placement_state::maximized:
             return maximized_state;
@@ -154,8 +154,8 @@ RECT fit_placement_to_displays(RECT const& wanted) {
 }
 
 void set_window_placement(winrt::Microsoft::UI::Xaml::Window const& window,
-                          string_param placement_text) {
-    std::wstring_view const text = placement_text.wide();
+                          hstring_param const& placement_text) {
+    std::u16string_view const text = placement_text.text().view();
     auto const wanted = parse_placement(text);
     if (!wanted) {
         return;  // nothing said: the window stays as it was created
@@ -195,7 +195,7 @@ void set_window_placement(winrt::Microsoft::UI::Xaml::Window const& window,
     }
 }
 
-std::wstring get_window_placement(winrt::Microsoft::UI::Xaml::Window const& window) {
+std::u16string get_window_placement(winrt::Microsoft::UI::Xaml::Window const& window) {
     HWND const hwnd = handle_of(window);
     if (!hwnd) {
         return {};
@@ -230,9 +230,9 @@ std::wstring get_window_placement(winrt::Microsoft::UI::Xaml::Window const& wind
         remembered_restores()[hwnd] = rc;
     }
 
-    std::wstring text{name_of(state)};
+    std::u16string text{name_of(state)};
     for (long const value : {rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top}) {
-        text += L' ';
+        text += u' ';
         wxl::core::append_number(text, value);
     }
     return text;
@@ -247,13 +247,8 @@ HWND__* window_handle(Window const& window) {
     return handle_of(*Object::Impl::get_typed<Window>(window));
 }
 
-wstring window_placement(Window const& window) {
-    auto const text = impl::get_window_placement(*Object::Impl::get_typed<Window>(window));
-
-    // wchar_t and char16_t are the same 16-bit code unit on Windows and
-    // differ only in type -- the same crossing impl/conversions.h makes for
-    // every string that comes back from WinRT.
-    return wstring{reinterpret_cast<char16_t const*>(text.c_str()), text.size()};
+hstring window_placement(Window const& window) {
+    return hstring{impl::get_window_placement(*Object::Impl::get_typed<Window>(window))};
 }
 
 }  // namespace wxl

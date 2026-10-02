@@ -1154,6 +1154,15 @@ struct runtime_class_name_of<{}::{}> {{
                 }
             }
 
+            // The out value of a method that has nothing else to return goes
+            // last in the call, into a local the body then hands back.
+            if (member.out_result) {
+                if (!arguments.empty()) {
+                    arguments += ", ";
+                }
+                arguments += "result";
+            }
+
             // A static member is reached through the statics proxy, which
             // resolves the class's activation factory once and then answers
             // from a cached pointer; an instance member goes through the
@@ -1166,6 +1175,13 @@ struct runtime_class_name_of<{}::{}> {{
                                   member.method_call.empty() ? member.winrt_name
                                                              : member.method_call,
                                   arguments);
+
+            if (member.out_result) {
+                std::print(out, "\n{} {{\n    {} result{{}};\n    {};\n    return {};\n}}\n",
+                           signature, member.result.winrt_type, call,
+                           substitute(member.result.from_winrt, "result"));
+                continue;
+            }
 
             std::print(out, "\n{} {{\n    {}{};\n}}\n", signature,
                        member.returns_void ? "" : "return ",
@@ -1660,7 +1676,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                     info.positional.emplace_back(value.param_type,
                                                  std::format("{}(value)", member.name));
                 }
-            } else if (member.winrt_name == "Text" && value.param_type == "string_param") {
+            } else if (member.winrt_name == "Text" && value.param_type == "hstring_param const&") {
                 text_route = member.name;
             }
         }
@@ -1670,7 +1686,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         // names: point a profile at another control library and its
         // controls get the same treatment with nothing hand-written.
         if (auto const& route = text_route.empty() ? content_route : text_route; !route.empty()) {
-            info.positional.emplace_back("string_param", std::format("{}(value)", route));
+            info.positional.emplace_back("hstring_param const&", std::format("{}(value)", route));
         }
 
         bool const base_has = info.base_name != "Object" && info.base_name != "DependencyObject" &&

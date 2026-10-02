@@ -22,7 +22,8 @@
 namespace editor {
 
 enum class Expander : uint8_t { None, Collapsed, Expanded };
-enum class Check : uint8_t { None, Unchecked, Checked };
+// Indeterminate — у родителя, когда отмечены не все дети.
+enum class Check : uint8_t { None, Unchecked, Checked, Indeterminate };
 
 // Значок строки: знак шрифта Fluent UI System Icons (Assets) и его радиальная
 // заливка — светлая середина, тёмный край. Модели держат значки постоянными,
@@ -65,6 +66,9 @@ public:
     // Строку выбрали: щелчок по ней. Раскрывающуюся строку тот же щелчок
     // затем раскрывает или сворачивает.
     virtual void invoke(uint32_t index) = 0;
+
+    // Сведения о строке, выбранной в этой модели, — разметка HtmlBlock.
+    virtual std::wstring describe() const { return {}; }
 };
 
 class VirtualTree : public wxl::core::sta_refcounted {
@@ -74,8 +78,12 @@ public:
     // Корень, который ставится в разметку.
     wxl::Grid const& view() const { return root_; }
 
-    // Показывает другую модель, с первой строки.
+    // Показывает другую модель, с первой строки; та же модель остаётся, где была.
     void model(wxl::core::intrusive_ptr<TreeModel> value);
+
+    // Модель изменилась, и строку index надо показать: если её не видно,
+    // дерево листает так, чтобы она встала в треть высоты.
+    void reveal(uint32_t index);
 
     // Модель изменилась сама: перечитать видимые строки.
     void refresh();
@@ -116,8 +124,8 @@ private:
     wxl::ScrollBar bar_;
     std::vector<Row> pool_;
     std::vector<std::pair<RowIcon const*, wxl::Brush>> fills_;
-    std::wstring text_;
-    std::wstring glyph_;
+    std::u16string text_;
+    std::u16string glyph_;
 
     wxl::core::intrusive_ptr<TreeModel> model_;
     uint32_t top_ = 0;
