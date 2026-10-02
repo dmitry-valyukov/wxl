@@ -27,7 +27,7 @@ struct Model {
     // the status badge.
     StackPanel rightHeader {
         column = 1,
-        orientation = Orientation::Horizontal,
+        orientation.horizontal,
         spacing = 8,
         vAlign.center,
         statusBadge,
@@ -99,7 +99,7 @@ struct Model {
                     u"refresh.",
                 },
                 StackPanel {
-                    orientation = Orientation::Horizontal,
+                    orientation.horizontal,
                     spacing = 8,
                     Button {
                         content = u"Toggle extra title bar button",

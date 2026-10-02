@@ -19,6 +19,23 @@ Object stringList(std::span<std::u16string const> items) {
     return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(list)));
 }
 
+Object objectList(std::span<Object const> items) {
+    using winrt::Windows::Foundation::IInspectable;
+
+    auto list = winrt::single_threaded_vector<IInspectable>();
+    for (auto const& item : items) {
+        IInspectable value{nullptr};
+        winrt::copy_from_abi(value, item.get_abi());
+        list.Append(value);
+    }
+    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(list)));
+}
+
+Object stringBox(hstring_param const& text) {
+    auto const box = impl::box_text(text);
+    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(box)));
+}
+
 hstring stringOf(Object const& boxed) {
     winrt::Windows::Foundation::IInspectable value{nullptr};
     winrt::copy_from_abi(value, boxed.get_abi());

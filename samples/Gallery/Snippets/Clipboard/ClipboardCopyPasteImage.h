@@ -54,7 +54,7 @@ auto example = StackPanel {
     Image {width = 200, height = 150, horizontalAlignment = HorizontalAlignment::Left, stretch = Stretch::UniformToFill,
            source = u"Assets/SampleMedia/rainier.jpg"},
     StackPanel {
-        orientation = Orientation::Horizontal,
+        orientation.horizontal,
         spacing = 8,
         Button {
             content = u"Copy Image to Clipboard",

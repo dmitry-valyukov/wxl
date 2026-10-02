@@ -56,7 +56,7 @@ auto example = StackPanel {
 };
 
 auto options = StackPanel {
-    orientation = Orientation::Vertical,
+    orientation.vertical,
     spacing = 8,
     model->minWidthBox,
     model->minHeightBox,

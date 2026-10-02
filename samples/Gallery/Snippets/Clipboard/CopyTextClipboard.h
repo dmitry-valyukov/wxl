@@ -27,7 +27,7 @@ model->timer.add_onTick([weak = std::weak_ptr<Model>(model)](auto&&...) {
 auto example = StackPanel {
     verticalAlignment = VerticalAlignment::Top,
     StackPanel {
-        orientation = Orientation::Horizontal,
+        orientation.horizontal,
         Button {Margin {0, 0, 0, 10}, content = u"Copy Text to the Clipboard", onClick = [model](Button const&) { model->copy(); }},
         model->confirmation,
     },

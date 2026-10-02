@@ -40,7 +40,7 @@ auto example = StackPanel {
     verticalAlignment = VerticalAlignment::Top,
     spacing = 10,
     StackPanel {
-        orientation = Orientation::Horizontal,
+        orientation.horizontal,
         spacing = 8,
         Button {
             content = u"Show Clipboard Formats",

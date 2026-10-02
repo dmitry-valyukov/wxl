@@ -232,6 +232,15 @@ add_library(wxl.ui STATIC
     src/impl/picker_file_types.h
     src/impl/picker_file_types.cpp
     src/PickerFileTypes.h
+    src/impl/item_template.h
+    src/impl/item_template.cpp
+    src/ItemBuilder.h
+    src/Box.h
+    src/Box.cpp
+    src/impl/element_items.h
+    src/impl/element_items.cpp
+    src/impl/items_panel.h
+    src/impl/items_panel.cpp
     src/impl/title_bar_drag.h
     src/impl/title_bar_drag.cpp
     src/impl/backdrop_controller.h

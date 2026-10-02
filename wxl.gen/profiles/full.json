@@ -258,7 +258,8 @@
                 "ContextFlyout",
                 "Measure",
                 "Arrange",
-                "TransformToVisual"
+                "TransformToVisual",
+                "AllowDrop"
             ],
             "syntheticMembers": {
                 "IsDragRegion": {
@@ -851,6 +852,87 @@
                 "Text",
                 "Bitmap",
                 "StorageItems"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsControl": {
+            "comment": "Collections: the panel the items are laid out in, as a direction -- a stack, in virtualizing form. ItemsPanel itself is a template that only XAML text makes.",
+            "members": [],
+            "syntheticMembers": {
+                "ItemsPanelOrientation": {
+                    "comment": "A virtualizing stack in this direction: itemsPanelOrientation = Orientation::Vertical.",
+                    "type": "Microsoft.UI.Xaml.Controls.Orientation",
+                    "function": "impl::set_items_panel_orientation",
+                    "include": "../impl/items_panel.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.ListViewBase": {
+            "comment": "Collections: ListView and GridView -- dragging and reordering of items, and the item template written as a function (itemTemplate = [](Object const& item) { return ...; }), which fills the containers as they come into view.",
+            "members": [
+                "CanDragItems",
+                "CanReorderItems"
+            ],
+            "syntheticMembers": {
+                "ItemTemplate": {
+                    "comment": "What an ItemTemplate says, as a function from the item to the element that shows it. A DataTemplate of XAML is text bound to the properties of a data object; here the data are C++ objects and the element is made by code.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_item_template",
+                    "include": "../impl/item_template.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.TreeView": {
+            "comment": "Collections: items that can be dragged out of and within the tree.",
+            "members": [
+                "CanDragItems",
+                "CanReorderItems"
+            ],
+            "syntheticMembers": {
+                "ElementItems": {
+                    "comment": "The items (the content of the nodes, or the items of ItemsSource) are elements, and each is shown as itself: elementItems = true. The template of that is XAML text only.",
+                    "cppType": "bool",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_element_items",
+                    "include": "../impl/element_items.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.TreeViewItem": {
+            "comment": "Collections: an item of a tree that is its own container: its content, its children (ItemsSource), whether it is open. What the DataTemplate of the original puts in a TreeView.",
+            "members": [
+                "ItemsSource",
+                "IsExpanded"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RefreshContainer": {
+            "comment": "Collections: pull to refresh -- the container that asks for new content when the content is pulled, and the visualizer it draws while it does.",
+            "members": [
+                "Visualizer",
+                "PullDirection",
+                "RefreshRequested",
+                "RequestRefresh"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RefreshVisualizer": {
+            "comment": "Collections: what a refresh container draws while it is pulled: the content (an icon) and the state. Orientation is left out: it would make the tag orientation ambiguous between two enums.",
+            "members": [
+                "Content",
+                "State",
+                "RefreshStateChanged",
+                "RequestRefresh"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RefreshRequestedEventArgs": {
+            "comment": "Collections: the request of a refresh container: the deferral that keeps the visualizer going until the work is done.",
+            "members": [
+                "GetDeferral"
+            ]
+        },
+        "Windows.Foundation.Deferral": {
+            "comment": "Collections: tells the framework that the work it was told to wait for is done.",
+            "members": [
+                "Complete"
             ]
         },
         "Windows.UI.StartScreen.JumpList": {

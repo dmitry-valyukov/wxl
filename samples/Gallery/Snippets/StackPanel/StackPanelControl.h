@@ -17,7 +17,7 @@ auto orientationGroup = RadioButtons {
     onSelectionChanged = [panel](RadioButtons const& self) {
         int const index = self.selectedIndex();
         if (index >= 0) {
-            panel.orientation(index == 0 ? Orientation::Horizontal : Orientation::Vertical);
+            panel.orientation(index == 0 ? orientation.horizontal : orientation.vertical);
         }
     },
 };

@@ -8,7 +8,7 @@ auto const model = gallery::hold<Model>();
 
 auto pager = PipsPager {
     numberOfPages = 10,
-    orientation = BindOutput {model->orientation, [](int chosen) { return chosen == 0 ? Orientation::Horizontal : Orientation::Vertical; }},
+    orientation = BindOutput {model->orientation, [](int chosen) { return chosen == 0 ? orientation.horizontal : orientation.vertical; }},
     previousButtonVisibility = BindOutput {model->previous, [](int chosen) { return static_cast<PipsPagerButtonVisibility>(chosen); }},
     nextButtonVisibility = BindOutput {model->next, [](int chosen) { return static_cast<PipsPagerButtonVisibility>(chosen); }},
     wrapMode = BindOutput {model->wrap, [](int chosen) { return static_cast<PipsPagerWrapMode>(chosen); }},
