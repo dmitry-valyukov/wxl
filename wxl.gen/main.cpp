@@ -2,7 +2,6 @@
 #include <print>
 
 #include "wxl.gen.h"
-#include "xml_input.h"
 
 import std;
 
@@ -13,6 +12,7 @@ constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers fro
   winui-srcgen --profile <file.json> [--profile <file.json>]...
                [--out <dir>] [--target <cmake target>]
                [--nuget-root <dir>] [--winmd <file.winmd>]...
+               [--types <file.json>]
 
   --profile      Input profile; may be repeated. Profiles say which NuGet
                  packages to read, which types are the roots of the

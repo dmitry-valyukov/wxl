@@ -20,18 +20,18 @@ import std;
 // Members are forwarded the way a class wrapper's are -- same collection,
 // same type mapping (gen/members.h) -- with one difference that follows from
 // there being no Impl: a body reaches its interface by querying it off abi_
-// (impl::args_as) instead of reading a lazily cached field. They are also
-// not const-qualified, because a view is handed to a handler mutably: an
-// args object is there to be written to as well as read.
+// (impl::args_as) instead of reading a lazily cached field. And a view's
+// const-ness means what it says, unlike a wrapper's: getters are const,
+// everything else -- a setter such as Handled, a method -- is not (see
+// declaration()).
 //
 // An args header names a wrapper type only as a forward declaration. A class
 // header already includes the args headers of the events it declares, so
 // including it back would close a cycle; a declaration is all a signature
 // needs, and the .cpp beside it includes the real thing.
 //
-// AI note: this is why gen/classes.cpp skips *EventArgs classes -- they
-// are wrapped here, in their own shape, and would otherwise be emitted
-// twice under the same flat wxl name.
+// gen/classes.cpp leaves *EventArgs classes to this writer: wrapped there as
+// well, they would be emitted twice under the same flat wxl name.
 
 using namespace md;
 

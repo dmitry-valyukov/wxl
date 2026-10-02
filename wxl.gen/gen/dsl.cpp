@@ -5,18 +5,18 @@
 import std;
 // Members.h -- the surface the builder syntax is written against.
 //
-// Two things per member, and nothing per class. A tag object (`Content`,
-// `OnClick`) is what the DSL writes on the left of the `=`; behind it, one
+// Two things per member, and nothing per class. A tag object (`content`,
+// `onClick`) is what the DSL writes on the left of the `=`; behind it, one
 // PropertySetter / EventAdder specialisation says which member of the
 // object the assignment reaches. Both halves of the dispatch are templates
 // on the object type, so a single specialisation serves every class that
 // declares that member -- which is the whole reason the key enums are flat
 // rather than per class.
 //
-// AI note: this file emits *only* names that came out of the profile-driven
-// closure, so a narrow profile yields a correspondingly narrow DSL surface.
-// The tags are `inline constexpr` empty objects: they cost nothing at
-// runtime and exist purely to give the assignment a left-hand side.
+// Only names that came out of the profile-driven closure are emitted, so a
+// narrow profile yields a correspondingly narrow DSL surface. The tags are
+// `inline constexpr` empty objects: they cost nothing at runtime and exist
+// purely to give the assignment a left-hand side.
 namespace gen {
 void write_dsl(Output const& out, Dsl const& dsl, Emitted& emitted) {
     auto const path = out.dir / "Members.h";

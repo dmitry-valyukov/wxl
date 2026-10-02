@@ -102,9 +102,10 @@ bool is_plain_method(md::MethodDef const& method);
 std::vector<std::string> parameter_names(md::MethodDef const& method);
 
 // The members one interface contributes to the type implementing it,
-// bounded by the names that survived the profile filter. `field` is what a
-// generated body names to reach the interface -- the Impl field for a class
-// wrapper, unused by an args view, which queries off its ABI pointer.
+// bounded by the names that survived the profile filter. Each one records
+// in member_info::field the Impl field named after the interface, which is
+// how a class wrapper's body reaches it; an args view leaves it unused and
+// queries off its ABI pointer.
 void collect_interface_members(md::TypeDef const& iface,
                                std::set<std::string> const& allowed, TypeIndex const& index,
                                std::vector<member_info>& members,

@@ -50,7 +50,6 @@ struct Closure {
     // (a class implements an interface whose members mention the class),
     // and a cycle is broken at whichever member closes it.
     std::vector<winmd::reader::TypeDef> ordered;
-    std::map<winmd::reader::TypeDef, size_t> rank;  // index into `ordered`
 
     // Effective member surface per discovered type, after merging every
     // profile that reached it.

@@ -10,10 +10,8 @@ import std;
 // and only adds sources to it, so the generated tree stays a leaf of the
 // build rather than a thing the rest of the build has to know about.
 //
-// AI note: headers are listed alongside the .cpp files on purpose --
-// MSVC/Visual Studio shows them in the project tree, and CMake ignores
-// them for compilation. Nothing here should ever be hand-edited; the file
-// is rewritten on every generator run.
+// Headers are listed with the .cpp files so that an IDE shows them in the
+// project; CMake compiles only the sources.
 
 namespace gen {
 

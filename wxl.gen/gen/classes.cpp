@@ -6,22 +6,25 @@
 
 import std;
 
-// Class wrappers, grouped per source WinRT namespace into three files:
+// Class wrappers, grouped into three files per file group -- a WinRT
+// namespace, or several whose base classes reach into each other
+// (group_namespaces):
 //
 //   <Namespace>.h        public wrappers -- name no winrt:: type at all,
 //                        each declaring its `Impl` without defining it
 //   <Namespace>.impl.h   private -- the matching `Impl` chain, one field
 //                        per surviving interface; not written for a group
 //                        of statics-only classes, which has no `Impl`
-//   <Namespace>.cpp      out-of-line bodies (constructors today, member
-//                        forwarding once members are generated)
+//   <Namespace>.cpp      out-of-line bodies: constructors, members, the
+//                        runtime class names and the explicit instantiations
 //
 // Grouping per namespace rather than per class is what the closure's
 // dependency ordering buys: inside one file the classes are already
 // emitted base-before-derived, so a base class is a complete type by the
-// time the derived one names it, with no per-class include graph at all.
-// Across files only the namespaces a file's base classes live in are
-// included.
+// time the derived one names it. Across files a public header includes the
+// groups of its bases and of the wrapped classes its members name; an
+// include that would close a circle is dropped, and the class is announced
+// instead (write_public_header).
 //
 // The `Impl` definitions have to live in a *header*: the derived level's
 // `Impl` inherits the base's, so ButtonBase::Impl must be visible while
@@ -30,20 +33,16 @@ import std;
 // The chain bottoms out in the hand-written, given-from-above pair
 // wxl.ui/src/Object.h + Object.impl.h -- wxl::Object holds the only data
 // member in the whole hierarchy (an intrusive_ptr to the Impl chain), and
-// Object::Impl is core::refcounted, allocated from the STA pool.
+// Object::Impl is core::sta_refcounted, allocated from the STA pool.
 //
 // Members are forwarded one interface at a time: a class's instance members
 // are declared by the interfaces it implements, so each generated member
 // reaches its interface through get<&Impl::field>() -- one real
-// QueryInterface on first use, a cached pointer read afterwards. Every type
-// a member names crosses the public boundary through gen/types.h, and a
+// QueryInterface on first use, a cached pointer read afterwards. A static
+// member goes through impl::Statics<I>, the cached activation factory. Every
+// type a member names crosses the public boundary through gen/types.h, and a
 // member naming a type that has no wxl equivalent yet is skipped and
 // counted rather than emitted broken.
-//
-// AI note: events and static members (Grid.SetRow and friends) are still
-// missing. Statics are where wxl::impl::Statics<I> gets wired in; like the
-// runtime class name below, its specialization belongs in the .cpp, never
-// in a header -- it is used by exactly one translation unit.
 
 using namespace md;
 
@@ -627,10 +626,7 @@ public:
         bool const public_constructor = info.construction == Construction::PublicActivation ||
                                         info.construction == Construction::PublicComposition;
         if (public_constructor) {
-            std::print(out, "\n");
-        }
-        if (public_constructor) {
-            std::print(out, "    {}();\n\n", info.name);
+            std::print(out, "\n    {}();\n\n", info.name);
 
             // Construction is the DSL. Each argument is either a deferred
             // op produced by `Name = value` or a bare value routed by its
@@ -1073,7 +1069,6 @@ struct runtime_class_name_of<{}::{}> {{
                         break;
                     default:
                         arguments += substitute(param.type.to_winrt, param.name);
-                        break;
                         break;
                 }
             }

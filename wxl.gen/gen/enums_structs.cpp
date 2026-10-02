@@ -9,13 +9,13 @@ import std;
 // Enums and structs, emitted flat into `namespace wxl`, grouped into one
 // file pair per *source* WinRT namespace (Microsoft.UI.Xaml.Enums.h /
 // Microsoft.UI.Xaml.Structs.h, ...), plus umbrella files (Enums.h /
-// Structs.h) that #include every per-namespace file in turn. File and type
-// names follow WinUI/WinRT's own PascalCase convention throughout.
+// Structs.h) that #include every per-namespace file in turn, and
+// Structs.impl.h with the conversions of every struct. File and type names
+// follow WinUI/WinRT's own PascalCase convention throughout.
 //
-// AI note: types wxl already owns a better equivalent of (Size/Point/Rect
-// -> wxl::geometry) are *not* emitted here at all -- see gen/projection.h;
-// they are skipped as definitions and referred to by their projected name
-// wherever a field mentions them.
+// Types wxl already has an equivalent of (Size/Point/Rect -> wxl::geometry,
+// see gen/projection.h) are not emitted: they are skipped as definitions and
+// referred to by their projected name wherever a field mentions them.
 
 using namespace md;
 
@@ -269,15 +269,12 @@ void write_structs_file(std::filesystem::path const& path, std::vector<struct_in
     std::print(out, "}} // namespace wxl\n");
 }
 
-// How one field crosses the boundary. A struct is converted field by field
-// rather than cast whole: the wxl side substitutes its own enums and its own
-// geometry types, so the two layouts agree only by accident, and relying on
-// that would make every future projection a silent hazard.
-// One distinct value per field, so that the assert catches a reordering and
-// not merely a resize: the WinRT struct is built from these, bit-cast across
-// and read back under the wxl names. A field that is neither a primitive nor
-// an enum has no such literal, and `complete` says so -- that pair falls back
-// to an assert on size and alignment alone.
+// What proves a struct is the ABI struct, which is what lets it cross whole
+// as a bit_cast. One distinct value per field, so that the assert catches a
+// reordering and not merely a resize: the WinRT struct is built from these,
+// bit-cast across and read back under the wxl names. A field that is neither
+// a primitive nor an enum has no such literal, and `complete` says so -- that
+// pair falls back to an assert on size and alignment alone.
 struct layout_probe {
     bool complete = true;
     std::string winrt_init;

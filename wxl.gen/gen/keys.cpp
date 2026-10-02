@@ -6,10 +6,10 @@
 import std;
 
 // PropertyKey.h / EventKey.h: one flat enum of every property (resp.
-// event) name that survived the profile filter. The names are what the
-// declarative syntax uses as named arguments (`Content = ...`,
-// `OnClick += ...`), so a narrow profile means a correspondingly narrow
-// enum.
+// event) name that survived the profile filter, under its metadata name.
+// Each key stands behind one tag of the declarative syntax -- `content = ...`
+// is Property<PropertyKey::Content>, `onClick = ...` Event<EventKey::Click>
+// -- so a narrow profile means a correspondingly narrow enum.
 
 namespace gen {
 namespace {

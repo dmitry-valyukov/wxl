@@ -1,5 +1,3 @@
-#include <format>
-
 #include "wxl.gen.h"
 
 import std;
@@ -24,40 +22,21 @@ bool is_default_interface(InterfaceImpl const& implemented) {
 
 TypeDef resolved(coded_index<TypeDefOrRef> const& index) {
     if (!index || index.type() == TypeDefOrRef::TypeSpec) {
-        return {};  // parameterized: no class of its own to name
+        return {};  // parameterized: no interface of its own to name
     }
-    auto const type = find(index);
-    if (!type) {
-        return {};
-    }
-    auto const ns = type.TypeNamespace();
-    if (ns == "System") {
-        return {};  // System.Object / System.Enum / System.ValueType end the chain
-    }
-    return type;
+    return find(index);
 }
 
 type_facts compute(TypeDef const& type) {
     type_facts facts;
-    facts.metadata_name = full_name(type);
-    facts.name = std::string{type.TypeName()};
-    facts.winrt_name = std::format("{}::{}", winrt_namespace(type.TypeNamespace()), type.TypeName());
-    facts.kind = get_category(type);
-    facts.base = resolved(type.Extends());
-
     for (auto&& implemented : type.InterfaceImpl()) {
-        auto const iface = resolved(implemented.Interface());
-        if (!iface) {
+        if (!is_default_interface(implemented)) {
             continue;
         }
-        facts.interfaces.push_back(iface);
-        if (is_default_interface(implemented)) {
+        if (auto const iface = resolved(implemented.Interface())) {
             facts.default_interface = iface;
+            facts.primary_field = interface_field_name(iface.TypeName());
         }
-    }
-
-    if (facts.default_interface) {
-        facts.primary_field = interface_field_name(facts.default_interface.TypeName());
     }
     return facts;
 }

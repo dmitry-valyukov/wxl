@@ -40,8 +40,10 @@ void prune_stale(Output const& out, gen::Emitted const& emitted) {
 
 }  // namespace
 
-// Orchestration only -- the order the artefacts are written in. Each step
-// lives in its own gen/*.cpp; see gen/writers.h.
+// The order the artefacts are written in, each by its own gen/*.cpp (see
+// gen/writers.h), with the resource dictionaries read once on the way and
+// what a previous run left behind dropped at the end. The builder-syntax
+// vocabulary and the schema are written from inside write_classes.
 
 void write_all(Output const& out, Model const& model,
                std::vector<std::filesystem::path> const& resource_dictionaries) {

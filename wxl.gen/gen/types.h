@@ -14,11 +14,10 @@
 // talks to the real cppwinrt projection. This maps one metadata type
 // signature onto both, plus the two conversion expressions that join them.
 //
-// AI note: a type this doesn't understand yet is not an error -- `supported`
-// comes back false with a reason, and the member naming it is skipped and
-// counted. That is what keeps the generated tree compiling while the set of
-// representable types grows (collections, delegates and generics are the
-// ones still missing).
+// A type this does not understand is not an error: `supported` comes back
+// false with a reason, and the member naming it is skipped and counted. That
+// is what keeps the generated tree compiling while the set of representable
+// types grows.
 
 namespace gen {
 

@@ -232,9 +232,6 @@ size_t group_split(std::string_view stem, std::set<std::string> const& generated
     return best;
 }
 
-// One root of brush paths: a struct per group, then the root's own struct
-// carrying the groups and whatever stayed flat. `index` walks on across
-// roots, because they share one name table.
 // One level of the tree: what stayed a brush here, and what became a group.
 struct BrushNode {
     std::map<std::string, BrushNode> groups;    // group name -> the level under it

@@ -529,11 +529,10 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
             }
             return wrapper_type(name->second, winrt_name, header->second);
         }
-        case category::interface_type:
-            return unsupported(std::format("{} slipped past the interface branch above",
-                                           full_name(type)));  // unreachable
-        case category::delegate_type:
-            return unsupported(std::format("{} is a delegate", full_name(type)));
+        default:
+            // An interface and a delegate are answered above, before the
+            // name registry is asked.
+            break;
     }
     return unsupported("unknown type category");
 }

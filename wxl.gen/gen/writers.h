@@ -15,11 +15,11 @@
 // One entry point per kind of generated artefact; each lives in its own
 // gen/*.cpp so the file you open matches the output you're changing.
 //
-// AI note: adding a new artefact = new gen/<thing>.cpp + one declaration
-// here + one call in write_all() (generate.cpp). A writer takes where to
-// write, what to write, and the record of what has been written (which the
-// CMakeLists writer consumes) -- and, where one writer's output is another's
-// input, that too, in between.
+// A writer takes where to write, what to write, and the record of what has
+// been written (which the CMakeLists writer consumes) -- and, where one
+// writer's output is another's input, that too. write_all() (generate.cpp)
+// calls them in order, except write_dsl and write_schema, which the class
+// writer calls with the vocabulary it collected.
 
 namespace gen {
 

@@ -622,7 +622,6 @@ struct Crawler {
             }
             visiting.erase(type);
             done.insert(type);
-            result.rank.emplace(type, result.ordered.size());
             result.ordered.push_back(type);
         };
 
@@ -666,10 +665,6 @@ struct Crawler {
         }
 
         result.ordered = std::move(repaired);
-        result.rank.clear();
-        for (size_t index = 0; index < result.ordered.size(); ++index) {
-            result.rank.emplace(result.ordered[index], index);
-        }
     }
 
     // A profile may name a member on any type that *has* it, inherited

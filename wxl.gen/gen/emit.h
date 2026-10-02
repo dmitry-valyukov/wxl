@@ -15,11 +15,11 @@
 // written (which the generated CMakeLists.txt is built from), and the
 // flat-namespace name registry.
 //
-// AI note: everything here is deliberately small and free-standing. When
-// adding a new kind of output, add a gen/<thing>.cpp with its entry point
-// declared in gen/writers.h and reuse these helpers rather than opening
-// files by hand -- that is what keeps every generated artefact banner-
-// tagged and automatically listed in the generated CMakeLists.txt.
+// A writer opens its file with open_output, starts it with the banner and
+// records it with Emitted::add. A file written past these would be rewritten
+// on every run whether it changed or not, would not be recognised as stale
+// once no longer produced (prune_stale looks for the banner), and would be
+// missing from the generated CMakeLists.txt.
 
 namespace gen {
 
