@@ -259,7 +259,10 @@
                 "Measure",
                 "Arrange",
                 "TransformToVisual",
-                "AllowDrop"
+                "AllowDrop",
+                "DragEnter",
+                "DragOver",
+                "Drop"
             ],
             "syntheticMembers": {
                 "IsDragRegion": {
@@ -551,11 +554,100 @@
             "comment": "Layout: a panel that places its children by a layout object."
         },
         "Microsoft.UI.Xaml.Controls.StackLayout": {
-            "comment": "Layout: the layout LayoutPanel gets beside a custom one.",
+            "comment": "Layout: the layout LayoutPanel gets beside a custom one; the one an ItemsRepeater or an ItemsView stacks its items by.",
             "members": [
                 "Orientation",
                 "Spacing"
             ]
+        },
+        "Microsoft.UI.Xaml.Controls.UniformGridLayout": {
+            "comment": "Collections: items in rows and columns of one size.",
+            "members": [
+                "MinItemWidth",
+                "MinItemHeight",
+                "MinRowSpacing",
+                "MinColumnSpacing",
+                "ItemsStretch",
+                "ItemsJustification",
+                "MaximumRowsOrColumns",
+                "Orientation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.FlowLayout": {
+            "comment": "Collections: items one after another, wrapped into lines.",
+            "members": [
+                "LineAlignment",
+                "LineSpacing",
+                "MinItemSpacing",
+                "Orientation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.LinedFlowLayout": {
+            "comment": "Collections: items in lines of one height, each as wide as its picture is.",
+            "members": [
+                "LineHeight",
+                "LineSpacing",
+                "MinItemSpacing",
+                "ItemsStretch",
+                "ItemsJustification"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsRepeater": {
+            "comment": "Collections: a panel that makes elements for the items of a data source as they come into view. The item template is a function (itemTemplate = [](Object const& item) { return ...; }), made into the factory the control asks.",
+            "members": [
+                "ItemsSource",
+                "Layout",
+                "HorizontalCacheLength",
+                "VerticalCacheLength",
+                "ElementPrepared",
+                "ElementClearing"
+            ],
+            "syntheticMembers": {
+                "ItemTemplate": {
+                    "comment": "The function that makes the element of an item.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_repeater_template",
+                    "include": "../impl/item_factory.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsViewItemInvokedEventArgs": {
+            "comment": "Collections: the item an ItemsView was told to invoke.",
+            "members": [
+                "InvokedItem"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemContainer": {
+            "comment": "Collections: the container an ItemsView puts an item in: what it shows (Child) and whether it is selected.",
+            "members": [
+                "Child",
+                "IsSelected"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsView": {
+            "comment": "Collections: a scrolling collection of items in a layout of its choosing, with selection and invocation. The item template is a function, as on ItemsRepeater.",
+            "members": [
+                "ItemsSource",
+                "Layout",
+                "SelectionMode",
+                "IsItemInvokedEnabled",
+                "SelectedItem",
+                "SelectionChanged",
+                "ItemInvoked",
+                "ScrollView",
+                "SelectAll",
+                "DeselectAll"
+            ],
+            "syntheticMembers": {
+                "ItemTemplate": {
+                    "comment": "The function that makes the element of an item.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_items_view_template",
+                    "include": "../impl/item_factory.h"
+                }
+            }
         },
         "Microsoft.UI.Xaml.Controls.ScrollViewer": {
             "comment": "Gallery: the chaining of a viewer that cannot scroll, and a code block in a horizontal ScrollViewer must not keep the wheel from the page around it.",
@@ -797,7 +889,38 @@
                 "Parent",
                 "Language",
                 "AllowFocusOnInteraction",
-                "Resources"
+                "Resources",
+                "FlowDirection"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragEventArgs": {
+            "comment": "Collections: an item dragged over or dropped on an element: what it may do there, the data, where the pointer is, the deferral that keeps the drop open while it is handled.",
+            "members": [
+                "AcceptedOperation",
+                "DataView",
+                "DragUIOverride",
+                "GetPosition",
+                "GetDeferral"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragUIOverride": {
+            "comment": "Collections: the look of the drag while it is over an element.",
+            "members": [
+                "IsGlyphVisible"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragOperationDeferral": {
+            "comment": "Collections: a drop that is not finished when its handler returns ends when this is completed.",
+            "members": [
+                "Complete"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.DragItemsStartingEventArgs": {
+            "comment": "Collections: the items a list starts to drag, and the data that goes with them.",
+            "members": [
+                "Items",
+                "Data",
+                "Cancel"
             ]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
@@ -855,8 +978,10 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.ItemsControl": {
-            "comment": "Collections: the panel the items are laid out in, as a direction -- a stack, in virtualizing form. ItemsPanel itself is a template that only XAML text makes.",
-            "members": [],
+            "comment": "Collections: the panel the items are laid out in -- ItemsPanelRoot, the panel itself once the control is loaded -- and its direction, as a virtualizing stack. ItemsPanel is a template that only XAML text makes.",
+            "members": [
+                "ItemsPanelRoot"
+            ],
             "syntheticMembers": {
                 "ItemsPanelOrientation": {
                     "comment": "A virtualizing stack in this direction: itemsPanelOrientation = Orientation::Vertical.",
@@ -866,13 +991,20 @@
                 }
             }
         },
-        "Microsoft.UI.Xaml.Controls.Primitives.ListViewBase": {
+        "Microsoft.UI.Xaml.Controls.ListViewBase": {
             "comment": "Collections: ListView and GridView -- dragging and reordering of items, and the item template written as a function (itemTemplate = [](Object const& item) { return ...; }), which fills the containers as they come into view.",
             "members": [
                 "CanDragItems",
-                "CanReorderItems"
+                "CanReorderItems",
+                "DragItemsStarting"
             ],
             "syntheticMembers": {
+                "ItemMargin": {
+                    "comment": "The margin of every item container, as an ItemContainerStyle with a Setter for Margin would give it: itemMargin = Thickness {5}.",
+                    "type": "Microsoft.UI.Xaml.Thickness",
+                    "function": "impl::set_item_margin",
+                    "include": "../impl/item_template.h"
+                },
                 "ItemTemplate": {
                     "comment": "What an ItemTemplate says, as a function from the item to the element that shows it. A DataTemplate of XAML is text bound to the properties of a data object; here the data are C++ objects and the element is made by code.",
                     "cppType": "ItemBuilder",
@@ -903,6 +1035,23 @@
             "members": [
                 "ItemsSource",
                 "IsExpanded"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsWrapGrid": {
+            "comment": "Collections: the default panel of a GridView -- items wrap after this many rows or columns.",
+            "members": [
+                "MaximumRowsOrColumns",
+                "ItemWidth",
+                "ItemHeight"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsStackPanel": {
+            "comment": "Collections: the default panel of a ListView -- what it does when items are added (keep the last in view) and whether group headers stick.",
+            "members": [
+                "ItemsUpdatingScrollMode",
+                "AreStickyGroupHeadersEnabled",
+                "FirstVisibleIndex",
+                "LastVisibleIndex"
             ]
         },
         "Microsoft.UI.Xaml.Controls.RefreshContainer": {
