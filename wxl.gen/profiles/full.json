@@ -866,7 +866,7 @@
                 }
             }
         },
-        "Microsoft.UI.Xaml.Controls.Primitives.ListViewBase": {
+        "Microsoft.UI.Xaml.Controls.ListViewBase": {
             "comment": "Collections: ListView and GridView -- dragging and reordering of items, and the item template written as a function (itemTemplate = [](Object const& item) { return ...; }), which fills the containers as they come into view.",
             "members": [
                 "CanDragItems",
