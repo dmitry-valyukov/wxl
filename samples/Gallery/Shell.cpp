@@ -15,6 +15,7 @@
 #include <memory>
 
 #include "CompositionWindow.h"
+#include "generated/Microsoft.Windows.AppNotifications.h"
 #include "generated/Microsoft.UI.Windowing.h"
 
 using namespace wxl;
@@ -308,7 +309,16 @@ void onSelected(NavigationView const& sender, bool settingsSelected) {
     }
     auto const name = gallery::wide(selected.name());
     if (name == homeName) {
-        show({Place::Home, {}}, true);
+        // The notifications of the application are shown by the shell once it knows the application.
+    if (AppNotificationManager::isSupported()) {
+        try {
+            AppNotificationManager::default_().register_();
+        } catch (...) {
+            // An application the shell cannot register shows no notifications; the page says nothing else.
+        }
+    }
+
+    show({Place::Home, {}}, true);
     } else if (name == allControlsName) {
         show({Place::AllControls, {}}, true);
     } else if (name.starts_with(L"group:")) {
@@ -452,6 +462,15 @@ Window createMainWindow() {
     window.appWindow().resize({1280, 800});
     s.main = std::make_shared<Window>(window);
 
+    // The notifications of the application are shown by the shell once it knows the application.
+    if (AppNotificationManager::isSupported()) {
+        try {
+            AppNotificationManager::default_().register_();
+        } catch (...) {
+            // An application the shell cannot register shows no notifications; the page says nothing else.
+        }
+    }
+
     show({Place::Home, {}}, true);
 
     // Для проверки страницы без ввода: GALLERY_PAGE=<UniqueId> открывает её сразу.
@@ -485,6 +504,12 @@ void trackWindow(CompositionWindow const& window, std::shared_ptr<void> state) {
 }
 
 void destroyMainWindow() {
+    if (AppNotificationManager::isSupported()) {
+        try {
+            AppNotificationManager::default_().unregister();
+        } catch (...) {
+        }
+    }
     for (auto const& tracked : std::vector<Shell::TrackedComposition>(shell->compositionWindows)) {
         tracked.window.close();
     }

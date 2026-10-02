@@ -61,6 +61,10 @@ struct TypeUse {
     // a wxl callable is a wrapper of its own that nothing needs yet.
     bool parameter_only = false;
 
+    // The opposite: an asynchronous operation (wxl::Operation) is what a call hands back and
+    // awaits; there is nothing a caller could give in its place.
+    bool result_only = false;
+
     // Conversion expressions with '$' standing for the value being
     // converted; see substitute() below.
     std::string to_winrt;

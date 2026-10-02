@@ -733,9 +733,10 @@ public:
             // anything at all would make every wrapper a candidate
             // conversion in unrelated overload resolutions -- a string
             // argument would be as good a FontFamily as it is a string.
-            // A class a string builds leaves that one argument to its converting
-            // constructor: the pack would take a literal exactly, and only then
-            // find that no route in the object takes text.
+            // A class a string builds -- by a converting constructor, or by a factory
+            // constructor that takes one text (AppNotificationButton(content)) -- leaves
+            // that one argument to it: the pack would take a literal exactly, and only
+            // then find that no route in the object takes text.
             std::print(out, R"(    template <typename... Setters>
         requires impl::setter_pack<{0}, Setters...>{1}
     explicit {0}(Setters&&... setters) : {0}() {{
@@ -744,7 +745,11 @@ public:
 
 )",
                        info.name,
-                       info.from_text_function.empty()
+                       (info.from_text_function.empty() &&
+                        std::none_of(info.constructors.begin(), info.constructors.end(), [](factory_ctor const& ctor) {
+                            return ctor.method.params.size() == 1 &&
+                                   ctor.method.params[0].type.param_type == "hstring_param const&";
+                        }))
                            ? ""
                            : " &&\n                 !(sizeof...(Setters) == 1 && ((std::same_as<std::remove_cvref_t<Setters>, hstring_param> || std::convertible_to<Setters, hstring_param>) && ...))");
         }

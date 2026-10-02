@@ -213,6 +213,12 @@ constexpr std::string_view vector_interfaces[] = {
 // WinRT's nullable box, which is core::nullable in everything but name.
 constexpr std::string_view reference_interface = "Windows.Foundation.IReference`1";
 
+// An asynchronous operation with a result, with or without progress, and one without a result.
+constexpr std::string_view async_operation_interface = "Windows.Foundation.IAsyncOperation`1";
+constexpr std::string_view async_operation_with_progress_interface = "Windows.Foundation.IAsyncOperationWithProgress`2";
+constexpr std::string_view async_action_interface = "Windows.Foundation.IAsyncAction";
+constexpr std::string_view async_action_with_progress_interface = "Windows.Foundation.IAsyncActionWithProgress`1";
+
 // What a one-argument generic instantiation is made of. Both pieces are
 // copies: the signature they came from is routinely a temporary, and a
 // TypeSig owns whatever it names.
@@ -241,6 +247,34 @@ std::optional<GenericShape> generic_shape(GenericTypeInstSig const& instantiatio
         return std::nullopt;
     }
     return GenericShape{type, *arguments.first};
+}
+
+// An operation with progress: the result is the first argument, the progress is not carried over
+// (nothing in wxl observes it). An action with progress has no result at all.
+struct AsyncProgressShape {
+    bool action = false;
+    std::optional<TypeSig> element;
+};
+
+std::optional<AsyncProgressShape> async_with_progress_shape(GenericTypeInstSig const& instantiation) {
+    auto const generic = instantiation.GenericType();
+    if (generic.type() == TypeDefOrRef::TypeSpec) {
+        return std::nullopt;
+    }
+    auto const type = md::find(generic);
+    if (!type) {
+        return std::nullopt;
+    }
+    auto const arguments = instantiation.GenericArgs();
+    auto const count = arguments.second - arguments.first;
+    auto const name = full_name(type);
+    if (name == async_operation_with_progress_interface && count == 2) {
+        return AsyncProgressShape{false, *arguments.first};
+    }
+    if (name == async_action_with_progress_interface && count == 1) {
+        return AsyncProgressShape{true, std::nullopt};
+    }
+    return std::nullopt;
 }
 
 std::optional<GenericShape> vector_shape(GenericTypeInstSig const& instantiation) {
@@ -349,6 +383,44 @@ TypeUse reference_of(TypeUse const& item, std::string_view winrt_name,
     return use;
 }
 
+// wxl::Operation<R> -- the awaitable an asynchronous operation becomes. The result is converted
+// by the element's own expression, on the interface thread, once the operation has finished.
+TypeUse operation_of(TypeUse const& item) {
+    if (!item.supported) {
+        return unsupported(std::format("operation result: {}", item.reason));
+    }
+    if (item.parameter_only || item.result_only) {
+        return unsupported(std::format("operation result: {} cannot be handed back", item.value_type));
+    }
+
+    TypeUse use;
+    use.supported = true;
+    use.result_only = true;
+    use.value_type = std::format("Operation<{}>", item.value_type);
+    use.param_type = use.value_type;
+    use.winrt_type = "winrt::Windows::Foundation::IInspectable";
+    use.from_winrt = std::format("impl::start_operation<{}>($, [](auto const& v) {{ return {}; }})",
+                                 item.value_type, substitute(item.from_winrt, "v"));
+    use.public_includes = item.public_includes;
+    use.public_includes.insert("../Operation.h");
+    use.impl_includes = item.impl_includes;
+    use.impl_includes.insert("../impl/operation.h");
+    return use;
+}
+
+TypeUse action_operation() {
+    TypeUse use;
+    use.supported = true;
+    use.result_only = true;
+    use.value_type = "Operation<void>";
+    use.param_type = use.value_type;
+    use.winrt_type = "winrt::Windows::Foundation::IInspectable";
+    use.from_winrt = "impl::start_action($)";
+    use.public_includes = {"../Operation.h"};
+    use.impl_includes = {"../impl/operation.h"};
+    return use;
+}
+
 // A parameterized type named directly in a signature -- IVector<MenuFlyoutItemBase>,
 // IObservableVector<Object>, IReference<int32_t>.
 TypeUse map_generic(GenericTypeInstSig const& instantiation, TypeIndex const& index) {
@@ -361,6 +433,12 @@ TypeUse map_generic(GenericTypeInstSig const& instantiation, TypeIndex const& in
         auto const item = map_type(shape->element, index);
         return reference_of(item, winrt_generic_name(shape->generic, item.winrt_type),
                             winrt_include(shape->generic.TypeNamespace()));
+    }
+    if (auto const shape = generic_shape(instantiation, {&async_operation_interface, 1})) {
+        return operation_of(map_type(shape->element, index));
+    }
+    if (auto const shape = async_with_progress_shape(instantiation)) {
+        return shape->action ? action_operation() : operation_of(map_type(*shape->element, index));
     }
     return unsupported("generic instantiation");
 }
@@ -462,6 +540,10 @@ TypeUse map_type_def(TypeDef const& type, TypeIndex const& index) {
 
     if (get_category(type) == category::delegate_type) {
         return map_delegate(type, index, winrt_name, winrt_header);
+    }
+
+    if (full_name(type) == async_action_interface) {
+        return action_operation();
     }
 
     if (get_category(type) == category::interface_type) {

@@ -18,7 +18,9 @@
             "id": "Microsoft.WindowsAppSDK.Foundation",
             "comment": "System and Shell pages: what the Windows App SDK adds outside the UI -- the badge of the taskbar button, the notifications, the storage pickers.",
             "metadata": [
-                "Microsoft.Windows.BadgeNotifications.winmd"
+                "Microsoft.Windows.BadgeNotifications.winmd",
+                "Microsoft.Windows.AppNotifications.winmd",
+                "Microsoft.Windows.AppNotifications.Builder.winmd"
             ]
         }
     ],
@@ -411,6 +413,58 @@
                 "SetBadgeAsCount",
                 "SetBadgeAsGlyph",
                 "ClearBadge"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.AppNotificationManager": {
+            "comment": "System: the notifications of the application in the shell -- shown as toasts, kept in the notification centre. The application registers with the shell once, and may show after that.",
+            "members": [
+                "Default",
+                "Register",
+                "Unregister",
+                "IsSupported",
+                "Show"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.AppNotification": {
+            "comment": "System: one notification, built by the builder.",
+            "members": []
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationBuilder": {
+            "comment": "System: the builder of a notification: texts, an image, a sound, a time, controls. Each call returns the builder, so a notification reads as one chain.",
+            "members": [
+                "AddText",
+                "SetAppLogoOverride",
+                "SetAudioEvent",
+                "SetTimeStamp",
+                "SetHeroImage",
+                "SetAttributionText",
+                "AddComboBox",
+                "AddTextBox",
+                "AddButton",
+                "AddProgressBar",
+                "BuildNotification"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationButton": {
+            "comment": "System: a button on a notification, with the arguments it hands back to the application.",
+            "members": [
+                "AddArgument"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationComboBox": {
+            "comment": "System: a list on a notification.",
+            "members": [
+                "AddItem",
+                "SetSelectedItem"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationProgressBar": {
+            "comment": "System: a progress bar on a notification.",
+            "members": [
+                "Title",
+                "Value",
+                "ValueStringOverride",
+                "Status"
             ]
         },
         "Microsoft.UI.Xaml.Media.Geometry": {

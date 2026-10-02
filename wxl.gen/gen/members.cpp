@@ -269,6 +269,10 @@ void collect_method(MethodDef const& method, std::string_view field_view, TypeIn
             skipped.push_back({info.name, std::format("parameter type: {}", use.reason)});
             return;
         }
+        if (use.result_only) {
+            skipped.push_back({info.name, std::format("parameter type: {} is only handed back", use.value_type)});
+            return;
+        }
         if (param.ByRef()) {
             // The one shape mapped: the last parameter, in a method that
             // returns nothing else. Anything more (an out beside a result, two
