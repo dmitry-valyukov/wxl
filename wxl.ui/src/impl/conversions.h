@@ -15,9 +15,7 @@
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Windows.Foundation.Numerics.h>
-#include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>
-#include <vector>
 #include <winrt/Windows.UI.h>
 
 #include "../Color.h"
@@ -211,16 +209,6 @@ WinRT to_reference(std::optional<T> const& value, Convert convert) {
 template <typename T, typename WinRT, typename Convert>
 core::nullable<T> from_reference(WinRT const& value, Convert convert) {
     return value ? core::nullable<T>{convert(value.Value())} : core::nullable<T>{};
-}
-
-// A std::vector as the IIterable a call takes: the elements are copied into a WinRT vector of
-// the call's own.
-template <typename Item, typename Value, typename Convert>
-winrt::Windows::Foundation::Collections::IIterable<Item> to_iterable(std::vector<Value> const& values, Convert convert) {
-    std::vector<Item> items;
-    items.reserve(values.size());
-    for (auto const& value : values) items.push_back(convert(value));
-    return winrt::single_threaded_vector<Item>(std::move(items));
 }
 
 // An image source. Declared here and defined in ImageSource.cpp: unlike

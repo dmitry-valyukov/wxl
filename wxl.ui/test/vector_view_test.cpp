@@ -146,6 +146,73 @@ TEST(vector_view, wraps_each_object_element_around_the_object_itself) {
     EXPECT_EQ(*found, 1u);
 }
 
+// What a call taking an IIterable<String> reads out of what it was given.
+std::wstring joined(winrt::Windows::Foundation::Collections::IIterable<winrt::hstring> const& items) {
+    std::wstring all;
+    for (auto const& item : items) {
+        all += item;
+    }
+    return all;
+}
+
+// The way a generated member hands an IIterable parameter to its call.
+template <typename T>
+auto handed(wxl::iterable_param<T> const& param) {
+    return wxl::impl::to_winrt(param);
+}
+
+// A view goes to the call as the object behind it: the call reads what the
+// source holds when it reads, not what it held when the call was made.
+TEST(iterable_param, hands_a_view_over_as_its_object) {
+    auto const source = letters();
+    auto const view = wrap<wxl::VectorView<wxl::hstring>>(source.GetView());
+
+    auto const iterable = handed<wxl::hstring>(view);
+    source.Append(L"d");
+
+    EXPECT_EQ(joined(iterable), L"abcd");
+    EXPECT_EQ(winrt::get_abi(iterable.as<winrt::Windows::Foundation::IUnknown>()),
+              winrt::get_abi(source.as<winrt::Windows::Foundation::IUnknown>()));
+}
+
+TEST(iterable_param, hands_a_collection_over_as_its_object) {
+    auto const source = winrt::single_threaded_vector<IInspectable>();
+    auto const collection = wrap<wxl::Collection<wxl::Object>>(source);
+
+    auto const iterable = handed<wxl::Object>(collection);
+    EXPECT_EQ(winrt::get_abi(iterable.as<winrt::Windows::Foundation::IUnknown>()),
+              winrt::get_abi(source.as<winrt::Windows::Foundation::IUnknown>()));
+}
+
+// Elements in memory have no object behind them, so the call gets a copy of
+// its own: what happens to the originals afterwards does not reach it.
+TEST(iterable_param, copies_elements_in_memory) {
+    std::vector<wxl::hstring> items{wxl::hstring{u"x"}, wxl::hstring{u"y"}};
+
+    auto const iterable = handed<wxl::hstring>(items);
+    items.push_back(wxl::hstring{u"z"});
+
+    EXPECT_EQ(joined(iterable), L"xy");
+}
+
+TEST(iterable_param, takes_a_braced_list) {
+    EXPECT_EQ(joined(handed<wxl::hstring>({wxl::hstring{u"p"}, wxl::hstring{u"q"}})), L"pq");
+}
+
+// Wrapper elements are copied as references to the very objects they wrap.
+TEST(iterable_param, copies_wrapper_elements_as_the_objects_themselves) {
+    auto const made = objects(2);
+    std::vector<wxl::Object> items;
+    for (auto const& object : made) {
+        items.push_back(wxl::Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(object))));
+    }
+
+    auto const iterable = handed<wxl::Object>(items);
+    auto const first = iterable.First();
+    ASSERT_TRUE(first.HasCurrent());
+    EXPECT_EQ(winrt::get_abi(first.Current()), winrt::get_abi(made[0]));
+}
+
 // The collection walks the same way, and what it is given is the object
 // itself.
 TEST(collection, is_walked_and_takes_the_object_itself) {

@@ -11,7 +11,10 @@
 //
 // Private: names winrt:: types.
 
+#include <winrt/Windows.Foundation.Collections.h>
+
 #include "../Object.impl.h"
+#include "../iterable_param.h"
 #include "conversions.h"
 
 namespace wxl::impl {
@@ -53,5 +56,26 @@ struct vector_element<T> {
     static T from(winrt_t value) { return Object::Impl::wrap<T>(std::move(value)); }
     static winrt_t const& to(T const& value) { return *Object::Impl::get_typed<T>(value); }
 };
+
+// The sequence an IIterable<T> parameter is given. A list wxl holds is the
+// very object behind it, asked for IIterable<T> -- which a vector and a view
+// both implement; elements in memory go into a WinRT vector made for the
+// call, there being no object to lend.
+template <typename T>
+winrt::Windows::Foundation::Collections::IIterable<typename vector_element<T>::winrt_t> to_winrt(
+    iterable_param<T> const& value) {
+    using item_t = typename vector_element<T>::winrt_t;
+    if (auto const* list = value.list()) {
+        return Object::Impl::get_typed(*list)
+            ->inspectable_.template as<winrt::Windows::Foundation::Collections::IIterable<item_t>>();
+    }
+
+    std::vector<item_t> items;
+    items.reserve(value.items().size());
+    for (auto const& item : value.items()) {
+        items.push_back(vector_element<T>::to(item));
+    }
+    return winrt::single_threaded_vector<item_t>(std::move(items));
+}
 
 }  // namespace wxl::impl

@@ -212,7 +212,7 @@ constexpr std::string_view vector_interfaces[] = {
 
 constexpr std::string_view vector_view_interface = "Windows.Foundation.Collections.IVectorView`1";
 
-// A sequence handed in: a std::vector the call copies into a WinRT vector of its own.
+// A sequence handed in: wxl::iterable_param.
 constexpr std::string_view iterable_interface = "Windows.Foundation.Collections.IIterable`1";
 
 // WinRT's nullable box, which is core::nullable in everything but name.
@@ -356,11 +356,11 @@ TypeUse collection_of(TypeUse const& item, std::string_view winrt_name,
     return use;
 }
 
-// Whether VectorView<E> can hold E: impl::vector_element knows a wrapper, a
-// number, and a type crossing through impl/conversions.h. A generated enum
-// crosses by a cast and a generated struct through Structs.impl.h, and the
-// template sees neither, so a view of one is refused until something needs
-// it.
+// Whether VectorView<E> and iterable_param<E> can hold E: impl::vector_element
+// knows a wrapper, a number, and a type crossing through impl/conversions.h. A
+// generated enum crosses by a cast and a generated struct through
+// Structs.impl.h, and the template sees neither, so a list of one is refused
+// until something needs it.
 bool view_element(TypeUse const& item) {
     return item.is_wrapper || item.to_winrt == "$" ||
            (item.to_winrt == "impl::to_winrt($)" &&
@@ -433,27 +433,30 @@ TypeUse reference_of(TypeUse const& item, std::string_view winrt_name,
     return use;
 }
 
-// An IIterable<T> parameter: a std::vector the call copies into a WinRT vector of its own.
-TypeUse list_parameter_of(TypeUse const& item, std::string_view winrt_name, std::string_view winrt_header) {
+// An IIterable<T> parameter: wxl::iterable_param<E>, which hands a VectorView or a Collection over
+// as the object it is and copies elements in memory into a WinRT vector of the call's own. The
+// elements cross by impl::vector_element, as a view's do, so the same ones are taken.
+TypeUse iterable_of(TypeUse const& item, std::string_view winrt_name, std::string_view winrt_header) {
     if (!item.supported) {
-        return unsupported(std::format("list element: {}", item.reason));
+        return unsupported(std::format("iterable element: {}", item.reason));
     }
-    if (item.parameter_only || item.result_only) {
-        return unsupported(std::format("list element: {} cannot be handed in", item.value_type));
+    if (!view_element(item)) {
+        return unsupported(std::format("iterable of {}, which is not a wrapper, a number or a type "
+                                       "of impl/conversions.h",
+                                       item.value_type));
     }
 
     TypeUse use;
     use.supported = true;
     use.parameter_only = true;
-    use.value_type = std::format("std::vector<{}>", item.value_type);
+    use.value_type = std::format("iterable_param<{}>", item.value_type);
     use.param_type = std::format("{} const&", use.value_type);
     use.winrt_type = std::string{winrt_name};
-    use.to_winrt = std::format("impl::to_iterable<{}>($, [](auto const& v) -> {} {{ return {}; }})", item.winrt_type,
-                               item.winrt_type, substitute(item.to_winrt, "v"));
+    use.to_winrt = "impl::to_winrt($)";
     use.public_includes = item.public_includes;
-    use.public_includes.insert("<vector>");
+    use.public_includes.insert("../iterable_param.h");
     use.impl_includes = item.impl_includes;
-    use.impl_includes.insert(std::string{conversions_include});
+    use.impl_includes.insert("../impl/vector_element.h");
     use.impl_includes.insert(std::string{winrt_header});
     return use;
 }
@@ -517,8 +520,8 @@ TypeUse map_generic(GenericTypeInstSig const& instantiation, TypeIndex const& in
     }
     if (auto const shape = generic_shape(instantiation, {&iterable_interface, 1})) {
         auto const item = map_type(shape->element, index);
-        return list_parameter_of(item, winrt_generic_name(shape->generic, item.winrt_type),
-                                 winrt_include(shape->generic.TypeNamespace()));
+        return iterable_of(item, winrt_generic_name(shape->generic, item.winrt_type),
+                           winrt_include(shape->generic.TypeNamespace()));
     }
     if (auto const shape = generic_shape(instantiation, {&async_operation_interface, 1})) {
         return operation_of(map_type(shape->element, index));

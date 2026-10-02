@@ -119,6 +119,7 @@ add_library(wxl.ui STATIC
     src/Collection.impl.h
     src/VectorView.h
     src/VectorView.impl.h
+    src/iterable_param.h
     src/impl/index_iterator.h
     src/impl/vector_element.h
     src/Color.h
