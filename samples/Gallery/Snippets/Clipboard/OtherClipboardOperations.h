@@ -4,7 +4,8 @@ struct Model {
     EventToken token {};
 
     static std::u16string formats(DataPackageView const& package, std::u16string heading, std::u16string empty) {
-        auto const names = package ? package.availableFormats() : std::vector<hstring> {};
+        if (!package) return empty;
+        auto const names = package.availableFormats();
         if (names.empty()) return empty;
         for (auto const& name : names) {
             heading += u"\n  • ";

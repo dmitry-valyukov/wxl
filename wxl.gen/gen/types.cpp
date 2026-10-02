@@ -203,16 +203,16 @@ TypeUse interface_parameter(std::string_view winrt_name, std::string_view winrt_
 
 // The WinRT interfaces wxl reads as "a vector of T". Only these two, because
 // wxl::Collection holds an IVector<T> and both of them answer to that IID --
-// IObservableVector<T> requires IVector<T>. A read-only IVectorView<T> or a
-// bare IIterable<T> does not, and would need a collection type of its own.
+// IObservableVector<T> requires IVector<T>. A read-only IVectorView<T> does
+// not, and is a wxl::VectorView; a bare IIterable<T> is neither.
 constexpr std::string_view vector_interfaces[] = {
     "Windows.Foundation.Collections.IVector`1",
     "Windows.Foundation.Collections.IObservableVector`1",
 };
 
-// A read-only list handed back, and a sequence handed in: neither is a wxl::Collection (that holds
-// an IVector<T> to change), so they cross as a std::vector copy of the elements.
 constexpr std::string_view vector_view_interface = "Windows.Foundation.Collections.IVectorView`1";
+
+// A sequence handed in: a std::vector the call copies into a WinRT vector of its own.
 constexpr std::string_view iterable_interface = "Windows.Foundation.Collections.IIterable`1";
 
 // WinRT's nullable box, which is core::nullable in everything but name.
@@ -347,10 +347,55 @@ TypeUse collection_of(TypeUse const& item, std::string_view winrt_name,
     use.winrt_type = winrt_name;
     use.to_winrt = std::format("Object::Impl::as<{}>($)", winrt_name);
     use.from_winrt = std::format("Object::Impl::wrap<{}>($)", use.value_type);
+    use.instantiations = {use.value_type};
     use.public_includes = item.public_includes;
     use.public_includes.insert("../Collection.h");
     use.impl_includes = item.impl_includes;
     use.impl_includes.insert("../Collection.impl.h");
+    use.impl_includes.insert(std::string{winrt_header});
+    return use;
+}
+
+// Whether VectorView<E> can hold E: impl::vector_element knows a wrapper, a
+// number, and a type crossing through impl/conversions.h. A generated enum
+// crosses by a cast and a generated struct through Structs.impl.h, and the
+// template sees neither, so a view of one is refused until something needs
+// it.
+bool view_element(TypeUse const& item) {
+    return item.is_wrapper || item.to_winrt == "$" ||
+           (item.to_winrt == "impl::to_winrt($)" &&
+            item.impl_includes.contains(std::string{conversions_include}));
+}
+
+// wxl::VectorView<E> out of an IVectorView<T>: the interface itself, held the
+// way any wrapper holds its object, and read through on every access -- so a
+// view that follows its source is seen to follow it. Taken in, it hands over
+// the view it holds.
+TypeUse view_of(TypeUse const& item, std::string_view winrt_name, std::string_view winrt_header) {
+    if (!item.supported) {
+        return unsupported(std::format("view element: {}", item.reason));
+    }
+    if (!view_element(item)) {
+        return unsupported(std::format("view of {}, which is not a wrapper, a number or a type of "
+                                       "impl/conversions.h",
+                                       item.value_type));
+    }
+
+    TypeUse use;
+    use.supported = true;
+    if (item.is_wrapper) {
+        use.element_type = item.value_type;
+    }
+    use.value_type = std::format("VectorView<{}>", item.value_type);
+    use.param_type = std::format("{} const&", use.value_type);
+    use.winrt_type = winrt_name;
+    use.to_winrt = std::format("*Object::Impl::get_typed<{}>($)", use.value_type);
+    use.from_winrt = std::format("Object::Impl::wrap<{}>($)", use.value_type);
+    use.instantiations = {use.value_type};
+    use.public_includes = item.public_includes;
+    use.public_includes.insert("../VectorView.h");
+    use.impl_includes = item.impl_includes;
+    use.impl_includes.insert("../VectorView.impl.h");
     use.impl_includes.insert(std::string{winrt_header});
     return use;
 }
@@ -388,32 +433,6 @@ TypeUse reference_of(TypeUse const& item, std::string_view winrt_name,
     return use;
 }
 
-// std::vector<E> out of an IVectorView<T>: the elements are converted one by one by the element's
-// own expression, and the list is a copy, as a string or a struct is.
-TypeUse list_result_of(TypeUse const& item) {
-    if (!item.supported) {
-        return unsupported(std::format("list element: {}", item.reason));
-    }
-    if (item.parameter_only || item.result_only) {
-        return unsupported(std::format("list element: {} cannot be handed back", item.value_type));
-    }
-
-    TypeUse use;
-    use.supported = true;
-    use.result_only = true;
-    use.is_list = true;
-    use.value_type = std::format("std::vector<{}>", item.value_type);
-    use.param_type = use.value_type;
-    use.winrt_type = "winrt::Windows::Foundation::IInspectable";
-    use.from_winrt = std::format("impl::from_vector_view<{}>($, [](auto const& v) {{ return {}; }})",
-                                 item.value_type, substitute(item.from_winrt, "v"));
-    use.public_includes = item.public_includes;
-    use.public_includes.insert("<vector>");
-    use.impl_includes = item.impl_includes;
-    use.impl_includes.insert(std::string{conversions_include});
-    return use;
-}
-
 // An IIterable<T> parameter: a std::vector the call copies into a WinRT vector of its own.
 TypeUse list_parameter_of(TypeUse const& item, std::string_view winrt_name, std::string_view winrt_header) {
     if (!item.supported) {
@@ -445,7 +464,7 @@ TypeUse operation_of(TypeUse const& item) {
     if (!item.supported) {
         return unsupported(std::format("operation result: {}", item.reason));
     }
-    if (item.parameter_only || (item.result_only && !item.is_list)) {
+    if (item.parameter_only || item.result_only) {
         return unsupported(std::format("operation result: {} cannot be handed back", item.value_type));
     }
 
@@ -457,6 +476,7 @@ TypeUse operation_of(TypeUse const& item) {
     use.winrt_type = "winrt::Windows::Foundation::IInspectable";
     use.from_winrt = std::format("impl::start_operation<{}>($, [](auto const& v) {{ return {}; }})",
                                  item.value_type, substitute(item.from_winrt, "v"));
+    use.instantiations = item.instantiations;
     use.public_includes = item.public_includes;
     use.public_includes.insert("../Operation.h");
     use.impl_includes = item.impl_includes;
@@ -491,7 +511,9 @@ TypeUse map_generic(GenericTypeInstSig const& instantiation, TypeIndex const& in
                             winrt_include(shape->generic.TypeNamespace()));
     }
     if (auto const shape = generic_shape(instantiation, {&vector_view_interface, 1})) {
-        return list_result_of(map_type(shape->element, index));
+        auto const item = map_type(shape->element, index);
+        return view_of(item, winrt_generic_name(shape->generic, item.winrt_type),
+                       winrt_include(shape->generic.TypeNamespace()));
     }
     if (auto const shape = generic_shape(instantiation, {&iterable_interface, 1})) {
         auto const item = map_type(shape->element, index);

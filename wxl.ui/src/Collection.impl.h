@@ -7,22 +7,18 @@
 #include <winrt/Windows.Foundation.Collections.h>
 
 #include "Collection.h"
-#include "Object.impl.h"
+#include "impl/vector_element.h"
 
 namespace wxl {
 
-// The element's WinRT type comes from the element's own wrapper --
-// Object::Impl::winrt_type<T> is T::Impl::winrt_t -- so nothing here
-// has to be told what T stands for, and there is no second table to keep in
-// step with the generated one. It has to be the real element type and not
-// IInspectable: a parameterized interface has a different IID for every
-// argument, so an IVector<UIElement> does not answer to IVector<IInspectable>.
+// How an element crosses -- and which WinRT type the vector is of -- is
+// impl::vector_element's, shared with VectorView<T>.
 
 template <typename T>
 class Collection<T>::Impl : public Object::Impl {
 public:
-    using vector_t =
-        winrt::Windows::Foundation::Collections::IVector<Object::Impl::winrt_type<T>>;
+    using element = impl::vector_element<T>;
+    using vector_t = winrt::Windows::Foundation::Collections::IVector<typename element::winrt_t>;
 
     using Object::Impl::Impl;
 
@@ -60,7 +56,7 @@ bool Collection<T>::empty() const {
 
 template <typename T>
 T Collection<T>::getAt(uint32_t index) const {
-    return Object::Impl::wrap<T>(get<&Impl::vector_>().GetAt(index));
+    return Impl::element::from(get<&Impl::vector_>().GetAt(index));
 }
 
 template <typename T>
@@ -70,14 +66,12 @@ T Collection<T>::operator[](uint32_t index) const {
 
 template <typename T>
 void Collection<T>::setAt(uint32_t index, T const& item) const {
-    get<&Impl::vector_>().SetAt(index,
-                                *Object::Impl::get_typed<T>(item));
+    get<&Impl::vector_>().SetAt(index, Impl::element::to(item));
 }
 
 template <typename T>
 void Collection<T>::insertAt(uint32_t index, T const& item) const {
-    get<&Impl::vector_>().InsertAt(index,
-                                   *Object::Impl::get_typed<T>(item));
+    get<&Impl::vector_>().InsertAt(index, Impl::element::to(item));
 }
 
 template <typename T>
@@ -87,7 +81,7 @@ void Collection<T>::removeAt(uint32_t index) const {
 
 template <typename T>
 void Collection<T>::append(T const& item) const {
-    get<&Impl::vector_>().Append(*Object::Impl::get_typed<T>(item));
+    get<&Impl::vector_>().Append(Impl::element::to(item));
 }
 
 template <typename T>

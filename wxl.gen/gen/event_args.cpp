@@ -124,8 +124,8 @@ std::vector<event_args_info> topological_sort(std::vector<event_args_info> class
 // mapping named.
 struct header_needs {
     std::set<std::string> includes;
-    std::set<std::string> forwards;     // wrapper types a signature names
-    std::set<std::string> collections;  // Collection<E> specializations used
+    std::set<std::string> forwards;        // wrapper types a signature names
+    std::set<std::string> instantiations;  // Collection<E>, VectorView<E> specializations used
 };
 
 void note_type(TypeUse const& use, std::set<std::string> const& class_headers,
@@ -142,11 +142,9 @@ void note_type(TypeUse const& use, std::set<std::string> const& class_headers,
     // Only a type whose header was left out needs declaring: Object and the
     // hand-written wrappers come in as themselves.
     if (declared_elsewhere) {
-        needs.forwards.insert(use.is_collection ? use.element_type : use.value_type);
+        needs.forwards.insert(use.element_type.empty() ? use.value_type : use.element_type);
     }
-    if (use.is_collection) {
-        needs.collections.insert(use.element_type);
-    }
+    needs.instantiations.insert(use.instantiations.begin(), use.instantiations.end());
 }
 
 // Where an args view keeps its const-ness, and it is the one hierarchy in
@@ -197,8 +195,8 @@ void write_event_args_file(std::filesystem::path const& path,
             std::print(out, "class {};\n", name);
         }
     }
-    for (auto&& element : needs.collections) {
-        std::print(out, "\nextern template class Collection<{}>;\n", element);
+    for (auto&& specialization : needs.instantiations) {
+        std::print(out, "\nextern template class {};\n", specialization);
     }
     std::print(out, "\n");
 
@@ -226,7 +224,7 @@ void write_event_args_file(std::filesystem::path const& path,
 void write_event_args_source(std::filesystem::path const& path, std::string_view header,
                              std::vector<event_args_info> const& classes,
                              std::set<std::string> const& includes,
-                             std::set<std::string> const& collection_definitions) {
+                             std::set<std::string> const& definitions) {
     auto out = open_output(path);
 
     // The private headers come first and the args header last, which is the
@@ -272,10 +270,10 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
         }
     }
 
-    if (!collection_definitions.empty()) {
-        std::print(out, "\n// Collection specializations no class file claimed.\n");
-        for (auto&& element : collection_definitions) {
-            std::print(out, "template class Collection<{}>;\n", element);
+    if (!definitions.empty()) {
+        std::print(out, "\n// Template specializations no class file claimed.\n");
+        for (auto&& specialization : definitions) {
+            std::print(out, "template class {};\n", specialization);
         }
     }
 
@@ -378,10 +376,10 @@ void write_event_args(Output const& out, Model const& model, ClassOutput const& 
         event_args_by_namespace[std::string(c.type.TypeNamespace())].push_back(c);
     }
 
-    // Which Collection specializations an args file is the one to define: the
-    // class writer already defined every element it named itself, so only an
-    // element nothing but an args member reaches is left over.
-    std::set<std::string> already_defined = classes.collection_elements;
+    // Which template specializations an args file is the one to define: the
+    // class writer already defined every one it named itself, so only one
+    // nothing but an args member reaches is left over.
+    std::set<std::string> already_defined = classes.instantiations;
 
     std::vector<std::string> event_args_files;
     size_t members = 0;
@@ -389,7 +387,7 @@ void write_event_args(Output const& out, Model const& model, ClassOutput const& 
         header_needs needs;
         std::set<std::string> source_includes{"../Object.impl.h", "../impl/conversions.h",
                                               "../impl/event_args.h"};
-        std::set<std::string> collection_definitions;
+        std::set<std::string> definitions;
 
         for (auto&& c : infos) {
             if (c.base) {
@@ -413,9 +411,9 @@ void write_event_args(Output const& out, Model const& model, ClassOutput const& 
             }
         }
 
-        for (auto&& element : needs.collections) {
-            if (already_defined.insert(element).second) {
-                collection_definitions.insert(element);
+        for (auto&& specialization : needs.instantiations) {
+            if (already_defined.insert(specialization).second) {
+                definitions.insert(specialization);
             }
         }
 
@@ -430,8 +428,7 @@ void write_event_args(Output const& out, Model const& model, ClassOutput const& 
 
         if (emitted_members != 0) {
             auto const source = out.dir / (ns + ".EventArgs.cpp");
-            write_event_args_source(source, filename, infos, source_includes,
-                                    collection_definitions);
+            write_event_args_source(source, filename, infos, source_includes, definitions);
             emitted.add(source);
         }
 

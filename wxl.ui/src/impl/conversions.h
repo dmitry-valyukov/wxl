@@ -213,16 +213,8 @@ core::nullable<T> from_reference(WinRT const& value, Convert convert) {
     return value ? core::nullable<T>{convert(value.Value())} : core::nullable<T>{};
 }
 
-// A read-only WinRT list as a std::vector of converted elements, and a std::vector as the
-// IIterable a call takes: the elements are copied, as a string is.
-template <typename T, typename View, typename Convert>
-std::vector<T> from_vector_view(View const& view, Convert convert) {
-    std::vector<T> result;
-    result.reserve(view.Size());
-    for (auto const& item : view) result.push_back(convert(item));
-    return result;
-}
-
+// A std::vector as the IIterable a call takes: the elements are copied into a WinRT vector of
+// the call's own.
 template <typename Item, typename Value, typename Convert>
 winrt::Windows::Foundation::Collections::IIterable<Item> to_iterable(std::vector<Value> const& values, Convert convert) {
     std::vector<Item> items;

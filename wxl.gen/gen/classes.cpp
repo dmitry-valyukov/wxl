@@ -255,11 +255,12 @@ struct class_info {
     std::vector<positional_route> positional;
     bool base_has_positional = false;
 
-    // Element types of the wxl::Collection specializations this level's
-    // members name. The template's bodies are not in its public header, so
-    // every specialization has to be stated: `extern template` wherever it is
-    // used, one `template class` definition across the whole library.
-    std::set<std::string> collection_elements;
+    // The specializations of wxl's templates this level's members name --
+    // Collection<UIElement>, VectorView<hstring>. A template's bodies are not
+    // in its public header, so every specialization has to be stated:
+    // `extern template` wherever it is used, one `template class` definition
+    // across the whole library.
+    std::set<std::string> instantiations;
 };
 
 
@@ -548,7 +549,7 @@ bool has_impl(std::vector<class_info> const& classes) {
 void write_public_header(std::filesystem::path const& path, std::string_view ns,
                          std::vector<class_info> const& classes,
                          std::map<std::string, std::string> const& group_of,
-                         std::set<std::string> const& collection_elements,
+                         std::set<std::string> const& instantiations,
                          std::set<std::string> const& dropped) {
     auto out = open_output(path);
 
@@ -566,7 +567,7 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
     // one's include skipped by #pragma once, and a declaration needs only the
     // name.
     auto announce = [&](TypeUse const& type) {
-        if (type.is_collection) {
+        if (!type.element_type.empty()) {
             announced.insert(type.element_type);
         } else if (type.is_wrapper && type.value_type != "Object") {
             announced.insert(type.value_type);
@@ -846,16 +847,16 @@ public:
                    info.name);
     }
 
-    if (!collection_elements.empty()) {
+    if (!instantiations.empty()) {
         // Stated after the classes, where every element type above is a
         // complete type. Without it a consumer would instantiate the whole
         // template itself -- exactly the per-translation-unit cost the
         // library exists to avoid; with it, the one definition compiled
         // inside wxl's own build is what every use links against.
-        std::print(out, "\n// The collection specializations this namespace hands out. Their\n"
+        std::print(out, "\n// The template specializations this namespace hands out. Their\n"
                         "// bodies are compiled once, inside wxl, never here.\n");
-        for (auto&& element : collection_elements) {
-            std::print(out, "extern template class Collection<{}>;\n", element);
+        for (auto&& specialization : instantiations) {
+            std::print(out, "extern template class {};\n", specialization);
         }
     }
 
@@ -975,7 +976,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
 void write_source(std::filesystem::path const& path, std::string_view ns,
                   std::vector<class_info> const& classes,
                   std::map<std::string, std::string> const& group_of,
-                  std::set<std::string> const& collection_elements) {
+                  std::set<std::string> const& instantiations) {
     auto out = open_output(path);
 
     bool const any_activation =
@@ -1292,16 +1293,16 @@ struct runtime_class_name_of<{}::{}> {{
         }
     }
 
-    if (!collection_elements.empty()) {
+    if (!instantiations.empty()) {
         // The one definition of each specialization in the whole library.
         // Which translation unit gets it is arbitrary but has to be decided
-        // somewhere: it is the first file group that names the element, and
-        // that file already includes everything the instantiation needs --
-        // the element's own Impl, which is where Collection reads the WinRT
+        // somewhere: it is the first file group that names it, and that file
+        // already includes everything the instantiation needs -- the
+        // element's own Impl, which is where the template reads the WinRT
         // type it stands for.
-        std::print(out, "\n// Collection specializations defined here, once for the library.\n");
-        for (auto&& element : collection_elements) {
-            std::print(out, "template class Collection<{}>;\n", element);
+        std::print(out, "\n// Template specializations defined here, once for the library.\n");
+        for (auto&& specialization : instantiations) {
+            std::print(out, "template class {};\n", specialization);
         }
     }
 
@@ -1645,7 +1646,24 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
             klass.header = header->second;
         }
 
+        // Every signature counts, statics and constructors included: each of
+        // them hands a specialization out or takes one in.
+        auto const note_instantiations = [&info](member_info const& member) {
+            if (!member.returns_void) {
+                info.instantiations.insert(member.result.instantiations.begin(),
+                                           member.result.instantiations.end());
+            }
+            for (auto&& param : member.params) {
+                info.instantiations.insert(param.type.instantiations.begin(),
+                                           param.type.instantiations.end());
+            }
+        };
+        for (auto&& ctor : info.constructors) {
+            note_instantiations(ctor.method);
+        }
+
         for (auto&& member : info.members) {
+            note_instantiations(member);
             if (member.is_static) {
                 // One kind of static does get a tag, and it is written on
                 // somebody else: an attached property's setter takes the
@@ -1672,15 +1690,6 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
                 // `OverlappedPresenter::create()` is not assigned to.
                 continue;
             }
-            if (!member.returns_void && member.result.is_collection) {
-                info.collection_elements.insert(member.result.element_type);
-            }
-            for (auto&& param : member.params) {
-                if (param.type.is_collection) {
-                    info.collection_elements.insert(param.type.element_type);
-                }
-            }
-
             if (member.kind == member_info::Kind::EventAdd) {
                 dsl.events.insert(member.winrt_name);
                 klass.members.push_back({Schema::Member::Kind::Event, member.winrt_name,
@@ -1856,25 +1865,25 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         by_group[it != group_of.end() ? it->second : ns].push_back(info);
     }
 
-    // Which collection specializations each file group needs stated, and
+    // Which template specializations each file group needs stated, and
     // which of them it is the one to define. An explicit instantiation
     // definition may exist in exactly one translation unit, so the first
-    // group naming an element -- in the same order the files are written --
-    // takes it.
+    // group naming a specialization -- in the same order the files are
+    // written -- takes it.
     std::map<std::string, std::set<std::string>> used_by_group;
     std::map<std::string, std::set<std::string>> defined_by_group;
     std::set<std::string> already_defined;
     for (auto&& [ns, infos] : by_group) {
         for (auto&& info : infos) {
-            for (auto&& element : info.collection_elements) {
-                used_by_group[ns].insert(element);
-                if (already_defined.insert(element).second) {
-                    defined_by_group[ns].insert(element);
+            for (auto&& specialization : info.instantiations) {
+                used_by_group[ns].insert(specialization);
+                if (already_defined.insert(specialization).second) {
+                    defined_by_group[ns].insert(specialization);
                 }
             }
         }
     }
-    produced.collection_elements = already_defined;
+    produced.instantiations = already_defined;
 
     // The public header of a group includes the homes of its bases and of the
     // wrapped classes its members name. The first kind is a tree; the second
