@@ -47,7 +47,7 @@ void write_tags(Output const& out, Model const& model, Emitted& emitted) {
     std::print(file, "\n}}  // namespace wxl\n");
 
     emitted.add(path);
-    std::print("wrote {} ({} tags)\n", path.string(), present.size());
+    std::print("generated {} ({} tags)\n", path.string(), present.size());
 }
 
 }  // namespace gen

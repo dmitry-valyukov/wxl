@@ -375,9 +375,9 @@ void write_schema(Output const& out, Schema const& schema, Dsl const& dsl, Emitt
     write_schema_test(test, schema, dsl, lines);
     emitted.add(test, std::format("{}.surface-test", out.cmake_target));
 
-    std::print("wrote {} ({} classes, {} members)\n", header.string(), schema.classes.size(),
+    std::print("generated {} ({} classes, {} members)\n", header.string(), schema.classes.size(),
                members);
-    std::print("wrote {} ({} checks)\n", test.string(), lines);
+    std::print("generated {} ({} checks)\n", test.string(), lines);
 }
 
 }  // namespace gen

@@ -48,12 +48,12 @@ void write_key_enums(Output const& out, Model const& model, Emitted& emitted) {
     auto const properties = out.dir / "PropertyKey.h";
     write_key_enum(properties, "PropertyKey", model.property_names);
     emitted.add(properties);
-    std::print("wrote {} ({} keys)\n", properties.string(), model.property_names.size());
+    std::print("generated {} ({} keys)\n", properties.string(), model.property_names.size());
 
     auto const events = out.dir / "EventKey.h";
     write_key_enum(events, "EventKey", model.event_names);
     emitted.add(events);
-    std::print("wrote {} ({} keys)\n", events.string(), model.event_names.size());
+    std::print("generated {} ({} keys)\n", events.string(), model.event_names.size());
 }
 
 }  // namespace gen

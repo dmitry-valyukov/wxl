@@ -448,7 +448,7 @@ void write_styles(Output const& out, Model const& model,
 
     write_name_table(out, emitted, "style_names.h", "style_names", names);
 
-    std::print("wrote {}styles.h ({} styles in {} groups, {} dropped for a target type that is "
+    std::print("generated {}styles.h ({} styles in {} groups, {} dropped for a target type that is "
                "not generated{}{})\n",
                out.dir.string() + "\\", names.size(), groups.size(), dropped,
                left_out ? std::format(", {} left out by the profile", left_out) : "",
@@ -528,7 +528,7 @@ void write_brushes(Output const& out, Model const& model,
 
     write_name_table(out, emitted, "brush_names.h", "brush_names", names);
 
-    std::print("wrote {}brushes.h ({} brushes, {} theme brushes{}{})\n", out.dir.string() + "\\",
+    std::print("generated {}brushes.h ({} brushes, {} theme brushes{}{})\n", out.dir.string() + "\\",
                stems.size(), theme_stems.size(),
                left_out ? std::format(", {} left out by the profile", left_out) : "",
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
@@ -605,7 +605,7 @@ void write_alias_index(Output const& out, std::vector<DictionaryResource> const&
     }
     emitted.add("aliases.txt");
 
-    std::print("wrote {}aliases.txt ({} alias keys)\n", out.dir.string() + "\\", aliases.size());
+    std::print("generated {}aliases.txt ({} alias keys)\n", out.dir.string() + "\\", aliases.size());
 }
 
 }  // namespace gen

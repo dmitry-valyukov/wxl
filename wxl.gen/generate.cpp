@@ -29,8 +29,12 @@ void prune_stale(Output const& out, gen::Emitted const& emitted) {
         file.close();
 
         std::error_code ec;
-        std::filesystem::remove(entry.path(), ec);
-        std::print("removed stale {}\n", entry.path().string());
+        if (std::filesystem::remove(entry.path(), ec)) {
+            std::print("removed stale {}\n", entry.path().string());
+        } else {
+            std::print(stderr, "warning: cannot remove stale {}: {}\n", entry.path().string(),
+                       ec.message());
+        }
     }
 }
 

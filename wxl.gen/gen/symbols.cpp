@@ -38,7 +38,7 @@ void write_symbols(Output const& out, Emitted& emitted) {
     std::print(header, "}};\n\n}} // namespace wxl\n");
 
     emitted.add("FluentSymbol.h");
-    std::print("wrote {}FluentSymbol.h ({} symbols)\n", out.dir.string() + "\\", symbols.size());
+    std::print("generated {}FluentSymbol.h ({} symbols)\n", out.dir.string() + "\\", symbols.size());
 }
 
 }  // namespace gen

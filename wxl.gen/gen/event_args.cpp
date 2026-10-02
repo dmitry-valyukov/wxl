@@ -435,7 +435,7 @@ void write_event_args(Output const& out, Model const& model, ClassOutput const& 
             emitted.add(source);
         }
 
-        std::print("wrote {} ({} EventArgs wrappers, {} members)\n", path.string(), infos.size(),
+        std::print("generated {} ({} EventArgs wrappers, {} members)\n", path.string(), infos.size(),
                    emitted_members);
     }
 
@@ -449,7 +449,7 @@ void write_event_args(Output const& out, Model const& model, ClassOutput const& 
     auto const umbrella = out.dir / "EventArgs.h";
     write_umbrella_file(umbrella, event_args_files);
     emitted.add(umbrella);
-    std::print("wrote {} ({} members in all)\n", umbrella.string(), members);
+    std::print("generated {} ({} members in all)\n", umbrella.string(), members);
 }
 
 }  // namespace gen

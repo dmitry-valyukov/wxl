@@ -1779,7 +1779,7 @@ void write_classes(Output const& out, Model const& model, Emitted& emitted, Clas
         }
     }
 
-    std::print("wrote {} classes in {} file group(s), {} publicly activatable, {} constructors "
+    std::print("generated {} classes in {} file group(s), {} publicly activatable, {} constructors "
                "taking arguments, {} members\n",
                classes, by_group.size(), activatable, constructors, emitted_members);
 

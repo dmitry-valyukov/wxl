@@ -35,7 +35,7 @@ void write_interfaces(Output const& out, Model const& model, Emitted& emitted) {
     }
 
     emitted.add(path);
-    std::print("wrote {} ({} interfaces)\n", path.string(), model.interfaces.size());
+    std::print("generated {} ({} interfaces)\n", path.string(), model.interfaces.size());
 }
 
 }  // namespace gen

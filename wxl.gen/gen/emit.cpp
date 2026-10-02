@@ -10,12 +10,30 @@ using namespace md;
 
 namespace gen {
 
-std::ofstream open_output(std::filesystem::path const& path) {
-    std::ofstream out{path};
-    if (!out) {
-        throw std::runtime_error(std::format("cannot open for writing: {}", path.string()));
+output_file::output_file(std::filesystem::path path) : path_(std::move(path)) {}
+
+output_file::~output_file() noexcept(false) {
+    if (std::uncaught_exceptions() > 0) {
+        return;
     }
-    return out;
+
+    std::string const text = std::move(text_).str();
+    if (std::ifstream existing{path_}) {
+        std::string const old{std::istreambuf_iterator<char>{existing}, {}};
+        if (old == text) {
+            return;
+        }
+    }
+
+    std::ofstream file{path_};
+    file.write(text.data(), static_cast<std::streamsize>(text.size()));
+    if (!file) {
+        throw std::runtime_error(std::format("cannot write {}", path_.string()));
+    }
+}
+
+output_file open_output(std::filesystem::path const& path) {
+    return output_file{path};
 }
 
 void Emitted::add(std::filesystem::path const& path, std::string_view target) {

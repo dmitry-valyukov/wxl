@@ -474,7 +474,7 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
         auto const path = out.dir / filename;
         write_enums_file(path, types, model.members);
         emitted.add(path);
-        std::print("wrote {} ({} enums)\n", path.string(), types.size());
+        std::print("generated {} ({} enums)\n", path.string(), types.size());
         enum_files.push_back(filename);
     }
 
@@ -484,24 +484,24 @@ void write_enums_and_structs(Output const& out, Model const& model, Emitted& emi
         auto const path = out.dir / filename;
         write_structs_file(path, infos, struct_file_includes[ns]);
         emitted.add(path);
-        std::print("wrote {} ({} structs)\n", path.string(), infos.size());
+        std::print("generated {} ({} structs)\n", path.string(), infos.size());
         struct_files.push_back(filename);
     }
 
     auto const enums_umbrella = out.dir / "Enums.h";
     write_umbrella_file(enums_umbrella, enum_files);
     emitted.add(enums_umbrella);
-    std::print("wrote {}\n", enums_umbrella.string());
+    std::print("generated {}\n", enums_umbrella.string());
 
     auto const structs_umbrella = out.dir / "Structs.h";
     write_umbrella_file(structs_umbrella, struct_files);
     emitted.add(structs_umbrella);
-    std::print("wrote {}\n", structs_umbrella.string());
+    std::print("generated {}\n", structs_umbrella.string());
 
     auto const struct_conversions = out.dir / "Structs.impl.h";
     write_struct_conversions(struct_conversions, sorted_structs);
     emitted.add(struct_conversions);
-    std::print("wrote {}\n", struct_conversions.string());
+    std::print("generated {}\n", struct_conversions.string());
 
     if (!dropped.empty()) {
         std::print("\nstructs dropped -- a field wxl cannot mirror ({}):\n", dropped.size());

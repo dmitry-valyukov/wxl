@@ -53,7 +53,7 @@ using wstring = std::basic_string<char16_t, std::char_traits<char16_t>,
                banner);
 
     emitted.add(path);
-    std::print("wrote {}\n", path.string());
+    std::print("generated {}\n", path.string());
 }
 
 }  // namespace gen

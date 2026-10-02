@@ -72,7 +72,7 @@ target_include_directories({} PUBLIC ${{CMAKE_CURRENT_SOURCE_DIR}})
 )",
                out.cmake_target);
 
-    std::print("wrote {} ({} sources)\n", path.string(), emitted.files().size());
+    std::print("generated {} ({} sources)\n", path.string(), emitted.files().size());
 }
 
 }  // namespace gen

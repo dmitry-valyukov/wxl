@@ -209,7 +209,7 @@ struct {0}Tag : Property<PropertyKey::{0}, {1}> {{
     std::print(file, "\n}}  // namespace dsl\n}}  // namespace wxl\n");
 
     emitted.add(path);
-    std::print("wrote {} ({} property tags, {} collection tags, {} event tags)\n", path.string(),
+    std::print("generated {} ({} property tags, {} collection tags, {} event tags)\n", path.string(),
                dsl.property_value_type.size(), dsl.collection_element.size(), dsl.events.size());
 }
 
