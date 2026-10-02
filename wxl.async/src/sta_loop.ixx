@@ -255,6 +255,10 @@ class sta_loop
     static void send_to_pool(async_op& op);
     static void take_back_dispatched() noexcept;
     static void let_go_of_queue() noexcept;
+
+    /// The idle hook's call: arms the trigger a drain standing in a modal loop holds, and
+    /// posts for what is waiting, so that the modal loop is called back into.
+    static void post_if_pending() noexcept;
     static constexpr shape on_queue{&send_to_pool, &take_back_dispatched, &let_go_of_queue};
     ///@}
 
@@ -530,6 +534,12 @@ public:
     ///
     /// In the sleeping shape none of that happens: run_one() runs the protocol
     /// around its own sleep, and this only takes what is there.
+    ///
+    /// A continuation delivered here may open a modal loop -- a message box, a
+    /// menu -- and stand in it; the trigger is taken for as long as it does, so
+    /// nothing posts into that loop by itself. The loop's idle is where this is
+    /// called again, nested: that drain arms the trigger, and from then on the
+    /// handovers post into the modal loop like any other.
     ///
     /// \return how many coroutines were resumed.
     inline static std::size_t run_pending() {

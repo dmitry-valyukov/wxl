@@ -28,6 +28,11 @@ IDispatcherQueue* sta_queue = nullptr;
 /// Holds the queue this module made itself, where the thread had none.
 IDispatcherQueueController* own_controller = nullptr;
 
+/// Called whenever the foreground thread is about to go idle, in whichever message loop
+/// it runs: a modal one opened by a continuation included. Installed by
+/// start_dispatched(), removed by stop().
+HHOOK idle_hook = nullptr;
+
 /// What the two handlers do with what arrives: deliver it while the loop runs, settle
 /// it while the loop is being stopped.
 void (*on_drain)() noexcept = nullptr;
@@ -243,11 +248,28 @@ void sta_loop::start_dispatched(std::string_view worker_name) {
 
     sta_queue = queue_of_this_thread();
 
+    // Nothing is drained from inside the hook: the idle callback must not run code that
+    // pumps or calls COM, which a continuation would. It only sees to it that the drain
+    // is posted, and the post arrives as a message into whatever loop is running.
+    idle_hook = ::SetWindowsHookExW(
+        WH_FOREGROUNDIDLE,
+        [](int code, WPARAM wparam, LPARAM lparam) -> LRESULT {
+            if (code == HC_ACTION) post_if_pending();
+
+            return ::CallNextHookEx(nullptr, code, wparam, lparam);
+        },
+        nullptr, ::GetCurrentThreadId());
+
     // The shape changes last: a start that failed leaves a loop that was never started,
     // and stop() has nothing to let go of.
     try {
         start_driven([]() noexcept { post(drain); }, worker_name);
     } catch (...) {
+        if (idle_hook) {
+            ::UnhookWindowsHookEx(idle_hook);
+            idle_hook = nullptr;
+        }
+
         sta_queue->Release();
         sta_queue = nullptr;
 
@@ -260,6 +282,17 @@ void sta_loop::start_dispatched(std::string_view worker_name) {
     }
 
     shape_ = &on_queue;
+}
+
+void sta_loop::post_if_pending() noexcept {
+    // The same move as pay_owed_callback(), on a trigger that may be armed already: the
+    // thread is idle, so nobody is looking, and what lies in the channel is posted about.
+    from_worker_.rearm();
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+
+    auto at = from_worker_reader_.look_ahead();
+
+    if (from_worker_reader_.peek(at) && from_worker_.disarm()) post(drain);
 }
 
 void sta_loop::send_to_pool(async_op& op) {
@@ -296,6 +329,11 @@ void sta_loop::take_back_dispatched() noexcept {
 }
 
 void sta_loop::let_go_of_queue() noexcept {
+    if (idle_hook) {
+        ::UnhookWindowsHookEx(idle_hook);
+        idle_hook = nullptr;
+    }
+
     sta_queue->Release();
     sta_queue = nullptr;
 

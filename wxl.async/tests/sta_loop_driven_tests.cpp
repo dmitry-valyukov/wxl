@@ -163,6 +163,25 @@ task returns_seven(int& out) {
     out = co_await sta_loop::async_call([] { return 7; });
 }
 
+/// Resumed inside a drain, opens a modal loop there -- what a MessageBox after a read
+/// does. The modal loop is modelled the way the window runs it: on every idle it drains
+/// the loop (WM_ENTERIDLE), otherwise it waits for a post.
+task runs_a_modal_loop_in_its_continuation(int& got) {
+    co_await sta_loop::async_call([] {});
+
+    task inner = returns_seven(got);
+
+    for (;;) {
+        sta_loop::run_pending();
+
+        if (inner.done()) break;
+
+        dispatcher().wait_for_a_post();
+    }
+
+    inner.result();
+}
+
 bool all_done(const std::vector<task>& work) {
     return std::all_of(work.begin(), work.end(), [](const task& t) { return t.done(); });
 }
@@ -300,4 +319,31 @@ TEST(StaLoopDrivenTest, GivingUpAnOperationOutsideRunPendingKeepsTheCallbackTheL
     EXPECT_EQ(seven, 7);
     EXPECT_GE(dispatcher().posts() - posts_before, 1);
     EXPECT_EQ(p.alive.load(), 0);
+}
+
+TEST(StaLoopDrivenTest, ADrainNestedInAModalLoopOfAContinuationDeliversAndLeavesTheOuterOneWhole) {
+    // Without the drain at the modal loop's idle this hangs: the outer drain holds the
+    // trigger, so the inner operation's handover posts nothing.
+    int got = 0;
+    task outer = runs_a_modal_loop_in_its_continuation(got);
+
+    while (!outer.done()) {
+        dispatcher().wait_for_a_post();
+        sta_loop::run_pending();
+    }
+
+    outer.result();
+    EXPECT_EQ(got, 7);
+
+    // And the protocol is where every drain leaves it: armed, so the next handover posts.
+    int value = 0;
+    task after = returns_seven(value);
+
+    while (!after.done()) {
+        dispatcher().wait_for_a_post();
+        sta_loop::run_pending();
+    }
+
+    after.result();
+    EXPECT_EQ(value, 7);
 }
