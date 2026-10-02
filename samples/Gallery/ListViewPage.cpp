@@ -7,6 +7,7 @@
 #include "Box.h"
 #include "ItemBuilder.h"
 #include "Contact.h"
+#include "generated/Windows.ApplicationModel.DataTransfer.h"
 #include "CustomDataObject.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Documents.h"
@@ -156,6 +157,23 @@ FrameworkElement scrolling() {
     });
 }
 
+constexpr char8_t draggingHeader[] = {
+#include "Snippets/ListView/ListviewsDragDropReordering.html.embed"
+};
+constexpr char8_t draggingCode[] = {
+#include "Snippets/ListView/ListviewsDragDropReordering.h.embed"
+};
+
+FrameworkElement dragging() {
+#include "Snippets/ListView/ListviewsDragDropReordering.h"
+
+    return gallery::controlExample({
+        .header = gallery::snippet(draggingHeader),
+        .example = example,
+        .code = gallery::snippet(draggingCode),
+    });
+}
+
 constexpr char8_t groupedHeader[] = {
 #include "Snippets/ListView/ListviewGroupedHeaders.html.embed"
 };
@@ -176,5 +194,5 @@ FrameworkElement grouped() {
 }  // namespace
 
 wxl::FrameworkElement gallery::listViewPage() {
-    return StackPanel {basicList(), selection(), images(), filtering(), menus(), messaging(), restoring(), scrolling(), grouped()};
+    return StackPanel {basicList(), selection(), images(), filtering(), menus(), messaging(), restoring(), scrolling(), dragging(), grouped()};
 }
