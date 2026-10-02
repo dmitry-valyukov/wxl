@@ -260,6 +260,37 @@ std::vector<SetterMethod> read_setter_methods(value const& entry,
     return methods;
 }
 
+// The methods whose call wxl replaces with a function of its own, keyed by the
+// method's name. Whether the class declares the method and the profile lets it
+// through is the class writer's to check: only it has read the members.
+std::map<std::string, ReplacedCall> read_replaced_calls(value const& entry,
+                                                        std::filesystem::path const& source,
+                                                        std::string_view type_name) {
+    value const* const listed = entry.find("replacedCalls");
+    if (!listed) {
+        return {};
+    }
+    if (!listed->is_object()) {
+        fail(source, std::format("type '{}': 'replacedCalls' must be an object keyed by method "
+                                 "name",
+                                 type_name));
+    }
+
+    std::map<std::string, ReplacedCall> calls;
+    for (value const& definition : listed->members()) {
+        std::string const name{definition.name().chars()};
+        if (!definition.is_object() || !definition.find("function") ||
+            !definition.find("include") || !definition["function"].is_string() ||
+            !definition["include"].is_string()) {
+            fail(source, std::format("type '{}': replaced call '{}' must be an object with a "
+                                     "string 'function' and a string 'include'",
+                                     type_name, name));
+        }
+        calls[name] = {text(definition["function"]), text(definition["include"])};
+    }
+    return calls;
+}
+
 PackageRef read_package(value const& entry, std::filesystem::path const& source) {
     if (!entry.is_object() || !entry.find("id")) {
         fail(source, "every 'packages' entry must be an object with an 'id'");
@@ -490,6 +521,9 @@ Profile load_profile(std::filesystem::path const& path) {
             if (auto setters = read_setter_methods(entry, path, name); !setters.empty()) {
                 profile.setter_methods.emplace(name, std::move(setters));
             }
+            if (auto replaced = read_replaced_calls(entry, path, name); !replaced.empty()) {
+                profile.replaced_calls.emplace(name, std::move(replaced));
+            }
             if (value const* const converted = entry.find("fromText")) {
                 if (!converted->is_object() || !converted->find("function") || !converted->find("include")) {
                     fail(path, std::format("type '{}': 'fromText' must be an object with 'function' "
@@ -585,6 +619,12 @@ struct ProfileLoader {
         }
         for (auto&& [name, converted] : profile.from_text) {
             result.from_text[name] = converted;
+        }
+        // Replaced calls compose by the method's name, the extending profile winning.
+        for (auto&& [name, calls] : profile.replaced_calls) {
+            for (auto&& [method, call] : calls) {
+                result.replaced_calls[name][method] = call;
+            }
         }
         // Setter methods compose the same way, by the method's name.
         for (auto&& [name, setters] : profile.setter_methods) {

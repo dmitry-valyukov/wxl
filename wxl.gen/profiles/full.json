@@ -958,7 +958,14 @@
                 "CreateFromUri",
                 "CreateFromFile",
                 "OpenReadAsync"
-            ]
+            ],
+            "replacedCalls": {
+                "CreateFromUri": {
+                    "comment": "The platform opens such a reference only for http, https, ms-appx and ms-appdata: an address with the file scheme fails at OpenReadAsync with E_NOTIMPL, and an unpackaged application has no ms-appx. A file address gets a reference that opens the file when asked; any other address is the platform's.",
+                    "function": "impl::stream_reference_from_uri",
+                    "include": "../impl/file_stream_reference.h"
+                }
+            }
         },
         "Windows.Storage.Streams.IRandomAccessStreamWithContentType": {
             "comment": "The stream a bitmap is read from.",

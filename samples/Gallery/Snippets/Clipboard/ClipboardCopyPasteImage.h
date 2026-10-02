@@ -10,18 +10,17 @@ struct Model {
 };
 auto const model = gallery::hold<Model>();
 
-// The picture is read from where it is, as a reference to a file: the clipboard fetches it when asked.
-std::u16string path = (applicationFolder() / L"Assets" / L"SampleMedia" / L"rainier.jpg").u16string();
+// The picture is read from where it is: the reference holds the address, the clipboard fetches the file when asked.
+std::u16string address = u"file:///" + (applicationFolder() / L"Assets" / L"SampleMedia" / L"rainier.jpg").generic_u16string();
 
-auto const copy = [](Model* model, std::u16string path) -> async::detached_task {
-    // A coroutine that ends in an exception ends the program: the failure is caught here.
+auto const copy = [](Model* model, std::u16string address) {
     try {
-        auto const file = co_await StorageFile::getFileFromPathAsync(path);
         auto package = DataPackage {};
-        package.setBitmap(RandomAccessStreamReference::createFromFile(file));
+        package.setBitmap(RandomAccessStreamReference::createFromUri(Uri {address}));
         model->say(Clipboard::setContentWithOptions(package, ClipboardContentOptions {}) ? u"Image copied to clipboard."
                                                                                          : u"Error copying image to clipboard.");
     } catch (...) {
+        // A file that is not there is an exception at the call.
         model->say(u"Error copying image to clipboard.");
     }
 };
@@ -58,7 +57,7 @@ auto example = StackPanel {
         spacing = 8,
         Button {
             content = u"Copy Image to Clipboard",
-            onClick = [model, copy, path](Button const&) { copy(model.get(), path); },
+            onClick = [model, copy, address](Button const&) { copy(model.get(), address); },
         },
         Button {content = u"Paste Image from Clipboard", onClick = [model, paste](Button const&) { paste(model.get()); }},
     },
