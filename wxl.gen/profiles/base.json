@@ -327,6 +327,7 @@
                 "TextTrimming",
                 "TextIndent",
                 "LineHeight",
+                "LineStackingStrategy",
                 "MaxLines",
                 "Padding",
                 "IsTextSelectionEnabled"

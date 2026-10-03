@@ -120,6 +120,8 @@ using namespace wxl::dsl;
     HtmlBlock markup{
         L"Привет, <b>мир</b>! <a href='faq'>Подробности</a>.",
         isTextSelectionEnabled = true,
+        lineHeight = 22.0,
+        lineStackingStrategy = LineStackingStrategy::BlockLineHeight,
     };
 
     markup.registerStyle(L"quote", {.text = {.italic = true},

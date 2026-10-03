@@ -104,8 +104,15 @@ wxl::Teardown wxl_launched() {
         right->model(model);
     });
     auto const typesItem = SelectorBarItem {text = typesTab, isSelected = true};
-    // Сведения читают подолгу: кегль крупнее 14 у деревьев.
-    auto const details = HtmlBlock {textWrapping.wrap, fontSize = 16.0};
+    // Сведения читают подолгу: кегль крупнее 14 у деревьев. Шаг строк — целый:
+    // при своём, дробном (21,3 у кегля 16), строки одного и того же текста
+    // вставали то на пиксель выше, то ниже, смотря по остальному содержимому.
+    auto const details = HtmlBlock {
+        textWrapping.wrap,
+        fontSize = 16.0,
+        lineHeight = 22.0,
+        lineStackingStrategy = LineStackingStrategy::BlockLineHeight,
+    };
     // Значок строки — перед первым словом сведений, как в дереве.
     document->info.on_change([details](Description const& info) noexcept {
         if (!info.icon) {
