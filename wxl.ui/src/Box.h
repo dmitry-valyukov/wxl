@@ -17,7 +17,18 @@ Object intBox(int64_t value);
 /// application's own vector, which the item template reads back with intOf.
 Object indexList(int64_t count);
 
+/// The same for the positions the application picks: the items of a filtered or sorted view of its own vector.
+Object indexList(int64_t const* positions, size_t count);
+
 /// The number in a box made by intBox; -1 for an object that is anything else.
 int64_t intOf(Object const& boxed);
+
+/// An empty list of positions that the control follows as it changes: what is appended or removed
+/// shows at once. Appended and removed with the functions below, read by the control as indexList is.
+Object observableIndexList();
+
+void indexListAppend(Object const& list, int64_t value);
+void indexListRemoveAt(Object const& list, uint32_t index);
+uint32_t indexListSize(Object const& list);
 
 }  // namespace wxl

@@ -96,6 +96,7 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement itemsRepeaterPage();
 wxl::FrameworkElement itemsViewPage();
 wxl::FrameworkElement listViewPage();
 wxl::FrameworkElement gridViewPage();

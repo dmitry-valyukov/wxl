@@ -5,6 +5,7 @@
 #include "Box.h"
 #include "ItemBuilder.h"
 #include "CustomDataObject.h"
+#include "generated/Microsoft.UI.Dispatching.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Documents.h"
 
