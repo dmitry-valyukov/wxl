@@ -23,8 +23,9 @@
 namespace editor {
 
 enum class Expander : uint8_t { None, Collapsed, Expanded };
-// Indeterminate — у родителя, когда отмечены не все дети.
-enum class Check : uint8_t { None, Unchecked, Checked, Indeterminate };
+// Indeterminate — у родителя, когда отмечены не все дети; Disabled — отметку
+// поставить нельзя: пустой квадрат блёклым цветом, щелчок ничего не меняет.
+enum class Check : uint8_t { None, Unchecked, Checked, Indeterminate, Disabled };
 
 // Значок строки: знак шрифта Fluent UI System Icons (Assets) и его радиальная
 // заливка — светлая середина, тёмный край; один цвет на обоих — сплошная

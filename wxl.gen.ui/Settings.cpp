@@ -34,6 +34,8 @@ void loadSettings(Settings& settings) {
     }
     settings.hideDependencyProperties.set(
         readDword(root, L"HideDependencyProperties", settings.hideDependencyProperties.get()) != 0);
+    settings.hideEventArgs.set(readDword(root, L"HideEventArgs", settings.hideEventArgs.get()) != 0);
+    settings.hideGivenFromAbove.set(readDword(root, L"HideGivenFromAbove", settings.hideGivenFromAbove.get()) != 0);
     settings.showSignatures.set(readDword(root, L"ShowSignatures", settings.showSignatures.get()) != 0);
     settings.englishDocumentation.set(
         readDword(root, L"EnglishDocumentation", settings.englishDocumentation.get()) != 0);
@@ -52,6 +54,8 @@ void saveSettings(Settings const& settings) {
         return;
     }
     writeDword(root, L"HideDependencyProperties", settings.hideDependencyProperties.get() ? 1 : 0);
+    writeDword(root, L"HideEventArgs", settings.hideEventArgs.get() ? 1 : 0);
+    writeDword(root, L"HideGivenFromAbove", settings.hideGivenFromAbove.get() ? 1 : 0);
     writeDword(root, L"ShowSignatures", settings.showSignatures.get() ? 1 : 0);
     writeDword(root, L"EnglishDocumentation", settings.englishDocumentation.get() ? 1 : 0);
     writeDword(root, L"DetailsFontSize", static_cast<DWORD>(settings.detailsFontSize.get()));

@@ -502,12 +502,13 @@ void VirtualTree::render() {
                        : data.expander == Expander::Expanded ? expandedGlyph
                                                              : zstring_view{});
         row.check.visibility(data.check == Check::None ? Visibility::Collapsed : Visibility::Visible);
-        bool const checked = data.check != Check::Unchecked;
         row.check.text(data.check == Check::Checked         ? checkedGlyph
                        : data.check == Check::Indeterminate ? indeterminateGlyph
                                                             : uncheckedGlyph);
-        row.check.foreground(checked ? static_cast<Brush const&>(brushes.Accent.FillColor.Default)
-                                     : static_cast<Brush const&>(brushes.Text.FillColor.Secondary));
+        row.check.foreground(data.check == Check::Disabled ? static_cast<Brush const&>(brushes.Text.FillColor.Disabled)
+                             : data.check == Check::Unchecked
+                                 ? static_cast<Brush const&>(brushes.Text.FillColor.Secondary)
+                                 : static_cast<Brush const&>(brushes.Accent.FillColor.Default));
 
         glyph_.clear();
         if (data.icon) {

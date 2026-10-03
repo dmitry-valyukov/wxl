@@ -13,6 +13,14 @@ struct Settings {
     // их у контролов по одному на свойство, и список членов вдвое длиннее.
     wxl::core::observable<bool> hideDependencyProperties {true};
 
+    // Классы аргументов событий в дереве типов: имя на EventArgs у самого
+    // класса или у его базы.
+    wxl::core::observable<bool> hideEventArgs {true};
+
+    // Типы, данные свыше, — их wxl пишет сам, вне генерируемой проекции;
+    // показанные отметить нельзя.
+    wxl::core::observable<bool> hideGivenFromAbove {true};
+
     // Объявление члена и база класса серым после имени в деревьях.
     wxl::core::observable<bool> showSignatures {true};
 
