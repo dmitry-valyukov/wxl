@@ -18,6 +18,13 @@ TEST(member_name, escapes_a_keyword_with_a_trailing_underscore) {
     EXPECT_EQ(gen::member_name("Auto"), "auto_");
 }
 
+// `xor` is an operator to the language, not a name: CanvasComposite.Xor.
+TEST(member_name, escapes_an_alternative_token_with_a_trailing_underscore) {
+    EXPECT_EQ(gen::member_name("Xor"), "xor_");
+    EXPECT_EQ(gen::member_name("Not"), "not_");
+    EXPECT_EQ(gen::member_name("Protected"), "protected_");
+}
+
 TEST(interface_field_name, drops_the_interface_prefix) {
     EXPECT_EQ(gen::interface_field_name("IButtonBase"), "buttonBase_");
     EXPECT_EQ(gen::interface_field_name("IUIElement"), "uiElement_");
