@@ -77,6 +77,15 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    DesignPages.cpp
+    Design.cpp
+    ColorPage.cpp
+    IconographyPage.cpp
+    AccessibilityColorContrastPage.cpp
+    Icons.cpp
+    ColorTile.cpp
+    ColorSamples.cpp
+    ColorSections.cpp
     AnimatedVisualPlayerPage.cpp
     CaptureElementPreviewPage.cpp
     InkCanvasPage.cpp

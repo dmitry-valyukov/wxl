@@ -753,7 +753,9 @@
                 "ItemInvoked",
                 "ScrollView",
                 "SelectAll",
-                "DeselectAll"
+                "DeselectAll",
+                "Select",
+                "Deselect"
             ],
             "syntheticMembers": {
                 "ItemTemplate": {
