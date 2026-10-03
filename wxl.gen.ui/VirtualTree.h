@@ -26,7 +26,8 @@ enum class Expander : uint8_t { None, Collapsed, Expanded };
 enum class Check : uint8_t { None, Unchecked, Checked, Indeterminate };
 
 // Значок строки: знак шрифта Fluent UI System Icons (Assets) и его радиальная
-// заливка — светлая середина, тёмный край. Модели держат значки постоянными,
+// заливка — светлая середина, тёмный край; один цвет на обоих — сплошная
+// заливка этим цветом. Модели держат значки постоянными,
 // дерево строит по кисти на значок и узнаёт его по адресу.
 struct RowIcon {
     char32_t glyph;

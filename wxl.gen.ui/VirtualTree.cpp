@@ -27,7 +27,14 @@ constexpr zstring_view checkedGlyph = u"\uF28D";
 constexpr zstring_view uncheckedGlyph = u"\uF291";
 constexpr zstring_view indeterminateGlyph = u"\uE2FE";
 
-constexpr zstring_view iconFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
+Brush fillOf(RowIcon const& icon) {
+    if (icon.outer == icon.inner) {
+        return Template<SolidColorBrush> {icon.outer}.build();
+    }
+    return iconFill(icon.outer, icon.inner).build();
+}
+
+constexpr zstring_view iconFont =u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
 
 // Колесо даёт 120 на щелчок; щелчок листает три строки, как в проводнике.
 constexpr int32_t wheelUnitsPerLine = 40;
@@ -183,7 +190,7 @@ Brush const& VirtualTree::iconBrush(RowIcon const& icon) {
         }
     }
 
-    return fills_.emplace_back(&icon, iconFill(icon.outer, icon.inner).build()).second;
+    return fills_.emplace_back(&icon, fillOf(icon)).second;
 }
 
 Template<RadialGradientBrush> iconFill(Color outer, Color inner) {
@@ -204,7 +211,7 @@ TextBlock iconText(RowIcon const& icon, double size) {
     return TextBlock {
         fontFamily = FontFamily {iconFont},
         fontSize = size,
-        foreground = iconFill(icon.outer, icon.inner).build(),
+        foreground = fillOf(icon),
         text = glyph,
     };
 }

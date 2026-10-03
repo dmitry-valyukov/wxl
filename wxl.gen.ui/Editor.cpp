@@ -33,9 +33,10 @@ constexpr RowIcon namespaceIcon {0xE058, rgb(13, 71, 161), rgb(128, 222, 234)}; 
 constexpr RowIcon classIcon {0xF132, rgb(109, 55, 16), rgb(255, 167, 38)};       // apps: коричнево-оранжевый
 constexpr RowIcon structIcon {0xE202, rgb(27, 94, 32), rgb(255, 204, 170)};      // broad_activity_feed: зелёно-персиковый
 constexpr RowIcon enumIcon {0xE779, rgb(74, 20, 140), rgb(186, 104, 200)};       // list: фиолетовый
-constexpr RowIcon propertyIcon {0xEE85, rgb(66, 66, 66), rgb(189, 189, 189)};    // wrench: серый
-constexpr RowIcon methodIcon {0xF334, rgb(49, 27, 146), rgb(209, 196, 233)};     // cube: тёмно-светло-фиолетовый
-constexpr RowIcon eventIcon {0xE617, rgb(230, 81, 0), rgb(255, 235, 59)};        // flash: оранжево-жёлтый
+// Члены — сплошным цветом.
+constexpr RowIcon propertyIcon {0xEE85, rgb(97, 97, 97), rgb(97, 97, 97)};       // wrench: серый
+constexpr RowIcon methodIcon {0xF334, rgb(94, 53, 177), rgb(94, 53, 177)};       // cube: фиолетовый
+constexpr RowIcon eventIcon {0xE617, rgb(239, 108, 0), rgb(239, 108, 0)};        // flash: оранжевый
 constexpr RowIcon constantIcon {0xF0544, rgb(74, 20, 140), rgb(186, 104, 200)};  // storage: как у перечисления
 constexpr RowIcon styleIcon {0xF355, rgb(0, 96, 100), rgb(178, 235, 242)};       // design_ideas: тёмно-светло-бирюзовый
 constexpr RowIcon brushIcon {0xF591, rgb(183, 28, 28), rgb(255, 171, 145)};      // paint_brush: красно-персиковый
