@@ -262,7 +262,9 @@
                 "AllowDrop",
                 "DragEnter",
                 "DragOver",
-                "Drop"
+                "Drop",
+                "GettingFocus",
+                "StartBringIntoView"
             ],
             "syntheticMembers": {
                 "IsDragRegion": {
@@ -600,7 +602,11 @@
                 "HorizontalCacheLength",
                 "VerticalCacheLength",
                 "ElementPrepared",
-                "ElementClearing"
+                "ElementClearing",
+                "GetElementIndex",
+                "TryGetElement",
+                "GetOrCreateElement",
+                "ItemsSourceView"
             ],
             "syntheticMembers": {
                 "ItemTemplate": {
@@ -611,6 +617,55 @@
                     "include": "../impl/item_factory.h"
                 }
             }
+        },
+        "Microsoft.UI.Xaml.BringIntoViewOptions": {
+            "comment": "Collections: how an element is brought into view -- animated or at once, and where in the viewport it comes to rest (0 the near edge, 1 the far one).",
+            "members": [
+                "AnimationDesired",
+                "VerticalAlignmentRatio",
+                "HorizontalAlignmentRatio"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.GettingFocusEventArgs": {
+            "comment": "Collections: focus about to move -- from which element, to which; the target can be replaced.",
+            "members": [
+                "OldFocusedElement",
+                "NewFocusedElement"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsSourceView": {
+            "comment": "Collections: what an ItemsRepeater sees of its data source: how many items there are.",
+            "members": [
+                "Count"
+            ]
+        },
+        "Microsoft.UI.Xaml.Hosting.ElementCompositionPreview": {
+            "comment": "Motion: the property set that follows the scrolling of a ScrollViewer, which an animation reads as its reference.",
+            "members": [
+                "GetScrollViewerManipulationPropertySet"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsRepeaterElementPreparedEventArgs": {
+            "comment": "Collections: the element an ItemsRepeater has made ready for an item, and the position of the item.",
+            "members": [
+                "Element",
+                "Index"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsRepeaterElementClearingEventArgs": {
+            "comment": "Collections: the element an ItemsRepeater is taking back.",
+            "members": [
+                "Element"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.VirtualizingLayoutContext": {
+            "comment": "Collections: what a virtualizing layout is given by the panel it lays out: how many items there are, which part of the panel is in view, and the element of an item to measure and arrange.",
+            "members": [
+                "ItemCount",
+                "RealizationRect",
+                "GetOrCreateElementAt",
+                "RecycleElement"
+            ]
         },
         "Microsoft.UI.Xaml.Controls.ItemsViewItemInvokedEventArgs": {
             "comment": "Collections: the item an ItemsView was told to invoke.",

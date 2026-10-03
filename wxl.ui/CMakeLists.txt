@@ -187,6 +187,8 @@ add_library(wxl.ui STATIC
     src/SplitPanel.cpp
     src/CustomLayout.h
     src/CustomLayout.cpp
+    src/CustomVirtualizingLayout.h
+    src/CustomVirtualizingLayout.cpp
     src/AppZoom.h
     src/AppZoom.cpp
     src/ZoomEffect.h
