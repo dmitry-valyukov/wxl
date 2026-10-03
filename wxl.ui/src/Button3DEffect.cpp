@@ -97,7 +97,7 @@ constexpr Color bevelShade = rgba(0, 0, 0, 0.75);
 // is a schematic rendering, and the light brush of the bevel is the gleam.
 RadialGradientBrush faceBrush(Face const& tones) {
     return RadialGradientBrush{
-        dsl::center = {0.5, 0.5},
+        dsl::center = Point{0.5, 0.5},
         dsl::gradientOrigin = spot(),
         dsl::radiusX = 1.85,
         dsl::radiusY = 1.15,

@@ -499,7 +499,7 @@ namespace library_presets {
 // object a property asks for is a template's to build.
 [[maybe_unused]] void own_preset() {
     constexpr Preset glow{
-        center = {0.33, 0.33},
+        center = Point {0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,
@@ -522,7 +522,7 @@ namespace library_presets {
 // the same way it would be written inside the object's.
 [[maybe_unused]] void templates_of_presets() {
     constexpr Preset shape{
-        center = {0.33, 0.33},
+        center = Point {0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,

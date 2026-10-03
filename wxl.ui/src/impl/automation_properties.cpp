@@ -17,4 +17,8 @@ void set_automation_live_setting(winrt::Microsoft::UI::Xaml::UIElement const& el
     automation::AutomationProperties::SetLiveSetting(element, static_cast<automation::Peers::AutomationLiveSetting>(setting));
 }
 
+void set_automation_accessibility_view(winrt::Microsoft::UI::Xaml::UIElement const& element, AccessibilityView view) {
+    automation::AutomationProperties::SetAccessibilityView(element, static_cast<automation::Peers::AccessibilityView>(view));
+}
+
 }  // namespace wxl::impl
