@@ -67,6 +67,12 @@ public:
     // Один шаг фонового разбора, в несколько миллисекунд; остался ли ещё.
     bool prepareDocumentation();
 
+    // Настройки: скрывать ли в членах идентификаторы свойств зависимостей
+    // (статические свойства только для чтения с именем на Property) и брать ли
+    // справочник Windows SDK на английском.
+    void hideDependencyProperties(bool hide);
+    void englishDocumentation(bool english);
+
 private:
     Editor();
 

@@ -109,6 +109,9 @@ public:
     // Модель изменилась сама: перечитать видимые строки.
     void refresh();
 
+    // Показывать ли пояснение серым после текста строки.
+    void details(bool show);
+
 private:
     VirtualTree();
 
@@ -169,6 +172,7 @@ private:
     wxl::core::nullable<uint32_t> hovered_;
 
     bool focused_ = false;
+    bool details_ = true;
     std::u16string typed_;  // набранное поиском по первым буквам
     std::chrono::steady_clock::time_point typedAt_;
 };

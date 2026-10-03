@@ -244,6 +244,21 @@ public:
         return file ? file->find(id) : nullptr;
     }
 
+    // Справочник Windows SDK — на английском или на языке интерфейса. Открытые
+    // файлы справочника закрываются: при следующей нужде открывается файл
+    // нужного языка. Документация рядом с .winmd одна и остаётся.
+    void english(bool value) {
+        auto languages = value ? std::vector<std::wstring> {L"en"} : documentation_languages();
+        if (languages == languages_) {
+            return;
+        }
+        languages_ = std::move(languages);
+        std::erase_if(unfinished_, [this](documentation_file const* file) {
+            return std::ranges::any_of(contracts_, [file](auto const& each) { return each.second.get() == file; });
+        });
+        contracts_.clear();
+    }
+
     // Разбирает члены открытых файлов до срока; остались ли неразобранные.
     bool parseSome(std::chrono::steady_clock::time_point deadline) {
         while (!unfinished_.empty()) {
@@ -322,7 +337,7 @@ private:
     }
 
     wxl::core::function<void()> opened_;
-    std::vector<std::wstring> const languages_ = documentation_languages();
+    std::vector<std::wstring> languages_ = documentation_languages();
     std::filesystem::path references_;
     std::map<md::database const*, File> beside_;
     std::map<std::string, File> contracts_;
@@ -347,6 +362,9 @@ struct Editor::Data {
     std::set<std::string, std::less<>> styled;
 
     Documentation documentation;
+
+    // Настройка редактора: идентификаторы свойств зависимостей не показываются.
+    bool hideDependencyProperties = true;
 };
 
 // Тип в левом дереве; адрес постоянен, пока жив редактор.
@@ -1126,83 +1144,84 @@ public:
           enum_(md::get_category(entry.def) == md::category::enum_type) {
         auto declared = declared_members_of(entry.def);
         if (enum_) {
-            groups_.push_back({"Values", member_kind::Constant, &constantIcon, std::move(declared.constants)});
+            addGroup("Values", member_kind::Constant, &constantIcon, declared.constants);
         } else {
-            groups_.push_back({"Properties", member_kind::Property, &propertyIcon, std::move(declared.properties)});
-            groups_.push_back({"Methods", member_kind::Method, &methodIcon, std::move(declared.methods)});
-            groups_.push_back({"Events", member_kind::Event, &eventIcon, std::move(declared.events)});
+            addGroup("Properties", member_kind::Property, &propertyIcon, declared.properties);
+            addGroup("Methods", member_kind::Method, &methodIcon, declared.methods);
+            addGroup("Events", member_kind::Event, &eventIcon, declared.events);
         }
-        // Пустая группа не показывается.
-        std::erase_if(groups_, [](Group const& group) { return group.names.empty(); });
+        refilter();
+    }
 
-        // Перегрузки — первой сигнатурой и их числом.
+    // Показываемые члены — заново, по настройке редактора: скрытые остаются
+    // в группе и показываются снова, как только настройка снята.
+    void refilter() {
+        bool const hide = editor_.data_->hideDependencyProperties;
         for (Group& group : groups_) {
-            group.briefs.reserve(group.names.size());
-            for (std::string_view const name : group.names) {
-                std::vector<std::string> briefs;
-                for (member_declaration const& declaration : shown_declarations(entry.def, group.kind, name)) {
-                    if (std::string brief = BriefSignature::of(declaration, name);!std::ranges::contains(briefs, brief)) {
-                        briefs.push_back(std::move(brief));
-                    }
-                }
-                std::string& brief = group.briefs.emplace_back(briefs.empty() ? std::string {} : std::move(briefs.front()));
-                if (briefs.size() > 1) {
-                    brief += std::format("  +{} overload{}", briefs.size() - 1, briefs.size() > 2 ? "s" : "");
+            group.shown.clear();
+            for (Member const& member : group.all) {
+                if (!(hide && member.dependency)) {
+                    group.shown.push_back(&member);
                 }
             }
+        }
+        // Выбранный член, который скрылся, больше не выбран.
+        if (auto const [group, member] = selected_; member && !std::ranges::contains(group->shown, member)) {
+            selected_ = {group, nullptr};
         }
     }
 
     uint32_t size() const override {
         uint32_t size = 0;
         for (Group const& group : groups_) {
-            size += 1 + group.shown();
+            size += group.rows();
         }
         return size;
     }
 
     TreeRow row(uint32_t index) const override {
-        auto const [group, member] = locate(index);
-        if (member == npos) {
-            count_ = std::format("{} of {}", chosen(*group), group->names.size());
+        auto const [group, at] = locate(index);
+        if (at == npos) {
+            count_ = std::format("{} of {}", chosen(*group), group->shown.size());
             return {.text = group->title,
                     .detail = count_,
                     .icon = group->icon,
                     .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
                     .check = groupCheck(*group),
-                    .selected = group == selected_.first && selected_.second == npos};
+                    .selected = group == selected_.first && !selected_.second};
         }
 
-        std::string_view const name = group->names[member];
-        return {.text = name,
-                .detail = group->briefs[member],
+        Member const& member = *group->shown[at];
+        return {.text = member.name,
+                .detail = member.brief,
                 .depth = 1,
                 .icon = group->icon,
-                .check = allows(name) ? Check::Checked : Check::Unchecked,
-                .selected = group == selected_.first && member == selected_.second};
+                .check = allows(member.name) ? Check::Checked : Check::Unchecked,
+                .selected = &member == selected_.second};
     }
 
     void toggleExpanded(uint32_t index) override {
-        auto const [group, member] = locate(index);
-        if (member == npos) {
+        auto const [group, at] = locate(index);
+        if (at == npos) {
             group->expanded = !group->expanded;
         }
     }
 
+    // Отметка группы — только её показанных членов: скрытые остаются, как были.
     void toggleChecked(uint32_t index) override {
-        auto const [group, member] = locate(index);
+        auto const [group, at] = locate(index);
         profile& prof = editor_.data_->prof;
         bool const styled = editor_.data_->styled.contains(name_);
-        if (member == npos) {
+        if (at == npos) {
             // Отмеченная целиком группа снимается, иначе отмечается целиком.
             bool const on = groupCheck(*group) != Check::Checked;
-            for (std::string_view const name : group->names) {
-                if (allows(name) != on) {
-                    mark_member(prof, name_, name, on, enum_, styled);
+            for (Member const* member : group->shown) {
+                if (allows(member->name) != on) {
+                    mark_member(prof, name_, member->name, on, enum_, styled);
                 }
             }
         } else {
-            std::string_view const name = group->names[member];
+            std::string_view const name = group->shown[at]->name;
             mark_member(prof, name_, name, !allows(name), enum_, styled);
         }
         entry_.listed = prof.types.contains(name_);
@@ -1210,9 +1229,10 @@ public:
     }
 
     void invoke(uint32_t index) override {
-        auto const [group, member] = locate(index);
+        auto const [group, at] = locate(index);
+        Member const* const member = at == npos ? nullptr : group->shown[at];
         selected_ = {group, member};
-        void const* const row = member == npos ? static_cast<void const*>(group) : &group->names[member];
+        void const* const row = member ? static_cast<void const*>(member) : group;
         editor_.selection.set({intrusive_ptr<TreeModel> {this}, row});
     }
 
@@ -1221,12 +1241,19 @@ public:
         uint32_t index = 0;
         for (Group const& group : groups_) {
             if (&group == picked) {
-                if (member == npos) {
+                if (group.shown.empty()) {
+                    return {};
+                }
+                if (!member) {
                     return index;
                 }
-                return group.expanded ? wxl::core::nullable<uint32_t> {index + 1 + member} : wxl::core::nullable<uint32_t> {};
+                if (!group.expanded) {
+                    return {};
+                }
+                auto const at = std::ranges::find(group.shown, member);
+                return index + 1 + static_cast<uint32_t>(at - group.shown.begin());
             }
-            index += 1 + group.shown();
+            index += group.rows();
         }
         return {};
     }
@@ -1244,17 +1271,21 @@ public:
         if (!group) {
             return {};
         }
-        if (member == npos) {
+        if (!member) {
             std::wstring html;
             append_bold(html, group->title);
             html += L"<br>Members of ";
             SignatureWriter {html, *editor_.types_, entry_.def}.type(entry_.def.coded_index<md::TypeDefOrRef>());
-            html += std::format(L"<p>Profile: {} of {} generated</p>", chosen(*group), group->names.size());
+            html += std::format(L"<p>Profile: {} of {} generated", chosen(*group), group->shown.size());
+            if (size_t const hidden = group->all.size() - group->shown.size()) {
+                html += std::format(L"<br>{} dependency properties hidden", hidden);
+            }
+            html += L"</p>";
             return {group->icon, std::move(html)};
         }
 
         // Метод — каждой перегрузкой, строкой на каждую.
-        std::string_view const name = group->names[member];
+        std::string_view const name = member->name;
         std::vector<std::pair<std::wstring, wxl::core::nullable<member_documentation const>>> lines;
         for (member_declaration const& declaration : shown_declarations(entry_.def, group->kind, name)) {
             std::wstring line;
@@ -1288,16 +1319,71 @@ public:
 private:
     static constexpr uint32_t npos = UINT32_MAX;
 
+    // Член, каким он прочитан один раз при открытии типа.
+    struct Member {
+        std::string_view name;
+        std::string brief;  // объявление серым после имени; у перегрузок — первое и их число
+        // Идентификатор свойства зависимостей: статическое свойство только
+        // для чтения с именем на Property.
+        bool dependency = false;
+    };
+
     struct Group {
         std::string_view title;
         member_kind kind;
         RowIcon const* icon = nullptr;
-        std::vector<std::string_view> names;
-        std::vector<std::string> briefs;  // сигнатура каждого члена, серым после имени
+        std::vector<Member> all;
+        std::vector<Member const*> shown;  // показываемые из all
         bool expanded = true;
 
-        uint32_t shown() const { return expanded ? static_cast<uint32_t>(names.size()) : 0; }
+        // Группа, где не показано ничего, не показывается и сама.
+        uint32_t rows() const {
+            return shown.empty() ? 0 : 1 + (expanded ? static_cast<uint32_t>(shown.size()) : 0);
+        }
     };
+
+    void addGroup(std::string_view title, member_kind kind, RowIcon const* icon,
+                  std::vector<std::string_view> const& names) {
+        if (names.empty()) {
+            return;
+        }
+        Group& group = groups_.emplace_back(Group {title, kind, icon});
+        group.all.reserve(names.size());
+        for (std::string_view const name : names) {
+            Member& member = group.all.emplace_back(Member {name});
+            std::vector<std::string> briefs;
+            for (member_declaration const& declaration : shown_declarations(entry_.def, kind, name)) {
+                if (auto const* property = std::get_if<md::Property>(&declaration.definition)) {
+                    member.dependency = member.dependency || isDependencyProperty(*property, name);
+                }
+                if (std::string brief = BriefSignature::of(declaration, name); !std::ranges::contains(briefs, brief)) {
+                    briefs.push_back(std::move(brief));
+                }
+            }
+            if (!briefs.empty()) {
+                member.brief = std::move(briefs.front());
+            }
+            if (briefs.size() > 1) {
+                member.brief += std::format("  +{} overload{}", briefs.size() - 1, briefs.size() > 2 ? "s" : "");
+            }
+        }
+    }
+
+    static bool isDependencyProperty(md::Property const& property, std::string_view name) {
+        if (!name.ends_with("Property")) {
+            return false;
+        }
+        bool getter = false;
+        for (auto&& semantic : property.MethodSemantic()) {
+            if (semantic.Semantic().Setter()) {
+                return false;
+            }
+            if (semantic.Semantic().Getter()) {
+                getter = semantic.Method().Flags().Static();
+            }
+        }
+        return getter;
+    }
 
     // Перечисление, которого профиль не называет, генератор выпускает целиком.
     bool allows(std::string_view member) const {
@@ -1307,7 +1393,8 @@ private:
     }
 
     size_t chosen(Group const& group) const {
-        return static_cast<size_t>(std::ranges::count_if(group.names, [this](std::string_view name) { return allows(name); }));
+        return static_cast<size_t>(
+            std::ranges::count_if(group.shown, [this](Member const* member) { return allows(member->name); }));
     }
 
     Check groupCheck(Group const& group) const {
@@ -1315,19 +1402,17 @@ private:
         if (count == 0) {
             return Check::Unchecked;
         }
-        return count == group.names.size() ? Check::Checked : Check::Indeterminate;
+        return count == group.shown.size() ? Check::Checked : Check::Indeterminate;
     }
 
+    // Группа строки и номер члена среди её показанных; npos — строка самой группы.
     std::pair<Group*, uint32_t> locate(uint32_t index) const {
         for (Group const& group : groups_) {
-            if (index == 0) {
-                return {const_cast<Group*>(&group), npos};
+            uint32_t const rows = group.rows();
+            if (index < rows) {
+                return {const_cast<Group*>(&group), index == 0 ? npos : index - 1};
             }
-            --index;
-            if (index < group.shown()) {
-                return {const_cast<Group*>(&group), index};
-            }
-            index -= group.shown();
+            index -= rows;
         }
         return {const_cast<Group*>(&groups_.back()), npos};
     }
@@ -1336,10 +1421,11 @@ private:
     TypeEntry& entry_;
     std::string const name_;
     bool const enum_;
-    std::vector<Group> groups_;
-    std::pair<Group const*, uint32_t> selected_ {nullptr, npos};
+    std::vector<Group> groups_;  // адреса членов постоянны: группы не растут после разбора
+    std::pair<Group const*, Member const*> selected_ {nullptr, nullptr};  // член пуст — выбрана группа
     mutable std::string count_;  // «N of M» строки группы, пока дерево её читает
 };
+
 
 // Левое дерево на вкладке Resources: именованные ресурсы словарей XAML, из
 // которых генератор пишет styles.h и brushes.h. Стили — по типу, к которому они
@@ -1655,6 +1741,22 @@ intrusive_ptr<TreeModel> Editor::types() const {
 
 intrusive_ptr<TreeModel> Editor::resources() const {
     return resources_;
+}
+
+void Editor::hideDependencyProperties(bool hide) {
+    if (data_->hideDependencyProperties == hide) {
+        return;
+    }
+    data_->hideDependencyProperties = hide;
+    if (auto const& shown = members.get()) {
+        static_cast<MembersModel&>(*shown).refilter();
+    }
+    revision.set(revision.get() + 1);
+}
+
+void Editor::englishDocumentation(bool english) {
+    data_->documentation.english(english);
+    revision.set(revision.get() + 1);
 }
 
 bool Editor::prepareDocumentation() {

@@ -187,6 +187,8 @@ enum class member_kind : uint8_t { Property, Method, Event, Constant };
 // directly declare, and for an enum its enumerators -- the names the walk
 // filters by. Properties, methods and events sorted, each name once;
 // enumerators in declaration order. The views point into the metadata.
+// Properties include the dependency-property identifiers (ContentProperty),
+// which a viewer shows and the walk never generates.
 struct declared_members {
     std::vector<std::string_view> properties;
     std::vector<std::string_view> methods;

@@ -1,5 +1,6 @@
 // Визуальный редактор профилей генератора проекции.
 
+#include <cmath>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
@@ -13,6 +14,7 @@
 #include "HtmlBlock.h"
 #include "UiThread.h"
 #include "MagnifyEffect.h"
+#include "Settings.h"
 #include "SplitPanel.h"
 #include "ThemeBrush.h"
 #include "ZoomEffect.h"
@@ -54,6 +56,7 @@ namespace glyphs {
     constexpr char16_t redo[] {0xF16E, 0};               // arrow_redo
     constexpr char16_t zoomOut[] {0xF8C6, 0};            // zoom_out
     constexpr char16_t zoomIn[] {0xF8C4, 0};             // zoom_in
+    constexpr char16_t settings[] {0xF6A9, 0};           // settings
 }
 
 // Вкладки над левым деревом. Выбранную узнают по тексту: вкладка — это её имя.
@@ -104,27 +107,60 @@ wxl::Teardown wxl_launched() {
         right->model(model);
     });
     auto const typesItem = SelectorBarItem {text = typesTab, isSelected = true};
-    // Сведения читают подолгу: кегль крупнее 14 у деревьев. Шаг строк — целый:
-    // при своём, дробном (21,3 у кегля 16), строки одного и того же текста
-    // вставали то на пиксель выше, то ниже, смотря по остальному содержимому.
+
+    auto const settings = core::make_refcounted<Settings>();
+    loadSettings(*settings);
+
+    // Сведения читают подолгу: кегль крупнее 14 у деревьев, свой в настройках.
+    // Шаг строк — целый: при своём, дробном (21,3 у кегля 16), строки одного и
+    // того же текста вставали то на пиксель выше, то ниже, смотря по остальному
+    // содержимому.
     auto const details = HtmlBlock {
         textWrapping.wrap,
-        fontSize = 16.0,
-        lineHeight = 22.0,
         lineStackingStrategy = LineStackingStrategy::BlockLineHeight,
     };
-    // Значок строки — перед первым словом сведений, как в дереве.
-    document->info.on_change([details](Description const& info) noexcept {
+    // Значок строки — перед первым словом сведений, как в дереве. Разметка
+    // разбирается под кегль блока, поэтому новый кегль разбирает её заново.
+    // Наблюдатели настроек и сведений держат редактор и настройки простыми
+    // указателями: живут они столько же, сколько окно, — до Teardown.
+    auto const showInfo = [details, preferences = settings.get()](Description const& info) {
+        double const size = preferences->detailsFontSize.get();
+        details.fontSize(size);
+        details.lineHeight(std::round(size * 22.0 / 16.0));
         if (!info.icon) {
             details.html(info.html);
             return;
         }
         details.clear();
         details.appendParagraph();
-        auto const icon = iconText(*info.icon, 16.0);
+        auto const icon = iconText(*info.icon, size);
         Apply {icon, Margin {0, 0, 6, 0}};
         details.appendElement(icon);
         details.append(info.html);
+    };
+    document->info.on_change([showInfo](Description const& info) noexcept { showInfo(info); });
+
+    // Настройки действуют сразу и помнятся: каждое изменение пишется в реестр.
+    left->details(settings->showSignatures.get());
+    right->details(settings->showSignatures.get());
+    document->hideDependencyProperties(settings->hideDependencyProperties.get());
+    document->englishDocumentation(settings->englishDocumentation.get());
+    settings->showSignatures.on_change([left, right, raw = settings.get()](bool show) noexcept {
+        left->details(show);
+        right->details(show);
+        saveSettings(*raw);
+    });
+    settings->hideDependencyProperties.on_change([raw = settings.get(), editor = document.get()](bool hide) noexcept {
+        editor->hideDependencyProperties(hide);
+        saveSettings(*raw);
+    });
+    settings->englishDocumentation.on_change([raw = settings.get(), editor = document.get()](bool english) noexcept {
+        editor->englishDocumentation(english);
+        saveSettings(*raw);
+    });
+    settings->detailsFontSize.on_change([raw = settings.get(), editor = document.get(), showInfo](int) noexcept {
+        showInfo(editor->info.get());
+        saveSettings(*raw);
     });
     // Ссылка в сведениях — тип: он открывается в дереве Types.
     details.onLink([left, document, typesItem](zstring_view target) {
@@ -254,7 +290,7 @@ wxl::Teardown wxl_launched() {
             Card {
                 topPanel,
                 Grid {
-                    columnDefinitions = u"auto,*",
+                    columnDefinitions = u"auto,*,auto",
                     StackPanel {
                         orientation.horizontal,
                         spacing = 4,
@@ -315,6 +351,40 @@ wxl::Teardown wxl_launched() {
                         text = BindOutput {document->typeName},
                         vAlign.center,
                         Margin {24, 0, 0, 0},
+                    },
+                    // Настройки — попапом под шестерёнкой у правого края.
+                    Button {
+                        toolButton,
+                        column = 2,
+                        vAlign.center,
+                        toolTip = u"Настройки",
+                        content = FontIcon {toolGlyph, glyph = glyphs::settings},
+                        flyout = Flyout {
+                            placement = FlyoutPlacementMode::BottomEdgeAlignedRight,
+                            content = StackPanel {
+                                width = 300.0,
+                                spacing = 12.0,
+                                ToggleSwitch {
+                                    header = u"Hide dependency properties",
+                                    Bind {settings->hideDependencyProperties},
+                                },
+                                ToggleSwitch {
+                                    header = u"Show signatures in trees",
+                                    Bind {settings->showSignatures},
+                                },
+                                ToggleSwitch {
+                                    header = u"Documentation in English",
+                                    Bind {settings->englishDocumentation},
+                                },
+                                NumberBox {
+                                    header = u"Details font size",
+                                    minimum = 12.0,
+                                    maximum = 24.0,
+                                    spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline,
+                                    Bind {settings->detailsFontSize},
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -384,5 +454,5 @@ wxl::Teardown wxl_launched() {
     window.centreWithClientSize({1200, 800});
     window.activate();
 
-    return [document, types, members, label](TeardownReason) {};
+    return [document, types, members, label, settings](TeardownReason) {};
 }

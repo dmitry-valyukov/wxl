@@ -289,6 +289,11 @@ void VirtualTree::refresh() {
     render();
 }
 
+void VirtualTree::details(bool show) {
+    details_ = show;
+    render();
+}
+
 void VirtualTree::resize(double height) {
     // Ширину меняет граница раздвижки на каждом движении мыши, а пулу и полосе
     // до ширины дела нет: их меняет только высота.
@@ -515,7 +520,7 @@ void VirtualTree::render() {
         row.text.text(text_);
 
         detail_.clear();
-        if (auto const utf8 = core::unicode::checked(data.detail)) {
+        if (auto const utf8 = core::unicode::checked(details_ ? data.detail : std::string_view {})) {
             core::unicode::append_utf16(detail_, *utf8);
         }
         row.detail.text(detail_);
