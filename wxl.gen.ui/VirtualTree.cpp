@@ -59,6 +59,7 @@ VirtualTree::VirtualTree() {
         vAlign.top,
         background = brushes.SubtleFillColor.Transparent,
         onPointerWheelChanged = [this](StackPanel const& panel, PointerRoutedEventArgs& args) { wheel(panel, args); },
+        onLayoutUpdated = [this] { measureWidth(); },
     };
 
     Apply {bar_,
@@ -469,7 +470,19 @@ void VirtualTree::scrollTo(uint32_t top) {
     render();
 }
 
+// После каждой раскладки: строки уже знают свою ширину. Скрытые ячейки пула
+// хотят ноль.
+void VirtualTree::measureWidth() {
+    for (Row const& row : pool_) {
+        widest_ = std::max(widest_, static_cast<double>(row.panel.desiredSize().width));
+    }
+    double const bar = bar_.visibility() == Visibility::Visible ? bar_.actualWidth() : 0.0;
+    wantedWidth.set(widest_ + bar);
+}
+
 void VirtualTree::updateBar() {
+    // Раскрыли, свернули, сменили модель: ширина считается заново.
+    widest_ = 0;
     uint32_t const last = size() > visible_ ? size() - visible_ : 0;
     top_ = std::min(top_, last);
 

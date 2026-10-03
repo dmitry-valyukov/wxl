@@ -1,9 +1,11 @@
 // Визуальный редактор профилей генератора проекции.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <limits>
 #include <string>
 #include <vector>
 #include <string_view>
@@ -60,13 +62,14 @@ namespace glyphs {
     constexpr char16_t zoomIn[] {0xF8C4, 0};             // zoom_in
     constexpr char16_t types[] {0xE762, 0};              // library
     constexpr char16_t resources[] {0xF356, 0};          // design_ideas
+    constexpr char16_t settings[] {0xF6A9, 0};           // settings
 }
 
 // Пункты панели навигации — виды левого дерева; текст пункта — и его имя,
 // по которому узнают выбранный.
 constexpr zstring_view typesTab = u"Types";
 constexpr zstring_view resourcesTab = u"Resources";
-constexpr zstring_view settingsName = u"Settings";  // встроенный пункт настроек — для истории
+constexpr zstring_view settingsName = u"Settings";
 
 // Знаки пунктов панели навигации — из того же шрифта, что знаки панели.
 constexpr zstring_view navigationFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
@@ -142,7 +145,8 @@ wxl::Teardown wxl_launched() {
         right->model(model);
     });
     // Пункты панели навигации слева: два вида левого дерева, а под ними
-    // встроенный пункт настроек. Выбранный пункт узнают по имени.
+    // свой пункт настроек — внизу, на месте встроенного: тот подписан на языке
+    // системы, а не приложения. Выбранный пункт узнают по имени.
     auto const typesItem = NavigationViewItem {
         content = typesTab,
         icon = FontIcon {fontFamily = FontFamily {navigationFont}, glyph = glyphs::types},
@@ -153,6 +157,11 @@ wxl::Teardown wxl_launched() {
         icon = FontIcon {fontFamily = FontFamily {navigationFont}, glyph = glyphs::resources},
     };
     resourcesItem.name(resourcesTab);
+    auto const settingsItem = NavigationViewItem {
+        content = settingsName,
+        icon = FontIcon {fontFamily = FontFamily {navigationFont}, glyph = glyphs::settings},
+    };
+    settingsItem.name(settingsName);
 
     auto const settings = core::make_refcounted<Settings>();
     loadSettings(*settings);
@@ -338,6 +347,12 @@ wxl::Teardown wxl_launched() {
         },
     };
 
+    // Левая часть — по ширине дерева: самая широкая строка, рамка и поле.
+    // Граница перетаскивается и дальше, до следующей подгонки.
+    left->wantedWidth.on_change([editorView](double width) noexcept {
+        editorView.openPaneLength(std::clamp(std::ceil(width) + 14.0, 240.0, 900.0));
+    });
+
     // Настройки — страницей, на месте редактора, как у NavigationView принято.
     auto const settingsPage = ScrollViewer {
         content = StackPanel {
@@ -388,7 +403,7 @@ wxl::Teardown wxl_launched() {
     auto const host = Border {row = 1, editorView};
 
     // Слева — панель навигации, как принято в приложениях Windows: виды левого
-    // дерева и встроенный пункт настроек внизу. Справа от неё — панель
+    // дерева и пункт настроек внизу. Справа от неё — панель
     // инструментов, под ней выбранное, внизу строка состояния.
     // Стрелка назад и кнопка панели — в заголовке окна, как в Gallery; у самой
     // панели их нет.
@@ -397,14 +412,15 @@ wxl::Teardown wxl_launched() {
         isBackButtonVisible = NavigationViewBackButtonVisible::Collapsed,
         isPaneToggleButtonVisible = false,
         isPaneOpen = false,
+        isSettingsVisible = false,
         onSelectionChanged = [left, document, host, editorView, settingsPage, places = history.get()](
-                                 Object const& sender, NavigationViewSelectionChangedEventArgs& args) {
-            if (args.isSettingsSelected()) {
+                                 Object const& sender, NavigationViewSelectionChangedEventArgs&) {
+            auto const item = sender.try_as<NavigationView>().selectedItem().try_as<FrameworkElement>();
+            if (item && std::u16string_view {item.name()} == settingsName) {
                 host.child(settingsPage);
                 places->visit({std::u16string {settingsName.view()}, {}});
                 return;
             }
-            auto const item = sender.try_as<NavigationView>().selectedItem().try_as<FrameworkElement>();
             bool const resources = item && std::u16string_view {item.name()} == resourcesTab;
             left->model(resources ? document->resources() : document->types());
             host.child(editorView);
@@ -498,6 +514,17 @@ wxl::Teardown wxl_launched() {
     };
     navigation.menuItems().append(typesItem);
     navigation.menuItems().append(resourcesItem);
+    navigation.footerMenuItems().append(settingsItem);
+
+    // Раскрытая панель — по самому длинному пункту: отступ под значок, текст и
+    // поле справа.
+    double longest = 0;
+    for (zstring_view const label : {typesTab, resourcesTab, settingsName}) {
+        TextBlock const text {label};
+        text.measure({std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()});
+        longest = std::max(longest, static_cast<double>(text.desiredSize().width));
+    }
+    navigation.openPaneLength(std::ceil(48 + longest + 28));
     typesItem.isSelected(true);
 
     // Выбранный тип — тоже место: переход по ссылке или по дереву записывается.
@@ -506,7 +533,7 @@ wxl::Teardown wxl_launched() {
             places->visit({places->current.page, name});
         }
     });
-    auto const goBack = [navigation, typesItem, resourcesItem, left, editor = document.get(), places = history.get()] {
+    auto const goBack = [typesItem, resourcesItem, settingsItem, left, editor = document.get(), places = history.get()] {
         if (places->back.empty()) {
             return;
         }
@@ -514,7 +541,7 @@ wxl::Teardown wxl_launched() {
         places->back.pop_back();
         places->replaying = true;
         if (place.page == settingsName.view()) {
-            navigation.selectedItem(navigation.settingsItem());
+            settingsItem.isSelected(true);
         } else {
             (place.page == resourcesTab.view() ? resourcesItem : typesItem).isSelected(true);
             if (place.page == typesTab.view() && !place.type.empty()) {

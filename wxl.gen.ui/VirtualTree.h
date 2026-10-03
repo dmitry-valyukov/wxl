@@ -113,6 +113,12 @@ public:
     // Показывать ли пояснение серым после текста строки.
     void details(bool show);
 
+    // Ширина, которой дереву хватает без прокрутки вбок: самая широкая из
+    // построенных строк с тех пор, как дерево раскрывали, сворачивали или меняли
+    // ему модель, и полоса прокрутки. Листание её только растит — панель под
+    // деревом не прыгает от строки к строке.
+    wxl::core::observable<double> wantedWidth;
+
 private:
     VirtualTree();
 
@@ -133,6 +139,7 @@ private:
     void paint(uint32_t slot);
     void resize(double height);
     void wheel(wxl::UIElement const& source, wxl::PointerRoutedEventArgs& args);
+    void measureWidth();
     void key(wxl::KeyRoutedEventArgs& args);
     bool typeAhead(char16_t character);
     void expandAll(uint32_t index);
@@ -174,6 +181,7 @@ private:
 
     bool focused_ = false;
     bool details_ = true;
+    double widest_ = 0;  // самая широкая строка с последнего раскрытия или смены модели
     std::u16string typed_;  // набранное поиском по первым буквам
     std::chrono::steady_clock::time_point typedAt_;
 };
