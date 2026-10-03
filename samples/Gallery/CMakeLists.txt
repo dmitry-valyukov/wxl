@@ -36,6 +36,8 @@ wxl_add_executable(sample.gallery
     Contact.cpp
     CustomDataObject.cpp
     Layouts.cpp
+    MotionPages.cpp
+    PagedFrame.cpp
     RepeaterData.cpp
     Shell.cpp
     Tiles.cpp
@@ -72,6 +74,17 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    ConnectedAnimationPage.cpp
+    XamlCompInteropPage.cpp
+    ParallaxViewPage.cpp
+    PageTransitionPage.cpp
+    ThemeTransitionPage.cpp
+    ImplicitTransitionPage.cpp
+    EasingFunctionPage.cpp
+    TeachingTipPage.cpp
+    PopupPage.cpp
+    FlyoutPage.cpp
+    ContentDialogPage.cpp
     ItemsRepeaterPage.cpp
     ItemsViewPage.cpp
     ListViewPage.cpp

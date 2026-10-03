@@ -54,10 +54,12 @@ winrt::Windows::Foundation::IInspectable themed_lookup(
     winrt::Windows::Foundation::IInspectable const& theme,
     winrt::Windows::Foundation::IInspectable const& name) {
     if (auto const themes = dictionary.ThemeDictionaries()) {
-        if (auto const chosen = themes.TryLookup(theme)) {
+        // HasKey first: a dictionary that has no such theme answers the question with an error, not with nothing, and
+        // the walk meets dictionaries that declare only some of the themes.
+        if (auto const chosen = themes.HasKey(theme) ? themes.Lookup(theme) : winrt::Windows::Foundation::IInspectable{nullptr}) {
             if (auto const inner = chosen.try_as<winrt::Microsoft::UI::Xaml::ResourceDictionary>()) {
-                if (auto const hit = inner.TryLookup(name)) {
-                    return hit;
+                if (inner.HasKey(name)) {
+                    return inner.Lookup(name);
                 }
             }
         }

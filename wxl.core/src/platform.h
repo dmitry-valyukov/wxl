@@ -23,3 +23,7 @@
 // Storyboard::GetCurrentTime, dropping its argument; nothing here calls the
 // alias.
 #undef GetCurrentTime
+
+// The same for winuser.h's `GetClassName` (an alias of GetClassNameA/W), which
+// would rewrite IAutomationPeer::GetClassName in the projection.
+#undef GetClassName

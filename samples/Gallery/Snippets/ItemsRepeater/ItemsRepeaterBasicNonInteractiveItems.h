@@ -13,21 +13,21 @@ addBar(175);
 auto const horizontalBar = [bars](Object const& item) {
     auto const& bar = (*bars)[static_cast<size_t>(intOf(item))];
     return Border {width = bar.maxLength,
-                   background = brushes.SystemControl.Background.Chrome.MediumLow,
-                   Rectangle {width = bar.length, height = 24, hAlign.left, fill = brushes.Accent.FillColor.Default}};
+                   background = resourceBrush(u"SystemChromeLowColor"),
+                   Rectangle {width = bar.length, height = 24, hAlign.left, fill = resourceBrush(u"SystemAccentColor")}};
 };
 auto const verticalBar = [bars](Object const& item) {
     auto const& bar = (*bars)[static_cast<size_t>(intOf(item))];
     return Border {height = bar.maxHeight,
-                   background = brushes.SystemControl.Background.Chrome.MediumLow,
-                   Rectangle {width = 48, height = bar.height, vAlign.top, fill = brushes.Accent.FillColor.Default}};
+                   background = resourceBrush(u"SystemChromeLowColor"),
+                   Rectangle {width = 48, height = bar.height, vAlign.top, fill = resourceBrush(u"SystemAccentColor")}};
 };
 auto const circle = [bars](Object const& item) {
     auto const& bar = (*bars)[static_cast<size_t>(intOf(item))];
     return Grid {
         Ellipse {width = bar.maxDiameter, height = bar.maxDiameter, hAlign.center, vAlign.center,
-                 fill = brushes.SystemControl.Background.Chrome.MediumLow},
-        Ellipse {width = bar.diameter, height = bar.diameter, hAlign.center, vAlign.center, fill = brushes.Accent.FillColor.Default},
+                 fill = resourceBrush(u"SystemChromeLowColor")},
+        Ellipse {width = bar.diameter, height = bar.diameter, hAlign.center, vAlign.center, fill = resourceBrush(u"SystemAccentColor")},
     };
 };
 

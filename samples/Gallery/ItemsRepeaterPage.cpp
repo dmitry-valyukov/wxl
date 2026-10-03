@@ -5,9 +5,13 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include "Announce.h"
+#include "generated/Microsoft.UI.Xaml.Automation.Peers.Enums.h"
 #include "Box.h"
 #include "ItemBuilder.h"
+#include "KeyedIndexList.h"
 #include "Layouts.h"
+#include "ResourceBrush.h"
 #include "RepeaterData.h"
 #include "generated/Microsoft.UI.Dispatching.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
