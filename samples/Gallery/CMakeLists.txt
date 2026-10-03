@@ -79,6 +79,10 @@ wxl_add_executable(sample.gallery
     ViewboxPage.cpp
     DesignPages.cpp
     Design.cpp
+    ColorPage.cpp
+    ColorTile.cpp
+    ColorSamples.cpp
+    ColorSections.cpp
     AnimatedVisualPlayerPage.cpp
     CaptureElementPreviewPage.cpp
     InkCanvasPage.cpp

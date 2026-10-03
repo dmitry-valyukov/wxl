@@ -48,6 +48,7 @@ constexpr Entry ported[] = {
     {L"Typography", &gallery::typographyPage},
     {L"Geometry", &gallery::geometryPage},
     {L"Spacing", &gallery::spacingPage},
+    {L"Color", &gallery::colorPage},
     {L"AnimatedVisualPlayer", &gallery::animatedVisualPlayerPage},
     {L"CaptureElementPreview", &gallery::captureElementPreviewPage},
     {L"InkCanvas", &gallery::inkCanvasPage},
