@@ -62,7 +62,13 @@ auto const gridTemplate = [objects, strip](Object const& item) {
 
 model->view.layout(model->lined);
 model->view.itemTemplate(linedTemplate);
-model->view.itemsSource(indexList(static_cast<int64_t>(objects->size())));
+// Like the original, the items arrive after the view is up and laid out: LinedFlowLayout fails when a picture
+// changes the width of an item while the view has no viewport yet.
+model->view.add_onLoaded([model, objects](auto&&...) {
+    DispatcherQueue::getForCurrentThread().tryEnqueue(DispatcherQueuePriority::Low, [model, objects] {
+        model->view.itemsSource(indexList(static_cast<int64_t>(objects->size())));
+    });
+});
 
 // A number box that tells one number to a layout.
 auto const number = [](char16_t const* label, double from, double to, double start, auto apply) {
