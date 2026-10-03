@@ -29,6 +29,7 @@
 #include "Card.h"
 #include "CompositionWindow.h"
 #include "DrawingSurface.h"
+#include "FocusEffect.h"
 #include "FormattedBlock.h"
 #include "HtmlBlock.h"
 #include "RsdnBlock.h"
@@ -111,6 +112,15 @@ using namespace wxl::dsl;
     block.appendImage(L"Assets/logo.png", {24, 24}, L"логотип");
     block.appendElement(Button{content = L"Click"});
     block.clear();
+}
+
+// FocusEffect: attached to the window like ZoomEffect, the look as the bare
+// argument, an element that shows its own focus left out.
+[[maybe_unused]] void focus_effect(UIElement const& tree) {
+    auto const focus = FocusEffect {FocusLook::Lift};
+    CompositionWindow const window {focus};
+    focus.look(FocusLook::Glow);
+    FocusEffect::exclude(tree);
 }
 
 // HtmlBlock: markup as the positional string, styles registered by name --

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cwctype>
 
+#include "FocusEffect.h"
 #include "FontFamily.h"
 #include "generated/Microsoft.UI.Input.h"
 #include "generated/brushes.h"
@@ -100,6 +101,8 @@ VirtualTree::VirtualTree() {
         },
         bar_,
     };
+    // Фокус дерево показывает само, чертой у выбранной строки.
+    FocusEffect::exclude(root_);
 }
 
 VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {

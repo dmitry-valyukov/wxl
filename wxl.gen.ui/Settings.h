@@ -21,6 +21,10 @@ struct Settings {
 
     // Кегль сведений справа внизу.
     wxl::core::observable<int> detailsFontSize {16};
+
+    // Как виден фокус с клавиатуры — номер в wxl::FocusLook: рамка системы,
+    // подъём, свечение.
+    wxl::core::observable<int> focusLook {1};
 };
 
 // Заполняет настройки сохранёнными; при первом запуске остаются умолчания.

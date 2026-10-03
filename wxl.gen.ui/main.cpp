@@ -11,6 +11,7 @@
 #include "Card.h"
 #include "CompositionWindow.h"
 #include "Editor.h"
+#include "FocusEffect.h"
 #include "HtmlBlock.h"
 #include "UiThread.h"
 #include "MagnifyEffect.h"
@@ -242,6 +243,14 @@ wxl::Teardown wxl_launched() {
     auto const label = core::make_refcounted<ZoomLabel>();
     label->text.follow(zoom.model().zoomFactor(), percent);
 
+    // Фокус с клавиатуры — подъёмом или свечением, по настройке; рамка системы —
+    // для сравнения.
+    auto const focus = FocusEffect {static_cast<FocusLook>(settings->focusLook.get())};
+    settings->focusLook.on_change([focus, raw = settings.get()](int look) noexcept {
+        focus.look(static_cast<FocusLook>(look));
+        saveSettings(*raw);
+    });
+
     // Окно со своим заголовком, как в образце CustomTitleBar: заголовок — строка
     // над содержимым, кнопки окна рисует само окно его высотой, и масштаб
     // увеличивает весь остров разом — заголовок, кнопки окна и панели.
@@ -250,6 +259,7 @@ wxl::Teardown wxl_launched() {
     // знаки тех же отметок, что в дереве.
     CompositionWindow const window {
         zoom,
+        focus,
         title = BindOutput {document->title},
         minSize = {640, 400},
         extendsContentIntoTitleBar = true,
@@ -383,6 +393,14 @@ wxl::Teardown wxl_launched() {
                                     spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline,
                                     Bind {settings->detailsFontSize},
                                 },
+                                TextBlock {u"Keyboard focus"},
+                                ComboBox {
+                                    hAlign.stretch,
+                                    ComboBoxItem {u"System frame"},
+                                    ComboBoxItem {u"Lift"},
+                                    ComboBoxItem {u"Glow"},
+                                    Bind {settings->focusLook},
+                                },
                             },
                         },
                     },
@@ -454,5 +472,5 @@ wxl::Teardown wxl_launched() {
     window.centreWithClientSize({1200, 800});
     window.activate();
 
-    return [document, types, members, label, settings](TeardownReason) {};
+    return [document, types, members, label, settings, focus](TeardownReason) {};
 }

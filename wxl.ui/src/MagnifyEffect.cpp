@@ -113,10 +113,12 @@ struct MagnifyEffect::State : core::sta_refcounted {
 
             // What is shown is base * visual, so the visual carries the
             // quotient. `p` is each attached element's own property set, set
-            // just before the expression is started on it.
+            // just before the expression is started on it. FocusScale is the
+            // rise FocusEffect gives the element under keyboard focus: the
+            // two multiply.
             shown = compositor.CreateExpressionAnimation(
-                L"Vector3((1 + (s.X - 1) * p.MagnifyProgress) / p.MagnifyBaseX,"
-                L" (1 + (s.Y - 1) * p.MagnifyProgress) / p.MagnifyBaseY, 1)");
+                L"Vector3((1 + (s.X - 1) * p.MagnifyProgress) / p.MagnifyBaseX * p.FocusScale,"
+                L" (1 + (s.Y - 1) * p.MagnifyProgress) / p.MagnifyBaseY * p.FocusScale, 1)");
             shown.SetReferenceParameter(L"s", shared);
         }
         if (stale) {
@@ -218,6 +220,7 @@ void MagnifyEffect::operator()(UIElement const& wrapper) const {
     own.InsertScalar(L"MagnifyProgress", 0.0f);
     own.InsertScalar(L"MagnifyBaseX", 1.0f);
     own.InsertScalar(L"MagnifyBaseY", 1.0f);
+    own.InsertScalar(L"FocusScale", 1.0f);
 
     visual.StartAnimation(L"CenterPoint", state_->centre);
     state_->shown.SetReferenceParameter(L"p", own);

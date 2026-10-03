@@ -105,6 +105,8 @@ add_library(wxl.ui STATIC
     src/impl/effect_layer.cpp
     src/MagnifyEffect.h
     src/MagnifyEffect.cpp
+    src/FocusEffect.h
+    src/FocusEffect.cpp
     src/schema.h
     src/impl/event_waits.h
     src/aliases.h
