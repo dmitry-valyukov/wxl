@@ -50,9 +50,9 @@ public:
     };
     wxl::core::observable<Selection> selection;
 
-    // Справа внизу: сведения о выбранной строке — разметка HtmlBlock. Следует
+    // Справа внизу: сведения о выбранной строке — значок и разметка. Следует
     // за выбором и за профилем.
-    wxl::core::observable<std::wstring> info;
+    wxl::core::observable<Description> info;
 
     // Строка состояния: полный путь открытого профиля.
     wxl::core::observable<std::u16string> path;

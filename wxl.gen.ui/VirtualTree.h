@@ -37,6 +37,17 @@ struct RowIcon {
 // Радиальная заливка значка — та же у строк дерева и у кнопок панели.
 wxl::Template<wxl::RadialGradientBrush> iconFill(wxl::Color outer, wxl::Color inner);
 
+// Знак значка с его заливкой — для сведений, где значок стоит перед текстом.
+wxl::TextBlock iconText(RowIcon const& icon, double size);
+
+// Сведения о строке дерева: значок строки и разметка HtmlBlock.
+struct Description {
+    RowIcon const* icon = nullptr;
+    std::wstring html;
+
+    bool operator==(Description const&) const = default;
+};
+
 // Строка, как её показывает дерево. Текст — UTF-8 модели; дерево читает его
 // сразу, до следующего обращения к модели.
 struct TreeRow {
@@ -68,8 +79,8 @@ public:
     // затем раскрывает или сворачивает.
     virtual void invoke(uint32_t index) = 0;
 
-    // Сведения о строке, выбранной в этой модели, — разметка HtmlBlock.
-    virtual std::wstring describe() const { return {}; }
+    // Сведения о строке, выбранной в этой модели.
+    virtual Description describe() const { return {}; }
 };
 
 class VirtualTree : public wxl::core::sta_refcounted {

@@ -198,6 +198,17 @@ Template<RadialGradientBrush> iconFill(Color outer, Color inner) {
     };
 }
 
+TextBlock iconText(RowIcon const& icon, double size) {
+    std::u16string glyph;
+    core::unicode::append_utf16(glyph, icon.glyph);
+    return TextBlock {
+        fontFamily = FontFamily {iconFont},
+        fontSize = size,
+        foreground = iconFill(icon.outer, icon.inner).build(),
+        text = glyph,
+    };
+}
+
 void VirtualTree::model(intrusive_ptr<TreeModel> value) {
     if (value != model_) {
         model_ = std::move(value);

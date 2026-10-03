@@ -106,7 +106,19 @@ wxl::Teardown wxl_launched() {
     auto const typesItem = SelectorBarItem {text = typesTab, isSelected = true};
     // Сведения читают подолгу: кегль крупнее 14 у деревьев.
     auto const details = HtmlBlock {textWrapping.wrap, fontSize = 16.0};
-    document->info.on_change([details](std::wstring const& markup) noexcept { details.html(markup); });
+    // Значок строки — перед первым словом сведений, как в дереве.
+    document->info.on_change([details](Description const& info) noexcept {
+        if (!info.icon) {
+            details.html(info.html);
+            return;
+        }
+        details.clear();
+        details.appendParagraph();
+        auto const icon = iconText(*info.icon, 16.0);
+        Apply {icon, Margin {0, 0, 6, 0}};
+        details.appendElement(icon);
+        details.append(info.html);
+    });
     // Ссылка в сведениях — тип: он открывается в дереве Types.
     details.onLink([left, document, typesItem](zstring_view target) {
         if (auto const row = document->reveal(target.wide())) {

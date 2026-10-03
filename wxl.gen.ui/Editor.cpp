@@ -481,7 +481,7 @@ public:
     }
 
     void invoke(uint32_t index) override;
-    std::wstring describe() const override;
+    Description describe() const override;
 
     // Тип внесли в профиль или вынесли из него не отсюда — отметкой стиля.
     void relist(std::string_view full) {
@@ -1205,7 +1205,7 @@ public:
         editor_.selection.set({intrusive_ptr<TreeModel> {this}, &group->names[member]});
     }
 
-    std::wstring describe() const override {
+    Description describe() const override {
         auto const [group, member] = selected_;
         if (!group) {
             return {};
@@ -1240,7 +1240,7 @@ public:
                 append_documentation(html, **documentation);
             }
         }
-        return html;
+        return {group->icon, std::move(html)};
     }
 
 private:
@@ -1555,15 +1555,15 @@ void TypesModel::invoke(uint32_t index) {
     editor_.selection.set({intrusive_ptr<TreeModel> {this}, row});
 }
 
-std::wstring TypesModel::describe() const {
+Description TypesModel::describe() const {
     auto const [library, space, entry] = selected_;
     if (entry) {
-        return typeInfo(*space, *entry);
+        return {entry->icon, typeInfo(*space, *entry)};
     }
     if (space) {
-        return namespaceInfo(*library, *space);
+        return {&namespaceIcon, namespaceInfo(*library, *space)};
     }
-    return library ? libraryInfo(*library) : std::wstring {};
+    return library ? Description {&libraryIcon, libraryInfo(*library)} : Description {};
 }
 
 Editor::Editor() = default;
@@ -1613,7 +1613,7 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     editor->types_ = intrusive_ptr<TypesModel> {new TypesModel {*editor}, /*add_ref=*/false};
     editor->resources_ = intrusive_ptr<ResourcesModel> {new ResourcesModel {*editor, *editor->types_}, /*add_ref=*/false};
     editor->info.follow(editor->selection, editor->revision, [](Selection const& chosen, uint32_t) {
-        return chosen.model ? chosen.model->describe() : std::wstring {};
+        return chosen.model ? chosen.model->describe() : Description {};
     });
     auto const file = prof.filename().wstring();
     editor->title.set(std::u16string {file.begin(), file.end()} + u" — wxl.gen.ui");
