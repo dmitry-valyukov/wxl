@@ -1206,6 +1206,14 @@ public:
         editor_.selection.set({intrusive_ptr<TreeModel> {this}, &group->names[member]});
     }
 
+    // Двойной щелчок по члену — его отметка; группу он не трогает: её первый
+    // щелчок уже свернул или раскрыл.
+    void activate(uint32_t index) override {
+        if (locate(index).second != npos) {
+            toggleChecked(index);
+        }
+    }
+
     Description describe() const override {
         auto const [group, member] = selected_;
         if (!group) {

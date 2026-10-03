@@ -306,9 +306,10 @@
             ]
         },
         "Microsoft.UI.Input.PointerPointProperties": {
-            "comment": "MouseWheelDelta is what turns a page by the wheel. Everything else this class carries (pressure, tilt, the barrel button) belongs to drawing tablets and is left out.",
+            "comment": "MouseWheelDelta is what turns a page by the wheel, and IsHorizontalMouseWheel tells a tilted wheel from the ordinary one, so a list that scrolls itself vertically can leave sideways turns to its ScrollViewer. Everything else this class carries (pressure, tilt, the barrel button) belongs to drawing tablets and is left out.",
             "members": [
                 "MouseWheelDelta",
+                "IsHorizontalMouseWheel",
                 "IsLeftButtonPressed",
                 "IsRightButtonPressed"
             ]

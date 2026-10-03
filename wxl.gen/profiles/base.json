@@ -679,6 +679,11 @@
                 "Handled"
             ]
         },
+        "Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs": {
+            "members": [
+                "Handled"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs": {
             "members": [
                 "AddedItems",

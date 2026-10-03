@@ -48,7 +48,15 @@ intrusive_ptr<VirtualTree> VirtualTree::create() {
 VirtualTree::VirtualTree() {
     // Пул выше окна просмотра, и ScrollViewer без вертикальной прокрутки поставил
     // бы его по центру: строки ложатся от верхнего края, лишнее срезается снизу.
-    Apply {rows_, vAlign.top};
+    // Колесо ловят сами строки: ScrollViewer, у которого есть куда листать
+    // вбок, иначе забрал бы его себе и листал бы вбок. Прозрачный фон и высота
+    // не меньше окна — чтобы ловить его и над пустым местом под последней
+    // строкой.
+    Apply {rows_,
+        vAlign.top,
+        background = brushes.SubtleFillColor.Transparent,
+        onPointerWheelChanged = [this](StackPanel const& panel, PointerRoutedEventArgs& args) { wheel(panel, args); },
+    };
 
     Apply {bar_,
         column = 1,
@@ -63,19 +71,12 @@ VirtualTree::VirtualTree() {
 
     Apply {root_,
         columnDefinitions = u"*,auto",
-        // Прозрачный фон ловит колесо и над пустым местом под последней строкой.
         background = brushes.SubtleFillColor.Transparent,
         onSizeChanged = [this](Grid const&, SizeChangedEventArgs& args) {
             resize(args.newSize().height);
         },
-        onPointerWheelChanged = [this](Grid const& grid, PointerRoutedEventArgs& args) {
-            // Колесо с Ctrl — масштаб окна (ZoomEffect), не прокрутка.
-            if (static_cast<uint32_t>(args.keyModifiers()) & static_cast<uint32_t>(VirtualKeyModifiers::Control)) {
-                return;
-            }
-            scrollBy(-args.getCurrentPoint(grid).properties().mouseWheelDelta() / wheelUnitsPerLine);
-            args.handled(true);
-        },
+        // Колесо над полосой.
+        onPointerWheelChanged = [this](Grid const& grid, PointerRoutedEventArgs& args) { wheel(grid, args); },
         ScrollViewer {
             column = 0,
             horizontalScrollBarVisibility = ScrollBarVisibility::Auto,
@@ -105,6 +106,16 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
             }
             args.handled(true);
         },
+        // Второй щелчок двойного по шеврону и по отметке — такой же щелчок, а
+        // не двойной по строке.
+        onDoubleTapped = [this, slot](TextBlock const&, DoubleTappedRoutedEventArgs& args) {
+            if (model_) {
+                model_->toggleExpanded(first() + slot);
+                updateBar();
+                render();
+            }
+            args.handled(true);
+        },
     };
 
     // Щелчок по отметке строку не выбирает: он до неё не доходит. Поле шире
@@ -117,6 +128,13 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         vAlign.center,
         Margin {2, 0, 0, 0},
         onTapped = [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
+            if (model_) {
+                model_->toggleChecked(first() + slot);
+                render();
+            }
+            args.handled(true);
+        },
+        onDoubleTapped = [this, slot](TextBlock const&, DoubleTappedRoutedEventArgs& args) {
             if (model_) {
                 model_->toggleChecked(first() + slot);
                 render();
@@ -158,6 +176,12 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
                     model_->toggleExpanded(index);
                     updateBar();
                 }
+                render();
+            }
+        },
+        onDoubleTapped = [this, slot](StackPanel const&, DoubleTappedRoutedEventArgs&) {
+            if (model_) {
+                model_->activate(first() + slot);
                 render();
             }
         },
@@ -248,6 +272,8 @@ void VirtualTree::resize(double height) {
     height_ = height;
 
     visible_ = static_cast<uint32_t>(height / rowHeight_);
+    // Панель сдвинута вверх на строки запаса: им — сверх высоты окна.
+    rows_.minHeight(height + reserve_ * rowHeight_);
 
     // Частично видимая нижняя строка тоже строится, и запас — с обеих сторон.
     auto const needed = static_cast<uint32_t>(std::ceil(height / rowHeight_)) + 2 * reserve_;
@@ -258,6 +284,20 @@ void VirtualTree::resize(double height) {
 
     updateBar();
     render();
+}
+
+void VirtualTree::wheel(UIElement const& source, PointerRoutedEventArgs& args) {
+    // Колесо с Ctrl — масштаб окна (ZoomEffect), а наклон колеса — ScrollViewer'у,
+    // листать вбок.
+    if (static_cast<uint32_t>(args.keyModifiers()) & static_cast<uint32_t>(VirtualKeyModifiers::Control)) {
+        return;
+    }
+    auto const properties = args.getCurrentPoint(source).properties();
+    if (properties.isHorizontalMouseWheel()) {
+        return;
+    }
+    scrollBy(-properties.mouseWheelDelta() / wheelUnitsPerLine);
+    args.handled(true);
 }
 
 void VirtualTree::scrollBy(int64_t lines) {

@@ -80,6 +80,9 @@ public:
     // затем раскрывает или сворачивает.
     virtual void invoke(uint32_t index) = 0;
 
+    // Двойной щелчок по строке; первый щелчок уже пришёл в invoke().
+    virtual void activate(uint32_t) {}
+
     // Сведения о строке, выбранной в этой модели.
     virtual Description describe() const { return {}; }
 };
@@ -119,6 +122,7 @@ private:
     Row makeRow(uint32_t slot);
     void paint(uint32_t slot);
     void resize(double height);
+    void wheel(wxl::UIElement const& source, wxl::PointerRoutedEventArgs& args);
     void scrollBy(int64_t lines);
     void scrollTo(uint32_t top);
     void render();
