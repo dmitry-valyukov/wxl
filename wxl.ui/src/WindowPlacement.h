@@ -13,7 +13,6 @@
 // impl/window_placement.h.
 
 #include "core.h"
-#include "generated/collections.h"
 #include "hstring_param.h"
 
 namespace wxl {

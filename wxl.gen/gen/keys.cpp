@@ -6,10 +6,10 @@
 import std;
 
 // PropertyKey.h / EventKey.h: one flat enum of every property (resp.
-// event) name that survived the profile filter. The names are what the
-// declarative syntax uses as named arguments (`Content = ...`,
-// `OnClick += ...`), so a narrow profile means a correspondingly narrow
-// enum.
+// event) name that survived the profile filter, under its metadata name.
+// Each key stands behind one tag of the declarative syntax -- `content = ...`
+// is Property<PropertyKey::Content>, `onClick = ...` Event<EventKey::Click>
+// -- so a narrow profile means a correspondingly narrow enum.
 
 namespace gen {
 namespace {
@@ -44,16 +44,16 @@ enum class {}
 
 }  // namespace
 
-void write_key_enums(Output const& out, Model const& model, Emitted& emitted) {
+void write_key_enums(output const& out, model const& m, emitted& em) {
     auto const properties = out.dir / "PropertyKey.h";
-    write_key_enum(properties, "PropertyKey", model.property_names);
-    emitted.add(properties);
-    std::print("wrote {} ({} keys)\n", properties.string(), model.property_names.size());
+    write_key_enum(properties, "PropertyKey", m.property_names);
+    em.add(properties);
+    std::print("generated {} ({} keys)\n", properties.string(), m.property_names.size());
 
     auto const events = out.dir / "EventKey.h";
-    write_key_enum(events, "EventKey", model.event_names);
-    emitted.add(events);
-    std::print("wrote {} ({} keys)\n", events.string(), model.event_names.size());
+    write_key_enum(events, "EventKey", m.event_names);
+    em.add(events);
+    std::print("generated {} ({} keys)\n", events.string(), m.event_names.size());
 }
 
 }  // namespace gen

@@ -13,6 +13,9 @@ namespace wxl::impl {
 //     (e.g. L"Microsoft.UI.Xaml.Controls.Grid"), used to resolve the
 //     class's activation-factory object via RoGetActivationFactory.
 //
+// The specializations live in the generated .cpp of the class's namespace,
+// not in a header: each name is used by that one translation unit only.
+//
 // Shared, single declaration for both consumers -- ActivationFactory<Obj>
 // specializes this on an Obj marker (the class being activated);
 // Statics<I> specializes it directly on the statics interface I itself

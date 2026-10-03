@@ -139,6 +139,13 @@ public:
     ///        is a fresh string per level, and this runs where allocating is
     ///        least welcome.
     inline static bool create_all(path& p) noexcept {
+        return create_all(p, [] { return true; });
+    }
+
+    /// The same, asking `wanted()` before each level and stopping, with `false`,
+    /// once it says no: for a chain made on behalf of somebody who may lose
+    /// interest while it is being made.
+    inline static bool create_all(path& p, auto&& wanted) {
         wchar_t* const text = p.data();
 
         if (p.empty()) return false;
@@ -148,6 +155,8 @@ public:
         for (; text[at]; ++at) {
             if (!path::is_separator(text[at])) continue;
 
+            if (!wanted()) return false;
+
             const wchar_t separator = std::exchange(text[at], L'\0');
             const bool made = create(text);
 
@@ -156,7 +165,7 @@ public:
             if (!made) return false;
         }
 
-        return create(text);
+        return wanted() && create(text);
     }
 
     /// Removes an empty directory. A directory with anything in it stays, and

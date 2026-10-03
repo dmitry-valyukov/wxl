@@ -32,13 +32,13 @@ std::string delegate_namespace(coded_index<TypeDefOrRef> const& delegate) {
 // of the delegate's Invoke, or -- for the generic TypedEventHandler<S, A>
 // that most WinUI events use -- its second type argument.
 struct event_args {
-    enum class Shape {
+    enum class shape_t {
         Unsupported,  // a shape wxl has no answer for yet
         Object,       // `object` in the metadata: wxl::Object, through the bridge
         Type,         // a named type, in `type` below
     };
 
-    Shape shape = Shape::Unsupported;
+    shape_t shape = shape_t::Unsupported;
     TypeDef type;
 };
 
@@ -48,14 +48,14 @@ event_args event_args_type(coded_index<TypeDefOrRef> const& delegate) {
         // wraps, so the args need no view type of their own.
         if (auto const* element = std::get_if<ElementType>(&sig.Type());
             element && *element == ElementType::Object) {
-            return {event_args::Shape::Object, {}};
+            return {event_args::shape_t::Object, {}};
         }
         auto const* ref = std::get_if<coded_index<TypeDefOrRef>>(&sig.Type());
         if (!ref || ref->type() == TypeDefOrRef::TypeSpec) {
             return {};
         }
         auto const type = md::find(*ref);
-        return type ? event_args{event_args::Shape::Type, type} : event_args{};
+        return type ? event_args{event_args::shape_t::Type, type} : event_args{};
     };
 
     if (delegate.type() == TypeDefOrRef::TypeSpec) {
@@ -95,14 +95,14 @@ event_args event_args_type(coded_index<TypeDefOrRef> const& delegate) {
     return {};
 }
 
-void collect_event(Event const& event, std::string_view field_view, TypeIndex const& index,
+void collect_event(Event const& event, std::string_view field_view, type_index const& index,
                    std::vector<member_info>& members, std::vector<skipped_member>& skipped) {
     // The field name goes into every member_info this builds, and each of
     // those keeps its own string, so the copy is made once here.
     const std::string field(field_view);
 
     auto const args = event_args_type(event.EventType());
-    if (args.shape == event_args::Shape::Unsupported) {
+    if (args.shape == event_args::shape_t::Unsupported) {
         skipped.push_back({std::string{event.Name()},
                            "handler shape is not (sender, args)"});
         return;
@@ -117,7 +117,7 @@ void collect_event(Event const& event, std::string_view field_view, TypeIndex co
     std::set<std::string> public_includes{"../events.h"};
     std::set<std::string> impl_includes{"../impl/conversions.h"};
 
-    if (args.shape == event_args::Shape::Type) {
+    if (args.shape == event_args::shape_t::Type) {
         auto const name = index.names.find(args.type);
         if (name == index.names.end()) {
             skipped.push_back({std::string{event.Name()},
@@ -134,7 +134,7 @@ void collect_event(Event const& event, std::string_view field_view, TypeIndex co
     // name: subscribing and unsubscribing are different acts, and the names
     // carry the event tag (onTextChanged) inside them, so the DSL form and
     // the method form read as the same thing.
-    member_info add{member_info::Kind::EventAdd, std::format("add_on{}", event.Name()),
+    member_info add{member_info::kind_t::EventAdd, std::format("add_on{}", event.Name()),
                     std::string{event.Name()}, field};
     add.returns_void = false;
     add.result.value_type = "EventToken";
@@ -153,7 +153,7 @@ void collect_event(Event const& event, std::string_view field_view, TypeIndex co
     }
     members.push_back(std::move(add));
 
-    member_info remove{member_info::Kind::EventRemove, std::format("remove_on{}", event.Name()),
+    member_info remove{member_info::kind_t::EventRemove, std::format("remove_on{}", event.Name()),
                        std::string{event.Name()}, field};
     remove.params.push_back({"token", {}});
     remove.params.back().type.param_type = "EventToken";
@@ -162,8 +162,9 @@ void collect_event(Event const& event, std::string_view field_view, TypeIndex co
     members.push_back(std::move(remove));
 }
 
-void collect_property(Property const& property, std::string_view field_view, TypeIndex const& index,
-                      std::vector<member_info>& members, std::vector<skipped_member>& skipped) {
+void collect_property(Property const& property, std::string_view field_view,
+                      type_index const& index, std::vector<member_info>& members,
+                      std::vector<skipped_member>& skipped) {
     // The field name goes into every member_info this builds, and each of
     // those keeps its own string, so the copy is made once here.
     const std::string field(field_view);
@@ -196,17 +197,17 @@ void collect_property(Property const& property, std::string_view field_view, Typ
                                                            use.winrt_type)});
                 continue;
             }
-            member_info getter{member_info::Kind::Forward, wxl_name, winrt_name, field, use,
+            member_info getter{member_info::kind_t::Forward, wxl_name, winrt_name, field, use,
                                /*returns_void=*/false};
             getter.is_property_getter = true;
             members.push_back(std::move(getter));
         } else if (semantic.Semantic().Setter()) {
-            member_info setter{member_info::Kind::Forward, wxl_name, winrt_name, field, {},
+            member_info setter{member_info::kind_t::Forward, wxl_name, winrt_name, field, {},
                                /*returns_void=*/true, {{"value", use}}};
             setter.is_property_setter = true;
             members.push_back(std::move(setter));
             if (boxes_strings) {
-                member_info boxed{member_info::Kind::BoxedString, wxl_name, winrt_name, field};
+                member_info boxed{member_info::kind_t::BoxedString, wxl_name, winrt_name, field};
                 boxed.params.push_back({"value", {}});
                 boxed.params.back().type.param_type = "hstring_param const&";
                 boxed.params.back().type.public_includes = {"hstring_param.h"};
@@ -217,13 +218,13 @@ void collect_property(Property const& property, std::string_view field_view, Typ
     }
 }
 
-void collect_method(MethodDef const& method, std::string_view field_view, TypeIndex const& index,
+void collect_method(MethodDef const& method, std::string_view field_view, type_index const& index,
                     std::vector<member_info>& members, std::vector<skipped_member>& skipped) {
     // The field name goes into every member_info this builds, and each of
     // those keeps its own string, so the copy is made once here.
     const std::string field(field_view);
 
-    member_info info{member_info::Kind::Forward, member_name(method.Name()),
+    member_info info{member_info::kind_t::Forward, member_name(method.Name()),
                      std::string{method.Name()}, field};
 
     auto const signature = method.Signature();
@@ -297,10 +298,6 @@ void collect_method(MethodDef const& method, std::string_view field_view, TypeIn
 
 }  // namespace
 
-bool is_plain_method(MethodDef const& method) {
-    return !method.Flags().SpecialName() && !method.Flags().RTSpecialName();
-}
-
 std::vector<std::string> parameter_names(MethodDef const& method) {
     std::vector<std::string> names;
     for (auto&& param : method.ParamList()) {
@@ -324,7 +321,7 @@ std::vector<std::string> parameter_names(MethodDef const& method) {
 // The members one interface contributes to the class implementing it,
 // bounded by the names that survived the profile filter.
 void collect_interface_members(TypeDef const& iface, std::set<std::string> const& allowed,
-                               TypeIndex const& index, std::vector<member_info>& members,
+                               type_index const& index, std::vector<member_info>& members,
                                std::vector<skipped_member>& skipped) {
     auto const field = interface_field_name(iface.TypeName());
 

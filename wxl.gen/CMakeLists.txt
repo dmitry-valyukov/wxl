@@ -20,6 +20,7 @@ wxl_add_module_library(wxl.gen STATIC
         gen/metadata.h
         gen/projection.h
         gen/members.h
+        gen/model.h
         gen/writers.h
     SRC
         generate.cpp
@@ -31,14 +32,12 @@ wxl_add_module_library(wxl.gen STATIC
         gen/projection.cpp
         gen/members.cpp
 
-        gen/collections.cpp
         gen/styles.cpp
         gen/symbols.cpp
         gen/keys.cpp
         gen/tags.cpp
         gen/enums_structs.cpp
         gen/event_args.cpp
-        gen/interfaces.cpp
         gen/classes.cpp
         gen/dsl.cpp
         gen/schema.cpp
@@ -84,3 +83,7 @@ file(GLOB _wxl_gen_profiles CONFIGURE_DEPENDS "profiles/*.json")
 target_sources(winui-srcgen PRIVATE ${_wxl_gen_profiles})
 source_group("profiles" FILES ${_wxl_gen_profiles})
 set_source_files_properties(${_wxl_gen_profiles} PROPERTIES HEADER_FILE_ONLY ON)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
