@@ -297,7 +297,9 @@
                 "Transitions",
                 "StartAnimation",
                 "UpdateLayout",
-                "BringIntoViewRequested"
+                "BringIntoViewRequested",
+                "XYFocusKeyboardNavigation",
+                "AccessKey"
             ],
             "syntheticMembers": {
                 "AutomationId": {
@@ -316,6 +318,62 @@
                     "comment": "That a change of the element's text is announced by a screen reader, politely or at once -- AutomationProperties.LiveSetting, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting",
                     "function": "impl::set_automation_live_setting",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationHeadingLevel": {
+                    "comment": "Accessibility: that the element is a heading, and of which level -- AutomationProperties.HeadingLevel, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel",
+                    "function": "impl::set_automation_heading_level",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLandmarkType": {
+                    "comment": "Accessibility: the landmark of the page the element is -- navigation, main, search -- AutomationProperties.LandmarkType, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLandmarkType",
+                    "function": "impl::set_automation_landmark_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLocalizedLandmarkType": {
+                    "comment": "Accessibility: what a screen reader calls the landmark in the user's language -- AutomationProperties.LocalizedLandmarkType, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_localized_landmark_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationAcceleratorKey": {
+                    "comment": "Accessibility: the shortcut that does what the element does, as a screen reader says it -- AutomationProperties.AcceleratorKey, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_accelerator_key",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationHelpText": {
+                    "comment": "Accessibility: a few words of help, spoken after the name -- AutomationProperties.HelpText, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_help_text",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationFullDescription": {
+                    "comment": "Accessibility: the long description of the element -- AutomationProperties.FullDescription, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_full_description",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationPositionInSet": {
+                    "comment": "Accessibility: the place of the element among its siblings, 1-based -- AutomationProperties.PositionInSet, the attached property.",
+                    "cppType": "int32_t",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_automation_position_in_set",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationSizeOfSet": {
+                    "comment": "Accessibility: how many siblings the element has with itself -- AutomationProperties.SizeOfSet, the attached property.",
+                    "cppType": "int32_t",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_automation_size_of_set",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLabeledBy": {
+                    "comment": "Accessibility: the element whose text names this one -- AutomationProperties.LabeledBy, the attached property.",
+                    "type": "Microsoft.UI.Xaml.UIElement",
+                    "function": "impl::set_automation_labeled_by",
                     "include": "../impl/automation_properties.h"
                 },
                 "IsDragRegion": {
@@ -946,6 +1004,10 @@
         "Microsoft.UI.Xaml.Controls.Grid": {
             "comment": "Motion: a grid with a frame of its own -- the border of a connected animation's destination and of a section that changes its theme.",
             "members": ["BorderBrush", "BorderThickness"]
+        },
+        "Microsoft.UI.Xaml.Controls.StackPanel": {
+            "comment": "Accessibility: a stack that is a card -- a frame, rounded corners -- as a landmark of a page is drawn.",
+            "members": ["CornerRadius"]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.Popup": {
             "comment": "Dialogs & flyouts: a piece of the interface drawn over the page at an offset of its own, opened and closed by the application (IsOpen), closing by itself when light-dismissed.",
@@ -1952,7 +2014,8 @@
                 "CharacterSpacing",
                 "Foreground",
                 "IsFocusEngagementEnabled",
-                "ElementSoundMode"
+                "ElementSoundMode",
+                "TabIndex"
             ]
         },
         "Microsoft.UI.Xaml.Controls.TextBox": {

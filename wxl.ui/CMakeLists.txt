@@ -213,6 +213,8 @@ add_library(wxl.ui STATIC
     src/FrameSource.cpp
     src/Failure.h
     src/Failure.cpp
+    src/LoadXaml.h
+    src/LoadXaml.cpp
     src/impl/navigation_view_search.h
     src/impl/navigation_view_search.cpp
     src/impl/automation_properties.h
