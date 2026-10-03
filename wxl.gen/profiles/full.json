@@ -23,6 +23,12 @@
                 "Microsoft.Windows.AppNotifications.Builder.winmd",
                 "Microsoft.Windows.Storage.Pickers.winmd"
             ]
+        },
+        {
+            "id": "Microsoft.Graphics.Win2D",
+            "version": "1.4.0",
+            "metadataDir": "lib/uap10.0",
+            "comment": "Lighting: the effect descriptions a composition effect graph is written in (Microsoft.Graphics.Canvas.Effects). Only the descriptions are wrapped -- an effect here is a set of properties the compositor reads, nothing is drawn through Win2D. tools/packages.json pins the same version."
         }
     ],
 
@@ -693,9 +699,10 @@
             ]
         },
         "Microsoft.UI.Xaml.Hosting.ElementCompositionPreview": {
-            "comment": "Motion: the property set that follows the scrolling of a ScrollViewer, which an animation reads as its reference.",
+            "comment": "Motion: the property set that follows the scrolling of a ScrollViewer, which an animation reads as its reference. Lighting: the property set that follows the pointer over an element, which a light reads its place from.",
             "members": [
-                "GetScrollViewerManipulationPropertySet"
+                "GetScrollViewerManipulationPropertySet",
+                "GetPointerPositionPropertySet"
             ]
         },
         "Microsoft.UI.Xaml.Controls.ItemsRepeaterElementPreparedEventArgs": {
@@ -926,8 +933,8 @@
             "members": ["SetExpressionReferenceParameter"]
         },
         "Microsoft.UI.Composition.Compositor": {
-            "comment": "Motion: the spring animation of a vector.",
-            "members": ["CreateSpringVector3Animation"]
+            "comment": "Motion: the spring animation of a vector. Lighting: the four lights, the factory an effect description is compiled by, the brushes an effect reads besides a surface (what is behind the sprite, a nine-grid, a mask, a radial gradient), a rounded clip, the animation of a colour, and the shadow a light casts.",
+            "members": ["CreateSpringVector3Animation", "CreateAmbientLight", "CreateDistantLight", "CreatePointLight", "CreateSpotLight", "CreateEffectFactory", "CreateBackdropBrush", "CreateNineGridBrush", "CreateMaskBrush", "CreateRadialGradientBrush", "CreateRoundedRectangleGeometry", "CreateGeometricClip", "CreateColorKeyFrameAnimation", "CreateProjectedShadow", "CreateProjectedShadowCaster", "CreateProjectedShadowReceiver"]
         },
         "Microsoft.UI.Xaml.Media.CompositionTarget": {
             "comment": "Motion: the compositor XAML draws with on this thread, which an animation of an element is made by.",
@@ -1845,6 +1852,142 @@
                 "SetSystemBackdropConfiguration",
                 "Close"
             ]
+        },
+        "Microsoft.UI.Composition.CompositionLight": {
+            "comment": "Lighting: what every light has: the visuals it lights (each with its whole subtree), the ones it leaves out, and a switch.",
+            "members": ["Targets", "ExclusionsFromTargets", "IsEnabled"]
+        },
+        "Microsoft.UI.Composition.VisualUnorderedCollection": {
+            "comment": "Lighting: the targets of a light -- a set, with no order to speak of.",
+            "members": ["Add", "Remove", "RemoveAll", "Count"]
+        },
+        "Microsoft.UI.Composition.AmbientLight": {
+            "comment": "Lighting: light from all around, the same on every surface whatever way it faces.",
+            "members": ["Color", "Intensity"]
+        },
+        "Microsoft.UI.Composition.DistantLight": {
+            "comment": "Lighting: a light infinitely far away -- one direction for the whole scene, written in the coordinates of a visual.",
+            "members": ["Color", "CoordinateSpace", "Direction", "Intensity"]
+        },
+        "Microsoft.UI.Composition.PointLight": {
+            "comment": "Lighting: a lamp at a point of the coordinate space of a visual, falling off with the distance by three attenuation terms.",
+            "members": ["Color", "CoordinateSpace", "Offset", "Intensity", "ConstantAttenuation", "LinearAttenuation", "QuadraticAttenuation", "MinAttenuationCutoff", "MaxAttenuationCutoff"]
+        },
+        "Microsoft.UI.Composition.SpotLight": {
+            "comment": "Lighting: a lamp with a direction and two cones, each cone with a colour and an intensity.",
+            "members": ["CoordinateSpace", "Offset", "Direction", "InnerConeAngle", "InnerConeAngleInDegrees", "InnerConeColor", "InnerConeIntensity", "OuterConeAngle", "OuterConeAngleInDegrees", "OuterConeColor", "OuterConeIntensity", "ConstantAttenuation", "LinearAttenuation", "QuadraticAttenuation", "MinAttenuationCutoff", "MaxAttenuationCutoff"]
+        },
+        "Microsoft.UI.Composition.CompositionEffectFactory": {
+            "comment": "Lighting: a compiled effect description; every brush made from it has its own sources and its own animated properties.",
+            "members": ["CreateBrush", "LoadStatus"]
+        },
+        "Microsoft.UI.Composition.CompositionEffectBrush": {
+            "comment": "Lighting: the output of an effect graph as a brush; a named input of the graph is given a brush here.",
+            "members": ["SetSourceParameter", "GetSourceParameter"]
+        },
+        "Microsoft.UI.Composition.CompositionEffectSourceParameter": {
+            "comment": "Lighting: a named input of an effect graph, to be given a brush once the graph is compiled.",
+            "members": ["Name"]
+        },
+        "Microsoft.UI.Composition.CompositionBackdropBrush": {
+            "comment": "Lighting: what is behind a sprite, as an input of an effect.",
+            "members": []
+        },
+        "Microsoft.UI.Composition.CompositionNineGridBrush": {
+            "comment": "Lighting: a brush stretched by nine parts -- corners kept, edges stretched one way, the centre both ways -- which is how one small normal map serves a key of any size.",
+            "members": ["Source", "SetInsets", "SetInsetScales", "LeftInset", "TopInset", "RightInset", "BottomInset", "IsCenterHollow"]
+        },
+        "Microsoft.UI.Composition.CompositionMaskBrush": {
+            "comment": "Lighting: a brush shown through the alpha of another.",
+            "members": ["Source", "Mask"]
+        },
+        "Microsoft.UI.Composition.CompositionRadialGradientBrush": {
+            "comment": "Lighting: a gradient round a centre, as an input of an effect or the face of a sprite.",
+            "members": ["EllipseCenter", "EllipseRadius", "GradientOriginOffset"]
+        },
+        "Microsoft.UI.Composition.CompositionRoundedRectangleGeometry": {
+            "comment": "Lighting: the shape of a key: a rectangle with rounded corners, for a clip.",
+            "members": ["Size", "Offset", "CornerRadius"]
+        },
+        "Microsoft.UI.Composition.CompositionGeometricClip": {
+            "comment": "Lighting: a clip by a geometry, which is what rounds the corners of a sprite.",
+            "members": ["Geometry"]
+        },
+        "Microsoft.UI.Composition.ColorKeyFrameAnimation": {
+            "comment": "Lighting: a colour through key frames -- a light that changes colour or goes out.",
+            "members": ["InsertKeyFrame"]
+        },
+        "Microsoft.UI.Composition.CompositionPropertySet": {
+            "comment": "Lighting: the animated properties of an effect brush are written here by name -- a colour or a pair of numbers as well as a scalar.",
+            "members": ["InsertColor", "InsertVector2"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadow": {
+            "comment": "Lighting: the shadow a light casts from some visuals onto others: the light, who casts, who receives, and how soft the shadow gets with the distance.",
+            "members": ["LightSource", "Casters", "Receivers", "BlurRadiusMultiplier", "MinBlurRadius", "MaxBlurRadius"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowCaster": {
+            "comment": "Lighting: a visual that casts a projected shadow, and the brush its outline is taken from.",
+            "members": ["CastingVisual", "Brush"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowReceiver": {
+            "comment": "Lighting: a visual a projected shadow falls on.",
+            "members": ["ReceivingVisual"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowCasterCollection": {
+            "comment": "Lighting: the casters of a projected shadow, in order.",
+            "members": ["InsertAtTop", "InsertAtBottom", "Remove", "RemoveAll", "Count"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowReceiverUnorderedCollection": {
+            "comment": "Lighting: the receivers of a projected shadow.",
+            "members": ["Add", "Remove", "RemoveAll", "Count"]
+        },
+        "Microsoft.UI.Composition.Effects.SceneLightingEffect": {
+            "comment": "Lighting: how the sprite it paints answers the lights that target it: the shares of ambient, diffuse and specular light, the shine, the reflectance model, and the normal map that gives every pixel a direction of its own. Its output is the light, not the lit picture: the graph multiplies or adds it to the content.",
+            "members": ["Name", "AmbientAmount", "DiffuseAmount", "SpecularAmount", "SpecularShine", "ReflectanceModel", "NormalMapSource"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.ArithmeticCompositeEffect": {
+            "comment": "Lighting: two inputs put together by a formula -- their product, each of them and a constant, by four weights; the product is what makes light fall on a colour.",
+            "members": ["Name", "Source1", "Source2", "MultiplyAmount", "Source1Amount", "Source2Amount", "Offset", "ClampOutput"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.CompositeEffect": {
+            "comment": "Lighting: inputs laid over one another by a Porter-Duff mode: Add puts light on top of a picture, DestinationIn cuts a picture by the alpha of another.",
+            "members": ["Name", "Mode", "Sources"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.ColorSourceEffect": {
+            "comment": "Lighting: a plain colour as an input of a graph.",
+            "members": ["Name", "Color"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.ColorMatrixEffect": {
+            "comment": "Lighting: a 5x4 matrix over the channels -- how the brightness of a light becomes the alpha of a highlight.",
+            "members": ["Name", "Source", "ColorMatrix", "AlphaMode", "ClampOutput"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.DistantDiffuseEffect": {
+            "comment": "Lighting: the diffuse light of a distant lamp as an effect, the lamp written in the properties of the effect rather than being a CompositionLight.",
+            "members": ["Name", "Source", "Azimuth", "Elevation", "LightColor", "DiffuseAmount", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.DistantSpecularEffect": {
+            "comment": "Lighting: the specular light of a distant lamp, the same way.",
+            "members": ["Name", "Source", "Azimuth", "Elevation", "LightColor", "SpecularAmount", "SpecularExponent", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.PointDiffuseEffect": {
+            "comment": "Lighting: the diffuse light of a lamp at a point, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightColor", "DiffuseAmount", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.PointSpecularEffect": {
+            "comment": "Lighting: the specular light of a lamp at a point, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightColor", "SpecularAmount", "SpecularExponent", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.SpotDiffuseEffect": {
+            "comment": "Lighting: the diffuse light of a lamp with a cone, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightTarget", "Focus", "LimitingConeAngle", "LightColor", "DiffuseAmount", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.SpotSpecularEffect": {
+            "comment": "Lighting: the specular light of a lamp with a cone, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightTarget", "Focus", "LimitingConeAngle", "LightColor", "SpecularAmount", "SpecularExponent", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Windows.Graphics.Effects.IGraphicsEffectSource": {
+            "comment": "Lighting: an input of an effect graph -- another effect or a named source parameter. It has no class of its own, only this interface; wrapped, so that a list of inputs (CompositeEffect.Sources) can be written.",
+            "members": []
         }
     }
 }
