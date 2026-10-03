@@ -734,11 +734,39 @@ std::string substitute(std::string_view expression, std::string_view argument) {
     return result;
 }
 
+TypeUse map_scalar(TypeSig const& sig, TypeIndex const& index);
+
 TypeUse map_type(TypeSig const& sig, TypeIndex const& index) {
-    if (sig.is_szarray()) {
-        return unsupported("arrays are not mapped yet");
+    TypeUse scalar = map_scalar(sig, index);
+    if (!sig.is_szarray()) {
+        return scalar;
     }
 
+    // An array comes out of a call as a com_array of the projection and goes to the application as a vector of
+    // wrappers: what an event carries a few of, the tabs torn out of a strip. Only an array of wrapped classes, and
+    // only handed out; nothing takes one in yet.
+    if (!scalar.supported || !scalar.is_wrapper) {
+        return unsupported("arrays are mapped only when their elements are wrapped classes");
+    }
+    TypeUse use;
+    use.supported = true;
+    use.value_type = std::format("std::vector<{}>", scalar.value_type);
+    use.param_type = std::format("{} const&", use.value_type);
+    use.winrt_type = std::format("winrt::com_array<{}>", scalar.winrt_type);
+    use.to_winrt = "static_assert(false, \"an array is not taken in\")";
+    use.from_winrt = std::format(
+        "[&](auto const& array) {{ std::vector<{0}> result; result.reserve(array.size()); "
+        "for (auto const& item : array) {{ result.push_back(Object::Impl::wrap<{0}>(item)); }} return result; }}($)",
+        scalar.value_type);
+    use.public_includes = scalar.public_includes;
+    use.public_includes.insert("../core.h");
+    use.element_type = scalar.value_type;
+    use.impl_includes = scalar.impl_includes;
+    use.impl_includes.insert("../core.h");
+    return use;
+}
+
+TypeUse map_scalar(TypeSig const& sig, TypeIndex const& index) {
     auto const element = sig.element_type();
     if (auto const* name = primitive_name(element)) {
         return primitive(name);

@@ -1,0 +1,1 @@
+auto example = Button {content = u"Click here to launch the sample", onClick = [](auto&&...) { gallery::openTabViewWindow(); }};

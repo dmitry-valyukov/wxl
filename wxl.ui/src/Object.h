@@ -131,6 +131,11 @@ public:
     template <typename T>
     T try_as() const;
 
+    // Whether this object is one of T -- the question try_as asks, without its assertion on a miss. For the
+    // walk up a tree that meets one kind of parent after another and wants to know which this is.
+    template <typename T>
+    bool is() const;
+
     // Whether this wrapper holds an object at all: a smart pointer's own
     // question. A moved-from wrapper and the empty result of a try_as miss hold
     // none; every freshly built or handed-over one does.

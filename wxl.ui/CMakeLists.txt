@@ -199,6 +199,10 @@ add_library(wxl.ui STATIC
     src/ResourceBrush.cpp
     src/KeyedIndexList.h
     src/KeyedIndexList.cpp
+    src/BoundTemplate.h
+    src/BoundTemplate.cpp
+    src/impl/navigation_view_search.h
+    src/impl/navigation_view_search.cpp
     src/impl/automation_properties.h
     src/impl/automation_properties.cpp
     src/AppZoom.h

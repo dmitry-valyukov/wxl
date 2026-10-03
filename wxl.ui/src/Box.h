@@ -29,6 +29,13 @@ Object observableIndexList();
 
 void indexListAppend(Object const& list, int64_t value);
 void indexListRemoveAt(Object const& list, uint32_t index);
+
+/// Puts a number in at a place, and reads the number at one -- what moving an item of the list takes.
+void indexListInsertAt(Object const& list, uint32_t index, int64_t value);
+int64_t indexListAt(Object const& list, uint32_t index);
+
+/// The boxed object itself at a place: what a control compares by identity when it is told which item is selected.
+Object indexListObject(Object const& list, uint32_t index);
 uint32_t indexListSize(Object const& list);
 
 }  // namespace wxl

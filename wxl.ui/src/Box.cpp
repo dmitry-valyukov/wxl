@@ -55,6 +55,19 @@ void indexListRemoveAt(Object const& list, uint32_t index) {
     vector_of(list).RemoveAt(index);
 }
 
+void indexListInsertAt(Object const& list, uint32_t index, int64_t value) {
+    vector_of(list).InsertAt(index, winrt::box_value(value));
+}
+
+Object indexListObject(Object const& list, uint32_t index) {
+    auto const item = vector_of(list).GetAt(index);
+    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(item)));
+}
+
+int64_t indexListAt(Object const& list, uint32_t index) {
+    return winrt::unbox_value<int64_t>(vector_of(list).GetAt(index));
+}
+
 uint32_t indexListSize(Object const& list) {
     return vector_of(list).Size();
 }

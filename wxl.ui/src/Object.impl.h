@@ -164,6 +164,11 @@ T Object::try_as() const {
     return Impl::empty<T>();
 }
 
+template <typename T>
+bool Object::is() const {
+    return impl_ != nullptr && static_cast<bool>(impl_->inspectable_.try_as<typename T::Impl::winrt_t>());
+}
+
 inline ::IInspectable** Object::put_abi() noexcept {
     // The same reinterpretation winrt::put_abi performs: a winrt smart
     // pointer is one raw pointer, so the address of the slot is the address
