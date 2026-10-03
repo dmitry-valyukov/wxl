@@ -123,6 +123,12 @@ using namespace wxl::dsl;
     FocusEffect::exclude(tree);
 }
 
+// CompositionWindow takes the window's material under the island, as Window does.
+[[maybe_unused]] void composition_window_backdrop() {
+    CompositionWindow const window {systemBackdrop = MicaBackdrop {}};
+    window.systemBackdrop(MicaBackdrop {});
+}
+
 // HtmlBlock: markup as the positional string, styles registered by name --
 // and none of it needing a winrt header, the parser being a module behind
 // the library's own wall.

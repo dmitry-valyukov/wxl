@@ -53,6 +53,7 @@
 #include "generated/Microsoft.UI.Dispatching.impl.h"
 #include "generated/Microsoft.UI.Input.impl.h"
 #include "generated/Microsoft.UI.Windowing.impl.h"
+#include "generated/Microsoft.UI.Xaml.Media.impl.h"
 #include "generated/Microsoft.UI.Xaml.impl.h"
 #include "AppZoom.h"
 
@@ -173,6 +174,7 @@ struct WindowState : core::refcounted {
     muc::SpriteVisual backdrop{nullptr};
     content::DesktopAttachedSiteBridge sceneBridge{nullptr};
     xaml::Hosting::DesktopWindowXamlSource chrome{nullptr};   // оснастка островом
+    xaml::Media::SystemBackdrop systemBackdrop{nullptr};      // материал острова, если задан до него
     std::function<void(std::filesystem::path)> onFileDrop;
 
     SizeInt32 minSize{};                // нижний предел клиента (WM_GETMINMAXINFO)
@@ -533,6 +535,7 @@ struct WindowState : core::refcounted {
         if (xamlClosed) throw winrt::hresult_error{RO_E_CLOSED, L"wxl::CompositionWindow: окно уже закрыто"};
         chrome = xaml::Hosting::DesktopWindowXamlSource{};
         chrome.Initialize(windowIdOf(hwnd));
+        if (systemBackdrop) chrome.SystemBackdrop(systemBackdrop);
 
         root = controls::Grid{};
         for (auto const height : {xaml::GridLengthHelper::Auto(),
@@ -1564,6 +1567,12 @@ void CompositionWindow::content(UIElement const& chrome) const {
     }
     xaml::UIElement const& raw = *Object::Impl::get_typed<UIElement>(chrome);
     state_->showPage(raw);
+}
+
+void CompositionWindow::systemBackdrop(SystemBackdrop const& value) const {
+    // Материал заводится вместе с островом: заданный раньше острова ждёт его.
+    state_->systemBackdrop = value ? *Object::Impl::get_typed<SystemBackdrop>(value) : xaml::Media::SystemBackdrop{nullptr};
+    if (state_->chrome) state_->chrome.SystemBackdrop(state_->systemBackdrop);
 }
 
 UIElement CompositionWindow::content() const {

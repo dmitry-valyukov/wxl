@@ -5,6 +5,7 @@
 #include "generated/Microsoft.UI.Input.h"
 #include "generated/Microsoft.UI.Windowing.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
+#include "generated/Microsoft.UI.Xaml.Media.h"
 #include "generated/Microsoft.UI.Xaml.h"
 #include "generated/Windows.System.Enums.h"
 
@@ -272,6 +273,11 @@ public:
 
     /// То же под именем Window.SetTitleBar.
     void setTitleBar(UIElement const& value) const { titleBar(value); }
+
+    /// Как Window.SystemBackdrop: материал под островом -- Mica, Acrylic. Его
+    /// рисует сам остров (DesktopWindowXamlSource.SystemBackdrop) там, где
+    /// его содержимое прозрачно; задний фон сцены под ним тогда не виден.
+    void systemBackdrop(SystemBackdrop const& value) const;
 
     /// Как Window.AppWindow: объект Windows App SDK над этим же HWND -- место,
     /// размер, значок и представление окна.

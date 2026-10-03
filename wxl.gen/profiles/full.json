@@ -65,12 +65,13 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationView": {
-            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over.",
+            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over. SettingsItem is how a back step returns to the settings page: the built-in item is not among MenuItems, and selecting it is the only way there.",
             "members": [
                 "DisplayMode",
                 "DisplayModeChanged",
                 "IsPaneToggleButtonVisible",
-                "IsPaneVisible"
+                "IsPaneVisible",
+                "SettingsItem"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItem": {

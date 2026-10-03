@@ -5,6 +5,7 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <vector>
 #include <string_view>
 
 #include "Bind.h"
@@ -65,6 +66,7 @@ namespace glyphs {
 // по которому узнают выбранный.
 constexpr zstring_view typesTab = u"Types";
 constexpr zstring_view resourcesTab = u"Resources";
+constexpr zstring_view settingsName = u"Settings";  // встроенный пункт настроек — для истории
 
 // Знаки пунктов панели навигации — из того же шрифта, что знаки панели.
 constexpr zstring_view navigationFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
@@ -78,6 +80,33 @@ core::u16_text percent(double factor) {
 // Подпись кнопки «100 %» — масштаб модели словами.
 struct ZoomLabel {
     core::observable<core::u16_text> text;
+};
+
+// Где был пользователь — для стрелки «назад» в заголовке, как в Gallery: пункт
+// панели навигации и выбранный тип. Переход назад сам мест не записывает.
+struct History {
+    struct Place {
+        std::u16string page;
+        std::u16string type;
+
+        bool operator==(Place const&) const = default;
+    };
+
+    std::vector<Place> back;
+    Place current;
+    bool replaying = false;
+    core::observable<bool> canGoBack {false};
+
+    void visit(Place place) {
+        if (replaying || place == current) {
+            return;
+        }
+        if (!current.page.empty()) {
+            back.push_back(std::move(current));
+        }
+        current = std::move(place);
+        canGoBack.set(!back.empty());
+    }
 };
 
 // Документация дочитывается в потоке окна: шаг в несколько миллисекунд, и
@@ -361,19 +390,25 @@ wxl::Teardown wxl_launched() {
     // Слева — панель навигации, как принято в приложениях Windows: виды левого
     // дерева и встроенный пункт настроек внизу. Справа от неё — панель
     // инструментов, под ней выбранное, внизу строка состояния.
+    // Стрелка назад и кнопка панели — в заголовке окна, как в Gallery; у самой
+    // панели их нет.
+    auto const history = core::make_refcounted<History>();
     auto const navigation = NavigationView {
         isBackButtonVisible = NavigationViewBackButtonVisible::Collapsed,
+        isPaneToggleButtonVisible = false,
         isPaneOpen = false,
-        onSelectionChanged = [left, document, host, editorView, settingsPage](
+        onSelectionChanged = [left, document, host, editorView, settingsPage, places = history.get()](
                                  Object const& sender, NavigationViewSelectionChangedEventArgs& args) {
             if (args.isSettingsSelected()) {
                 host.child(settingsPage);
+                places->visit({std::u16string {settingsName.view()}, {}});
                 return;
             }
             auto const item = sender.try_as<NavigationView>().selectedItem().try_as<FrameworkElement>();
             bool const resources = item && std::u16string_view {item.name()} == resourcesTab;
             left->model(resources ? document->resources() : document->types());
             host.child(editorView);
+            places->visit({std::u16string {(resources ? resourcesTab : typesTab).view()}, document->typeName.get()});
         },
         content = Grid {
             rowDefinitions = u"40,*,auto",
@@ -465,6 +500,34 @@ wxl::Teardown wxl_launched() {
     navigation.menuItems().append(resourcesItem);
     typesItem.isSelected(true);
 
+    // Выбранный тип — тоже место: переход по ссылке или по дереву записывается.
+    document->typeName.on_change([places = history.get()](std::u16string const& name) noexcept {
+        if (!name.empty() && places->current.page == typesTab.view()) {
+            places->visit({places->current.page, name});
+        }
+    });
+    auto const goBack = [navigation, typesItem, resourcesItem, left, editor = document.get(), places = history.get()] {
+        if (places->back.empty()) {
+            return;
+        }
+        History::Place const place = std::move(places->back.back());
+        places->back.pop_back();
+        places->replaying = true;
+        if (place.page == settingsName.view()) {
+            navigation.selectedItem(navigation.settingsItem());
+        } else {
+            (place.page == resourcesTab.view() ? resourcesItem : typesItem).isSelected(true);
+            if (place.page == typesTab.view() && !place.type.empty()) {
+                if (auto const row = editor->reveal(std::wstring {place.type.begin(), place.type.end()})) {
+                    left->reveal(*row);
+                }
+            }
+        }
+        places->replaying = false;
+        places->current = place;
+        places->canGoBack.set(!places->back.empty());
+    };
+
     // Окно со своим заголовком, как в образце CustomTitleBar: заголовок — строка
     // над содержимым, кнопки окна рисует само окно его высотой, и масштаб
     // увеличивает весь остров разом — заголовок, кнопки окна и панели.
@@ -474,9 +537,15 @@ wxl::Teardown wxl_launched() {
         title = BindOutput {document->title},
         minSize = {640, 400},
         extendsContentIntoTitleBar = true,
+        // Mica, как у Gallery: заголовок и панель навигации прозрачны, сквозь
+        // них виден материал.
+        systemBackdrop = MicaBackdrop {},
         titleBar = {
-            background = brushes.SolidBackgroundFillColor.Secondary,
             title = BindOutput {document->title},
+            isBackButtonVisible = BindOutput {history->canGoBack},
+            onBackRequested = [goBack] { goBack(); },
+            isPaneToggleButtonVisible = true,
+            onPaneToggleRequested = [navigation] { navigation.isPaneOpen(!navigation.isPaneOpen()); },
             rightHeader = StackPanel {
                 orientation.horizontal,
                 spacing = 4,
@@ -512,5 +581,5 @@ wxl::Teardown wxl_launched() {
     window.centreWithClientSize({1200, 800});
     window.activate();
 
-    return [document, types, members, label, settings, focus](TeardownReason) {};
+    return [document, types, members, label, settings, focus, history](TeardownReason) {};
 }
