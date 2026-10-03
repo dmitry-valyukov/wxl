@@ -450,12 +450,14 @@ public:
         for (Library& library : libraries_) {
             for (Namespace& space : library.namespaces) {
                 std::ranges::sort(space.types, {}, [](TypeEntry const& entry) { return entry.def.TypeName(); });
+                library.total += static_cast<uint32_t>(space.types.size());
             }
         }
 
         for (auto&& [type, filter] : editor_.data_->prof.types) {
             if (TypeEntry* entry = find(type)) {
-                entry->listed = true;
+                Location const at = place(entry);
+                count(*at.library, *at.space, *entry, true);
             }
         }
         recount();
@@ -465,32 +467,40 @@ public:
 
     TreeRow row(uint32_t index) const override {
         auto const [library, space, type] = locate(index);
+        // У файла и пространства серым — сколько их типов в профиле.
         if (!space) {
+            detail_ = std::format("{} of {}", library->listed, library->total);
             return {.text = library->name,
+                    .detail = detail_,
                     .icon = &libraryIcon,
                     .expander = library->expanded ? Expander::Expanded : Expander::Collapsed,
+                    .check = triple(library->listed, library->total),
                     .selected = library == selected_.library && !selected_.space};
         }
         if (!type) {
+            uint32_t const total = static_cast<uint32_t>(space->types.size());
+            detail_ = std::format("{} of {}", space->listed, total);
             return {.text = space->name,
+                    .detail = detail_,
                     .depth = 1,
                     .icon = &namespaceIcon,
                     .expander = space->expanded ? Expander::Expanded : Expander::Collapsed,
+                    .check = triple(space->listed, total),
                     .selected = space == selected_.space && !selected_.type};
         }
 
         // У класса серым — база, если она своя, а не System.Object.
-        base_.clear();
+        detail_.clear();
         if (type->icon == &classIcon) {
             if (auto const base = type->def.Extends(); base && base.type() != md::TypeDefOrRef::TypeSpec) {
                 auto const [ns, name] = md::get_type_namespace_and_name(base);
                 if (ns != "System" || name != "Object") {
-                    base_ = std::format(": {}", name);
+                    detail_ = std::format(": {}", name);
                 }
             }
         }
         return {.text = type->def.TypeName(),
-                .detail = base_,
+                .detail = detail_,
                 .depth = 2,
                 .icon = type->icon,
                 .check = type->listed ? Check::Checked : Check::Unchecked,
@@ -509,21 +519,25 @@ public:
         recount();
     }
 
+    // Отметка файла или пространства — всех его типов: отмеченное целиком
+    // снимается, иначе отмечается целиком.
     void toggleChecked(uint32_t index) override {
-        TypeEntry* const entry = locate(index).type;
-        if (!entry) {
-            return;
-        }
-
-        profile& prof = editor_.data_->prof;
-        std::string const name = full_name(entry->def);
-        if (entry->listed) {
-            prof.types.erase(name);
-            prof.styles.erase(name);
+        auto const [library, space, entry] = locate(index);
+        if (entry) {
+            list(*library, *space, *entry, !entry->listed);
+        } else if (space) {
+            bool const on = space->listed != space->types.size();
+            for (TypeEntry& each : space->types) {
+                list(*library, *space, each, on);
+            }
         } else {
-            prof.types.emplace(name, member_filter::all());
+            bool const on = library->listed != library->total;
+            for (Namespace& each : library->namespaces) {
+                for (TypeEntry& type : each.types) {
+                    list(*library, each, type, on);
+                }
+            }
         }
-        entry->listed = !entry->listed;
         editor_.revision.set(editor_.revision.get() + 1);
     }
 
@@ -541,10 +555,12 @@ public:
         return space ? space->start : library->start;
     }
 
-    // Тип внесли в профиль или вынесли из него не отсюда — отметкой стиля.
+    // Тип внесли в профиль или вынесли из него не отсюда — отметкой члена или
+    // стиля.
     void relist(std::string_view full) {
         if (TypeEntry* entry = find(full)) {
-            entry->listed = editor_.data_->prof.types.contains(std::string {full});
+            Location const at = place(entry);
+            count(*at.library, *at.space, *entry, editor_.data_->prof.types.contains(std::string {full}));
         }
     }
 
@@ -562,19 +578,13 @@ public:
         if (!entry) {
             return {};
         }
-        for (Library& library : libraries_) {
-            for (Namespace& space : library.namespaces) {
-                if (entry >= space.types.data() && entry < space.types.data() + space.types.size()) {
-                    library.expanded = true;
-                    space.expanded = true;
-                    recount();
-                    uint32_t const index = space.start + 1 + static_cast<uint32_t>(entry - space.types.data());
-                    invoke(index);
-                    return index;
-                }
-            }
-        }
-        return {};
+        Location const at = place(entry);
+        at.library->expanded = true;
+        at.space->expanded = true;
+        recount();
+        uint32_t const index = at.space->start + 1 + static_cast<uint32_t>(entry - at.space->types.data());
+        invoke(index);
+        return index;
     }
 
 private:
@@ -582,7 +592,8 @@ private:
         std::string_view name;
         std::vector<TypeEntry> types;
         bool expanded = false;
-        uint32_t start = 0;  // номер строки самого пространства среди видимых
+        uint32_t start = 0;   // номер строки самого пространства среди видимых
+        uint32_t listed = 0;  // типов в профиле
     };
 
     struct Library {
@@ -590,7 +601,9 @@ private:
         std::string_view name;  // имя файла winmd
         std::vector<Namespace> namespaces;
         bool expanded = false;
-        uint32_t start = 0;  // номер строки самого файла среди видимых
+        uint32_t start = 0;   // номер строки самого файла среди видимых
+        uint32_t total = 0;   // типов во всех пространствах
+        uint32_t listed = 0;  // из них в профиле
     };
 
     // Строка дерева: файл, а под ним — пространство и тип, если строка их.
@@ -599,6 +612,55 @@ private:
         Namespace* space;
         TypeEntry* type;
     };
+
+    // Отметка родителя: все дети, часть или ни одного.
+    static Check triple(uint32_t listed, uint32_t total) {
+        return listed == 0 ? Check::Unchecked : listed == total ? Check::Checked : Check::Indeterminate;
+    }
+
+    // Файл и пространство типа: тип лежит в векторе своего пространства.
+    Location place(TypeEntry* entry) {
+        for (Library& library : libraries_) {
+            for (Namespace& space : library.namespaces) {
+                if (entry >= space.types.data() && entry < space.types.data() + space.types.size()) {
+                    return {&library, &space, entry};
+                }
+            }
+        }
+        return {};
+    }
+
+    // Счёт отмеченных у пространства и файла идёт за отметкой типа.
+    static void count(Library& library, Namespace& space, TypeEntry& entry, bool listed) {
+        if (entry.listed == listed) {
+            return;
+        }
+        entry.listed = listed;
+        if (listed) {
+            ++library.listed;
+            ++space.listed;
+        } else {
+            --library.listed;
+            --space.listed;
+        }
+    }
+
+    // Тип входит в профиль со всеми членами или уходит из него вместе со
+    // списками членов и стилей.
+    void list(Library& library, Namespace& space, TypeEntry& entry, bool on) {
+        if (entry.listed == on) {
+            return;
+        }
+        profile& prof = editor_.data_->prof;
+        std::string const name = full_name(entry.def);
+        if (on) {
+            prof.types.emplace(name, member_filter::all());
+        } else {
+            prof.types.erase(name);
+            prof.styles.erase(name);
+        }
+        count(library, space, entry, on);
+    }
 
     // Номера строк у свёрнутого не пересчитываются: к ним не спускаются.
     void recount() {
@@ -685,7 +747,7 @@ private:
     std::vector<Library> libraries_;
     uint32_t size_ = 0;
     Location selected_ {};  // выбранная строка: файл, а под ним — пространство и тип
-    mutable std::string base_;  // «: База» строки типа, пока дерево её читает
+    mutable std::string detail_;  // серое строки, пока дерево её читает
 };
 
 namespace {
@@ -1256,7 +1318,7 @@ public:
             std::string_view const name = group->shown[at]->name;
             mark_member(prof, name_, name, !allows(name), enum_, styled);
         }
-        entry_.listed = prof.types.contains(name_);
+        editor_.types_->relist(name_);
         editor_.revision.set(editor_.revision.get() + 1);
     }
 
