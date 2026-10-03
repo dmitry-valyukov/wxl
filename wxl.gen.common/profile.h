@@ -199,7 +199,7 @@ struct type_map {
         std::string include;     // header defining that type, or empty
     };
 
-    std::set<std::string> given_from_above;
+    std::set<std::string> predefined;
     std::set<std::string> implicit_roots;
     std::vector<projection> projections;
     std::vector<tag> tags;

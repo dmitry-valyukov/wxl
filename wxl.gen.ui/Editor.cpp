@@ -365,13 +365,14 @@ struct Editor::Data {
 
     Documentation documentation;
 
-    // Что wxl пишет сам (types.json рядом с профилем): типы, данные свыше.
+    // Что wxl пишет сам (types.json рядом с профилем): типы, предопределённые вне
+    // проекции.
     type_map typeMap;
 
     // Настройки редактора: что не показывается.
     bool hideDependencyProperties = true;
     bool hideEventArgs = true;
-    bool hideGivenFromAbove = true;
+    bool hidePredefined = true;
 };
 
 namespace {
@@ -409,12 +410,12 @@ struct TypeEntry {
     // Класс аргументов события: имя на EventArgs у него самого или у одной из
     // его баз. Помечается при разборе; показывать ли — настройка.
     bool eventArgs = false;
-    // Дан свыше: wxl пишет его сам, вне генерируемой проекции (givenFromAbove
-    // в types.json). Показанный — без выбора.
-    bool given = false;
+    // Предопределён вне проекции: wxl пишет его сам (predefined в types.json).
+    // Показанный — без выбора.
+    bool predefined = false;
 
-    // Отметку можно ставить и считать: показан и не дан свыше.
-    bool selectable() const { return shown && !given; }
+    // Отметку можно ставить и считать: показан и не предопределён.
+    bool selectable() const { return shown && !predefined; }
 };
 
 namespace {
@@ -488,7 +489,7 @@ public:
                         {.def = def,
                          .icon = icon,
                          .eventArgs = icon == &classIcon && is_event_args(def),
-                         .given = is_given_from_above(def, editor_.data_->typeMap)});
+                         .predefined = is_predefined(def, editor_.data_->typeMap)});
                 }
             }
         }
@@ -512,7 +513,7 @@ public:
     // отметить. Скрытый выбранный тип больше не выбран.
     void refilter() {
         bool const hideArgs = editor_.data_->hideEventArgs;
-        bool const hideGiven = editor_.data_->hideGivenFromAbove;
+        bool const hidePredefined = editor_.data_->hidePredefined;
         shown_.clear();
         for (Library& library : libraries_) {
             library.shown.clear();
@@ -523,7 +524,7 @@ public:
                 space.total = 0;
                 space.listed = 0;
                 for (TypeEntry& entry : space.types) {
-                    entry.shown = !(hideArgs && entry.eventArgs) && !(hideGiven && entry.given);
+                    entry.shown = !(hideArgs && entry.eventArgs) && !(hidePredefined && entry.predefined);
                     if (entry.shown) {
                         space.shown.push_back(&entry);
                     }
@@ -578,11 +579,11 @@ public:
                     .selected = space == selected_.space && !selected_.type};
         }
 
-        // У класса серым — база, если она своя, а не System.Object; у данного
-        // свыше — что он пишется в wxl.
+        // У класса серым — база, если она своя, а не System.Object; у
+        // предопределённого — что он предопределён.
         detail_.clear();
-        if (type->given) {
-            detail_ = "hand-written in wxl";
+        if (type->predefined) {
+            detail_ = "pre-defined";
         } else if (type->icon == &classIcon) {
             if (auto const base = type->def.Extends(); base && base.type() != md::TypeDefOrRef::TypeSpec) {
                 auto const [ns, name] = md::get_type_namespace_and_name(base);
@@ -595,7 +596,7 @@ public:
                 .detail = detail_,
                 .depth = 2,
                 .icon = type->icon,
-                .check = type->given ? Check::Disabled : type->listed ? Check::Checked : Check::Unchecked,
+                .check = type->predefined ? Check::Disabled : type->listed ? Check::Checked : Check::Unchecked,
                 .selected = type == selected_.type};
     }
 
@@ -758,7 +759,7 @@ private:
     // Тип входит в профиль со всеми членами или уходит из него вместе со
     // списками членов и стилей.
     void list(Library& library, Namespace& space, TypeEntry& entry, bool on) {
-        if (entry.listed == on || entry.given) {
+        if (entry.listed == on || entry.predefined) {
             return;
         }
         profile& prof = editor_.data_->prof;
@@ -1397,7 +1398,7 @@ public:
                     .detail = count_,
                     .icon = group->icon,
                     .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .check = entry_.given ? Check::Disabled : groupCheck(*group),
+                    .check = entry_.predefined ? Check::Disabled : groupCheck(*group),
                     .selected = group == selected_.first && !selected_.second};
         }
 
@@ -1406,7 +1407,7 @@ public:
                 .detail = member.brief,
                 .depth = 1,
                 .icon = group->icon,
-                .check = entry_.given ? Check::Disabled : allows(member.name) ? Check::Checked : Check::Unchecked,
+                .check = entry_.predefined ? Check::Disabled : allows(member.name) ? Check::Checked : Check::Unchecked,
                 .selected = &member == selected_.second};
     }
 
@@ -1418,9 +1419,9 @@ public:
     }
 
     // Отметка группы — только её показанных членов: скрытые остаются, как были.
-    // У типа, данного свыше, отмечать нечего: его члены пишет wxl.
+    // У предопределённого типа отмечать нечего: его члены пишет wxl.
     void toggleChecked(uint32_t index) override {
-        if (entry_.given) {
+        if (entry_.predefined) {
             return;
         }
         auto const [group, at] = locate(index);
@@ -2066,9 +2067,9 @@ void Editor::hideEventArgs(bool hide) {
     }
 }
 
-void Editor::hideGivenFromAbove(bool hide) {
-    if (data_->hideGivenFromAbove != hide) {
-        data_->hideGivenFromAbove = hide;
+void Editor::hidePredefined(bool hide) {
+    if (data_->hidePredefined != hide) {
+        data_->hidePredefined = hide;
         types_->refilter();
         revision.set(revision.get() + 1);
     }

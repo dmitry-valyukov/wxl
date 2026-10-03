@@ -146,13 +146,13 @@ wxl::Teardown wxl_launched() {
     right->details(settings->showSignatures.get());
     document->hideDependencyProperties(settings->hideDependencyProperties.get());
     document->hideEventArgs(settings->hideEventArgs.get());
-    document->hideGivenFromAbove(settings->hideGivenFromAbove.get());
+    document->hidePredefined(settings->hidePredefined.get());
     settings->hideEventArgs.on_change([raw = settings.get(), editor = document.get()](bool hide) noexcept {
         editor->hideEventArgs(hide);
         saveSettings(*raw);
     });
-    settings->hideGivenFromAbove.on_change([raw = settings.get(), editor = document.get()](bool hide) noexcept {
-        editor->hideGivenFromAbove(hide);
+    settings->hidePredefined.on_change([raw = settings.get(), editor = document.get()](bool hide) noexcept {
+        editor->hidePredefined(hide);
         saveSettings(*raw);
     });
     document->englishDocumentation(settings->englishDocumentation.get());
@@ -393,8 +393,8 @@ wxl::Teardown wxl_launched() {
                                     Bind {settings->hideEventArgs},
                                 },
                                 ToggleSwitch {
-                                    header = u"Hide types given from above",
-                                    Bind {settings->hideGivenFromAbove},
+                                    header = u"Hide pre-defined types",
+                                    Bind {settings->hidePredefined},
                                 },
                                 ToggleSwitch {
                                     header = u"Show signatures in trees",

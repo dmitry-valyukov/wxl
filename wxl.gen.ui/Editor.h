@@ -75,10 +75,10 @@ public:
     void englishDocumentation(bool english);
 
     // Скрывать ли в дереве типов классы аргументов событий (имя на EventArgs у
-    // самого класса или у его базы) и типы, данные свыше, — те, что wxl пишет
-    // сам (givenFromAbove в types.json); показанные данные свыше не отмечаются.
+    // самого класса или у его базы) и типы, предопределённые вне проекции, — те,
+    // что wxl пишет сам (predefined в types.json); показанные не отмечаются.
     void hideEventArgs(bool hide);
-    void hideGivenFromAbove(bool hide);
+    void hidePredefined(bool hide);
 
 private:
     Editor();

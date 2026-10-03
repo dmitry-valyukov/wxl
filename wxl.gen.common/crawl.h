@@ -26,10 +26,10 @@
 // its parameter/return types in). Knows nothing about C++ output; that's
 // the generator's generate.h.
 
-// Types "given from above": already written by hand in wxl.ui, so the
+// Pre-defined types: already written by hand in wxl.ui, so the
 // walk records them as a boundary and never expands their members. Which
 // ones those are comes from the type map (profiles/types.json).
-bool is_given_from_above(winmd::reader::TypeDef const& type, type_map const& types);
+bool is_predefined(winmd::reader::TypeDef const& type, type_map const& types);
 
 // Namespace, then name: the order for any container of types whose order
 // reaches the output. winmd's own operator< compares the addresses of the
@@ -166,7 +166,7 @@ struct closure {
     // a profile naming one is told rather than left wondering.
     std::set<std::string> deprecated;
 
-    // Given-from-above types the walk stopped at; recorded, never emitted.
+    // Pre-defined types the walk stopped at; recorded, never emitted.
     std::set<winmd::reader::TypeDef, by_full_name> boundary;
 
     // Diagnostics: profile entries the metadata doesn't back up. Both are

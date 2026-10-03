@@ -30,7 +30,7 @@ import std;
 // `Impl` inherits the base's, so ButtonBase::Impl must be visible while
 // compiling anything that defines Button::Impl.
 //
-// The chain bottoms out in the hand-written, given-from-above pair
+// The chain bottoms out in the hand-written, pre-defined pair
 // wxl.ui/src/Object.h + Object.impl.h -- wxl::Object holds the only data
 // member in the whole hierarchy (an intrusive_ptr to the Impl chain), and
 // Object::Impl is core::sta_refcounted, allocated from the STA pool.
@@ -136,9 +136,9 @@ creation construction_of(TypeDef const& type) {
     return {};
 }
 
-// wxl's own hand-written types, given from above (see crawl.h). Object and
+// wxl's own pre-defined, hand-written types (see crawl.h). Object and
 // DependencyObject share one header pair.
-std::string given_header(std::string_view name, bool impl_side) {
+std::string predefined_header(std::string_view name, bool impl_side) {
     // Statics stands beside Object in the same hand-written header: both are
     // levels a generated class derives from without being generated itself.
     std::string_view const file =
@@ -289,10 +289,10 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
         base = {};
     }
 
-    if (base && !is_given_from_above(base, types) && generated.count(base)) {
+    if (base && !is_predefined(base, types) && generated.count(base)) {
         info.base_name = std::string{base.TypeName()};
         info.base_namespace = std::string{base.TypeNamespace()};
-    } else if (base && is_given_from_above(base, types)) {
+    } else if (base && is_predefined(base, types)) {
         info.base_name = std::string{base.TypeName()};
     } else {
         info.base_name = "Object";
@@ -354,7 +354,7 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
 
 // The files a group has to include: where its base classes live. A base in
 // the same group needs nothing (dependency order put it earlier in the same
-// file); a given-from-above base pulls in the hand-written header instead.
+// file); a pre-defined base pulls in the hand-written header instead.
 std::set<std::string> file_includes(std::string_view group,
                                     std::vector<class_info> const& classes,
                                     std::map<std::string, std::string> const& group_of,
@@ -365,11 +365,11 @@ std::set<std::string> file_includes(std::string_view group,
             // wxl::Statics on the public side; on the private one the same
             // header pair's impl half, because the member bodies wrap what a
             // static call returned and that goes through Object::Impl.
-            includes.insert(given_header("Statics", impl_side));
+            includes.insert(predefined_header("Statics", impl_side));
             continue;
         }
         if (info.base_namespace.empty()) {
-            includes.insert(given_header(info.base_name, impl_side));
+            includes.insert(predefined_header(info.base_name, impl_side));
             continue;
         }
         auto const it = group_of.find(info.base_namespace);

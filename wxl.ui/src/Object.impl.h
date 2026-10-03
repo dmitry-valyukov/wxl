@@ -1,6 +1,6 @@
 #pragma once
 
-// The private side of the two given-from-above levels: the actual `Impl`
+// The private side of the two pre-defined levels: the actual `Impl`
 // definitions, the interface-cache machinery, and nothing a consumer of
 // wxl ever includes. Generated <Class>.impl.h files include this (directly
 // or through their base's impl header) and nothing else reaches it.

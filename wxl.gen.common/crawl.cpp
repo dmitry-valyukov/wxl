@@ -227,7 +227,7 @@ struct crawler {
         if (!type) {
             return;
         }
-        if (is_given_from_above(type, types)) {
+        if (is_predefined(type, types)) {
             result.boundary.insert(type);
             return;
         }
@@ -697,7 +697,7 @@ struct crawler {
                 TypeDef owner;
                 for (auto ancestor = type; ancestor;) {
                     auto const base = base_of(ancestor);
-                    if (!base || is_given_from_above(base, types)) {
+                    if (!base || is_predefined(base, types)) {
                         break;
                     }
                     if (declared_names(base).count(member)) {
@@ -725,8 +725,8 @@ struct crawler {
 
 }  // namespace
 
-bool is_given_from_above(TypeDef const& type, type_map const& types) {
-    return type && types.given_from_above.count(full_name(type)) != 0;
+bool is_predefined(TypeDef const& type, type_map const& types) {
+    return type && types.predefined.count(full_name(type)) != 0;
 }
 
 declared_members declared_members_of(TypeDef const& type) {

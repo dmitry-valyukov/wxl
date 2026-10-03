@@ -743,8 +743,8 @@ type_map load_type_map(std::filesystem::path const& path) {
     auto const& document = read_json(file, path, "a type map must be a JSON object");
 
     type_map map;
-    if (value const* const given = document.find("givenFromAbove")) {
-        map.given_from_above = read_string_set(*given, path, "givenFromAbove");
+    if (value const* const listed = document.find("predefined")) {
+        map.predefined = read_string_set(*listed, path, "predefined");
     }
     if (value const* const roots = document.find("implicitRoots")) {
         map.implicit_roots = read_string_set(*roots, path, "implicitRoots");

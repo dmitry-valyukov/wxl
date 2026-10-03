@@ -1,4 +1,4 @@
-# wxl.ui -- the WinUI3 backend of wxl: the hand-written, given-from-above
+# wxl.ui -- the WinUI3 backend of wxl: the hand-written, pre-defined
 # levels (wxl::Object / wxl::DependencyObject and the impl:: plumbing they
 # rest on) plus everything winui-srcgen generates from the profiles.
 #
@@ -82,7 +82,7 @@ set(WXL_WIN2D_DIR
     CACHE PATH "Win2D (Microsoft.Graphics.Canvas) NuGet package (native runtime DLL)")
 
 add_library(wxl.ui STATIC
-    # Given from above -- never generated.
+    # Pre-defined -- never generated.
     src/core.h
     src/Object.h
     src/DateTime.h

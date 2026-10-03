@@ -13,7 +13,7 @@
     // type walk stops here and reports the boundary it stopped at.
     // IInspectable / Object needs no entry: a WinRT class with no Extends()
     // is already rooted there.
-    "givenFromAbove": [
+    "predefined": [
         "Microsoft.UI.Xaml.DependencyObject",
         "Microsoft.UI.Xaml.DependencyProperty",
         "Microsoft.UI.Xaml.Application"

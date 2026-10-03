@@ -17,9 +17,9 @@ struct Settings {
     // класса или у его базы.
     wxl::core::observable<bool> hideEventArgs {true};
 
-    // Типы, данные свыше, — их wxl пишет сам, вне генерируемой проекции;
-    // показанные отметить нельзя.
-    wxl::core::observable<bool> hideGivenFromAbove {true};
+    // Типы, предопределённые вне проекции, — их wxl пишет сам; показанные
+    // отметить нельзя.
+    wxl::core::observable<bool> hidePredefined {true};
 
     // Объявление члена и база класса серым после имени в деревьях.
     wxl::core::observable<bool> showSignatures {true};
