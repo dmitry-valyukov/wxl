@@ -57,12 +57,17 @@ namespace glyphs {
     constexpr char16_t redo[] {0xF16E, 0};               // arrow_redo
     constexpr char16_t zoomOut[] {0xF8C6, 0};            // zoom_out
     constexpr char16_t zoomIn[] {0xF8C4, 0};             // zoom_in
-    constexpr char16_t settings[] {0xF6A9, 0};           // settings
+    constexpr char16_t types[] {0xE762, 0};              // library
+    constexpr char16_t resources[] {0xF356, 0};          // design_ideas
 }
 
-// Вкладки над левым деревом. Выбранную узнают по тексту: вкладка — это её имя.
+// Пункты панели навигации — виды левого дерева; текст пункта — и его имя,
+// по которому узнают выбранный.
 constexpr zstring_view typesTab = u"Types";
 constexpr zstring_view resourcesTab = u"Resources";
+
+// Знаки пунктов панели навигации — из того же шрифта, что знаки панели.
+constexpr zstring_view navigationFont = u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular";
 
 core::u16_text percent(double factor) {
     core::u16_text text = core::to_u16(factor * 100, std::chars_format::fixed, 0);
@@ -107,7 +112,18 @@ wxl::Teardown wxl_launched() {
     document->members.on_change([right](core::intrusive_ptr<TreeModel> const& model) noexcept {
         right->model(model);
     });
-    auto const typesItem = SelectorBarItem {text = typesTab, isSelected = true};
+    // Пункты панели навигации слева: два вида левого дерева, а под ними
+    // встроенный пункт настроек. Выбранный пункт узнают по имени.
+    auto const typesItem = NavigationViewItem {
+        content = typesTab,
+        icon = FontIcon {fontFamily = FontFamily {navigationFont}, glyph = glyphs::types},
+    };
+    typesItem.name(typesTab);
+    auto const resourcesItem = NavigationViewItem {
+        content = resourcesTab,
+        icon = FontIcon {fontFamily = FontFamily {navigationFont}, glyph = glyphs::resources},
+    };
+    resourcesItem.name(resourcesTab);
 
     auto const settings = core::make_refcounted<Settings>();
     loadSettings(*settings);
@@ -177,7 +193,6 @@ wxl::Teardown wxl_launched() {
     details.onLink([left, document, typesItem](zstring_view target) {
         if (auto const row = document->reveal(target.wide())) {
             typesItem.isSelected(true);
-            left->model(document->types());
             left->reveal(*row);
         }
     });
@@ -261,56 +276,113 @@ wxl::Teardown wxl_launched() {
         saveSettings(*raw);
     });
 
-    // Окно со своим заголовком, как в образце CustomTitleBar: заголовок — строка
-    // над содержимым, кнопки окна рисует само окно его высотой, и масштаб
-    // увеличивает весь остров разом — заголовок, кнопки окна и панели.
-    //
-    // Панель профиля пока макет: действий на кнопках нет; переключатели показа —
-    // знаки тех же отметок, что в дереве.
-    CompositionWindow const window {
-        zoom,
-        focus,
-        title = BindOutput {document->title},
-        minSize = {640, 400},
-        extendsContentIntoTitleBar = true,
-        titleBar = {
-            background = brushes.SolidBackgroundFillColor.Secondary,
-            title = BindOutput {document->title},
-            rightHeader = StackPanel {
-                orientation.horizontal,
-                spacing = 4,
-                vAlign.center,
-                Margin {0, 0, 8, 0},
-                Button {
-                    toolButton,
-                    toolTip = u"Уменьшить масштаб",
-                    isEnabled = BindOutput {zoom.model().canZoomOut()},
-                    onClick = [zoom] { zoom.model().zoomOut(); },
-                    content = FontIcon {toolGlyph, glyph = glyphs::zoomOut},
-                },
-                Button {
-                    toolButton,
-                    width = 64.0,
-                    toolTip = u"Масштаб 100 %",
-                    onClick = [zoom] { zoom.model().resetZoom(); },
-                    content = TextBlock {text = BindOutput {label->text}},
-                },
-                Button {
-                    toolButton,
-                    toolTip = u"Увеличить масштаб",
-                    isEnabled = BindOutput {zoom.model().canZoomIn()},
-                    onClick = [zoom] { zoom.model().zoomIn(); },
-                    content = FontIcon {toolGlyph, glyph = glyphs::zoomIn},
+    // Редактор: слева дерево типов или ресурсов, справа члены выбранного и
+    // под ними, меньше, сведения о выбранном — как у просмотрщиков библиотек
+    // типов.
+    auto const editorView = SplitPanel {
+        openPaneLength = 520.0,
+        spacing = 8.0,
+        // Дерево — на сплошном фоне, белом в светлой теме.
+        pane = Border {
+            framed,
+            background = brushes.SolidBackgroundFillColor.Quarternary,
+            left->view(),
+        },
+        content = SplitPanel {
+            orientation.vertical,
+            panePlacement.right,
+            openPaneLength = 180.0,
+            spacing = 8.0,
+            content = Border {
+                framed,
+                background = brushes.SolidBackgroundFillColor.Quarternary,
+                right->view(),
+            },
+            pane = Border {
+                framed,
+                background = brushes.SolidBackgroundFillColor.Quarternary,
+                ScrollViewer {
+                    Padding {12, 8},
+                    content = details,
                 },
             },
         },
-        // Панель инструментов наверху, раздвижка под ней, строка состояния внизу.
-        Grid {
+    };
+
+    // Настройки — страницей, на месте редактора, как у NavigationView принято.
+    auto const settingsPage = ScrollViewer {
+        content = StackPanel {
+            width = 360.0,
+            hAlign.left,
+            Padding {24, 16},
+            spacing = 12.0,
+            TextBlock {u"Settings", styles.TextBlock.Subtitle},
+            ToggleSwitch {
+                header = u"Hide dependency properties",
+                Bind {settings->hideDependencyProperties},
+            },
+            ToggleSwitch {
+                header = u"Hide event args",
+                Bind {settings->hideEventArgs},
+            },
+            ToggleSwitch {
+                header = u"Hide pre-defined types",
+                Bind {settings->hidePredefined},
+            },
+            ToggleSwitch {
+                header = u"Show signatures in trees",
+                Bind {settings->showSignatures},
+            },
+            ToggleSwitch {
+                header = u"Documentation in English",
+                Bind {settings->englishDocumentation},
+            },
+            NumberBox {
+                header = u"Details font size",
+                minimum = 12.0,
+                maximum = 24.0,
+                spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline,
+                Bind {settings->detailsFontSize},
+            },
+            TextBlock {u"Keyboard focus"},
+            ComboBox {
+                hAlign.stretch,
+                ComboBoxItem {u"System frame"},
+                ComboBoxItem {u"Lift"},
+                ComboBoxItem {u"Glow"},
+                Bind {settings->focusLook},
+            },
+        },
+    };
+
+    // Под панелью инструментов — редактор или настройки, по пункту навигации.
+    auto const host = Border {row = 1, editorView};
+
+    // Слева — панель навигации, как принято в приложениях Windows: виды левого
+    // дерева и встроенный пункт настроек внизу. Справа от неё — панель
+    // инструментов, под ней выбранное, внизу строка состояния.
+    auto const navigation = NavigationView {
+        isBackButtonVisible = NavigationViewBackButtonVisible::Collapsed,
+        isPaneOpen = false,
+        onSelectionChanged = [left, document, host, editorView, settingsPage](
+                                 Object const& sender, NavigationViewSelectionChangedEventArgs& args) {
+            if (args.isSettingsSelected()) {
+                host.child(settingsPage);
+                return;
+            }
+            auto const item = sender.try_as<NavigationView>().selectedItem().try_as<FrameworkElement>();
+            bool const resources = item && std::u16string_view {item.name()} == resourcesTab;
+            left->model(resources ? document->resources() : document->types());
+            host.child(editorView);
+        },
+        content = Grid {
             rowDefinitions = u"40,*,auto",
             Card {
                 topPanel,
+                // Панель профиля пока макет: действий на кнопках нет; переключатели
+                // показа — знаки тех же отметок, что в дереве.
                 Grid {
-                    columnDefinitions = u"auto,*,auto",
+                    columnDefinitions = u"auto,*",
                     StackPanel {
                         orientation.horizontal,
                         spacing = 4,
@@ -372,105 +444,9 @@ wxl::Teardown wxl_launched() {
                         vAlign.center,
                         Margin {24, 0, 0, 0},
                     },
-                    // Настройки — попапом под шестерёнкой у правого края.
-                    Button {
-                        toolButton,
-                        column = 2,
-                        vAlign.center,
-                        toolTip = u"Настройки",
-                        content = FontIcon {toolGlyph, glyph = glyphs::settings},
-                        flyout = Flyout {
-                            placement = FlyoutPlacementMode::BottomEdgeAlignedRight,
-                            content = StackPanel {
-                                width = 300.0,
-                                spacing = 12.0,
-                                ToggleSwitch {
-                                    header = u"Hide dependency properties",
-                                    Bind {settings->hideDependencyProperties},
-                                },
-                                ToggleSwitch {
-                                    header = u"Hide event args",
-                                    Bind {settings->hideEventArgs},
-                                },
-                                ToggleSwitch {
-                                    header = u"Hide pre-defined types",
-                                    Bind {settings->hidePredefined},
-                                },
-                                ToggleSwitch {
-                                    header = u"Show signatures in trees",
-                                    Bind {settings->showSignatures},
-                                },
-                                ToggleSwitch {
-                                    header = u"Documentation in English",
-                                    Bind {settings->englishDocumentation},
-                                },
-                                NumberBox {
-                                    header = u"Details font size",
-                                    minimum = 12.0,
-                                    maximum = 24.0,
-                                    spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline,
-                                    Bind {settings->detailsFontSize},
-                                },
-                                TextBlock {u"Keyboard focus"},
-                                ComboBox {
-                                    hAlign.stretch,
-                                    ComboBoxItem {u"System frame"},
-                                    ComboBoxItem {u"Lift"},
-                                    ComboBoxItem {u"Glow"},
-                                    Bind {settings->focusLook},
-                                },
-                            },
-                        },
-                    },
                 },
             },
-            SplitPanel {
-                row = 1,
-                openPaneLength = 520.0,
-                spacing = 8.0,
-                pane = Grid {
-                    rowDefinitions = u"auto,*",
-                    SelectorBar {
-                        onSelectionChanged = [left, document](SelectorBar const& bar,
-                                                              SelectorBarSelectionChangedEventArgs&) {
-                            if (auto const item = bar.selectedItem()) {
-                                bool const resources = item.text() == resourcesTab;
-                                left->model(resources ? document->resources() : document->types());
-                            }
-                        },
-                        typesItem,
-                        SelectorBarItem {text = resourcesTab},
-                    },
-                    // Дерево — на сплошном фоне, белом в светлой теме.
-                    Border {
-                        row = 1,
-                        framed,
-                        background = brushes.SolidBackgroundFillColor.Quarternary,
-                        left->view(),
-                    },
-                },
-                // Справа члены типа и под ними, меньше, сведения о выбранном —
-                // как у просмотрщиков библиотек типов.
-                content = SplitPanel {
-                    orientation.vertical,
-                    panePlacement.right,
-                    openPaneLength = 180.0,
-                    spacing = 8.0,
-                    content = Border {
-                        framed,
-                        background = brushes.SolidBackgroundFillColor.Quarternary,
-                        right->view(),
-                    },
-                    pane = Border {
-                        framed,
-                        background = brushes.SolidBackgroundFillColor.Quarternary,
-                        ScrollViewer {
-                            Padding {12, 8},
-                            content = details,
-                        },
-                    },
-                },
-            },
+            host,
             Border {
                 row = 2,
                 background = brushes.SolidBackgroundFillColor.Secondary,
@@ -484,6 +460,52 @@ wxl::Teardown wxl_launched() {
                 },
             },
         },
+    };
+    navigation.menuItems().append(typesItem);
+    navigation.menuItems().append(resourcesItem);
+    typesItem.isSelected(true);
+
+    // Окно со своим заголовком, как в образце CustomTitleBar: заголовок — строка
+    // над содержимым, кнопки окна рисует само окно его высотой, и масштаб
+    // увеличивает весь остров разом — заголовок, кнопки окна и панели.
+    CompositionWindow const window {
+        zoom,
+        focus,
+        title = BindOutput {document->title},
+        minSize = {640, 400},
+        extendsContentIntoTitleBar = true,
+        titleBar = {
+            background = brushes.SolidBackgroundFillColor.Secondary,
+            title = BindOutput {document->title},
+            rightHeader = StackPanel {
+                orientation.horizontal,
+                spacing = 4,
+                vAlign.center,
+                Margin {0, 0, 8, 0},
+                Button {
+                    toolButton,
+                    toolTip = u"Уменьшить масштаб",
+                    isEnabled = BindOutput {zoom.model().canZoomOut()},
+                    onClick = [zoom] { zoom.model().zoomOut(); },
+                    content = FontIcon {toolGlyph, glyph = glyphs::zoomOut},
+                },
+                Button {
+                    toolButton,
+                    width = 64.0,
+                    toolTip = u"Масштаб 100 %",
+                    onClick = [zoom] { zoom.model().resetZoom(); },
+                    content = TextBlock {text = BindOutput {label->text}},
+                },
+                Button {
+                    toolButton,
+                    toolTip = u"Увеличить масштаб",
+                    isEnabled = BindOutput {zoom.model().canZoomIn()},
+                    onClick = [zoom] { zoom.model().zoomIn(); },
+                    content = FontIcon {toolGlyph, glyph = glyphs::zoomIn},
+                },
+            },
+        },
+        navigation,
     };
 
     window.background(rgb(243, 243, 243));
