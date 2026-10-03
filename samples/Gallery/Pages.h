@@ -104,6 +104,7 @@ wxl::FrameworkElement geometryPage();
 wxl::FrameworkElement spacingPage();
 wxl::FrameworkElement colorPage();
 wxl::FrameworkElement iconographyPage();
+wxl::FrameworkElement accessibilityColorContrastPage();
 wxl::FrameworkElement animatedVisualPlayerPage();
 wxl::FrameworkElement captureElementPreviewPage();
 wxl::FrameworkElement inkCanvasPage();
