@@ -1,7 +1,9 @@
 #include "VirtualTree.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cwctype>
 
 #include "FontFamily.h"
 #include "generated/Microsoft.UI.Input.h"
@@ -69,9 +71,20 @@ VirtualTree::VirtualTree() {
         },
     };
 
+    // Клавиши — у корня: он берёт фокус, когда по дереву щёлкают. Дерево в
+    // фокусе метит выбранную строку чертой цвета акцента.
     Apply {root_,
         columnDefinitions = u"*,auto",
         background = brushes.SubtleFillColor.Transparent,
+        isTabStop = true,
+        onKeyDown = [this](Grid const&, KeyRoutedEventArgs& args) { key(args); },
+        onCharacterReceived = [this](Grid const&, CharacterReceivedRoutedEventArgs& args) {
+            if (typeAhead(args.character())) {
+                args.handled(true);
+            }
+        },
+        onGotFocus = [this](Grid const&, RoutedEventArgs&) { focus(true); },
+        onLostFocus = [this](Grid const&, RoutedEventArgs&) { focus(false); },
         onSizeChanged = [this](Grid const&, SizeChangedEventArgs& args) {
             resize(args.newSize().height);
         },
@@ -99,6 +112,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         textAlignment.center,
         vAlign.center,
         onTapped = [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
+            takeFocus();
             if (model_) {
                 model_->toggleExpanded(first() + slot);
                 updateBar();
@@ -128,6 +142,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         vAlign.center,
         Margin {2, 0, 0, 0},
         onTapped = [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
+            takeFocus();
             if (model_) {
                 model_->toggleChecked(first() + slot);
                 render();
@@ -162,6 +177,15 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         Margin {8, 0, 12, 0},
     };
 
+    Apply {row.marker,
+        width = 3.0,
+        height = 16.0,
+        CornerRadius {1.5},
+        vAlign.center,
+        background = brushes.Accent.FillColor.Default,
+        opacity = 0.0,
+    };
+
     Apply {row.panel,
         orientation.horizontal,
         height = rowHeight_,
@@ -169,6 +193,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         // Второй щелчок двойного приходит как DoubleTapped, а не Tapped:
         // узел переключается один раз.
         onTapped = [this, slot](StackPanel const&, TappedRoutedEventArgs&) {
+            takeFocus();
             if (model_) {
                 uint32_t const index = first() + slot;
                 model_->invoke(index);
@@ -196,6 +221,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
                 paint(slot);
             }
         },
+        row.marker,
         row.indent,
         row.glyph,
         row.check,
@@ -300,6 +326,123 @@ void VirtualTree::wheel(UIElement const& source, PointerRoutedEventArgs& args) {
     args.handled(true);
 }
 
+// Стрелки и страницы ходят по видимым строкам, влево и вправо — сворачивают,
+// раскрывают и ходят к родителю и первому ребёнку, пробел — отметка, Enter —
+// как двойной щелчок.
+void VirtualTree::key(KeyRoutedEventArgs& args) {
+    uint32_t const count = size();
+    if (count == 0) {
+        return;
+    }
+    auto const current = model_->selectedRow();
+    int64_t const at = current ? int64_t {*current} : int64_t {top_};
+    int64_t const page = visible_ > 1 ? visible_ - 1 : 1;
+    auto const go = [this, count](int64_t index) { select(static_cast<uint32_t>(std::clamp<int64_t>(index, 0, count - 1))); };
+
+    switch (args.key()) {
+        case VirtualKey::Up: go(current ? at - 1 : at); break;
+        case VirtualKey::Down: go(current ? at + 1 : at); break;
+        case VirtualKey::PageUp: go(at - page); break;
+        case VirtualKey::PageDown: go(at + page); break;
+        case VirtualKey::Home: go(0); break;
+        case VirtualKey::End: go(count - 1); break;
+        case VirtualKey::Left:
+        case VirtualKey::Right: {
+            if (!current) {
+                go(at);
+                break;
+            }
+            TreeRow const data = model_->row(*current);
+            bool const right = args.key() == VirtualKey::Right;
+            if (data.expander == (right ? Expander::Collapsed : Expander::Expanded)) {
+                model_->toggleExpanded(*current);
+                updateBar();
+            } else if (right) {
+                if (data.expander == Expander::Expanded) {
+                    go(at + 1);
+                }
+            } else {
+                // Родитель — ближайшая строка выше с меньшей глубиной.
+                for (int64_t index = at - 1; index >= 0; --index) {
+                    if (model_->row(static_cast<uint32_t>(index)).depth < data.depth) {
+                        go(index);
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        // + и - цифрового блока раскрывают и сворачивают, * раскрывает всё
+        // под строкой.
+        case VirtualKey::Add:
+        case VirtualKey::Subtract:
+            if (current && model_->row(*current).expander ==
+                               (args.key() == VirtualKey::Add ? Expander::Collapsed : Expander::Expanded)) {
+                model_->toggleExpanded(*current);
+                updateBar();
+            }
+            break;
+        case VirtualKey::Multiply:
+            if (current) {
+                expandAll(*current);
+            }
+            break;
+        case VirtualKey::Space:
+            if (current && model_->row(*current).check != Check::None) {
+                model_->toggleChecked(*current);
+            }
+            break;
+        // Enter у раскрывающейся строки раскрывает или сворачивает её, у
+        // остальных — как двойной щелчок.
+        case VirtualKey::Enter:
+            if (current) {
+                if (model_->row(*current).expander != Expander::None) {
+                    model_->toggleExpanded(*current);
+                    updateBar();
+                } else {
+                    model_->activate(*current);
+                }
+            }
+            break;
+        default: return;
+    }
+    args.handled(true);
+    render();
+}
+
+// Строки под раскрытой встают следом за ней, поэтому раскрывается всё, что
+// ниже, пока глубина больше, чем у самой строки.
+void VirtualTree::expandAll(uint32_t index) {
+    uint16_t const depth = model_->row(index).depth;
+    for (uint32_t at = index; at < size(); ++at) {
+        TreeRow const data = model_->row(at);
+        if (at > index && data.depth <= depth) {
+            break;
+        }
+        if (data.expander == Expander::Collapsed) {
+            model_->toggleExpanded(at);
+        }
+    }
+    updateBar();
+}
+
+void VirtualTree::select(uint32_t index) {
+    model_->invoke(index);
+    scrollIntoView(index);
+}
+
+// Строка встаёт у ближнего края окна, если её не видно.
+void VirtualTree::scrollIntoView(uint32_t index) {
+    if (index < top_) {
+        top_ = index;
+    } else if (visible_ > 0 && index >= top_ + visible_) {
+        top_ = index - visible_ + 1;
+    } else {
+        return;
+    }
+    updateBar();
+}
+
 void VirtualTree::scrollBy(int64_t lines) {
     scrollTo(static_cast<uint32_t>(std::max<int64_t>(0, int64_t{top_} + lines)));
 }
@@ -389,6 +532,61 @@ void VirtualTree::paint(uint32_t slot) {
                         : hovered_ == slot ? static_cast<Brush const&>(brushes.SubtleFillColor.Tertiary)
                                            : static_cast<Brush const&>(brushes.SubtleFillColor.Transparent);
     row.panel.background(fill);
+    row.marker.opacity(row.selected && focused_ ? 1.0 : 0.0);
+}
+
+void VirtualTree::takeFocus() {
+    root_.focus(FocusState::Pointer);
+}
+
+void VirtualTree::focus(bool focused) {
+    if (focused != focused_) {
+        focused_ = focused;
+        for (uint32_t slot = 0; slot < pool_.size(); ++slot) {
+            paint(slot);
+        }
+    }
+}
+
+// Поиск по первым буквам, как в проводнике: буквы, набранные подряд, — начало
+// имени; та же буква снова — следующая строка на неё. Пауза больше секунды
+// начинает поиск заново. Ищется среди видимых строк, от выбранной и по кругу.
+bool VirtualTree::typeAhead(char16_t character) {
+    uint32_t const count = size();
+    if (count == 0 || character <= u' ') {
+        return false;
+    }
+    auto const now = std::chrono::steady_clock::now();
+    if (now - typedAt_ > std::chrono::seconds {1}) {
+        typed_.clear();
+    }
+    typedAt_ = now;
+    char16_t const lower = static_cast<char16_t>(std::towlower(character));
+    bool const repeat = typed_.size() == 1 && typed_.front() == lower;
+    if (!repeat) {
+        typed_ += lower;
+    }
+
+    // Новый поиск и повтор буквы — со следующей строки, продолжение слова — с
+    // той же: она может подходить и дальше.
+    auto const current = model_->selectedRow();
+    uint32_t const from = current ? (typed_.size() == 1 ? *current + 1 : *current) : top_;
+    for (uint32_t step = 0; step < count; ++step) {
+        uint32_t const index = (from + step) % count;
+        std::string_view const text = model_->row(index).text;
+        if (text.size() < typed_.size()) {
+            continue;
+        }
+        bool const matches = std::ranges::equal(typed_, text.substr(0, typed_.size()), {}, {}, [](char c) {
+            return static_cast<char16_t>(std::tolower(static_cast<unsigned char>(c)));
+        });
+        if (matches) {
+            select(index);
+            render();
+            return true;
+        }
+    }
+    return true;
 }
 
 }  // namespace editor

@@ -484,6 +484,17 @@ public:
     void invoke(uint32_t index) override;
     Description describe() const override;
 
+    wxl::core::nullable<uint32_t> selectedRow() const override {
+        auto const [library, space, type] = selected_;
+        if (!library || (space && !library->expanded) || (type && !space->expanded)) {
+            return {};
+        }
+        if (type) {
+            return space->start + 1 + static_cast<uint32_t>(type - space->types.data());
+        }
+        return space ? space->start : library->start;
+    }
+
     // Тип внесли в профиль или вынесли из него не отсюда — отметкой стиля.
     void relist(std::string_view full) {
         if (TypeEntry* entry = find(full)) {
@@ -1158,7 +1169,8 @@ public:
                     .detail = count_,
                     .icon = group->icon,
                     .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .check = groupCheck(*group)};
+                    .check = groupCheck(*group),
+                    .selected = group == selected_.first && selected_.second == npos};
         }
 
         std::string_view const name = group->names[member];
@@ -1199,11 +1211,24 @@ public:
 
     void invoke(uint32_t index) override {
         auto const [group, member] = locate(index);
-        if (member == npos) {
-            return;
-        }
         selected_ = {group, member};
-        editor_.selection.set({intrusive_ptr<TreeModel> {this}, &group->names[member]});
+        void const* const row = member == npos ? static_cast<void const*>(group) : &group->names[member];
+        editor_.selection.set({intrusive_ptr<TreeModel> {this}, row});
+    }
+
+    wxl::core::nullable<uint32_t> selectedRow() const override {
+        auto const [picked, member] = selected_;
+        uint32_t index = 0;
+        for (Group const& group : groups_) {
+            if (&group == picked) {
+                if (member == npos) {
+                    return index;
+                }
+                return group.expanded ? wxl::core::nullable<uint32_t> {index + 1 + member} : wxl::core::nullable<uint32_t> {};
+            }
+            index += 1 + group.shown();
+        }
+        return {};
     }
 
     // Двойной щелчок по члену — его отметка; группу он не трогает: её первый
@@ -1218,6 +1243,14 @@ public:
         auto const [group, member] = selected_;
         if (!group) {
             return {};
+        }
+        if (member == npos) {
+            std::wstring html;
+            append_bold(html, group->title);
+            html += L"<br>Members of ";
+            SignatureWriter {html, *editor_.types_, entry_.def}.type(entry_.def.coded_index<md::TypeDefOrRef>());
+            html += std::format(L"<p>Profile: {} of {} generated</p>", chosen(*group), group->names.size());
+            return {group->icon, std::move(html)};
         }
 
         // Метод — каждой перегрузкой, строкой на каждую.
@@ -1357,26 +1390,34 @@ public:
 
     TreeRow row(uint32_t index) const override {
         Location const at = locate(index);
+        bool const selected = at == selected_;
         if (at.group) {
             if (at.key == npos) {
                 return {.text = at.group->target,
                         .depth = 1,
                         .icon = &classIcon,
-                        .expander = at.group->expanded ? Expander::Expanded : Expander::Collapsed};
+                        .expander = at.group->expanded ? Expander::Expanded : Expander::Collapsed,
+                        .selected = selected};
             }
             std::string_view const key = at.group->keys[at.key];
-            return {.text = key, .depth = 2, .icon = &styleIcon, .check = styleCheck(*at.group, key)};
+            return {.text = key,
+                    .depth = 2,
+                    .icon = &styleIcon,
+                    .check = styleCheck(*at.group, key),
+                    .selected = selected};
         }
         if (at.key == npos) {
             return {.text = at.section->title,
                     .icon = at.section->icon,
-                    .expander = at.section->expanded ? Expander::Expanded : Expander::Collapsed};
+                    .expander = at.section->expanded ? Expander::Expanded : Expander::Collapsed,
+                    .selected = selected};
         }
         bool const chosen = editor_.data_->prof.brushes.allows(brushes_[at.key]);
         return {.text = brushes_[at.key],
                 .depth = 1,
                 .icon = &brushIcon,
-                .check = chosen ? Check::Checked : Check::Unchecked};
+                .check = chosen ? Check::Checked : Check::Unchecked,
+                .selected = selected};
     }
 
     void toggleExpanded(uint32_t index) override {
@@ -1428,7 +1469,34 @@ public:
         editor_.revision.set(editor_.revision.get() + 1);
     }
 
-    void invoke(uint32_t) override {}
+    void invoke(uint32_t index) override {
+        selected_ = locate(index);
+        void const* const row = selected_.key == npos
+                                    ? (selected_.group ? static_cast<void const*>(selected_.group) : selected_.section)
+                                    : selected_.group ? static_cast<void const*>(&selected_.group->keys[selected_.key])
+                                                      : &brushes_[selected_.key];
+        editor_.selection.set({intrusive_ptr<TreeModel> {this}, row});
+    }
+
+    wxl::core::nullable<uint32_t> selectedRow() const override {
+        auto const [section, group, key] = selected_;
+        if (!section) {
+            return {};
+        }
+        if (group) {
+            if (!styles_.expanded || (key != npos && !group->expanded)) {
+                return {};
+            }
+            return key == npos ? group->start : group->start + 1 + key;
+        }
+        if (key == npos) {
+            return section->start;
+        }
+        if (!section->expanded) {
+            return {};
+        }
+        return section->start + 1 + (section == &theme_ ? key - themeFrom_ : key);
+    }
 
 private:
     static constexpr uint32_t npos = UINT32_MAX;
@@ -1451,9 +1519,11 @@ private:
     // Строка дерева: раздел, а в разделе стилей — группа; key — номер ключа в
     // группе или в списке кистей, npos — строка самого раздела или группы.
     struct Location {
-        Section* section;
+        Section* section = nullptr;
         StyleGroup* group = nullptr;
         uint32_t key = npos;
+
+        bool operator==(Location const&) const = default;
     };
 
     // Полное имя типа цели: словарь пишет голое, а типы WinUI живут в
@@ -1553,7 +1623,9 @@ private:
     uint32_t themeFrom_ = 0;
 
     uint32_t size_ = 0;
+    Location selected_;
 };
+
 void TypesModel::invoke(uint32_t index) {
     selected_ = locate(index);
     auto const [library, space, entry] = selected_;

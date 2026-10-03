@@ -10,6 +10,7 @@
 // Это управляющий класс, а не контрол: он владеет своими элементами и пулом, а
 // приложение ставит его корень в разметку и подменяет ему модель.
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -80,8 +81,12 @@ public:
     // затем раскрывает или сворачивает.
     virtual void invoke(uint32_t index) = 0;
 
-    // Двойной щелчок по строке; первый щелчок уже пришёл в invoke().
+    // Двойной щелчок по строке или Enter; первый щелчок уже пришёл в invoke().
     virtual void activate(uint32_t) {}
+
+    // Номер выбранной строки среди видимых; пусто, если выбранного нет или оно
+    // внутри свёрнутого. От него ходят клавиши.
+    virtual wxl::core::nullable<uint32_t> selectedRow() const = 0;
 
     // Сведения о строке, выбранной в этой модели.
     virtual Description describe() const { return {}; }
@@ -109,6 +114,7 @@ private:
 
     struct Row {
         wxl::StackPanel panel;
+        wxl::Border marker;  // черта выбранной строки, когда дерево в фокусе
         wxl::Border indent;
         wxl::TextBlock glyph;
         wxl::TextBlock check;
@@ -123,6 +129,13 @@ private:
     void paint(uint32_t slot);
     void resize(double height);
     void wheel(wxl::UIElement const& source, wxl::PointerRoutedEventArgs& args);
+    void key(wxl::KeyRoutedEventArgs& args);
+    bool typeAhead(char16_t character);
+    void expandAll(uint32_t index);
+    void select(uint32_t index);
+    void scrollIntoView(uint32_t index);
+    void takeFocus();
+    void focus(bool focused);
     void scrollBy(int64_t lines);
     void scrollTo(uint32_t top);
     void render();
@@ -154,6 +167,10 @@ private:
     // Ячейка пула под указателем. Ячейка, а не строка модели: при листании
     // под неподвижным указателем остаётся та же ячейка с другой строкой.
     wxl::core::nullable<uint32_t> hovered_;
+
+    bool focused_ = false;
+    std::u16string typed_;  // набранное поиском по первым буквам
+    std::chrono::steady_clock::time_point typedAt_;
 };
 
 }  // namespace editor
