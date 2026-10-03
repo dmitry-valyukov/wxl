@@ -48,7 +48,7 @@ auto example = Grid {
                 model->animation.to(model->translate.x() > 0 ? 0.0 : 200.0);
                 model->storyboard.begin();
             }},
-    Rectangle {column = 1, width = 50, height = 50, hAlign.left, fill = brushes.Accent.FillColor.Default, renderTransform = model->translate},
+    Rectangle {column = 1, width = 50, height = 50, hAlign.left, fill = resourceBrush(u"SystemAccentColor"), renderTransform = model->translate},
 };
 
 auto options = StackPanel {

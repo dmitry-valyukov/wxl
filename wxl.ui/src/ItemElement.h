@@ -12,8 +12,8 @@
 
 namespace wxl {
 
-/// The element made for `item`, or an empty one when the item has no container in view -- a container
-/// is made when the item comes into view and goes back to the queue when it leaves it.
-UIElement itemElement(ListViewBase const& list, Object const& item);
+/// The element made for `item`, or nothing when the item has no container in view -- a container is made when
+/// the item comes into view and goes back to the queue when it leaves it.
+core::nullable<UIElement> itemElement(ListViewBase const& list, Object const& item);
 
 }  // namespace wxl

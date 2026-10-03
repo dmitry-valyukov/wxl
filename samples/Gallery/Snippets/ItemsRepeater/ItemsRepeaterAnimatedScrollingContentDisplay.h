@@ -5,8 +5,11 @@ auto const* colors = &gallery::namedColors();
 struct Model {
     ScrollViewer scroll {width = 250, height = 175};
     ItemsRepeater repeater;
-    Rectangle swatch {column = 1, width = 150, height = 150, Margin {10, 0, 0, 0}, stroke = brushes.SystemControl.Foreground.Base.High};
+    Rectangle swatch {column = 1, width = 150, height = 150, Margin {10, 0, 0, 0}, stroke = brushes.SystemControl.Foreground.Base.High,
+                      automationName = u"ColorRectangle"};
     int previouslyFocusedIndex = -1;
+    core::nullable<Button> selected;  // the button of the color chosen last
+    char16_t const* selectedName = u"";
 };
 auto const model = gallery::hold<Model>();
 
@@ -17,7 +20,17 @@ auto const colorButton = [model, colors](Object const& item) {
         background = entry.color,
         foreground = brushes.Text.FillColor.Inverse,
         content = entry.name,
-        onClick = [model](Button const& self) { model->swatch.fill(self.background()); },
+        onClick = [model, name = entry.name](Button const& self) {
+            model->swatch.fill(self.background());
+            announce(self, std::u16string {u"Rectangle color set to "} + name, u"RectangleChangedNotificationActivityId");
+            // The button of the color chosen is named so for a screen reader, the one before it by its own words again.
+            if (model->selected) {
+                model->selected->automationName(model->selectedName);
+            }
+            self.automationName(std::u16string {name} + u" , selected");
+            model->selected = self;
+            model->selectedName = name;
+        },
         onGotFocus = [model](Button const& self) {
             // Remember the index, so focus lands on it again when it leaves the repeater and comes back.
             model->previouslyFocusedIndex = model->repeater.getElementIndex(self);

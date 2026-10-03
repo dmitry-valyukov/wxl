@@ -6,6 +6,7 @@
 #include <chrono>
 #include <memory>
 #include <vector>
+#include "ResourceBrush.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Documents.h"
 #include "generated/Microsoft.UI.Xaml.Media.h"

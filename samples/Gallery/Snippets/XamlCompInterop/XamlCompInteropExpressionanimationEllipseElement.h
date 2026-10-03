@@ -8,10 +8,10 @@ auto const run = [spring](UIElement const& element, float finalValue) {
     element.startAnimation(spring);
 };
 
-auto const rectangle = Rectangle {width = 50, height = 50, fill = brushes.Accent.FillColor.Default,
+auto const rectangle = Rectangle {width = 50, height = 50, fill = resourceBrush(u"SystemAccentColor"),
                                   onPointerEntered = [run](Rectangle const& self) { run(self, 1.5f); },
                                   onPointerExited = [run](Rectangle const& self) { run(self, 1.0f); }};
-auto const ellipse = Ellipse {column = 1, width = 50, height = 50, Margin {55, 0}, fill = brushes.Accent.FillColor.Default};
+auto const ellipse = Ellipse {column = 1, width = 50, height = 50, Margin {55, 0}, fill = resourceBrush(u"SystemAccentColor")};
 
 // The scale of the circle is worked out from the scale of the square, by an expression: the one is the other's inverse.
 auto const expression = compositor.createExpressionAnimation();

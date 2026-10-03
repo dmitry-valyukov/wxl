@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include "generated/Microsoft.UI.Composition.h"
+#include "ResourceBrush.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Input.h"
 #include "generated/Microsoft.UI.Xaml.Media.h"

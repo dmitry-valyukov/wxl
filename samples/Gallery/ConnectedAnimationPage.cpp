@@ -10,6 +10,7 @@
 #include "generated/Microsoft.UI.Dispatching.h"
 #include "MotionPages.h"
 #include "PagedFrame.h"
+#include "ResourceBrush.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Media.Animation.h"
 #include "generated/Microsoft.UI.Xaml.h"

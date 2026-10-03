@@ -4,6 +4,7 @@
 #include "Shell.h"
 #include "MotionPages.h"
 #include "StringList.h"
+#include "ResourceBrush.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "generated/Microsoft.UI.Xaml.Shapes.h"
 

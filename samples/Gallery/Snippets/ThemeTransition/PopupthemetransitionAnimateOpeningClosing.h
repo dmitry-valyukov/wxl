@@ -22,4 +22,4 @@ model->close.add_onClick([model](auto&&...) {
     model->show.focus(FocusState::Programmatic);
 });
 
-auto example = Grid {model->show, model->popup};
+auto example = ContentControl {fontFamily = u"Consolas", content = Grid {model->show, model->popup}};

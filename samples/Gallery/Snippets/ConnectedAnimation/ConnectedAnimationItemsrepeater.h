@@ -8,6 +8,7 @@ struct Model {
     ItemsRepeater repeater;
     ScrollViewer scroll;
     int stored = -1;  // the position of the item tapped
+    double offset = 0;  // where the list was scrolled to
     gallery::DetailedInfoPage detail;
 };
 auto const model = gallery::hold<Model>();
@@ -28,6 +29,7 @@ auto const repeaterPage = [model, objects, items] {
             args.element().add_onTapped([model](auto const& sender, TappedRoutedEventArgs&) {
                 auto const element = sender.try_as<UIElement>();
                 model->stored = model->repeater.getElementIndex(element);
+                model->offset = model->scroll.verticalOffset();
                 if (auto const grid = element.try_as<Grid>()) {
                     ConnectedAnimationService::getForCurrentView().prepareToAnimate(u"ForwardConnectedAnimation", grid.children()[0]);
                 }
@@ -37,6 +39,8 @@ auto const repeaterPage = [model, objects, items] {
                         model->detail.goBack.add_onClick([model](auto&&...) {
                             ConnectedAnimationService::getForCurrentView().prepareToAnimate(u"BackConnectedAnimation", model->detail.image);
                             model->frame.back();
+                            // The list is made again by back(); it is put to where it was.
+                            model->scroll.changeView(core::nullable<double> {}, model->offset, core::nullable<float> {}, true);
                             // The animation goes back to the element of the item.
                             if (auto const animation = ConnectedAnimationService::getForCurrentView().getAnimation(u"BackConnectedAnimation")) {
                                 animation.configuration(DirectConnectedAnimationConfiguration {});

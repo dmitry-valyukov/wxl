@@ -5,7 +5,7 @@ auto const rectangle = Rectangle {
     vAlign.center,
     fill = LinearGradientBrush {startPoint = Point {0.5f, 0.0f}, endPoint = Point {0.5f, 1.0f},
                                 GradientStop {offset = 0.0, color = rgb(211, 211, 211)},
-                                GradientStop {offset = 1.0, color = rgb(0, 120, 212)}},
+                                GradientStop {offset = 1.0, color = resourceColor(u"SystemAccentColor")}},
     rotationTransition = ScalarTransition {},
 };
 

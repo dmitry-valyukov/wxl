@@ -17,5 +17,5 @@ auto example = Grid {
     minWidth = 420,
     columnDefinitions = u"auto,*",
     Button {content = u"Animate", onClick = animate},
-    Rectangle {column = 1, width = 50, height = 50, hAlign.left, fill = brushes.Accent.FillColor.Default, renderTransform = translate},
+    Rectangle {column = 1, width = 50, height = 50, hAlign.left, fill = resourceBrush(u"SystemAccentColor"), renderTransform = translate},
 };

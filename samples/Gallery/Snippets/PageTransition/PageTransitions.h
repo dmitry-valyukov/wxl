@@ -2,7 +2,7 @@
 // the navigation is the one chosen in the radio buttons.
 struct Model {
     gallery::PagedFrame frame {Frame {minHeight = 600, hAlign.stretch, contentTransitions[NavigationThemeTransition {}]}};
-    std::shared_ptr<NavigationTransitionInfo> info;  // none: the transition of the frame, as it is without an explicit one
+    core::nullable<NavigationTransitionInfo> info;  // nothing: the transition of the frame, as it is without an explicit one
 };
 auto const model = gallery::hold<Model>();
 
@@ -26,14 +26,14 @@ auto options = StackPanel {
         selectedIndex = 0,
         onSelectionChanged = [model](RadioButtons const& self) {
             switch (self.selectedIndex()) {
-            case 1: model->info = std::make_shared<NavigationTransitionInfo>(EntranceNavigationTransitionInfo {}); break;
-            case 2: model->info = std::make_shared<NavigationTransitionInfo>(DrillInNavigationTransitionInfo {}); break;
-            case 3: model->info = std::make_shared<NavigationTransitionInfo>(SuppressNavigationTransitionInfo {}); break;
-            case 4: model->info = std::make_shared<NavigationTransitionInfo>(SlideNavigationTransitionInfo {effect = SlideNavigationTransitionEffect::FromRight}); break;
-            case 5: model->info = std::make_shared<NavigationTransitionInfo>(SlideNavigationTransitionInfo {effect = SlideNavigationTransitionEffect::FromLeft}); break;
-            case 6: model->info = std::make_shared<NavigationTransitionInfo>(CommonNavigationTransitionInfo {}); break;
-            case 7: model->info = std::make_shared<NavigationTransitionInfo>(ContinuumNavigationTransitionInfo {}); break;
-            default: model->info.reset(); break;
+            case 1: model->info = EntranceNavigationTransitionInfo {}; break;
+            case 2: model->info = DrillInNavigationTransitionInfo {}; break;
+            case 3: model->info = SuppressNavigationTransitionInfo {}; break;
+            case 4: model->info = SlideNavigationTransitionInfo {effect = SlideNavigationTransitionEffect::FromRight}; break;
+            case 5: model->info = SlideNavigationTransitionInfo {effect = SlideNavigationTransitionEffect::FromLeft}; break;
+            case 6: model->info = CommonNavigationTransitionInfo {}; break;
+            case 7: model->info = ContinuumNavigationTransitionInfo {}; break;
+            default: model->info = nullptr; break;
             }
         },
     },

@@ -1,4 +1,4 @@
-auto const rectangle = Rectangle {width = 50, height = 50, Margin {45, 5, 5, 5}, vAlign.top, fill = brushes.Accent.FillColor.Default,
+auto const rectangle = Rectangle {width = 50, height = 50, Margin {45, 5, 5, 5}, vAlign.top, fill = resourceBrush(u"SystemAccentColor"),
                                   translationTransition = Vector3Transition {}};
 
 struct Model {

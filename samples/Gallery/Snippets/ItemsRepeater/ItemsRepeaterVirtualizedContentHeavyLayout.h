@@ -21,10 +21,14 @@ struct Model {
     ItemsRepeater repeater;
     TextBox filter {header = u"Filter by ingredient...", width = 200, Margin {0, 0, 0, 20}, hAlign.left, vAlign.top};
     bool descending = false;
+    Object shown = keyedIndexList();  // the positions of the recipes on show; the items of the repeater
 };
 auto const model = gallery::hold<Model>();
 
-auto const update = [model, recipes] {
+// Every item has a key, its position: the repeater finds again the one it showed at the top when the list is replaced.
+auto const show = [model](std::vector<int64_t> const& positions) { keyedIndexListReset(model->shown, positions.data(), positions.size()); };
+
+auto const update = [model, recipes, show] {
     // The recipes whose ingredients hold what was typed, in the order of the number of ingredients (least to most by default).
     std::vector<int64_t> shown;
     for (std::size_t i = 0; i < recipes->size(); ++i) {
@@ -37,12 +41,19 @@ auto const update = [model, recipes] {
         auto const right = (*recipes)[static_cast<size_t>(b)].ingredientList.size();
         return model->descending ? left > right : left < right;
     });
-    model->repeater.itemsSource(indexList(shown.data(), shown.size()));
+    show(shown);
+    announceOther(model->repeater, u"Filtered recipes, " + gallery::numberText(static_cast<int>(shown.size())) + u" results.",
+                  u"RecipesFilteredNotificationActivityId");
 };
 
-model->repeater = ItemsRepeater {layout = gallery::variedImageSizeLayout(200),
-                                  itemTemplate = recipeTemplate,
-                                  itemsSource = indexList(static_cast<int64_t>(recipes->size()))};
+{
+    std::vector<int64_t> all(recipes->size());
+    for (std::size_t i = 0; i < all.size(); ++i) {
+        all[i] = static_cast<int64_t>(i);
+    }
+    show(all);
+}
+model->repeater = ItemsRepeater {layout = gallery::variedImageSizeLayout(200), itemTemplate = recipeTemplate, itemsSource = model->shown};
 model->filter.add_onTextChanged([update](auto&&...) { update(); });
 
 auto example = Grid {

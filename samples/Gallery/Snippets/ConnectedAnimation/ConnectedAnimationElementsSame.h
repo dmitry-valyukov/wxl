@@ -9,7 +9,7 @@ struct Model {
     TextBlock description {Margin {0, 4, 0, 0}, foreground = brushes.Text.FillColor.Secondary, maxLines = 3, styles.TextBlock.Body,
                            textWrapping = TextWrapping::Wrap};
     Grid destination;
-    Object stored = intBox(-1);
+    core::nullable<Object> stored;
 };
 auto const model = gallery::hold<Model>();
 
@@ -32,11 +32,11 @@ auto const back = [model](auto&&...) {
         model->smoke.children().append(model->destination);
     });
     // The item may be outside the viewport: it is scrolled into view first, and the animation goes to its tile once the grid has laid itself out.
-    model->collection.scrollIntoView(model->stored, ScrollIntoViewAlignment::Default);
+    model->collection.scrollIntoView(*model->stored, ScrollIntoViewAlignment::Default);
     animation.configuration(DirectConnectedAnimationConfiguration {});
     DispatcherQueue::getForCurrentThread().tryEnqueue(DispatcherQueuePriority::Low, [model, animation] {
-        if (auto const tile = itemElement(model->collection, model->stored)) {
-            animation.tryStart(tile);
+        if (auto const tile = itemElement(model->collection, *model->stored)) {
+            animation.tryStart(*tile);
         }
     });
 };
@@ -59,11 +59,10 @@ model->smoke.children().append(model->destination);
 
 model->collection.add_onItemClick([model, objects](auto const&, ItemClickEventArgs& args) {
     model->stored = args.clickedItem();
-    auto const tile = itemElement(model->collection, model->stored);
-    if (tile) {
-        ConnectedAnimationService::getForCurrentView().prepareToAnimate(u"forwardAnimation", tile);
+    if (auto const tile = itemElement(model->collection, *model->stored)) {
+        ConnectedAnimationService::getForCurrentView().prepareToAnimate(u"forwardAnimation", *tile);
     }
-    auto const& object = (*objects)[static_cast<size_t>(intOf(model->stored))];
+    auto const& object = (*objects)[static_cast<size_t>(intOf(*model->stored))];
     model->image.source(ImageSource {object.imageLocation});
     model->title.text(object.title);
     model->description.text(object.description);

@@ -12,7 +12,7 @@ struct Model {
         verticalScrollBarVisibility = ScrollBarVisibility::Auto,
         verticalScrollMode = ScrollMode::Enabled,
     };
-    TextBlock realizedCount {text = u"Realized elements: 0 of 500"};
+    TextBlock realizedCount {text = u"Realized elements: 0 of 500", automationLiveSetting = AutomationLiveSetting::Polite};
     std::vector<UIElement> realized;
     bool updateQueued = false;
 };
@@ -71,9 +71,11 @@ auto example = StackPanel {
 auto options = StackPanel {
     spacing = 12,
     RadioButtons {
+        automationId = u"FlowLayoutOrientation",
+        automationName = u"FlowLayout orientation",
         header = u"Orientation",
-        RadioButton {content = u"Horizontal"},
-        RadioButton {content = u"Vertical"},
+        RadioButton {content = u"Horizontal", automationId = u"FlowLayoutHorizontal", automationName = u"Horizontal flow"},
+        RadioButton {content = u"Vertical", automationId = u"FlowLayoutVertical", automationName = u"Vertical flow"},
         selectedIndex = 0,
         onSelectionChanged = [model](RadioButtons const& self) {
             bool const horizontal = self.selectedIndex() == 0;
@@ -85,6 +87,8 @@ auto options = StackPanel {
         },
     },
     ComboBox {
+        automationId = u"FlowLayoutLineAlignment",
+        automationName = u"Line alignment",
         header = u"LineAlignment",
         ComboBoxItem {content = u"Start"},
         ComboBoxItem {content = u"Center"},
@@ -100,8 +104,8 @@ auto options = StackPanel {
             }
         },
     },
-    Slider {header = u"MinItemSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = 8,
+    Slider {automationId = u"FlowLayoutItemSpacing", automationName = u"Minimum item spacing", header = u"MinItemSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = 8,
             onValueChanged = [model](Slider const& self) { model->flow.minItemSpacing(self.value()); }},
-    Slider {header = u"LineSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = 8,
+    Slider {automationId = u"FlowLayoutLineSpacing", automationName = u"Line spacing", header = u"LineSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = 8,
             onValueChanged = [model](Slider const& self) { model->flow.lineSpacing(self.value()); }},
 };

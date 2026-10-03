@@ -278,6 +278,18 @@
                 "UpdateLayout"
             ],
             "syntheticMembers": {
+                "AutomationId": {
+                    "comment": "What a test or a reader's script finds the element by -- AutomationProperties.AutomationId, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_id",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLiveSetting": {
+                    "comment": "That a change of the element's text is announced by a screen reader, politely or at once -- AutomationProperties.LiveSetting, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting",
+                    "function": "impl::set_automation_live_setting",
+                    "include": "../impl/automation_properties.h"
+                },
                 "IsDragRegion": {
                     "comment": "Windowing: whether an element in a TitleBar drags the window (true), takes clicks (false) or leaves the choice to the TitleBar (empty) -- TitleBar.IsDragRegion, the attached property.",
                     "cppType": "core::nullable<bool>",
@@ -719,7 +731,10 @@
             "comment": "Gallery: the chaining of a viewer that cannot scroll, and a code block in a horizontal ScrollViewer must not keep the wheel from the page around it.",
             "members": [
                 "IsVerticalScrollChainingEnabled",
-                "IsHorizontalScrollChainingEnabled"
+                "IsHorizontalScrollChainingEnabled",
+                "VerticalOffset",
+                "HorizontalOffset",
+                "ChangeView"
             ],
             "syntheticMembers": {
                 "WheelToParent": {

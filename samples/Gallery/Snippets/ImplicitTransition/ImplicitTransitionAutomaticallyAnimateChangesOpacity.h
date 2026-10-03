@@ -1,5 +1,5 @@
 // A change of Opacity runs over the duration of the transition instead of happening at once.
-auto const rectangle = Rectangle {width = 50, height = 50, Margin {45, 5, 5, 5}, vAlign.center, fill = brushes.Accent.FillColor.Default,
+auto const rectangle = Rectangle {width = 50, height = 50, Margin {45, 5, 5, 5}, vAlign.center, fill = resourceBrush(u"SystemAccentColor"),
                                   opacity = 0.5, opacityTransition = ScalarTransition {}};
 
 // The number in the box, 0 when it has none.

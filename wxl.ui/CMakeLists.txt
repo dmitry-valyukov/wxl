@@ -193,6 +193,14 @@ add_library(wxl.ui STATIC
     src/Navigation.cpp
     src/ItemElement.h
     src/ItemElement.cpp
+    src/Announce.h
+    src/Announce.cpp
+    src/ResourceBrush.h
+    src/ResourceBrush.cpp
+    src/KeyedIndexList.h
+    src/KeyedIndexList.cpp
+    src/impl/automation_properties.h
+    src/impl/automation_properties.cpp
     src/AppZoom.h
     src/AppZoom.cpp
     src/ZoomEffect.h
