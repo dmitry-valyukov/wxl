@@ -2,7 +2,7 @@ Border {
     CornerRadius {8},
     Padding {18, 12},
     background = RadialGradientBrush {
-        center = {0.33, 0.33},
+        center = Point {0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.3,
         radiusY = 1.3,

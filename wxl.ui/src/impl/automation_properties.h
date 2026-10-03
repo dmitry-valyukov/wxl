@@ -19,4 +19,6 @@ void set_automation_id(winrt::Microsoft::UI::Xaml::UIElement const& element, hst
 
 void set_automation_live_setting(winrt::Microsoft::UI::Xaml::UIElement const& element, AutomationLiveSetting setting);
 
+void set_automation_accessibility_view(winrt::Microsoft::UI::Xaml::UIElement const& element, AccessibilityView view);
+
 }  // namespace wxl::impl

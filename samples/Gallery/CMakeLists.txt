@@ -37,6 +37,7 @@ wxl_add_executable(sample.gallery
     CustomDataObject.cpp
     Layouts.cpp
     MotionPages.cpp
+    LottieLogo.cpp
     NavigationPages.cpp
     TabViewWindowing.cpp
     PagedFrame.cpp
@@ -76,6 +77,14 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    AnimatedVisualPlayerPage.cpp
+    CaptureElementPreviewPage.cpp
+    InkCanvasPage.cpp
+    MapControlPage.cpp
+    MediaPlayerElementPage.cpp
+    SoundPage.cpp
+    PersonPicturePage.cpp
+    ImagePage.cpp
     TabViewPage.cpp
     NavigationViewPage.cpp
     PivotPage.cpp
@@ -160,3 +169,9 @@ target_include_directories(sample.gallery PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 wxl_target_assets(sample.gallery Assets)
 target_link_libraries(sample.gallery PRIVATE wxl::json)
+
+# LottieLogo.cpp -- код анимации Lottie, написанный на объектах Composition и Win2D самой платформы, -- единственный файл
+# приложения, которому нужны заголовки проекции; наружу он отдаёт один wxl::Object. Остальным они остаются закрыты.
+set_source_files_properties(LottieLogo.cpp PROPERTIES INCLUDE_DIRECTORIES
+    "${WXL_CPPWINRT_PROJECTION_DIR};${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include;${WXL_WINDOWSAPPSDK_WINUI_DIR}/include")
+target_link_libraries(sample.gallery PRIVATE Microsoft::CppWinRT)
