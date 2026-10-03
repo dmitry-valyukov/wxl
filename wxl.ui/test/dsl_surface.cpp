@@ -8,6 +8,20 @@
 //
 // Nothing here runs: the WinUI3 runtime is not up in a test, and activating
 // a real control without it fails. This is about the syntax and the types.
+//
+// The same target compiles generated/schema_surface.cpp: one line per
+// element of the generated schema.h, and nothing else. What it proves is
+// that every anchor the schema offers actually applies to the class it hangs
+// on -- that the key reaches a setter that class has, that the value type the
+// schema names is one that setter takes, and that the owner check passes for
+// the class itself. It is generated from the same closure as the schema,
+// which is what makes the coverage rule enforceable: a new type or a new
+// member appears in both files or in neither.
+//
+// The one thing it cannot check is the negative: that the owner check
+// *refuses* another class's member. The check is a static_assert inside a
+// function body, and a body is not instantiated by a requires-expression, so
+// there is no way to assert that it fires.
 
 #include "BbBlock.h"
 #include "Bind.h"
@@ -1097,6 +1111,7 @@ static_assert(!background_takes<Color>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(content = L"a")>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(onClick = [](Button const&) {})>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(content)>>);
+    static_assert(impl::describes<std::remove_cvref_t<decltype(orientation)>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(onClick)>>);
     static_assert(impl::describes<Margin>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(styles.TextBlock.Header)>>);
@@ -1113,6 +1128,34 @@ static_assert(!background_takes<Color>);
     // mistake surfaces at the very next step.
     static_assert(!impl::describes<Button>);
     static_assert(!impl::describes<std::remove_cvref_t<decltype(hAlign.center)>>);
+}
+
+template <typename T>
+concept declares_orientation_tag = requires { typename T::OrientationTag; };
+
+template <typename T>
+concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
+
+// The values of an enumeration are written once, with the enumeration, and
+// every property over it carries them: the flat tag and the schema anchor
+// alike, and two properties over one enumeration share the one description.
+// A schema class offers its members and no helper type beside them.
+[[maybe_unused]] void an_enumeration_carries_its_values_once() {
+    namespace x = dsl::schema;
+
+    static_assert(orientation.horizontal == Orientation::Horizontal);
+    static_assert(x::Slider::orientation.vertical == Orientation::Vertical);
+    static_assert(x::StackPanel::orientation.horizontal == orientation.horizontal);
+
+    static_assert(horizontalContentAlignment.center == horizontalAlignment.center);
+    static_assert(horizontalContentAlignment.stretch == HorizontalAlignment::Stretch);
+
+    // A value taken from the tag is the op the enumerator itself makes.
+    static_assert(std::same_as<decltype(orientation = orientation.horizontal),
+                               decltype(orientation = Orientation::Horizontal)>);
+
+    static_assert(!declares_orientation_tag<x::Slider>);
+    static_assert(!declares_snaps_to_tag<x::Slider>);
 }
 
 // The schema, written the way it is meant to be read.
@@ -1673,6 +1716,13 @@ struct probe_task {
     ::wxl::SplitPanel const split{orientation.vertical, panePlacement.right, openPaneLength = 200.0,
                                   content = top, pane = bottom};
     (void)split;
+}
+
+// UiThread::onIdle -- written by hand: awaited in a detached task, between steps of work.
+[[maybe_unused]] ::wxl::async::detached_task idle_between_steps(int steps) {
+    while (steps-- > 0) {
+        co_await ::wxl::UiThread::onIdle();
+    }
 }
 
 }  // namespace

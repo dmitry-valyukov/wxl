@@ -278,6 +278,55 @@ public:
         return true;
     }
 
+    /// A place among the elements published and not read yet, for a reader that has to
+    /// look further than the next one without taking anything.
+    ///
+    /// Valid while the reading thread reads nothing past it: the blocks it stands in are
+    /// the reader's until reading moves beyond them and hands them back to the writer.
+    class lookahead
+    {
+    public:
+        lookahead() noexcept = default;
+
+        bool operator==(const lookahead&) const noexcept = default;
+
+    private:
+        friend class reader;
+
+        lookahead(block* at, size_t index) noexcept : block_(at), index_(index) {}
+
+        block* block_{};
+        size_t index_{};
+    };
+
+    /// Where the next read() would start.
+    lookahead look_ahead() const noexcept { return {read_cursor_, read_index_}; }
+
+    /// Steps `at` over the next element the writer has published.
+    ///
+    /// The same acquire load of a block's count that read() makes, and the link to the next
+    /// block is followed only once the count says the writer has filled this one -- the
+    /// release store that published the count published the link with it.
+    ///
+    /// @return the element stepped over, left in place; `nullptr` at the end of what has
+    ///         been published, with `at` staying there to carry on from later.
+    element_t* peek(lookahead& at) const noexcept {
+        size_t published = at.block_->index_.load(std::memory_order_acquire);
+
+        if (at.index_ == published) {
+            if (published != block_size) return nullptr;
+
+            at.block_ = at.block_->next_;
+            at.index_ = 0;
+
+            published = at.block_->index_.load(std::memory_order_acquire);
+
+            if (published == 0) return nullptr;
+        }
+
+        return at.block_->item(at.index_++);
+    }
+
 private:
     /// Re-reads what the writer has published, stepping to the next block once this one is
     /// drained. Handing the old block back is what frees it: the release store that

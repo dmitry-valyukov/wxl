@@ -17,24 +17,24 @@
 // Which members of a type participate in generation -- and therefore in
 // the dependency walk, since a member that isn't generated can't drag its
 // parameter/return types into the closure.
-struct MemberFilter {
-    enum class Kind {
+struct member_filter {
+    enum class kind_t {
         All,    // profile listed the type without member constraints
         None,   // type never listed; only reached through the walk
         Allow,  // "members": [...]
         Deny,   // "excludeMembers": [...]
     };
 
-    Kind kind = Kind::None;
+    kind_t kind = kind_t::None;
     std::set<std::string> names;
 
-    inline static MemberFilter all() { return {Kind::All, {}}; }
-    inline static MemberFilter none() { return {Kind::None, {}}; }
-    inline static MemberFilter allow(std::set<std::string> names) {
-        return {Kind::Allow, std::move(names)};
+    inline static member_filter all() { return {kind_t::All, {}}; }
+    inline static member_filter none() { return {kind_t::None, {}}; }
+    inline static member_filter allow(std::set<std::string> names) {
+        return {kind_t::Allow, std::move(names)};
     }
-    inline static MemberFilter deny(std::set<std::string> names) {
-        return {Kind::Deny, std::move(names)};
+    inline static member_filter deny(std::set<std::string> names) {
+        return {kind_t::Deny, std::move(names)};
     }
 
     bool allows(std::string_view name) const;
@@ -42,9 +42,9 @@ struct MemberFilter {
     // Union of two member surfaces. The same type is routinely reached
     // from several profiles (or from a profile and the one it extends) --
     // it's still generated once, with everything any of them asked for.
-    void merge(MemberFilter const& other);
+    void merge(member_filter const& other);
 
-    friend bool operator==(MemberFilter const&, MemberFilter const&) = default;
+    friend bool operator==(member_filter const&, member_filter const&) = default;
 };
 
 // A property wxl gives a type although WinRT has none: the minimum size of
@@ -56,7 +56,7 @@ struct MemberFilter {
 // Four things say it, and the type it belongs to is the profile entry it is
 // written under: the property's name, the type of its value, the function
 // behind it, and the header declaring that function.
-struct SyntheticMember {
+struct synthetic_member {
     std::string name;      // "MinSize", spelled as metadata would
     std::string type;      // the value's type in metadata form, "Windows.Graphics.SizeInt32"
     std::string function;  // "impl::set_minimum_size", under namespace wxl
@@ -85,7 +85,7 @@ struct SyntheticMember {
 // definite class to build, the tag also takes the braces that build one:
 // `titleBar = { leftHeader = ..., content = ... }`. Empty keeps the parameter's
 // own type and the ordinary assignment.
-struct SetterMethod {
+struct setter_method {
     std::string method;  // "SetTitleBar", spelled as metadata spells it
     std::string type;    // "Microsoft.UI.Xaml.Controls.TitleBar", or empty
 };
@@ -98,7 +98,7 @@ struct SetterMethod {
 // that release, which declares one for every package in it -- see
 // `windows_app_sdk` below. A package from outside the SDK has no such
 // declaration to read, so it names its own version and must.
-struct PackageRef {
+struct package_ref {
     std::string id;
     std::vector<std::string> metadata;
 
@@ -113,7 +113,7 @@ struct PackageRef {
 };
 
 // One profile file, as loaded -- `extends` is not yet resolved here.
-struct Profile {
+struct profile {
     std::string name;
     std::string description;
     std::filesystem::path source;
@@ -127,24 +127,24 @@ struct Profile {
     // choice to the one it extends.
     std::string windows_app_sdk;
 
-    std::vector<PackageRef> packages;
-    std::map<std::string, MemberFilter> types;  // "Microsoft.UI.Xaml.Controls.Button" -> filter
-    std::map<std::string, std::vector<SyntheticMember>> synthetic;  // by the same type name
-    std::map<std::string, std::vector<SetterMethod>> setter_methods;  // by the same type name
+    std::vector<package_ref> packages;
+    std::map<std::string, member_filter> types;  // "Microsoft.UI.Xaml.Controls.Button" -> filter
+    std::map<std::string, std::vector<synthetic_member>> synthetic;  // by the same type name
+    std::map<std::string, std::vector<setter_method>> setter_methods;  // by the same type name
 
     // The named styles of a listed type, by dictionary key: "styles": [...]
     // under the type's entry narrows them to those; a type listed without it
     // keeps all of its own (All). A style belongs with its type because
     // without the type it is not generated anyway -- there is nothing to
     // apply it to. A type the profile does not list has no entry here.
-    std::map<std::string, MemberFilter> styles;  // by the same type name
+    std::map<std::string, member_filter> styles;  // by the same type name
 
     // The named brushes, by dictionary key: "brushes": [...] at the top of
     // the profile narrows them to those; without it, All. A brush belongs to
     // no type, so it is listed on its own.
-    MemberFilter brushes = MemberFilter::all();
+    member_filter brushes = member_filter::all();
 
-    MemberFilter discovered = MemberFilter::none();
+    member_filter discovered = member_filter::none();
     bool windows_metadata = false;
 };
 
@@ -155,9 +155,9 @@ struct Profile {
 // This is not a profile. A profile says what to generate; this says what wxl
 // itself is, which is the same for every profile -- so it lives in one shared
 // file (profiles/types.json) that a run reads once.
-struct TypeMap {
+struct type_map {
     // A WinRT type wxl does not wrap because it already owns an equivalent.
-    struct Projection {
+    struct projection {
         std::string metadata_name;  // "Windows.Foundation.Size"
         std::string cpp_name;       // "Size", under namespace wxl
         std::string include;        // header defining it, as the output writes it
@@ -169,7 +169,7 @@ struct TypeMap {
     };
 
     // A property whose own type cannot identify it, and the tag that can.
-    struct Tag {
+    struct tag {
         std::string property_name;  // "Margin", as the metadata spells it
         std::string name;           // "Margin", the tag type under namespace wxl
         std::string value_type;     // "Thickness" -- what the tag is a tag over
@@ -180,7 +180,7 @@ struct TypeMap {
     // which no metadata declares and which the builder syntax is still to
     // write in braces. The dispatch behind a tag is a template on the object,
     // so the key and the tag are all it takes; the class declares the member.
-    struct HandWrittenProperty {
+    struct hand_written_property {
         std::string name;        // "Zoom", as metadata would spell it
         std::string value_type;  // "double" -- the braced form's type, under namespace wxl
         std::string include;     // header defining that type, or empty
@@ -191,7 +191,7 @@ struct TypeMap {
     // it and no setter writes it, a pair in impl/binding.h reads it off the
     // control. It gets the key, the tag, the class's schema anchor and a test
     // line binding it in the direction the pair takes.
-    struct BoundMember {
+    struct bound_member {
         std::string class_name;  // "Microsoft.UI.Xaml.Controls.NumberBox"
         std::string name;        // "IntermediateValue", as metadata would spell it
         std::string value_type;  // "double" -- the observable's type, under namespace wxl
@@ -201,65 +201,63 @@ struct TypeMap {
 
     std::set<std::string> given_from_above;
     std::set<std::string> implicit_roots;
-    std::vector<Projection> projections;
-    std::vector<Tag> tags;
+    std::vector<projection> projections;
+    std::vector<tag> tags;
 
     // The same for events -- CompositionWindow's ClientSizeChanged: a key, an
     // `on...` tag, and an EventAdder calling the class's add_on.../remove_on....
-    std::vector<HandWrittenProperty> hand_written_properties;
+    std::vector<hand_written_property> hand_written_properties;
     std::set<std::string> hand_written_events;
-    std::vector<BoundMember> bound_members;
+    std::vector<bound_member> bound_members;
 };
 
 // Reads profiles/types.json. Throws std::runtime_error naming the file on
 // malformed JSON or an entry missing a required key.
-TypeMap load_type_map(std::filesystem::path const& path);
-
-// Installs the map for the run. Everything that asks about a type -- the
-// walk's boundary, the projections, the tags -- reads it back through
-// type_map(), so it is set once in main() rather than threaded through
-// every call.
-void use_type_map(TypeMap map);
-TypeMap const& type_map();
+type_map load_type_map(std::filesystem::path const& path);
 
 // Several profiles (plus everything they reference, transitively) merged
 // into the single input the crawler actually walks.
-struct ProfileSet {
+struct profile_set {
     std::vector<std::string> loaded;               // profile names, in load order
     std::vector<std::filesystem::path> metadata;   // .winmd files to open
     std::vector<std::filesystem::path> resources;  // XAML dictionaries to read
-    std::map<std::string, MemberFilter> types;     // roots of the walk
-    std::map<std::string, std::vector<SyntheticMember>> synthetic;  // properties wxl adds
-    std::map<std::string, std::vector<SetterMethod>> setter_methods;  // methods written as tags
+    std::map<std::string, member_filter> types;     // roots of the walk
+    std::map<std::string, std::vector<synthetic_member>> synthetic;  // properties wxl adds
+    std::map<std::string, std::vector<setter_method>> setter_methods;  // methods written as tags
 
     // Merged the way members are, as a union: a profile that lists a type
     // without "styles", or has no "brushes", asks for all of them, and so
     // the merge does. A type no profile lists keeps all of its styles.
-    std::map<std::string, MemberFilter> styles;
-    MemberFilter brushes = MemberFilter::none();  // None until the first profile merges in
+    std::map<std::string, member_filter> styles;
+    member_filter brushes = member_filter::none();  // None until the first profile merges in
 
-    MemberFilter discovered = MemberFilter::none();
+    member_filter discovered = member_filter::none();
+
+    // The Windows platform metadata directory a profile asked for
+    // ("windowsMetadata") and this machine does not have, or empty. The walk
+    // then stops at every Windows type it reaches, so a run says so.
+    std::filesystem::path missing_windows_metadata;
 };
 
 // Reads a single profile file. Throws std::runtime_error with the file
 // name on malformed JSON, on an unknown key shape, or on a type that
 // carries both "members" and "excludeMembers" (mutually exclusive by
 // design -- a member named in both would be a straight contradiction).
-Profile load_profile(std::filesystem::path const& path);
+profile load_profile(std::filesystem::path const& path);
 
 // Loads every named profile plus, transitively, the profiles they
 // `extends`, and merges them. A profile reference is either a path or a
 // bare name resolved as `<dir of the referencing profile>/<name>.json`.
 // Diamonds are loaded once; cycles are an error.
-ProfileSet resolve_profiles(std::vector<std::filesystem::path> const& paths,
-                            std::filesystem::path const& nuget_root);
+profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
+                             std::filesystem::path const& nuget_root);
 
 // %NUGET_PACKAGES%, or %USERPROFILE%\.nuget\packages when unset.
 std::filesystem::path default_nuget_root();
 
 // One named glyph of the icon font: the name a `FluentSymbol` is written
 // under, and the code point behind it.
-struct Symbol {
+struct symbol {
     std::string name;
     uint32_t code = 0;
 };
@@ -270,8 +268,4 @@ struct Symbol {
 // standing as types.json. Throws std::runtime_error naming the file on
 // malformed JSON, on a code point that is not four hex digits, and on a name
 // or a code point used twice.
-std::vector<Symbol> load_symbol_names(std::filesystem::path const& path);
-
-// Installs the names for the run, the way use_type_map() installs the map.
-void use_symbol_names(std::vector<Symbol> names);
-std::vector<Symbol> const& symbol_names();
+std::vector<symbol> load_symbol_names(std::filesystem::path const& path);

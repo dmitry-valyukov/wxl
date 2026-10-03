@@ -20,7 +20,7 @@ class ResourcesModel;
 class Editor : public wxl::core::sta_refcounted {
 public:
     // Читает профиль, открывает метаданные его пакетов и читает их словари.
-    static wxl::core::intrusive_ptr<Editor> open(std::filesystem::path const& profile);
+    static wxl::core::intrusive_ptr<Editor> open(std::filesystem::path const& prof);
 
     ~Editor() override;
 
@@ -30,6 +30,10 @@ public:
     // Левое дерево, вкладка Resources: стили по своим типам и кисти.
     wxl::core::intrusive_ptr<TreeModel> resources() const;
 
+    // Переход по ссылке из сведений: раскрывает тип в дереве Types и выбирает
+    // его; номер его строки среди видимых, если такой тип там есть.
+    wxl::core::nullable<uint32_t> reveal(std::wstring_view type) const;
+
     // Правое дерево: члены выбранного типа; пусто, пока тип не выбран.
     wxl::core::observable<wxl::core::intrusive_ptr<TreeModel>> members;
 
@@ -37,8 +41,17 @@ public:
     wxl::core::observable<std::u16string> title;
     wxl::core::observable<std::u16string> typeName;
 
-    // Справа внизу: сведения о строке, выбранной последней в любом из
-    // деревьев, — разметка HtmlBlock.
+    // Строка, выбранная последней в любом из деревьев: её модель и сама строка.
+    struct Selection {
+        wxl::core::intrusive_ptr<TreeModel> model;
+        void const* row = nullptr;
+
+        bool operator==(Selection const&) const = default;
+    };
+    wxl::core::observable<Selection> selection;
+
+    // Справа внизу: сведения о выбранной строке — разметка HtmlBlock. Следует
+    // за выбором и за профилем.
     wxl::core::observable<std::wstring> info;
 
     // Строка состояния: полный путь открытого профиля.
@@ -46,6 +59,13 @@ public:
 
     // Отметка изменила профиль: деревья перечитывают видимые строки.
     wxl::core::observable<uint32_t> revision;
+
+    // Открыта документация, разобранная не вся: сведениям хватает найти член,
+    // а остальное окно дочитывает в фоне, шагами prepareDocumentation().
+    wxl::core::observable<bool> documentationPending;
+
+    // Один шаг фонового разбора, в несколько миллисекунд; остался ли ещё.
+    bool prepareDocumentation();
 
 private:
     Editor();

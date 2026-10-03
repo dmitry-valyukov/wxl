@@ -120,7 +120,7 @@ wxl::Teardown wxl_launched() {
     auto window = CompositionWindow {
         title = u"WXL Quadratic",
         minSize = {910, 390},
-        background = BackgroundImage {u"Assets/bk2.jpg", BackgroundFill::UniformToFill},
+        background = BackgroundImage {u"Assets/GlassBackdrop.png", BackgroundFill::UniformToFill},
         Card {
             GlassEffect {blurRadius = 24.0f},
             background = rgba(255, 255, 255, 0.35),
@@ -186,7 +186,7 @@ wxl::Teardown wxl_launched() {
         }
     };
 
-    window.appWindow().resize({1380, 800});
+    window.appWindow().resize({1024, 480});
     window.activate();
 
     // Продлеваем время жизни модели

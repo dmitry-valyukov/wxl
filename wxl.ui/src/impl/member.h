@@ -1,21 +1,25 @@
 #pragma once
 
-// The construction-time DSL: what `Content = L"Click"` and `OnClick = ...`
+// The construction-time DSL: what `content = L"Click"` and `onClick = ...`
 // actually are, and how a constructor applies them.
 //
 // Construction is the only mechanism -- there is no ambient "current
 // object" a statement could land on. Each named-argument-style assignment
 // inside the braces evaluates to a small deferred op, and the class's
 // variadic constructor applies the whole pack to the freshly activated
-// object in order. That is what makes `Button { Content = ..., Margin = ... }`
+// object in order. That is what makes `Button { content = ..., margin = ... }`
 // one expression rather than a sequence of statements, and it is why the
 // same syntax cannot silently write to the wrong object when hand-written
 // and declarative code are mixed.
 //
-// Nothing here names a property or an event: the per-key dispatch lives in
-// the generated Members.h, which specialises PropertySetter / EventAdder
-// below. This header therefore stays the same size whatever the profile
-// generates.
+// Nothing here names a property or an event: the vocabulary lives in the
+// generated Members.h. It specialises impl::enum_values below once per
+// enumeration a property has, PropertySetter / EventAdder once per key, and
+// in namespace dsl it declares one tag per property, then the attached
+// properties -- written on the child, applied by the parent's statics,
+// `Button { row = 1, column = 2 }` inside a Grid -- then the collection tags,
+// then one event tag per event. This header therefore stays the same size
+// whatever the profile generates.
 
 #include "../Color.h"
 #include "../Object.h"
@@ -245,7 +249,7 @@ struct SetterOp {
 };
 
 // A pending subscription. Returns the token, so the same op serves the
-// procedural form (`element[OnClick] += handler`) where the caller wants it.
+// procedural form (`element[onClick] += handler`) where the caller wants it.
 template <EventKey key, typename Fn, typename Owner = void>
 struct AddEventOp {
     Fn handler_;
@@ -268,7 +272,7 @@ struct RemoveEventOp {
     }
 };
 
-// The shorthand form `OnClick = {Content = L"Thank You!"}`: a handler whose
+// The shorthand form `onClick = {content = L"Thank You!"}`: a handler whose
 // whole body is assignments back to the object the event was attached to.
 template <EventKey key, typename Setter, typename Owner = void>
 struct SettersEventOp {
@@ -298,21 +302,32 @@ struct PropertyTag {
     }
 };
 
+// The values of an enumeration as the syntax spells them: `orientation.horizontal`
+// instead of `orientation = Orientation::Horizontal`. Empty for every type the
+// generated Members.h does not specialise; a specialisation names each value once
+// and has to be visible before the first Property over that enumeration is
+// instantiated.
+template <typename E>
+struct enum_values {};
+
 }  // namespace impl
 
 // A property tag -- the object the DSL writes on the left of the `=`.
 //
 // `Value` is the property's own type, and the reason for the extra
-// overload: `Margin = {20}` initialises a parameter of a known type from a
+// overload: `margin = {20}` initialises a parameter of a known type from a
 // braced list, which template deduction alone can never do. Where a
 // property name is declared with different types by different classes there
 // is no single such type, and the tag is generated with `void`, leaving only
 // the deduced form.
+// A tag over an enumeration also carries the values of that enumeration as
+// members, inherited from impl::enum_values, so the flat vocabulary and the
+// schema anchors spell them alike.
 // `Owner` is the class the tag was named through, or `void` for the plain
 // vocabulary of namespace `dsl`; see impl::check_owner above. It is the last
 // parameter because almost nothing writes it: only the generated schema does.
 template <PropertyKey key, typename Value = void, typename Owner = void>
-struct Property : impl::PropertyTag<key, Owner> {
+struct Property : impl::PropertyTag<key, Owner>, impl::enum_values<Value> {
     using impl::PropertyTag<key, Owner>::operator=;
 
     constexpr SetterOp<key, Value, Owner> operator=(Value value) const { return {std::move(value)}; }
@@ -349,7 +364,7 @@ struct Property<key, Brush, Owner> : impl::PropertyTag<key, Owner> {
     }
 };
 
-// An event tag, written `On` + the metadata name -- OnClick, OnPointerPressed
+// An event tag, written `on` + the metadata name -- onClick, onPointerPressed
 // -- so that an event is visibly not a property inside the same braces.
 template <EventKey key, typename Owner = void>
 struct Event {
@@ -578,7 +593,7 @@ concept iterating = requires { iteration_over<F>::count; };
 }  // namespace impl
 
 // The contents of a collection-valued property, pending like every other
-// argument: `Children[first, second, third]`.
+// argument: `children[first, second, third]`.
 //
 // It holds references, not copies. The items are temporaries of the very
 // expression that is building the parent, so they outlive this op by
@@ -629,13 +644,23 @@ struct CollectionProperty {
     }
 };
 
+// A collection that can also be given in one value: `rowDefinitions[a, b]` and
+// `rowDefinitions = L"2*,*"` are the same property said two ways. The subscript
+// comes from one base and the assignment from the other; the using-declaration
+// keeps the assignment reachable past this type's own copy assignment.
+template <PropertyKey key, typename Value, typename Owner = void>
+struct AssignableCollectionProperty : CollectionProperty<key, Owner>, Property<key, Value, Owner> {
+    using Property<key, Value, Owner>::operator=;
+};
+
 namespace impl {
 
 // What it means for one argument to be a constructor argument at all:
 // either it is one of the ops above, which knows itself what to do with the
 // object, or it is a bare value the object has a route for, matched on its
 // type alone -- `hAlign.center`, `L"..."`, `Margin{20}` -- which is what
-// keeps the DSL short enough to be worth writing.
+// keeps the DSL short enough to be worth writing. A generated class declares
+// its routes as setPositional overloads, one per type it takes.
 //
 // This is a diagnostic predicate, not a constraint: the constructor stays
 // viable for an argument that fails it, so that the error names the mistake
