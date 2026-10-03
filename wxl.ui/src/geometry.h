@@ -297,3 +297,14 @@ struct optional_selector<wxl::Vector2> {
 };
 
 }  // namespace wxl::core
+
+namespace wxl::core {
+
+// A three-component vector that may be absent -- the final value of a spring animation, which WinRT boxes as
+// IReference<Vector3>. No float pattern is spare, so nullable<Vector3> is std::optional<Vector3>, like Vector2's.
+template <>
+struct optional_selector<wxl::Vector3> {
+    using nullable = std::optional<wxl::Vector3>;
+};
+
+}  // namespace wxl::core

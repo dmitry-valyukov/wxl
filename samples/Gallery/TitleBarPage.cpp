@@ -15,7 +15,7 @@ constexpr char8_t configurationCode[] = {
 #include "Snippets/TitleBar/TitlebarConfiguration.h.embed"
 };
 
-FrameworkElement configuration() {
+FrameworkElement configurationExample() {
 #include "Snippets/TitleBar/TitlebarConfiguration.h"
 
     return gallery::controlExample({
@@ -74,5 +74,5 @@ wxl::FrameworkElement gallery::titleBarPage() {
                 },
                 Run {u" sample"},
             },
-        },configuration(), dragRegions(), endToEnd()};
+        },configurationExample(), dragRegions(), endToEnd()};
 }

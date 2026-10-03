@@ -46,7 +46,8 @@
                 "GoBack",
                 "GoForward",
                 "Navigated",
-                "Navigating"
+                "Navigating",
+                "BackStackDepth"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItemHeader": {
@@ -264,7 +265,17 @@
                 "DragOver",
                 "Drop",
                 "GettingFocus",
-                "StartBringIntoView"
+                "StartBringIntoView",
+                "OpacityTransition",
+                "RotationTransition",
+                "ScaleTransition",
+                "TranslationTransition",
+                "Rotation",
+                "Scale",
+                "CenterPoint",
+                "Transitions",
+                "StartAnimation",
+                "UpdateLayout"
             ],
             "syntheticMembers": {
                 "IsDragRegion": {
@@ -764,6 +775,153 @@
         "Microsoft.UI.Xaml.Input.StandardUICommand": {
             "comment": "Menus & toolbars: a command the system names and gives a glyph and a key."
         },
+        "Microsoft.UI.Xaml.Media.Animation.Timeline": {
+            "comment": "Motion: what every animation and storyboard has -- how long it runs.",
+            "members": ["Duration"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.Storyboard": {
+            "comment": "Motion: animations put together and started: the target of each is named with SetTarget and SetTargetProperty, the whole is begun with Begin.",
+            "members": ["Children", "Begin", "SetTarget", "SetTargetProperty"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.DoubleAnimation": {
+            "comment": "Motion: a number moved from one value to another, by an easing function.",
+            "members": ["From", "To", "EasingFunction"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.EasingFunctionBase": {
+            "comment": "Motion: how the speed of an animation changes along it; the mode says at which end.",
+            "members": ["EasingMode"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.BackEase": { "comment": "Motion: pulls back before it goes.", "members": ["Amplitude"] },
+        "Microsoft.UI.Xaml.Media.Animation.BounceEase": { "comment": "Motion: bounces at the end.", "members": ["Bounces", "Bounciness"] },
+        "Microsoft.UI.Xaml.Media.Animation.CircleEase": { "comment": "Motion: speed along a circle.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.CubicEase": { "comment": "Motion: speed as a cube.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ElasticEase": { "comment": "Motion: swings like a spring.", "members": ["Oscillations", "Springiness"] },
+        "Microsoft.UI.Xaml.Media.Animation.ExponentialEase": { "comment": "Motion: speed by an exponent.", "members": ["Exponent"] },
+        "Microsoft.UI.Xaml.Media.Animation.PowerEase": { "comment": "Motion: speed by a power.", "members": ["Power"] },
+        "Microsoft.UI.Xaml.Media.Animation.QuadraticEase": { "comment": "Motion: speed as a square.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.QuarticEase": { "comment": "Motion: speed as a fourth power.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.QuinticEase": { "comment": "Motion: speed as a fifth power.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.SineEase": { "comment": "Motion: speed along a sine.", "members": [] },
+        "Microsoft.UI.Xaml.Media.TranslateTransform": {
+            "comment": "Motion: an element moved by a distance, which a storyboard can animate (X, Y).",
+            "members": ["X", "Y"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.TransitionCollection": {
+            "comment": "Motion: the transitions of an element or panel, played as its items come, go and move."
+        },
+        "Microsoft.UI.Xaml.Media.Animation.Transition": {
+            "comment": "Motion: the base of the theme transitions."
+        },
+        "Microsoft.UI.Xaml.Media.Animation.EntranceThemeTransition": {
+            "comment": "Motion: an item coming onto the page, one after another when staggered.",
+            "members": ["IsStaggeringEnabled"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.RepositionThemeTransition": { "comment": "Motion: an element that moves because the layout changed.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ContentThemeTransition": { "comment": "Motion: content that was refreshed.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.AddDeleteThemeTransition": { "comment": "Motion: an item added to or deleted from a collection.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.PopupThemeTransition": { "comment": "Motion: a popup that opens or closes.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.NavigationThemeTransition": { "comment": "Motion: the page of a frame that was navigated to.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.NavigationTransitionInfo": { "comment": "Motion: how a navigation animates.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.EntranceNavigationTransitionInfo": { "comment": "Motion: the page enters.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.DrillInNavigationTransitionInfo": { "comment": "Motion: the page drills in.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo": { "comment": "Motion: no animation of the navigation.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.SlideNavigationTransitionInfo": { "comment": "Motion: the page slides in from a side.", "members": ["Effect"] },
+        "Microsoft.UI.Xaml.Media.Animation.CommonNavigationTransitionInfo": { "comment": "Motion: the common transition of a page.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ContinuumNavigationTransitionInfo": { "comment": "Motion: the continuum transition of a page.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ConnectedAnimationService": {
+            "comment": "Motion: where a connected animation is prepared by key before navigation and found again after it. Statics and instances: the service of the window.",
+            "members": ["GetForCurrentView", "PrepareToAnimate", "GetAnimation"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.ConnectedAnimation": {
+            "comment": "Motion: an element flying from one page to the next; it is started on the element it ends on.",
+            "members": ["TryStart", "Configuration", "Completed"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.ConnectedAnimationConfiguration": { "comment": "Motion: how a connected animation moves.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.GravityConnectedAnimationConfiguration": { "comment": "Motion: with gravity.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.DirectConnectedAnimationConfiguration": { "comment": "Motion: direct.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.BasicConnectedAnimationConfiguration": { "comment": "Motion: basic.", "members": [] },
+        "Microsoft.UI.Xaml.ScalarTransition": {
+            "comment": "Motion: an implicit animation of a number: a change of Opacity or Rotation runs over a duration instead of at once.",
+            "members": ["Duration"]
+        },
+        "Microsoft.UI.Xaml.Vector3Transition": {
+            "comment": "Motion: an implicit animation of a vector (Scale, Translation), by components.",
+            "members": ["Duration", "Components"]
+        },
+        "Microsoft.UI.Xaml.BrushTransition": {
+            "comment": "Motion: an implicit animation of a brush: a change of Background fades.",
+            "members": ["Duration"]
+        },
+        "Microsoft.UI.Xaml.Controls.ParallaxView": {
+            "comment": "Motion: a picture that moves slower than what scrolls (Source), by a shift.",
+            "members": ["Source", "VerticalShift", "HorizontalShift", "Child"]
+        },
+        "Microsoft.UI.Composition.SpringVector3NaturalMotionAnimation": {
+            "comment": "Motion: a vector that goes to its final value as a spring does: damping ratio and period.",
+            "members": ["FinalValue", "DampingRatio", "Period"]
+        },
+        "Microsoft.UI.Xaml.Controls.Panel": {
+            "comment": "Motion: the transitions of the children of a panel, and of its background.",
+            "members": ["ChildrenTransitions", "BackgroundTransition"]
+        },
+        "Microsoft.UI.Xaml.Controls.ContentControl": {
+            "comment": "Motion: the transitions of the content of a control (the page of a frame).",
+            "members": ["ContentTransitions"]
+        },
+        "Microsoft.UI.Xaml.Controls.ListViewItem": {
+            "comment": "Collections: the item of a list that is a control of its own, put in Items.",
+            "members": []
+        },
+        "Microsoft.UI.Composition.IAnimationObject": {
+            "comment": "Motion: what an element is to an expression animation: an object whose properties (Scale, Translation) the expression reads.",
+            "members": []
+        },
+        "Microsoft.UI.Composition.CompositionAnimation": {
+            "comment": "Motion: an expression animation that reads an element: its Scale and Translation, through the element as an animation object.",
+            "members": ["SetExpressionReferenceParameter"]
+        },
+        "Microsoft.UI.Composition.Compositor": {
+            "comment": "Motion: the spring animation of a vector.",
+            "members": ["CreateSpringVector3Animation"]
+        },
+        "Microsoft.UI.Xaml.Media.CompositionTarget": {
+            "comment": "Motion: the compositor XAML draws with on this thread, which an animation of an element is made by.",
+            "members": ["GetCompositorForCurrentThread"]
+        },
+        "Microsoft.UI.Xaml.Controls.Grid": {
+            "comment": "Motion: a grid with a frame of its own -- the border of a connected animation's destination and of a section that changes its theme.",
+            "members": ["BorderBrush", "BorderThickness"]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.Popup": {
+            "comment": "Dialogs & flyouts: a piece of the interface drawn over the page at an offset of its own, opened and closed by the application (IsOpen), closing by itself when light-dismissed.",
+            "members": [
+                "IsOpen",
+                "Child",
+                "HorizontalOffset",
+                "VerticalOffset",
+                "IsLightDismissEnabled",
+                "Opened",
+                "Closed",
+                "ChildTransitions"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TeachingTip": {
+            "comment": "Dialogs & flyouts: a tip that points at an element (Target) or stands free, with an icon, a hero, content and up to two buttons.",
+            "members": [
+                "IsOpen",
+                "Title",
+                "Subtitle",
+                "Target",
+                "IconSource",
+                "ActionButtonContent",
+                "CloseButtonContent",
+                "IsLightDismissEnabled",
+                "PlacementMargin",
+                "PreferredPlacement",
+                "HeroContent",
+                "Content"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.SymbolIconSource": {
             "comment": "Menus & toolbars: the symbol of a command or swipe item."
         },
@@ -1035,7 +1193,9 @@
         "Microsoft.UI.Xaml.Controls.ItemsControl": {
             "comment": "Collections: the panel the items are laid out in -- ItemsPanelRoot, the panel itself once the control is loaded -- and its direction, as a virtualizing stack. ItemsPanel is a template that only XAML text makes.",
             "members": [
-                "ItemsPanelRoot"
+                "ItemsPanelRoot",
+                "ItemContainerTransitions",
+                "ContainerFromItem"
             ],
             "syntheticMembers": {
                 "ItemsPanelOrientation": {
@@ -1051,7 +1211,11 @@
             "members": [
                 "CanDragItems",
                 "CanReorderItems",
-                "DragItemsStarting"
+                "DragItemsStarting",
+                "PrepareConnectedAnimation",
+                "TryStartConnectedAnimationAsync",
+                "ScrollIntoView",
+                "Header"
             ],
             "syntheticMembers": {
                 "ItemMargin": {
@@ -1441,7 +1605,9 @@
             "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
             "members": [
                 "Content",
-                "ContentTemplate"
+                "ContentTemplate",
+                "BackgroundTransition",
+                "Background"
             ]
         },
         "Microsoft.UI.Xaml.Controls.RadioButtons": {
