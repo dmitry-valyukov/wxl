@@ -47,7 +47,8 @@
                 "GoForward",
                 "Navigated",
                 "Navigating",
-                "BackStackDepth"
+                "BackStackDepth",
+                "IsNavigationStackEnabled"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItemHeader": {
@@ -91,8 +92,26 @@
                 "DisplayMode",
                 "DisplayModeChanged",
                 "IsPaneToggleButtonVisible",
-                "IsPaneVisible"
-            ]
+                "IsPaneVisible",
+                "IsBackEnabled",
+                "AlwaysShowHeader",
+                "SelectionFollowsFocus",
+                "ExpandedModeThresholdWidth",
+                "CompactModeThresholdWidth",
+                "FooterMenuItems",
+                "PaneFooter",
+                "PaneCustomContent",
+                "MenuItemTemplate"
+            ],
+            "syntheticMembers": {
+                "AutoSuggestBox": {
+                    "comment": "The search box of the pane, or none: autoSuggestBox = nullptr takes it away, which the property of the framework allows and a wrapper cannot say.",
+                    "cppType": "core::nullable<AutoSuggestBox>",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_auto_suggest_box",
+                    "include": "../impl/navigation_view_search.h"
+                }
+            }
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItem": {
             "comment": "The group rows: they expand and are not themselves a page.",
@@ -106,7 +125,9 @@
             "comment": "Which item the selection landed on.",
             "members": [
                 "SelectedItem",
-                "IsSettingsSelected"
+                "IsSettingsSelected",
+                "RecommendedNavigationTransitionInfo",
+                "SelectedItemContainer"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItemInvokedEventArgs": {
@@ -275,7 +296,8 @@
                 "CenterPoint",
                 "Transitions",
                 "StartAnimation",
-                "UpdateLayout"
+                "UpdateLayout",
+                "BringIntoViewRequested"
             ],
             "syntheticMembers": {
                 "AutomationId": {
@@ -309,7 +331,8 @@
             "comment": "Menus & toolbars: the key chord that invokes a command, written beside the command.",
             "members": [
                 "Key",
-                "Modifiers"
+                "Modifiers",
+                "Invoked"
             ]
         },
         "Microsoft.UI.Xaml.Controls.PathIcon": {
@@ -397,6 +420,13 @@
                     "cppType": "Resource",
                     "cppInclude": "../Resource.h",
                     "function": "impl::add_resource",
+                    "include": "../impl/resource.h"
+                },
+                "ThemeEntry": {
+                    "comment": "The entries of one theme -- ThemeDictionaries[\"Light\"] of the XAML. The same tag repeated adds one theme each.",
+                    "cppType": "ThemeResources",
+                    "cppInclude": "../Resource.h",
+                    "function": "impl::add_theme_resources",
                     "include": "../impl/resource.h"
                 }
             }
@@ -920,6 +950,106 @@
                 "ChildTransitions"
             ]
         },
+        "Microsoft.UI.Xaml.Controls.BreadcrumbBar": {
+            "comment": "Navigation: the path to where the user is, each step clickable.",
+            "members": [
+                "ItemsSource",
+                "ItemTemplate",
+                "ItemClicked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.BreadcrumbBarItem": {
+            "comment": "Navigation: one step of a BreadcrumbBar; the root of an item template that builds its steps itself."
+        },
+        "Microsoft.UI.Xaml.Controls.BreadcrumbBarItemClickedEventArgs": {
+            "comment": "Navigation: which step of the path was clicked.",
+            "members": [
+                "Index",
+                "Item"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Pivot": {
+            "comment": "Navigation: a few pages under a header strip, one shown at a time.",
+            "members": [
+                "Title",
+                "SelectedIndex"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PivotItem": {
+            "comment": "Navigation: one page of a Pivot and the header that selects it.",
+            "members": [
+                "Header"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SelectorBarSelectionChangedEventArgs": {
+            "comment": "Navigation: raised when the chosen tab of a SelectorBar changes; the bar itself says which."
+        },
+        "Microsoft.UI.Xaml.Controls.TabView": {
+            "comment": "Navigation: tabs that open and close, with a header and a footer beside the strip, tabs that tear out into windows of their own, and the keys of a tabbed program.",
+            "members": [
+                "TabItemTemplate",
+                "TabStripHeader",
+                "TabStripFooter",
+                "CloseButtonOverlayMode",
+                "CanTearOutTabs",
+                "TabTearOutWindowRequested",
+                "TabTearOutRequested",
+                "ExternalTornOutTabsDropping",
+                "ExternalTornOutTabsDropped"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewTabCloseRequestedEventArgs": {
+            "comment": "Navigation: which tab, and which item of a bound source, the user asked to close.",
+            "members": [
+                "Tab",
+                "Item"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewTabTearOutWindowRequestedEventArgs": {
+            "comment": "Navigation: a tab is dragged out of the strip -- the window it is to land in is named here.",
+            "members": [
+                "NewWindowId"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewTabTearOutRequestedEventArgs": {
+            "comment": "Navigation: the tabs torn out of a strip, to be put in the window made for them.",
+            "members": [
+                "Tabs"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewExternalTornOutTabsDroppingEventArgs": {
+            "comment": "Navigation: tabs from another window are over this strip; the answer is whether it takes them.",
+            "members": [
+                "AllowDrop",
+                "Tabs"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewExternalTornOutTabsDroppedEventArgs": {
+            "comment": "Navigation: tabs of another window dropped into this strip at a position.",
+            "members": [
+                "DropIndex",
+                "Tabs"
+            ]
+        },
+        "Microsoft.UI.Xaml.BringIntoViewRequestedEventArgs": {
+            "comment": "Navigation: a request to scroll an element into view that a handler can mark handled.",
+            "members": [
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs": {
+            "comment": "Navigation: the element a key chord was pressed over, and whether the handler took it.",
+            "members": [
+                "Element",
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.VisualTreeHelper": {
+            "comment": "Navigation: the way up the visual tree from a tab to its strip and window.",
+            "members": [
+                "GetParent"
+            ]
+        },
         "Microsoft.UI.Xaml.Controls.TeachingTip": {
             "comment": "Dialogs & flyouts: a tip that points at an element (Target) or stands free, with an icon, a hero, content and up to two buttons.",
             "members": [
@@ -1154,7 +1284,9 @@
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
             "comment": "Target: the element a flyout is attached to. A coroutine started when the flyout opens finds its owner there, so no handler has to capture the owner (which holds the flyout: a cycle).",
             "members": [
-                "Target"
+                "Target",
+                "Opening",
+                "Hide"
             ]
         },
         "Windows.ApplicationModel.DataTransfer.Clipboard": {
@@ -1210,7 +1342,8 @@
             "members": [
                 "ItemsPanelRoot",
                 "ItemContainerTransitions",
-                "ContainerFromItem"
+                "ContainerFromItem",
+                "IndexFromContainer"
             ],
             "syntheticMembers": {
                 "ItemsPanelOrientation": {

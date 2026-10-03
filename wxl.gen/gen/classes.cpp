@@ -876,6 +876,7 @@ public:
                 announced = true;
             }
             std::print(out, "extern template {0} Object::try_as<{0}>() const;\n", info.name);
+            std::print(out, "extern template bool Object::is<{0}>() const;\n", info.name);
         }
     }
 
@@ -1323,6 +1324,7 @@ struct runtime_class_name_of<{}::{}> {{
                 announced = true;
             }
             std::print(out, "template {0} Object::try_as<{0}>() const;\n", info.name);
+            std::print(out, "template bool Object::is<{0}>() const;\n", info.name);
         }
     }
 

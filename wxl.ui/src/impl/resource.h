@@ -15,4 +15,7 @@ namespace wxl::impl {
 
 void add_resource(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, Resource const& entry);
 
+// The same under a theme: the entries go in a dictionary of their own that ThemeDictionaries keeps under the theme's name.
+void add_theme_resources(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, ThemeResources const& theme);
+
 }  // namespace wxl::impl

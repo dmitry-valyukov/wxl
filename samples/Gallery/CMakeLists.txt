@@ -37,6 +37,8 @@ wxl_add_executable(sample.gallery
     CustomDataObject.cpp
     Layouts.cpp
     MotionPages.cpp
+    NavigationPages.cpp
+    TabViewWindowing.cpp
     PagedFrame.cpp
     RepeaterData.cpp
     Shell.cpp
@@ -74,6 +76,11 @@ wxl_add_executable(sample.gallery
     StackPanelPage.cpp
     VariableSizedWrapGridPage.cpp
     ViewboxPage.cpp
+    TabViewPage.cpp
+    NavigationViewPage.cpp
+    PivotPage.cpp
+    SelectorBarPage.cpp
+    BreadcrumbBarPage.cpp
     ConnectedAnimationPage.cpp
     XamlCompInteropPage.cpp
     ParallaxViewPage.cpp

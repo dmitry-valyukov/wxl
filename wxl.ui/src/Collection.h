@@ -51,6 +51,31 @@ public:
     void removeAtEnd() const;
     void clear() const;
 
+    /// The place of an item, by object identity -- the same object, which two wrappers of one element share --; size()
+    /// when the collection does not hold it. Of collections of objects.
+    uint32_t indexOf(T const& item) const
+        requires std::derived_from<T, Object>
+    {
+        for (uint32_t index = 0; index < size(); ++index) {
+            if (getAt(index).is_same_object(item)) {
+                return index;
+            }
+        }
+        return size();
+    }
+
+    /// Takes an item out, by object identity; whether it was there.
+    bool remove(T const& item) const
+        requires std::derived_from<T, Object>
+    {
+        auto const index = indexOf(item);
+        if (index == size()) {
+            return false;
+        }
+        removeAt(index);
+        return true;
+    }
+
     impl::index_iterator<Collection> begin() const noexcept { return {this, 0}; }
     impl::index_iterator<Collection> end() const { return {this, size()}; }
 

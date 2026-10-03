@@ -13,6 +13,7 @@
 //     }
 
 #include "Color.h"
+#include "Object.h"
 #include "CornerRadius.h"
 #include "generated/Microsoft.UI.Xaml.Enums.h"
 #include "Thickness.h"
@@ -22,7 +23,7 @@
 namespace wxl {
 
 struct Resource {
-    using Value = std::variant<bool, double, hstring, Thickness, CornerRadius, Color, HorizontalAlignment>;
+    using Value = std::variant<bool, double, hstring, Thickness, CornerRadius, Color, HorizontalAlignment, Object>;
 
     hstring key;
     Value value;
@@ -37,6 +38,21 @@ struct Resource {
     Resource(hstring_param const& key, CornerRadius const& value) : key(key), value(value) {}
     Resource(hstring_param const& key, Color value) : key(key), value(value) {}
     Resource(hstring_param const& key, HorizontalAlignment value) : key(key), value(value) {}
+    // Any object of the framework: a brush, a style, a template.
+    Resource(hstring_param const& key, Object const& value) : key(key), value(value) {}
+};
+
+// The entries of one theme of a dictionary: what a ResourceDictionary of XAML keeps in ThemeDictionaries under "Light" or
+// "Dark". The theme's own entries are found before the dictionary's, whichever theme the element is in.
+//
+//     ResourceDictionary {
+//         themeEntry = ThemeResources {u"Light", {Resource {u"TabViewBackground", SolidColorBrush {color = rgb(1, 2, 3)}}}},
+//     }
+struct ThemeResources {
+    hstring theme;
+    std::vector<Resource> entries;
+
+    ThemeResources(hstring_param const& theme, std::vector<Resource> entries) : theme(theme), entries(std::move(entries)) {}
 };
 
 }  // namespace wxl

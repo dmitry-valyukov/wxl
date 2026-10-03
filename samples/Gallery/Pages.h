@@ -53,8 +53,11 @@ inline wxl::MagnifyEffect appPop() {
 }
 
 // Страница-образец окон примеров Windowing (SamplePage1..4 оригинала): плитки
-// и абзац текста; номер — от 1 до 4.
+// и абзац текста; номер — от 1 до 6.
 wxl::FrameworkElement samplePage(int number);
+
+// SampleSettingsPage оригинала: заголовок посреди страницы.
+wxl::FrameworkElement sampleSettingsPage();
 
 // Выбор цвета: образец на кнопке и ColorPicker в её выпадающей части
 // (ColorSelector оригинала). Цвет — поле модели.
@@ -96,6 +99,11 @@ wxl::FrameworkElement splitViewPage();
 wxl::FrameworkElement stackPanelPage();
 wxl::FrameworkElement variableSizedWrapGridPage();
 wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement tabViewPage();
+wxl::FrameworkElement navigationViewPage();
+wxl::FrameworkElement pivotPage();
+wxl::FrameworkElement selectorBarPage();
+wxl::FrameworkElement breadcrumbBarPage();
 wxl::FrameworkElement connectedAnimationPage();
 wxl::FrameworkElement xamlCompInteropPage();
 wxl::FrameworkElement parallaxViewPage();
