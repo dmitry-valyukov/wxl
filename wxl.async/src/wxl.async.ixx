@@ -15,6 +15,8 @@ export import :detached_task;
 export import :drain_stack;
 export import :future;
 export import :future_shared_state;
+export import :io_op;
+export import :io_port;
 export import :mpsc_channel;
 export import :mpsc_queue;
 export import :one_shot_event;

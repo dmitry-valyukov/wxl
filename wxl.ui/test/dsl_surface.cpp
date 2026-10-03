@@ -8,6 +8,20 @@
 //
 // Nothing here runs: the WinUI3 runtime is not up in a test, and activating
 // a real control without it fails. This is about the syntax and the types.
+//
+// The same target compiles generated/schema_surface.cpp: one line per
+// element of the generated schema.h, and nothing else. What it proves is
+// that every anchor the schema offers actually applies to the class it hangs
+// on -- that the key reaches a setter that class has, that the value type the
+// schema names is one that setter takes, and that the owner check passes for
+// the class itself. It is generated from the same closure as the schema,
+// which is what makes the coverage rule enforceable: a new type or a new
+// member appears in both files or in neither.
+//
+// The one thing it cannot check is the negative: that the owner check
+// *refuses* another class's member. The check is a static_assert inside a
+// function body, and a body is not instantiated by a requires-expression, so
+// there is no way to assert that it fires.
 
 #include "BbBlock.h"
 #include "Bind.h"

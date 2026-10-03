@@ -26,10 +26,10 @@ import std;
 // the braced form, which is why `startPoint = {0, 0}` never worked through
 // `dsl::` and works here.
 //
-// AI note: everything emitted here is also exercised by the test file this
-// same writer produces. A new kind of schema element (a new member kind, or a
-// new anchor type) has to be added in both halves below -- schema element and
-// its line of test -- or the test silently stops covering it.
+// Everything emitted here is also exercised by the test file this same
+// writer produces. A new kind of schema element (a new member kind, or a new
+// anchor type) has to be added in both halves below -- schema element and its
+// line of test -- or the test silently stops covering it.
 
 namespace gen {
 namespace {
@@ -123,23 +123,23 @@ std::string assignable_collection_anchor(std::string_view key, std::string_view 
 // type of its own: an enum-typed property carries the values it accepts
 // through its type (impl::enum_values), so that `severity.warning` needs no
 // enum name.
-std::string declare(Schema::Class const& owner, Schema::Member const& member,
-                    std::vector<Schema::Member> const& all) {
-    using Kind = Schema::Member::Kind;
+std::string declare(schema::class_t const& owner, schema::member const& member,
+                    std::vector<schema::member> const& all) {
+    using kind_t = schema::member::kind_t;
 
-    if (member.kind == Kind::Event) {
+    if (member.kind == kind_t::Event) {
         return event_anchor(member.key, owner.name);
     }
 
     // A binding target has a plain anchor: the type it carries is the
     // observable's, and the only assignment it survives is a Bind form.
-    if (member.kind == Kind::Bound) {
+    if (member.kind == kind_t::Bound) {
         return property_anchor(member.key, member.type, owner.name);
     }
 
-    if (member.kind == Kind::Collection) {
+    if (member.kind == kind_t::Collection) {
         auto const assignable = std::find_if(all.begin(), all.end(), [&member](auto&& other) {
-            return other.kind == Kind::Property && other.key == member.key;
+            return other.kind == kind_t::Property && other.key == member.key;
         });
         if (assignable == all.end()) {
             return collection_anchor(member.key, owner.name);
@@ -150,7 +150,7 @@ std::string declare(Schema::Class const& owner, Schema::Member const& member,
 
     // A property that is also a collection was written by the branch above.
     if (std::find_if(all.begin(), all.end(), [&member](auto&& other) {
-            return other.kind == Kind::Collection && other.key == member.key;
+            return other.kind == kind_t::Collection && other.key == member.key;
         }) != all.end()) {
         return {};
     }
@@ -167,23 +167,10 @@ std::string declare(Schema::Class const& owner, Schema::Member const& member,
     return property_anchor(member.key, member.type, owner.name);
 }
 
-void write_schema_header(std::filesystem::path const& path, Schema const& schema) {
+void write_schema_header(std::filesystem::path const& path, schema const& sch) {
     auto file = open_output(path);
 
-    std::print(file, R"({}// The same vocabulary as Members.h, reached through the class that
-// declares it: `schema::Button::content` beside the bare `dsl::content`.
-//
-// For finding a name rather than remembering it -- `schema::Button::` offers
-// exactly what a Button takes -- and for two things the flat form cannot
-// carry: the anchor knows the class it was named through, so writing one
-// class's member on another is refused by name, and it knows the type *that*
-// class declares the property with, so the braced form survives where two
-// classes disagree.
-//
-// Each struct mirrors its class's own base, and declares only the members
-// that class declares itself; everything else arrives by inheritance, exactly
-// as it does on the wrapper.
-#pragma once
+    std::print(file, R"({}#pragma once
 
 #include "Members.h"
 )",
@@ -194,7 +181,7 @@ void write_schema_header(std::filesystem::path const& path, Schema const& schema
     // names only the types properties are valued with, so a class nobody
     // assigns -- a Shape, a Rectangle -- has no header there.
     std::set<std::string> headers;
-    for (auto&& klass : schema.classes) {
+    for (auto&& klass : sch.classes) {
         if (!klass.header.empty()) {
             headers.insert(klass.header);
         }
@@ -208,7 +195,7 @@ namespace wxl::dsl::schema {{
 
 )");
 
-    for (auto&& klass : schema.classes) {
+    for (auto&& klass : sch.classes) {
         if (klass.base.empty()) {
             std::print(file, "struct {} {{\n", klass.name);
         } else {
@@ -233,9 +220,9 @@ namespace wxl::dsl::schema {{
 // The value a test line hands the member. A property takes one of its own
 // type; an enum-typed one takes it through the anchor, which proves the
 // enumerators the anchor carries are reachable as well.
-std::string test_value(Schema::Class const& owner, Schema::Member const& member, Dsl const& dsl) {
-    if (auto const values = dsl.enumerators.find(member.type);
-        member.single_type && values != dsl.enumerators.end() && !values->second.empty()) {
+std::string test_value(schema::class_t const& owner, schema::member const& member, dsl const& d) {
+    if (auto const values = d.enumerators.find(member.type);
+        member.single_type && values != d.enumerators.end() && !values->second.empty()) {
         return std::format("::wxl::dsl::schema::{}::{}.{}", owner.name, member.name,
                            values->second.front().first);
     }
@@ -243,29 +230,11 @@ std::string test_value(Schema::Class const& owner, Schema::Member const& member,
     return "value";
 }
 
-void write_schema_test(std::filesystem::path const& path, Schema const& schema, Dsl const& dsl,
+void write_schema_test(std::filesystem::path const& path, schema const& sch, dsl const& d,
                        std::size_t& lines) {
     auto file = open_output(path);
 
-    std::print(file, R"({}// One line per element of schema.h, and nothing else.
-//
-// Compile-only, like the surface test beside it: none of these functions is
-// called, and the WinUI runtime is not up in a test anyway. What it proves is
-// that every anchor the schema offers actually applies to the class it hangs
-// on -- that the key reaches a setter that class has, that the value type the
-// schema names is one that setter takes, and that the owner check passes for
-// the class itself.
-//
-// It is generated from the same closure as the schema, which is what makes
-// the coverage rule enforceable: a new type or a new member appears in both
-// files or in neither.
-//
-// The one thing not written here is the negative: that the owner check
-// *refuses* another class's member. It cannot be -- the check is a
-// static_assert inside a function body, and a body is not instantiated by a
-// requires-expression, so there is no way to assert that it fires.
-
-#include "../Bind.h"
+    std::print(file, R"({}#include "../Bind.h"
 #include "schema.h"
 
 namespace {{
@@ -273,7 +242,7 @@ namespace {{
 )",
                banner);
 
-    for (auto&& klass : schema.classes) {
+    for (auto&& klass : sch.classes) {
         if (klass.members.empty()) {
             continue;
         }
@@ -286,7 +255,7 @@ namespace {{
                                                     member.name);
 
             switch (member.kind) {
-                case Schema::Member::Kind::Event:
+                case schema::member::kind_t::Event:
                     std::print(file, R"([[maybe_unused]] void {0}_{1}({2}) {{
     ::wxl::impl::apply_argument(object, {3} = [](auto const&, auto&) {{}});
 }}
@@ -294,7 +263,7 @@ namespace {{
                                klass.name, member.name, object, path_to);
                     break;
 
-                case Schema::Member::Kind::Collection:
+                case schema::member::kind_t::Collection:
                     std::print(file, R"([[maybe_unused]] void {0}_{1}({2}, {4} const& item) {{
     ::wxl::impl::apply_argument(object, {3}[item]);
 }}
@@ -302,19 +271,19 @@ namespace {{
                                klass.name, member.name, object, path_to, qualified(member.type));
                     break;
 
-                case Schema::Member::Kind::Property:
+                case schema::member::kind_t::Property:
                     std::print(file, R"([[maybe_unused]] void {0}_{1}_assigned({2}, {4} value) {{
     ::wxl::impl::apply_argument(object, {3} = {5});
 }}
 )",
                                klass.name, member.name, object, path_to,
                                member.type.empty() ? "::wxl::Object" : qualified(member.type),
-                               test_value(klass, member, dsl));
+                               test_value(klass, member, d));
                     break;
 
                 // Bound in the direction its pair takes: the one line that
                 // proves the anchor, the pair and the observable's type agree.
-                case Schema::Member::Kind::Bound:
+                case schema::member::kind_t::Bound:
                     std::print(file, R"([[maybe_unused]] void {0}_{1}_bound({2}, ::wxl::core::observable<{4}>& field) {{
     ::wxl::impl::apply_argument(object, {3} = ::wxl::{5}{{field}});
 }}
@@ -337,24 +306,32 @@ namespace {{
 
 }  // namespace
 
-void write_schema(Output const& out, Schema const& schema, Dsl const& dsl, Emitted& emitted) {
+void write_schema(output const& out, model const& m, emitted& em) {
+    for (auto&& name : m.unplaced_bound_members) {
+        std::print(stderr, "warning: bound member {} names a class the profile does not generate\n",
+                   name);
+    }
+
+    auto const& sch = m.schema;
+    auto const& d = m.dsl;
+
     auto const header = out.dir / "schema.h";
-    write_schema_header(header, schema);
-    emitted.add(header);
+    write_schema_header(header, sch);
+    em.add(header);
 
     std::size_t members = 0;
-    for (auto&& klass : schema.classes) {
+    for (auto&& klass : sch.classes) {
         members += klass.members.size();
     }
 
     auto const test = out.dir / "schema_surface.cpp";
     std::size_t lines = 0;
-    write_schema_test(test, schema, dsl, lines);
-    emitted.add(test, std::format("{}.surface-test", out.cmake_target));
+    write_schema_test(test, sch, d, lines);
+    em.add(test, std::format("{}.surface-test", out.cmake_target));
 
-    std::print("wrote {} ({} classes, {} members)\n", header.string(), schema.classes.size(),
+    std::print("generated {} ({} classes, {} members)\n", header.string(), sch.classes.size(),
                members);
-    std::print("wrote {} ({} checks)\n", test.string(), lines);
+    std::print("generated {} ({} checks)\n", test.string(), lines);
 }
 
 }  // namespace gen

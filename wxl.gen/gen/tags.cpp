@@ -13,41 +13,38 @@ namespace gen {
 // One alias per tagged property the closure collected: a narrow profile that
 // never reaches Padding gets no Padding tag, and nothing here names a key
 // that PropertyKey.h does not declare.
-void write_tags(Output const& out, Model const& model, Emitted& emitted) {
-    auto const path = out.dir / "Tags.h";
-    auto file = open_output(path);
-
-    std::set<std::string> includes{"../TaggedValue.h", "PropertyKey.h"};
-    std::vector<TypeMap::Tag const*> present;
-    for (auto&& tag : tagged_properties()) {
-        if (model.property_names.count(std::string{tag.property_name})) {
-            present.push_back(&tag);
+void analyze_tags(type_map const& types, model& m) {
+    m.tag_includes = {"../TaggedValue.h", "PropertyKey.h"};
+    for (auto&& tag : types.tags) {
+        if (m.property_names.count(tag.property_name)) {
+            m.tags.push_back({tag.name, tag.value_type, tag.property_name});
             if (!tag.include.empty()) {
-                includes.insert(std::string{tag.include});
+                m.tag_includes.insert(tag.include);
             }
         }
     }
+}
 
-    std::print(file, R"({}// A value that says which property it belongs to, so that the builder
-// syntax can take it without the property name: `Margin{{20}}` is a
-// Thickness that knows it is a margin. The property itself keeps the type
-// the metadata gives it -- the tag exists only for the unnamed form.
-#pragma once
+void write_tags(output const& out, model const& m, emitted& em) {
+    auto const path = out.dir / "Tags.h";
+    auto file = open_output(path);
+
+    std::print(file, R"({}#pragma once
 )",
                banner);
-    for (auto&& include : includes) {
+    for (auto&& include : m.tag_includes) {
         std::print(file, "#include \"{}\"\n", include);
     }
 
     std::print(file, "\nnamespace wxl {{\n\n");
-    for (auto&& tag : present) {
-        std::print(file, "using {} = TaggedValue<{}, PropertyKey::{}>;\n", tag->name,
-                   tag->value_type, tag->property_name);
+    for (auto&& tag : m.tags) {
+        std::print(file, "using {} = TaggedValue<{}, PropertyKey::{}>;\n", tag.name, tag.value_type,
+                   tag.property);
     }
     std::print(file, "\n}}  // namespace wxl\n");
 
-    emitted.add(path);
-    std::print("wrote {} ({} tags)\n", path.string(), present.size());
+    em.add(path);
+    std::print("generated {} ({} tags)\n", path.string(), m.tags.size());
 }
 
 }  // namespace gen

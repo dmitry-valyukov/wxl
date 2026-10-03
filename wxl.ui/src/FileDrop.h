@@ -19,8 +19,6 @@
 // speaks; whether any of them is a file this application wants is the
 // handler's business, and refusing them all is a perfectly good answer.
 
-#include "generated/collections.h"
-
 namespace wxl {
 
 class Window;

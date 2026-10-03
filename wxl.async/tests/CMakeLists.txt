@@ -19,9 +19,11 @@ add_executable(wxl.async.tests
     pool_tests.cpp
     public_future_tests.cpp
     async_directory_tests.cpp
+    async_file_pipe_tests.cpp
     async_file_tests.cpp
     spsc_channel_tests.cpp
     spsc_queue_tests.cpp
+    sta_loop_abandon_tests.cpp
     sta_loop_tests.cpp
     countdown_event_tests.cpp
     task_tests.cpp
@@ -71,6 +73,33 @@ include(GoogleTest)
 
 gtest_discover_tests(
     wxl.async.tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+
+# The loop on a dispatcher queue -- start_dispatched(), the shape an application with a
+# window runs -- in a binary of its own, for the same reason as the one below. The file
+# and directory suites are built here a second time: under this loop what goes by a name
+# is carried out on the thread pool and comes back through the queue.
+add_executable(wxl.async.dispatched-tests
+    async_directory_tests.cpp
+    async_file_pipe_tests.cpp
+    async_file_tests.cpp
+    sta_loop_dispatched_tests.cpp
+)
+
+target_compile_definitions(wxl.async.dispatched-tests PRIVATE WXL_ASYNC_TESTS_DISPATCHED)
+
+target_link_libraries(wxl.async.dispatched-tests
+    PRIVATE
+        wxl::async
+        wxl::test-support
+)
+
+wxl_set_target_folders(wxl.async.dispatched-tests)
+
+gtest_discover_tests(
+    wxl.async.dispatched-tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 )

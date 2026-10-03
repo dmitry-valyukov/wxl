@@ -22,6 +22,10 @@
 //
 //     template class Collection<UIElement>;
 //
+// For a generated class that is the .cpp of the first namespace group to
+// name the element; for a collection only an event's args hand out, the
+// EventArgs.cpp of that namespace.
+//
 // That is what keeps the template's code compiled once, inside wxl's own
 // build, instead of instantiated afresh in every consuming translation unit.
 

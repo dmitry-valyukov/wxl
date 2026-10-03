@@ -37,8 +37,8 @@ std::vector<std::pair<std::string, std::string>> nuspec_dependencies(
     return found;
 }
 
-std::vector<DictionaryResource> dictionary_resources(std::filesystem::path const& dictionary) {
-    std::vector<DictionaryResource> found;
+std::vector<dictionary_resource> dictionary_resources(std::filesystem::path const& dictionary) {
+    std::vector<dictionary_resource> found;
 
     // Markup, not prose: an element here holds children or one piece of text,
     // never both, so the joining mode saves a node per run of text.
@@ -122,8 +122,8 @@ std::string folded(wxl::xml::node const& node) {
 // index is an open-addressing table of member numbers: one allocation for the
 // whole of it and nothing to sort. Parsed members live in one arena, their
 // nodes viewing the text in place.
-struct DocumentationFile::State {
-    struct Member {
+struct documentation_file::state {
+    struct member {
         std::string_view id;
         std::uint32_t begin = 0;  // the member's element, from '<' to after its end tag
         std::uint32_t end = 0;
@@ -133,15 +133,19 @@ struct DocumentationFile::State {
 
     std::string text;
     wxl::xml::arena arena;
-    std::vector<Member> members;       // in document order
+    std::vector<member> members;       // in document order
     std::vector<std::uint32_t> table;  // a member's number plus one, 0 free; a power of two, at most half full
     std::size_t next = 0;              // the first member parse_some() has not looked at
+
+    // The documentation of the members asked for, by member number: only
+    // those pay for it, out of the tens of thousands a file holds.
+    std::map<std::uint32_t, member_documentation> documented;
 
     std::size_t home(std::string_view id) const noexcept {
         return std::hash<std::string_view> {}(id) & (table.size() - 1);
     }
 
-    Member* find(std::string_view id) noexcept {
+    member* find(std::string_view id) noexcept {
         if (table.empty()) {
             return nullptr;
         }
@@ -156,26 +160,26 @@ struct DocumentationFile::State {
     // The member's element parsed where it stands: the byte after its end tag
     // becomes the zero the parser stops at, and then is put back. A member
     // that does not parse is left without a node.
-    void parse(Member& member) {
-        member.parsed = true;
-        char& after = text[member.end];
+    void parse(member& m) {
+        m.parsed = true;
+        char& after = text[m.end];
         char const kept = after;
         after = '\0';
         try {
-            std::string_view const fragment {text.data() + member.begin, member.end - member.begin};
+            std::string_view const fragment {text.data() + m.begin, m.end - m.begin};
             wxl::xml::validate_utf8(fragment);
             wxl::xml::parser reader {fragment, arena};
-            member.node = &reader.parse();
+            m.node = &reader.parse();
         } catch (wxl::xml::exception const&) {
         }
         after = kept;
     }
 };
 
-DocumentationFile::DocumentationFile(std::filesystem::path const& file) : state_(std::make_unique<State>()) {
-    State& state = *state_;
-    state.text = wxl::xml::read_file(file);
-    std::string_view const text = state.text;
+documentation_file::documentation_file(std::filesystem::path const& file) : state_(std::make_unique<state>()) {
+    state& st = *state_;
+    st.text = wxl::xml::read_file(file);
+    std::string_view const text = st.text;
 
     // A member is found by its start tag and its end tag, and named by its
     // name attribute -- a documentation ID, which never holds a character a
@@ -206,41 +210,47 @@ DocumentationFile::DocumentationFile(std::filesystem::path const& file) : state_
         if (name != std::string_view::npos && name + 5 < tag.size()) {
             std::size_t const value_end = tag.find(tag[name + 5], name + 6);
             if (value_end != std::string_view::npos) {
-                state.members.push_back({tag.substr(name + 6, value_end - name - 6), static_cast<std::uint32_t>(at),
-                                         static_cast<std::uint32_t>(end)});
+                st.members.push_back({tag.substr(name + 6, value_end - name - 6), static_cast<std::uint32_t>(at),
+                                      static_cast<std::uint32_t>(end)});
             }
         }
         at = end;
     }
 
-    state.table.assign(std::bit_ceil(2 * state.members.size() + 1), 0);
-    for (std::uint32_t number = 0; number < state.members.size(); ++number) {
-        std::string_view const id = state.members[number].id;
-        std::size_t at = state.home(id);
-        while (state.table[at] && state.members[state.table[at] - 1].id != id) {
-            at = (at + 1) & (state.table.size() - 1);
+    st.table.assign(std::bit_ceil(2 * st.members.size() + 1), 0);
+    for (std::uint32_t number = 0; number < st.members.size(); ++number) {
+        std::string_view const id = st.members[number].id;
+        std::size_t at = st.home(id);
+        while (st.table[at] && st.members[st.table[at] - 1].id != id) {
+            at = (at + 1) & (st.table.size() - 1);
         }
-        state.table[at] = number + 1;  // a later member of the same ID wins
+        st.table[at] = number + 1;  // a later member of the same ID wins
     }
 }
 
-DocumentationFile::DocumentationFile(DocumentationFile&&) noexcept = default;
-DocumentationFile& DocumentationFile::operator=(DocumentationFile&&) noexcept = default;
-DocumentationFile::~DocumentationFile() = default;
+documentation_file::documentation_file(documentation_file&&) noexcept = default;
+documentation_file& documentation_file::operator=(documentation_file&&) noexcept = default;
+documentation_file::~documentation_file() = default;
 
-std::optional<MemberDocumentation> DocumentationFile::find(std::string_view id) {
-    State::Member* const member = state_->find(id);
+member_documentation const* documentation_file::find(std::string_view id) {
+    state::member* const member = state_->find(id);
     if (!member) {
-        return std::nullopt;
+        return nullptr;
     }
     if (!member->parsed) {
         state_->parse(*member);
     }
     if (!member->node) {
-        return std::nullopt;
+        return nullptr;
     }
 
-    MemberDocumentation documentation;
+    auto const number = static_cast<std::uint32_t>(member - state_->members.data());
+    auto const [entry, added] = state_->documented.try_emplace(number);
+    if (!added) {
+        return &entry->second;
+    }
+
+    member_documentation& documentation = entry->second;
     for (auto&& part : member->node->children()) {
         std::string_view const kind {part.name().chars()};
         if (kind == "summary") {
@@ -254,28 +264,28 @@ std::optional<MemberDocumentation> DocumentationFile::find(std::string_view id) 
             documentation.params.emplace_back(param ? std::string {param->chars()} : std::string {}, folded(part));
         }
     }
-    return documentation;
+    return &documentation;
 }
 
-bool DocumentationFile::parse_some(std::chrono::steady_clock::time_point deadline) {
-    State& state = *state_;
-    while (state.next < state.members.size()) {
-        State::Member& member = state.members[state.next++];
+bool documentation_file::parse_some(std::chrono::steady_clock::time_point deadline) {
+    state& st = *state_;
+    while (st.next < st.members.size()) {
+        state::member& member = st.members[st.next++];
         // Parsed already by find(), at once, when it was asked for.
         if (member.parsed) {
             continue;
         }
-        state.parse(member);
+        st.parse(member);
         if (std::chrono::steady_clock::now() >= deadline) {
             break;
         }
     }
-    while (state.next < state.members.size() && state.members[state.next].parsed) {
-        ++state.next;
+    while (st.next < st.members.size() && st.members[st.next].parsed) {
+        ++st.next;
     }
-    return state.next < state.members.size();
+    return st.next < st.members.size();
 }
 
-std::size_t DocumentationFile::size() const noexcept {
+std::size_t documentation_file::size() const noexcept {
     return state_->members.size();
 }

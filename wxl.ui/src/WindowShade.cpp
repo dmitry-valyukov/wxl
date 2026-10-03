@@ -24,13 +24,11 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Numerics.h>
 #include <winrt/Windows.Graphics.DirectX.h>
-#include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.Composition.Desktop.h>
 #include <winrt/Windows.UI.Composition.h>
 
 #include <d2d1_1.h>
 #include <d3d11.h>
-#include <dispatcherqueue.h>
 #include <dxgi.h>
 #include <windows.ui.composition.interop.h>
 
@@ -155,7 +153,6 @@ struct WindowShade::Impl {
     bool ready = false;
 
     comp::Compositor compositor{nullptr};
-    winrt::Windows::System::DispatcherQueueController queue{nullptr};
     desktop::DesktopWindowTarget target{nullptr};
     comp::CompositionGraphicsDevice graphics{nullptr};
     comp::ContainerVisual root{nullptr};
@@ -187,16 +184,8 @@ struct WindowShade::Impl {
                                     ::GetModuleHandleW(nullptr), nullptr);
         if (!overlay) return;
 
-        // The compositor needs a Windows.System dispatcher on the thread; the
-        // WinUI one is a different queue, so make ours where there is none.
-        if (!winrt::Windows::System::DispatcherQueue::GetForCurrentThread()) {
-            DispatcherQueueOptions options{sizeof(DispatcherQueueOptions), DQTYPE_THREAD_CURRENT,
-                                           DQTAT_COM_STA};
-            ABI::Windows::System::IDispatcherQueueController* controller = nullptr;
-            winrt::check_hresult(::CreateDispatcherQueueController(options, &controller));
-            winrt::attach_abi(queue, controller);
-        }
-
+        // The compositor needs a Windows.System dispatcher on the thread, and the
+        // thread has one: the I/O loop started in launch.cpp made it.
         compositor = comp::Compositor{};
         graphics = makeGraphicsDevice();
 

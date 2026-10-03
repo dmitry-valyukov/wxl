@@ -28,7 +28,7 @@ std::vector<std::string> names_of(Types const& types) {
 // same files, all alive at once, stand for separate runs: their walks agree
 // only if nothing in the walk orders types that way.
 TEST(crawl, order_depends_on_the_metadata_alone) {
-    use_type_map(load_type_map(profiles_dir / "types.json"));
+    auto const types = load_type_map(profiles_dir / "types.json");
     auto const profiles = resolve_profiles({profiles_dir / "rich.json"}, default_nuget_root());
 
     std::vector<std::string> files;
@@ -36,7 +36,7 @@ TEST(crawl, order_depends_on_the_metadata_alone) {
         files.push_back(file.string());
     }
     std::deque<winmd::reader::cache> caches;
-    auto const walk = [&] { return crawl(profiles, caches.emplace_back(files)); };
+    auto const walk = [&] { return crawl(profiles, types, caches.emplace_back(files)); };
 
     auto const first = walk();
     for (int run = 1; run < 8; ++run) {
@@ -49,7 +49,6 @@ TEST(crawl, order_depends_on_the_metadata_alone) {
 // A call a profile replaces comes out of the merged profiles under the type and the
 // method it was written for, with the function and the header that declares it.
 TEST(profile, a_replaced_call_reaches_the_merged_profiles) {
-    use_type_map(load_type_map(profiles_dir / "types.json"));
     auto const profiles = resolve_profiles({profiles_dir / "full.json"}, default_nuget_root());
 
     auto const type = profiles.replaced_calls.find("Windows.Storage.Streams.RandomAccessStreamReference");

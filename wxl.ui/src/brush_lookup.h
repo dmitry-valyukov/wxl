@@ -5,6 +5,16 @@
 // brushes a profile's resource dictionary declares, not the code that
 // resolves one. It emits `generated/brushes.h` for the paths and
 // `generated/brush_names.h` for the framework's key behind each one.
+//
+// Beside them it writes `generated/aliases.txt`, a reference sheet and not
+// code: the StaticResource aliases of the framework's theme dictionaries --
+// the key every control part looks its resource up by, and the base resource
+// it forwards to. That is how a control's styling is actually chosen, and
+// what to override in an application's own resources to restyle one control
+// without touching the palette. The aliases are not brush paths; brushes.h
+// carries the concrete resources they point to. One line per key where every
+// theme forwards to the same place; otherwise each distinct target with the
+// themes that chose it.
 
 #include "Microsoft.UI.Xaml.Enums.h"
 #include "Microsoft.UI.Xaml.Media.h"

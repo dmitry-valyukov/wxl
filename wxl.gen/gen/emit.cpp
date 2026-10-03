@@ -10,20 +10,57 @@ using namespace md;
 
 namespace gen {
 
-std::ofstream open_output(std::filesystem::path const& path) {
-    std::ofstream out{path};
-    if (!out) {
-        throw std::runtime_error(std::format("cannot open for writing: {}", path.string()));
+output_file::output_file(std::filesystem::path path) : path_(std::move(path)) {}
+
+output_file::~output_file() noexcept(false) {
+    if (std::uncaught_exceptions() > 0) {
+        return;
     }
-    return out;
+
+    std::string const text = std::move(text_).str();
+    if (std::ifstream existing{path_}) {
+        std::string const old{std::istreambuf_iterator<char>{existing}, {}};
+        if (old == text) {
+            return;
+        }
+    }
+
+    std::ofstream file{path_};
+    file.write(text.data(), static_cast<std::streamsize>(text.size()));
+    if (!file) {
+        throw std::runtime_error(std::format("cannot write {}", path_.string()));
+    }
 }
 
-void Emitted::add(std::filesystem::path const& path, std::string_view target) {
+output_file open_output(std::filesystem::path const& path) {
+    return output_file{path};
+}
+
+void write_includes(std::ostream& out, std::set<std::string> const& includes) {
+    for (auto&& include : includes) {
+        if (include.starts_with('<')) {
+            std::print(out, "#include {}\n", include);
+        } else {
+            std::print(out, "#include \"{}\"\n", include);
+        }
+    }
+}
+
+void write_umbrella_file(std::filesystem::path const& path, std::vector<std::string> const& files) {
+    auto out = open_output(path);
+
+    std::print(out, "{}#pragma once\n\n", banner);
+    for (auto&& file : files) {
+        std::print(out, "#include \"{}\"\n", file);
+    }
+}
+
+void emitted::add(std::filesystem::path const& path, std::string_view target) {
     files_.push_back(path.filename().string());
     targets_.emplace_back(target);
 }
 
-std::vector<std::string> Emitted::files_of(std::string_view target) const {
+std::vector<std::string> emitted::files_of(std::string_view target) const {
     std::vector<std::string> mine;
     for (std::size_t at = 0; at != files_.size(); ++at) {
         if (targets_[at] == target) {
@@ -33,7 +70,7 @@ std::vector<std::string> Emitted::files_of(std::string_view target) const {
     return mine;
 }
 
-std::vector<std::string> Emitted::targets() const {
+std::vector<std::string> emitted::targets() const {
     std::vector<std::string> named;
     for (auto&& target : targets_) {
         if (std::find(named.begin(), named.end(), target) == named.end()) {
@@ -43,10 +80,6 @@ std::vector<std::string> Emitted::targets() const {
     return named;
 }
 
-std::string full_name(TypeDef const& type) {
-    return std::format("{}.{}", type.TypeNamespace(), type.TypeName());
-}
-
 std::map<TypeDef, std::string> build_name_registry(std::vector<TypeDef> const& types) {
     std::map<TypeDef, std::string> generated_names;
     std::map<std::string, TypeDef> name_owner;
@@ -54,8 +87,9 @@ std::map<TypeDef, std::string> build_name_registry(std::vector<TypeDef> const& t
     for (auto&& type : types) {
         std::string name{type.TypeName()};
         if (auto const it = name_owner.find(name); it != name_owner.end() && it->second != type) {
-            std::print(stderr, "warning: name collision in flat wxl namespace: '{}' ({} vs {})\n",
-                       name, it->second.TypeNamespace(), type.TypeNamespace());
+            throw std::runtime_error(
+                std::format("two types map to the same flat wxl name '{}': {} and {}", name,
+                            full_name(it->second), full_name(type)));
         }
         generated_names[type] = name;
         name_owner[std::move(name)] = type;
@@ -103,13 +137,16 @@ std::string member_name(std::string_view metadata_name) {
     return name;
 }
 
-std::string interface_field_name(std::string_view interface_name) {
-    // Drop the WinRT interface prefix: IButtonBase -> ButtonBase.
-    if (interface_name.size() > 1 && interface_name[0] == 'I' &&
-        std::isupper(static_cast<unsigned char>(interface_name[1]))) {
+std::string_view without_interface_prefix(std::string_view interface_name) {
+    if (interface_name.size() > 1 && interface_name[0] == 'I' && interface_name[1] >= 'A' &&
+        interface_name[1] <= 'Z') {
         interface_name.remove_prefix(1);
     }
-    return member_name(interface_name) + '_';
+    return interface_name;
+}
+
+std::string interface_field_name(std::string_view interface_name) {
+    return member_name(without_interface_prefix(interface_name)) + '_';
 }
 
 std::string winrt_namespace(std::string_view metadata_namespace) {

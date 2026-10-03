@@ -9,23 +9,47 @@ import std;
 
 export namespace wxl::async {
 
+/// Says of an operation that it touches nothing but what it owns -- no buffer in a
+/// coroutine frame, no object the coroutine holds -- so that an awaitable going away early
+/// may leave it to finish alone instead of waiting for it. Opening a file is the model: it
+/// carries its own copy of the path, and what it brings back is the open file.
+///
+/// Given up, such an operation lets go of what it made at once, so that whoever gave it
+/// up can ask for the same file the next moment: a result already there is destroyed by
+/// the thread giving it up, and one still being made by the thread making it, as soon as
+/// it is made. Which means the result of an orphanable body is destroyed on either
+/// thread, and has to be something that can be.
+struct orphanable_t {
+    explicit orphanable_t() = default;
+};
+
+inline constexpr orphanable_t orphanable{};
+
 /// One asynchronous operation: the body that runs on the worker thread, what it
 /// leaves behind, and the coroutine that is waiting for it.
 ///
 /// Its life is a round trip. It is born on the STA thread, inside the call that
 /// starts the operation; it travels to the worker as a plain pointer, is
-/// executed there, and travels back the same way; and it dies on the STA thread,
-/// when the co_await that was waiting for it ends. The worker in between neither
-/// creates nor destroys it -- which is exactly why the memory comes from
-/// sta_memory_pool: both ends of the life are on the pool's own thread.
+/// executed there, and travels back the same way; and it dies on the STA thread.
+/// The worker in between neither creates nor destroys it -- which is exactly why
+/// the memory comes from sta_memory_pool: both ends of the life are on the pool's
+/// own thread.
 ///
-/// Ownership is the awaiting coroutine's: the `awaitable` holding this op sits in
-/// the coroutine frame, and the two channels carry a borrowed pointer. So a frame
-/// destroyed while an operation is still out there takes the operation's memory
-/// with it -- do not drop a `task` that has not finished.
+/// Ownership is the `awaitable`'s, which sits in the coroutine frame, while the two
+/// channels carry a borrowed pointer. So the awaitable cannot simply delete an
+/// operation that is still out: when it goes away first -- its frame unwinding on an
+/// exception, its task dropped, or nobody ever awaiting it -- it gives the operation up
+/// instead. The operation is asked to cancel, the awaitable waits until the worker has
+/// let go of it (unless it is `orphanable`), and the loop deletes it when it comes
+/// back. That wait is what keeps a buffer in the frame from being written after the
+/// frame is gone -- the same guarantee a synchronous read on an ordinary stack gives.
 class async_op : public core::noncopyable
 {
 public:
+    async_op() noexcept = default;
+
+    inline explicit async_op(orphanable_t) noexcept : orphanable_(true) {}
+
     virtual ~async_op() = default;
 
     /// Created and destroyed on the STA thread, both, so the pool is where it
@@ -44,14 +68,22 @@ public:
     /// there is nobody here to throw to -- the exception belongs to the coroutine
     /// and travels back to it in the op itself.
     ///
+    /// An operation given up before the worker reached it is not started: nobody is
+    /// waiting for what it would bring, and the flag is read here, once, with an
+    /// ordinary load.
+    ///
     /// \return `true` if the operation is finished and goes back to the STA
     ///         thread. A body that is not done answers `false`, and the operation
     ///         goes nowhere: it now belongs to whatever it is waiting for -- the
     ///         OS, a readiness notification, another queue -- and comes back here
     ///         when that fires. Which means this is not called once per operation:
     ///         a socket that has taken only part of a message is executed again,
-    ///         and a body has to be written knowing it.
+    ///         and a body has to be written knowing it. Nor may it fail to come
+    ///         back: an awaitable giving it up waits for it.
     inline bool packaged_execute() noexcept {
+        if (canceled_.load(std::memory_order_relaxed)) [[unlikely]]
+            return true;
+
         try {
             return execute();
         } catch (...) {
@@ -66,13 +98,54 @@ public:
     /// it out is the same thread's job.
     inline void suspend(std::coroutine_handle<> coro) noexcept { coro_ = coro; }
 
-    /// The STA thread's call: gives control back to the coroutine that awaited this
-    /// op.
+    /// The STA thread's call, as the loop takes the operation out of the return channel:
+    /// deletes it if it was given up, resumes the coroutine waiting for it if there is
+    /// one, and otherwise leaves it for the co_await still to come, which then finds it
+    /// back and does not suspend.
     ///
-    /// \warning The op is gone by the time this returns. The coroutine resumes
-    ///          inside its co_await, and the awaitable holding the op -- and the op
-    ///          with it -- is destroyed as that expression ends.
-    inline void resume() const { coro_.resume(); }
+    /// \return whether a coroutine was resumed.
+    ///
+    /// \warning The op may be gone by the time this returns: a resumed coroutine goes
+    ///          on from its co_await, and the awaitable holding the op dies with it.
+    inline bool come_back() {
+        if (abandoned_) [[unlikely]] {
+            delete this;
+            return false;
+        }
+
+        delivered_ = true;
+
+        if (!coro_) return false;
+
+        coro_.resume();
+        return true;
+    }
+
+    /// The same, for a loop that is being stopped: nothing is resumed any more, so a
+    /// coroutine suspended here stays where it is, and the op waits for its awaitable
+    /// to delete it along with the frame.
+    inline void settle() noexcept {
+        if (abandoned_)
+            delete this;
+        else
+            delivered_ = true;
+    }
+
+    /// Whether the loop has taken it out of the return channel: the worker is done
+    /// with it, and nothing but its awaitable refers to it any more.
+    inline bool delivered() const noexcept { return delivered_; }
+
+    /// The STA thread's call for an operation that was over inside the call that
+    /// started it, on this thread: it never travels, and is delivered as it stands.
+    inline void deliver_here() noexcept { delivered_ = true; }
+
+    /// The awaitable's call, when it goes away before the operation has been delivered:
+    /// marks it given up, asks it to cancel, and -- unless it is orphanable -- waits,
+    /// without resuming anybody, until the worker has let go of it. The loop deletes it
+    /// when it comes back, or this does, if it is next in line already.
+    ///
+    /// Defined with the loop, whose return channel it waits on (sta_loop.cpp).
+    static void abandon(async_op* op) noexcept;
 
     inline bool has_exception() const noexcept { return error_ != nullptr; }
 
@@ -80,13 +153,45 @@ protected:
     /// The work itself, on the worker thread. \see packaged_execute().
     virtual bool execute() = 0;
 
+    /// Called on the STA thread when the awaitable gives the operation up while it is
+    /// still out, after the flag packaged_execute() reads has been set.
+    ///
+    /// For an operation the worker has not reached, the flag is all it takes. One already
+    /// running is interrupted here, if what it waits for can be interrupted -- the way
+    /// CancelIoEx completes a read the kernel is holding -- so that the awaitable, which
+    /// waits for it to come back, does not wait longer than it has to. Must not throw:
+    /// it runs in a destructor, often one called by unwinding.
+    virtual void on_cancel() noexcept {}
+
     inline void rethrow_if_failed() const {
         if (error_) std::rethrow_exception(error_);
     }
 
+    /// For an operation that learns of its failure without throwing -- from the code an
+    /// overlapped call left behind.
+    inline void set_error(std::exception_ptr error) noexcept { error_ = std::move(error); }
+
+    /// Whether it has been given up. For a body that hands the operation to the kernel:
+    /// read after the handing over, it closes the race with a cancellation that came
+    /// before there was anything to cancel.
+    inline bool canceled() const noexcept { return canceled_.load(std::memory_order_seq_cst); }
+
 private:
     std::coroutine_handle<> coro_;
     std::exception_ptr error_;
+
+    /// Written by the STA thread, read by the worker before the body: the one field
+    /// of the operation both threads touch while it is out, hence atomic. The rest
+    /// below is the STA thread's alone.
+    std::atomic<bool> canceled_{false};
+
+    /// Taken out of the return channel.
+    bool delivered_ = false;
+
+    /// Given up by its awaitable: whoever takes it out of the return channel deletes it.
+    bool abandoned_ = false;
+
+    const bool orphanable_ = false;
 };
 
 /// An operation with a result of type R: the value the worker produced, kept until
@@ -95,6 +200,8 @@ template <class R>
 class async_op_t : public async_op
 {
 public:
+    using async_op::async_op;
+
     /// The STA thread's call, at the end of co_await.
     /// \throw whatever the body threw on the worker thread.
     R take_result() {
@@ -105,11 +212,23 @@ public:
         // "done" without producing what it promised.
         ensure(value_.has_value() && "async_op: finished without a result");
 
+#ifdef NDEBUG
         return std::move(*value_);
+#else
+        // A second co_await of the same awaitable is a moved-from value and nothing else,
+        // like reading from anything after std::move; a Debug build has it fail the check
+        // above instead.
+        R taken = std::move(*value_);
+        value_.reset();
+        return taken;
+#endif
     }
 
 protected:
     void set_value(R&& value) { value_.emplace(std::move(value)); }
+
+    /// Destroys what was produced, for an operation nobody is going to ask.
+    void drop_value() noexcept { value_.reset(); }
 
 private:
     // An optional rather than an R: a result type is not obliged to have a default
@@ -121,7 +240,12 @@ template <>
 class async_op_t<void> : public async_op
 {
 public:
+    using async_op::async_op;
+
     inline void take_result() { rethrow_if_failed(); }
+
+protected:
+    inline void drop_value() noexcept {}
 };
 
 /// The simple case: the body is a lambda or a functor, and the result is whatever
@@ -152,6 +276,121 @@ protected:
 
 private:
     Fn fn_;
+};
+
+/// Where an orphanable operation is, as the two threads that may end it agree: the one
+/// carrying it out and the one giving it up meet on this word.
+///
+/// Giving up an operation that is running also cuts short the call to the system it
+/// stands in -- an opening the system is taking its time over fails at once, as
+/// cancelled. That reaches a thread and not an operation, so it is only ever done to a
+/// thread known to be inside this operation's body: the body does not leave while it is
+/// being done.
+class orphan_stage
+{
+public:
+    /// The carrying thread's call before the body.
+    /// \return `false` if the operation was given up before it started, and is not to.
+    [[nodiscard]] bool enter() noexcept;
+
+    /// The carrying thread's call after the body, whichever way the body ended.
+    /// \return `false` if the operation was given up while it ran: what it made is
+    ///         nobody's, and the caller destroys it.
+    [[nodiscard]] bool leave() noexcept;
+
+    /// The call of the thread giving the operation up.
+    /// \return `true` if the body had finished: what it made is there, and the caller
+    ///         destroys it.
+    [[nodiscard]] bool give_up() noexcept;
+
+    /// The body's question between two calls to the system, when it makes more than
+    /// one: cutting short reaches the call under way and no other, so a body given up
+    /// between two of its calls would go on to the next unless it asks.
+    inline bool given_up() const noexcept {
+        return stage_.load(std::memory_order_relaxed) >= stage::cutting_short;
+    }
+
+private:
+    enum class stage : std::uint8_t {
+        waiting,
+        running,
+        finished,
+        /// Given up while running, and the call the body stands in is being cut short
+        /// this moment: the body waits for that to be over before it leaves.
+        cutting_short,
+        given_up,
+    };
+
+    std::atomic<stage> stage_{stage::waiting};
+
+    /// The thread the body runs on, written before the word says `running`.
+    std::uint32_t thread_ = 0;
+};
+
+/// A body that takes the stage, to ask it between its calls.
+template <class Fn>
+concept asks_stage = std::invocable<Fn&, const orphan_stage&>;
+
+template <class Fn>
+struct orphan_result
+{
+    using type = std::invoke_result_t<Fn&>;
+};
+
+template <asks_stage Fn>
+struct orphan_result<Fn>
+{
+    using type = std::invoke_result_t<Fn&, const orphan_stage&>;
+};
+
+/// What an orphanable body answers, whether or not it takes the stage.
+template <class Fn>
+using orphan_result_t = orphan_result<Fn>::type;
+
+/// An orphanable operation whose body is a lambda.
+template <class Fn, class R = orphan_result_t<Fn>>
+class orphan_op_f final : public async_op_t<R>
+{
+public:
+    template <class Fn2>
+    explicit orphan_op_f(Fn2&& fn) : async_op_t<R>(orphanable), fn_(std::forward<Fn2>(fn)) {}
+
+protected:
+    bool execute() override {
+        if (!stage_.enter()) [[unlikely]]
+            return true;
+
+        // Caught here rather than by the caller: the stage has to be settled on the way
+        // out of a body that threw as well.
+        try {
+            if constexpr (std::is_void_v<R>)
+                run();
+            else
+                this->set_value(run());
+        } catch (...) {
+            this->set_error(std::current_exception());
+        }
+
+        if (!stage_.leave()) [[unlikely]]
+            this->drop_value();
+
+        return true;
+    }
+
+    void on_cancel() noexcept override {
+        if (stage_.give_up()) this->drop_value();
+    }
+
+private:
+    inline R run() {
+        if constexpr (asks_stage<Fn>)
+            return fn_(std::as_const(stage_));
+        else
+            return fn_();
+    }
+
+    Fn fn_;
+    orphan_stage stage_;
 };
 
 }  // export namespace wxl::async

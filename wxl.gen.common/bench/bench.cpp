@@ -9,7 +9,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include <optional>
 
 #include "xml_input.h"
 
@@ -61,10 +60,13 @@ int main(int argc, char** argv) {
             document.load_file(file);
         });
 
-        std::optional<DocumentationFile> opened;
-        time(open, [&] { opened.emplace(file); });
-        members = opened->size();
-        time(find, [&] { found = opened->find(id).has_value(); });
+        // Timed around the constructor itself: the object stays where it is
+        // made, for the steps below.
+        auto const opening = clock::now();
+        documentation_file opened {file};
+        open.add(clock::now() - opening);
+        members = opened.size();
+        time(find, [&] { found = opened.find(id) != nullptr; });
 
         // The rest in 4 ms slices, the way the editor takes it between events;
         // the longest slice is what one step keeps the window waiting.
@@ -72,7 +74,7 @@ int main(int argc, char** argv) {
         time(rest, [&] {
             for (bool more = true; more; ++slices) {
                 auto const start = clock::now();
-                more = opened->parse_some(start + std::chrono::milliseconds {4});
+                more = opened.parse_some(start + std::chrono::milliseconds {4});
                 longest = std::max(longest, std::chrono::duration<double, std::milli>(clock::now() - start).count());
             }
         });

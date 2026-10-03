@@ -7,7 +7,10 @@
 // One overload set in each direction -- to_winrt() going in, from_winrt()
 // coming out -- so generated code writes the same two names whatever the
 // type is, and overload resolution picks the pair. Generated structs add
-// their own overloads to these same sets from Structs.impl.h.
+// their own overloads to these same sets from Structs.impl.h. A generated
+// struct is the ABI struct -- it comes from the same metadata, field for
+// field -- so crossing is a bit_cast, and the mirrors() assert beside each
+// pair is what keeps that true.
 //
 // Private: this names winrt:: types and is included only by generated
 // .cpp files.
@@ -23,7 +26,6 @@
 #include "../FontFamily.h"
 #include "../ImageSource.h"
 #include "../Uri.h"
-#include "../generated/collections.h"
 #include "../Thickness.h"
 #include "../CornerRadius.h"
 #include "event_token.h"

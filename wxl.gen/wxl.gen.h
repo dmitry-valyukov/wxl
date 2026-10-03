@@ -8,6 +8,7 @@
 //   generate.h  orchestration of the output, one writer per artefact
 //   run.h       a whole run behind one call
 //
+// gen/model.h is what analysis works out before anything is written;
 // gen/emit.h, types.h, metadata.h, projection.h, members.h and writers.h are
 // the output side's internals. Every source of the library includes this file.
 
@@ -21,4 +22,5 @@
 #include "gen/metadata.h"
 #include "gen/projection.h"
 #include "gen/members.h"
+#include "gen/model.h"
 #include "gen/writers.h"

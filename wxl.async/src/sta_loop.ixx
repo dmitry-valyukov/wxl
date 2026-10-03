@@ -6,6 +6,8 @@ export module wxl.async:sta_loop;
 
 import :async_op;
 import :awaitable;
+import :io_op;
+import :io_port;
 import :spsc_channel;
 import :thread_group;
 import :threaded_component;
@@ -23,6 +25,12 @@ export namespace wxl::async {
 /// over a callback instead, and the worker calls it -- on the worker's thread,
 /// so all the callback may do is arrange, by whatever its dispatcher offers,
 /// for run_pending() to be called back on the STA thread.
+///
+/// And one moment when even a driven thread has to sleep here: an awaitable giving up
+/// its operation waits, in a destructor, until the worker has let go of it. The thread
+/// cannot return to its dispatcher from there, so for the length of that wait hold()
+/// has every handover set the event as well, and the waiter sleeps on it in
+/// wait_held().
 class sta_signal
 {
 public:
@@ -32,7 +40,15 @@ public:
     sta_signal() = default;
 
     /// The worker's call, at the end of every handover.
+    ///
+    /// A held signal calls back all the same, and not out of caution: the worker reads
+    /// the flag after taking the trigger, and the trigger it took may have been armed
+    /// before the hold began -- by a drain that has since returned to its dispatcher and
+    /// is owed exactly this callback. Withheld, it would be lost; made, it costs a drain
+    /// that may find nothing, and only while somebody is waiting in place.
     inline void set() {
+        if (wake_ && held_.load(std::memory_order_relaxed)) event_.set();
+
         if (wake_)
             (*wake_)();
         else
@@ -46,6 +62,23 @@ public:
 
         event_.wait();
     }
+
+    /// The STA side's call before it arms the trigger for a wait in place: handovers
+    /// set the event from now on, in either shape.
+    ///
+    /// Relaxed, and still seen in time by every handover that matters: one that takes
+    /// the trigger the waiter arms afterwards reads it through that exchange. One that
+    /// took an older arm may miss it, and then only calls back -- the waiter, arming
+    /// after it, finds its element by the look it takes before sleeping.
+    inline void hold() noexcept { held_.store(true, std::memory_order_relaxed); }
+
+    /// Ends what hold() began. A handover that took the trigger just before may still
+    /// set the event -- a spurious wakeup for whoever sleeps on it next, which every
+    /// sleeper here already loops over.
+    inline void release() noexcept { held_.store(false, std::memory_order_relaxed); }
+
+    /// Sleeps on the event, in either shape; the one wait a driven loop is allowed.
+    inline void wait_held() { event_.wait(); }
 
     /// Chosen before the worker starts, and never again: from then on the
     /// callback is read from the worker's thread.
@@ -71,6 +104,7 @@ public:
 private:
     core::nullable<wake_t> wake_;
     core::hevent event_{false};
+    std::atomic<bool> held_{false};
 };
 
 /// The two threads an asynchronous operation lives between, and the loop that
@@ -101,18 +135,26 @@ private:
 /// life, and the `turnstile` that guards sending latches shut for good. There is
 /// nothing to restart, which is why a test binary starts the loop once for all
 /// of its tests rather than once per test.
+///
+/// **An operation given up while out is waited for, not resumed around.** When its
+/// awaitable goes away first (`async_op::abandon`), the STA thread waits in place --
+/// looking ahead in the return channel, never taking anything out of it, never
+/// resuming anybody, because it may be in the middle of unwinding and a coroutine
+/// resumed from there could throw into it. Giving up is the exception's path and pays
+/// for itself: the channel is walked from its head for every operation given up, and
+/// the path with no error is not touched for it.
 class sta_loop
 {
-    /// The worker sleeps on an event of the channel's own making; the STA side
-    /// sleeps or is called back, and that is what `sta_signal` decides. Either
-    /// way the arm/disarm protocol inside the channel makes sure
-    /// a wakeup is never lost.
-    using to_worker_t = spsc_channel<async_op*, 256>;
+    /// The worker sleeps on its completion port, and the queue it reads wakes it
+    /// through the same port; the STA side sleeps or is called back, and that is
+    /// what `sta_signal` decides. Either way the arm/disarm protocol inside the
+    /// channel makes sure a wakeup is never lost.
+    using to_worker_t = spsc_channel<async_op*, 256, io_port>;
     using from_worker_t = spsc_channel<async_op*, 256, sta_signal>;
 
     /// The worker thread. It has no state of its own beyond the channels of the
-    /// run: what to do arrives as an operation, and where to put the answer is
-    /// the same for all of them.
+    /// run: what to do arrives as an operation or as a completion from the
+    /// kernel, and where to put the answer is the same for all of them.
     class worker : public threaded_component
     {
     public:
@@ -122,35 +164,11 @@ class sta_loop
         inline ~worker() override { dispose(); }
 
     protected:
-        inline void run() override {
-            // Built here rather than beside the channels: the reader belongs to
-            // the thread that reads, and this is it.
-            to_worker_t::reader reader(to_worker_);
+        /// In sta_loop.cpp.
+        void run() override;
 
-            async_op* op = nullptr;
-
-            // closed() is asked only when a receive came back empty, never once
-            // per operation: close() forces a wakeup, and that wakeup comes
-            // back through receive() with nothing in its hands, so the empty
-            // path sees every close there will ever be.
-            for (;;) {
-                if (reader.receive(op)) {
-                    execute(op);
-                    continue;
-                }
-
-                if (to_worker_.closed()) break;
-            }
-
-            // A latched close is the promise that nothing more can be sent, so what
-            // is left in the queue is everything that will ever be there -- and it
-            // was accepted, so it gets done.
-            while (reader.read(op)) execute(op);
-        }
-
-        /// Closing the channel is what ends run(): it makes the loop above fall
-        /// through, and the forced signal wakes the thread if it is asleep in
-        /// receive() at that moment.
+        /// Closing the channel is what ends run(), and the forced signal wakes
+        /// the thread if it is asleep on the port at that moment.
         inline void on_stopping() override {
             threaded_component::on_stopping();
 
@@ -170,8 +188,13 @@ class sta_loop
         }
     };
 
-    static inline to_worker_t to_worker_{false};
+    static inline to_worker_t to_worker_;
     static inline from_worker_t from_worker_;
+
+    /// Operations out and not taken back yet, counted by the STA thread alone: up
+    /// where one is sent or handed to the kernel, down where one is taken out of the
+    /// return channel. stop() waits for it to reach zero.
+    static inline std::size_t outstanding_ = 0;
 
     /// The STA side of the return channel. Its owner is the STA thread, and
     /// there is one of it, which is what the channel asks.
@@ -189,6 +212,57 @@ class sta_loop
     /// when it is built, and what the worker thread is called is the
     /// application's to choose.
     static inline std::optional<worker> worker_;
+
+    friend class async_op;
+
+    /// What async_op::abandon() asks of the loop, in sta_loop.cpp: the look into the
+    /// return channel, the wait in place, and the tidying after it. wait_until_back()
+    /// answers whether it took over a callback the dispatcher is owed, which
+    /// pay_owed_callback() then settles.
+    ///@{
+    static bool is_back(async_op* op) noexcept;
+    static bool wait_until_back(async_op* op) noexcept;
+    static void take_if_next(async_op* op) noexcept;
+    static void pay_owed_callback() noexcept;
+    ///@}
+
+    /// What a loop with a dispatcher queue under it does differently from one on the
+    /// worker alone, chosen as the loop starts.
+    struct shape
+    {
+        /// Carries out an orphanable operation: on the worker, or on the system's
+        /// thread pool, so that the worker never stands in a call that goes by a name.
+        void (*send_orphan)(async_op&);
+
+        /// stop()'s wait: takes back everything that is out, resuming nobody.
+        void (*take_back_outstanding)() noexcept;
+
+        /// stop()'s last word, once the worker is gone.
+        void (*let_go)() noexcept;
+    };
+
+    inline static void send_to_worker(async_op& op) { enqueue(core::as_not_null<async_op>(&op)); }
+
+    /// In sta_loop.cpp: sleeps in place while there is nothing to take.
+    static void take_back_outstanding() noexcept;
+
+    inline static void keep_nothing() noexcept {}
+
+    static constexpr shape on_worker{&send_to_worker, &take_back_outstanding, &keep_nothing};
+
+    /// In sta_queue.cpp.
+    ///@{
+    static void send_to_pool(async_op& op);
+    static void take_back_dispatched() noexcept;
+    static void let_go_of_queue() noexcept;
+
+    /// The idle hook's call: arms the trigger a drain standing in a modal loop holds, and
+    /// posts for what is waiting, so that the modal loop is called back into.
+    static void post_if_pending() noexcept;
+    static constexpr shape on_queue{&send_to_pool, &take_back_dispatched, &let_go_of_queue};
+    ///@}
+
+    static inline const shape* shape_ = &on_worker;
 
 public:
     /// Static from top to bottom, and therefore never made.
@@ -240,15 +314,35 @@ public:
         worker_->start_async().get();
     }
 
-    /// Stops the worker and waits for it to finish what it had accepted.
+    /// Starts the loop for a thread with a message loop, on that thread's own
+    /// dispatcher queue -- the system's, `Windows.System.DispatcherQueue`, made here
+    /// if the thread has none. The worker's handovers are posted to it, and so is
+    /// every orphanable operation on its way back from the thread pool.
     ///
-    /// What it does not do is finish the coroutines. An operation still on its
-    /// way back when the worker leaves is never taken out of the return channel,
-    /// so the coroutine waiting for it never resumes; its frame is destroyed by
-    /// its `task`, suspended where it stood. That is the honest end for a loop
-    /// that is being shut down -- there is nothing left to resume it *onto* --
-    /// but a caller that wants its coroutines finished runs them to their end
-    /// before stopping.
+    /// The queue has to outlive stop(): a post it refuses is an operation that never
+    /// comes back, and stop() waits for every one of them. One made here is shut
+    /// down by stop() itself; one the thread already had is its owner's to keep.
+    ///
+    /// In sta_queue.cpp.
+    static void start_dispatched(std::string_view worker_name = "sta_loop worker");
+
+    /// Waits for every operation that is out to come back, and stops the worker.
+    ///
+    /// The wait comes first because an operation the kernel holds comes back
+    /// through the worker, which therefore has to outlive it. So an operation
+    /// that would never finish by itself -- a read from a pipe nobody writes to
+    /// -- has to be given up before this is called, or this does not return.
+    /// Under start_dispatched() the wait turns the thread's message loop, since
+    /// that is how the queue delivers, and the queue this made is shut down at
+    /// the end, the way the thread would have to before it exits.
+    ///
+    /// What it does not do is finish the coroutines. What comes back is taken
+    /// out here without resuming anybody: a given-up operation is deleted, and
+    /// a coroutine waiting for one of the others never resumes; its frame is
+    /// destroyed by its `task`, suspended where it stood, and the operation
+    /// goes with it. That is the honest end for a loop that is being shut down
+    /// -- there is nothing left to resume it *onto* -- but a caller that wants
+    /// its coroutines finished runs them to their end before stopping.
     ///
     /// Doing nothing when there is no run is the point rather than an
     /// indulgence: a teardown path has no business knowing how far a startup
@@ -258,7 +352,10 @@ public:
         // Это ошибка логики.
         if (!worker_) return;
 
-        if (worker_->was_started()) worker_->stop_async().get();
+        if (worker_->was_started()) {
+            shape_->take_back_outstanding();
+            worker_->stop_async().get();
+        }
 
         worker_.reset();
         threads_.reset();
@@ -267,6 +364,8 @@ public:
         // is static and the callback's body is in the STA pool, so this is
         // where it is given back -- while there is still a pool to give it to.
         from_worker_.wakeup().forget_wake();
+
+        shape_->let_go();
     }
 
     /// Whether there is a run in progress -- for the infrastructure that starts
@@ -280,7 +379,14 @@ public:
     /// left to carry the operation and nothing to carry it back with, and a
     /// coroutine that reaches this point was one the caller had promised to
     /// finish before stopping.
-    inline static void enqueue(core::not_null<async_op> op) { to_worker_.send(op.get()); }
+    inline static void enqueue(core::not_null<async_op> op) {
+        to_worker_.send(op.get());
+        ++outstanding_;
+    }
+
+    /// The port the worker sleeps on, for whoever opens a file: that is where the
+    /// file's overlapped operations are told to finish.
+    inline static io_port& port() noexcept { return to_worker_.wakeup(); }
 
     /// Starts an operation whose body is a lambda and returns what the coroutine
     /// awaits.
@@ -309,6 +415,28 @@ public:
         return async_run(std::move(op));
     }
 
+    /// The same for a body that touches nothing but what it owns -- its captures are
+    /// copies, and the result is a value of its own. Given up, it is left to finish
+    /// alone rather than waited for, and what it made is let go of at once
+    /// (`orphanable_t`). A body that writes into the caller's frame must not be passed
+    /// here: nothing would stop it from writing after the frame is gone.
+    ///
+    /// Under start_dispatched() it runs on the system's thread pool and not on the
+    /// worker: what is orphanable here is what goes by a name -- opening a file,
+    /// making a directory -- and may take the system as long as it likes.
+    template <class Fn>
+    [[nodiscard]] static awaitable<orphan_result_t<std::decay_t<Fn>>> async_call(
+        orphanable_t, Fn&& fn) {
+        using result_t = orphan_result_t<std::decay_t<Fn>>;
+
+        std::unique_ptr<async_op_t<result_t>> op(new orphan_op_f<std::decay_t<Fn>>(
+            std::forward<Fn>(fn)));
+
+        shape_->send_orphan(*op);
+
+        return awaitable<result_t>(std::move(op));
+    }
+
     /// The same for an operation written out as a class of its own: whoever
     /// needs more than a lambda can do -- state that survives being executed
     /// twice, a body that answers `false` and waits for something to fire --
@@ -323,8 +451,46 @@ public:
         return awaitable<R>(std::move(op));
     }
 
+    /// Starts an overlapped operation here, on the STA thread, without the trip to the
+    /// worker. One the system finishes inside the call is delivered at once, and the
+    /// coroutine awaiting it does not suspend; one the kernel takes comes back through
+    /// the port and the return channel.
+    ///
+    /// Only for what is known not to hold the calling thread. The rest goes through
+    /// async_run(), and is started on the worker.
+    [[nodiscard]] inline static awaitable<std::size_t> async_start(std::unique_ptr<io_op> op) {
+        // A completion with no worker to take it would never arrive; enqueue() fails the
+        // same way, through send().
+        assert(running() && "sta_loop: the loop is not running");
+
+        if (op->start())
+            op->deliver_here();
+        else
+            ++outstanding_;
+
+        return awaitable<std::size_t>(std::move(op));
+    }
+
+    /// Runs the body here, on the STA thread, and returns it already delivered: for a
+    /// call short enough not to be worth a trip, which still answers through a
+    /// co_await and still fails there.
+    template <class Fn>
+    [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> call_here(Fn&& fn) {
+        using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
+
+        std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
+            std::forward<Fn>(fn)));
+
+        op->packaged_execute();
+        op->deliver_here();
+
+        return awaitable<result_t>(std::move(op));
+    }
+
     /// Takes one finished operation and gives control back to the coroutine that
-    /// was waiting for it. Sleeps while there is nothing to take.
+    /// was waiting for it -- or, with nobody waiting, deletes it if it was given up
+    /// and otherwise leaves it for the co_await still to come. Sleeps while there is
+    /// nothing to take.
     ///
     /// \return `false` on a wakeup with nothing behind it -- the caller loops on a
     ///         condition of its own, as it does with the channel underneath.
@@ -333,9 +499,11 @@ public:
 
         if (!from_worker_reader_.receive(op)) return false;
 
-        // The op is gone by the time this returns: the coroutine resumes inside its
-        // co_await, and the awaitable that owns the op dies with that expression.
-        op->resume();
+        --outstanding_;
+
+        // The op may be gone by the time this returns: deleted if it was given up, or
+        // taken with the co_await that resumes here.
+        op->come_back();
 
         return true;
     }
@@ -371,8 +539,29 @@ public:
     /// In the sleeping shape none of that happens: run_one() runs the protocol
     /// around its own sleep, and this only takes what is there.
     ///
+    /// A continuation delivered here may open a modal loop -- a message box, a
+    /// menu -- and stand in it; the trigger is taken for as long as it does, so
+    /// nothing posts into that loop by itself. The loop's idle is where this is
+    /// called again, nested: that drain arms the trigger, and from then on the
+    /// handovers post into the modal loop like any other.
+    ///
     /// \return how many coroutines were resumed.
     inline static std::size_t run_pending() {
+        return drain_pending([](async_op* op) { return op->come_back(); });
+    }
+
+    /// The same for a loop that is being stopped: what comes back is settled, and
+    /// nobody is resumed.
+    inline static void settle_pending() noexcept {
+        drain_pending([](async_op* op) noexcept {
+            op->settle();
+            return false;
+        });
+    }
+
+private:
+    template <class Deliver>
+    inline static std::size_t drain_pending(Deliver deliver) {
         std::size_t resumed = 0;
         const bool driven = from_worker_.wakeup().driven();
 
@@ -382,21 +571,30 @@ public:
         }
 
         for (;;) {
-            for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->resume();
+            for (async_op* op = nullptr; take(op);) resumed += deliver(op);
 
             if (!driven) return resumed;
 
-            from_worker_.arm();
+            // Set rather than asserted clear: a continuation delivered above may have run
+            // a modal loop, and a drain nested in it leaves the trigger armed.
+            from_worker_.rearm();
             std::atomic_thread_fence(std::memory_order_seq_cst);
 
             async_op* op = nullptr;
 
-            if (!from_worker_reader_.read(op)) return resumed;
+            if (!take(op)) return resumed;
 
             from_worker_.disarm();
-            op->resume();
-            ++resumed;
+            resumed += deliver(op);
         }
+    }
+
+    /// Takes the next operation out of the return channel, if there is one.
+    inline static bool take(async_op*& op) noexcept {
+        if (!from_worker_reader_.read(op)) return false;
+
+        --outstanding_;
+        return true;
     }
 };
 

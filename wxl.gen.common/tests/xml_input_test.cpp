@@ -28,7 +28,7 @@ TEST(xml_input, documentation_file_finds_members_by_id) {
 </doc>
 )xml";
 
-    DocumentationFile members {file};
+    documentation_file members {file};
     std::filesystem::remove(file);
 
     ASSERT_EQ(members.size(), 2u);
@@ -55,7 +55,7 @@ TEST(xml_input, documentation_file_parses_the_rest_by_slices) {
         }
         out << "<member name=\"T:N.Empty\"/></members></doc>";
     }
-    DocumentationFile members {file};
+    documentation_file members {file};
     std::filesystem::remove(file);
     ASSERT_EQ(members.size(), 101u);
 
@@ -79,7 +79,7 @@ TEST(xml_input, documentation_file_passes_over_what_find_parsed) {
         }
         out << "</members></doc>";
     }
-    DocumentationFile members {file};
+    documentation_file members {file};
     std::filesystem::remove(file);
 
     // Every tenth asked for first, the last among them: the slices parse only

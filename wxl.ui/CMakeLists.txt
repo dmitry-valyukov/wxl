@@ -308,7 +308,9 @@ target_compile_features(wxl.ui PUBLIC cxx_std_23)
 target_link_options(wxl.ui INTERFACE "/ENTRY:wWinMainCRTStartup")
 
 # src/ so the generated tree can reach "../Object.h"; the generated tree
-# adds itself to the include path from its own CMakeLists.txt.
+# adds itself to the include path from its own CMakeLists.txt, because its
+# sources name each other by bare name ("Button.h", "PropertyKey.h") and the
+# hand-written sources here expect the same.
 target_include_directories(wxl.ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )

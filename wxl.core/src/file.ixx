@@ -77,6 +77,24 @@ public:
                                   FILE_ATTRIBUTE_NORMAL, nullptr));
     }
 
+    /// The same two ways of opening, for a caller that brings an OVERLAPPED of its own
+    /// to every call and keeps the position itself. read() and write() here are not for
+    /// such a file: they pass none.
+    ///@{
+    inline static file open_read_overlapped(const wchar_t* path) noexcept {
+        return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                  nullptr, OPEN_EXISTING,
+                                  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN |
+                                      FILE_FLAG_OVERLAPPED,
+                                  nullptr));
+    }
+
+    inline static file create_overlapped(const wchar_t* path) noexcept {
+        return file(::CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                                  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr));
+    }
+    ///@}
+
     inline bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
 
     /// The file's length, or none when it cannot be had.

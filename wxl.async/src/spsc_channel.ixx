@@ -115,6 +115,11 @@ public:
         assert(trigger_was_clear && "spsc_channel: more than one thread is receiving");
     }
 
+    /// Arms the wake-up where it may be armed already: for a reader that does not sleep
+    /// but is called back, and whose drain may run nested inside another one of its own --
+    /// a continuation that opened a modal loop -- which left the trigger set on its way out.
+    void rearm() { wait_trigger_.set(); }
+
     /// Disarms the wake-up.
     /// \return `false` if somebody disarmed it first -- that is, took the right
     ///         to wake the reader.

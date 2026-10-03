@@ -233,7 +233,7 @@ public:
 
         if (!from_worker_reader_.receive(op)) return false;
 
-        op->resume();
+        op->come_back();
         return true;
     }
 
@@ -243,7 +243,7 @@ public:
 
         if (!from_worker_reader_.read(op)) return false;
 
-        op->resume();
+        op->come_back();
         return true;
     }
 
@@ -255,7 +255,7 @@ public:
     std::size_t run_pending() {
         std::size_t resumed = 0;
 
-        for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->resume();
+        for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->come_back();
 
         return resumed;
     }
@@ -275,7 +275,7 @@ public:
         std::atomic_thread_fence(std::memory_order_seq_cst);
 
         for (;;) {
-            for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->resume();
+            for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->come_back();
 
             from_worker_.arm();
             std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -288,7 +288,7 @@ public:
             // be woken back -- unless the worker already took it, in which case a post is
             // on its way and will find nothing, which is the ordinary spurious wakeup.
             from_worker_.disarm();
-            op->resume();
+            op->come_back();
             ++resumed;
         }
     }

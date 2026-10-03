@@ -17,6 +17,10 @@
 // members and its constructors reach through the braces; over a built-in
 // type it holds one and converts back out. Either way it is the value where
 // a value is wanted, and the setter takes it unchanged.
+//
+// The tags themselves are generated/Tags.h, one alias per tagged property
+// the profile has. The property keeps the type the metadata gives it; the
+// tag exists only for the unnamed form.
 
 #include "core.h"
 
