@@ -39,8 +39,10 @@ using winrt::Windows::Foundation::Numerics::float4;
 
 constexpr char16_t const* lightKinds[] = {u"Без источников", u"PointLight за указателем", u"DistantLight"};
 
-// Вершин по стороне клавиши: сетка 48 x 48 клеток.
-constexpr int gridSide = 49;
+// Сетка клавиши: отрезков на сторону и на дугу угла, колец от края к середине.
+constexpr int sideSteps = 12;
+constexpr int arcSteps = 24;
+constexpr int rings = 28;
 
 // Буфер WinRT с байтами данных: до них добираются через IMemoryBufferByteAccess.
 template <class T>
@@ -164,41 +166,77 @@ struct Solid {
     }
 
     void fill() {
+        // Край клавиши точками: четыре стороны и четыре дуги углов, по кругу. Каждый
+        // отрезок отдаёт своё начало, а конец -- начало следующего.
+        double const half = lab::keySide / 2.0;
+        double const radius = std::clamp(corner.get(), 0.0, half);
+        double const flat = half - radius;
+        constexpr double quarter = 3.14159265358979 / 2.0;
+
+        std::vector<std::pair<double, double>> outline;
+        outline.reserve(4 * (sideSteps + arcSteps));
+        auto const line = [&](double fromX, double fromY, double toX, double toY) {
+            for (int step = 0; step < sideSteps; ++step) {
+                double const t = static_cast<double>(step) / sideSteps;
+                outline.emplace_back(fromX + (toX - fromX) * t, fromY + (toY - fromY) * t);
+            }
+        };
+        auto const arc = [&](double centreX, double centreY, double from) {
+            for (int step = 0; step < arcSteps; ++step) {
+                double const angle = from + quarter * step / arcSteps;
+                outline.emplace_back(centreX + radius * std::cos(angle), centreY + radius * std::sin(angle));
+            }
+        };
+        line(-flat, -half, flat, -half);
+        arc(flat, -flat, -quarter);
+        line(half, -flat, half, flat);
+        arc(flat, flat, 0.0);
+        line(flat, half, -flat, half);
+        arc(-flat, flat, quarter);
+        line(-half, flat, -half, -flat);
+        arc(-flat, -flat, 2.0 * quarter);
+
+        // Сетка -- кольца, подобные краю и стянутые к середине: внешнее лежит на
+        // самом скруглённом крае, поэтому силуэт гладкий. У края кольца чаще --
+        // там плечо, и высота меняется быстро.
+        int const around = static_cast<int>(outline.size());
         std::vector<float> positions;
         std::vector<float> normals;
         std::vector<std::uint16_t> indices;
-        std::vector<bool> within;
-        positions.reserve(gridSide * gridSide * 3);
-        normals.reserve(gridSide * gridSide * 3);
-        within.reserve(gridSide * gridSide);
+        positions.reserve((around * rings + 1) * 3);
+        normals.reserve((around * rings + 1) * 3);
 
-        double const step = lab::keySide / (gridSide - 1);
-        for (int row = 0; row < gridSide; ++row) {
-            for (int column = 0; column < gridSide; ++column) {
-                double const x = -lab::keySide / 2.0 + column * step;
-                double const y = -lab::keySide / 2.0 + row * step;
-                double const h = heightAt(x, y);
-                within.push_back(insideAt(x, y) > 0.0);
-                // Нормаль -- по разности высот вокруг вершины.
-                double const dx = (heightAt(x + 0.5, y) - heightAt(x - 0.5, y));
-                double const dy = (heightAt(x, y + 0.5) - heightAt(x, y - 0.5));
-                double const length = std::sqrt(dx * dx + dy * dy + 1.0);
-                positions.insert(positions.end(), {static_cast<float>(x), static_cast<float>(y), static_cast<float>(h)});
-                normals.insert(normals.end(), {static_cast<float>(-dx / length), static_cast<float>(-dy / length),
-                                               static_cast<float>(1.0 / length)});
+        auto const vertex = [&](double x, double y) {
+            // Нормаль -- по разности высот вокруг вершины.
+            double const dx = heightAt(x + 0.5, y) - heightAt(x - 0.5, y);
+            double const dy = heightAt(x, y + 0.5) - heightAt(x, y - 0.5);
+            double const length = std::sqrt(dx * dx + dy * dy + 1.0);
+            positions.insert(positions.end(),
+                             {static_cast<float>(x), static_cast<float>(y), static_cast<float>(heightAt(x, y))});
+            normals.insert(normals.end(), {static_cast<float>(-dx / length), static_cast<float>(-dy / length),
+                                           static_cast<float>(1.0 / length)});
+        };
+
+        for (int ring = 0; ring < rings; ++ring) {
+            double const scale = 1.0 - std::pow(static_cast<double>(ring) / rings, 1.6);
+            for (auto const& [x, y] : outline) {
+                vertex(x * scale, y * scale);
             }
         }
-        for (int row = 0; row + 1 < gridSide; ++row) {
-            for (int column = 0; column + 1 < gridSide; ++column) {
-                auto const at = [](int r, int c) { return static_cast<std::uint16_t>(r * gridSide + c); };
-                // Клетка целиком за скруглённым углом в сетку не идёт: у клавиши
-                // форма скруглённая, а не квадратная.
-                if (!within[at(row, column)] && !within[at(row, column + 1)] && !within[at(row + 1, column)] &&
-                    !within[at(row + 1, column + 1)]) {
-                    continue;
+        vertex(0.0, 0.0);
+
+        auto const at = [around](int ring, int place) {
+            return static_cast<std::uint16_t>(ring * around + place % around);
+        };
+        auto const middle = static_cast<std::uint16_t>(around * rings);
+        for (int ring = 0; ring < rings; ++ring) {
+            for (int place = 0; place < around; ++place) {
+                if (ring + 1 < rings) {
+                    indices.insert(indices.end(), {at(ring, place), at(ring, place + 1), at(ring + 1, place),
+                                                   at(ring, place + 1), at(ring + 1, place + 1), at(ring + 1, place)});
+                } else {
+                    indices.insert(indices.end(), {at(ring, place), at(ring, place + 1), middle});
                 }
-                indices.insert(indices.end(), {at(row, column), at(row, column + 1), at(row + 1, column),
-                                               at(row, column + 1), at(row + 1, column + 1), at(row + 1, column)});
             }
         }
 
