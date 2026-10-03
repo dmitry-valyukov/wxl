@@ -104,7 +104,8 @@ wxl::Teardown wxl_launched() {
         right->model(model);
     });
     auto const typesItem = SelectorBarItem {text = typesTab, isSelected = true};
-    auto const details = HtmlBlock {textWrapping.wrap};
+    // Сведения читают подолгу: кегль крупнее 14 у деревьев.
+    auto const details = HtmlBlock {textWrapping.wrap, fontSize = 16.0};
     document->info.on_change([details](std::wstring const& markup) noexcept { details.html(markup); });
     // Ссылка в сведениях — тип: он открывается в дереве Types.
     details.onLink([left, document, typesItem](zstring_view target) {
