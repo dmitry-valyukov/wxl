@@ -33,6 +33,8 @@ constexpr RowIcon namespaceIcon {0xE058, rgb(13, 71, 161), rgb(128, 222, 234)}; 
 constexpr RowIcon classIcon {0xF132, rgb(109, 55, 16), rgb(255, 167, 38)};       // apps: коричнево-оранжевый
 constexpr RowIcon structIcon {0xE202, rgb(27, 94, 32), rgb(255, 204, 170)};      // broad_activity_feed: зелёно-персиковый
 constexpr RowIcon enumIcon {0xE779, rgb(74, 20, 140), rgb(186, 104, 200)};       // list: фиолетовый
+constexpr RowIcon interfaceIcon {0xE9E9, rgb(0, 77, 64), rgb(128, 203, 196)};    // puzzle_piece: тёмно-светло-зелёный (карточка)
+constexpr RowIcon delegateIcon {0xE999, rgb(26, 35, 126), rgb(159, 168, 218)};   // plug_connected: индиго (карточка)
 // Члены — сплошным цветом.
 constexpr RowIcon propertyIcon {0xEE85, rgb(97, 97, 97), rgb(97, 97, 97)};       // wrench: серый
 constexpr RowIcon methodIcon {0xF334, rgb(94, 53, 177), rgb(94, 53, 177)};       // cube: фиолетовый
@@ -367,6 +369,32 @@ struct Editor::Data {
     bool hideDependencyProperties = true;
 };
 
+namespace {
+
+// Тип по полному имени. Ссылка на обобщённый тип называет его без числа
+// параметров (Windows.Foundation.Collections.IVector), а метаданные — с ним
+// (IVector`1): такой ищется по имени с `.
+md::TypeDef find_type(md::cache const& db, std::string_view full) {
+    if (md::TypeDef const def = db.find(full)) {
+        return def;
+    }
+    auto const dot = full.rfind('.');
+    if (dot == std::string_view::npos) {
+        return {};
+    }
+    auto const space = db.namespaces().find(full.substr(0, dot));
+    if (space == db.namespaces().end()) {
+        return {};
+    }
+    std::string const generic = std::format("{}`", full.substr(dot + 1));
+    auto const& types = space->second.types;
+    auto const found = types.lower_bound(generic);
+    return found != types.end() && std::string_view {found->first}.starts_with(generic) ? found->second
+                                                                                          : md::TypeDef {};
+}
+
+}  // namespace
+
 // Тип в левом дереве; адрес постоянен, пока жив редактор.
 struct TypeEntry {
     md::TypeDef def;
@@ -522,6 +550,10 @@ public:
 
     // Есть ли тип в дереве: только на такой ведёт ссылка из сведений.
     bool shows(std::string_view full) const { return find(full) != nullptr; }
+
+    // Есть ли тип в метаданных: на такой ведёт ссылка из сведений — в дерево,
+    // а нет его там (интерфейс, делегат) — в карточку в сведениях.
+    bool knows(std::string_view full) const { return static_cast<bool>(find_type(editor_.data_->db, full)); }
 
     // Раскрывает файл и пространство типа и выбирает его; номер его строки
     // среди видимых.
@@ -880,7 +912,7 @@ public:
 private:
     void named(std::string_view ns, std::string_view name) override {
         std::string const full = std::format("{}.{}", ns, name);
-        if (types_.shows(full)) {
+        if (types_.knows(full)) {
             html_ += L"<a href=\"";
             append_text(html_, full);
             html_ += L"\">";
@@ -1427,6 +1459,95 @@ private:
 };
 
 
+// Карточка типа, которого нет в дереве Types, — интерфейса, делегата: по
+// ссылке из сведений она встаёт в сведения на место выбранной строки. Строк у
+// неё нет; модель она потому, что сведения следуют за выбором модели.
+class TypeCard final : public TreeModel {
+public:
+    TypeCard(Editor& editor, md::TypeDef def) : editor_(editor), def_(def) {}
+
+    uint32_t size() const override { return 0; }
+    TreeRow row(uint32_t) const override { return {}; }
+    void toggleExpanded(uint32_t) override {}
+    void toggleChecked(uint32_t) override {}
+    void invoke(uint32_t) override {}
+    wxl::core::nullable<uint32_t> selectedRow() const override { return {}; }
+
+    Description describe() const override {
+        TypesModel const& types = *editor_.types_;
+        std::wstring html;
+        auto const category = md::get_category(def_);
+        html += category == md::category::interface_type  ? L"interface "
+                : category == md::category::delegate_type ? L"delegate "
+                : category == md::category::struct_type   ? L"struct "
+                : category == md::category::enum_type     ? L"enum "
+                                                          : L"class ";
+        std::string_view const name = def_.TypeName();
+        append_bold(html, name.substr(0, name.find('`')));
+        // Параметры обобщения — по именам.
+        bool first = true;
+        for (auto&& param : def_.GenericParam()) {
+            html += first ? L"&lt;" : L", ";
+            first = false;
+            append_text(html, param.Name());
+        }
+        if (!first) {
+            html += L"&gt;";
+        }
+        // Интерфейс требует других — как база у класса.
+        first = true;
+        for (auto&& impl : def_.InterfaceImpl()) {
+            html += first ? L" : " : L", ";
+            first = false;
+            SignatureWriter {html, types, def_}.type(impl.Interface());
+        }
+        html += L"<br>Member of ";
+        append_bold(html, def_.TypeNamespace());
+        html += L"<p>Not in the Types tree: the profile lists classes, structs and enums.</p>";
+
+        // Члены — объявлениями, со ссылками на их типы. У делегата член один —
+        // Invoke, сигнатура вызова; он помечен особым именем, и обход членов
+        // его пропускает.
+        auto const declared = declared_members_of(def_);
+        std::wstring lines;
+        if (category == md::category::delegate_type) {
+            for (auto&& method : def_.MethodList()) {
+                if (method.Name() == "Invoke") {
+                    SignatureWriter {lines, types, def_}.write(member_declaration {def_, method}, method.Name());
+                    lines += L"<br>";
+                }
+            }
+        }
+        for (auto const& [kind, names] : {std::pair {member_kind::Property, &declared.properties},
+                                          std::pair {member_kind::Method, &declared.methods},
+                                          std::pair {member_kind::Event, &declared.events}}) {
+            for (std::string_view const member : *names) {
+                for (member_declaration const& declaration : declarations_of(def_, kind, member)) {
+                    SignatureWriter {lines, types, declaration.source}.write(declaration, member);
+                    lines += L"<br>";
+                }
+            }
+        }
+        if (!lines.empty()) {
+            html += L"<p>" + lines + L"</p>";
+        }
+
+        if (auto const documentation = editor_.data_->documentation.find(def_, DocumentationId::of(def_))) {
+            append_documentation(html, **documentation);
+        }
+        RowIcon const* const icon = category == md::category::interface_type  ? &interfaceIcon
+                                    : category == md::category::delegate_type ? &delegateIcon
+                                    : category == md::category::struct_type   ? &structIcon
+                                    : category == md::category::enum_type     ? &enumIcon
+                                                                              : &classIcon;
+        return {icon, std::move(html)};
+    }
+
+private:
+    Editor& editor_;
+    md::TypeDef const def_;
+};
+
 // Левое дерево на вкладке Resources: именованные ресурсы словарей XAML, из
 // которых генератор пишет styles.h и brushes.h. Стили — по типу, к которому они
 // относятся: отметка стиля пишется при этом типе. Кисти — двумя списками, как
@@ -1767,12 +1888,19 @@ bool Editor::prepareDocumentation() {
     return more;
 }
 
-wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) const {
+wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) {
     std::string utf8;
     if (auto const text = wxl::core::unicode::checked(type)) {
         wxl::core::unicode::append_utf8(utf8, *text);
     }
-    return types_->reveal(utf8);
+    if (auto const row = types_->reveal(utf8)) {
+        return row;
+    }
+    if (md::TypeDef const def = find_type(data_->db, utf8)) {
+        intrusive_ptr<TreeModel> const card {new TypeCard {*this, def}, /*add_ref=*/false};
+        selection.set({card, card.get()});
+    }
+    return {};
 }
 Editor::~Editor() = default;
 

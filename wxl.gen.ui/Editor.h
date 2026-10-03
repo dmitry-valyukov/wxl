@@ -31,8 +31,9 @@ public:
     wxl::core::intrusive_ptr<TreeModel> resources() const;
 
     // Переход по ссылке из сведений: раскрывает тип в дереве Types и выбирает
-    // его; номер его строки среди видимых, если такой тип там есть.
-    wxl::core::nullable<uint32_t> reveal(std::wstring_view type) const;
+    // его; номер его строки среди видимых, если такой тип там есть. Типа, которого
+    // в дереве нет (интерфейс, делегат), — его карточка в сведениях.
+    wxl::core::nullable<uint32_t> reveal(std::wstring_view type);
 
     // Правое дерево: члены выбранного типа; пусто, пока тип не выбран.
     wxl::core::observable<wxl::core::intrusive_ptr<TreeModel>> members;
@@ -80,6 +81,7 @@ private:
     friend class TypesModel;
     friend class MembersModel;
     friend class ResourcesModel;
+    friend class TypeCard;
 
     std::unique_ptr<Data> data_;
     wxl::core::intrusive_ptr<TypesModel> types_;
