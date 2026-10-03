@@ -128,7 +128,13 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
 
     Apply {row.text,
         vAlign.center,
-        Margin {4, 0, 12, 0},
+        Margin {4, 0, 0, 0},
+    };
+
+    Apply {row.detail,
+        vAlign.center,
+        foreground = brushes.Text.FillColor.Secondary,
+        Margin {8, 0, 12, 0},
     };
 
     Apply {row.panel,
@@ -164,6 +170,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         row.check,
         row.icon,
         row.text,
+        row.detail,
     };
 
     return row;
@@ -305,6 +312,12 @@ void VirtualTree::render() {
             core::unicode::append_utf16(text_, *utf8);
         }
         row.text.text(text_);
+
+        detail_.clear();
+        if (auto const utf8 = core::unicode::checked(data.detail)) {
+            core::unicode::append_utf16(detail_, *utf8);
+        }
+        row.detail.text(detail_);
     }
 
     // Строки запаса сверху уходят за край: панель сдвинута на их высоту.

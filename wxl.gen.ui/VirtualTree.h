@@ -41,6 +41,7 @@ wxl::Template<wxl::RadialGradientBrush> iconFill(wxl::Color outer, wxl::Color in
 // сразу, до следующего обращения к модели.
 struct TreeRow {
     std::string_view text;
+    std::string_view detail;  // серым после текста: тип, сигнатура, счёт
     uint16_t depth = 0;
 
     RowIcon const* icon = nullptr;
@@ -98,6 +99,7 @@ private:
         wxl::TextBlock check;
         wxl::TextBlock icon;
         wxl::TextBlock text;
+        wxl::TextBlock detail;
         bool selected = false;  // выбрана ли строка модели, показанная в ячейке
         bool expandable = false;
     };
@@ -126,6 +128,7 @@ private:
     std::vector<std::pair<RowIcon const*, wxl::Brush>> fills_;
     std::u16string text_;
     std::u16string glyph_;
+    std::u16string detail_;
 
     wxl::core::intrusive_ptr<TreeModel> model_;
     uint32_t top_ = 0;

@@ -432,7 +432,18 @@ public:
                     .selected = space == selected_.space && !selected_.type};
         }
 
+        // У класса серым — база, если она своя, а не System.Object.
+        base_.clear();
+        if (type->icon == &classIcon) {
+            if (auto const base = type->def.Extends(); base && base.type() != md::TypeDefOrRef::TypeSpec) {
+                auto const [ns, name] = md::get_type_namespace_and_name(base);
+                if (ns != "System" || name != "Object") {
+                    base_ = std::format(": {}", name);
+                }
+            }
+        }
         return {.text = type->def.TypeName(),
+                .detail = base_,
                 .depth = 2,
                 .icon = type->icon,
                 .check = type->listed ? Check::Checked : Check::Unchecked,
@@ -612,6 +623,7 @@ private:
     std::vector<Library> libraries_;
     uint32_t size_ = 0;
     Location selected_ {};  // выбранная строка: файл, а под ним — пространство и тип
+    mutable std::string base_;  // «: База» строки типа, пока дерево её читает
 };
 
 namespace {
@@ -741,17 +753,11 @@ void append_documentation(std::wstring& html, member_documentation const& docume
     }
 }
 
-// Сигнатура члена в разметку сведений. Типы — полными именами; тип, который
-// есть в левом дереве, — ссылкой на него.
-class SignatureWriter {
+// Типы сигнатуры словами: встроенные — именами WinRT, обобщённые — с
+// аргументами в угловых скобках, параметры обобщения — по имени. Как писать имя
+// типа и текст, решает наследник.
+class TypeSpeller {
 public:
-    SignatureWriter(std::wstring& html, TypesModel const& types, md::TypeDef const& source)
-        : html_(html), types_(types), source_(source) {}
-
-    void write(member_declaration const& declaration, std::string_view name) {
-        std::visit([this, name](auto const& definition) { member(definition, name); }, declaration.definition);
-    }
-
     void type(md::coded_index<md::TypeDefOrRef> const& ref) {
         if (ref.type() == md::TypeDefOrRef::TypeSpec) {
             generic(ref.TypeSpec().Signature().GenericTypeInst());
@@ -759,7 +765,91 @@ public:
         }
         auto const [ns, name] = md::get_type_namespace_and_name(ref);
         // У обобщённого имени в метаданных число параметров после `.
-        std::string const full = std::format("{}.{}", ns, name.substr(0, name.find('`')));
+        named(ns, name.substr(0, name.find('`')));
+    }
+
+    void type(md::TypeSig const& signature) {
+        std::visit([this](auto const& value) { element(value); }, signature.Type());
+        if (signature.is_szarray()) {
+            text("[]");
+        }
+    }
+
+protected:
+    // source — тип, где объявлен член: по нему называются параметры обобщения.
+    explicit TypeSpeller(md::TypeDef const& source) : source_(source) {}
+    ~TypeSpeller() = default;
+
+    virtual void named(std::string_view ns, std::string_view name) = 0;
+    virtual void text(std::string_view utf8) = 0;
+
+    md::TypeDef const& source_;
+
+private:
+    void generic(md::GenericTypeInstSig const& instance) {
+        type(instance.GenericType());
+        text("<");
+        bool first = true;
+        for (auto&& argument : instance.GenericArgs()) {
+            text(first ? "" : ", ");
+            first = false;
+            type(argument);
+        }
+        text(">");
+    }
+
+    void element(md::coded_index<md::TypeDefOrRef> const& ref) { type(ref); }
+    void element(md::GenericTypeInstSig const& instance) { generic(instance); }
+
+    // Параметр обобщённого интерфейса, где член объявлен, — по его имени.
+    void element(md::GenericTypeIndex index) {
+        uint32_t number = 0;
+        for (auto&& param : source_.GenericParam()) {
+            if (number++ == index.index) {
+                text(param.Name());
+                return;
+            }
+        }
+        text("T");
+    }
+
+    void element(md::GenericMethodTypeIndex) { text("T"); }
+
+    void element(md::ElementType element) {
+        switch (element) {
+            case md::ElementType::Boolean: text("Boolean"); break;
+            case md::ElementType::Char: text("Char16"); break;
+            case md::ElementType::I1: text("Int8"); break;
+            case md::ElementType::U1: text("UInt8"); break;
+            case md::ElementType::I2: text("Int16"); break;
+            case md::ElementType::U2: text("UInt16"); break;
+            case md::ElementType::I4: text("Int32"); break;
+            case md::ElementType::U4: text("UInt32"); break;
+            case md::ElementType::I8: text("Int64"); break;
+            case md::ElementType::U8: text("UInt64"); break;
+            case md::ElementType::R4: text("Single"); break;
+            case md::ElementType::R8: text("Double"); break;
+            case md::ElementType::String: text("String"); break;
+            case md::ElementType::Object: text("Object"); break;
+            default: text("?"); break;
+        }
+    }
+};
+
+// Сигнатура члена в разметку сведений. Типы — полными именами; тип, который
+// есть в левом дереве, — ссылкой на него.
+class SignatureWriter final : public TypeSpeller {
+public:
+    SignatureWriter(std::wstring& html, TypesModel const& types, md::TypeDef const& source)
+        : TypeSpeller(source), html_(html), types_(types) {}
+
+    void write(member_declaration const& declaration, std::string_view name) {
+        std::visit([this, name](auto const& definition) { member(definition, name); }, declaration.definition);
+    }
+
+private:
+    void named(std::string_view ns, std::string_view name) override {
+        std::string const full = std::format("{}.{}", ns, name);
         if (types_.shows(full)) {
             html_ += L"<a href=\"";
             append_text(html_, full);
@@ -771,7 +861,8 @@ public:
         }
     }
 
-private:
+    void text(std::string_view utf8) override { append_text(html_, utf8); }
+
     // Доступ и виртуальность есть только у объявления в самом классе: у
     // интерфейса все члены открытые и абстрактные. У свойства и события они —
     // у метода доступа.
@@ -863,66 +954,121 @@ private:
         }
     }
 
-    void type(md::TypeSig const& signature) {
-        std::visit([this](auto const& value) { element(value); }, signature.Type());
-        if (signature.is_szarray()) {
-            html_ += L"[]";
-        }
-    }
-
-    void generic(md::GenericTypeInstSig const& instance) {
-        type(instance.GenericType());
-        html_ += L"&lt;";
-        bool first = true;
-        for (auto&& argument : instance.GenericArgs()) {
-            html_ += first ? L"" : L", ";
-            first = false;
-            type(argument);
-        }
-        html_ += L"&gt;";
-    }
-
-    void element(md::coded_index<md::TypeDefOrRef> const& ref) { type(ref); }
-    void element(md::GenericTypeInstSig const& instance) { generic(instance); }
-
-    // Параметр обобщённого интерфейса, где член объявлен, — по его имени.
-    void element(md::GenericTypeIndex index) {
-        uint32_t number = 0;
-        for (auto&& param : source_.GenericParam()) {
-            if (number++ == index.index) {
-                append_text(html_, param.Name());
-                return;
-            }
-        }
-        html_ += L"T";
-    }
-
-    void element(md::GenericMethodTypeIndex) { html_ += L"T"; }
-
-    void element(md::ElementType element) {
-        switch (element) {
-            case md::ElementType::Boolean: html_ += L"Boolean"; break;
-            case md::ElementType::Char: html_ += L"Char16"; break;
-            case md::ElementType::I1: html_ += L"Int8"; break;
-            case md::ElementType::U1: html_ += L"UInt8"; break;
-            case md::ElementType::I2: html_ += L"Int16"; break;
-            case md::ElementType::U2: html_ += L"UInt16"; break;
-            case md::ElementType::I4: html_ += L"Int32"; break;
-            case md::ElementType::U4: html_ += L"UInt32"; break;
-            case md::ElementType::I8: html_ += L"Int64"; break;
-            case md::ElementType::U8: html_ += L"UInt64"; break;
-            case md::ElementType::R4: html_ += L"Single"; break;
-            case md::ElementType::R8: html_ += L"Double"; break;
-            case md::ElementType::String: html_ += L"String"; break;
-            case md::ElementType::Object: html_ += L"Object"; break;
-            default: html_ += L"?"; break;
-        }
-    }
-
     std::wstring& html_;
     TypesModel const& types_;
-    md::TypeDef const& source_;
 };
+
+// Объявление в строку дерева, серым после имени: типы короткими именами, из
+// модификаторов — только static. Свойство — с аксессорами ({ get; } или
+// { get; set; }), метод — с возвратом и параметрами, событие — с делегатом,
+// значение — с числом.
+class BriefSignature final : public TypeSpeller {
+public:
+    static std::string of(member_declaration const& declaration, std::string_view name) {
+        BriefSignature brief {declaration.source, name};
+        std::visit([&brief](auto const& definition) { brief.member(definition); }, declaration.definition);
+        return std::move(brief.text_);
+    }
+
+private:
+    BriefSignature(md::TypeDef const& source, std::string_view name) : TypeSpeller(source), name_(name) {}
+
+    void named(std::string_view, std::string_view name) override { text_ += name; }
+    void text(std::string_view utf8) override { text_ += utf8; }
+
+    void modifiers(md::MethodDef const& method) {
+        if (method.Flags().Static()) {
+            text_ += "static ";
+        }
+    }
+
+    void member(md::Property const& property) {
+        bool setter = false;
+        for (auto&& semantic : property.MethodSemantic()) {
+            setter = setter || semantic.Semantic().Setter();
+            if (semantic.Semantic().Getter()) {
+                modifiers(semantic.Method());
+            }
+        }
+        type(property.Type().Type());
+        text_ += ' ';
+        text_ += name_;
+        text_ += setter ? " { get; set; }" : " { get; }";
+    }
+
+    void member(md::MethodDef const& method) {
+        modifiers(method);
+        auto const signature = method.Signature();
+        if (signature.ReturnType()) {
+            type(signature.ReturnType().Type());
+        } else {
+            text_ += "void";
+        }
+        text_ += ' ';
+        text_ += name_;
+        text_ += '(';
+        uint16_t sequence = 0;
+        for (auto&& param : signature.Params()) {
+            ++sequence;
+            text_ += sequence > 1 ? ", " : "";
+            md::Param definition;
+            for (auto&& each : method.ParamList()) {
+                if (each.Sequence() == sequence) {
+                    definition = each;
+                }
+            }
+            if (definition && definition.Flags().Out()) {
+                text_ += "out ";
+            }
+            type(param.Type());
+            if (definition) {
+                text_ += ' ';
+                text_ += definition.Name();
+            }
+        }
+        text_ += ')';
+    }
+
+    void member(md::Event const& event) {
+        for (auto&& semantic : event.MethodSemantic()) {
+            if (semantic.Semantic().AddOn()) {
+                modifiers(semantic.Method());
+            }
+        }
+        text_ += "event ";
+        type(event.EventType());
+        text_ += ' ';
+        text_ += name_;
+    }
+
+    void member(md::Field const& field) {
+        text_ += name_;
+        if (auto const constant = field.Constant()) {
+            std::visit(
+                [this](auto const& value) {
+                    using T = std::decay_t<decltype(value)>;
+                    if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool> && !std::is_same_v<T, char16_t>) {
+                        text_ += std::format(" = {}", value);
+                    }
+                },
+                constant.Value());
+        }
+    }
+
+    std::string_view const name_;
+    std::string text_;
+};
+
+// Объявления члена, как их показывать. Класс объявляет член и сам, и в своём
+// интерфейсе; своё объявление полнее — с доступом и виртуальностью, — и
+// интерфейсное тогда не показывается.
+std::vector<member_declaration> shown_declarations(md::TypeDef const& type, member_kind kind, std::string_view name) {
+    auto declarations = declarations_of(type, kind, name);
+    if (std::ranges::any_of(declarations, [&type](member_declaration const& each) { return each.source == type; })) {
+        std::erase_if(declarations, [&type](member_declaration const& each) { return each.source != type; });
+    }
+    return declarations;
+}
 
 }  // namespace
 
@@ -976,6 +1122,23 @@ public:
         }
         // Пустая группа не показывается.
         std::erase_if(groups_, [](Group const& group) { return group.names.empty(); });
+
+        // Перегрузки — первой сигнатурой и их числом.
+        for (Group& group : groups_) {
+            group.briefs.reserve(group.names.size());
+            for (std::string_view const name : group.names) {
+                std::vector<std::string> briefs;
+                for (member_declaration const& declaration : shown_declarations(entry.def, group.kind, name)) {
+                    if (std::string brief = BriefSignature::of(declaration, name);!std::ranges::contains(briefs, brief)) {
+                        briefs.push_back(std::move(brief));
+                    }
+                }
+                std::string& brief = group.briefs.emplace_back(briefs.empty() ? std::string {} : std::move(briefs.front()));
+                if (briefs.size() > 1) {
+                    brief += std::format("  +{} overload{}", briefs.size() - 1, briefs.size() > 2 ? "s" : "");
+                }
+            }
+        }
     }
 
     uint32_t size() const override {
@@ -989,7 +1152,9 @@ public:
     TreeRow row(uint32_t index) const override {
         auto const [group, member] = locate(index);
         if (member == npos) {
+            count_ = std::format("{} of {}", chosen(*group), group->names.size());
             return {.text = group->title,
+                    .detail = count_,
                     .icon = group->icon,
                     .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
                     .check = groupCheck(*group)};
@@ -997,6 +1162,7 @@ public:
 
         std::string_view const name = group->names[member];
         return {.text = name,
+                .detail = group->briefs[member],
                 .depth = 1,
                 .icon = group->icon,
                 .check = allows(name) ? Check::Checked : Check::Unchecked,
@@ -1045,16 +1211,10 @@ public:
             return {};
         }
 
-        // Метод — каждой перегрузкой, строкой на каждую. Класс объявляет член и
-        // сам, и в своём интерфейсе; своё объявление полнее — с доступом и
-        // виртуальностью, — и интерфейсное тогда не показывается.
+        // Метод — каждой перегрузкой, строкой на каждую.
         std::string_view const name = group->names[member];
-        auto declarations = declarations_of(entry_.def, group->kind, name);
-        if (std::ranges::any_of(declarations, [this](member_declaration const& each) { return each.source == entry_.def; })) {
-            std::erase_if(declarations, [this](member_declaration const& each) { return each.source != entry_.def; });
-        }
         std::vector<std::pair<std::wstring, wxl::core::nullable<member_documentation const>>> lines;
-        for (member_declaration const& declaration : declarations) {
+        for (member_declaration const& declaration : shown_declarations(entry_.def, group->kind, name)) {
             std::wstring line;
             SignatureWriter {line, *editor_.types_, declaration.source}.write(declaration, name);
             if (std::ranges::find(lines, line, &decltype(lines)::value_type::first) == lines.end()) {
@@ -1091,6 +1251,7 @@ private:
         member_kind kind;
         RowIcon const* icon = nullptr;
         std::vector<std::string_view> names;
+        std::vector<std::string> briefs;  // сигнатура каждого члена, серым после имени
         bool expanded = true;
 
         uint32_t shown() const { return expanded ? static_cast<uint32_t>(names.size()) : 0; }
@@ -1103,12 +1264,16 @@ private:
         return found == types.end() ? enum_ : found->second.allows(member);
     }
 
+    size_t chosen(Group const& group) const {
+        return static_cast<size_t>(std::ranges::count_if(group.names, [this](std::string_view name) { return allows(name); }));
+    }
+
     Check groupCheck(Group const& group) const {
-        auto const chosen = std::ranges::count_if(group.names, [this](std::string_view name) { return allows(name); });
-        if (chosen == 0) {
+        size_t const count = chosen(group);
+        if (count == 0) {
             return Check::Unchecked;
         }
-        return std::cmp_equal(chosen, group.names.size()) ? Check::Checked : Check::Indeterminate;
+        return count == group.names.size() ? Check::Checked : Check::Indeterminate;
     }
 
     std::pair<Group*, uint32_t> locate(uint32_t index) const {
@@ -1131,6 +1296,7 @@ private:
     bool const enum_;
     std::vector<Group> groups_;
     std::pair<Group const*, uint32_t> selected_ {nullptr, npos};
+    mutable std::string count_;  // «N of M» строки группы, пока дерево её читает
 };
 
 // Левое дерево на вкладке Resources: именованные ресурсы словарей XAML, из
