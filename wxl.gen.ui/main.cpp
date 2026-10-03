@@ -343,7 +343,11 @@ wxl::Teardown wxl_launched() {
                     panePlacement.right,
                     openPaneLength = 180.0,
                     spacing = 8.0,
-                    content = Border {framed, right->view()},
+                    content = Border {
+                        framed,
+                        background = brushes.SolidBackgroundFillColor.Quarternary,
+                        right->view(),
+                    },
                     pane = Border {
                         framed,
                         background = brushes.SolidBackgroundFillColor.Quarternary,
