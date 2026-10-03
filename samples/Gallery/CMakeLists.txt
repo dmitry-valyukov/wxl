@@ -80,6 +80,8 @@ wxl_add_executable(sample.gallery
     DesignPages.cpp
     Design.cpp
     ColorPage.cpp
+    IconographyPage.cpp
+    Icons.cpp
     ColorTile.cpp
     ColorSamples.cpp
     ColorSections.cpp
