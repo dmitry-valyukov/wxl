@@ -15,6 +15,8 @@ wxl_add_module_library(wxl.async STATIC
         drain_stack.ixx
         future.ixx
         future_shared_state.ixx
+        io_op.ixx
+        io_port.ixx
         mpsc_channel.ixx
         mpsc_queue.ixx
         one_shot_event.ixx
@@ -44,9 +46,14 @@ wxl_add_module_library(wxl.async STATIC
 
         async_directory.cpp
         async_file.cpp
+        async_op.cpp
         future.cpp
         future_shared_state.cpp
+        io_op.cpp
+        io_port.cpp
         one_shot_event.cpp
+        sta_loop.cpp
+        sta_queue.cpp
         task_tree.cpp
         thread.cpp
         thread_group.cpp
@@ -77,6 +84,11 @@ target_link_libraries(wxl.async PUBLIC wxl::core)
 # worker body can make WinRT calls off the UI thread -- Win2D, say.
 # CoInitializeEx/CoUninitialize live in ole32.
 target_link_libraries(wxl.async PRIVATE ole32)
+
+# PRIVATE: the thread's dispatcher queue, which start_dispatched() finds or makes --
+# CreateDispatcherQueueController is coremessaging, the activation factory and the
+# string behind its name are runtimeobject.
+target_link_libraries(wxl.async PRIVATE coremessaging runtimeobject)
 
 # See the same block in wxl.core/src/CMakeLists.txt: MSVC injects the PCH ahead
 # of the module declaration, which is where these sources include the headers
