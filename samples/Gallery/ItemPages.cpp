@@ -54,6 +54,7 @@ constexpr Entry ported[] = {
     {L"AccessibilityKeyboard", &gallery::accessibilityKeyboardPage},
     {L"AccessibilityScreenReader", &gallery::accessibilityScreenReaderPage},
     {L"ScratchPad", &gallery::scratchPadPage},
+    {L"XamlStyles", &gallery::xamlStylesPage},
     {L"AnimatedVisualPlayer", &gallery::animatedVisualPlayerPage},
     {L"CaptureElementPreview", &gallery::captureElementPreviewPage},
     {L"InkCanvas", &gallery::inkCanvasPage},

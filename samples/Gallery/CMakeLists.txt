@@ -85,6 +85,7 @@ wxl_add_executable(sample.gallery
     AccessibilityKeyboardPage.cpp
     AccessibilityScreenReaderPage.cpp
     ScratchPadPage.cpp
+    XamlStylesPage.cpp
     Icons.cpp
     ColorTile.cpp
     ColorSamples.cpp
