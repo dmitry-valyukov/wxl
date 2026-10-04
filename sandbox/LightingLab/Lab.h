@@ -26,6 +26,7 @@ Experiment shaderPage();    // ShaderPage.cpp
 Experiment shadowPage();    // ShadowPage.cpp
 Experiment scenesPage();    // ScenesPage.cpp
 Experiment samplePage();    // SamplePage.cpp
+Experiment systemPage();    // SystemPage.cpp
 
 // Сцена опыта в DIP: одна у всех, чтобы опыты сравнивались глазом.
 inline constexpr float stageWidth = 720.0f;
@@ -111,6 +112,14 @@ void drawSolid(wxl::DrawingSurface const& surface, wxl::Color color);
 // Кладёт в поверхность картинку из Assets/NormalMaps рядом с исполняемым файлом
 // (Images.cpp); поверхность получает размер картинки.
 void loadImage(wxl::DrawingSurface& surface, wchar_t const* name);
+
+// Та же картинка пикселями: BGRA с умноженной альфой, строки сверху вниз.
+struct Pixels {
+    std::vector<std::uint32_t> pixels;
+    int width = 0;
+    int height = 0;
+};
+Pixels readImage(wchar_t const* name);
 
 // Пишет в поверхность белый скруглённый прямоугольник во весь её размер: маска
 // формы клавиши. Радиус -- в пикселях поверхности.

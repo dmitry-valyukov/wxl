@@ -28,9 +28,8 @@ std::wstring assetPath(wchar_t const* name) {
     return path;
 }
 
-}  // namespace
-
-void lab::loadImage(DrawingSurface& surface, wchar_t const* name) {
+// Первый кадр файла в формате поверхности: BGRA с умноженной альфой.
+ComPtr<IWICFormatConverter> decoded(wchar_t const* name) {
     ComPtr<IWICImagingFactory> factory;
     wxl::check_hresult(
         ::CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)));
@@ -41,11 +40,31 @@ void lab::loadImage(DrawingSurface& surface, wchar_t const* name) {
     ComPtr<IWICBitmapFrameDecode> frame;
     wxl::check_hresult(decoder->GetFrame(0, &frame));
 
-    // Формат поверхности: BGRA с умноженной альфой.
     ComPtr<IWICFormatConverter> converter;
     wxl::check_hresult(factory->CreateFormatConverter(&converter));
     wxl::check_hresult(converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone,
                                              nullptr, 0.0, WICBitmapPaletteTypeCustom));
+    return converter;
+}
+
+}  // namespace
+
+lab::Pixels lab::readImage(wchar_t const* name) {
+    auto const converter = decoded(name);
+    UINT width = 0, height = 0;
+    wxl::check_hresult(converter->GetSize(&width, &height));
+
+    Pixels image;
+    image.width = static_cast<int>(width);
+    image.height = static_cast<int>(height);
+    image.pixels.resize(static_cast<std::size_t>(width) * height);
+    wxl::check_hresult(converter->CopyPixels(nullptr, width * 4, width * height * 4,
+                                             reinterpret_cast<BYTE*>(image.pixels.data())));
+    return image;
+}
+
+void lab::loadImage(DrawingSurface& surface, wchar_t const* name) {
+    auto const converter = decoded(name);
 
     UINT width = 0, height = 0;
     wxl::check_hresult(converter->GetSize(&width, &height));

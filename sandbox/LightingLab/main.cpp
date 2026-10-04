@@ -47,11 +47,15 @@ constexpr Entry catalogue[] = {
      u"Повтор образца Microsoft на том же API: его графы, источники и карты нормалей. Рядом карты стенда -- "
      u"для сравнения ответа на свет.",
      &lab::samplePage},
+    {u"Системный композитор",
+     u"Windows.UI.Composition в отдельном окне: карта нормалей при мягкой и жёсткой границе спрайта и "
+     u"эффекты освещения Win2D в фабрике эффектов. Здесь -- ответы фабрик, системной и отделённой.",
+     &lab::systemPage},
 };
 
 constexpr char16_t const* names[] = {
     catalogue[0].name, catalogue[1].name, catalogue[2].name, catalogue[3].name, catalogue[4].name, catalogue[5].name,
-    catalogue[6].name,
+    catalogue[6].name, catalogue[7].name,
 };
 
 // Опыт на экране. Поле page пишет список опытов; сцена и панель настроек
