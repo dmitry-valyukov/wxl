@@ -70,9 +70,9 @@ SolidColorBrush solid(Color const& value) {
 struct Model {
     core::observable<Color> text {rgb(0, 0, 0)};
     core::observable<Color> backdrop {rgb(255, 255, 255)};
-    core::observable<std::u16string> textHex {u"#000000"};
-    core::observable<std::u16string> backdropHex {u"#FFFFFF"};
-    core::observable<std::u16string> ratioText {u"21:1"};
+    core::observable<core::u16_text> textHex {core::u16_text {u"#000000"}};
+    core::observable<core::u16_text> backdropHex {core::u16_text {u"#FFFFFF"}};
+    core::observable<core::u16_text> ratioText {core::u16_text {u"21:1"}};
     core::observable<bool> normalPass {true};
     core::observable<bool> largePass {true};
     core::observable<bool> componentsPass {true};
@@ -84,16 +84,16 @@ struct Model {
 
     // Что делает поле шестнадцатеричной записи с цветом и цвет — с полем: запись, которую человек правит, не
     // переписывается за ним, пока он печатает.
-    void follow(core::observable<Color>& color, core::observable<std::u16string>& hex) {
+    void follow(core::observable<Color>& color, core::observable<core::u16_text>& hex) {
         color.on_change([&hex](Color const& value) noexcept {
             Color current;
-            if (!parseHex(hex.get(), current) || !(current == value)) {
-                hex.set(hexOf(value));
+            if (!parseHex(hex.get().plain(), current) || !(current == value)) {
+                hex.set(core::unicode::repaired(hexOf(value)));
             }
         });
-        hex.on_change([&color](std::u16string const& value) noexcept {
+        hex.on_change([&color](core::u16_text const& value) noexcept {
             Color parsed;
-            if (parseHex(value, parsed)) {
+            if (parseHex(value.plain(), parsed)) {
                 color.set(parsed);
             }
         });
@@ -102,14 +102,14 @@ struct Model {
     void recalculate() noexcept {
         double const ratio = contrastRatio(text.get(), backdrop.get());
         auto const rounded = std::format("{}", std::round(ratio * 100) / 100);
-        ratioText.set(std::u16string {rounded.begin(), rounded.end()} + u":1");
+        ratioText.set(core::unicode::repaired(std::u16string {rounded.begin(), rounded.end()} + u":1"));
         normalPass.set(ratio >= 4.5);
         largePass.set(ratio >= 3.0);
         componentsPass.set(ratio >= 3.0);
     }
 };
 
-FrameworkElement inlineColorPicker(char16_t const* header, core::observable<Color>& chosen, core::observable<std::u16string>& hex, int at) {
+FrameworkElement inlineColorPicker(char16_t const* header, core::observable<Color>& chosen, core::observable<core::u16_text>& hex, int at) {
     return Grid {
         column = at,
         rowSpan = 2,
@@ -131,8 +131,7 @@ FrameworkElement inlineColorPicker(char16_t const* header, core::observable<Colo
                 },
             },
         },
-        TextBox {row = 1, column = 1, minWidth = 120, hAlign.stretch, Margin {4, 0, 0, 0}, automationName = header, text = BindOutput {hex},
-                onTextChanged = [&hex](TextBox const& self, TextChangedEventArgs&) { hex.set(std::u16string {self.text().c_str()}); }},
+        TextBox {row = 1, column = 1, minWidth = 120, hAlign.stretch, Margin {4, 0, 0, 0}, automationName = header, text = Bind {hex}},
     };
 }
 
