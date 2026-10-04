@@ -18,6 +18,12 @@ FrameworkElement sectionHeader(zstring_view label) {
     return TextBlock {label, Margin {1, 30, 0, 6}, styles.TextBlock.BodyStrong};
 }
 
+// Версия приложения без пакета — не от чего брать; показывается дата сборки.
+std::u16string buildVersion() {
+    std::string_view const date = __DATE__;
+    return u"Build " + std::u16string(date.begin(), date.end());
+}
+
 FrameworkElement themeChoice() {
     return ComboBox {
         ComboBoxItem {content = u"Light"},
@@ -135,8 +141,8 @@ wxl::FrameworkElement gallery::settingsPage() {
                 SettingsExpander {
                     header = u"WinUI 3 Gallery",
                     description = u"A port of the WinUI 3 Gallery to wxl: the same types, no XAML.",
-                    headerIcon = FontIcon {glyph = u"\uE946"},
-                    TextBlock {u"wxl", foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
+                    headerIcon = BitmapIcon {uriSource = u"Assets/Tiles/BadgeLogo.png", showAsMonochrome = false},
+                    TextBlock {buildVersion(), foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
                     items[
                         SettingsCard {
                             header = u"To clone this repository",
@@ -163,7 +169,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                             header = u"Dependencies & references",
                             contentAlignment = SettingsCardContentAlignment::Vertical,
                             StackPanel {
-                                HyperlinkButton {u"Windows App SDK", navigateUri = u"https://aka.ms/windowsappsdk"},
+                                HyperlinkButton {u"Windows App SDK 2.4", navigateUri = u"https://aka.ms/windowsappsdk"},
                                 HyperlinkButton {u"WinUI 3", navigateUri = u"https://aka.ms/winui"},
                                 HyperlinkButton {u"Windows Community Toolkit", navigateUri = u"https://aka.ms/toolkit/windows"},
                                 HyperlinkButton {u"Win2D", navigateUri = u"https://github.com/Microsoft/Win2D"},
