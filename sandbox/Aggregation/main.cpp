@@ -33,6 +33,8 @@
 #include <impl/hresult.h>
 
 #include <cstdio>
+#include <cwchar>
+#include <cwchar>
 
 using namespace winrt;
 using namespace winrt::Microsoft::UI::Xaml;
@@ -41,8 +43,7 @@ namespace {
 
 // The ABI declaration and the throwaway outer identity are written out here
 // rather than taken from anywhere: this is probing code, not wxl itself.
-struct __declspec(uuid("BD3F2272-3EFA-5F92-B759-90B1CC3E784C"))
-    __declspec(novtable) IFrameworkElementFactory : ::IInspectable {
+struct __declspec(novtable) IComposableFactory : ::IInspectable {
     virtual HRESULT __stdcall CreateInstance(
         ::IInspectable* baseInterface,
         ::IInspectable** innerInterface,
@@ -85,22 +86,23 @@ constexpr GUID IID_IDependencyObject = {
 //      unlike the mocks in the Overrides recipe beside this one), then
 //      querying *that* pointer again for IUnknown, must *still* equal `outer`
 //      (second-hop identity).
-void run_activation_probe() {
+void run_activation_probe(wchar_t const* name, GUID const& factoryIid) {
+    std::printf("== %ls ==\n", name);
     HSTRING className{};
-    HRESULT hrClassName = WindowsCreateString(L"Microsoft.UI.Xaml.FrameworkElement", 34, &className);
+    HRESULT hrClassName = WindowsCreateString(name, static_cast<UINT32>(std::wcslen(name)), &className);
     if (FAILED(hrClassName)) {
         std::printf("WindowsCreateString failed: 0x%08X\n", static_cast<unsigned>(hrClassName));
         return;
     }
 
-    IFrameworkElementFactory* factory{};
-    HRESULT hr = RoGetActivationFactory(className, __uuidof(IFrameworkElementFactory), reinterpret_cast<void**>(&factory));
+    IComposableFactory* factory{};
+    HRESULT hr = RoGetActivationFactory(className, factoryIid, reinterpret_cast<void**>(&factory));
     WindowsDeleteString(className);
     if (FAILED(hr)) {
-        std::printf("RoGetActivationFactory(IFrameworkElementFactory) failed: 0x%08X\n", static_cast<unsigned>(hr));
+        std::printf("RoGetActivationFactory(factory) failed: 0x%08X\n", static_cast<unsigned>(hr));
         return;
     }
-    std::printf("RoGetActivationFactory(IFrameworkElementFactory) succeeded.\n");
+    std::printf("RoGetActivationFactory(factory) succeeded.\n");
 
     TestOuter outer;
     ::IInspectable* inner{};
@@ -152,13 +154,22 @@ void run_activation_probe() {
         static_cast<::IUnknown*>(dependencyObjectPtr)->Release();
     }
 
-    inner->Release();
+    // Сначала value: его AddRef/Release делегированы внешней идентичности, так что он ничего не уничтожает; inner —
+    // собственная идентичность объекта, и его Release уничтожает объект. Наоборот value остаётся висячим указателем в
+    // уже уничтоженный объект (так было в первой версии пробы: падало вторым же Release).
+    std::printf("  releasing value...\n");
     value->Release();
+    std::printf("  releasing inner...\n");
+    inner->Release();
+    std::printf("  released.\n");
 }
 
 struct App : ApplicationT<App> {
     void OnLaunched(LaunchActivatedEventArgs const&) {
-        run_activation_probe();
+        run_activation_probe(L"Microsoft.UI.Xaml.FrameworkElement", {0xBD3F2272, 0x3EFA, 0x5F92, {0xB7, 0x59, 0x90, 0xB1, 0xCC, 0x3E, 0x78, 0x4C}});
+        run_activation_probe(L"Microsoft.UI.Xaml.Controls.ContentControl", {0x3DEA958E, 0x5ACD, 0x5F80, {0x89, 0x38, 0x38, 0x63, 0x4F, 0x51, 0x49, 0x3A}});
+        // UserControl и ContentControl — наследники, которых имеет смысл брать за основу пользовательского контрола.
+        run_activation_probe(L"Microsoft.UI.Xaml.Controls.UserControl", {0x61AC9074, 0xAAB3, 0x50B8, {0x8B, 0x18, 0xD4, 0xD2, 0x57, 0x3A, 0x52, 0x35}});
         Exit();
     }
 };
@@ -166,6 +177,7 @@ struct App : ApplicationT<App> {
 } // namespace
 
 int main() {
+    std::setvbuf(stdout, nullptr, _IONBF, 0);  // при падении ничего не должно остаться в буфере
     // Однопоточная квартира: XAML живёт только в STA, а init_apartment() без
     // аргумента входит в многопоточную -- Application::Start на ней падает.
     // Та же строка стоит в собственном запуске wxl (wxl.ui/src/launch.cpp).

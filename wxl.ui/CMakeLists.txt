@@ -217,6 +217,15 @@ add_library(wxl.ui STATIC
     src/Failure.cpp
     src/LoadXaml.h
     src/LoadXaml.cpp
+    src/SettingsCard.h
+    src/SettingsCard.cpp
+    src/SettingsCardAlignment.h
+    src/SettingsExpander.h
+    src/SettingsExpander.cpp
+    src/impl/settings_expander.h
+    src/impl/settings_expander.cpp
+    src/impl/settings_card.h
+    src/impl/settings_card.cpp
     src/impl/navigation_view_search.h
     src/impl/navigation_view_search.cpp
     src/impl/automation_properties.h
