@@ -1,12 +1,12 @@
 struct Model {
     GridView grid;
-    NumberBox columnSpace {header = u"Space between columns", minimum = 0.0, maximum = 100.0, value = 5.0,
+    NumberBox columnSpace {header = u"Space between columns", automationName = u"Space between columns", minimum = 0.0, maximum = 100.0, value = 5.0,
                            spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, smallChange = 1.0, maxWidth = 250,
                            Margin {0, 0, 0, 16}};
-    NumberBox rowSpace {header = u"Space between rows", minimum = 0.0, maximum = 100.0, value = 5.0,
+    NumberBox rowSpace {header = u"Space between rows", automationName = u"Space between rows", minimum = 0.0, maximum = 100.0, value = 5.0,
                         spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, smallChange = 1.0, maxWidth = 250,
                         Margin {0, 0, 0, 16}};
-    NumberBox wrapCount {header = u"Maximum number of items before wrapping", minimum = 1.0, maximum = 8.0, value = 3.0,
+    NumberBox wrapCount {header = u"Maximum number of items before wrapping", automationName = u"Maximum number of items before wrapping", minimum = 1.0, maximum = 8.0, value = 3.0,
                          spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, smallChange = 1.0, maxWidth = 250,
                          Margin {0, 0, 0, 16}};
 

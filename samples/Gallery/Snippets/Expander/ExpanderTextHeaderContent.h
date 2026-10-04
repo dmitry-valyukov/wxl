@@ -1,8 +1,13 @@
+struct Model {
+    core::observable<int> direction {0};
+};
+auto const model = gallery::hold<Model>();
+
 auto expander = Expander {
-    vAlign.top,
+    verticalAlignment = BindOutput {model->direction, [](int index) { return index == 1 ? VerticalAlignment::Bottom : VerticalAlignment::Top; }},
     header = u"This text is in the header",
     content = u"This is in the content",
-    expandDirection = ExpandDirection::Down,
+    expandDirection = BindOutput {model->direction, [](int index) { return static_cast<ExpandDirection>(index); }},
     isExpanded = false,
 };
 
@@ -10,10 +15,5 @@ auto direction = ComboBox {
     header = u"ExpandDirection",
     ComboBoxItem {content = u"Down"},
     ComboBoxItem {content = u"Up"},
-    selectedIndex = 0,
-    onSelectionChanged = [expander](ComboBox const& self) {
-        bool const up = self.selectedIndex() == 1;
-        expander.expandDirection(up ? ExpandDirection::Up : ExpandDirection::Down);
-        expander.verticalAlignment(up ? VerticalAlignment::Bottom : VerticalAlignment::Top);
-    },
+    selectedIndex = Bind {model->direction},
 };

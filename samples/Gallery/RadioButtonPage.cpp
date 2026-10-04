@@ -4,6 +4,7 @@
 // объекты, а строку из неё wxl не собирает.
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;

@@ -94,6 +94,7 @@ auto options = StackPanel {
             column = 1,
             Margin {8, 0, 0, 0},
             verticalAlignment = VerticalAlignment::Bottom,
+            automationName = u"Select folder",
             toolTip = u"Select folder",
             content = FontIcon {glyph = u"\uF89A"},
             onClick = [model, selectFolder](Button const& button) { selectFolder(model.get(), button); },

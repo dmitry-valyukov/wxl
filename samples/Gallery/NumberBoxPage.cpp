@@ -1,6 +1,7 @@
 // Страница NumberBox — NumberBoxPage оригинала: три примера.
 
 #include "Pages.h"
+#include "Shell.h"
 
 #include <limits>
 

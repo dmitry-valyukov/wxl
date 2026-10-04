@@ -5,7 +5,7 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 auto picture = [](char16_t const* name, char16_t const* path) {
-    return Image {toolTip = name, source = path, stretch = Stretch::Uniform};
+    return Image {toolTip = name, automationName = name, source = path, stretch = Stretch::Uniform};
 };
 
 // Down to the fifth of the way, or up to four fifths of it: the other end of the two.
@@ -86,6 +86,7 @@ auto options = Grid {
         column = 1,
         hAlign.stretch,
         toolTip = u"vertical animation options",
+        automationName = u"vertical animation options",
         ComboBoxItem {content = u"Default"},
         ComboBoxItem {content = u"Accordion"},
         ComboBoxItem {content = u"Teleportation"},
@@ -96,6 +97,7 @@ auto options = Grid {
         row = 1,
         column = 1,
         toolTip = u"animation duration",
+        automationName = u"animation duration",
         largeChange = 1000.0,
         maximum = 5000.0,
         minimum = 1000.0,
@@ -108,6 +110,7 @@ auto options = Grid {
         columnSpan = 2,
         hAlign.stretch,
         toolTip = u"scroll with animation",
+        automationName = u"scroll with animation",
         content = u"Scroll with animation",
         onClick = [view, targetOffset] {
             view.scrollTo(view.horizontalOffset(), targetOffset(view),

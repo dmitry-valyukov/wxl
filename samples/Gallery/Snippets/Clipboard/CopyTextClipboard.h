@@ -1,5 +1,5 @@
 struct Model {
-    RichEditBox editor {width = 800, height = 100};
+    RichEditBox editor {width = 800, height = 100, automationName = u"editor with custom menu"};
     TextBlock confirmation {Padding {20, 5, 0, 0}, visibility = Visibility::Collapsed, u"Text copied to clipboard!"};
     DispatcherQueueTimer timer = DispatcherQueue::getForCurrentThread().createTimer();
 

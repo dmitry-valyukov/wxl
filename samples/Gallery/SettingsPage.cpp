@@ -135,8 +135,8 @@ wxl::FrameworkElement gallery::settingsPage() {
                 SettingsExpander {
                     header = u"WinUI 3 Gallery",
                     description = u"A port of the WinUI 3 Gallery to wxl: the same types, no XAML.",
-                    headerIcon = FontIcon {glyph = u"\uE946"},
-                    TextBlock {u"wxl", foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
+                    headerIcon = BitmapIcon {uriSource = u"Assets/Tiles/BadgeLogo.png", showAsMonochrome = false},
+                    TextBlock {GALLERY_VERSION, foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
                     items[
                         SettingsCard {
                             header = u"To clone this repository",
@@ -163,7 +163,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                             header = u"Dependencies & references",
                             contentAlignment = SettingsCardContentAlignment::Vertical,
                             StackPanel {
-                                HyperlinkButton {u"Windows App SDK", navigateUri = u"https://aka.ms/windowsappsdk"},
+                                HyperlinkButton {u"Windows App SDK 2.4", navigateUri = u"https://aka.ms/windowsappsdk"},
                                 HyperlinkButton {u"WinUI 3", navigateUri = u"https://aka.ms/winui"},
                                 HyperlinkButton {u"Windows Community Toolkit", navigateUri = u"https://aka.ms/toolkit/windows"},
                                 HyperlinkButton {u"Win2D", navigateUri = u"https://github.com/Microsoft/Win2D"},

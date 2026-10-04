@@ -23,6 +23,7 @@ auto colorButton = SplitButton {
     minHeight = 0,
     Padding {0},
     vAlign.top,
+    automationName = u"Font color",
     content = swatch,
     onClick = [richBox, current] {
         richBox.document().selection().characterFormat().foregroundColor(*current);
@@ -48,14 +49,14 @@ auto colorButton = SplitButton {
         content = GridView {
             isItemClickEnabled = true,
             width = 3 * 52,
-            Rectangle {dot, fill = rgb(255, 0, 0)},
-            Rectangle {dot, fill = rgb(255, 165, 0)},
-            Rectangle {dot, fill = rgb(255, 255, 0)},
-            Rectangle {dot, fill = rgb(0, 128, 0)},
-            Rectangle {dot, fill = rgb(0, 0, 255)},
-            Rectangle {dot, fill = rgb(75, 0, 130)},
-            Rectangle {dot, fill = rgb(238, 130, 238)},
-            Rectangle {dot, fill = rgb(128, 128, 128)},
+            Rectangle {dot, automationName = u"Red", fill = rgb(255, 0, 0)},
+            Rectangle {dot, automationName = u"Orange", fill = rgb(255, 165, 0)},
+            Rectangle {dot, automationName = u"Yellow", fill = rgb(255, 255, 0)},
+            Rectangle {dot, automationName = u"Green", fill = rgb(0, 128, 0)},
+            Rectangle {dot, automationName = u"Blue", fill = rgb(0, 0, 255)},
+            Rectangle {dot, automationName = u"Indigo", fill = rgb(75, 0, 130)},
+            Rectangle {dot, automationName = u"Violet", fill = rgb(238, 130, 238)},
+            Rectangle {dot, automationName = u"Gray", fill = rgb(128, 128, 128)},
         },
     },
 };

@@ -5,7 +5,7 @@ auto const* objects = &gallery::dataObjects(true);
 auto const imageOf = [objects](Object const& item) {
     auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
     return ItemContainer {width = 200, height = 140, horizontalAlignment = HorizontalAlignment::Left,
-                          child = Image {Margin {4}, horizontalAlignment = HorizontalAlignment::Center,
+                          child = Image {Margin {4}, automationAccessibilityView = AccessibilityView::Raw, horizontalAlignment = HorizontalAlignment::Center,
                                  verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
                                  source = object.imageLocation}};
 };
@@ -25,8 +25,12 @@ auto const strip = [](gallery::CustomDataObject const& object) {
     };
 };
 struct Model {
+    core::observable<int> mode {1};
+    core::observable<bool> invocation {true};
     ItemsView view {width = 500, height = 300, horizontalAlignment = HorizontalAlignment::Left,
-                    layout = UniformGridLayout {minRowSpacing = 5.0, minColumnSpacing = 5.0}};
+                    layout = UniformGridLayout {minRowSpacing = 5.0, minColumnSpacing = 5.0},
+                    selectionMode = BindOutput {mode, [](int index) { return static_cast<ItemsViewSelectionMode>(index); }},
+                    isItemInvokedEnabled = BindOutput {invocation}};
     TextBlock invoked {Margin {0, 8, 0, 0}};
     TextBlock selected {Margin {0, 8, 0, 0}};
 };
@@ -68,19 +72,13 @@ auto example = Grid {
 auto options = StackPanel {
     spacing = 8,
     ComboBox {
+        automationName = u"selection mode",
         header = u"SelectionMode",
         ComboBoxItem {content = u"None"},
         ComboBoxItem {content = u"Single"},
         ComboBoxItem {content = u"Multiple"},
         ComboBoxItem {content = u"Extended"},
-        selectedIndex = 1,
-        onSelectionChanged = [model](ComboBox const& self) {
-            static constexpr ItemsViewSelectionMode modes[] = {ItemsViewSelectionMode::None, ItemsViewSelectionMode::Single,
-                                                               ItemsViewSelectionMode::Multiple, ItemsViewSelectionMode::Extended};
-            if (self.selectedIndex() >= 0) model->view.selectionMode(modes[self.selectedIndex()]);
-        },
+        selectedIndex = Bind {model->mode},
     },
-    CheckBox {content = u"Item invocation", isChecked = true,
-              onChecked = [model](auto&&...) { model->view.isItemInvokedEnabled(true); },
-              onUnchecked = [model](auto&&...) { model->view.isItemInvokedEnabled(false); }},
+    CheckBox {automationName = u"is item invocation enabled?", content = u"Item invocation", isChecked = Bind {model->invocation}},
 };

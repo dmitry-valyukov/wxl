@@ -1,6 +1,7 @@
 // Страница Viewbox — ViewboxPage оригинала: один пример.
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;

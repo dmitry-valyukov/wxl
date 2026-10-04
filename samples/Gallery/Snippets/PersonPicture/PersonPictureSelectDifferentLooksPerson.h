@@ -1,28 +1,26 @@
-auto const picture = PersonPicture {height = 300, vAlign.top};
-
-auto const show = [picture](int look) {
-    if (look == 0) {
-        picture.profilePicture(BitmapImage {uriSource = u"https://learn.microsoft.com/windows/uwp/contacts-and-calendar/images/shoulder-tap-static-payload.png"});
-        picture.displayName(u"");
-        picture.initials(u"");
-    } else if (look == 1) {
-        picture.profilePicture(ImageSource {});
-        picture.displayName(u"Jane Doe");
-        picture.initials(u"");
-    } else {
-        picture.profilePicture(ImageSource {});
-        picture.displayName(u"");
-        picture.initials(u"SB");
-    }
+struct Model {
+    core::observable<int> look {0};
 };
-show(0);
+auto const model = gallery::hold<Model>();
+
+auto const picture = PersonPicture {
+    height = 300,
+    vAlign.top,
+    profilePicture = BindOutput {model->look, [](int look) -> ImageSource {
+        if (look == 0) {
+            return BitmapImage {uriSource = u"https://learn.microsoft.com/windows/uwp/contacts-and-calendar/images/shoulder-tap-static-payload.png"};
+        }
+        return ImageSource {};
+    }},
+    displayName = BindOutput {model->look, [](int look) { return look == 1 ? u"Jane Doe" : u""; }},
+    initials = BindOutput {model->look, [](int look) { return look == 2 ? u"SB" : u""; }},
+};
 
 auto example = picture;
 auto options = RadioButtons {
-    selectedIndex = 0,
+    selectedIndex = Bind {model->look},
     header = u"Profile type",
     RadioButton {content = u"Profile Image", isChecked = true},
     RadioButton {content = u"Display Name"},
     RadioButton {content = u"Initials"},
-    onSelectionChanged = [show](RadioButtons const& self) { show(self.selectedIndex()); },
 };
