@@ -93,6 +93,7 @@ wxl_add_executable(sample.gallery
     HaloPage.cpp
     XamlResourcesPage.cpp
     BindingPage.cpp
+    TemplatesPage.cpp
     CustomXamlConditionalsPage.cpp
     Icons.cpp
     ColorTile.cpp
