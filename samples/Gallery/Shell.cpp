@@ -409,6 +409,10 @@ void buildMenu(Shell& s) {
 void setNavigationOnTop(bool top) {
     if (shell) {
         shell->navigation.paneDisplayMode(top ? NavigationViewPaneDisplayMode::Top : NavigationViewPaneDisplayMode::Auto);
+        // Страница, что открыта, остаётся с раскладкой прежнего вида панели: её строят заново.
+        if (shell->hasCurrent) {
+            show(shell->current, false);
+        }
     }
 }
 
