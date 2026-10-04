@@ -10,6 +10,7 @@
 #include "Shell.h"
 
 #include "Pages.h"
+#include "StringList.h"
 
 #include <algorithm>
 #include <memory>
@@ -148,7 +149,32 @@ struct Shell {
             vAlign.center,
             placeholderText = u"Search controls and samples...",
             queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
+            onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
+                // Подсказки даёт только ввод пользователя; выбранная подсказка сама вписывается в текст.
+                if (args.reason() != AutoSuggestionBoxTextChangeReason::UserInput) {
+                    return;
+                }
+                auto found = gallery::controlTitles(self.text());
+                if (found.empty()) {
+                    found.emplace_back(u"No results found");
+                }
+                self.itemsSource(stringList(found));
+            },
+            onSuggestionChosen = [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
+                auto const title = stringOf(args.selectedItem());
+                if (title != u"No results found") {
+                    self.text(title);
+                }
+            },
             onQuerySubmitted = [](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
+                // Выбранная подсказка ведёт прямо на страницу контрола, набранный текст — на результаты поиска.
+                if (args.chosenSuggestion()) {
+                    auto const title = stringOf(args.chosenSuggestion());
+                    if (auto const* control = gallery::controlByTitle(title)) {
+                        navigate({Place::Item, control->uniqueId});
+                    }
+                    return;
+                }
                 submitQuery(gallery::wide(args.queryText()));
             },
         },
