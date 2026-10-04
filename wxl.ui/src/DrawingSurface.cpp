@@ -18,7 +18,7 @@
 
 #include "DrawingSurface.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Composition.impl.h"
+#include <wxl/Microsoft.UI.Composition.impl.h>
 #include "impl/composition_interop.h"
 
 namespace wxl {

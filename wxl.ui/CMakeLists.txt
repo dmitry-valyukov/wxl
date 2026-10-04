@@ -9,7 +9,7 @@
 # project() -- exactly what wxl.core's own gate file below checks.
 #
 # The generated tree brings its own CMakeLists.txt, which only calls
-# target_sources() on this target -- hence add_subdirectory(src/generated)
+# target_sources() on this target -- hence add_subdirectory(src/wxl)
 # at the *end* of this file, after the target exists.
 cmake_minimum_required(VERSION 3.28)
 
@@ -460,7 +460,7 @@ add_library(wxl.ui.surface-test OBJECT
 target_link_libraries(wxl.ui.surface-test PRIVATE wxl.ui)
 
 # Last: the generated sources add themselves to the two targets above.
-add_subdirectory(src/generated)
+add_subdirectory(src/wxl)
 
 # After that subdirectory and not before it: this reads the targets' SOURCES to
 # lay them out in the IDE, and until the generated sources are in, half of what

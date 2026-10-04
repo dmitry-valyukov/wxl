@@ -29,7 +29,7 @@
 
 #include <functional>
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include "geometry.h"
 
 namespace wxl {

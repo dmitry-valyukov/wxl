@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "generated/Microsoft.UI.Xaml.Controls.AnimatedVisuals.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.AnimatedVisuals.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

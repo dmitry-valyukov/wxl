@@ -10,7 +10,7 @@
 // The activity id names the kind of notification, so that a reader can tell a new one of the same kind from
 // another one.
 
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "hstring_param.h"
 
 namespace wxl {

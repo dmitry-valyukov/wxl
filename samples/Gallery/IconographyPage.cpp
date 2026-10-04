@@ -10,7 +10,7 @@
 #include "Box.h"
 #include "ItemBuilder.h"
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

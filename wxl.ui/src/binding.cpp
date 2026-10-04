@@ -13,10 +13,10 @@
 
 #include "Object.impl.h"
 #include "events.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Controls.EventArgs.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Controls.impl.h"
+#include <wxl/Members.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.EventArgs.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include "impl/binding.h"
 
 namespace wxl::impl {

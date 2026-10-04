@@ -4,8 +4,8 @@
 #include <cmath>
 
 #include "FontFamily.h"
-#include "generated/Microsoft.UI.Input.h"
-#include "generated/brushes.h"
+#include <wxl/Microsoft.UI.Input.h>
+#include <wxl/brushes.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

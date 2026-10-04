@@ -5,8 +5,8 @@
 #include "MotionPages.h"
 #include "StringList.h"
 #include "ResourceBrush.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

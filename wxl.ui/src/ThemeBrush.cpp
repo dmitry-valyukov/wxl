@@ -10,8 +10,8 @@
 
 #include "Object.impl.h"
 #include "ThemeBrush.h"
-#include "generated/Microsoft.UI.Xaml.Media.impl.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.Media.impl.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "impl/conversions.h"
 
 namespace wxl {

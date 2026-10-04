@@ -8,7 +8,7 @@
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 
 #include "../core.h"
-#include "../generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 namespace wxl::impl {
 

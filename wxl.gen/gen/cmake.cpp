@@ -55,8 +55,10 @@ if(TARGET {})
                    em.files_of(target).front(), target);
     }
 
-    std::print(file, "\ntarget_include_directories({} PUBLIC ${{CMAKE_CURRENT_SOURCE_DIR}})\n",
-               out.cmake_target);
+    // No include directory of its own: the sources are reached as <wxl/X.h>
+    // through the directory above, and on the search path this one would
+    // shadow the SDK headers its files are named after -- the SDK's
+    // <windows.foundation.collections.h> finding Windows.Foundation.Collections.h.
 
     std::print("generated {} ({} sources)\n", path.string(), em.files().size());
 }

@@ -28,7 +28,7 @@
 #include <functional>
 
 #include "Collection.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include "geometry.h"
 
 namespace wxl {

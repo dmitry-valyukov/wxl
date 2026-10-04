@@ -6,9 +6,9 @@
 #include "platform.h"
 
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Windowing.h"
-#include "generated/Microsoft.UI.Windowing.impl.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Windowing.h>
+#include <wxl/Microsoft.UI.Windowing.impl.h>
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "WindowHandle.h"
 #include "WindowModal.h"
 

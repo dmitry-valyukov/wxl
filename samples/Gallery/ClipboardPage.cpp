@@ -3,13 +3,13 @@
 #include "Pages.h"
 #include "Shell.h"
 #include "ApplicationFolder.h"
-#include "generated/Windows.ApplicationModel.DataTransfer.h"
-#include "generated/Windows.Storage.h"
-#include "generated/Windows.Storage.Streams.h"
-#include "generated/Microsoft.Windows.Storage.Pickers.h"
-#include "generated/Microsoft.UI.Content.h"
+#include <wxl/Windows.ApplicationModel.DataTransfer.h>
+#include <wxl/Windows.Storage.h>
+#include <wxl/Windows.Storage.Streams.h>
+#include <wxl/Microsoft.Windows.Storage.Pickers.h>
+#include <wxl/Microsoft.UI.Content.h>
 
-#include "generated/Microsoft.UI.Xaml.Media.Imaging.h"
+#include <wxl/Microsoft.UI.Xaml.Media.Imaging.h>
 
 import wxl.async;
 

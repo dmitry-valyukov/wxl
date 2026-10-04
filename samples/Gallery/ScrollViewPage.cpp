@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "generated/Windows.Globalization.NumberFormatting.h"
+#include <wxl/Windows.Globalization.NumberFormatting.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.h>
 
-#include "../generated/Microsoft.UI.Xaml.Automation.Peers.Enums.h"
+#include <wxl/Microsoft.UI.Xaml.Automation.Peers.Enums.h>
 #include "../hstring_param.h"
 
 // What stands behind `automationId = u"..."` and `automationLiveSetting = AutomationLiveSetting::Polite` on any

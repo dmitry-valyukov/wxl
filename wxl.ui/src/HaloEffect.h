@@ -37,8 +37,8 @@
 
 #include "core.h"
 #include "Color.h"
-#include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Composition.h>
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "geometry.h"
 #include "impl/member.h"
 

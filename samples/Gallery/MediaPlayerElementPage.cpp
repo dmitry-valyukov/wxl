@@ -2,12 +2,12 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "generated/Microsoft.UI.Content.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.Windows.Storage.Pickers.h"
-#include "generated/Windows.Media.Core.h"
-#include "generated/Windows.Media.Playback.h"
-#include "generated/Windows.Storage.h"
+#include <wxl/Microsoft.UI.Content.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.Windows.Storage.Pickers.h>
+#include <wxl/Windows.Media.Core.h>
+#include <wxl/Windows.Media.Playback.h>
+#include <wxl/Windows.Storage.h>
 #include "PickerFileTypes.h"
 
 import wxl.async;

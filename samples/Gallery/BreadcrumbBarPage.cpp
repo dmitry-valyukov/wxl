@@ -8,7 +8,7 @@
 #include "Box.h"
 #include "BoundTemplate.h"
 #include "StringList.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 
 using namespace wxl;

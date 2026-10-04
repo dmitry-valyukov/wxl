@@ -1,6 +1,6 @@
 #pragma once
 
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 
 struct Settings;
 

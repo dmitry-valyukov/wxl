@@ -8,16 +8,16 @@
 #include "CustomLayout.h"
 #include "Failure.h"
 #include "FrameSource.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.Imaging.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
-#include "generated/Windows.Media.Capture.Frames.h"
-#include "generated/Windows.Media.Capture.h"
-#include "generated/Windows.Media.Core.h"
-#include "generated/Windows.Media.MediaProperties.h"
-#include "generated/Windows.Media.Playback.h"
-#include "generated/Windows.Storage.Streams.h"
-#include "generated/Windows.System.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Imaging.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
+#include <wxl/Windows.Media.Capture.Frames.h>
+#include <wxl/Windows.Media.Capture.h>
+#include <wxl/Windows.Media.Core.h>
+#include <wxl/Windows.Media.MediaProperties.h>
+#include <wxl/Windows.Media.Playback.h>
+#include <wxl/Windows.Storage.Streams.h>
+#include <wxl/Windows.System.h>
 
 import wxl.async;
 

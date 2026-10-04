@@ -36,8 +36,8 @@
 // a keypad of three kinds of key needs.
 
 #include "core.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.Media.h>
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "impl/member.h"
 #include "hstring_param.h"
 

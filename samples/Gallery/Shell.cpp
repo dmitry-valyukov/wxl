@@ -15,8 +15,8 @@
 #include <memory>
 
 #include "CompositionWindow.h"
-#include "generated/Microsoft.Windows.AppNotifications.h"
-#include "generated/Microsoft.UI.Windowing.h"
+#include <wxl/Microsoft.Windows.AppNotifications.h>
+#include <wxl/Microsoft.UI.Windowing.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

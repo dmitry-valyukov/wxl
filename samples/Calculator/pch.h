@@ -10,5 +10,5 @@
 #include "HaloEffect.h"
 #include "GaussianBlurEffect.h"
 #include "launch.h"
-#include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.Hosting.h"
+#include <wxl/Microsoft.UI.Composition.h>
+#include <wxl/Microsoft.UI.Xaml.Hosting.h>

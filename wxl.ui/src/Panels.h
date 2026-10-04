@@ -17,7 +17,7 @@
 // of Grid's is still here -- rowSpacing above all -- because a Rows *is* a
 // Grid.
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 namespace wxl {
 

@@ -20,7 +20,7 @@
 
 #include "BevelEffect.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 
 namespace wxl {
 

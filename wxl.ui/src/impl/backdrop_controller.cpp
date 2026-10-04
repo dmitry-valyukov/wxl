@@ -1,8 +1,8 @@
 #include "backdrop_controller.h"
 
 #include "../Object.impl.h"
-#include "../generated/Microsoft.UI.Composition.SystemBackdrops.h"
-#include "../generated/Microsoft.UI.Composition.SystemBackdrops.impl.h"
+#include <wxl/Microsoft.UI.Composition.SystemBackdrops.h>
+#include <wxl/Microsoft.UI.Composition.SystemBackdrops.impl.h>
 
 namespace wxl::impl {
 

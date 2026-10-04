@@ -2,8 +2,8 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.Imaging.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Imaging.h>
 
 
 using namespace wxl;

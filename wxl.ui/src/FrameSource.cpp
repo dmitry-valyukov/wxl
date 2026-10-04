@@ -4,8 +4,8 @@
 
 #include "FrameSource.h"
 #include "Object.impl.h"
-#include "generated/Windows.Media.Capture.Frames.impl.h"
-#include "generated/Windows.Media.Capture.impl.h"
+#include <wxl/Windows.Media.Capture.Frames.impl.h>
+#include <wxl/Windows.Media.Capture.impl.h>
 #include "impl/conversions.h"
 
 namespace wxl {

@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 
-#include "../generated/Microsoft.UI.Xaml.Controls.Enums.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.Enums.h>
 
 // What stands behind `itemsPanelOrientation = Orientation::Vertical` on an ItemsControl.
 //

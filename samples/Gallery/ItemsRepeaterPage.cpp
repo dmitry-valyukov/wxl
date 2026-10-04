@@ -6,19 +6,19 @@
 #include <memory>
 #include <vector>
 #include "Announce.h"
-#include "generated/Microsoft.UI.Xaml.Automation.Peers.Enums.h"
+#include <wxl/Microsoft.UI.Xaml.Automation.Peers.Enums.h>
 #include "Box.h"
 #include "ItemBuilder.h"
 #include "KeyedIndexList.h"
 #include "Layouts.h"
 #include "ResourceBrush.h"
 #include "RepeaterData.h"
-#include "generated/Microsoft.UI.Dispatching.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Hosting.h"
-#include "generated/Microsoft.UI.Xaml.Input.h"
-#include "generated/Microsoft.UI.Xaml.h"
-#include "generated/Microsoft.UI.Composition.h"
+#include <wxl/Microsoft.UI.Dispatching.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Hosting.h>
+#include <wxl/Microsoft.UI.Xaml.Input.h>
+#include <wxl/Microsoft.UI.Xaml.h>
+#include <wxl/Microsoft.UI.Composition.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

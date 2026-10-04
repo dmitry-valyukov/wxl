@@ -49,11 +49,11 @@
 #include "impl/window_placement.h"
 #include "impl/application_folder.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Composition.impl.h"
-#include "generated/Microsoft.UI.Dispatching.impl.h"
-#include "generated/Microsoft.UI.Input.impl.h"
-#include "generated/Microsoft.UI.Windowing.impl.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Composition.impl.h>
+#include <wxl/Microsoft.UI.Dispatching.impl.h>
+#include <wxl/Microsoft.UI.Input.impl.h>
+#include <wxl/Microsoft.UI.Windowing.impl.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "AppZoom.h"
 
 // Импорт последним: он несёт модульный std, а обычный заголовок после него

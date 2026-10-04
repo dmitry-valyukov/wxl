@@ -7,11 +7,11 @@
 #include <memory>
 #include <vector>
 #include "ResourceBrush.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Documents.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
-#include "generated/Microsoft.UI.Xaml.Media.Animation.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Documents.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

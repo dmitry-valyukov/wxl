@@ -11,7 +11,7 @@
 // A key that is not there is a mistake in the name, and an error.
 
 #include "Color.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 #include "hstring_param.h"
 
 namespace wxl {

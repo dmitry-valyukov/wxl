@@ -3,8 +3,8 @@
 #include "Pages.h"
 #include "Shell.h"
 #include "StringList.h"
-#include "generated/Windows.Foundation.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Windows.Foundation.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

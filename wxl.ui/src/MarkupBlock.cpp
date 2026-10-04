@@ -19,8 +19,8 @@
 #include <filesystem>
 
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Xaml.Media.impl.h"
-#include "generated/brushes.h"
+#include <wxl/Microsoft.UI.Xaml.Media.impl.h>
+#include <wxl/brushes.h>
 #include "impl/conversions.h"
 
 // Импорт последним — его несёт markup_build.h.

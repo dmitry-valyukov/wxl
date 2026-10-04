@@ -7,8 +7,8 @@
 #include "BevelEffect.h"
 #include "ThemeBrush.h"
 #include "Thickness.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include <wxl/Members.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 #include "impl/member.h"
 
 namespace wxl {
