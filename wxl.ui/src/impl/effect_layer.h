@@ -10,6 +10,7 @@
 // Included by the effects' .cpp files only, after the projection.
 
 #include <winrt/Microsoft.UI.Composition.h>
+#include <winrt/Microsoft.UI.Xaml.h>
 
 #include <functional>
 
@@ -24,5 +25,10 @@ void insert_layer(winrt::Microsoft::UI::Composition::VisualCollection const& chi
 // there earlier would go with them.
 void when_drawn(winrt::Microsoft::UI::Composition::ContainerVisual const& host,
                 std::function<void(winrt::Microsoft::UI::Composition::VisualCollection const&)> place);
+
+// The rounding an element gives itself -- a Border, a control, a Grid, a
+// StackPanel or a RelativePanel -- so that a layer over it can round the same.
+// Zero for an element that has none.
+float corner_of(winrt::Microsoft::UI::Xaml::UIElement const& element);
 
 }  // namespace wxl::impl

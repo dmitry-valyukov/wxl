@@ -5,7 +5,6 @@
 #include <winrt/Microsoft.Graphics.Canvas.Effects.h>
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Content.h>
-#include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Hosting.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.h>
@@ -29,7 +28,6 @@ namespace composition = winrt::Microsoft::UI::Composition;
 namespace canvas = winrt::Microsoft::Graphics::Canvas;
 namespace effects = winrt::Microsoft::Graphics::Canvas::Effects;
 namespace xaml = winrt::Microsoft::UI::Xaml;
-namespace controls = winrt::Microsoft::UI::Xaml::Controls;
 using winrt::Windows::Foundation::Numerics::float2;
 
 struct GlassEffect::State : core::sta_refcounted {
@@ -50,13 +48,6 @@ void GlassEffect::opacity(double value) const {
 }
 
 namespace {
-
-// The corner the element rounds itself with, so the panes round the same.
-float corner_of(xaml::FrameworkElement const& element) {
-    if (auto const border = element.try_as<controls::Border>()) return static_cast<float>(border.CornerRadius().TopLeft);
-    if (auto const control = element.try_as<controls::Control>()) return static_cast<float>(control.CornerRadius().TopLeft);
-    return 0.0f;
-}
 
 // The glass: what lies behind the pane, blurred, and the tint laid over it.
 // A DropShadow's blur radius is about three deviations of the Gaussian, so
@@ -187,7 +178,7 @@ struct Pane : std::enable_shared_from_this<Pane> {
         auto const root = fe.XamlRoot();
         if (!root) return;
         float2 const size{static_cast<float>(fe.ActualWidth()), static_cast<float>(fe.ActualHeight())};
-        float const radius = corner_of(fe);
+        float const radius = impl::corner_of(fe);
         inIsland.fit(size, radius);
         inIsland.reattach(paneZ);
 

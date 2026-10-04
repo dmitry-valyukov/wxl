@@ -118,18 +118,24 @@ std::string member_name(std::string_view metadata_name) {
     }
 
     // A handful of WinRT names land on a C++ keyword once lower-cased --
-    // Control.Template, ElementTheme.Default, ScrollBarVisibility.Auto. A
-    // trailing underscore is the escape that keeps the name recognisable as
-    // the member it stands for.
+    // Control.Template, ElementTheme.Default, ScrollBarVisibility.Auto -- or
+    // on an alternative token, which the language reads as an operator:
+    // CanvasComposite.Xor. A trailing underscore is the escape that keeps the
+    // name recognisable as the member it stands for. Every keyword of one
+    // word is here: a name of several words keeps a capital inside it and
+    // cannot land on one.
     static constexpr std::string_view keywords[] = {
-        "auto",     "bool",    "break",  "case",   "catch",    "char",   "class",
-        "const",    "default", "delete", "double", "else",     "enum",   "explicit",
-        "export",   "extern",  "false",  "float",  "for",      "friend", "goto",
-        "if",       "inline",  "int",    "long",   "mutable",  "new",    "operator",
-        "private",  "public",  "register", "return", "short",  "signed",   "sizeof", "static",
-        "struct",   "switch",  "template", "this", "throw",    "true",   "try",
-        "typedef",  "typename", "union", "unsigned", "using",  "virtual", "void",
-        "volatile", "while",
+        "alignas",  "alignof",  "and",       "asm",      "auto",     "bitand",    "bitor",
+        "bool",     "break",    "case",      "catch",    "char",     "class",     "compl",
+        "concept",  "const",    "consteval", "constexpr", "constinit", "continue", "decltype",
+        "default",  "delete",   "do",        "double",   "else",     "enum",      "explicit",
+        "export",   "extern",   "false",     "float",    "for",      "friend",    "goto",
+        "if",       "inline",   "int",       "long",     "mutable",  "namespace", "new",
+        "noexcept", "not",      "nullptr",   "operator", "or",       "private",   "protected",
+        "public",   "register", "requires",  "return",   "short",    "signed",    "sizeof",
+        "static",   "struct",   "switch",    "template", "this",     "throw",     "true",
+        "try",      "typedef",  "typeid",    "typename", "union",    "unsigned",  "using",
+        "virtual",  "void",     "volatile",  "while",    "xor",
     };
     if (std::find(std::begin(keywords), std::end(keywords), name) != std::end(keywords)) {
         name += '_';
