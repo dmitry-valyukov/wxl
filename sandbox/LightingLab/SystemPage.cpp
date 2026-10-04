@@ -286,9 +286,10 @@ struct System {
         return sprite;
     }
 
-    // Верхний ряд: BeveledEdges и SphericalWithMask, каждая с мягкой и с жёсткой
-    // границей спрайта, под далёким светом строго справа. Граф -- DistantDiffuse
-    // образца ThumbnailLighting.
+    // Плитки с картами образца под далёким светом строго справа; граф --
+    // DistantDiffuse образца ThumbnailLighting. Граница спрайта у плиток разная,
+    // и записанные свойства тут же читаются обратно: ответ на вопрос, не стоит
+    // ли за поворотом света значение по умолчанию или несостоявшаяся запись.
     void normalMapTiles() {
         lab::Pixels grey;
         grey.width = grey.height = 8;
@@ -319,22 +320,100 @@ struct System {
         auto const lit = compositor.CreateContainerVisual();
         lit.RelativeSizeAdjustment({1.0f, 1.0f});
         root.Children().InsertAtTop(lit);
+        line(u"Системный, ContainerVisual.BorderMode без записи: " + nameOf(lit.BorderMode()));
 
-        for (int column = 0; column < 4; ++column) {
-            auto const sprite = tileAt(column, 0);
-            sprite.BorderMode(column % 2 == 0 ? sys::CompositionBorderMode::Soft : sys::CompositionBorderMode::Hard);
+        auto const wear = [&](sys::SpriteVisual const& sprite, sys::CompositionSurfaceBrush const& map) {
             auto const brush = factory.CreateBrush();
             brush.SetSourceParameter(L"ImageSource", picture);
-            brush.SetSourceParameter(L"NormalMap", column < 2 ? edges : sphere);
+            brush.SetSourceParameter(L"NormalMap", map);
             sprite.Brush(brush);
-            lit.Children().InsertAtTop(sprite);
-        }
+        };
+
+        // Верхний ряд: граница не записана, записана мягкая, записана жёсткая; сфера с жёсткой.
+        auto const untouched = tileAt(0, 0);
+        line(u"Системный, SpriteVisual.BorderMode без записи: " + nameOf(untouched.BorderMode()));
+        wear(untouched, edges);
+        lit.Children().InsertAtTop(untouched);
+
+        auto const soft = tileAt(1, 0);
+        soft.BorderMode(sys::CompositionBorderMode::Soft);
+        line(u"Системный, SpriteVisual.BorderMode после записи Soft: " + nameOf(soft.BorderMode()));
+        wear(soft, edges);
+        lit.Children().InsertAtTop(soft);
+
+        auto const hard = tileAt(2, 0);
+        hard.BorderMode(sys::CompositionBorderMode::Hard);
+        line(u"Системный, SpriteVisual.BorderMode после записи Hard: " + nameOf(hard.BorderMode()));
+        wear(hard, edges);
+        lit.Children().InsertAtTop(hard);
+
+        auto const ball = tileAt(3, 0);
+        ball.BorderMode(sys::CompositionBorderMode::Hard);
+        wear(ball, sphere);
+        lit.Children().InsertAtTop(ball);
+
+        // Справа во втором ряду: граница спрайта не записана, жёсткая записана
+        // его родителю-контейнеру.
+        auto const shell = compositor.CreateContainerVisual();
+        shell.RelativeSizeAdjustment({1.0f, 1.0f});
+        shell.BorderMode(sys::CompositionBorderMode::Hard);
+        auto const inherited = tileAt(3, 1);
+        wear(inherited, edges);
+        shell.Children().InsertAtTop(inherited);
+        lit.Children().InsertAtTop(shell);
+        line(u"Системный, спрайт в контейнере с Hard, его BorderMode без записи: " + nameOf(inherited.BorderMode()));
 
         lamp = compositor.CreateDistantLight();
+        line(u"Системный, DistantLight.Direction до записи: " + vector(lamp.Direction()));
         lamp.CoordinateSpace(lit);
         lamp.Targets().Add(lit);
         lamp.Direction({-0.8660254f, 0.0f, -0.5f});
-        line(u"Верхний ряд окна: кромки мягкая, кромки жёсткая, сфера мягкая, сфера жёсткая; свет строго справа.");
+        line(u"Системный, DistantLight.Direction сразу после записи (-0.866, 0, -0.5): " + vector(lamp.Direction()));
+
+        // То же чтение у отделённого композитора: его объекты здесь не рисуются.
+        auto const own = winrt::Microsoft::UI::Xaml::Media::CompositionTarget::GetCompositorForCurrentThread();
+        auto const ownSprite = own.CreateSpriteVisual();
+        line(u"Отделённый, SpriteVisual.BorderMode без записи: " + nameOf(ownSprite.BorderMode()));
+        ownSprite.BorderMode(lifted::CompositionBorderMode::Hard);
+        line(u"Отделённый, SpriteVisual.BorderMode после записи Hard: " + nameOf(ownSprite.BorderMode()));
+        auto const ownLamp = own.CreateDistantLight();
+        line(u"Отделённый, DistantLight.Direction до записи: " + vector(ownLamp.Direction()));
+        ownLamp.Direction({-0.8660254f, 0.0f, -0.5f});
+        line(u"Отделённый, DistantLight.Direction сразу после записи (-0.866, 0, -0.5): " +
+             vector(ownLamp.Direction()));
+
+        line(u"Верхний ряд окна: кромки без записи границы, с записанной мягкой, с жёсткой; сфера с жёсткой. "
+             u"Справа во втором ряду: кромки, жёсткая граница у родителя. Свет строго справа.");
+    }
+
+    template <class Mode>
+    static std::u16string nameOf(Mode mode) {
+        switch (static_cast<int>(mode)) {
+        case 0: return u"Inherit";
+        case 1: return u"Soft";
+        case 2: return u"Hard";
+        default: return u"?";
+        }
+    }
+
+    static std::u16string number(float value) {
+        std::u16string words;
+        if (value < 0.0f) {
+            words += u"-";
+            value = -value;
+        }
+        auto const thousandths = static_cast<std::uint32_t>(std::lround(value * 1000.0f));
+        core::append_number(words, thousandths / 1000, 10);
+        words += u".";
+        std::uint32_t const rest = thousandths % 1000;
+        if (rest < 100) words += u"0";
+        if (rest < 10) words += u"0";
+        core::append_number(words, rest, 10);
+        return words;
+    }
+
+    static std::u16string vector(winrt::Windows::Foundation::Numerics::float3 const& value) {
+        return u"(" + number(value.x) + u", " + number(value.y) + u", " + number(value.z) + u")";
     }
 
     // Четыре вопроса к фабрике на каждый эффект. Отвечает и системная, и
