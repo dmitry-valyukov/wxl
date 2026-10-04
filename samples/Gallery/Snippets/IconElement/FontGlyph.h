@@ -5,5 +5,5 @@ auto example = StackPanel {
         u"Windows 10 uses the Segoe MDL2 Assets FontFamily and that is what this example is showing.",
         styles.TextBlock.Body,
     },
-    Button {content = FontIcon {fontFamily = u"Segoe MDL2 Assets", glyph = u"\uE790"}},
+    Button {automationName = u"ExampleButton1", content = FontIcon {fontFamily = u"Segoe MDL2 Assets", glyph = u"\uE790"}},
 };

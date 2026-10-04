@@ -448,19 +448,21 @@ void buildMenu(Shell& s) {
 
     s.navigation.menuItems().append(addItem(s, std::wstring{homeName}, -1,
                                             NavigationViewItem {
+                                                automationId = u"Home",
                                                 content = u"Home",
                                                 icon = SymbolIcon {symbol = FluentSymbol::Home},
                                             }));
 
     for (auto const& section : specialSections()) {
         auto group = NavigationViewItem {
+            automationId = std::u16string(section.content.begin(), section.content.end()) + u"Item",
             content = section.content,
             selectsOnInvoked = false,
             icon = FontIcon {glyph = section.glyph},
         };
         s.navigation.menuItems().append(group);
         for (auto const& entry : section.items) {
-            auto row = NavigationViewItem {content = entry.content};
+            auto row = NavigationViewItem {automationId = std::wstring{entry.id}, content = entry.content};
             if (!entry.glyph.empty()) {
                 row.icon(FontIcon {glyph = entry.glyph});
             }
@@ -496,7 +498,7 @@ void buildMenu(Shell& s) {
         s.navigation.menuItems().append(row);
         int const parent = lastIndex(s);
         for (auto const& item : group->items) {
-            auto child = NavigationViewItem {content = itemContent(item)};
+            auto child = NavigationViewItem {automationId = item.uniqueId, content = itemContent(item)};
             child.horizontalContentAlignment(HorizontalAlignment::Stretch);
             child.icon(ImageIcon {source = gallery::assetPath(item.imagePath)});
             child.isEnabled(pageFor(item.uniqueId) != nullptr);

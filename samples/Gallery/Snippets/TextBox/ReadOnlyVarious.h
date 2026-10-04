@@ -1,5 +1,6 @@
 TextBox {
     u"I am super excited to be here!",
+    automationName = u"customized TextBox",
     CharacterSpacing {200},
     fontFamily = u"Arial",
     fontSize = 24,

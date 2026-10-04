@@ -5,7 +5,7 @@ auto const* objects = &gallery::dataObjects(true);
 auto const imageOf = [objects](Object const& item) {
     auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
     return ItemContainer {width = 200, height = 140, horizontalAlignment = HorizontalAlignment::Left,
-                          child = Image {Margin {4}, horizontalAlignment = HorizontalAlignment::Center,
+                          child = Image {Margin {4}, automationAccessibilityView = AccessibilityView::Raw, horizontalAlignment = HorizontalAlignment::Center,
                                  verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
                                  source = object.imageLocation}};
 };
@@ -68,6 +68,7 @@ auto example = Grid {
 auto options = StackPanel {
     spacing = 8,
     ComboBox {
+        automationName = u"selection mode",
         header = u"SelectionMode",
         ComboBoxItem {content = u"None"},
         ComboBoxItem {content = u"Single"},
@@ -80,7 +81,7 @@ auto options = StackPanel {
             if (self.selectedIndex() >= 0) model->view.selectionMode(modes[self.selectedIndex()]);
         },
     },
-    CheckBox {content = u"Item invocation", isChecked = true,
+    CheckBox {automationName = u"is item invocation enabled?", content = u"Item invocation", isChecked = true,
               onChecked = [model](auto&&...) { model->view.isItemInvokedEnabled(true); },
               onUnchecked = [model](auto&&...) { model->view.isItemInvokedEnabled(false); }},
 };

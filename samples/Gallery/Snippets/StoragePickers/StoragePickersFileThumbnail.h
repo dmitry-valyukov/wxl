@@ -3,7 +3,7 @@ struct Model {
     NumberBox size {header = u"Requested size (px)", value = 200.0, minimum = 16.0, maximum = 1024.0,
                     spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, width = 200};
     TextBlock details {textWrapping = TextWrapping::Wrap, u"No file picked"};
-    Image thumbnail {stretch = Stretch::Uniform};
+    Image thumbnail {stretch = Stretch::Uniform, automationName = u"File thumbnail"};
 };
 auto const model = gallery::hold<Model>();
 

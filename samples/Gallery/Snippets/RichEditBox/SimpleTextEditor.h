@@ -1,1 +1,1 @@
-RichEditBox {}
+RichEditBox {automationName = u"simple text editor"}

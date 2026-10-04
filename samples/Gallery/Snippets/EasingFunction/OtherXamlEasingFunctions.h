@@ -22,7 +22,7 @@ struct Model {
     TranslateTransform translate;
     DoubleAnimation animation {duration = Duration {std::chrono::milliseconds {500}, DurationType::TimeSpan}};
     Storyboard storyboard;
-    ComboBox choice {selectedIndex = 0};
+    ComboBox choice {automationName = u"Easing type", selectedIndex = 0};
     int mode = 0;
 };
 auto const model = gallery::hold<Model>();
@@ -36,7 +36,7 @@ for (auto const& each : *functions) {
 auto example = Grid {
     minWidth = 420,
     columnDefinitions = u"auto,*",
-    Button {content = u"Animate", onClick = [model, functions](auto&&...) {
+    Button {content = u"Animate", automationName = u"Animate rectangle using an Easing Function", onClick = [model, functions](auto&&...) {
                 if (model->choice.selectedIndex() < 0) {
                     return;
                 }

@@ -1,5 +1,5 @@
 auto picture = [](char16_t const* name, char16_t const* path) {
-    return Image {toolTip = name, source = path, stretch = Stretch::Uniform};
+    return Image {toolTip = name, automationName = name, source = path, stretch = Stretch::Uniform};
 };
 
 auto view = ScrollView {
@@ -36,6 +36,7 @@ auto options = Grid {
     NumberBox {
         column = 1,
         toolTip = u"vertical velocity",
+        automationName = u"vertical velocity",
         largeChange = 30.0,
         maximum = 200.0,
         minimum = -200.0,

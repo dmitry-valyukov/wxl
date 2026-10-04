@@ -1,6 +1,6 @@
 auto const marker = std::make_shared<MarkerType>(MarkerType::Bullet);
 
-auto richBox = RichEditBox {width = 240, minHeight = 96};
+auto richBox = RichEditBox {width = 240, minHeight = 96, automationName = u"Text entry"};
 
 auto icon = SymbolIcon {symbol = Symbol::List};
 
@@ -30,6 +30,7 @@ auto const choose = [](Flyout flyout, Button button, Symbol symbol, MarkerType t
 
 auto listButton = ToggleSplitButton {
     vAlign.top,
+    automationName = u"Bullets",
     content = icon,
     onIsCheckedChanged = [richBox, marker](ToggleSplitButton const& self) {
         richBox.document().selection().paragraphFormat().listType(
@@ -46,8 +47,8 @@ auto listButton = ToggleSplitButton {
         },
         content = StackPanel {
             orientation.horizontal,
-            Button {choice, content = SymbolIcon {symbol = Symbol::List}},
-            Button {choice, content = SymbolIcon {symbol = Symbol::Bullets}},
+            Button {choice, automationName = u"Bulleted list", content = SymbolIcon {symbol = Symbol::List}},
+            Button {choice, automationName = u"Roman numerals list", content = SymbolIcon {symbol = Symbol::Bullets}},
         },
     },
 };

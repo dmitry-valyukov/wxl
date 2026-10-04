@@ -19,6 +19,7 @@ static constexpr NavLink links[] = {
 auto const linkItem = [](NavLink const& link, bool iconAfter) -> FrameworkElement {
     return Grid {
         name = link.label,
+        automationName = link.label,
         iconAfter ? Margin {0, 0, 2, 0} : Margin {2, 0, 0, 0},
         columnDefinitions = iconAfter ? u"*,auto" : u"auto,*",
         SymbolIcon {symbol = link.symbol, column = iconAfter ? 1 : 0},

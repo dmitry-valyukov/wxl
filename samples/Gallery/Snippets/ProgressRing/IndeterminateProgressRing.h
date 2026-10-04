@@ -5,11 +5,13 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 auto ring = ProgressRing {
+    automationName = u"Progress image",
     isActive = BindOutput {model->active},
     Margin {10, 10, 0, 0},
 };
 
 auto activeSwitch = ToggleSwitch {
+    automationName = u"Progress Options",
     header = u"Active",
     onContent = u"On",
     offContent = u"Off",

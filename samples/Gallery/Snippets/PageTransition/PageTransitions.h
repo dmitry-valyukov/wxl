@@ -15,14 +15,14 @@ auto example = model->frame.frame();
 auto options = StackPanel {
     RadioButtons {
         header = u"Transition modes",
-        RadioButton {content = u"Default"},
-        RadioButton {content = u"Entrance"},
-        RadioButton {content = u"DrillIn"},
-        RadioButton {content = u"Suppress"},
-        RadioButton {content = u"Slide from Right"},
-        RadioButton {content = u"Slide from Left"},
-        RadioButton {content = u"Common"},
-        RadioButton {content = u"Continuum"},
+        RadioButton {automationName = u"Default NavigationTransitionInfo", content = u"Default"},
+        RadioButton {automationName = u"EntranceNavigationTransitionInfo", content = u"Entrance"},
+        RadioButton {automationName = u"DrillInNavigationTransitionInfo", content = u"DrillIn"},
+        RadioButton {automationName = u"SuppressNavigationTransitionInfo", content = u"Suppress"},
+        RadioButton {automationName = u"SlideNavigationTransitionInfo From Right", content = u"Slide from Right"},
+        RadioButton {automationName = u"SlideNavigationTransitionInfo From Left", content = u"Slide from Left"},
+        RadioButton {automationName = u"CommonNavigationTransitionInfo", content = u"Common"},
+        RadioButton {automationName = u"ContinuumNavigationTransitionInfo", content = u"Continuum"},
         selectedIndex = 0,
         onSelectionChanged = [model](RadioButtons const& self) {
             switch (self.selectedIndex()) {

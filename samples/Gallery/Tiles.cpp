@@ -84,8 +84,10 @@ wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
 }
 
 wxl::FrameworkElement gallery::tileGrid(std::span<ControlInfo const* const> items,
-                                        wxl::Thickness padding) {
+                                        wxl::Thickness padding, wxl::zstring_view id, wxl::zstring_view name) {
     auto grid = GridView {
+        automationId = id,
+        automationName = name,
         selectionMode = ListViewSelectionMode::None,
         isItemClickEnabled = true,
         Padding {padding},

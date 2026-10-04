@@ -50,7 +50,7 @@ auto example = StackPanel {
         itemTemplate = [contactOf, groups](Object const& item) -> UIElement {
             auto const entry = groups->order[static_cast<size_t>(intOf(item))];
             if (entry < 0) {
-                return TextBlock {styles.TextBlock.Title, groups->headers[static_cast<size_t>(-entry) - 1]};
+                return TextBlock {automationAccessibilityView = AccessibilityView::Raw, styles.TextBlock.Title, groups->headers[static_cast<size_t>(-entry) - 1]};
             }
             return contactOf(intBox(entry));
         },

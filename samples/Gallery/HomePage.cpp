@@ -103,7 +103,7 @@ FrameworkElement heroHeader() {
 }
 
 FrameworkElement heading(zstring_view label, Thickness space) {
-    return TextBlock {label, margin = space, fontSize = 16, styles.TextBlock.BodyStrong};
+    return TextBlock {label, margin = space, fontSize = 16, automationHeadingLevel = AutomationHeadingLevel::Level2, styles.TextBlock.BodyStrong};
 }
 
 // Контролы по идентификаторам, которые ещё есть в каталоге.
@@ -136,10 +136,10 @@ wxl::FrameworkElement gallery::homePage() {
     auto recentPanel = StackPanel {spacing = 12.0};
     if (!visited.empty()) {
         recentPanel.children().append(heading(u"Recently visited", Thickness {0}));
-        recentPanel.children().append(tileGrid(visited, Thickness {0}));
+        recentPanel.children().append(tileGrid(visited, Thickness {0}, u"RecentlyVisitedGridView", u"Recently visited samples"));
     }
     recentPanel.children().append(heading(u"Recently added or updated", Thickness {0, 12, 0, 0}));
-    recentPanel.children().append(tileGrid(added, Thickness {0}));
+    recentPanel.children().append(tileGrid(added, Thickness {0}, u"RecentlyAddedAndUpdatedGridView", u"Recently added and updated Samples"));
 
     auto favoritePanel = StackPanel {};
     if (liked.empty()) {
@@ -155,7 +155,7 @@ wxl::FrameworkElement gallery::homePage() {
             },
         });
     } else {
-        favoritePanel.children().append(tileGrid(liked, Thickness {0}));
+        favoritePanel.children().append(tileGrid(liked, Thickness {0}, u"FavoriteSamplesGridView", u"Favorite Samples"));
     }
 
     auto body = Border {row = 2, Margin {36, 0, 36, 36}, recentPanel};

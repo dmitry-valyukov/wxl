@@ -1,8 +1,8 @@
 struct Model {
-    TextBox box {width = 400, horizontalAlignment = HorizontalAlignment::Left, placeholderText = u"Enter text to copy with options",
+    TextBox box {width = 400, horizontalAlignment = HorizontalAlignment::Left, automationName = u"Text to copy with options", placeholderText = u"Enter text to copy with options",
                  u"Text with clipboard options"};
-    ToggleSwitch history {header = u"Allow in History", isOn = true};
-    ToggleSwitch roaming {header = u"Allow Roaming", isOn = true};
+    ToggleSwitch history {header = u"Allow in History", automationName = u"Allow clipboard content in history", isOn = true};
+    ToggleSwitch roaming {header = u"Allow Roaming", automationName = u"Allow clipboard content to roam", isOn = true};
     TextBlock status {textWrapping = TextWrapping::Wrap};
     TextBlock historyState;
     TextBlock roamingState;

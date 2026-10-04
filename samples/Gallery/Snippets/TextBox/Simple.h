@@ -1,1 +1,1 @@
-TextBox {}
+TextBox {automationName = u"simple TextBox"}

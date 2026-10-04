@@ -5,6 +5,7 @@ auto example = StackPanel {
         u"This stable example uses AppWindow.ResizeClient to request a 500 by 500 physical-pixel client area.",
     },
     Button {
+        automationId = u"WindowingCreateWindow",
         automationName = u"Create a top-level window",
         content = u"Create new Window",
         onClick = [](Button const& self) {

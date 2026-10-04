@@ -1,6 +1,6 @@
 struct Model {
     TextBlock status {visibility = Visibility::Collapsed, foreground = brushes.SystemFillColor.Success};
-    Image pasted {width = 200, height = 150, horizontalAlignment = HorizontalAlignment::Left, stretch = Stretch::UniformToFill,
+    Image pasted {width = 200, height = 150, horizontalAlignment = HorizontalAlignment::Left, automationName = u"Pasted image from clipboard", stretch = Stretch::UniformToFill,
                   visibility = Visibility::Collapsed};
 
     void say(std::u16string const& words) {
@@ -50,7 +50,7 @@ auto const paste = [](Model* model) -> async::detached_task {
 auto example = StackPanel {
     verticalAlignment = VerticalAlignment::Top,
     spacing = 10,
-    Image {width = 200, height = 150, horizontalAlignment = HorizontalAlignment::Left, stretch = Stretch::UniformToFill,
+    Image {width = 200, height = 150, horizontalAlignment = HorizontalAlignment::Left, automationName = u"Source image to copy", stretch = Stretch::UniformToFill,
            source = u"Assets/SampleMedia/rainier.jpg"},
     StackPanel {
         orientation.horizontal,

@@ -48,8 +48,10 @@ auto layoutHost = Border {
     },
 };
 
-auto slider = [](char16_t const* name, core::observable<double>& field) {
+auto slider = [](char16_t const* name, char16_t const* label, char16_t const* id, core::observable<double>& field) {
     return Slider {
+        automationId = id,
+        automationName = label,
         header = name,
         minimum = 0.0,
         maximum = 24.0,
@@ -63,12 +65,14 @@ auto slider = [](char16_t const* name, core::observable<double>& field) {
 auto options = StackPanel {
     spacing = 12.0,
     RadioButtons {
+        automationId = u"WrapPanelOrientation",
+        automationName = u"WrapPanel orientation",
         header = u"Orientation",
-        RadioButton {content = u"Horizontal"},
-        RadioButton {content = u"Vertical"},
+        RadioButton {automationId = u"WrapPanelHorizontalOrientation", automationName = u"Horizontal orientation", content = u"Horizontal"},
+        RadioButton {automationId = u"WrapPanelVerticalOrientation", automationName = u"Vertical orientation", content = u"Vertical"},
         selectedIndex = Bind {model->orientation},
     },
-    slider(u"Item spacing", model->itemSpacing),
-    slider(u"Line spacing", model->lineSpacing),
-    slider(u"Padding", model->padding),
+    slider(u"Item spacing", u"Item spacing", u"WrapPanelItemSpacing", model->itemSpacing),
+    slider(u"Line spacing", u"Line spacing", u"WrapPanelLineSpacing", model->lineSpacing),
+    slider(u"Padding", u"Uniform padding", u"WrapPanelPadding", model->padding),
 };
