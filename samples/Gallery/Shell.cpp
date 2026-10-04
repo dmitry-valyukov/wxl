@@ -284,7 +284,6 @@ void togglePane() {
     auto& s = *shell;
     s.navigation.isPaneOpen(!s.navigation.isPaneOpen());
 }
-
 void submitQuery(std::wstring query) {
     if (!query.empty()) {
         show({Place::Search, std::move(query)}, true);
@@ -405,6 +404,13 @@ void buildMenu(Shell& s) {
 }  // namespace
 
 // ---- Настройки -------------------------------------------------------------
+
+
+void setNavigationOnTop(bool top) {
+    if (shell) {
+        shell->navigation.paneDisplayMode(top ? NavigationViewPaneDisplayMode::Top : NavigationViewPaneDisplayMode::Auto);
+    }
+}
 
 std::vector<std::wstring> const& recentlyVisited() {
     return recent;

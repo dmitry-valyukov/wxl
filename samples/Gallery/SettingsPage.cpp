@@ -91,6 +91,18 @@ wxl::FrameworkElement gallery::settingsPage() {
                     themeChoice(),
                 },
                 SettingsCard {
+                    header = u"Navigation style",
+                    headerIcon = FontIcon {glyph = u""},
+                    ComboBox {
+                        ComboBoxItem {content = u"Left"},
+                        ComboBoxItem {content = u"Top"},
+                        selectedIndex = 0,
+                        onSelectionChanged = [](Object const& sender, SelectionChangedEventArgs&) {
+                            gallery::setNavigationOnTop(sender.try_as<ComboBox>().selectedIndex() == 1);
+                        },
+                    },
+                },
+                SettingsCard {
                     header = u"Manage samples",
                     description = u"Clear your recent or favorite samples",
                     headerIcon = FontIcon {glyph = u""},
