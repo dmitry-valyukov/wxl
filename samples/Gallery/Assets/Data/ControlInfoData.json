@@ -3664,6 +3664,68 @@
       ]
     },
     {
+      "UniqueId": "Effects",
+      "Title": "Effects",
+      "IconGlyph": "",
+      "Items": [
+        {
+          "UniqueId": "Halo",
+          "Tags": ["effect", "glow", "halo", "shadow"],
+          "Title": "HaloEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A glow around the glyphs of an element: a shadow with no offset, cut out by the alpha of the text.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "A glow around the glyphs of an element: a shadow with no offset, cut out by the alpha of the text.",
+          "IsNew": true,
+          "RelatedControls": ["GaussianBlur", "Glass"]
+        },
+        {
+          "UniqueId": "GaussianBlur",
+          "Tags": ["effect", "blur", "glow", "gaussian"],
+          "Title": "GaussianBlurEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A halo made by a graph of effects, with a gamma of fall-off, over or under the glyphs.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "A halo made by a graph of effects, with a gamma of fall-off, over or under the glyphs.",
+          "IsNew": true,
+          "RelatedControls": ["Halo", "Glass"]
+        },
+        {
+          "UniqueId": "Bevel",
+          "Tags": ["effect", "bevel", "edge", "emboss"],
+          "Title": "BevelEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A beveled edge, light on one diagonal and dark on the other.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "A beveled edge, light on one diagonal and dark on the other.",
+          "IsNew": true,
+          "RelatedControls": ["Magnify"]
+        },
+        {
+          "UniqueId": "Magnify",
+          "Tags": ["effect", "magnify", "pop", "hover"],
+          "Title": "MagnifyEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "An element that grows or shrinks under the pointer.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "An element that grows or shrinks under the pointer.",
+          "IsNew": true,
+          "RelatedControls": ["Bevel"]
+        },
+        {
+          "UniqueId": "Glass",
+          "Tags": ["effect", "glass", "frost", "blur"],
+          "Title": "GlassEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "Frosted glass under an element: a blurred backing for letters.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "Frosted glass under an element: a blurred backing for letters.",
+          "IsNew": true,
+          "RelatedControls": ["Halo", "GaussianBlur"]
+        }
+      ]
+    },
+    {
       "UniqueId": "Text",
       "Title": "Text",
       "IconGlyph": "",

@@ -1,6 +1,5 @@
 add_subdirectory(Calculator)
 add_subdirectory(CustomTitleBar)
-add_subdirectory(Effects)
 add_subdirectory(Gallery)
 add_subdirectory(HelloHere)
 add_subdirectory(HtmlView)
