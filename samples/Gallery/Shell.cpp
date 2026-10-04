@@ -197,9 +197,20 @@ struct Shell {
     };
     // Поле поиска: Ctrl+F переводит на него фокус.
     AutoSuggestBox search {
-        maxWidth = 580.0,
+        minWidth = 320.0,
         hAlign.stretch,
         vAlign.center,
+        // Содержимое TitleBar лежит в PART_ContentPresenter с выравниванием по центру, и поле получает ширину по тексту:
+        // растягиваем его на всю область содержимого, ширина которой от самого поля не зависит.
+        onLoaded = [](Object const& sender, auto&&...) {
+            auto const box = sender.try_as<AutoSuggestBox>();
+            auto const area = VisualTreeHelper::getParent(VisualTreeHelper::getParent(box)).try_as<FrameworkElement>();
+            if (!area) {
+                return;
+            }
+            box.width(area.actualWidth());
+            area.add_onSizeChanged([box](Object const& area, auto&&...) { box.width(area.try_as<FrameworkElement>().actualWidth()); });
+        },
         placeholderText = u"Search controls and samples...",
         queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
         onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
