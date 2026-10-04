@@ -124,6 +124,7 @@ void onSelected(NavigationView const& sender, bool settingsSelected);
 void goBack();
 void togglePane();
 void submitQuery(std::wstring query);
+void focusSearch();
 
 struct Shell {
     Border host;
@@ -136,6 +137,42 @@ struct Shell {
             onSelected(sender.try_as<NavigationView>(), args.isSettingsSelected());
         },
     };
+    // Поле поиска: Ctrl+F переводит на него фокус.
+    AutoSuggestBox search {
+        maxWidth = 580.0,
+        hAlign.stretch,
+        vAlign.center,
+        placeholderText = u"Search controls and samples...",
+        queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
+        onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
+            // Подсказки даёт только ввод пользователя; выбранная подсказка сама вписывается в текст.
+            if (args.reason() != AutoSuggestionBoxTextChangeReason::UserInput) {
+                return;
+            }
+            auto found = gallery::controlTitles(self.text());
+            if (found.empty()) {
+                found.emplace_back(u"No results found");
+            }
+            self.itemsSource(stringList(found));
+        },
+        onSuggestionChosen = [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
+            auto const title = stringOf(args.selectedItem());
+            if (title != u"No results found") {
+                self.text(title);
+            }
+        },
+        onQuerySubmitted = [](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
+            // Выбранная подсказка ведёт прямо на страницу контрола, набранный текст — на результаты поиска.
+            if (args.chosenSuggestion()) {
+                auto const title = stringOf(args.chosenSuggestion());
+                if (auto const* control = gallery::controlByTitle(title)) {
+                    navigate({Place::Item, control->uniqueId});
+                }
+                return;
+            }
+            submitQuery(gallery::wide(args.queryText()));
+        },
+    };
     TitleBar titleBar {
         title = u"WinUI 3 Gallery",
         isBackButtonVisible = false,
@@ -143,41 +180,7 @@ struct Shell {
         iconSource = ImageIconSource {imageSource = u"Assets/Tiles/GalleryIcon.ico"},
         onBackRequested = [] { goBack(); },
         onPaneToggleRequested = [] { togglePane(); },
-        content = AutoSuggestBox {
-            maxWidth = 580.0,
-            hAlign.stretch,
-            vAlign.center,
-            placeholderText = u"Search controls and samples...",
-            queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
-            onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
-                // Подсказки даёт только ввод пользователя; выбранная подсказка сама вписывается в текст.
-                if (args.reason() != AutoSuggestionBoxTextChangeReason::UserInput) {
-                    return;
-                }
-                auto found = gallery::controlTitles(self.text());
-                if (found.empty()) {
-                    found.emplace_back(u"No results found");
-                }
-                self.itemsSource(stringList(found));
-            },
-            onSuggestionChosen = [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
-                auto const title = stringOf(args.selectedItem());
-                if (title != u"No results found") {
-                    self.text(title);
-                }
-            },
-            onQuerySubmitted = [](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
-                // Выбранная подсказка ведёт прямо на страницу контрола, набранный текст — на результаты поиска.
-                if (args.chosenSuggestion()) {
-                    auto const title = stringOf(args.chosenSuggestion());
-                    if (auto const* control = gallery::controlByTitle(title)) {
-                        navigate({Place::Item, control->uniqueId});
-                    }
-                    return;
-                }
-                submitQuery(gallery::wide(args.queryText()));
-            },
-        },
+        content = search,
     };
     // Пункты панели по порядку и индекс родителя каждого (-1 — верхний
     // уровень): по ним `select` находит элемент и раскрывает его группу.
@@ -208,6 +211,10 @@ struct Shell {
 };
 
 std::shared_ptr<Shell> shell;
+
+void focusSearch() {
+    shell->search.focus(FocusState::Programmatic);
+}
 
 FrameworkElement buildPage(Destination const& destination) {
     auto const& all = catalog();
@@ -493,6 +500,14 @@ Window createMainWindow() {
             rowDefinitions = u"auto,*",
             s.titleBar,
             s.navigation,
+            keyboardAccelerators[KeyboardAccelerator {
+                key = VirtualKey::F,
+                modifiers = VirtualKeyModifiers::Control,
+                onInvoked = [](Object const&, KeyboardAcceleratorInvokedEventArgs& args) {
+                    focusSearch();
+                    args.handled(true);
+                },
+            }],
         },
     };
     window.setTitleBar(s.titleBar);
