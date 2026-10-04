@@ -73,6 +73,12 @@ public:
     constexpr bool closed() const noexcept { return false; }
 };
 
+// The alignas members below are meant to cost padding: that is what keeps the lines
+// apart. C4324 reports the padding at level 4, and for a template it fires where the
+// class is laid out -- in a consumer built with /W4 -- so it is silenced here, at the
+// declaration, which is the one place that knows the padding is the point.
+#pragma warning(push)
+#pragma warning(disable : 4324)  // structure was padded due to alignment specifier
 /**
  * Non blocking pool of objects by pointers.
  * Pool is safe for many writers and one reader.
@@ -150,6 +156,7 @@ private:
     ssize_t underflow_counter_;
     allocator allocator_;
 };
+#pragma warning(pop)
 
 // Pool<> members
 

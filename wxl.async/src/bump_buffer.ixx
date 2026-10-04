@@ -5,6 +5,12 @@ import std;
 
 export namespace wxl::async {
 
+// The alignas members below are meant to cost padding: that is what keeps the lines
+// apart. C4324 reports the padding at level 4, and for a template it fires where the
+// class is laid out -- in a consumer built with /W4 -- so it is silenced here, at the
+// declaration, which is the one place that knows the padding is the point.
+#pragma warning(push)
+#pragma warning(disable : 4324)  // structure was padded due to alignment specifier
 /// A fixed-size byte buffer with an atomic cursor: alloc() claims a word-aligned range by
 /// a single fetch_add, with no retry loop, and the cursor never moves back below a block
 /// it has handed out. Blocks therefore never overlap, and none of them is ever reclaimed
@@ -67,5 +73,6 @@ private:
     // off whichever cache line the most recently allocated block landed on.
     alignas(std::hardware_destructive_interference_size) std::atomic<size_t> cursor_{0};
 };
+#pragma warning(pop)
 
 }  // export namespace wxl::async
