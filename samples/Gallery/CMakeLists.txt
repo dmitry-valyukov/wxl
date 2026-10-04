@@ -84,6 +84,7 @@ wxl_add_executable(sample.gallery
     AccessibilityColorContrastPage.cpp
     AccessibilityKeyboardPage.cpp
     AccessibilityScreenReaderPage.cpp
+    ScratchPadPage.cpp
     Icons.cpp
     ColorTile.cpp
     ColorSamples.cpp

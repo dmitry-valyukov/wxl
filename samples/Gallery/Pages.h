@@ -107,6 +107,7 @@ wxl::FrameworkElement iconographyPage();
 wxl::FrameworkElement accessibilityColorContrastPage();
 wxl::FrameworkElement accessibilityKeyboardPage();
 wxl::FrameworkElement accessibilityScreenReaderPage();
+wxl::FrameworkElement scratchPadPage();
 wxl::FrameworkElement animatedVisualPlayerPage();
 wxl::FrameworkElement captureElementPreviewPage();
 wxl::FrameworkElement inkCanvasPage();
