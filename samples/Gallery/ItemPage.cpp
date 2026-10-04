@@ -5,6 +5,7 @@
 // Введение оригинал даёт статичным TextBlock; здесь это HtmlBlock.
 
 #include "Pages.h"
+#include "StringList.h"
 #include "Shell.h"
 
 using namespace wxl;
@@ -68,22 +69,14 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         });
     }
     if (!item.baseClasses.empty()) {
-        std::wstring chain;
+        // Цепочка наследования — BreadcrumbBar, как в панели оригинала.
+        std::vector<std::u16string> chain;
         for (auto const& name : item.baseClasses) {
-            if (!chain.empty()) {
-                chain += L" › ";
-            }
-            chain += name;
+            chain.emplace_back(name.begin(), name.end());
         }
         panel.children().append(StackPanel {
             caption(u"Inheritance"),
-            TextBlock {
-                chain,
-                fontFamily = u"Consolas",
-                isTextSelectionEnabled = true,
-                styles.TextBlock.Caption,
-                textWrapping.wrap,
-            },
+            BreadcrumbBar {itemsSource = stringList(chain)},
         });
     }
     return Button {
@@ -100,6 +93,7 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         },
     };
 }
+
 FrameworkElement documentation(gallery::ControlInfo const& item) {
     if (item.docs.empty()) {
         return Border {};
