@@ -179,6 +179,7 @@ FrameworkElement itemContent(ControlInfo const& item) {
 
 void onSelected(NavigationView const& sender, bool settingsSelected);
 void goBack();
+void goForward();
 void togglePane();
 void submitQuery(std::wstring query);
 void focusSearch();
@@ -368,6 +369,18 @@ void goBack() {
     s.forward.push_back(s.current);
     auto const destination = s.back.back();
     s.back.pop_back();
+    show(destination, false);
+}
+
+// Кнопка мыши «вперёд»: возвращает на страницу, с которой ушли назад.
+void goForward() {
+    auto& s = *shell;
+    if (s.forward.empty()) {
+        return;
+    }
+    s.back.push_back(s.current);
+    auto const destination = s.forward.back();
+    s.forward.pop_back();
     show(destination, false);
 }
 
@@ -561,6 +574,15 @@ Window createMainWindow() {
             rowDefinitions = u"auto,*",
             s.titleBar,
             s.navigation,
+            // Боковые кнопки мыши — «назад» и «вперёд», как у оригинала.
+            onPointerPressed = [](Object const& sender, PointerRoutedEventArgs& args) {
+                auto const properties = args.getCurrentPoint(sender.try_as<UIElement>()).properties();
+                if (properties.isXButton1Pressed()) {
+                    goBack();
+                } else if (properties.isXButton2Pressed()) {
+                    goForward();
+                }
+            },
             keyboardAccelerators[KeyboardAccelerator {
                 key = VirtualKey::F,
                 modifiers = VirtualKeyModifiers::Control,

@@ -306,11 +306,13 @@
             ]
         },
         "Microsoft.UI.Input.PointerPointProperties": {
-            "comment": "MouseWheelDelta is what turns a page by the wheel. Everything else this class carries (pressure, tilt, the barrel button) belongs to drawing tablets and is left out.",
+            "comment": "MouseWheelDelta is what turns a page by the wheel; the two side buttons are the mouse's back and forward. Everything else this class carries (pressure, tilt, the barrel button) belongs to drawing tablets and is left out.",
             "members": [
                 "MouseWheelDelta",
                 "IsLeftButtonPressed",
-                "IsRightButtonPressed"
+                "IsRightButtonPressed",
+                "IsXButton1Pressed",
+                "IsXButton2Pressed"
             ]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs": {
