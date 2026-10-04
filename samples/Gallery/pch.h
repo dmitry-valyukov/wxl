@@ -12,6 +12,8 @@
 #include "RsdnBlock.h"
 #include "launch.h"
 #include "MagnifyEffect.h"
+#include "SettingsCard.h"
+#include "SettingsExpander.h"
 #include "BevelEffect.h"
 #include "HaloEffect.h"
 #include "GaussianBlurEffect.h"

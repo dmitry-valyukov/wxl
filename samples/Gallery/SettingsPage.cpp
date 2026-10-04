@@ -1,47 +1,18 @@
 // Страница настроек — SettingsPage оригинала: тема, стиль навигации, очистка
 // недавних и избранных, сведения о приложении.
 //
-// SettingsCard и SettingsExpander — типы Community Toolkit, которых у wxl
-// нет; строка настройки здесь — Border с подписью слева и элементом справа.
-// Настройка звука оригинала (ElementSoundPlayer) не перенесена.
+// Строка настройки — wxl::SettingsCard (SettingsCard Community Toolkit). SettingsExpander и настройка звука
+// оригинала (ElementSoundPlayer) ещё не перенесены.
 
 #include "Pages.h"
 #include "Shell.h"
+
+#include <wxl/Windows.ApplicationModel.DataTransfer.h>
 
 using namespace wxl;
 using namespace wxl::dsl;
 
 namespace {
-
-// Строка настройки: значок, название с пояснением, элемент управления.
-FrameworkElement settingRow(zstring_view icon, zstring_view label,
-                            zstring_view details, FrameworkElement const& control) {
-    auto texts = StackPanel {
-        vAlign.center,
-        TextBlock {label},
-    };
-    if (!details.empty()) {
-        texts.children().append(TextBlock {
-            details,
-            styles.TextBlock.Caption,
-            foreground = brushes.Text.FillColor.Secondary,
-        });
-    }
-    return Border {
-        Padding {16},
-        background = brushes.Control.FillColor.Default,
-        borderBrush = brushes.Card.StrokeColorDefault,
-        BorderThickness {1},
-        CornerRadius {4},
-        Grid {
-            columnDefinitions = u"auto,*,auto",
-            columnSpacing = 16.0,
-            FontIcon {glyph = icon, vAlign.center},
-            Border {column = 1, texts},
-            Border {column = 2, vAlign.center, control},
-        },
-    };
-}
 
 FrameworkElement sectionHeader(zstring_view label) {
     return TextBlock {label, Margin {1, 30, 0, 6}, styles.TextBlock.BodyStrong};
@@ -113,15 +84,91 @@ wxl::FrameworkElement gallery::settingsPage() {
                 maxWidth = 1064,
                 spacing = 4.0,
                 sectionHeader(u"Appearance & behavior"),
-                settingRow(u"", u"App theme", u"Select which app theme to display", themeChoice()),
-                settingRow(u"", u"Manage samples", u"Clear your recent or favorite samples", manageSamples()),
+                SettingsCard {
+                    header = u"App theme",
+                    description = u"Select which app theme to display",
+                    headerIcon = FontIcon {glyph = u""},
+                    themeChoice(),
+                },
+                SettingsCard {
+                    header = u"Manage samples",
+                    description = u"Clear your recent or favorite samples",
+                    headerIcon = FontIcon {glyph = u""},
+                    manageSamples(),
+                },
+                SettingsExpander {
+                    header = u"Sound",
+                    description = u"Controls provide audible feedback",
+                    headerIcon = FontIcon {glyph = u"\uEC4F"},
+                    ToggleSwitch {
+                        onToggled = [](ToggleSwitch const& self, RoutedEventArgs&) {
+                            ElementSoundPlayer::state(self.isOn() ? ElementSoundPlayerState::On : ElementSoundPlayerState::Off);
+                            if (!self.isOn()) {
+                                ElementSoundPlayer::spatialAudioMode(ElementSpatialAudioMode::Off);
+                            }
+                        },
+                    },
+                    items[SettingsCard {
+                        header = u"Enable Spatial Audio",
+                        description = u"Learn more about enabling sounds in your app on the Sound page",
+                        isEnabled = ElementSoundPlayer::state() == ElementSoundPlayerState::On,
+                        ToggleSwitch {
+                            onToggled = [](ToggleSwitch const& self, RoutedEventArgs&) {
+                                ElementSoundPlayer::spatialAudioMode(self.isOn() ? ElementSpatialAudioMode::On : ElementSpatialAudioMode::Off);
+                            },
+                        },
+                    }],
+                },
                 sectionHeader(u"About"),
-                settingRow(u"", u"WinUI 3 Gallery",
-                           u"A port of the WinUI 3 Gallery to wxl: the same types, no XAML.",
-                           HyperlinkButton {
-                               u"WinUI Gallery on GitHub",
-                               navigateUri = u"https://github.com/microsoft/WinUI-Gallery",
-                           }),
+                SettingsExpander {
+                    header = u"WinUI 3 Gallery",
+                    description = u"A port of the WinUI 3 Gallery to wxl: the same types, no XAML.",
+                    headerIcon = FontIcon {glyph = u"\uE946"},
+                    TextBlock {u"wxl", foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
+                    items[
+                        SettingsCard {
+                            header = u"To clone this repository",
+                            isClickEnabled = true,
+                            actionIcon = FontIcon {glyph = u"\uE8C8"},
+                            TextBlock {
+                                u"git clone https://github.com/microsoft/WinUI-Gallery",
+                                fontFamily = u"Consolas",
+                                foreground = brushes.Text.FillColor.Secondary,
+                                isTextSelectionEnabled = true,
+                            },
+                            onClick = [](auto&&...) {
+                                auto package = DataPackage {};
+                                package.setText(u"git clone https://github.com/microsoft/WinUI-Gallery");
+                                Clipboard::setContent(package);
+                            },
+                        },
+                        SettingsCard {
+                            header = u"File a bug or request new sample",
+                            actionIcon = FontIcon {glyph = u"\uE8A7"},
+                            HyperlinkButton {u"Open issues", navigateUri = u"https://github.com/microsoft/WinUI-Gallery/issues"},
+                        },
+                        SettingsCard {
+                            header = u"Dependencies & references",
+                            contentAlignment = SettingsCardContentAlignment::Vertical,
+                            StackPanel {
+                                HyperlinkButton {u"Windows App SDK", navigateUri = u"https://aka.ms/windowsappsdk"},
+                                HyperlinkButton {u"WinUI 3", navigateUri = u"https://aka.ms/winui"},
+                                HyperlinkButton {u"Windows Community Toolkit", navigateUri = u"https://aka.ms/toolkit/windows"},
+                                HyperlinkButton {u"Win2D", navigateUri = u"https://github.com/Microsoft/Win2D"},
+                            },
+                        },
+                        SettingsCard {
+                            header = u"THIS CODE AND INFORMATION IS PROVIDED \u2018AS IS\u2019 WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR "
+                                     u"IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A "
+                                     u"PARTICULAR PURPOSE.",
+                            contentAlignment = SettingsCardContentAlignment::Vertical,
+                            StackPanel {
+                                HyperlinkButton {u"Microsoft Services Agreement", navigateUri = u"https://go.microsoft.com/fwlink/?LinkId=822631"},
+                                HyperlinkButton {u"Microsoft Privacy Statement", navigateUri = u"https://go.microsoft.com/fwlink/?LinkId=521839"},
+                            },
+                        }
+                    ],
+                },
             },
         },
     };

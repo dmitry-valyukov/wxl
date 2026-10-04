@@ -157,7 +157,12 @@
         "properties": [
             { "property": "ZoomFactor", "value": "double" },
             { "property": "Emboss", "value": "double" },
-            { "property": "Gamma", "value": "double" }
+            { "property": "Gamma", "value": "double" },
+            { "property": "HeaderIcon", "value": "IconElement" },
+            { "property": "ActionIcon", "value": "IconElement" },
+            { "property": "IsActionIconVisible", "value": "bool" },
+            { "property": "IsClickEnabled", "value": "bool" },
+            { "property": "ContentAlignment", "value": "SettingsCardContentAlignment", "include": "../SettingsCardAlignment.h" }
         ],
         "events": ["ClientSizeChanged", "GeometryChanged"],
 
