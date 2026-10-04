@@ -45,13 +45,13 @@ template <class Background, class Foreground>
 wxl::FrameworkElement colorTile(Background const& background, Foreground const& foreground, ColorTileInfo const& info) {
     auto parts = makeColorTile(info);
     if constexpr (!std::is_null_pointer_v<Background>) {
-        wxl::Preset {wxl::dsl::background = background}(parts.body);
+        wxl::Apply {parts.body, wxl::dsl::background = background};
     }
     if constexpr (!std::is_null_pointer_v<Foreground>) {
         for (auto const& text : parts.texts) {
-            wxl::Preset {wxl::dsl::foreground = foreground}(text);
+            wxl::Apply {text, wxl::dsl::foreground = foreground};
         }
-        wxl::Preset {wxl::dsl::foreground = foreground}(parts.copyIcon);
+        wxl::Apply {parts.copyIcon, wxl::dsl::foreground = foreground};
     }
     return parts.root;
 }
@@ -61,11 +61,11 @@ wxl::FrameworkElement colorExample(char16_t const* exampleTitle, char16_t const*
                                    Foreground const& foreground, wxl::FrameworkElement const& content) {
     auto parts = makeColorExample(exampleTitle, description, content);
     if constexpr (!std::is_null_pointer_v<Background>) {
-        wxl::Preset {wxl::dsl::background = background}(parts.root);
+        wxl::Apply {parts.root, wxl::dsl::background = background};
     }
     if constexpr (!std::is_null_pointer_v<Foreground>) {
-        wxl::Preset {wxl::dsl::foreground = foreground}(parts.title);
-        wxl::Preset {wxl::dsl::foreground = foreground}(parts.description);
+        wxl::Apply {parts.title, wxl::dsl::foreground = foreground};
+        wxl::Apply {parts.description, wxl::dsl::foreground = foreground};
     }
     return parts.root;
 }
