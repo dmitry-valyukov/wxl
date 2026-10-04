@@ -395,6 +395,7 @@ void buildMenu(Shell& s) {
         for (auto const& item : group->items) {
             auto child = NavigationViewItem {content = itemContent(item)};
             child.horizontalContentAlignment(HorizontalAlignment::Stretch);
+            child.icon(ImageIcon {source = gallery::assetPath(item.imagePath)});
             child.isEnabled(pageFor(item.uniqueId) != nullptr);
             row.menuItems().append(addItem(s, itemName(item.uniqueId), parent, child));
         }
