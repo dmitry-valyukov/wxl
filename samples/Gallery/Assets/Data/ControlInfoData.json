@@ -3726,6 +3726,47 @@
       ]
     },
     {
+      "UniqueId": "CommunityToolkit",
+      "Title": "Community Toolkit",
+      "IconGlyph": "",
+      "Items": [
+        {
+          "UniqueId": "SettingsCard",
+          "Tags": ["settings", "card", "toolkit"],
+          "Title": "SettingsCard",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A row of a settings page: an icon, a header with a description and the setting itself at its right.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Expander.png",
+          "Description": "A row of a settings page: an icon, a header with a description and the setting itself at its right.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "Windows Community Toolkit",
+              "Uri": "https://aka.ms/toolkit/windows"
+            }
+          ],
+          "RelatedControls": ["SettingsExpander", "Expander"]
+        },
+        {
+          "UniqueId": "SettingsExpander",
+          "Tags": ["settings", "expander", "toolkit"],
+          "Title": "SettingsExpander",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A SettingsCard that opens onto more of them.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Expander.png",
+          "Description": "A SettingsCard that opens onto more of them.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "Windows Community Toolkit",
+              "Uri": "https://aka.ms/toolkit/windows"
+            }
+          ],
+          "RelatedControls": ["SettingsCard", "Expander"]
+        }
+      ]
+    },
+    {
       "UniqueId": "Text",
       "Title": "Text",
       "IconGlyph": "",

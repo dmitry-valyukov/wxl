@@ -116,6 +116,8 @@ wxl::FrameworkElement gaussianBlurPage();
 wxl::FrameworkElement haloPage();
 wxl::FrameworkElement xamlResourcesPage();
 wxl::FrameworkElement bindingPage();
+wxl::FrameworkElement settingsCardPage();
+wxl::FrameworkElement settingsExpanderPage();
 wxl::FrameworkElement templatesPage();
 wxl::FrameworkElement customXamlConditionalsPage();
 wxl::FrameworkElement animatedVisualPlayerPage();
