@@ -154,10 +154,13 @@ void run_activation_probe(wchar_t const* name, GUID const& factoryIid) {
         static_cast<::IUnknown*>(dependencyObjectPtr)->Release();
     }
 
-    std::printf("  releasing inner...\n");
-    inner->Release();
+    // Сначала value: его AddRef/Release делегированы внешней идентичности, так что он ничего не уничтожает; inner —
+    // собственная идентичность объекта, и его Release уничтожает объект. Наоборот value остаётся висячим указателем в
+    // уже уничтоженный объект (так было в первой версии пробы: падало вторым же Release).
     std::printf("  releasing value...\n");
     value->Release();
+    std::printf("  releasing inner...\n");
+    inner->Release();
     std::printf("  released.\n");
 }
 
@@ -165,7 +168,7 @@ struct App : ApplicationT<App> {
     void OnLaunched(LaunchActivatedEventArgs const&) {
         run_activation_probe(L"Microsoft.UI.Xaml.FrameworkElement", {0xBD3F2272, 0x3EFA, 0x5F92, {0xB7, 0x59, 0x90, 0xB1, 0xCC, 0x3E, 0x78, 0x4C}});
         run_activation_probe(L"Microsoft.UI.Xaml.Controls.ContentControl", {0x3DEA958E, 0x5ACD, 0x5F80, {0x89, 0x38, 0x38, 0x63, 0x4F, 0x51, 0x49, 0x3A}});
-        // UserControl последним: его value->Release() роняет процесс, ContentControl и FrameworkElement отпускаются чисто.
+        // UserControl и ContentControl — наследники, которых имеет смысл брать за основу пользовательского контрола.
         run_activation_probe(L"Microsoft.UI.Xaml.Controls.UserControl", {0x61AC9074, 0xAAB3, 0x50B8, {0x8B, 0x18, 0xD4, 0xD2, 0x57, 0x3A, 0x52, 0x35}});
         Exit();
     }
