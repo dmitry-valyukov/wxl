@@ -12,7 +12,12 @@
 #include "RsdnBlock.h"
 #include "launch.h"
 #include "MagnifyEffect.h"
-#include "generated/brushes.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
+#include "BevelEffect.h"
+#include "HaloEffect.h"
+#include "GaussianBlurEffect.h"
+#include "GlassEffect.h"
+#include "Button3DEffect.h"
+#include <wxl/brushes.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>

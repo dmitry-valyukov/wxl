@@ -8,7 +8,7 @@
 // to the elements of a template is by name through the control; the function made them in code and
 // can name them no more than it can keep them.
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 namespace wxl {
 

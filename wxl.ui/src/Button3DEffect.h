@@ -49,7 +49,7 @@
 #include "core.h"
 #include "Color.h"
 #include "RevealEffect.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include "impl/member.h"
 
 namespace wxl {

@@ -9,7 +9,7 @@
 // Nothing here runs: the WinUI3 runtime is not up in a test, and activating
 // a real control without it fails. This is about the syntax and the types.
 //
-// The same target compiles generated/schema_surface.cpp: one line per
+// The same target compiles wxl/schema_surface.cpp: one line per
 // element of the generated schema.h, and nothing else. What it proves is
 // that every anchor the schema offers actually applies to the class it hangs
 // on -- that the key reaches a setter that class has, that the value type the
@@ -40,11 +40,11 @@
 #include "Relief.h"
 #include "UiThread.h"
 #include "ui.h"
-#include "generated/Microsoft.UI.Dispatching.h"
+#include <wxl/Microsoft.UI.Dispatching.h>
 #include "schema.h"
-#include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.Hosting.h"
-#include "generated/brushes.h"
+#include <wxl/Microsoft.UI.Composition.h>
+#include <wxl/Microsoft.UI.Xaml.Hosting.h>
+#include <wxl/brushes.h>
 
 namespace {
 
@@ -499,7 +499,7 @@ namespace library_presets {
 // object a property asks for is a template's to build.
 [[maybe_unused]] void own_preset() {
     constexpr Preset glow{
-        center = {0.33, 0.33},
+        center = Point {0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,
@@ -522,7 +522,7 @@ namespace library_presets {
 // the same way it would be written inside the object's.
 [[maybe_unused]] void templates_of_presets() {
     constexpr Preset shape{
-        center = {0.33, 0.33},
+        center = Point {0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,

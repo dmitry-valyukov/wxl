@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 
-#include "../generated/FluentSymbol.h"
+#include <wxl/FluentSymbol.h>
 
 // What stands behind the second spelling of SymbolIcon's Symbol property.
 //

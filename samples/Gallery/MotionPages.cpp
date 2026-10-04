@@ -4,8 +4,8 @@
 #include <algorithm>
 
 #include "Catalog.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

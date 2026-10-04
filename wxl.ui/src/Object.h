@@ -7,7 +7,7 @@
 // wxl::Statics lives here too, and is the other half of the same statement:
 // what a generated class derives from when it is not a wrapper at all.
 //
-// The generated wrappers, generated/<Namespace>.h, follow the pattern these
+// The generated wrappers, wxl/<Namespace>.h, follow the pattern these
 // levels set. A file announces every class it defines and then defines them
 // in inheritance order, so every base is complete where a class derives
 // from it. A wrapper has the constructors of the real class: a public
@@ -81,7 +81,7 @@ using member_type = typename ImplTraits<member>::member_t;
 // which is the private, winrt-facing side. That is the module-visibility
 // boundary wxl's compile-time goal rests on -- no consumer of this header
 // parses a cppwinrt projection header. Every generated wrapper declares its
-// own Impl the same way and defines it in generated/<Namespace>.impl.h, so
+// own Impl the same way and defines it in wxl/<Namespace>.impl.h, so
 // a generated public header never names a winrt:: type either and including
 // one stays cheap.
 class Object {

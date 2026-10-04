@@ -17,7 +17,7 @@
 #include "ThemeBrush.h"
 #include "ZoomEffect.h"
 #include "VirtualTree.h"
-#include "generated/brushes.h"
+#include <wxl/brushes.h>
 #include "launch.h"
 #include "ui.h"
 

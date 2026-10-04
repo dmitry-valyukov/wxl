@@ -2,7 +2,7 @@
 
 // The whole schema: what the generator writes for the classes it generates,
 // and beside it the classes written by hand that take tags in their braces.
-// Include this one, never generated/schema.h directly.
+// Include this one, never wxl/schema.h directly.
 //
 // It is the same vocabulary as the generated Members.h, reached through the
 // class that declares it: `schema::Button::content` beside the bare
@@ -27,7 +27,7 @@
 #include "HaloEffect.h"
 #include "MagnifyEffect.h"
 #include "RevealEffect.h"
-#include "generated/schema.h"
+#include <wxl/schema.h>
 
 namespace wxl::dsl::schema {
 

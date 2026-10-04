@@ -3,10 +3,10 @@
 // The lookup behind every named brush path. Hand-written for the same reason
 // as its style twin next door: the generator's business is the list of
 // brushes a profile's resource dictionary declares, not the code that
-// resolves one. It emits `generated/brushes.h` for the paths and
-// `generated/brush_names.h` for the framework's key behind each one.
+// resolves one. It emits `wxl/brushes.h` for the paths and
+// `wxl/brush_names.h` for the framework's key behind each one.
 //
-// Beside them it writes `generated/aliases.txt`, a reference sheet and not
+// Beside them it writes `wxl/aliases.txt`, a reference sheet and not
 // code: the StaticResource aliases of the framework's theme dictionaries --
 // the key every control part looks its resource up by, and the base resource
 // it forwards to. That is how a control's styling is actually chosen, and
@@ -16,8 +16,8 @@
 // theme forwards to the same place; otherwise each distinct target with the
 // themes that chose it.
 
-#include "Microsoft.UI.Xaml.Enums.h"
-#include "Microsoft.UI.Xaml.Media.h"
+#include <wxl/Microsoft.UI.Xaml.Enums.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 #include "events.h"
 #include "impl/member.h"
 

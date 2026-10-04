@@ -5,7 +5,7 @@
 
 #include "CustomVirtualizingLayout.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Xaml.Controls.impl.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include "impl/conversions.h"
 
 namespace wxl {

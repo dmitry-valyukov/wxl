@@ -9,7 +9,7 @@
 # project() -- exactly what wxl.core's own gate file below checks.
 #
 # The generated tree brings its own CMakeLists.txt, which only calls
-# target_sources() on this target -- hence add_subdirectory(src/generated)
+# target_sources() on this target -- hence add_subdirectory(src/wxl)
 # at the *end* of this file, after the target exists.
 cmake_minimum_required(VERSION 3.28)
 
@@ -86,6 +86,14 @@ wxl_nuget_package_dir(_wxl_win2d_dir Microsoft.Graphics.Win2D)
 set(WXL_WIN2D_DIR
     "${_wxl_win2d_dir}"
     CACHE PATH "Win2D (Microsoft.Graphics.Canvas) NuGet package (native runtime DLL)")
+
+# WebView2 -- MapControl of the framework draws its map in a WebView2, and the WebView2 control looks for
+# WebView2Loader.dll next to the executable; an unpackaged program has no package to bring it, and a map
+# control that cannot find it ends the process while its template is applied. Named here like Win2D below.
+wxl_nuget_package_dir(_wxl_webview2_dir Microsoft.Web.WebView2)
+set(WXL_WEBVIEW2_DIR
+    "${_wxl_webview2_dir}"
+    CACHE PATH "Microsoft.Web.WebView2 NuGet package (the loader DLL of the WebView2 control)")
 
 add_library(wxl.ui STATIC
     # Given from above -- never generated.
@@ -203,6 +211,12 @@ add_library(wxl.ui STATIC
     src/KeyedIndexList.cpp
     src/BoundTemplate.h
     src/BoundTemplate.cpp
+    src/FrameSource.h
+    src/FrameSource.cpp
+    src/Failure.h
+    src/Failure.cpp
+    src/LoadXaml.h
+    src/LoadXaml.cpp
     src/impl/navigation_view_search.h
     src/impl/navigation_view_search.cpp
     src/impl/automation_properties.h
@@ -422,6 +436,15 @@ else()
         "will fault while building its shared CanvasDevice.")
 endif()
 
+if(EXISTS "${WXL_WEBVIEW2_DIR}/runtimes/win-x64/native/WebView2Loader.dll")
+    set_property(TARGET wxl.ui APPEND PROPERTY WXL_RUNTIME_FILES
+        "${WXL_WEBVIEW2_DIR}/runtimes/win-x64/native/WebView2Loader.dll")
+else()
+    message(WARNING
+        "No WebView2Loader.dll at ${WXL_WEBVIEW2_DIR}; a MapControl or a WebView2 will end the process "
+        "when it is shown.")
+endif()
+
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "src" REGULAR_EXPRESSION "src/.*")
 
 # ---- The declarative surface, compiled the way an application sees it ----
@@ -439,7 +462,7 @@ add_library(wxl.ui.surface-test OBJECT
 target_link_libraries(wxl.ui.surface-test PRIVATE wxl.ui)
 
 # Last: the generated sources add themselves to the two targets above.
-add_subdirectory(src/generated)
+add_subdirectory(src/wxl)
 
 # After that subdirectory and not before it: this reads the targets' SOURCES to
 # lay them out in the IDE, and until the generated sources are in, half of what

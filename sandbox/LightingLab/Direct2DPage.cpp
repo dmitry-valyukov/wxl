@@ -20,8 +20,8 @@
 #include <wrl/client.h>
 
 #include "Lab.h"
-#include "generated/Microsoft.UI.Input.h"
-#include "generated/Microsoft.UI.Xaml.Input.EventArgs.h"
+#include <wxl/Microsoft.UI.Input.h>
+#include <wxl/Microsoft.UI.Xaml.Input.EventArgs.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

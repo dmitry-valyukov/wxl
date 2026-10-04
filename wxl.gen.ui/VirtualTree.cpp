@@ -4,8 +4,8 @@
 #include <cmath>
 
 #include "FontFamily.h"
-#include "generated/Microsoft.UI.Input.h"
-#include "generated/brushes.h"
+#include <wxl/Microsoft.UI.Input.h>
+#include <wxl/brushes.h>
 
 using namespace wxl;
 using namespace wxl::dsl;
@@ -182,7 +182,7 @@ Brush const& VirtualTree::iconBrush(RowIcon const& icon) {
 Template<RadialGradientBrush> iconFill(Color outer, Color inner) {
     // Радиус 0.5 доходит до краёв знака: светлая середина, тёмный край.
     return {
-        center = {0.5, 0.5},
+        center = Point {0.5, 0.5},
         gradientOrigin = {0.5, 0.5},
         radiusX = 0.5,
         radiusY = 0.5,

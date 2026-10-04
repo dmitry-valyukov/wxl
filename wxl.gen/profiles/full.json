@@ -303,7 +303,9 @@
                 "Transitions",
                 "StartAnimation",
                 "UpdateLayout",
-                "BringIntoViewRequested"
+                "BringIntoViewRequested",
+                "XYFocusKeyboardNavigation",
+                "AccessKey"
             ],
             "syntheticMembers": {
                 "AutomationId": {
@@ -312,10 +314,72 @@
                     "function": "impl::set_automation_id",
                     "include": "../impl/automation_properties.h"
                 },
+                "AutomationAccessibilityView": {
+                    "comment": "Which view of the automation tree the element is in -- Raw for a picture that says nothing a screen reader should read: AutomationProperties.AccessibilityView, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AccessibilityView",
+                    "function": "impl::set_automation_accessibility_view",
+                    "include": "../impl/automation_properties.h"
+                },
                 "AutomationLiveSetting": {
                     "comment": "That a change of the element's text is announced by a screen reader, politely or at once -- AutomationProperties.LiveSetting, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting",
                     "function": "impl::set_automation_live_setting",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationHeadingLevel": {
+                    "comment": "Accessibility: that the element is a heading, and of which level -- AutomationProperties.HeadingLevel, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel",
+                    "function": "impl::set_automation_heading_level",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLandmarkType": {
+                    "comment": "Accessibility: the landmark of the page the element is -- navigation, main, search -- AutomationProperties.LandmarkType, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLandmarkType",
+                    "function": "impl::set_automation_landmark_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLocalizedLandmarkType": {
+                    "comment": "Accessibility: what a screen reader calls the landmark in the user's language -- AutomationProperties.LocalizedLandmarkType, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_localized_landmark_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationAcceleratorKey": {
+                    "comment": "Accessibility: the shortcut that does what the element does, as a screen reader says it -- AutomationProperties.AcceleratorKey, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_accelerator_key",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationHelpText": {
+                    "comment": "Accessibility: a few words of help, spoken after the name -- AutomationProperties.HelpText, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_help_text",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationFullDescription": {
+                    "comment": "Accessibility: the long description of the element -- AutomationProperties.FullDescription, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_full_description",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationPositionInSet": {
+                    "comment": "Accessibility: the place of the element among its siblings, 1-based -- AutomationProperties.PositionInSet, the attached property.",
+                    "cppType": "int32_t",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_automation_position_in_set",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationSizeOfSet": {
+                    "comment": "Accessibility: how many siblings the element has with itself -- AutomationProperties.SizeOfSet, the attached property.",
+                    "cppType": "int32_t",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_automation_size_of_set",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLabeledBy": {
+                    "comment": "Accessibility: the element whose text names this one -- AutomationProperties.LabeledBy, the attached property.",
+                    "type": "Microsoft.UI.Xaml.UIElement",
+                    "function": "impl::set_automation_labeled_by",
                     "include": "../impl/automation_properties.h"
                 },
                 "IsDragRegion": {
@@ -448,7 +512,9 @@
         "Microsoft.UI.Xaml.Controls.PersonPicture": {
             "comment": "Windowing: the round avatar the title bar of the Gallery windows carries -- the initials of the person.",
             "members": [
-                "Initials"
+                "Initials",
+                "DisplayName",
+                "ProfilePicture"
             ]
         },
         "Microsoft.UI.Windowing.AppWindowTitleBar": {
@@ -752,7 +818,9 @@
                 "ItemInvoked",
                 "ScrollView",
                 "SelectAll",
-                "DeselectAll"
+                "DeselectAll",
+                "Select",
+                "Deselect"
             ],
             "syntheticMembers": {
                 "ItemTemplate": {
@@ -943,6 +1011,10 @@
         "Microsoft.UI.Xaml.Controls.Grid": {
             "comment": "Motion: a grid with a frame of its own -- the border of a connected animation's destination and of a section that changes its theme.",
             "members": ["BorderBrush", "BorderThickness"]
+        },
+        "Microsoft.UI.Xaml.Controls.StackPanel": {
+            "comment": "Accessibility: a stack that is a card -- a frame, rounded corners -- as a landmark of a page is drawn.",
+            "members": ["CornerRadius"]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.Popup": {
             "comment": "Dialogs & flyouts: a piece of the interface drawn over the page at an offset of its own, opened and closed by the application (IsOpen), closing by itself when light-dismissed.",
@@ -1513,7 +1585,245 @@
             "comment": "A picture a control shows, given a stream to read from.",
             "members": [
                 "SetSource",
-                "SetSourceAsync"
+                "SetSourceAsync",
+                "DecodePixelHeight",
+                "UriSource",
+                "AutoPlay",
+                "IsAnimatedBitmap",
+                "Play",
+                "Stop",
+                "ImageOpened"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.Imaging.SvgImageSource": {
+            "comment": "Media: a picture drawn from SVG text -- Image.Source is this when the file is a .svg.",
+            "members": [
+                "UriSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.ElementSoundPlayer": {
+            "comment": "Media: the sounds the controls make when focused, invoked, shown, hidden or moved through -- whether they are on, whether they are spatial, and one played by hand.",
+            "members": [
+                "State",
+                "SpatialAudioMode",
+                "Play"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MediaPlayerElement": {
+            "comment": "Media: a video or audio player with transport controls; what it plays and whether it starts by itself.",
+            "members": [
+                "Source",
+                "AreTransportControlsEnabled",
+                "AutoPlay",
+                "MediaPlayer",
+                "Stretch"
+            ]
+        },
+        "Windows.Media.Playback.IMediaPlaybackSource": {
+            "comment": "Media: what a player plays -- a MediaSource is one.",
+            "members": []
+        },
+        "Windows.Media.Playback.MediaPlayer": {
+            "comment": "Media: the player behind a MediaPlayerElement -- started and paused from outside.",
+            "members": [
+                "Play",
+                "Pause"
+            ]
+        },
+        "Windows.Media.Core.MediaSource": {
+            "comment": "Media: a source of media -- a file, an address, a camera.",
+            "members": [
+                "CreateFromUri",
+                "CreateFromStorageFile",
+                "CreateFromMediaFrameSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Image": {
+            "comment": "Media: the part of a picture that keeps its size when it is stretched (the nine-grid), beside what base and rich ask of it.",
+            "members": [
+                "NineGrid"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MapControl": {
+            "comment": "Media: a map of the world -- where it looks, how far in, the key of the map service, and the layers drawn over it.",
+            "members": [
+                "Center",
+                "ZoomLevel",
+                "MapServiceToken",
+                "Layers"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MapLayer": {
+            "comment": "Media: what a map holds layers of.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.MapElementsLayer": {
+            "comment": "Media: a layer of pins and shapes.",
+            "members": [
+                "MapElements"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MapElement": {
+            "comment": "Media: one pin or shape of a layer.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.MapIcon": {
+            "comment": "Media: a pin on the map.",
+            "members": [
+                "Location"
+            ]
+        },
+        "Windows.Devices.Geolocation.Geopoint": {
+            "comment": "Media: a place on the earth, made of its latitude and longitude.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkCanvas": {
+            "comment": "Media: a surface drawn on with a pen, a finger or a mouse; the drawing is done by its presenter.",
+            "members": [
+                "InkPresenter"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkPresenter": {
+            "comment": "Media: what an InkCanvas draws with -- which devices it listens to, whether it listens, the attributes of a new stroke, the strokes drawn so far.",
+            "members": [
+                "InputDeviceTypes",
+                "IsInputEnabled",
+                "CopyDefaultDrawingAttributes",
+                "UpdateDefaultDrawingAttributes",
+                "StrokeContainer",
+                "StrokesCollected",
+                "StrokesErased"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkStrokeContainer": {
+            "comment": "Media: the strokes of a drawing: counted, cleared, saved to a stream and loaded back.",
+            "members": [
+                "Clear",
+                "GetStrokes",
+                "SaveAsync",
+                "LoadAsync"
+            ]
+        },
+        "Windows.UI.Input.Inking.InkDrawingAttributes": {
+            "comment": "Media: how a stroke looks -- its color and the size of the pen.",
+            "members": [
+                "Color",
+                "Size"
+            ]
+        },
+        "Windows.UI.Input.Inking.InkStroke": {
+            "comment": "Media: one stroke of a drawing.",
+            "members": []
+        },
+        "Windows.Storage.Streams.InMemoryRandomAccessStream": {
+            "comment": "Media: a stream kept in memory -- where a drawing is saved to and a photograph is taken to.",
+            "members": [
+                "GetOutputStreamAt",
+                "GetInputStreamAt",
+                "Seek",
+                "Close"
+            ]
+        },
+        "Windows.Storage.Streams.IOutputStream": {
+            "comment": "Media: where a drawing is written to.",
+            "members": []
+        },
+        "Windows.Storage.Streams.IInputStream": {
+            "comment": "Media: where a drawing is read from.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbar": {
+            "comment": "Media: the strip of pens and an eraser that goes with an InkCanvas -- which tools it holds, which one is chosen, and where its flyouts open.",
+            "members": [
+                "InitialControls",
+                "TargetInkCanvas",
+                "Children",
+                "ButtonFlyoutPlacement",
+                "ActiveTool",
+                "GetToolButton",
+                "ActiveToolChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarToolButton": {
+            "comment": "Media: a tool of the toolbar, and what kind of tool it is.",
+            "members": [
+                "ToolKind"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarBallpointPenButton": {
+            "comment": "Media: the ballpoint pen of a toolbar.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarPencilButton": {
+            "comment": "Media: the pencil of a toolbar.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarHighlighterButton": {
+            "comment": "Media: the highlighter of a toolbar.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarEraserButton": {
+            "comment": "Media: the eraser of a toolbar.",
+            "members": []
+        },
+        "Windows.Media.Capture.Frames.MediaFrameSourceGroup": {
+            "comment": "Media: a camera, as the frame sources of the machine group it -- found, named and asked for its sources.",
+            "members": [
+                "FindAllAsync",
+                "DisplayName",
+                "SourceInfos"
+            ]
+        },
+        "Windows.Media.Capture.Frames.MediaFrameSourceInfo": {
+            "comment": "Media: one source of a camera, by its id.",
+            "members": [
+                "Id"
+            ]
+        },
+        "Windows.Media.Capture.Frames.MediaFrameSource": {
+            "comment": "Media: one source of a camera that a player can play.",
+            "members": []
+        },
+        "Windows.Media.Capture.MediaCapture": {
+            "comment": "Media: a camera in use -- started with settings, asked for a photograph, closed.",
+            "members": [
+                "InitializeAsync",
+                "CapturePhotoToStreamAsync",
+                "Close"
+            ]
+        },
+        "Windows.Media.Capture.MediaCaptureInitializationSettings": {
+            "comment": "Media: what a camera is started with -- the group, whether others may share it, what it captures, where frames are kept.",
+            "members": [
+                "SourceGroup",
+                "SharingMode",
+                "StreamingCaptureMode",
+                "MemoryPreference"
+            ]
+        },
+        "Windows.Media.MediaProperties.ImageEncodingProperties": {
+            "comment": "Media: the format a photograph is taken in.",
+            "members": [
+                "CreateJpeg"
+            ]
+        },
+        "Windows.System.Launcher": {
+            "comment": "Media: opens an address in the program that is for it -- the privacy settings of the camera, from the page that found it denied.",
+            "members": [
+                "LaunchUriAsync"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisualPlayer": {
+            "comment": "Media: plays an animation made of composition objects -- the Lottie logo -- with controls for play, pause, resume, stop and the direction.",
+            "members": [
+                "AutoPlay",
+                "Source",
+                "PlaybackRate",
+                "Pause",
+                "Resume",
+                "Stop",
+                "PlayAsync",
+                "IsPlaying"
             ]
         },
         "Microsoft.UI.Xaml.XamlRoot": {
@@ -1710,7 +2020,9 @@
                 "FontStyle",
                 "CharacterSpacing",
                 "Foreground",
-                "IsFocusEngagementEnabled"
+                "IsFocusEngagementEnabled",
+                "ElementSoundMode",
+                "TabIndex"
             ]
         },
         "Microsoft.UI.Xaml.Controls.TextBox": {

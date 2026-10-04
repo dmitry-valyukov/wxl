@@ -11,12 +11,12 @@
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
-#include "Microsoft.UI.Xaml.Media.impl.h"
-#include "Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.Media.impl.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "brush_lookup.h"
-#include "brush_names.h"
+#include <wxl/brush_names.h>
 #include "style_lookup.h"
-#include "style_names.h"
+#include <wxl/style_names.h>
 
 namespace wxl::resources {
 namespace {

@@ -7,11 +7,11 @@
 #include "Box.h"
 #include "ItemBuilder.h"
 #include "Contact.h"
-#include "generated/Windows.ApplicationModel.DataTransfer.h"
+#include <wxl/Windows.ApplicationModel.DataTransfer.h>
 #include "CustomDataObject.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Documents.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Documents.h>
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

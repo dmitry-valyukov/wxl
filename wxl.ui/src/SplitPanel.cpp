@@ -13,7 +13,7 @@
 
 #include "SplitPanel.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Xaml.Controls.impl.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 
 namespace wxl {
 

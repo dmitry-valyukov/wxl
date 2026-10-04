@@ -1,0 +1,1 @@
+auto example = Image {height = 100, source = u"Assets/SampleMedia/MirrorPCConsent.svg"};

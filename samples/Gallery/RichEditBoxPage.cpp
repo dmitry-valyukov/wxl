@@ -7,7 +7,7 @@
 
 #include "Pages.h"
 #include "event_awaitable.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>
 
 #include <limits>
 

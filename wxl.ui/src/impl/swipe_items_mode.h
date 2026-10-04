@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 
-#include "../generated/Microsoft.UI.Xaml.Controls.Enums.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.Enums.h>
 
 // What stands behind `leftItems` and `rightItems` having a mode.
 //

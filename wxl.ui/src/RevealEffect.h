@@ -54,7 +54,7 @@
 #include "core.h"
 #include "Color.h"
 #include "CornerRadius.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "impl/member.h"
 
 namespace wxl {

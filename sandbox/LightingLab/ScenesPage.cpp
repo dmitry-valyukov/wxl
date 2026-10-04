@@ -24,7 +24,7 @@
 
 #include "Lab.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Composition.impl.h"
+#include <wxl/Microsoft.UI.Composition.impl.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

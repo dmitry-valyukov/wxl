@@ -26,8 +26,8 @@
 #include "RevealEffect.h"
 #include "DrawingSurface.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Composition.impl.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Composition.impl.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "impl/effect_layer.h"
 
 namespace wxl {

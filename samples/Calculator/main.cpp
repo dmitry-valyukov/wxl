@@ -36,7 +36,7 @@ namespace {
     // Шаблон фона панели: кисть строится при применении
     Template<RadialGradientBrush> backgroundTemplate(Glow const& tones) {
         return {
-            center = {0.33, 0.33},
+            center = Point {0.33, 0.33},
             gradientOrigin = {0.33, 0.33},
             radiusX = glowRadius,
             radiusY = glowRadius,

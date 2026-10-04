@@ -14,8 +14,8 @@
 #include "Object.impl.h"
 #include "WindowHandle.h"
 #include "WindowPlacement.h"
-#include "generated/Microsoft.UI.Xaml.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "impl/window_placement.h"
 
 // Imports last: they bring the standard library as a module, and a plain

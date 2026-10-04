@@ -15,7 +15,7 @@
 #include "Color.h"
 #include "Object.h"
 #include "CornerRadius.h"
-#include "generated/Microsoft.UI.Xaml.Enums.h"
+#include <wxl/Microsoft.UI.Xaml.Enums.h>
 #include "Thickness.h"
 #include "core.h"
 #include "hstring_param.h"

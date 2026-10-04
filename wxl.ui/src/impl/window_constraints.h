@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.h>
 
-#include "../generated/Windows.Graphics.Structs.h"
+#include <wxl/Windows.Graphics.Structs.h>
 
 // What stands behind the window properties WinUI3 has no property for.
 //

@@ -25,7 +25,7 @@
 #include "FontFamily.h"
 #include "Thickness.h"
 #include "hstring_param.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include "geometry.h"
 
 namespace wxl {

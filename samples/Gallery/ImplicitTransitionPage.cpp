@@ -6,11 +6,11 @@
 #include <memory>
 #include "MotionPages.h"
 #include "ResourceBrush.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Input.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Input.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>
+#include <wxl/Microsoft.UI.Xaml.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

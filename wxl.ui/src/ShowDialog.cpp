@@ -11,10 +11,10 @@
 
 #include "Object.impl.h"
 #include "ShowDialog.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Controls.impl.h"
-#include "generated/Microsoft.UI.Xaml.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
+#include <wxl/Microsoft.UI.Xaml.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 
 namespace wxl {
 namespace {

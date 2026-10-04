@@ -1,6 +1,6 @@
 #include "member.h"
 
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 
 namespace wxl::impl {
 

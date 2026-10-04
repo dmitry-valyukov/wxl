@@ -8,7 +8,7 @@
 #include <winrt/Windows.Foundation.Collections.h>
 
 #include "../Object.impl.h"
-#include "../generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "conversions.h"
 
 namespace wxl::impl {

@@ -5,4 +5,4 @@
 #include "HtmlBlock.h"
 #include "Panels.h"
 #include "launch.h"
-#include "generated/brushes.h"
+#include <wxl/brushes.h>

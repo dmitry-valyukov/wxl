@@ -8,9 +8,9 @@
 
 #include "RepeaterData.h"
 #include "Shell.h"
-#include "generated/Microsoft.UI.Windowing.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include <wxl/Microsoft.UI.Windowing.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 #include "pch.h"
 
 using namespace wxl;
