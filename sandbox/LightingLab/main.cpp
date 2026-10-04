@@ -51,11 +51,15 @@ constexpr Entry catalogue[] = {
      u"Windows.UI.Composition в отдельном окне: карта нормалей при мягкой и жёсткой границе спрайта и "
      u"эффекты освещения Win2D в фабрике эффектов. Здесь -- ответы фабрик, системной и отделённой.",
      &lab::systemPage},
+    {u"Клавиша на карте нормалей",
+     u"Прототип: форма клавиши задана картой нормалей -- кант и лицо чашей или куполом, -- а светят две лампы "
+     u"композитора XAML: постоянная далёкая и прожектор за указателем.",
+     &lab::keyPage},
 };
 
 constexpr char16_t const* names[] = {
     catalogue[0].name, catalogue[1].name, catalogue[2].name, catalogue[3].name, catalogue[4].name, catalogue[5].name,
-    catalogue[6].name, catalogue[7].name,
+    catalogue[6].name, catalogue[7].name, catalogue[8].name,
 };
 
 // Опыт на экране. Поле page пишет список опытов; сцена и панель настроек

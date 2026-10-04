@@ -27,6 +27,7 @@ Experiment shadowPage();    // ShadowPage.cpp
 Experiment scenesPage();    // ScenesPage.cpp
 Experiment samplePage();    // SamplePage.cpp
 Experiment systemPage();    // SystemPage.cpp
+Experiment keyPage();       // KeyPage.cpp
 
 // Сцена опыта в DIP: одна у всех, чтобы опыты сравнивались глазом.
 inline constexpr float stageWidth = 720.0f;
@@ -105,6 +106,23 @@ struct ReliefShape {
 // [0, 1]. Карта непрозрачна целиком: за краем формы нормаль смотрит на
 // зрителя, а форму клавише даёт обрезка визуала.
 void drawNormalMap(wxl::DrawingSurface const& surface, Relief relief, ReliefShape const& shape);
+
+// Клавиша Button3DEffect формой: тело, поднятое над панелью, с кантом по краю
+// и лицом внутри него. Размеры -- в DIP.
+struct KeyRelief {
+    double width = 0.0;
+    double height = 0.0;
+    double corner = 0.0;   // скругление угла
+    double rim = 0.0;      // ширина канта
+    double slope = 1.0;    // тангенс наклона канта наружу
+    bool rounded = false;  // кант -- четверть круга, а не ровная фаска
+    double emboss = 0.0;   // лицо: чаша (меньше нуля), плоское, купол
+};
+
+// Пишет в поверхность карту нормалей такой клавиши -- во всю поверхность,
+// какой бы плотности та ни была. Зелёный канал растёт вверх экрана, как у карт
+// образцов Microsoft.
+void drawKeyMap(wxl::DrawingSurface const& surface, KeyRelief const& key);
 
 // Заливает поверхность одним цветом.
 void drawSolid(wxl::DrawingSurface const& surface, wxl::Color color);

@@ -124,6 +124,78 @@ void lab::drawNormalMap(DrawingSurface const& surface, Relief relief, ReliefShap
     blit(surface, pixels, width, height);
 }
 
+namespace {
+
+// Нормаль клавиши в точке, отсчитанной от её середины в DIP; оси экрана.
+Normal keyNormalAt(lab::KeyRelief const& key, double px, double py) {
+    double const halfWidth = key.width / 2.0, halfHeight = key.height / 2.0;
+    double const radius = std::clamp(key.corner, 0.0, std::min(halfWidth, halfHeight));
+    double const qx = std::abs(px) - (halfWidth - radius), qy = std::abs(py) - (halfHeight - radius);
+    double const ox = std::max(qx, 0.0), oy = std::max(qy, 0.0);
+    // Расстояние от края скруглённого прямоугольника внутрь.
+    double const inside = radius - std::sqrt(ox * ox + oy * oy) - std::min(std::max(qx, qy), 0.0);
+
+    if (inside >= key.rim || key.rim <= 0.0) {
+        // Лицо -- шаровой сегмент одной кривизны по обеим осям: наклон растёт от
+        // середины линейно и у края длинной стороны при полном emboss равен 0,6
+        // (около 31 градуса). Купол клонит нормаль от середины, чаша -- к ней.
+        double const reach = std::max(std::max(halfWidth, halfHeight) - key.rim, 1e-6);
+        double const steepness = key.emboss * 0.6 / reach;
+        return unit(px * steepness, py * steepness, 1.0);
+    }
+    if (inside <= 0.0) {
+        return {0.0, 0.0, 1.0};
+    }
+
+    // Куда смотрит край в этой точке: наружу от клавиши.
+    double gx = 0.0, gy = 0.0;
+    if (qx > 0.0 && qy > 0.0) {
+        double const length = std::sqrt(qx * qx + qy * qy);
+        gx = qx / length;
+        gy = qy / length;
+    } else if (qx > qy) {
+        gx = 1.0;
+    } else {
+        gy = 1.0;
+    }
+    gx = std::copysign(gx, px);
+    gy = std::copysign(gy, py);
+
+    double slope = key.slope;
+    if (key.rounded) {
+        // Четверть круга: у лица кант пологий, у края отвесный.
+        double const t = 1.0 - inside / key.rim;
+        slope = std::clamp(key.slope * t / std::sqrt(std::max(1.0 - t * t, 1e-4)), -8.0, 8.0);
+    }
+    return unit(gx * slope, gy * slope, 1.0);
+}
+
+}  // namespace
+
+void lab::drawKeyMap(DrawingSurface const& surface, KeyRelief const& key) {
+    SizeInt32 const size = surface.size();
+    int const width = size.width, height = size.height;
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    auto const channel = [](double value) {
+        return static_cast<std::uint32_t>(std::lround((value * 0.5 + 0.5) * 255.0));
+    };
+
+    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            Normal const normal = keyNormalAt(key, ((x + 0.5) / width - 0.5) * key.width,
+                                              ((y + 0.5) / height - 0.5) * key.height);
+            // Зелёный -- вверх экрана: y оси экрана меняет знак.
+            pixels[static_cast<std::size_t>(y) * width + x] =
+                0xFF000000u | (channel(normal.x) << 16) | (channel(-normal.y) << 8) | channel(normal.z);
+        }
+    }
+    blit(surface, pixels, width, height);
+}
+
 void lab::drawSolid(DrawingSurface const& surface, Color color) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {

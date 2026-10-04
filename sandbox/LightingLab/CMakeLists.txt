@@ -21,6 +21,7 @@ wxl_add_executable(sandbox.lighting-lab
     ScenesPage.cpp
     SamplePage.cpp
     SystemPage.cpp
+    KeyPage.cpp
 )
 
 # Карты нормалей образцов Microsoft: ими страница «Образец ThumbnailLighting»
