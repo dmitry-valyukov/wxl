@@ -595,7 +595,9 @@ Window createMainWindow() {
             }],
         },
     };
+    window.appWindow().titleBar().preferredHeightOption(TitleBarHeightOption::Tall);
     window.setTitleBar(s.titleBar);
+    window.appWindow().setIcon(u"Assets/Tiles/GalleryIcon.ico");
     loadState();
     window.appWindow().resize({savedSize.width, savedSize.height});
     window.add_onClosed([](auto&&...) {
