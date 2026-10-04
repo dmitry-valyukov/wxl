@@ -5,9 +5,9 @@
 #include "Design.h"
 #include "Shell.h"
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Documents.h"
-#include "generated/Windows.ApplicationModel.DataTransfer.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Documents.h>
+#include <wxl/Windows.ApplicationModel.DataTransfer.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

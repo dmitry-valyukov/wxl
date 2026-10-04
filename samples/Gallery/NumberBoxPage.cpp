@@ -4,7 +4,7 @@
 
 #include <limits>
 
-#include "generated/Windows.Globalization.NumberFormatting.h"
+#include <wxl/Windows.Globalization.NumberFormatting.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

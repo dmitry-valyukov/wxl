@@ -12,9 +12,9 @@
 #include "ResourceBrush.h"
 #include "StringList.h"
 #include "TabViewWindowing.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Input.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Input.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 
 
 using namespace wxl;

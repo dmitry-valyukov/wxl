@@ -27,7 +27,7 @@
 // ловит указатель, поэтому фона самой панели не нужно, и она ничего не
 // закрашивает. В дереве элементов он зовётся wxl.SplitPanel.
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include "impl/member.h"
 
 namespace wxl {

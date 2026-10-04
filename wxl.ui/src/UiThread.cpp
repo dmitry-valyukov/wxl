@@ -12,7 +12,7 @@
 
 #include "Object.impl.h"
 #include "UiThread.h"
-#include "generated/Microsoft.UI.Dispatching.impl.h"
+#include <wxl/Microsoft.UI.Dispatching.impl.h>
 
 namespace wxl {
 namespace {

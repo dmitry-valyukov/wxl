@@ -5,8 +5,8 @@
 #include <vector>
 #include "Box.h"
 #include "NavigationPages.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.Animation.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
 
 
 using namespace wxl;

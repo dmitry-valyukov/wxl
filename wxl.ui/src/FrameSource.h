@@ -6,8 +6,8 @@
 // thing a program asks of it is the source whose id a MediaFrameSourceInfo gave, to hand to a player as
 // MediaSource::createFromMediaFrameSource. This is that question, asked of the map.
 
-#include "generated/Windows.Media.Capture.Frames.h"
-#include "generated/Windows.Media.Capture.h"
+#include <wxl/Windows.Media.Capture.Frames.h>
+#include <wxl/Windows.Media.Capture.h>
 #include "hstring_param.h"
 
 namespace wxl {

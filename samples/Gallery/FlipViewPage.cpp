@@ -3,7 +3,7 @@
 #include "Pages.h"
 #include "Shell.h"
 #include <ranges>
-#include "generated/Microsoft.UI.Xaml.Controls.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

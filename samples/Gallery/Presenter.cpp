@@ -8,7 +8,7 @@
 
 #include "Pages.h"
 
-#include "generated/Windows.ApplicationModel.DataTransfer.h"
+#include <wxl/Windows.ApplicationModel.DataTransfer.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

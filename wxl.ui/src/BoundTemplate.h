@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "Object.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "hstring_param.h"
 
 namespace wxl {

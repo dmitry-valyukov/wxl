@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Packaged.h"
-#include "generated/Microsoft.Windows.BadgeNotifications.h"
+#include <wxl/Microsoft.Windows.BadgeNotifications.h>
 #include "Shell.h"
 
 using namespace wxl;

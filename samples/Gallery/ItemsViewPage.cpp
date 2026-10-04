@@ -5,9 +5,9 @@
 #include "Box.h"
 #include "ItemBuilder.h"
 #include "CustomDataObject.h"
-#include "generated/Microsoft.UI.Dispatching.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Documents.h"
+#include <wxl/Microsoft.UI.Dispatching.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Documents.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

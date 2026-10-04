@@ -16,8 +16,8 @@
 // GoBack makes the page again, and empty: whoever goes back fills it again
 // (see PagedFrame in the Gallery).
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.Animation.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
 
 namespace wxl {
 

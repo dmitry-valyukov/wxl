@@ -1,12 +1,12 @@
 #pragma once
 
-#include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Dispatching.h"
-#include "generated/Microsoft.UI.Input.h"
-#include "generated/Microsoft.UI.Windowing.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.h"
-#include "generated/Windows.System.Enums.h"
+#include <wxl/Microsoft.UI.Composition.h>
+#include <wxl/Microsoft.UI.Dispatching.h>
+#include <wxl/Microsoft.UI.Input.h>
+#include <wxl/Microsoft.UI.Windowing.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.h>
+#include <wxl/Windows.System.Enums.h>
 
 #include "Color.h"
 #include "DrawingSurface.h"

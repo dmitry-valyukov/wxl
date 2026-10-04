@@ -3,8 +3,8 @@
 #include "conversions.h"
 
 #include "../Object.impl.h"
-#include "../generated/Microsoft.UI.Xaml.h"
-#include "../generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 
 #include <winrt/Microsoft.UI.Xaml.Automation.Peers.h>
 #include <winrt/Microsoft.UI.Xaml.Automation.h>

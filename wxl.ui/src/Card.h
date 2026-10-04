@@ -47,10 +47,10 @@
 #include "Color.h"
 #include "CornerRadius.h"
 #include "Thickness.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
-#include "generated/brushes.h"
+#include <wxl/Members.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
+#include <wxl/brushes.h>
 
 namespace wxl {
 

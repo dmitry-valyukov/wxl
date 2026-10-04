@@ -16,7 +16,7 @@
 #include <functional>
 
 #include "Object.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 
 namespace wxl {
 

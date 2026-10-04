@@ -6,8 +6,8 @@
 #include "MotionPages.h"
 #include "PagedFrame.h"
 #include "ResourceBrush.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.Animation.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

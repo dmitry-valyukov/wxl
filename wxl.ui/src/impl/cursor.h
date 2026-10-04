@@ -2,7 +2,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.h>
 
-#include "../generated/Microsoft.UI.Input.Enums.h"
+#include <wxl/Microsoft.UI.Input.Enums.h>
 
 // What stands behind `cursor = InputSystemCursorShape::SizeWestEast` on any
 // element: the shape the pointer takes while it is over that element.

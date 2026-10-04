@@ -9,10 +9,10 @@
 #include "RepeaterData.h"
 #include "StringList.h"
 #include "ResourceBrush.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.Animation.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>
+#include <wxl/Microsoft.UI.Xaml.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

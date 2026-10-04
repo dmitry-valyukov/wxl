@@ -3,7 +3,7 @@
 #include "Pages.h"
 #include "Shell.h"
 #include "Packaged.h"
-#include "generated/Windows.UI.StartScreen.h"
+#include <wxl/Windows.UI.StartScreen.h>
 
 import wxl.async;
 

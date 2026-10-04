@@ -6,11 +6,11 @@
 #include <initializer_list>
 #include <string>
 #include "RepeaterData.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
-#include "generated/Windows.Storage.Streams.h"
-#include "generated/Windows.UI.Core.Enums.h"
-#include "generated/Windows.UI.Input.Inking.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
+#include <wxl/Windows.Storage.Streams.h>
+#include <wxl/Windows.UI.Core.Enums.h>
+#include <wxl/Windows.UI.Input.Inking.h>
 
 import wxl.async;
 

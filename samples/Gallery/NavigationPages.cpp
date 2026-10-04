@@ -5,7 +5,7 @@
 #include "Box.h"
 #include "Pages.h"
 #include "StringList.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

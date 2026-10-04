@@ -7,8 +7,8 @@
 #include "NavigationPages.h"
 #include "Shell.h"
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Media.Animation.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

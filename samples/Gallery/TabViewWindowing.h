@@ -3,7 +3,7 @@
 // TabViewWindowingSamplePage оригинала: окно с TabView, вкладки которого можно вытащить из окна -- они уйдут в новое окно --
 // и бросить в другое окно образца.
 
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 
 namespace gallery {
 

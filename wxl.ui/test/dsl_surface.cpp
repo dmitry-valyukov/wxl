@@ -9,7 +9,7 @@
 // Nothing here runs: the WinUI3 runtime is not up in a test, and activating
 // a real control without it fails. This is about the syntax and the types.
 //
-// The same target compiles generated/schema_surface.cpp: one line per
+// The same target compiles wxl/schema_surface.cpp: one line per
 // element of the generated schema.h, and nothing else. What it proves is
 // that every anchor the schema offers actually applies to the class it hangs
 // on -- that the key reaches a setter that class has, that the value type the
@@ -40,11 +40,11 @@
 #include "Relief.h"
 #include "UiThread.h"
 #include "ui.h"
-#include "generated/Microsoft.UI.Dispatching.h"
+#include <wxl/Microsoft.UI.Dispatching.h>
 #include "schema.h"
-#include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.Hosting.h"
-#include "generated/brushes.h"
+#include <wxl/Microsoft.UI.Composition.h>
+#include <wxl/Microsoft.UI.Xaml.Hosting.h>
+#include <wxl/brushes.h>
 
 namespace {
 

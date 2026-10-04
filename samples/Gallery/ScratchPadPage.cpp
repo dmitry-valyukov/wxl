@@ -7,8 +7,8 @@
 #include "Failure.h"
 #include "LoadXaml.h"
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Input.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Input.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

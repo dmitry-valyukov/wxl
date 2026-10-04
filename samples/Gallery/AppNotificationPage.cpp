@@ -3,8 +3,8 @@
 #include "Pages.h"
 #include "Shell.h"
 #include "ApplicationFolder.h"
-#include "generated/Microsoft.Windows.AppNotifications.h"
-#include "generated/Microsoft.Windows.AppNotifications.Builder.h"
+#include <wxl/Microsoft.Windows.AppNotifications.h>
+#include <wxl/Microsoft.Windows.AppNotifications.Builder.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

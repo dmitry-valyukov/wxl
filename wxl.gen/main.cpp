@@ -18,7 +18,7 @@ constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers fro
                  packages to read, which types are the roots of the
                  dependency walk, and which of their members take part.
   --out          Output directory for the generated sources
-                 (default: wxl.ui/src/generated).
+                 (default: wxl.ui/src/wxl).
   --target       CMake target the generated CMakeLists.txt adds its sources
                  to (default: wxl.ui).
   --nuget-root   NuGet package cache holding the packages the profiles name
@@ -34,7 +34,7 @@ struct options {
     std::vector<std::filesystem::path> extra_metadata;
     // Default output lands in the library that consumes it; the generated
     // directory carries its own CMakeLists.txt (see gen/cmake.cpp).
-    std::filesystem::path out_dir{"wxl.ui/src/generated"};
+    std::filesystem::path out_dir{"wxl.ui/src/wxl"};
     std::string cmake_target{"wxl.ui"};
     std::filesystem::path nuget_root;
     std::filesystem::path type_map;

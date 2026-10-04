@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "FormattedBlock.h"
-#include "generated/Microsoft.UI.Xaml.Controls.impl.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Documents.h>

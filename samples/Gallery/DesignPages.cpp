@@ -5,8 +5,8 @@
 
 #include "Design.h"
 
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Documents.h"
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Documents.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

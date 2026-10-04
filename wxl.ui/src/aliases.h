@@ -12,7 +12,7 @@
 // is stored and nothing is constructed at run time. They are members, so they
 // are spelled the way every other member of a wxl type is.
 
-#include "generated/Microsoft.UI.Xaml.Enums.h"
+#include <wxl/Microsoft.UI.Xaml.Enums.h>
 
 namespace wxl::dsl {
 

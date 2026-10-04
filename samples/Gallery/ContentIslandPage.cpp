@@ -2,10 +2,10 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "generated/Microsoft.UI.Content.h"
-#include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.Hosting.h"
-#include "generated/Microsoft.UI.Xaml.Shapes.h"
+#include <wxl/Microsoft.UI.Content.h>
+#include <wxl/Microsoft.UI.Composition.h>
+#include <wxl/Microsoft.UI.Xaml.Hosting.h>
+#include <wxl/Microsoft.UI.Xaml.Shapes.h>
 
 using namespace wxl;
 using namespace wxl::dsl;

@@ -3,9 +3,9 @@
 
 #include "Object.impl.h"
 #include "events.h"
-#include "generated/Microsoft.UI.Windowing.h"
-#include "generated/Microsoft.UI.Xaml.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Windowing.h>
+#include <wxl/Microsoft.UI.Xaml.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "WindowFit.h"
 
 namespace wxl {
