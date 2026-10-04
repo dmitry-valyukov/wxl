@@ -139,8 +139,8 @@ struct Pixels {
 };
 Pixels readImage(wchar_t const* name);
 
-// Пишет в поверхность белый скруглённый прямоугольник во весь её размер: маска
-// формы клавиши. Радиус -- в пикселях поверхности.
-void drawShape(wxl::DrawingSurface const& surface, float radius);
+// Пишет в поверхность белый скруглённый прямоугольник: маска формы клавиши.
+// Он отступает от краёв поверхности на inset; радиус и отступ -- в её пикселях.
+void drawShape(wxl::DrawingSurface const& surface, float radius, float inset = 0.0f);
 
 }  // namespace lab

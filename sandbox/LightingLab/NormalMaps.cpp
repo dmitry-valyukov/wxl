@@ -207,13 +207,14 @@ void lab::drawSolid(DrawingSurface const& surface, Color color) {
     });
 }
 
-void lab::drawShape(DrawingSurface const& surface, float radius) {
+void lab::drawShape(DrawingSurface const& surface, float radius, float inset) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {
         ComPtr<ID2D1SolidColorBrush> white;
         wxl::check_hresult(context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &white));
         D2D1_ROUNDED_RECT const shape {
-            D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height)), radius, radius};
+            D2D1::RectF(inset, inset, static_cast<float>(size.width) - inset, static_cast<float>(size.height) - inset),
+            radius, radius};
         context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         context->FillRoundedRectangle(shape, white.Get());
     });
