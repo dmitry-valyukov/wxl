@@ -49,6 +49,7 @@ wxl::FrameworkElement sliderRow(char16_t const* title, wxl::core::observable<dou
 wxl::FrameworkElement choiceRow(char16_t const* title, wxl::core::observable<int>& field,
                                 std::span<char16_t const* const> names);
 wxl::FrameworkElement toggleRow(char16_t const* title, wxl::core::observable<bool>& field);
+wxl::FrameworkElement checkRow(char16_t const* title, wxl::core::observable<bool>& field);
 wxl::FrameworkElement colorRow(char16_t const* title, wxl::core::observable<wxl::Color>& field);
 wxl::FrameworkElement noteRow(char16_t const* words);
 
@@ -117,12 +118,19 @@ struct KeyRelief {
     double slope = 1.0;    // тангенс наклона канта наружу
     bool rounded = false;  // кант -- четверть круга, а не ровная фаска
     double emboss = 0.0;   // лицо: чаша (меньше нуля), плоское, купол
+    double smooth = 0.0;   // ширина полосы вокруг стыка лица с кантом, где один наклон переходит в другой
+    bool sunk = false;     // кант обратный: не грани тела над панелью, а стенки колодца
 };
 
 // Пишет в поверхность карту нормалей такой клавиши -- во всю поверхность,
 // какой бы плотности та ни была. Зелёный канал растёт вверх экрана, как у карт
 // образцов Microsoft.
 void drawKeyMap(wxl::DrawingSurface const& surface, KeyRelief const& key);
+
+// Пишет в поверхность маску лица той же клавиши: белое лицо без канта. Край
+// маски идёт по стыку лица с кантом и размыт на ту же ширину smooth, что и
+// наклон в карте, но не уже одного пикселя поверхности.
+void drawFaceMask(wxl::DrawingSurface const& surface, KeyRelief const& key);
 
 // Заливает поверхность одним цветом.
 void drawSolid(wxl::DrawingSurface const& surface, wxl::Color color);
@@ -139,8 +147,8 @@ struct Pixels {
 };
 Pixels readImage(wchar_t const* name);
 
-// Пишет в поверхность белый скруглённый прямоугольник: маска формы клавиши.
-// Он отступает от краёв поверхности на inset; радиус и отступ -- в её пикселях.
-void drawShape(wxl::DrawingSurface const& surface, float radius, float inset = 0.0f);
+// Пишет в поверхность белый скруглённый прямоугольник во весь её размер: маска
+// формы клавиши. Радиус -- в пикселях поверхности.
+void drawShape(wxl::DrawingSurface const& surface, float radius);
 
 }  // namespace lab

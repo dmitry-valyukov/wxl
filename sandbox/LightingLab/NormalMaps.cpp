@@ -126,48 +126,75 @@ void lab::drawNormalMap(DrawingSurface const& surface, Relief relief, ReliefShap
 
 namespace {
 
-// Нормаль клавиши в точке, отсчитанной от её середины в DIP; оси экрана.
-Normal keyNormalAt(lab::KeyRelief const& key, double px, double py) {
+// Край клавиши из точки, отсчитанной от её середины в DIP: расстояние от края
+// скруглённого прямоугольника внутрь и куда край в этом месте смотрит --
+// наружу от клавиши; оси экрана.
+struct Edge {
+    double inside;
+    double gx, gy;
+};
+
+Edge edgeAt(lab::KeyRelief const& key, double px, double py) {
     double const halfWidth = key.width / 2.0, halfHeight = key.height / 2.0;
     double const radius = std::clamp(key.corner, 0.0, std::min(halfWidth, halfHeight));
     double const qx = std::abs(px) - (halfWidth - radius), qy = std::abs(py) - (halfHeight - radius);
     double const ox = std::max(qx, 0.0), oy = std::max(qy, 0.0);
-    // Расстояние от края скруглённого прямоугольника внутрь.
-    double const inside = radius - std::sqrt(ox * ox + oy * oy) - std::min(std::max(qx, qy), 0.0);
 
-    if (inside >= key.rim || key.rim <= 0.0) {
-        // Лицо -- шаровой сегмент одной кривизны по обеим осям: наклон растёт от
-        // середины линейно и у края длинной стороны при полном emboss равен 0,6
-        // (около 31 градуса). Купол клонит нормаль от середины, чаша -- к ней.
-        double const reach = std::max(std::max(halfWidth, halfHeight) - key.rim, 1e-6);
-        double const steepness = key.emboss * 0.6 / reach;
-        return unit(px * steepness, py * steepness, 1.0);
-    }
-    if (inside <= 0.0) {
-        return {0.0, 0.0, 1.0};
-    }
-
-    // Куда смотрит край в этой точке: наружу от клавиши.
-    double gx = 0.0, gy = 0.0;
+    Edge edge {radius - std::sqrt(ox * ox + oy * oy) - std::min(std::max(qx, qy), 0.0), 0.0, 0.0};
     if (qx > 0.0 && qy > 0.0) {
         double const length = std::sqrt(qx * qx + qy * qy);
-        gx = qx / length;
-        gy = qy / length;
+        edge.gx = qx / length;
+        edge.gy = qy / length;
     } else if (qx > qy) {
-        gx = 1.0;
+        edge.gx = 1.0;
     } else {
-        gy = 1.0;
+        edge.gy = 1.0;
     }
-    gx = std::copysign(gx, px);
-    gy = std::copysign(gy, py);
+    edge.gx = std::copysign(edge.gx, px);
+    edge.gy = std::copysign(edge.gy, py);
+    return edge;
+}
 
+// Доля лица в точке: ноль на канте, единица на лице, между ними полоса
+// шириной width вокруг стыка.
+double faceShare(lab::KeyRelief const& key, double inside, double width) {
+    if (width <= 0.0) {
+        return inside >= key.rim ? 1.0 : 0.0;
+    }
+    return std::clamp((inside - key.rim) / width + 0.5, 0.0, 1.0);
+}
+
+// Нормаль клавиши в точке, отсчитанной от её середины в DIP; оси экрана.
+Normal keyNormalAt(lab::KeyRelief const& key, double px, double py) {
+    // Лицо -- шаровой сегмент одной кривизны по обеим осям: наклон растёт от
+    // середины линейно и у края длинной стороны при полном emboss равен 0,6
+    // (около 31 градуса). Купол клонит нормаль от середины, чаша -- к ней.
+    double const reach = std::max(std::max(key.width, key.height) / 2.0 - key.rim, 1e-6);
+    double const steepness = key.emboss * 0.6 / reach;
+    double const faceX = px * steepness, faceY = py * steepness;
+    if (key.rim <= 0.0) {
+        return unit(faceX, faceY, 1.0);
+    }
+
+    // Кант продолжается и за краем формы: край там сглаживает маска, и под её
+    // полупрозрачными пикселями должна лежать нормаль канта, а не плоскость --
+    // иначе под лампой над указателем они светлее самого канта.
+    Edge const edge = edgeAt(key, px, py);
     double slope = key.slope;
     if (key.rounded) {
         // Четверть круга: у лица кант пологий, у края отвесный.
-        double const t = 1.0 - inside / key.rim;
+        double const t = std::clamp(1.0 - edge.inside / key.rim, 0.0, 1.0);
         slope = std::clamp(key.slope * t / std::sqrt(std::max(1.0 - t * t, 1e-4)), -8.0, 8.0);
     }
-    return unit(gx * slope, gy * slope, 1.0);
+    if (key.sunk) {
+        slope = -slope;
+    }
+    double const rimX = edge.gx * slope, rimY = edge.gy * slope;
+
+    // В полосе стыка смешиваются наклоны поверхности, а не нормали: так выглядит
+    // скруглённое ребро между кантом и лицом.
+    double const share = faceShare(key, edge.inside, key.smooth);
+    return unit(rimX + (faceX - rimX) * share, rimY + (faceY - rimY) * share, 1.0);
 }
 
 }  // namespace
@@ -196,6 +223,30 @@ void lab::drawKeyMap(DrawingSurface const& surface, KeyRelief const& key) {
     blit(surface, pixels, width, height);
 }
 
+void lab::drawFaceMask(DrawingSurface const& surface, KeyRelief const& key) {
+    SizeInt32 const size = surface.size();
+    int const width = size.width, height = size.height;
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    // Не уже пикселя поверхности: без этого край маски ступенчатый.
+    double const band = std::max(key.smooth, key.width / width);
+
+    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            Edge const edge =
+                edgeAt(key, ((x + 0.5) / width - 0.5) * key.width, ((y + 0.5) / height - 0.5) * key.height);
+            auto const value =
+                static_cast<std::uint32_t>(std::lround(faceShare(key, edge.inside, band) * 255.0));
+            // Белый с умноженной альфой: все четыре канала равны.
+            pixels[static_cast<std::size_t>(y) * width + x] = (value << 24) | (value << 16) | (value << 8) | value;
+        }
+    }
+    blit(surface, pixels, width, height);
+}
+
 void lab::drawSolid(DrawingSurface const& surface, Color color) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {
@@ -207,14 +258,13 @@ void lab::drawSolid(DrawingSurface const& surface, Color color) {
     });
 }
 
-void lab::drawShape(DrawingSurface const& surface, float radius, float inset) {
+void lab::drawShape(DrawingSurface const& surface, float radius) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {
         ComPtr<ID2D1SolidColorBrush> white;
         wxl::check_hresult(context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &white));
         D2D1_ROUNDED_RECT const shape {
-            D2D1::RectF(inset, inset, static_cast<float>(size.width) - inset, static_cast<float>(size.height) - inset),
-            radius, radius};
+            D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height)), radius, radius};
         context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         context->FillRoundedRectangle(shape, white.Get());
     });

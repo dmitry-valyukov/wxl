@@ -49,6 +49,17 @@ FrameworkElement lab::toggleRow(char16_t const* title, core::observable<bool>& f
     return ToggleSwitch {header = title, isOn = Bind {field}};
 }
 
+// Флажок пишет в поле сам: его IsChecked -- значение с тремя состояниями, и
+// двусторонней привязки к bool у него нет.
+FrameworkElement lab::checkRow(char16_t const* title, core::observable<bool>& field) {
+    return CheckBox {
+        content = title,
+        isChecked = field.get(),
+        onChecked = [&field] { field.set(true); },
+        onUnchecked = [&field] { field.set(false); },
+    };
+}
+
 FrameworkElement lab::colorRow(char16_t const* title, core::observable<Color>& field) {
     return Grid {
         columnDefinitions = u"*,auto",
