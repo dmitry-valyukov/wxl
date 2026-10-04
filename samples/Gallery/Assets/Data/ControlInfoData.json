@@ -3748,6 +3748,23 @@
           "RelatedControls": ["SettingsExpander", "Expander"]
         },
         {
+          "UniqueId": "HeaderedContentControl",
+          "Tags": ["header", "content", "toolkit"],
+          "Title": "HeaderedContentControl",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A header over a piece of content.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Expander.png",
+          "Description": "A header over a piece of content.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "Windows Community Toolkit",
+              "Uri": "https://aka.ms/toolkit/windows"
+            }
+          ],
+          "RelatedControls": ["SettingsCard"]
+        },
+        {
           "UniqueId": "SettingsExpander",
           "Tags": ["settings", "expander", "toolkit"],
           "Title": "SettingsExpander",

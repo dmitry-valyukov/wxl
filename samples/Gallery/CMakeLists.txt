@@ -94,6 +94,7 @@ wxl_add_executable(sample.gallery
     XamlResourcesPage.cpp
     BindingPage.cpp
     SettingsCardPage.cpp
+    HeaderedContentControlPage.cpp
     SettingsExpanderPage.cpp
     TemplatesPage.cpp
     CustomXamlConditionalsPage.cpp

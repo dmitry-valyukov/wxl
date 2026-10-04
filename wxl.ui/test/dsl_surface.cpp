@@ -1877,3 +1877,13 @@ struct probe_task {
                      onExpanding = [](Object const&, Object const&) {}, ToggleSwitch{},
                      items[SettingsCard{header = TextBlock{u"Spatial audio"}}]};
 }
+
+// HeaderedContentControl -- written by hand, so its schema line is too.
+[[maybe_unused]] void HeaderedContentControl_header_assigned(::wxl::HeaderedContentControl const& object, ::wxl::Object const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HeaderedContentControl::header = value);
+}
+[[maybe_unused]] void HeaderedContentControl_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    HeaderedContentControl{header = TextBlock{u"Name"}, TextBox{}};
+}

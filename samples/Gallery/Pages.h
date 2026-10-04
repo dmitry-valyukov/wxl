@@ -117,6 +117,7 @@ wxl::FrameworkElement haloPage();
 wxl::FrameworkElement xamlResourcesPage();
 wxl::FrameworkElement bindingPage();
 wxl::FrameworkElement settingsCardPage();
+wxl::FrameworkElement headeredContentControlPage();
 wxl::FrameworkElement settingsExpanderPage();
 wxl::FrameworkElement templatesPage();
 wxl::FrameworkElement customXamlConditionalsPage();
