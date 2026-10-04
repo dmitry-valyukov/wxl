@@ -109,6 +109,7 @@ wxl::FrameworkElement accessibilityKeyboardPage();
 wxl::FrameworkElement accessibilityScreenReaderPage();
 wxl::FrameworkElement scratchPadPage();
 wxl::FrameworkElement xamlStylesPage();
+wxl::FrameworkElement customXamlConditionalsPage();
 wxl::FrameworkElement animatedVisualPlayerPage();
 wxl::FrameworkElement captureElementPreviewPage();
 wxl::FrameworkElement inkCanvasPage();

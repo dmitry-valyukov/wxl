@@ -55,6 +55,7 @@ constexpr Entry ported[] = {
     {L"AccessibilityScreenReader", &gallery::accessibilityScreenReaderPage},
     {L"ScratchPad", &gallery::scratchPadPage},
     {L"XamlStyles", &gallery::xamlStylesPage},
+    {L"CustomXamlConditionals", &gallery::customXamlConditionalsPage},
     {L"AnimatedVisualPlayer", &gallery::animatedVisualPlayerPage},
     {L"CaptureElementPreview", &gallery::captureElementPreviewPage},
     {L"InkCanvas", &gallery::inkCanvasPage},
