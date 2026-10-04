@@ -1,6 +1,7 @@
 struct Model {
+    core::observable<double> vertical {0.0}, horizontal {200.0};
     ToggleSwitch lightDismiss {header = u"IsLightDismissEnabled", isOn = true, offContent = u"False", onContent = u"True"};
-    Popup popup {horizontalOffset = 200, verticalOffset = 0, isLightDismissEnabled = true};
+    Popup popup {horizontalOffset = BindOutput {horizontal}, verticalOffset = BindOutput {vertical}, isLightDismissEnabled = true};
 };
 auto const model = gallery::hold<Model>();
 
@@ -42,9 +43,7 @@ auto options = StackPanel {
     spacing = 8,
     model->lightDismiss,
     NumberBox {header = u"VerticalOffset", largeChange = 100.0, maximum = 100.0, minimum = -100.0, smallChange = 10.0,
-               spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, value = 0.0,
-               onValueChanged = [model](NumberBox const& self) { model->popup.verticalOffset(self.value()); }},
+               spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, value = Bind {model->vertical}},
     NumberBox {header = u"HorizontalOffset", largeChange = 100.0, maximum = 500.0, minimum = -100.0, smallChange = 10.0,
-               spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, value = 200.0,
-               onValueChanged = [model](NumberBox const& self) { model->popup.horizontalOffset(self.value()); }},
+               spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, value = Bind {model->horizontal}},
 };

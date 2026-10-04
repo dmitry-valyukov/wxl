@@ -193,6 +193,8 @@ wxl_add_executable(sample.gallery
 target_include_directories(sample.gallery PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 wxl_target_assets(sample.gallery Assets)
+# Версия приложения — версия проекта из корневого CMakeLists.txt: у приложения без пакета других источников нет.
+target_compile_definitions(sample.gallery PRIVATE GALLERY_VERSION=u"${wxl-project_VERSION}")
 target_link_libraries(sample.gallery PRIVATE wxl::json wxl::fmt)
 
 # LottieLogo.cpp -- код анимации Lottie, написанный на объектах Composition и Win2D самой платформы, -- единственный файл

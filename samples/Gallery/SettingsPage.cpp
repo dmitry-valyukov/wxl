@@ -18,12 +18,6 @@ FrameworkElement sectionHeader(zstring_view label) {
     return TextBlock {label, Margin {1, 30, 0, 6}, styles.TextBlock.BodyStrong};
 }
 
-// Версия приложения без пакета — не от чего брать; показывается дата сборки.
-std::u16string buildVersion() {
-    std::string_view const date = __DATE__;
-    return u"Build " + std::u16string(date.begin(), date.end());
-}
-
 FrameworkElement themeChoice() {
     return ComboBox {
         ComboBoxItem {content = u"Light"},
@@ -142,7 +136,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                     header = u"WinUI 3 Gallery",
                     description = u"A port of the WinUI 3 Gallery to wxl: the same types, no XAML.",
                     headerIcon = BitmapIcon {uriSource = u"Assets/Tiles/BadgeLogo.png", showAsMonochrome = false},
-                    TextBlock {buildVersion(), foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
+                    TextBlock {GALLERY_VERSION, foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
                     items[
                         SettingsCard {
                             header = u"To clone this repository",

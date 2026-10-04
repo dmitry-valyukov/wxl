@@ -29,6 +29,9 @@ void set_automation_heading_level(winrt::Microsoft::UI::Xaml::UIElement const& e
 
 void set_automation_landmark_type(winrt::Microsoft::UI::Xaml::UIElement const& element, AutomationLandmarkType type);
 
+void set_automation_control_type(winrt::Microsoft::UI::Xaml::UIElement const& element, AutomationControlType type);
+
+void set_automation_localized_control_type(winrt::Microsoft::UI::Xaml::UIElement const& element, hstring_param const& text);
 void set_automation_localized_landmark_type(winrt::Microsoft::UI::Xaml::UIElement const& element, hstring_param const& text);
 
 void set_automation_accelerator_key(winrt::Microsoft::UI::Xaml::UIElement const& element, hstring_param const& keys);

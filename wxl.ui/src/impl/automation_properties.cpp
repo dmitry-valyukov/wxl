@@ -33,6 +33,13 @@ void set_automation_landmark_type(winrt::Microsoft::UI::Xaml::UIElement const& e
     automation::AutomationProperties::SetLandmarkType(element, static_cast<automation::Peers::AutomationLandmarkType>(type));
 }
 
+void set_automation_control_type(winrt::Microsoft::UI::Xaml::UIElement const& element, AutomationControlType type) {
+    automation::AutomationProperties::SetAutomationControlType(element, static_cast<automation::Peers::AutomationControlType>(type));
+}
+
+void set_automation_localized_control_type(winrt::Microsoft::UI::Xaml::UIElement const& element, hstring_param const& text) {
+    automation::AutomationProperties::SetLocalizedControlType(element, to_winrt(text));
+}
 void set_automation_localized_landmark_type(winrt::Microsoft::UI::Xaml::UIElement const& element, hstring_param const& text) {
     automation::AutomationProperties::SetLocalizedLandmarkType(element, to_winrt(text));
 }

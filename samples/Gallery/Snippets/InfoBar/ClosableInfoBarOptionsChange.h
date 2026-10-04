@@ -1,6 +1,7 @@
 // The check box and the bar's own close button say the same thing.
 struct Model {
     core::observable<bool> open{true};
+    core::observable<int> kind {0};
 };
 auto const model = gallery::hold<Model>();
 
@@ -8,7 +9,7 @@ auto bar = InfoBar {
     title = u"Title",
     isOpen = BindOutput {model->open},
     message = u"Essential app message for your users to be informed of, acknowledge, or take action on.",
-    severity = InfoBarSeverity::Informational,
+    severity = BindOutput {model->kind, [](int index) { return static_cast<InfoBarSeverity>(index); }},
     onClosed = [model](InfoBar const&, InfoBarClosedEventArgs&) { model->open.set(false); },
 };
 
@@ -21,13 +22,5 @@ auto severity = ComboBox {
     ComboBoxItem {content = u"Success"},
     ComboBoxItem {content = u"Warning"},
     ComboBoxItem {content = u"Error"},
-    selectedIndex = 0,
-    onSelectionChanged = [bar](ComboBox const& self) {
-        static constexpr InfoBarSeverity kinds[] = {InfoBarSeverity::Informational, InfoBarSeverity::Success,
-                                                    InfoBarSeverity::Warning, InfoBarSeverity::Error};
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            bar.severity(kinds[index]);
-        }
-    },
+    selectedIndex = Bind {model->kind},
 };

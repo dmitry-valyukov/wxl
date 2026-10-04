@@ -1,11 +1,18 @@
 struct Model {
     core::observable<bool> open{true};
+    core::observable<int> length {1};
 };
 auto const model = gallery::hold<Model>();
 
 auto bar = InfoBar {
     title = u"Title",
     isOpen = BindOutput {model->open},
+    message = BindOutput {model->length, [](int index) {
+        return index == 0 ? u"A short essential app message."
+                          : u"A long essential app message for your users to be informed of, acknowledge, or take action on. "
+                            u"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin dapibus dolor vitae justo rutrum, "
+                            u"ut lobortis nibh mattis. Aenean id elit commodo, semper felis nec.";
+    }},
     onClosed = [model](InfoBar const&, InfoBarClosedEventArgs&) { model->open.set(false); },
 };
 
@@ -16,17 +23,7 @@ auto length = ComboBox {
     header = u"Message Length",
     ComboBoxItem {content = u"Short"},
     ComboBoxItem {content = u"Long"},
-    onSelectionChanged = [bar](ComboBox const& self) {
-        if (self.selectedIndex() == 0) {
-            bar.message(u"A short essential app message.");
-        } else if (self.selectedIndex() == 1) {
-            bar.message(
-                u"A long essential app message for your users to be informed of, acknowledge, or take action on. "
-                u"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin dapibus dolor vitae justo rutrum, "
-                u"ut lobortis nibh mattis. Aenean id elit commodo, semper felis nec.");
-        }
-    },
-    selectedIndex = 1,
+    selectedIndex = Bind {model->length},
 };
 
 auto actionButton = ComboBox {

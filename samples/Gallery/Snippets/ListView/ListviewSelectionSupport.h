@@ -1,3 +1,8 @@
+struct Model {
+    core::observable<int> mode {1};
+};
+auto const model = gallery::hold<Model>();
+
 // The ContactListViewTemplate of the original -- an ellipse, a name over a company -- as a function from the
 // item (the position of a contact in the application's vector) to the element that shows it.
 auto const* people = &gallery::contacts();
@@ -18,7 +23,7 @@ auto const list = ListView {
     horizontalAlignment = HorizontalAlignment::Left,
     borderBrush = brushes.Control.Strong.StrokeColorDefault,
     borderThickness = 1,
-    selectionMode = ListViewSelectionMode::Single,
+    selectionMode = BindOutput {model->mode, [](int index) { return static_cast<ListViewSelectionMode>(index); }},
     itemTemplate = contactOf,
     itemsSource = indexList(static_cast<int64_t>(people->size())),
 };
@@ -46,10 +51,5 @@ auto options = ComboBox {
     ComboBoxItem {content = u"Single"},
     ComboBoxItem {content = u"Multiple"},
     ComboBoxItem {content = u"Extended"},
-    selectedIndex = 1,
-    onSelectionChanged = [list](ComboBox const& self) {
-        static constexpr ListViewSelectionMode modes[] = {ListViewSelectionMode::None, ListViewSelectionMode::Single,
-                                                          ListViewSelectionMode::Multiple, ListViewSelectionMode::Extended};
-        if (self.selectedIndex() >= 0) list.selectionMode(modes[self.selectedIndex()]);
-    },
+    selectedIndex = Bind {model->mode},
 };

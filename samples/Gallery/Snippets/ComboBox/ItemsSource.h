@@ -2,9 +2,14 @@ static constexpr const char16_t* fonts[] = {
     u"Arial", u"Comic Sans MS", u"Courier New", u"Segoe UI", u"Times New Roman",
 };
 
+struct Model {
+    core::observable<int> font {2};
+};
+auto const model = gallery::hold<Model>();
+
 auto output = TextBlock {
     u"You can set the font used for this text.",
-    fontFamily = fonts[2],
+    fontFamily = BindOutput {model->font, [](int index) { return fonts[std::max(index, 0)]; }},
     styles.TextBlock.Body,
     Margin {0, 8, 0, 0},
 };
@@ -17,11 +22,5 @@ auto combo = ComboBox {
     ComboBoxItem {content = fonts[2]},
     ComboBoxItem {content = fonts[3]},
     ComboBoxItem {content = fonts[4]},
-    selectedIndex = 2,
-    onSelectionChanged = [output](ComboBox const& self) {
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            output.fontFamily(fonts[index]);
-        }
-    },
+    selectedIndex = Bind {model->font},
 };

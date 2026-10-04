@@ -1,6 +1,7 @@
 // Страница Slider — SliderPage оригинала: четыре примера.
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;

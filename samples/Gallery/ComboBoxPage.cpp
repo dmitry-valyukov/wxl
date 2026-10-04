@@ -4,6 +4,7 @@
 // ComboBoxItem с подписью, а выбранная строка находится по индексу.
 
 #include "Pages.h"
+#include "Shell.h"
 #include "ShowDialog.h"
 
 #include <algorithm>

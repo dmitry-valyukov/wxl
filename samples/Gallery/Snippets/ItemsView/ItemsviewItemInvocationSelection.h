@@ -25,8 +25,12 @@ auto const strip = [](gallery::CustomDataObject const& object) {
     };
 };
 struct Model {
+    core::observable<int> mode {1};
+    core::observable<bool> invocation {true};
     ItemsView view {width = 500, height = 300, horizontalAlignment = HorizontalAlignment::Left,
-                    layout = UniformGridLayout {minRowSpacing = 5.0, minColumnSpacing = 5.0}};
+                    layout = UniformGridLayout {minRowSpacing = 5.0, minColumnSpacing = 5.0},
+                    selectionMode = BindOutput {mode, [](int index) { return static_cast<ItemsViewSelectionMode>(index); }},
+                    isItemInvokedEnabled = BindOutput {invocation}};
     TextBlock invoked {Margin {0, 8, 0, 0}};
     TextBlock selected {Margin {0, 8, 0, 0}};
 };
@@ -74,14 +78,7 @@ auto options = StackPanel {
         ComboBoxItem {content = u"Single"},
         ComboBoxItem {content = u"Multiple"},
         ComboBoxItem {content = u"Extended"},
-        selectedIndex = 1,
-        onSelectionChanged = [model](ComboBox const& self) {
-            static constexpr ItemsViewSelectionMode modes[] = {ItemsViewSelectionMode::None, ItemsViewSelectionMode::Single,
-                                                               ItemsViewSelectionMode::Multiple, ItemsViewSelectionMode::Extended};
-            if (self.selectedIndex() >= 0) model->view.selectionMode(modes[self.selectedIndex()]);
-        },
+        selectedIndex = Bind {model->mode},
     },
-    CheckBox {automationName = u"is item invocation enabled?", content = u"Item invocation", isChecked = true,
-              onChecked = [model](auto&&...) { model->view.isItemInvokedEnabled(true); },
-              onUnchecked = [model](auto&&...) { model->view.isItemInvokedEnabled(false); }},
+    CheckBox {automationName = u"is item invocation enabled?", content = u"Item invocation", isChecked = Bind {model->invocation}},
 };

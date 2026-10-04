@@ -1,6 +1,7 @@
 // Страница Expander — ExpanderPage оригинала: два примера.
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;

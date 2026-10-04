@@ -1,6 +1,8 @@
 // The toggle and the pane say the same thing, so the field is theirs both.
 struct Model {
     core::observable<bool> paneOpen{true};
+    core::observable<int> mode {0};
+    core::observable<double> openLength {256.0}, compactLength {48.0};
 };
 auto const model = gallery::hold<Model>();
 
@@ -57,11 +59,15 @@ auto const fillLinks = [navLinks, linkItem](bool iconAfter) {
 };
 
 auto splitView = SplitView {
-    compactPaneLength = 48.0,
-    displayMode = SplitViewDisplayMode::Inline,
+    compactPaneLength = BindOutput {model->compactLength},
+    displayMode = BindOutput {model->mode, [](int index) {
+        static constexpr SplitViewDisplayMode modes[] = {SplitViewDisplayMode::Inline, SplitViewDisplayMode::CompactInline,
+                                                         SplitViewDisplayMode::Overlay, SplitViewDisplayMode::CompactOverlay};
+        return modes[index];
+    }},
     isPaneOpen = BindOutput {model->paneOpen},
     maxWidth = 400,
-    openPaneLength = 256.0,
+    openPaneLength = BindOutput {model->openLength},
     paneBackground = brushes.SystemControl.Background.Chrome.MediumLow,
     onPaneClosing = [model](SplitView const&, SplitViewPaneClosingEventArgs&) { model->paneOpen.set(false); },
     onPaneOpened = [model](SplitView const&, Object const&) { model->paneOpen.set(true); },
@@ -103,16 +109,7 @@ auto displayMode = ComboBox {
     ComboBoxItem {content = u"CompactInline"},
     ComboBoxItem {content = u"Overlay"},
     ComboBoxItem {content = u"CompactOverlay"},
-    selectedIndex = 0,
-    onSelectionChanged = [splitView](ComboBox const& self) {
-        static constexpr SplitViewDisplayMode modes[] = {
-            SplitViewDisplayMode::Inline, SplitViewDisplayMode::CompactInline,
-            SplitViewDisplayMode::Overlay, SplitViewDisplayMode::CompactOverlay};
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            splitView.displayMode(modes[index]);
-        }
-    },
+    selectedIndex = Bind {model->mode},
 };
 
 auto paneBackground = ComboBox {
@@ -144,8 +141,7 @@ auto openPaneLength = Slider {
     maximum = 500.0,
     snapsTo = SliderSnapsTo::StepValues,
     stepFrequency = 8.0,
-    value = 256.0,
-    onValueChanged = [splitView](Slider const& self) { splitView.openPaneLength(self.value()); },
+    value = Bind {model->openLength},
 };
 
 auto compactPaneLength = Slider {
@@ -155,8 +151,7 @@ auto compactPaneLength = Slider {
     maximum = 128.0,
     snapsTo = SliderSnapsTo::StepValues,
     stepFrequency = 8.0,
-    value = 48.0,
-    onValueChanged = [splitView](Slider const& self) { splitView.compactPaneLength(self.value()); },
+    value = Bind {model->compactLength},
 };
 
 fillLinks(false);

@@ -1,8 +1,15 @@
+struct Model {
+    core::observable<double> size {200.0};
+    core::observable<int> stretch {2}, direction {2};
+};
+auto const model = gallery::hold<Model>();
+
 auto viewbox = Viewbox {
-    width = 200,
-    height = 200,
+    width = BindOutput {model->size},
+    height = BindOutput {model->size},
     vAlign.top,
-    stretchDirection = StretchDirection::Both,
+    stretch = BindOutput {model->stretch, [](int index) { return static_cast<Stretch>(index); }},
+    stretchDirection = BindOutput {model->direction, [](int index) { return static_cast<StretchDirection>(index); }},
     Border {
         borderBrush = colors.gray,
         BorderThickness {15},
@@ -25,11 +32,7 @@ auto size = Slider {
     header = u"Width/Height",
     minimum = 20.0,
     maximum = 300.0,
-    value = 200.0,
-    onValueChanged = [viewbox](Slider const& self) {
-        viewbox.width(self.value());
-        viewbox.height(self.value());
-    },
+    value = Bind {model->size},
 };
 
 auto stretchGroup = RadioButtons {
@@ -38,14 +41,7 @@ auto stretchGroup = RadioButtons {
     RadioButton {content = u"Fill"},
     RadioButton {content = u"Uniform"},
     RadioButton {content = u"UniformToFill"},
-    selectedIndex = 2,
-    onSelectionChanged = [viewbox](RadioButtons const& self) {
-        static constexpr Stretch modes[] = {Stretch::None, Stretch::Fill, Stretch::Uniform, Stretch::UniformToFill};
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            viewbox.stretch(modes[index]);
-        }
-    },
+    selectedIndex = Bind {model->stretch},
 };
 
 auto directionGroup = RadioButtons {
@@ -53,13 +49,5 @@ auto directionGroup = RadioButtons {
     RadioButton {content = u"UpOnly"},
     RadioButton {content = u"DownOnly"},
     RadioButton {content = u"Both"},
-    selectedIndex = 2,
-    onSelectionChanged = [viewbox](RadioButtons const& self) {
-        static constexpr StretchDirection modes[] = {StretchDirection::UpOnly, StretchDirection::DownOnly,
-                                                     StretchDirection::Both};
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            viewbox.stretchDirection(modes[index]);
-        }
-    },
+    selectedIndex = Bind {model->direction},
 };
