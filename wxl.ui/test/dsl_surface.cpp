@@ -1716,6 +1716,73 @@ struct probe_task {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::delayTime = value);
 }
 
+// RevealEffect and its two lights -- written by hand, so their schema lines are too.
+[[maybe_unused]] void HoverLight_size_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::size = value);
+}
+[[maybe_unused]] void HoverLight_height_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::height = value);
+}
+[[maybe_unused]] void HoverLight_intensity_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::intensity = value);
+}
+[[maybe_unused]] void HoverLight_diffuseAmount_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::diffuseAmount = value);
+}
+[[maybe_unused]] void HoverLight_color_assigned(::wxl::HoverLight const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::color = value);
+}
+[[maybe_unused]] void HoverLight_constantAttenuation_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::constantAttenuation = value);
+}
+[[maybe_unused]] void HoverLight_linearAttenuation_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::linearAttenuation = value);
+}
+[[maybe_unused]] void BorderLight_size_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::size = value);
+}
+[[maybe_unused]] void BorderLight_height_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::height = value);
+}
+[[maybe_unused]] void BorderLight_intensity_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::intensity = value);
+}
+[[maybe_unused]] void BorderLight_diffuseAmount_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::diffuseAmount = value);
+}
+[[maybe_unused]] void BorderLight_color_assigned(::wxl::BorderLight const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::color = value);
+}
+[[maybe_unused]] void BorderLight_constantAttenuation_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::constantAttenuation = value);
+}
+[[maybe_unused]] void BorderLight_linearAttenuation_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::linearAttenuation = value);
+}
+[[maybe_unused]] void BorderLight_strokeThickness_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::strokeThickness = value);
+}
+[[maybe_unused]] void BorderLight_cornerRadius_assigned(::wxl::BorderLight const& object, ::wxl::CornerRadius value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::cornerRadius = value);
+}
+[[maybe_unused]] void RevealEffect_zIndex_assigned(::wxl::RevealEffect const& object, int32_t value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::RevealEffect::zIndex = value);
+}
+// The braces as they are written: the generic tags on each light, whole
+// numbers where the setter takes a double, a corner radius by its own type,
+// the lights bare in the effect and the effect attached to a Button.
+[[maybe_unused]] void RevealEffect_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    HoverLight const hover{size = 140, height = 120, intensity = 1.0, diffuseAmount = 0.69};
+    BorderLight const border{size = 340, height = 120, intensity = 1.0, diffuseAmount = 1.24, strokeThickness = 1.5,
+                             color = rgb(255, 255, 255), constantAttenuation = 1.0, linearAttenuation = 0.0,
+                             CornerRadius{4}};
+    RevealEffect const reveal{hover, border, zIndex = 1};
+    Button{u"7", reveal};
+    Border{RevealEffect{HoverLight{size = 90}}};
+}
+
 // SplitPanel -- written by hand: its orientation and pane placement take the tags
 // of StackPanel and SplitView.
 [[maybe_unused]] void SplitPanel_vertical_trailing(::wxl::UIElement const& top, ::wxl::UIElement const& bottom) {

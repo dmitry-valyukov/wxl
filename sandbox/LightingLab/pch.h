@@ -8,6 +8,8 @@
 #include "Bind.h"
 #include "Panels.h"
 #include "DrawingSurface.h"
+#include "Button3DEffect.h"
+#include "RevealEffect.h"
 #include "launch.h"
 #include "impl/hresult.h"
 #include "generated/brushes.h"

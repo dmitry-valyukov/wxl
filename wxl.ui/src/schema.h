@@ -26,6 +26,7 @@
 #include "GlassEffect.h"
 #include "HaloEffect.h"
 #include "MagnifyEffect.h"
+#include "RevealEffect.h"
 #include "generated/schema.h"
 
 namespace wxl::dsl::schema {
@@ -73,6 +74,32 @@ struct MagnifyEffect {
     static constexpr ::wxl::Property<::wxl::PropertyKey::Minimum, double, ::wxl::MagnifyEffect> minimum{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Duration, ::wxl::core::duration, ::wxl::MagnifyEffect> duration{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::DelayTime, ::wxl::core::duration, ::wxl::MagnifyEffect> delayTime{};
+};
+
+struct HoverLight {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Size, double, ::wxl::HoverLight> size{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Height, double, ::wxl::HoverLight> height{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Intensity, double, ::wxl::HoverLight> intensity{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::DiffuseAmount, double, ::wxl::HoverLight> diffuseAmount{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Color, ::wxl::Color, ::wxl::HoverLight> color{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::ConstantAttenuation, double, ::wxl::HoverLight> constantAttenuation{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::LinearAttenuation, double, ::wxl::HoverLight> linearAttenuation{};
+};
+
+struct BorderLight {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Size, double, ::wxl::BorderLight> size{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Height, double, ::wxl::BorderLight> height{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Intensity, double, ::wxl::BorderLight> intensity{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::DiffuseAmount, double, ::wxl::BorderLight> diffuseAmount{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Color, ::wxl::Color, ::wxl::BorderLight> color{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::ConstantAttenuation, double, ::wxl::BorderLight> constantAttenuation{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::LinearAttenuation, double, ::wxl::BorderLight> linearAttenuation{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::StrokeThickness, double, ::wxl::BorderLight> strokeThickness{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::CornerRadius, ::wxl::CornerRadius, ::wxl::BorderLight> cornerRadius{};
+};
+
+struct RevealEffect {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::ZIndex, int32_t, ::wxl::RevealEffect> zIndex{};
 };
 
 }  // namespace wxl::dsl::schema

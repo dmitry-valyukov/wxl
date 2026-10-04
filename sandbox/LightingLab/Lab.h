@@ -104,10 +104,6 @@ struct ReliefShape {
 // зрителя, а форму клавише даёт обрезка визуала.
 void drawNormalMap(wxl::DrawingSurface const& surface, Relief relief, ReliefShape const& shape);
 
-// Пишет в поверхность белое скруглённое кольцо во весь её размер: маска рамки
-// для кисти девяти частей. Радиус и толщина -- в пикселях поверхности.
-void drawRing(wxl::DrawingSurface const& surface, float radius, float thickness);
-
 // Пишет в поверхность белый скруглённый прямоугольник во весь её размер: маска
 // формы клавиши. Радиус -- в пикселях поверхности.
 void drawShape(wxl::DrawingSurface const& surface, float radius);

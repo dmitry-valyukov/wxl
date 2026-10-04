@@ -124,22 +124,6 @@ void lab::drawNormalMap(DrawingSurface const& surface, Relief relief, ReliefShap
     blit(surface, pixels, width, height);
 }
 
-void lab::drawRing(DrawingSurface const& surface, float radius, float thickness) {
-    SizeInt32 const size = surface.size();
-    surface.draw([&](ID2D1DeviceContext* context) {
-        ComPtr<ID2D1SolidColorBrush> white;
-        wxl::check_hresult(context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &white));
-        // Обводка ложится по обе стороны линии: линия уходит внутрь на полтолщины.
-        float const half = thickness / 2.0f;
-        float const turn = std::max(radius - half, 0.0f);
-        D2D1_ROUNDED_RECT const ring {
-            D2D1::RectF(half, half, static_cast<float>(size.width) - half, static_cast<float>(size.height) - half),
-            turn, turn};
-        context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-        context->DrawRoundedRectangle(ring, white.Get(), thickness);
-    });
-}
-
 void lab::drawShape(DrawingSurface const& surface, float radius) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {

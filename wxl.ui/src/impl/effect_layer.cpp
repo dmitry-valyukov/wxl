@@ -1,6 +1,7 @@
-// wxl::impl::insert_layer, when_drawn -- see effect_layer.h.
+// wxl::impl::insert_layer, when_drawn, corner_of -- see effect_layer.h.
 
 #include <winrt/Microsoft.UI.Composition.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
@@ -54,6 +55,26 @@ void when_drawn(composition::ContainerVisual const& host,
             place(children);
             winrt::Microsoft::UI::Xaml::Media::CompositionTarget::Rendering(*waiting);
         });
+}
+
+float corner_of(winrt::Microsoft::UI::Xaml::UIElement const& element) {
+    namespace controls = winrt::Microsoft::UI::Xaml::Controls;
+    if (auto const border = element.try_as<controls::Border>()) {
+        return static_cast<float>(border.CornerRadius().TopLeft);
+    }
+    if (auto const control = element.try_as<controls::Control>()) {
+        return static_cast<float>(control.CornerRadius().TopLeft);
+    }
+    if (auto const grid = element.try_as<controls::Grid>()) {
+        return static_cast<float>(grid.CornerRadius().TopLeft);
+    }
+    if (auto const stack = element.try_as<controls::StackPanel>()) {
+        return static_cast<float>(stack.CornerRadius().TopLeft);
+    }
+    if (auto const relative = element.try_as<controls::RelativePanel>()) {
+        return static_cast<float>(relative.CornerRadius().TopLeft);
+    }
+    return 0.0f;
 }
 
 }  // namespace wxl::impl
