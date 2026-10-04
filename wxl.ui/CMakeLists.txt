@@ -220,6 +220,10 @@ add_library(wxl.ui STATIC
     src/SettingsCard.h
     src/SettingsCard.cpp
     src/SettingsCardAlignment.h
+    src/HeaderedContentControl.h
+    src/HeaderedContentControl.cpp
+    src/impl/headered_content_control.h
+    src/impl/headered_content_control.cpp
     src/SettingsExpander.h
     src/SettingsExpander.cpp
     src/impl/settings_expander.h

@@ -30,6 +30,7 @@
 
 #include "SettingsCard.h"
 #include "SettingsExpander.h"
+#include "HeaderedContentControl.h"
 #include <wxl/schema.h>
 
 namespace wxl::dsl::schema {
@@ -122,5 +123,8 @@ struct SettingsExpander : ::wxl::dsl::schema::ContentControl {
     static constexpr ::wxl::Property<::wxl::PropertyKey::HeaderIcon, ::wxl::IconElement, ::wxl::SettingsExpander> headerIcon{};
     static constexpr ::wxl::CollectionProperty<::wxl::PropertyKey::Items, ::wxl::SettingsExpander> items{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::IsExpanded, bool, ::wxl::SettingsExpander> isExpanded{};
+};
+struct HeaderedContentControl : ::wxl::dsl::schema::ContentControl {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Header, ::wxl::Object, ::wxl::HeaderedContentControl> header{};
 };
 }  // namespace wxl::dsl::schema
