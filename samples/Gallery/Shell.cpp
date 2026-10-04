@@ -33,6 +33,63 @@ std::vector<std::wstring> favorite;
 
 constexpr std::size_t maxRecentlyVisited = 7;
 
+// Недавние, избранные и размер окна живут между запусками (SettingsHelper оригинала пишет их в ApplicationData, а у
+// приложения без пакета её нет): файл в %LOCALAPPDATA%\wxl\Gallery. Он крошечный, и пишется при каждой перемене,
+// чтобы закрытие процесса ничего не теряло. Названия контролов — ASCII.
+struct WindowSize {
+    int width = 1280;
+    int height = 800;
+};
+WindowSize savedSize;
+
+std::filesystem::path stateFile() {
+    wchar_t const* const base = _wgetenv(L"LOCALAPPDATA");
+    return base ? std::filesystem::path{base} / L"wxl" / L"Gallery" / L"state.txt" : std::filesystem::path{};
+}
+
+void loadState() {
+    auto const file = stateFile();
+    if (file.empty()) {
+        return;
+    }
+    std::ifstream input{file};
+    std::string kind;
+    while (input >> kind) {
+        if (kind == "size") {
+            WindowSize size;
+            if (input >> size.width >> size.height && size.width >= 640 && size.height >= 500) {
+                savedSize = size;
+            }
+        } else {
+            std::string id;
+            if (input >> id) {
+                (kind == "recent" ? recent : favorite).emplace_back(id.begin(), id.end());
+            }
+        }
+    }
+    if (recent.size() > maxRecentlyVisited) {
+        recent.resize(maxRecentlyVisited);
+    }
+}
+
+void saveState() {
+    auto const file = stateFile();
+    if (file.empty()) {
+        return;
+    }
+    std::error_code ignored;
+    std::filesystem::create_directories(file.parent_path(), ignored);
+    std::ofstream output{file, std::ios::trunc};
+    auto const narrow = [](std::wstring const& text) { return std::string{text.begin(), text.end()}; };
+    for (auto const& id : recent) {
+        output << "recent " << narrow(id) << '\n';
+    }
+    for (auto const& id : favorite) {
+        output << "favorite " << narrow(id) << '\n';
+    }
+    output << "size " << savedSize.width << ' ' << savedSize.height << '\n';
+}
+
 // ---- Имена пунктов панели --------------------------------------------------
 
 constexpr std::wstring_view homeName = L"home";
@@ -292,6 +349,7 @@ void show(Destination destination, bool record) {
         if (recent.size() > maxRecentlyVisited) {
             recent.resize(maxRecentlyVisited);
         }
+        saveState();
     }
 
     // Модели прежней страницы отпускаются, когда новая уже на месте.
@@ -455,6 +513,7 @@ std::vector<std::wstring> const& recentlyVisited() {
 
 void clearRecentlyVisited() {
     recent.clear();
+    saveState();
 }
 
 std::vector<std::wstring> const& favorites() {
@@ -470,10 +529,12 @@ void setFavorite(std::wstring_view id, bool on) {
     if (on) {
         favorite.emplace_back(id);
     }
+    saveState();
 }
 
 void clearFavorites() {
     favorite.clear();
+    saveState();
 }
 
 // ---- Окно и переходы -------------------------------------------------------
@@ -511,7 +572,15 @@ Window createMainWindow() {
         },
     };
     window.setTitleBar(s.titleBar);
-    window.appWindow().resize({1280, 800});
+    loadState();
+    window.appWindow().resize({savedSize.width, savedSize.height});
+    window.add_onClosed([](auto&&...) {
+        if (shell && shell->main) {
+            auto const size = shell->main->appWindow().size();
+            savedSize = {size.width, size.height};
+            saveState();
+        }
+    });
     s.main = std::make_shared<Window>(window);
 
     // The notifications of the application are shown by the shell once it knows the application.
