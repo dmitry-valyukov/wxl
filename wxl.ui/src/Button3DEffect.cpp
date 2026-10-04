@@ -13,15 +13,30 @@
 
 namespace wxl {
 
+namespace {
+
+// The pointer's light as a key takes it when none is written: RevealEffect's
+// lamps, given back dimmer. One pair for every Button3DEffect, so that the
+// kinds of key on a keypad -- each an effect of its own -- are lit by the
+// same two lamps.
+HoverLight const& keyHover() {
+    static HoverLight const light{dsl::diffuseAmount = 0.5};
+    return light;
+}
+
+BorderLight const& keyBorder() {
+    static BorderLight const light{dsl::diffuseAmount = 0.9};
+    return light;
+}
+
+}  // namespace
+
 struct Button3DEffect::State : core::sta_refcounted {
     Color ink = rgb(237, 239, 242);
     Color albedo = rgb(68, 72, 79);
     double shadow = 0.7;
     double emboss = -1.0;
-    // The light over the pointer, and whether one was written: a key without
-    // it gets no layers and no lamps.
-    RevealEffect reveal;
-    bool lit = false;
+    RevealEffect reveal{keyHover(), keyBorder()};
 };
 
 Button3DEffect::Button3DEffect() : state_{new State, /*add_ref=*/false} {}
@@ -34,10 +49,8 @@ void Button3DEffect::background(Color value) const { state_->albedo = value; }
 void Button3DEffect::shadow(double value) const { state_->shadow = std::clamp(value, 0.0, 1.0); }
 void Button3DEffect::emboss(double value) const { state_->emboss = std::clamp(value, -1.0, 1.0); }
 
-void Button3DEffect::setPositional(RevealEffect const& value) const {
-    state_->reveal = value;
-    state_->lit = true;
-}
+void Button3DEffect::setPositional(HoverLight const& value) const { state_->reveal.setPositional(value); }
+void Button3DEffect::setPositional(BorderLight const& value) const { state_->reveal.setPositional(value); }
 
 namespace {
 
@@ -143,7 +156,7 @@ void Button3DEffect::attach(Button const& button) const {
     };
 
     // After the rim: the light's layers go over everything the key draws.
-    if (s.lit) s.reveal(button);
+    s.reveal(button);
 }
 
 }  // namespace wxl
