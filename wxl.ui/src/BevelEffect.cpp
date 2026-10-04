@@ -3,7 +3,6 @@
 // The projection comes first, and with it every standard header it needs: the
 // wxl headers below carry the wxl.core import.
 #include <winrt/Microsoft.UI.Composition.h>
-#include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Hosting.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.h>
@@ -13,7 +12,6 @@
 #include <algorithm>
 #include <bit>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -21,6 +19,7 @@
 #include "BevelEffect.h"
 #include "Object.impl.h"
 #include "generated/Microsoft.UI.Xaml.impl.h"
+#include "impl/effect_layer.h"
 
 namespace wxl {
 
@@ -38,7 +37,7 @@ struct BevelEffect::State : core::sta_refcounted {
     float softness = 1.0f;
     float past = 0.0f;
     Thickness margin{};
-    std::optional<float> corner;
+    core::nullable<float> corner;
 };
 
 BevelEffect::BevelEffect() : state_{new State, /*add_ref=*/false} {}
@@ -61,30 +60,6 @@ void BevelEffect::margin(Thickness value) const { state_->margin = value; }
 void BevelEffect::cornerRadius(CornerRadius value) const {
     state_->corner = static_cast<float>(value.topLeft);
 }
-
-namespace {
-
-// The element's own rounding, for an element that has one.
-std::optional<float> own_corner(xaml::UIElement const& element) {
-    if (auto const border = element.try_as<xaml::Controls::Border>()) {
-        return static_cast<float>(border.CornerRadius().TopLeft);
-    }
-    if (auto const control = element.try_as<xaml::Controls::Control>()) {
-        return static_cast<float>(control.CornerRadius().TopLeft);
-    }
-    if (auto const grid = element.try_as<xaml::Controls::Grid>()) {
-        return static_cast<float>(grid.CornerRadius().TopLeft);
-    }
-    if (auto const stack = element.try_as<xaml::Controls::StackPanel>()) {
-        return static_cast<float>(stack.CornerRadius().TopLeft);
-    }
-    if (auto const relative = element.try_as<xaml::Controls::RelativePanel>()) {
-        return static_cast<float>(relative.CornerRadius().TopLeft);
-    }
-    return std::nullopt;
-}
-
-}  // namespace
 
 void BevelEffect::operator()(UIElement const& wrapper) const {
     State const& s = *state_;
@@ -190,7 +165,7 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
         // The element's rounding is read once it is loaded: in its braces it
         // may be written after the effect.
         fe.Loaded([round](auto const& sender, auto&&) {
-            if (auto const r = own_corner(sender.template as<xaml::UIElement>())) round(*r);
+            round(impl::corner_of(sender.template as<xaml::UIElement>()));
         });
     }
 
