@@ -29,9 +29,23 @@
 // preset in all but name -- and the rim is a BevelEffect attached to the button
 // with it. The effect is a handle: copies share their settings, and one
 // written once can be attached to a whole keypad.
+//
+// **The light over the pointer.** A RevealEffect written bare in the braces
+// is a second lamp, the one that follows the pointer: its spot falls on the
+// face of the key under it and its glow runs along the edges of the keys
+// around. The effect attaches it to every button it is attached to itself:
+//
+//     RevealEffect reveal {HoverLight {size = 140}, BorderLight {size = 340}};
+//     Button3DEffect numericKey {background = rgb(68, 72, 79), reveal};
+//     Button3DEffect actionKey {background = rgb(48, 68, 116), reveal};
+//
+// One RevealEffect given to several kinds of key lights them all with one
+// pair of lamps, as a keypad should be. Without it the key is as it was: lit
+// by the fixed lamp alone.
 
 #include "core.h"
 #include "Color.h"
+#include "RevealEffect.h"
 #include "generated/Microsoft.UI.Xaml.Controls.h"
 #include "impl/member.h"
 
@@ -42,7 +56,7 @@ public:
     /// Pale glyphs on graphite, shadow 0.7, a dish.
     Button3DEffect();
 
-    /// The tags: foreground, background, shadow, emboss.
+    /// The tags: foreground, background, shadow, emboss; a bare RevealEffect.
     template <typename... Setters>
         requires(sizeof...(Setters) > 0) && impl::setter_pack<Button3DEffect, Setters...>
     explicit Button3DEffect(Setters&&... setters) : Button3DEffect() {
@@ -58,8 +72,11 @@ public:
     void shadow(double value) const;
     void emboss(double value) const;
 
+    /// A bare RevealEffect is the light that follows the pointer over the keys.
+    void setPositional(RevealEffect const& value) const;
+
     /// Attached to a button when its braces are applied: the face, the outline,
-    /// the state brushes and the rim.
+    /// the state brushes, the rim, and the pointer's light if one was written.
     template <typename Obj>
         requires std::derived_from<Obj, Button>
     void operator()(Obj const& button) const {

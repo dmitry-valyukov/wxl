@@ -18,6 +18,10 @@ struct Button3DEffect::State : core::sta_refcounted {
     Color albedo = rgb(68, 72, 79);
     double shadow = 0.7;
     double emboss = -1.0;
+    // The light over the pointer, and whether one was written: a key without
+    // it gets no layers and no lamps.
+    RevealEffect reveal;
+    bool lit = false;
 };
 
 Button3DEffect::Button3DEffect() : state_{new State, /*add_ref=*/false} {}
@@ -29,6 +33,11 @@ void Button3DEffect::foreground(Color value) const { state_->ink = value; }
 void Button3DEffect::background(Color value) const { state_->albedo = value; }
 void Button3DEffect::shadow(double value) const { state_->shadow = std::clamp(value, 0.0, 1.0); }
 void Button3DEffect::emboss(double value) const { state_->emboss = std::clamp(value, -1.0, 1.0); }
+
+void Button3DEffect::setPositional(RevealEffect const& value) const {
+    state_->reveal = value;
+    state_->lit = true;
+}
 
 namespace {
 
@@ -132,6 +141,9 @@ void Button3DEffect::attach(Button const& button) const {
         BorderThickness{1},
         BevelEffect{bevelLight, bevelShade, Margin{1.5}, dsl::strokeThickness = 1, dsl::offset = 2},
     };
+
+    // After the rim: the light's layers go over everything the key draws.
+    if (s.lit) s.reveal(button);
 }
 
 }  // namespace wxl

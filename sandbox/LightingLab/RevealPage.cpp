@@ -2,10 +2,11 @@
 //
 // Клавиши -- кнопки XAML, на каждой один и тот же RevealEffect из библиотеки:
 // узкий HoverLight кладёт пятно на лицо клавиши под указателем, широкий
-// BorderLight высвечивает рамки соседних. Правая колонка носит ещё и
-// Button3DEffect -- видно, как свет ложится на объёмную клавишу. Ползунки
-// панели пишут в те же источники света, что стоят в эффекте: настройка
-// действует на уже освещённые клавиши.
+// BorderLight высвечивает рамки соседних. Обычные клавиши носят его сами,
+// правая колонка -- через Button3DEffect, которому тот же RevealEffect написан
+// в скобках: лампы у всей клавиатуры одни. Ползунки панели пишут в те же
+// источники света, что стоят в эффекте: настройка действует на уже
+// освещённые клавиши.
 
 #include "Lab.h"
 
@@ -43,6 +44,7 @@ struct Reveal {
         background = rgba(176, 98, 30, 0.933),
         shadow = 0.4,
         emboss = -0.3,
+        reveal,
     };
 
     Reveal() {
@@ -116,7 +118,6 @@ lab::Experiment lab::revealPage() {
                 fontSize = 22,
                 content = labels[index],
                 model->relief,
-                model->reveal,
             });
         } else {
             pad.children().append(Button {
@@ -133,9 +134,9 @@ lab::Experiment lab::revealPage() {
     }
 
     auto settings = lab::settingsPanel({
-        lab::noteRow(u"На каждой клавише один RevealEffect {HoverLight, BorderLight}; правая колонка носит ещё и "
-                     u"Button3DEffect. Свет виден, пока указатель над содержимым окна. Нажатие клавиши -- вспышка "
-                     u"пятна."),
+        lab::noteRow(u"Один RevealEffect {HoverLight, BorderLight} на всю клавиатуру: обычные клавиши носят его "
+                     u"сами, правая колонка -- через Button3DEffect {..., reveal}. Свет виден, пока указатель над "
+                     u"содержимым окна. Нажатие клавиши -- вспышка пятна."),
         lab::statusRow(model->status),
         lab::group(u"HoverLight: пятно на клавише", true,
                    {

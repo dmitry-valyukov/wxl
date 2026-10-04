@@ -1663,6 +1663,12 @@ struct probe_task {
     Button3DEffect const key{foreground = rgb(237, 239, 242), background = rgba(68, 72, 79, 0.933), shadow = 0.7,
                              emboss = -1};
     Button{u"7", key};
+    // The light over the pointer, written bare: one given to two kinds of key.
+    RevealEffect const reveal{HoverLight{size = 140}};
+    Button3DEffect const lit{background = rgb(68, 72, 79), reveal};
+    Button3DEffect const other{background = rgb(48, 68, 116), reveal};
+    Button{u"8", lit};
+    Button{u"+", other};
 }
 
 // BevelEffect -- written by hand, so its schema lines are too.
