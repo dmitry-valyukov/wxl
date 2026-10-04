@@ -115,6 +115,8 @@ wxl::FrameworkElement bevelPage();
 wxl::FrameworkElement gaussianBlurPage();
 wxl::FrameworkElement haloPage();
 wxl::FrameworkElement xamlResourcesPage();
+wxl::FrameworkElement bindingPage();
+wxl::FrameworkElement templatesPage();
 wxl::FrameworkElement customXamlConditionalsPage();
 wxl::FrameworkElement animatedVisualPlayerPage();
 wxl::FrameworkElement captureElementPreviewPage();

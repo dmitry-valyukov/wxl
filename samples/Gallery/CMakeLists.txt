@@ -92,6 +92,8 @@ wxl_add_executable(sample.gallery
     GaussianBlurPage.cpp
     HaloPage.cpp
     XamlResourcesPage.cpp
+    BindingPage.cpp
+    TemplatesPage.cpp
     CustomXamlConditionalsPage.cpp
     Icons.cpp
     ColorTile.cpp
@@ -188,7 +190,7 @@ wxl_add_executable(sample.gallery
 target_include_directories(sample.gallery PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 wxl_target_assets(sample.gallery Assets)
-target_link_libraries(sample.gallery PRIVATE wxl::json)
+target_link_libraries(sample.gallery PRIVATE wxl::json wxl::fmt)
 
 # LottieLogo.cpp -- код анимации Lottie, написанный на объектах Composition и Win2D самой платформы, -- единственный файл
 # приложения, которому нужны заголовки проекции; наружу он отдаёт один wxl::Object. Остальным они остаются закрыты.

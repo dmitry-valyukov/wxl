@@ -61,6 +61,8 @@ constexpr Entry ported[] = {
     {L"GaussianBlur", &gallery::gaussianBlurPage},
     {L"Halo", &gallery::haloPage},
     {L"XamlResources", &gallery::xamlResourcesPage},
+    {L"Binding", &gallery::bindingPage},
+    {L"Templates", &gallery::templatesPage},
     {L"CustomXamlConditionals", &gallery::customXamlConditionalsPage},
     {L"AnimatedVisualPlayer", &gallery::animatedVisualPlayerPage},
     {L"CaptureElementPreview", &gallery::captureElementPreviewPage},
