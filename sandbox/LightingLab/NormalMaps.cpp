@@ -124,6 +124,17 @@ void lab::drawNormalMap(DrawingSurface const& surface, Relief relief, ReliefShap
     blit(surface, pixels, width, height);
 }
 
+void lab::drawSolid(DrawingSurface const& surface, Color color) {
+    SizeInt32 const size = surface.size();
+    surface.draw([&](ID2D1DeviceContext* context) {
+        ComPtr<ID2D1SolidColorBrush> fill;
+        wxl::check_hresult(context->CreateSolidColorBrush(
+            D2D1::ColorF(color.R / 255.0f, color.G / 255.0f, color.B / 255.0f, color.A / 255.0f), &fill));
+        context->FillRectangle(D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height)),
+                               fill.Get());
+    });
+}
+
 void lab::drawShape(DrawingSurface const& surface, float radius) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {

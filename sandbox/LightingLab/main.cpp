@@ -43,10 +43,15 @@ constexpr Entry catalogue[] = {
      u"Microsoft.UI.Composition.Scenes: сетки треугольников с материалом «металличность — шероховатость» "
      u"в дереве композитора XAML этого потока.",
      &lab::scenesPage},
+    {u"Образец ThumbnailLighting",
+     u"Повтор образца Microsoft на том же API: его графы, источники и карты нормалей. Рядом карты стенда -- "
+     u"для сравнения ответа на свет.",
+     &lab::samplePage},
 };
 
 constexpr char16_t const* names[] = {
     catalogue[0].name, catalogue[1].name, catalogue[2].name, catalogue[3].name, catalogue[4].name, catalogue[5].name,
+    catalogue[6].name,
 };
 
 // Опыт на экране. Поле page пишет список опытов; сцена и панель настроек
