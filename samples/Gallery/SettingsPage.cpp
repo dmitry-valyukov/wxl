@@ -20,6 +20,7 @@ FrameworkElement sectionHeader(zstring_view label) {
 
 FrameworkElement themeChoice() {
     return ComboBox {
+        automationName = u"App theme",
         ComboBoxItem {content = u"Light"},
         ComboBoxItem {content = u"Dark"},
         ComboBoxItem {content = u"Use system setting"},
@@ -77,10 +78,10 @@ wxl::FrameworkElement gallery::settingsPage() {
     return Grid {
         rowDefinitions = u"auto,*",
         TextBlock {u"Settings", Margin {36, 24, 36, 0}, maxWidth = 1064, styles.TextBlock.Title},
-        ScrollViewer {
+        ScrollView {
             row = 1,
             Padding {36, 0},
-            content = StackPanel {
+            content = Border {StackPanel {
                 maxWidth = 1064,
                 spacing = 4.0,
                 sectionHeader(u"Appearance & behavior"),
@@ -94,6 +95,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                     header = u"Navigation style",
                     headerIcon = FontIcon {glyph = u""},
                     ComboBox {
+                        automationName = u"Navigation style",
                         ComboBoxItem {content = u"Left"},
                         ComboBoxItem {content = u"Top"},
                         selectedIndex = 0,
@@ -133,7 +135,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                 },
                 sectionHeader(u"About"),
                 SettingsExpander {
-                    header = u"WinUI 3 Gallery",
+                    header = u"WXL Gallery",
                     description = u"A port of the WinUI 3 Gallery to wxl: the same types, no XAML.",
                     headerIcon = BitmapIcon {uriSource = u"Assets/Tiles/BadgeLogo.png", showAsMonochrome = false},
                     TextBlock {GALLERY_VERSION, foreground = brushes.Text.FillColor.Secondary, isTextSelectionEnabled = true},
@@ -181,7 +183,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                         }
                     ],
                 },
-            },
+            }},
         },
     };
 }

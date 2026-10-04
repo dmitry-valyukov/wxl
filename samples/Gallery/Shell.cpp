@@ -243,7 +243,7 @@ struct Shell {
         },
     };
     TitleBar titleBar {
-        title = u"WinUI 3 Gallery",
+        title = u"WXL Gallery",
         isBackButtonVisible = false,
         isPaneToggleButtonVisible = true,
         iconSource = ImageIconSource {imageSource = u"Assets/Tiles/GalleryIcon.ico"},
@@ -579,7 +579,7 @@ Window createMainWindow() {
     buildMenu(s);
 
     Window window {
-        title = u"WinUI 3 Gallery",
+        title = u"WXL Gallery",
         minSize = {640, 500},
         systemBackdrop = MicaBackdrop {},
         extendsContentIntoTitleBar = true,
@@ -631,9 +631,13 @@ Window createMainWindow() {
 
     show({Place::Home, {}}, true);
 
-    // Для проверки страницы без ввода: GALLERY_PAGE=<UniqueId> открывает её сразу.
-    if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE")) {
-        show({Place::Item, page}, true);
+    // Для проверки страницы без ввода: GALLERY_PAGE=<UniqueId> открывает её сразу (Settings — страницу настроек),
+    // GALLERY_TOP=1 ставит панель навигации сверху.
+    if (wchar_t const* const top = _wgetenv(L"GALLERY_TOP"); top && *top) {
+        setNavigationOnTop(true);
+    }
+    if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE"); page && *page) {
+        show({std::wstring_view{page} == L"Settings" ? Place::Settings : Place::Item, page}, true);
     }
     return window;
 }
