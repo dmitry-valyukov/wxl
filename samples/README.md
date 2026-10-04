@@ -17,10 +17,9 @@ tools\build.ps1 -Target sample.gallery
 | [Calculator](Calculator) | `sample.calc` | Калькулятор: сетка кнопок строится обходом строкового литерала (`iterate`), вид — эффекты `BevelEffect` и `GaussianBlurEffect`, табло привязано к модели, клавиатура работает с окном без единого клика. |
 | [CustomTitleBar](CustomTitleBar) | `sample.custom-titlebar` | Окно с собственной строкой заголовка, написанной как обычный элемент: окно само ставит кнопки заголовка и отдаёт Windows области перетаскивания. Масштаб увеличивает весь остров разом — заголовок, кнопки и содержимое, как браузер увеличивает страницу. |
 | [Trayed](Trayed) | `sample.trayed` | Запускает программу из командной строки и держит её консоль в своём окне; управление из значка в трее, свёртывание в трей с анимацией, окно настроек как второе окно. |
-| [Effects](Effects) | `sample.effects` | Витрина эффектов wxl (Halo, Bevel, Magnify, GaussianBlur, Glass): слева список, справа страница с работающим эффектом и его кодом, показанным тем же текстом, который выполняется. |
 | [HtmlView](HtmlView) | `sample.htmlview` | Просмотр разметки: `HtmlBlock`, `BbBlock` и `RsdnBlock` над общим `MarkupBlock`. Кнопки дописывают куски, как лента чата; любой `.html`, брошенный на окно, открывается вместо образцов. |
 | [Gallery](Gallery) | `sample.gallery` | Перенос WinUI 3 Gallery на wxl: те же типы WinUI 3, без XAML. Оболочка с навигацией и поиском, страница на каждый перенесённый контрол, код примера показан под ним. Переносится по группам контролов. |
 
 У части примеров есть свой `README.md` с подробностями:
-[Effects](Effects/README.md), [Quadratic](Quadratic/README.md),
+[Quadratic](Quadratic/README.md),
 [Trayed](Trayed/README.md), [Gallery](Gallery/README.md).
