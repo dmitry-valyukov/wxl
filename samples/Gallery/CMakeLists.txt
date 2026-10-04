@@ -86,6 +86,11 @@ wxl_add_executable(sample.gallery
     AccessibilityScreenReaderPage.cpp
     ScratchPadPage.cpp
     XamlStylesPage.cpp
+    GlassPage.cpp
+    MagnifyPage.cpp
+    BevelPage.cpp
+    GaussianBlurPage.cpp
+    HaloPage.cpp
     XamlResourcesPage.cpp
     CustomXamlConditionalsPage.cpp
     Icons.cpp
