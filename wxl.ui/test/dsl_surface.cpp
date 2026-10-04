@@ -1824,3 +1824,56 @@ struct probe_task {
     };
     LayoutPanel{layout = custom};
 }
+
+// SettingsCard -- written by hand, so its schema lines are too.
+[[maybe_unused]] void SettingsCard_header_assigned(::wxl::SettingsCard const& object, ::wxl::Object const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::header = value);
+}
+[[maybe_unused]] void SettingsCard_description_assigned(::wxl::SettingsCard const& object, ::wxl::hstring const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::description = value);
+}
+[[maybe_unused]] void SettingsCard_headerIcon_assigned(::wxl::SettingsCard const& object, ::wxl::IconElement const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::headerIcon = value);
+}
+[[maybe_unused]] void SettingsCard_actionIcon_assigned(::wxl::SettingsCard const& object, ::wxl::IconElement const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::actionIcon = value);
+}
+[[maybe_unused]] void SettingsCard_isClickEnabled_assigned(::wxl::SettingsCard const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::isClickEnabled = value);
+}
+[[maybe_unused]] void SettingsCard_isActionIconVisible_assigned(::wxl::SettingsCard const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::isActionIconVisible = value);
+}
+[[maybe_unused]] void SettingsCard_contentAlignment_assigned(::wxl::SettingsCard const& object, ::wxl::SettingsCardContentAlignment value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::contentAlignment = value);
+}
+// The braces as the settings page writes them: the named members, the setting as the unnamed child, a click.
+[[maybe_unused]] void SettingsCard_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    SettingsCard{header = TextBlock{u"App theme"}, description = u"Select which app theme to display", headerIcon = FontIcon{glyph = u"x"},
+                 isClickEnabled = true, contentAlignment = SettingsCardContentAlignment::Vertical,
+                 onClick = [](Object const&, RoutedEventArgs&) {}, Button{u"Setting"}};
+}
+
+// SettingsExpander -- written by hand, so its schema lines are too.
+[[maybe_unused]] void SettingsExpander_header_assigned(::wxl::SettingsExpander const& object, ::wxl::Object const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::header = value);
+}
+[[maybe_unused]] void SettingsExpander_description_assigned(::wxl::SettingsExpander const& object, ::wxl::hstring const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::description = value);
+}
+[[maybe_unused]] void SettingsExpander_headerIcon_assigned(::wxl::SettingsExpander const& object, ::wxl::IconElement const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::headerIcon = value);
+}
+[[maybe_unused]] void SettingsExpander_isExpanded_assigned(::wxl::SettingsExpander const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::isExpanded = value);
+}
+// The braces as the settings page writes them: the head, its setting as the unnamed child, the cards of the list.
+[[maybe_unused]] void SettingsExpander_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    SettingsExpander{header = TextBlock{u"Sound"}, description = u"Audible feedback", isExpanded = true,
+                     onExpanding = [](Object const&, Object const&) {}, ToggleSwitch{},
+                     items[SettingsCard{header = TextBlock{u"Spatial audio"}}]};
+}
