@@ -22,6 +22,7 @@
 
 #include "ui.h"
 #include "Bind.h"
+#include "AvailableSizeLayout.h"
 #include "CustomLayout.h"
 #include "launch.h"
 #include <wxl/Microsoft.UI.Xaml.Media.h>
@@ -132,7 +133,9 @@ wxl::Teardown wxl_launched() {
         },
     };
 
-    FrameworkElement body = LayoutPanel {layout = widthLayout, *page};
+    // lib: то же готовой раскладкой библиотеки (AvailableSizeLayout); счётчиков измерений в этом режиме нет.
+    FrameworkElement body = has("lib") ? LayoutPanel {layout = AvailableSizeLayout {availableWidth = BindInput {model->width}}, *page}
+                                       : LayoutPanel {layout = widthLayout, *page};
     if (has("inf")) {
         // Горизонтальный StackPanel измеряет детей с бесконечной шириной.
         body = StackPanel {orientation.horizontal, body};
@@ -140,7 +143,12 @@ wxl::Teardown wxl_launched() {
         // Горизонтальная прокрутка — то же.
         body = ScrollViewer {horizontalScrollBarVisibility = ScrollBarVisibility::Auto, horizontalScrollMode = ScrollMode::Auto, content = body};
     }
-    model->wide.on_change([](bool const&) noexcept { ++flips; });
+    model->wide.on_change([](bool const& wide) noexcept {
+        ++flips;
+        if (has("drag")) {
+            std::fprintf(logFile, "  flip to %s at width %.1f\n", wide ? "wide" : "narrow", model->width.get());
+        }
+    });
     if (has("nav") || has("navtop")) {
         // Контейнер — содержимое NavigationView: панель слева (nav, всегда раскрыта) или сверху (navtop).
         body = NavigationView {

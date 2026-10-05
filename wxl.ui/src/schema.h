@@ -31,6 +31,7 @@
 #include "SettingsCard.h"
 #include "SettingsExpander.h"
 #include "HeaderedContentControl.h"
+#include "AvailableSizeLayout.h"
 #include <wxl/schema.h>
 
 namespace wxl::dsl::schema {
@@ -126,5 +127,9 @@ struct SettingsExpander : ::wxl::dsl::schema::ContentControl {
 };
 struct HeaderedContentControl : ::wxl::dsl::schema::ContentControl {
     static constexpr ::wxl::Property<::wxl::PropertyKey::Header, ::wxl::Object, ::wxl::HeaderedContentControl> header{};
+};
+struct AvailableSizeLayout {
+    static constexpr ::wxl::Property<::wxl::PropertyKey::AvailableWidth, double, ::wxl::AvailableSizeLayout> availableWidth{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::AvailableHeight, double, ::wxl::AvailableSizeLayout> availableHeight{};
 };
 }  // namespace wxl::dsl::schema

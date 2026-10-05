@@ -1887,3 +1887,14 @@ struct probe_task {
     using namespace ::wxl::dsl;
     HeaderedContentControl{header = TextBlock{u"Name"}, TextBox{}};
 }
+// AvailableSizeLayout -- written by hand, so its schema lines are too. The two properties are reported, never taken:
+// BindInput is the one form they accept.
+[[maybe_unused]] void AvailableSizeLayout_availableWidth_bound(::wxl::AvailableSizeLayout const& object, ::wxl::core::observable<double>& field) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::AvailableSizeLayout::availableWidth = ::wxl::BindInput{field});
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::AvailableSizeLayout::availableHeight = ::wxl::BindInput{field});
+}
+[[maybe_unused]] void AvailableSizeLayout_in_braces(::wxl::core::observable<double>& width, ::wxl::core::observable<double>& height) {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    LayoutPanel{layout = AvailableSizeLayout{availableWidth = BindInput{width}, availableHeight = BindInput{height}}, TextBlock{u"page"}};
+}

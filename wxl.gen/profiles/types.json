@@ -156,6 +156,8 @@
     "handWrittenMembers": {
         "properties": [
             { "property": "ZoomFactor", "value": "double" },
+            { "property": "AvailableWidth", "value": "double" },
+            { "property": "AvailableHeight", "value": "double" },
             { "property": "Emboss", "value": "double" },
             { "property": "Gamma", "value": "double" },
             { "property": "HeaderIcon", "value": "IconElement" },
