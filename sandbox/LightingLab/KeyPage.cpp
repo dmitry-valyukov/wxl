@@ -14,7 +14,8 @@
 //
 // Нажатая клавиша показана пятью способами, каждый включается своим флажком:
 // кант переворачивается в стенки колодца, лампа пятна ныряет за пальцем,
-// пятно вспыхивает, знак уходит с клавишей, клавиша темнеет.
+// пятно вспыхивает, знак и сама клавиша уходят на единицу вниз и вправо,
+// клавиша темнеет.
 //
 // Спрайты клавиш -- с жёсткой границей: при мягкой ответ карты нормалей на
 // свет повёрнут. Гладкий край формы даёт маска в графе эффекта.
@@ -633,6 +634,18 @@ struct Keys {
         }
     }
 
+    // Клавиша уходит вместе со знаком: грани, лицо и притемнение сдвигаются вниз
+    // и вправо на ту же единицу, что знак, а чёрная обводка стоит на месте. Сверху
+    // и слева обводки становится видно вдвое больше, снизу и справа клавиша её
+    // закрывает.
+    void shift(int index, float by) {
+        Place const& place = places[index];
+        Vector3 const at {place.left + by, place.top + by, 0.0f};
+        rimSprites[index].offset(at);
+        faceSprites[index].offset(at);
+        shadeSprites[index].offset(at);
+    }
+
     // Нажатие берёт то, что отмечено в эту минуту; отпускание возвращает всё,
     // что нажатие могло тронуть, что бы ни было отмечено теперь.
     void press(int index) noexcept {
@@ -646,6 +659,7 @@ struct Keys {
             }
             if (pressMovesLabel.get()) {
                 labelDown.set(index);
+                shift(index, 1.0f);
             }
             if (pressDivesLamp.get()) {
                 dived = true;
@@ -669,6 +683,7 @@ struct Keys {
             rimSprites[index].brush(rimBrushes[places[index].kind]);
             shadeSprites[index].startAnimation(u"Opacity", toward(0.0f, releaseTime));
             labelDown.set(-1);
+            shift(index, 0.0f);
             dived = false;
             spot.light.properties().startAnimation(u"Height", toward(heightOf(spot), releaseTime));
             fade(spot, releaseTime);
@@ -754,7 +769,7 @@ lab::Experiment lab::keyPage() {
                                      model->pressFlipsRim),
                        lab::checkRow(u"Лампа пятна ныряет за пальцем", model->pressDivesLamp),
                        lab::checkRow(u"Вспышка пятна", model->pressFlashes),
-                       lab::checkRow(u"Знак уходит с клавишей", model->pressMovesLabel),
+                       lab::checkRow(u"Знак и клавиша уходят вниз и вправо на единицу", model->pressMovesLabel),
                        lab::checkRow(u"Клавиша темнеет", model->pressShades),
                        lab::toggleRow(u"Держать клавишу 5 нажатой", model->hold),
                        lab::sliderRow(u"Нырок: доля высоты лампы", model->diveDepth, 0.1, 1.0, 0.01),
