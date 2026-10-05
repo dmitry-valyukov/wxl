@@ -11,12 +11,18 @@
 // Ответы (2026-10-05): да на все три. На каждую смену размера функция измерения зовётся один раз, значения стоят в том же
 // проходе, ошибки цикла раскладки и падений нет: свойство (margin), присоединённое свойство (column: Border встаёт во вторую
 // колонку) и структура (child заменяется новым TextBlock) меняются из функции измерения до измерения ребёнка.
-// Не проверено: бесконечная доступная ширина, перетаскивание границы окна мышью, панель внутри NavigationView.
+// Внутри NavigationView (nav: панель слева, navtop: сверху) контейнер получает ширину своего места: при окне 900 и панели слева
+// это 563 -- ступень узкая, при панели сверху 884 -- широкая. По ширине окна обе были бы широкими.
+// Бесконечная доступная ширина (inf: горизонтальный StackPanel, scroll: горизонтальная прокрутка): ограничения нет, ступень --
+// самая широкая и за окном не следит (измерение при смене размера окна не повторяется).
+// Перетаскивание границы окна настоящей мышью (drag; скрипт тащит границу туда и обратно): 159 смен ширины -- 159 измерений,
+// ступень переключилась 2 раза (вниз и вверх через порог), падений нет; внутри NavigationView -- 164 и 164.
 //
 // Окно ставится в 1000, 500, 900, 500; через 1,2 с после каждого шага в PROBE_LOG пишется, что видно.
 
 #include "ui.h"
 #include "Bind.h"
+#include "AvailableSizeLayout.h"
 #include "CustomLayout.h"
 #include "launch.h"
 #include <wxl/Microsoft.UI.Xaml.Media.h>
@@ -50,6 +56,13 @@ std::optional<TextBlock> headerText;
 std::optional<Border> options;
 std::optional<Border> host;
 int measures = 0;
+int totalMeasures = 0;
+int widthChanges = 0;
+int flips = 0;
+float lastWidth = -1;
+float narrowest = 1e9f;
+float widest = 0;
+bool sawInfinite = false;
 
 void report(char const* when) {
     auto const x = options->transformToVisual(*page).transformPoint({0, 0}).x;
@@ -95,6 +108,20 @@ wxl::Teardown wxl_launched() {
     auto const widthLayout = CustomLayout {
         [](Collection<UIElement> const& children, Size available) {
             ++measures;
+            ++totalMeasures;
+            if (available.width != lastWidth) {
+                ++widthChanges;
+                lastWidth = available.width;
+                if (std::isfinite(available.width)) {
+                    narrowest = std::min(narrowest, available.width);
+                    widest = std::max(widest, available.width);
+                }
+            }
+            if (!std::isfinite(available.width) && !sawInfinite) {
+                sawInfinite = true;
+                std::fprintf(logFile, "measure: available width is infinite\n");
+                std::fflush(logFile);
+            }
             // Источник: ширина, которую дал родитель. Привязки срабатывают здесь, до измерения ребёнка.
             model->width.set(available.width);
             children[0].measure(available);
@@ -106,13 +133,55 @@ wxl::Teardown wxl_launched() {
         },
     };
 
-    mainWindow = Window {title = u"Available width probe", content = LayoutPanel {layout = widthLayout, *page}};
+    // lib: то же готовой раскладкой библиотеки (AvailableSizeLayout); счётчиков измерений в этом режиме нет.
+    FrameworkElement body = has("lib") ? LayoutPanel {layout = AvailableSizeLayout {availableWidth = BindInput {model->width}}, *page}
+                                       : LayoutPanel {layout = widthLayout, *page};
+    if (has("inf")) {
+        // Горизонтальный StackPanel измеряет детей с бесконечной шириной.
+        body = StackPanel {orientation.horizontal, body};
+    } else if (has("scroll")) {
+        // Горизонтальная прокрутка — то же.
+        body = ScrollViewer {horizontalScrollBarVisibility = ScrollBarVisibility::Auto, horizontalScrollMode = ScrollMode::Auto, content = body};
+    }
+    model->wide.on_change([](bool const& wide) noexcept {
+        ++flips;
+        if (has("drag")) {
+            std::fprintf(logFile, "  flip to %s at width %.1f\n", wide ? "wide" : "narrow", model->width.get());
+        }
+    });
+    if (has("nav") || has("navtop")) {
+        // Контейнер — содержимое NavigationView: панель слева (nav, всегда раскрыта) или сверху (navtop).
+        body = NavigationView {
+            isBackButtonVisible = NavigationViewBackButtonVisible::Collapsed,
+            isSettingsVisible = false,
+            paneDisplayMode = has("navtop") ? NavigationViewPaneDisplayMode::Top : NavigationViewPaneDisplayMode::Left,
+            menuItems[NavigationViewItem {content = u"One"}, NavigationViewItem {content = u"Two"}],
+            content = body,
+        };
+    }
+    mainWindow = Window {title = u"Available width probe", content = body};
     mainWindow->appWindow().resize({1000, 600});
     mainWindow->activate();
 
     timer = DispatcherQueue::getForCurrentThread().createTimer();
     timer->interval(std::chrono::milliseconds {1200});
     timer->add_onTick([step = 0](auto&&...) mutable {
+        if (has("drag")) {
+            // Размер меняет не проба, а мышь снаружи (границу окна тащат туда и обратно); проба считает проходы.
+            if (step == 0) {
+                report("start, window 1000");
+                totalMeasures = 0; widthChanges = 0; flips = 0; narrowest = 1e9f; widest = 0;
+            } else if (step == 10) {
+                std::fprintf(logFile, "drag totals: measures %d  width changes %d  step flips %d  width range %.0f..%.0f\n", totalMeasures,
+                             widthChanges, flips, narrowest, widest);
+                report("after drag");
+                timer->stop();
+                std::fclose(logFile);
+                mainWindow->close();
+            }
+            ++step;
+            return;
+        }
         switch (step++) {
         case 0: report("start, window 1000"); mainWindow->appWindow().resize({500, 600}); break;
         case 1: report("window 500 (expect narrow)"); mainWindow->appWindow().resize({900, 600}); break;
