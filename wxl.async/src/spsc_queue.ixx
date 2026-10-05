@@ -9,6 +9,12 @@ import std;
 
 export namespace wxl::async {
 
+// The alignas members below are meant to cost padding: that is what keeps the lines
+// apart. C4324 reports the padding at level 4, and for a template it fires where the
+// class is laid out -- in a consumer built with /W4 -- so it is silenced here, at the
+// declaration, which is the one place that knows the padding is the point.
+#pragma warning(push)
+#pragma warning(disable : 4324)  // structure was padded due to alignment specifier
 /// Unbounded queue for exactly one writing and one reading thread, made of blocks of
 /// `block_size` elements. Neither side ever waits, nothing here is a read-modify-write, and
 /// what a burst makes the queue grow stops being touched once the burst is over.
@@ -189,6 +195,7 @@ private:
     // the slot is free again. Its own line, since the reader reads it.
     alignas(std::hardware_destructive_interference_size) std::atomic<size_t> taken_{};
 };
+#pragma warning(pop)
 
 template <class element_t, size_t block_size>
 spsc_queue<element_t, block_size>::~spsc_queue() {
