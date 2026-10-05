@@ -19,6 +19,9 @@
 #include <wxl/Microsoft.Windows.AppNotifications.h>
 #include <wxl/Microsoft.UI.Windowing.h>
 
+import wxl.async;
+import wxl.core;
+
 using namespace wxl;
 using namespace wxl::dsl;
 
@@ -72,22 +75,30 @@ void loadState() {
     }
 }
 
-void saveState() {
+// Файл пишется целиком с заменой операцией wxl и не в потоке окна: прежде
+// ofstream писал его прямо из обработчиков. Два сохранения подряд не
+// обгоняют друг друга по смыслу — каждое несёт полное состояние, а за
+// одним переходом второй следует не раньше, чем через человеческую паузу.
+// Сохранение, которое не удалось, молчит: без этого файла Gallery всего
+// лишь забудет недавние, а окно с ошибкой при каждом переходе было бы хуже.
+async::detached_task saveState() {
     auto const file = stateFile();
     if (file.empty()) {
-        return;
+        co_return;
     }
-    std::error_code ignored;
-    std::filesystem::create_directories(file.parent_path(), ignored);
-    std::ofstream output{file, std::ios::trunc};
-    auto const narrow = [](std::wstring const& text) { return std::string{text.begin(), text.end()}; };
+    std::string text;
+    auto const narrow = [](std::wstring const& id) { return std::string{id.begin(), id.end()}; };
     for (auto const& id : recent) {
-        output << "recent " << narrow(id) << '\n';
+        text += "recent " + narrow(id) + '\n';
     }
     for (auto const& id : favorite) {
-        output << "favorite " << narrow(id) << '\n';
+        text += "favorite " + narrow(id) + '\n';
     }
-    output << "size " << savedSize.width << ' ' << savedSize.height << '\n';
+    text += std::format("size {} {}\n", savedSize.width, savedSize.height);
+    try {
+        co_await async::async_file::write_all(core::path(std::wstring_view(file.native())), std::move(text));
+    } catch (async::system_exception const&) {
+    }
 }
 
 // ---- Имена пунктов панели --------------------------------------------------
