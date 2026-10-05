@@ -95,6 +95,15 @@ public:
     }
     ///@}
 
+    /// \return `true` if there is a file at this path. A directory there is not
+    ///         a file, and answers `false` -- the mirror of `directory::exists`.
+    inline static bool exists(const wchar_t* path) noexcept {
+        const DWORD attributes = ::GetFileAttributesW(path);
+
+        return attributes != INVALID_FILE_ATTRIBUTES &&
+               (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    }
+
     inline bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
 
     /// The file's length, or none when it cannot be had.
