@@ -198,6 +198,25 @@ struct declared_members {
 
 declared_members declared_members_of(winmd::reader::TypeDef const& type);
 
+// An interface private to one class (ExclusiveToAttribute): the class's
+// default, static, factory and overridable interfaces.
+bool is_exclusive_interface(winmd::reader::TypeDef const& type);
+
+// A type's members by where they come from. `own` -- what the type declares
+// and, for a class, what the interfaces exclusive to it declare, without the
+// names a standalone interface declares (a class declares again what it
+// implements). `implemented`
+// -- each standalone interface the class implements or the interface requires,
+// in metadata order, with what it declares itself; the metadata lists the
+// required interfaces in full, not only the direct ones. Generic
+// instantiations are left out: the type map projects them.
+struct member_sources {
+    declared_members own;
+    std::vector<std::pair<winmd::reader::TypeDef, declared_members>> implemented;
+};
+
+member_sources member_sources_of(winmd::reader::TypeDef const& type);
+
 // One declaration of a member: the type that declares it -- the type itself or
 // an interface it implements -- and its definition there.
 struct member_declaration {

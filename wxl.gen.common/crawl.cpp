@@ -101,29 +101,29 @@ TypeDef resolve_interface(coded_index<TypeDefOrRef> const& ref) {
 // dependency-property identifiers are left out unless asked for: the walk never
 // generates them, and only a viewer of the metadata shows them.
 template <typename Visit>
-void visit_declared_members(TypeDef const& type, bool dependency_properties, Visit&& visit) {
-    auto const collect = [&visit, dependency_properties](TypeDef const& source) {
-        for (auto&& property : source.PropertyList()) {
-            if (dependency_properties || !is_dependency_property_accessor(property)) {
-                visit(member_kind::Property, property.Name(),
-                      member_declaration {source, property});
-            }
+void visit_source_members(TypeDef const& source, bool dependency_properties, Visit&& visit) {
+    for (auto&& property : source.PropertyList()) {
+        if (dependency_properties || !is_dependency_property_accessor(property)) {
+            visit(member_kind::Property, property.Name(), member_declaration {source, property});
         }
-        for (auto&& event : source.EventList()) {
-            visit(member_kind::Event, event.Name(), member_declaration {source, event});
+    }
+    for (auto&& event : source.EventList()) {
+        visit(member_kind::Event, event.Name(), member_declaration {source, event});
+    }
+    for (auto&& method : source.MethodList()) {
+        if (is_plain_method(method)) {
+            visit(member_kind::Method, method.Name(), member_declaration {source, method});
         }
-        for (auto&& method : source.MethodList()) {
-            if (is_plain_method(method)) {
-                visit(member_kind::Method, method.Name(), member_declaration {source, method});
-            }
-        }
-    };
+    }
+}
 
-    collect(type);
+template <typename Visit>
+void visit_declared_members(TypeDef const& type, bool dependency_properties, Visit&& visit) {
+    visit_source_members(type, dependency_properties, visit);
     if (get_category(type) == category::class_type) {
         for (auto&& impl : type.InterfaceImpl()) {
             if (auto const resolved = resolve_interface(impl.Interface())) {
-                collect(resolved);
+                visit_source_members(resolved, dependency_properties, visit);
             }
         }
     }
@@ -767,23 +767,87 @@ bool is_predefined(TypeDef const& type, type_map const& types) {
     return type && types.predefined.count(full_name(type)) != 0;
 }
 
-declared_members declared_members_of(TypeDef const& type) {
-    declared_members members;
-    visit_declared_members(type, true, [&members](member_kind kind, std::string_view name, member_declaration const&) {
+namespace {
+
+// Collects names by kind; finish() sorts them and keeps each once.
+struct member_names {
+    declared_members& into;
+
+    void operator()(member_kind kind, std::string_view name, member_declaration const&) const {
         switch (kind) {
-            case member_kind::Property: members.properties.push_back(name); break;
-            case member_kind::Method: members.methods.push_back(name); break;
-            case member_kind::Event: members.events.push_back(name); break;
-            case member_kind::Constant: members.constants.push_back(name); break;
+            case member_kind::Property: into.properties.push_back(name); break;
+            case member_kind::Method: into.methods.push_back(name); break;
+            case member_kind::Event: into.events.push_back(name); break;
+            case member_kind::Constant: into.constants.push_back(name); break;
         }
-    });
+    }
+
     // A method overloaded by arity is declared once per overload, and a
     // profile names it once.
-    for (auto* names : {&members.properties, &members.methods, &members.events}) {
-        std::ranges::sort(*names);
-        names->erase(std::ranges::unique(*names).begin(), names->end());
+    void finish() const {
+        for (auto* names : {&into.properties, &into.methods, &into.events}) {
+            std::ranges::sort(*names);
+            names->erase(std::ranges::unique(*names).begin(), names->end());
+        }
     }
+};
+
+}  // namespace
+
+declared_members declared_members_of(TypeDef const& type) {
+    declared_members members;
+    member_names const names {members};
+    visit_declared_members(type, true, names);
+    names.finish();
     return members;
+}
+
+bool is_exclusive_interface(TypeDef const& type) {
+    return get_category(type) == category::interface_type &&
+           static_cast<bool>(find_attribute(type, "ExclusiveToAttribute"));
+}
+
+member_sources member_sources_of(TypeDef const& type) {
+    member_sources sources;
+    member_names const own {sources.own};
+    visit_source_members(type, true, own);
+    // An enum's members are its enumerators, in declaration order.
+    if (get_category(type) == category::enum_type) {
+        for (auto&& field : type.FieldList()) {
+            if (field.Flags().Literal()) {
+                own(member_kind::Constant, field.Name(), member_declaration {type, field});
+            }
+        }
+    }
+    auto const shape = get_category(type);
+    if (shape == category::class_type || shape == category::interface_type) {
+        for (auto&& impl : type.InterfaceImpl()) {
+            TypeDef const resolved = resolve_interface(impl.Interface());
+            if (!resolved) {
+                continue;  // a generic instantiation: the type map projects it
+            }
+            if (is_exclusive_interface(resolved)) {
+                visit_source_members(resolved, true, own);
+            } else {
+                auto& [source, members] = sources.implemented.emplace_back(resolved, declared_members {});
+                member_names const names {members};
+                visit_source_members(resolved, true, names);
+                names.finish();
+            }
+        }
+    }
+    own.finish();
+    // A class declares again every member it implements, and its own list
+    // would repeat what the interfaces it implements show: a name a
+    // standalone interface declares is that interface's.
+    for (auto const& [source, members] : sources.implemented) {
+        for (auto [mine, theirs] : {std::pair {&sources.own.properties, &members.properties},
+                                    std::pair {&sources.own.methods, &members.methods},
+                                    std::pair {&sources.own.events, &members.events}}) {
+            std::erase_if(*mine, [theirs](std::string_view name) { return std::ranges::contains(*theirs, name); });
+        }
+    }
+    return sources;
 }
 
 std::vector<member_declaration> declarations_of(TypeDef const& type, member_kind kind, std::string_view name) {

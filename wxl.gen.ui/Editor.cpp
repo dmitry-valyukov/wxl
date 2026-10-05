@@ -13,6 +13,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -42,6 +43,10 @@ constexpr RowIcon eventIcon {0xE617, rgb(239, 108, 0), rgb(239, 108, 0)};       
 constexpr RowIcon constantIcon {0xF0544, rgb(74, 20, 140), rgb(186, 104, 200)};  // storage: как у перечисления
 constexpr RowIcon styleIcon {0xF355, rgb(0, 96, 100), rgb(178, 235, 242)};       // design_ideas: тёмно-светло-бирюзовый
 constexpr RowIcon brushIcon {0xF591, rgb(183, 28, 28), rgb(255, 171, 145)};      // paint_brush: красно-персиковый
+
+// IClosable: его close() есть у всякого, кто его поддерживает; в проекции это
+// база wxl::Closable.
+constexpr std::string_view closableInterface = "Windows.Foundation.IClosable";
 
 // Текст метаданных в разметку HtmlBlock: знаки разметки — сущностями.
 void append_text(std::wstring& html, std::string_view utf8) {
@@ -471,14 +476,21 @@ public:
             if (name.empty()) {
                 continue;
             }
-            // Показываются только классы, структуры и перечисления; пространство,
-            // где их нет, не показывается вовсе. Списки кэша, а не категория типа:
+            // Показываются классы, структуры, перечисления и интерфейсы;
+            // пространство, где их нет, не показывается вовсе. Списки кэша, а не категория типа:
             // атрибуты — тоже классы, а контракты — структуры, и кэш держит их
             // отдельно.
             for (auto&& [kind, icon] : {std::pair {&members.classes, &classIcon},
                                         std::pair {&members.structs, &structIcon},
-                                        std::pair {&members.enums, &enumIcon}}) {
+                                        std::pair {&members.enums, &enumIcon},
+                                        std::pair {&members.interfaces, &interfaceIcon}}) {
                 for (auto&& def : *kind) {
+                    // Из интерфейсов — только самостоятельные: служебные
+                    // интерфейсы класса видны его членами, обобщённые
+                    // проецирует карта типов.
+                    if (icon == &interfaceIcon && (def.TypeName().contains('`') || is_exclusive_interface(def))) {
+                        continue;
+                    }
                     Library& library = *std::ranges::lower_bound(
                         bySource, &def.get_database(), {}, &std::pair<md::database const*, Library*>::first)->second;
                     // Пространства идут по имени, поэтому своё у файла — последнее.
@@ -835,7 +847,7 @@ private:
         append_bold(html, library.name);
         html += L"<br>";
         append_text(html, library.source->path());
-        html += std::format(L"<p>{} namespaces, {} classes, structs and enums</p>", library.namespaces.size(), types);
+        html += std::format(L"<p>{} namespaces, {} classes, structs, enums and interfaces</p>", library.namespaces.size(), types);
         return html;
     }
 
@@ -843,17 +855,21 @@ private:
         size_t classes = 0;
         size_t structs = 0;
         size_t enums = 0;
+        size_t interfaces = 0;
         size_t args = 0;
         for (TypeEntry const& type : space.types) {
-            (type.icon == &classIcon ? classes : type.icon == &structIcon ? structs : enums) += 1;
+            (type.icon == &classIcon     ? classes
+             : type.icon == &structIcon  ? structs
+             : type.icon == &enumIcon    ? enums
+                                         : interfaces) += 1;
             args += type.eventArgs ? 1 : 0;
         }
         std::wstring html = L"namespace ";
         append_bold(html, space.name);
         html += L"<br>Library ";
         append_text(html, library.name);
-        html += std::format(L"<p>{} classes ({} of them event args), {} structs, {} enums</p>", classes, args, structs,
-                            enums);
+        html += std::format(L"<p>{} classes ({} of them event args), {} structs, {} enums, {} interfaces</p>", classes,
+                            args, structs, enums, interfaces);
         return html;
     }
 
@@ -1088,9 +1104,8 @@ public:
         std::visit([this, name](auto const& definition) { member(definition, name); }, declaration.definition);
     }
 
-private:
-    void named(std::string_view ns, std::string_view name) override {
-        std::string const full = std::format("{}.{}", ns, name);
+    // Тип по полному имени — ссылкой, если он есть в метаданных.
+    void named(std::string_view full) {
         if (types_.knows(full)) {
             html_ += L"<a href=\"";
             append_text(html_, full);
@@ -1101,6 +1116,9 @@ private:
             append_text(html_, full);
         }
     }
+
+private:
+    void named(std::string_view ns, std::string_view name) override { named(std::format("{}.{}", ns, name)); }
 
     void text(std::string_view utf8) override { append_text(html_, utf8); }
 
@@ -1313,10 +1331,34 @@ std::vector<member_declaration> shown_declarations(md::TypeDef const& type, memb
 
 }  // namespace
 
+namespace {
+
+// Самостоятельные интерфейсы, которые тип реализует или требует, — строкой
+// «Implements», как в документации Microsoft. Служебные интерфейсы класса
+// (ExclusiveTo) — его собственные члены, их строка не называет.
+void append_implements(std::wstring& html, TypesModel const& types, md::TypeDef const& type) {
+    bool first = true;
+    for (auto&& impl : type.InterfaceImpl()) {
+        auto const ref = impl.Interface();
+        if (ref.type() != md::TypeDefOrRef::TypeSpec) {
+            if (md::TypeDef const resolved = md::find(ref); resolved && is_exclusive_interface(resolved)) {
+                continue;
+            }
+        }
+        html += first ? L"<br>Implements " : L", ";
+        first = false;
+        SignatureWriter {html, types, type}.type(ref);
+    }
+}
+
+}  // namespace
+
 std::wstring TypesModel::typeInfo(Namespace const& space, TypeEntry const& type) const {
     std::wstring html;
     if (type.icon == &classIcon) {
         html += type.def.Flags().Sealed() ? L"sealed class " : L"class ";
+    } else if (type.icon == &interfaceIcon) {
+        html += L"interface ";
     } else {
         html += type.icon == &structIcon ? L"struct " : L"enum ";
     }
@@ -1336,6 +1378,7 @@ std::wstring TypesModel::typeInfo(Namespace const& space, TypeEntry const& type)
 
     html += L"<br>Member of ";
     append_bold(html, space.name);
+    append_implements(html, *this, type.def);
 
     auto const& types = editor_.data_->prof.types;
     auto const found = types.find(full_name(type.def));
@@ -1353,13 +1396,18 @@ public:
           entry_(entry),
           name_(std::format("{}.{}", entry.def.TypeNamespace(), entry.def.TypeName())),
           enum_(md::get_category(entry.def) == md::category::enum_type) {
-        auto declared = declared_members_of(entry.def);
+        // Свои члены — тремя группами; под ними по группе на каждый
+        // самостоятельный интерфейс, который тип реализует или требует.
+        auto const sources = member_sources_of(entry.def);
         if (enum_) {
-            addGroup("Values", member_kind::Constant, &constantIcon, declared.constants);
+            addGroup("Values", member_kind::Constant, &constantIcon, sources.own.constants);
         } else {
-            addGroup("Properties", member_kind::Property, &propertyIcon, declared.properties);
-            addGroup("Methods", member_kind::Method, &methodIcon, declared.methods);
-            addGroup("Events", member_kind::Event, &eventIcon, declared.events);
+            addGroup("Properties", member_kind::Property, &propertyIcon, sources.own.properties);
+            addGroup("Methods", member_kind::Method, &methodIcon, sources.own.methods);
+            addGroup("Events", member_kind::Event, &eventIcon, sources.own.events);
+        }
+        for (auto const& [source, members] : sources.implemented) {
+            addInterfaceGroup(source, members);
         }
         refilter();
     }
@@ -1398,7 +1446,7 @@ public:
                     .detail = count_,
                     .icon = group->icon,
                     .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .check = entry_.predefined ? Check::Disabled : groupCheck(*group),
+                    .check = groupCheck(*group),
                     .selected = group == selected_.first && !selected_.second};
         }
 
@@ -1406,8 +1454,8 @@ public:
         return {.text = member.name,
                 .detail = member.brief,
                 .depth = 1,
-                .icon = group->icon,
-                .check = entry_.predefined ? Check::Disabled : allows(member.name) ? Check::Checked : Check::Unchecked,
+                .icon = member.icon,
+                .check = memberCheck(*group, member),
                 .selected = &member == selected_.second};
     }
 
@@ -1425,6 +1473,9 @@ public:
             return;
         }
         auto const [group, at] = locate(index);
+        if (group->locked) {
+            return;
+        }
         profile& prof = editor_.data_->prof;
         bool const styled = editor_.data_->styled.contains(name_);
         if (at == npos) {
@@ -1488,10 +1539,21 @@ public:
         }
         if (!member) {
             std::wstring html;
-            append_bold(html, group->title);
-            html += L"<br>Members of ";
+            if (group->source) {
+                html += L"interface ";
+                SignatureWriter {html, *editor_.types_, group->source}.type(
+                    group->source.coded_index<md::TypeDefOrRef>());
+                html += L"<br>Implemented by ";
+            } else {
+                append_bold(html, group->title);
+                html += L"<br>Members of ";
+            }
             SignatureWriter {html, *editor_.types_, entry_.def}.type(entry_.def.coded_index<md::TypeDefOrRef>());
-            html += std::format(L"<p>Profile: {} of {} generated", chosen(*group), group->shown.size());
+            if (group->locked) {
+                html += L"<p>Profile: always generated: a closable type is a wxl::Closable";
+            } else {
+                html += std::format(L"<p>Profile: {} of {} generated", chosen(*group), group->shown.size());
+            }
             if (size_t const hidden = group->all.size() - group->shown.size()) {
                 html += std::format(L"<br>{} dependency properties hidden", hidden);
             }
@@ -1502,7 +1564,7 @@ public:
         // Метод — каждой перегрузкой, строкой на каждую.
         std::string_view const name = member->name;
         std::vector<std::pair<std::wstring, wxl::core::nullable<member_documentation const>>> lines;
-        for (member_declaration const& declaration : shown_declarations(entry_.def, group->kind, name)) {
+        for (member_declaration const& declaration : declarationsOf(*group, *member)) {
             std::wstring line;
             SignatureWriter {line, *editor_.types_, declaration.source}.write(declaration, name);
             if (std::ranges::find(lines, line, &decltype(lines)::value_type::first) == lines.end()) {
@@ -1517,7 +1579,13 @@ public:
         }
         html += L"Member of ";
         SignatureWriter {html, *editor_.types_, entry_.def}.type(entry_.def.coded_index<md::TypeDefOrRef>());
-        html += allows(name) ? L"<p>Profile: generated</p>" : L"<p>Profile: not generated</p>";
+        if (group->source) {
+            html += L", through ";
+            SignatureWriter {html, *editor_.types_, group->source}.type(group->source.coded_index<md::TypeDefOrRef>());
+        }
+        html += group->locked  ? L"<p>Profile: always generated</p>"
+                : allows(name) ? L"<p>Profile: generated</p>"
+                               : L"<p>Profile: not generated</p>";
 
         // У перегрузок документация у каждой своя — под её сигнатурой.
         for (auto const& [line, documentation] : lines) {
@@ -1528,7 +1596,7 @@ public:
                 append_documentation(html, **documentation);
             }
         }
-        return {group->icon, std::move(html)};
+        return {member->icon, std::move(html)};
     }
 
 private:
@@ -1537,6 +1605,8 @@ private:
     // Член, каким он прочитан один раз при открытии типа.
     struct Member {
         std::string_view name;
+        member_kind kind;
+        RowIcon const* icon = nullptr;
         std::string brief;  // объявление серым после имени; у перегрузок — первое и их число
         // Идентификатор свойства зависимостей: статическое свойство только
         // для чтения с именем на Property.
@@ -1545,8 +1615,12 @@ private:
 
     struct Group {
         std::string_view title;
-        member_kind kind;
         RowIcon const* icon = nullptr;
+        // Интерфейс, чьи члены в группе; пусто — свои члены типа.
+        md::TypeDef source;
+        // IClosable: его close() есть у всякого, кто его поддерживает, —
+        // отмечать нечего.
+        bool locked = false;
         std::vector<Member> all;
         std::vector<Member const*> shown;  // показываемые из all
         bool expanded = true;
@@ -1562,25 +1636,53 @@ private:
         if (names.empty()) {
             return;
         }
-        Group& group = groups_.emplace_back(Group {title, kind, icon});
+        Group& group = groups_.emplace_back(Group {title, icon});
         group.all.reserve(names.size());
         for (std::string_view const name : names) {
-            Member& member = group.all.emplace_back(Member {name});
-            std::vector<std::string> briefs;
-            for (member_declaration const& declaration : shown_declarations(entry_.def, kind, name)) {
-                if (auto const* property = std::get_if<md::Property>(&declaration.definition)) {
-                    member.dependency = member.dependency || isDependencyProperty(*property, name);
-                }
-                if (std::string brief = BriefSignature::of(declaration, name); !std::ranges::contains(briefs, brief)) {
-                    briefs.push_back(std::move(brief));
-                }
+            addMember(group, name, kind, icon);
+        }
+    }
+
+    // Группа интерфейса: члены всех видов, каждый со своим значком.
+    void addInterfaceGroup(md::TypeDef const& source, declared_members const& members) {
+        if (members.properties.empty() && members.methods.empty() && members.events.empty()) {
+            return;
+        }
+        Group& group = groups_.emplace_back(Group {source.TypeName(), &interfaceIcon, source});
+        group.locked = full_name(source) == closableInterface;
+        group.expanded = false;
+        for (auto const& [names, kind, icon] : {std::tuple {&members.properties, member_kind::Property, &propertyIcon},
+                                                std::tuple {&members.methods, member_kind::Method, &methodIcon},
+                                                std::tuple {&members.events, member_kind::Event, &eventIcon}}) {
+            for (std::string_view const name : *names) {
+                addMember(group, name, kind, icon);
             }
-            if (!briefs.empty()) {
-                member.brief = std::move(briefs.front());
+        }
+    }
+
+    // Объявления члена: свои — как их показывать у типа, члены интерфейса —
+    // в самом интерфейсе.
+    std::vector<member_declaration> declarationsOf(Group const& group, Member const& member) const {
+        return group.source ? declarations_of(group.source, member.kind, member.name)
+                            : shown_declarations(entry_.def, member.kind, member.name);
+    }
+
+    void addMember(Group& group, std::string_view name, member_kind kind, RowIcon const* icon) {
+        Member& member = group.all.emplace_back(Member {name, kind, icon});
+        std::vector<std::string> briefs;
+        for (member_declaration const& declaration : declarationsOf(group, member)) {
+            if (auto const* property = std::get_if<md::Property>(&declaration.definition)) {
+                member.dependency = member.dependency || isDependencyProperty(*property, name);
             }
-            if (briefs.size() > 1) {
-                member.brief += std::format("  +{} overload{}", briefs.size() - 1, briefs.size() > 2 ? "s" : "");
+            if (std::string brief = BriefSignature::of(declaration, name); !std::ranges::contains(briefs, brief)) {
+                briefs.push_back(std::move(brief));
             }
+        }
+        if (!briefs.empty()) {
+            member.brief = std::move(briefs.front());
+        }
+        if (briefs.size() > 1) {
+            member.brief += std::format("  +{} overload{}", briefs.size() - 1, briefs.size() > 2 ? "s" : "");
         }
     }
 
@@ -1608,11 +1710,31 @@ private:
     }
 
     size_t chosen(Group const& group) const {
+        if (group.locked) {
+            return group.shown.size();
+        }
         return static_cast<size_t>(
             std::ranges::count_if(group.shown, [this](Member const* member) { return allows(member->name); }));
     }
 
+    // Предопределённому типу отмечать нечего; член IClosable есть всегда.
+    Check memberCheck(Group const& group, Member const& member) const {
+        if (entry_.predefined) {
+            return Check::Disabled;
+        }
+        if (group.locked) {
+            return Check::Locked;
+        }
+        return allows(member.name) ? Check::Checked : Check::Unchecked;
+    }
+
     Check groupCheck(Group const& group) const {
+        if (entry_.predefined) {
+            return Check::Disabled;
+        }
+        if (group.locked) {
+            return Check::Locked;
+        }
         size_t const count = chosen(group);
         if (count == 0) {
             return Check::Unchecked;
@@ -1686,8 +1808,21 @@ public:
         }
         html += L"<br>Member of ";
         append_bold(html, def_.TypeNamespace());
-        html += types.lists(full_name(def_)) ? L"<p>Hidden in the Types tree by the settings.</p>"
-                         : L"<p>Not in the Types tree: the profile lists classes, structs and enums.</p>";
+        append_implements(html, types, def_);
+        // Почему типа нет в дереве.
+        if (types.lists(full_name(def_))) {
+            html += L"<p>Hidden in the Types tree by the settings.</p>";
+        } else if (is_exclusive_interface(def_)) {
+            html += L"<p>Not in the Types tree: exclusive to ";
+            for (std::string_view const owner : types_named_by(find_attribute(def_, "ExclusiveToAttribute"))) {
+                SignatureWriter {html, types, def_}.named(owner);
+            }
+            html += L", whose members it declares.</p>";
+        } else if (def_.TypeName().contains('`')) {
+            html += L"<p>Not in the Types tree: a generic interface, projected through the type map.</p>";
+        } else {
+            html += L"<p>Not in the Types tree: delegates and attributes are not listed.</p>";
+        }
 
         // Члены — объявлениями, со ссылками на их типы. У делегата член один —
         // Invoke, сигнатура вызова; он помечен особым именем, и обход членов
