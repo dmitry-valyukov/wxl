@@ -17,8 +17,8 @@ export namespace wxl::async {
 /// there is one, and `sta_loop` is static.
 ///
 /// The same split between what may be left to finish alone and what is waited
-/// for: opening, exists(), create_all() and remove() own what they touch and are
-/// orphanable; next() and close() borrow this object.
+/// for: opening, list(), exists(), create_all() and remove() own what they touch
+/// and are orphanable; next() and close() borrow this object.
 ///
 /// A listing is worth having asynchronous even more than a file is. A directory
 /// on a network share, or one with tens of thousands of names in it, keeps
@@ -28,6 +28,14 @@ class async_directory
 {
 public:
     using entry = core::directory::entry;
+
+    /// What list() brings back: an `entry` that owns its name, since the listing
+    /// it was read from is gone by the time anybody looks.
+    struct listed_entry {
+        std::wstring name;
+        bool is_directory = false;
+        std::uint64_t size = 0;
+    };
 
     async_directory() = default;
 
@@ -43,6 +51,18 @@ public:
     ///        and the worker is already holding it by then.
     /// \throw system_exception at the co_await if there is nothing to enumerate.
     static awaitable<async_directory> open(const core::path& pattern);
+
+    /// Everything the pattern matches, at once, in one operation that owns its
+    /// result -- orphanable, one round trip, for the folder a reader adds to its
+    /// shelf. The enumeration above is for the other case, the directory with
+    /// tens of thousands of names, where one trip per name is the point.
+    ///
+    /// A pattern that matches nothing is an empty answer, not a failure: the
+    /// directory is there and holds none of what was asked for.
+    ///
+    /// \throw system_exception at the co_await if there is no such directory,
+    ///        or it could not be read.
+    [[nodiscard]] static awaitable<std::vector<listed_entry>> list(const core::path& pattern);
 
     /// The next name, or nothing when the listing is over.
     ///

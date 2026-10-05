@@ -37,6 +37,123 @@ awaitable<async_file> async_file::create(const core::path& path) {
     });
 }
 
+awaitable<std::string> async_file::read_all(const core::path& path) {
+    return sta_loop::async_call(orphanable, [path](const orphan_stage& stage) {
+        core::file source = core::file::open_read(path.c_str());
+
+        if (!source.opened()) throw system_exception("CreateFileW");
+
+        const core::nullable<std::uint64_t> length = source.size();
+
+        if (!length) throw system_exception("GetFileSizeEx");
+
+        std::string bytes(static_cast<std::size_t>(*length), '\0');
+
+        // In pieces, so that a body given up between two of them leaves: the
+        // call under way is not cut short, a file read whole is not a pipe, and
+        // a piece is as long as the body is uninterruptible. The end of the file
+        // is reached early only if the file shrank since it was measured, and
+        // reaching it is the one short read that is not a failure.
+        constexpr std::size_t piece = 4 * 1024 * 1024;
+        std::size_t done = 0;
+
+        ::SetLastError(ERROR_SUCCESS);
+
+        while (done < bytes.size() && !stage.given_up()) {
+            const std::size_t got = source.read(std::as_writable_bytes(
+                std::span(bytes).subspan(done, std::min(piece, bytes.size() - done))));
+
+            if (got == 0) break;
+
+            done += got;
+        }
+
+        if (done < bytes.size()) {
+            if (stage.given_up()) return std::string();
+
+            if (const DWORD why = ::GetLastError(); why != ERROR_SUCCESS && why != ERROR_HANDLE_EOF)
+                throw system_exception("ReadFile", static_cast<int>(why));
+
+            bytes.resize(done);
+        }
+
+        return bytes;
+    });
+}
+
+awaitable<void> async_file::write_all(const core::path& path, std::string bytes) {
+    // All three names are made here, on the thread the pool belongs to: a path
+    // built inside the body would be built on whatever thread carries it.
+    std::wstring temporary_name(path.native());
+    temporary_name += L".tmp";
+
+    return sta_loop::async_call(
+        orphanable,
+        [target = path, temporary = core::path(std::wstring_view(temporary_name)),
+         parent = core::path(path.parent_path()),
+         bytes = std::move(bytes)](const orphan_stage& stage) mutable {
+            const auto wanted = [&stage] { return !stage.given_up(); };
+
+            core::file out = core::file::create(temporary.c_str());
+
+            // The directories are made only when the file could not be, and the
+            // save that finds them in place -- every save but the first -- pays
+            // for none of them.
+            if (!out.opened() && ::GetLastError() == ERROR_PATH_NOT_FOUND && !parent.empty()) {
+                if (!core::directory::create_all(parent, wanted))
+                    throw system_exception("CreateDirectoryW");
+
+                if (!wanted()) return;
+
+                out = core::file::create(temporary.c_str());
+            }
+
+            if (!out.opened()) throw system_exception("CreateFileW");
+
+            // A temporary left behind by a body given up or failed is deleted,
+            // best effort: the next save would overwrite it anyway, and nothing
+            // reads it.
+            const auto drop = [&] {
+                out.close();
+                ::DeleteFileW(temporary.c_str());
+            };
+
+            if (out.write(std::as_bytes(std::span(bytes))) != bytes.size()) {
+                const system_exception failure("WriteFile");
+                drop();
+                throw failure;
+            }
+
+            if (!wanted()) return drop();
+
+            // Pushed to the device before the rename: without that, a power cut
+            // could leave the rename done and the content not, and the name
+            // would point at zeroes.
+            if (!out.flush()) {
+                const system_exception failure("FlushFileBuffers");
+                drop();
+                throw failure;
+            }
+
+            out.close();
+
+            if (!wanted()) return (void)::DeleteFileW(temporary.c_str());
+
+            // WRITE_THROUGH, so that the rename itself reaches the disk rather
+            // than the cache before this returns.
+            if (!::MoveFileExW(temporary.c_str(), target.c_str(),
+                               MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                const system_exception failure("MoveFileExW");
+                ::DeleteFileW(temporary.c_str());
+                throw failure;
+            }
+        });
+}
+
+awaitable<bool> async_file::exists(const core::path& path) {
+    return sta_loop::async_call(orphanable, [path] { return core::file::exists(path.c_str()); });
+}
+
 awaitable<std::size_t> async_file::read(std::span<std::byte> into) {
     ensure(file_.opened() && "async_file: no file was opened");
 
