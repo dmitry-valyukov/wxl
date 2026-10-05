@@ -98,7 +98,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                         automationName = u"Navigation style",
                         ComboBoxItem {content = u"Left"},
                         ComboBoxItem {content = u"Top"},
-                        selectedIndex = 0,
+                        selectedIndex = gallery::navigationOnTop() ? 1 : 0,
                         onSelectionChanged = [](Object const& sender, SelectionChangedEventArgs&) {
                             gallery::setNavigationOnTop(sender.try_as<ComboBox>().selectedIndex() == 1);
                         },

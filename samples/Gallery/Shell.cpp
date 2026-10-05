@@ -533,6 +533,10 @@ void setNavigationOnTop(bool top) {
     }
 }
 
+bool navigationOnTop() {
+    return shell && shell->navigation.paneDisplayMode() == NavigationViewPaneDisplayMode::Top;
+}
+
 std::vector<std::wstring> const& recentlyVisited() {
     return recent;
 }

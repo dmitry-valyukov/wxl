@@ -28,6 +28,7 @@ void navigate(Destination destination);
 
 // Панель навигации сверху (Top) или слева (Auto) — настройка «Navigation style» страницы настроек.
 void setNavigationOnTop(bool top);
+bool navigationOnTop();
 
 // Модель, поля которой привязаны к элементам страницы, живёт, пока страница
 // на экране: привязка держит поле по адресу и не владеет им, а поле держит
