@@ -126,16 +126,17 @@ void lab::drawNormalMap(DrawingSurface const& surface, Relief relief, ReliefShap
 
 namespace {
 
-// Край скруглённого прямоугольника из точки, отсчитанной от его середины:
-// расстояние от края внутрь и куда край в этом месте смотрит -- наружу; оси
-// экрана.
+// Край клавиши из точки, отсчитанной от её середины в DIP: расстояние от края
+// скруглённого прямоугольника внутрь и куда край в этом месте смотрит --
+// наружу от клавиши; оси экрана.
 struct Edge {
     double inside;
     double gx, gy;
 };
 
-Edge edgeAt(double halfWidth, double halfHeight, double corner, double px, double py) {
-    double const radius = std::clamp(corner, 0.0, std::min(halfWidth, halfHeight));
+Edge edgeAt(lab::KeyRelief const& key, double px, double py) {
+    double const halfWidth = key.width / 2.0, halfHeight = key.height / 2.0;
+    double const radius = std::clamp(key.corner, 0.0, std::min(halfWidth, halfHeight));
     double const qx = std::abs(px) - (halfWidth - radius), qy = std::abs(py) - (halfHeight - radius);
     double const ox = std::max(qx, 0.0), oy = std::max(qy, 0.0);
 
@@ -154,21 +155,13 @@ Edge edgeAt(double halfWidth, double halfHeight, double corner, double px, doubl
     return edge;
 }
 
-// Внешний край канта из точки клавиши, отсчитанной от её середины в DIP. Кант
-// и лицо живут во внутренней форме: это форма клавиши, уменьшенная на отступ со
-// всех сторон и сдвинутая как целое. Внешняя форма клавиши при сдвиге стоит.
-Edge rimEdgeAt(lab::KeyRelief const& key, double px, double py) {
-    return edgeAt(std::max(key.width / 2.0 - key.margin, 0.0), std::max(key.height / 2.0 - key.margin, 0.0),
-                  std::max(key.corner - key.margin, 0.0), px - key.shiftX, py - key.shiftY);
-}
-
-// Доля того, что лежит глубже черты at от внешнего края канта: ноль снаружи
-// черты, единица внутри, между ними полоса шириной width вокруг неё.
-double shareBeyond(double inside, double at, double width) {
+// Доля лица в точке: ноль на канте, единица на лице, между ними полоса
+// шириной width вокруг стыка.
+double faceShare(lab::KeyRelief const& key, double inside, double width) {
     if (width <= 0.0) {
-        return inside >= at ? 1.0 : 0.0;
+        return inside >= key.rim ? 1.0 : 0.0;
     }
-    return std::clamp((inside - at) / width + 0.5, 0.0, 1.0);
+    return std::clamp((inside - key.rim) / width + 0.5, 0.0, 1.0);
 }
 
 // Нормаль клавиши в точке, отсчитанной от её середины в DIP; оси экрана.
@@ -176,14 +169,19 @@ Normal keyNormalAt(lab::KeyRelief const& key, double px, double py) {
     // Лицо -- шаровой сегмент одной кривизны по обеим осям: наклон растёт от
     // середины линейно и у края длинной стороны при полном emboss равен 0,6
     // (около 31 градуса). Купол клонит нормаль от середины, чаша -- к ней.
-    // Середина лица сдвигается вместе с кантом.
-    double const reach = std::max(std::max(key.width, key.height) / 2.0 - key.margin - key.rim, 1e-6);
+    double const reach = std::max(std::max(key.width, key.height) / 2.0 - key.rim, 1e-6);
     double const steepness = key.emboss * 0.6 / reach;
-    double const faceX = (px - key.shiftX) * steepness, faceY = (py - key.shiftY) * steepness;
+    double const faceX = px * steepness, faceY = py * steepness;
+    if (key.rim <= 0.0 || key.faceOnly) {
+        return unit(faceX, faceY, 1.0);
+    }
 
-    Edge const edge = rimEdgeAt(key, px, py);
-    double slope = key.rim > 0.0 ? key.slope : 0.0;
-    if (key.rounded && key.rim > 0.0) {
+    // Кант продолжается и за краем формы: край там сглаживает маска, и под её
+    // полупрозрачными пикселями должна лежать нормаль канта, а не плоскость --
+    // иначе под лампой над указателем они светлее самого канта.
+    Edge const edge = edgeAt(key, px, py);
+    double slope = key.slope;
+    if (key.rounded) {
         // Четверть круга: у лица кант пологий, у края отвесный.
         double const t = std::clamp(1.0 - edge.inside / key.rim, 0.0, 1.0);
         slope = std::clamp(key.slope * t / std::sqrt(std::max(1.0 - t * t, 1e-4)), -8.0, 8.0);
@@ -195,20 +193,8 @@ Normal keyNormalAt(lab::KeyRelief const& key, double px, double py) {
 
     // В полосе стыка смешиваются наклоны поверхности, а не нормали: так выглядит
     // скруглённое ребро между кантом и лицом.
-    double const face = shareBeyond(edge.inside, key.rim, key.smooth);
-    double x = rimX + (faceX - rimX) * face, y = rimY + (faceY - rimY) * face;
-
-    // Между краем клавиши и кантом -- плоская полоса отступа; ребро между ней и
-    // кантом сглажено так же. Без отступа кант продолжается и за краем формы:
-    // край там сглаживает маска, и под её полупрозрачными пикселями должна лежать
-    // нормаль канта, а не плоскость -- иначе под лампой над указателем они
-    // светлее самого канта.
-    if (key.margin > 0.0) {
-        double const ring = shareBeyond(edge.inside, 0.0, key.smooth);
-        x *= ring;
-        y *= ring;
-    }
-    return unit(x, y, 1.0);
+    double const share = faceShare(key, edge.inside, key.smooth);
+    return unit(rimX + (faceX - rimX) * share, rimY + (faceY - rimY) * share, 1.0);
 }
 
 }  // namespace
@@ -251,9 +237,9 @@ void lab::drawFaceMask(DrawingSurface const& surface, KeyRelief const& key) {
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             Edge const edge =
-                rimEdgeAt(key, ((x + 0.5) / width - 0.5) * key.width, ((y + 0.5) / height - 0.5) * key.height);
+                edgeAt(key, ((x + 0.5) / width - 0.5) * key.width, ((y + 0.5) / height - 0.5) * key.height);
             auto const value =
-                static_cast<std::uint32_t>(std::lround(shareBeyond(edge.inside, key.rim, band) * 255.0));
+                static_cast<std::uint32_t>(std::lround(faceShare(key, edge.inside, band) * 255.0));
             // Белый с умноженной альфой: все четыре канала равны.
             pixels[static_cast<std::size_t>(y) * width + x] = (value << 24) | (value << 16) | (value << 8) | value;
         }
