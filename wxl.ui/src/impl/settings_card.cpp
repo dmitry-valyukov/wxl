@@ -176,12 +176,12 @@ void SettingsCardCore::description(winrt::Windows::Foundation::IInspectable cons
     apply();
 }
 
-void SettingsCardCore::headerIcon(xaml::UIElement const& value) {
+void SettingsCardCore::headerIcon(winrt::Microsoft::UI::Xaml::UIElement const& value) {
     headerIcon_ = value;
     apply();
 }
 
-void SettingsCardCore::actionIcon(xaml::UIElement const& value) {
+void SettingsCardCore::actionIcon(winrt::Microsoft::UI::Xaml::UIElement const& value) {
     actionIcon_ = value;
     apply();
 }
