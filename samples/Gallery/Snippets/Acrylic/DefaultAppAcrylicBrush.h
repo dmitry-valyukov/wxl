@@ -7,9 +7,17 @@ auto behind = [] {
     };
 };
 
+// The size follows the room the page has, as the states of the original follow the window: from 500 the sample is 400 by 252.
+struct Model {
+    core::observable<bool> roomy;
+};
+auto const model = gallery::hold<Model>();
+model->roomy.follow(gallery::pageSize().width, [](double room) { return room >= 500; });
+
 auto example = Grid {
-    height = 252,
-    width = 400,
+    minWidth = 320,
+    width = BindOutput {model->roomy, [](bool roomy) { return roomy ? 400.0 : std::numeric_limits<double>::quiet_NaN(); }},
+    height = BindOutput {model->roomy, [](bool roomy) { return roomy ? 252.0 : 200.0; }},
     behind(),
     Rectangle {Margin {12}, fill = brushes.Acrylic.InAppFillColor.Default},
 };

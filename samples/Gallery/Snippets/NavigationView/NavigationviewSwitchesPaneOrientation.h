@@ -1,10 +1,11 @@
 struct Model {
     Frame frame;
+    core::observable<double> room;
+    core::observable<bool> top;
 };
 auto const model = gallery::hold<Model>();
 
 auto const view = NavigationView {
-    row = 1,
     height = 460,
     isTabStop = false,
     paneDisplayMode = NavigationViewPaneDisplayMode::Auto,
@@ -22,23 +23,18 @@ auto const view = NavigationView {
 view.selectedItem(view.menuItems()[0]);
 view.updateLayout();
 
-// What the AdaptiveTrigger of the original says: from the compact-mode width of the window up, the pane is on top; below it, the
-// pane is as it is by default -- a minimal one on the left.
-auto const adapt = [view](auto&&...) {
-    if (auto const root = view.xamlRoot()) {
-        view.paneDisplayMode(root.size().width >= view.compactModeThresholdWidth() ? NavigationViewPaneDisplayMode::Top
-                                                                                  : NavigationViewPaneDisplayMode::Auto);
-    }
-};
-view.add_onLoaded([view, adapt](auto&&...) {
-    view.xamlRoot().add_onChanged(adapt);
-    adapt();
-});
+// What the AdaptiveTrigger of the original says of the window, said of the room the view has: from the compact-mode width up
+// the pane is on top; below it the pane is as it is by default -- a minimal one on the left. The layout of the panel around
+// the view reports the room into the model, and the mode follows it.
+model->top.follow(model->room, [view](double room) { return room >= view.compactModeThresholdWidth(); });
+Apply {view, paneDisplayMode = BindOutput {model->top, [](bool top) {
+                 return top ? NavigationViewPaneDisplayMode::Top : NavigationViewPaneDisplayMode::Auto;
+             }}};
 
 auto example = Grid {
     rowDefinitions = u"auto,auto",
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"If you have equally important navigation categories and limited app content space, consider using a top navigation pane on larger "
                u"window widths and a minimal left navigation pane on smaller window widths."},
-    view,
+    LayoutPanel {row = 1, layout = AvailableSizeLayout {availableWidth = BindInput {model->room}}, view},
 };

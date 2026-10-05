@@ -9,9 +9,17 @@ auto behind = [] {
 constexpr Color skyBlue = rgb(0x87, 0xce, 0xeb);
 auto brush = AcrylicBrush {tintColor = skyBlue, tintOpacity = 0.8, tintLuminosityOpacity = 0.8, fallbackColor = skyBlue};
 
+// The width follows the room the page has: 500 from a room of 500, 652 from 800, its own below that.
+struct Room {
+    core::observable<int> step;
+};
+auto const room = gallery::hold<Room>();
+room->step.follow(gallery::pageSize().width, [](double width) { return width >= 800 ? 2 : width >= 500 ? 1 : 0; });
+
 auto example = Grid {
     minWidth = 652,
-    minHeight = 252,
+    width = BindOutput {room->step, [](int step) { return step == 2 ? 652.0 : step == 1 ? 500.0 : std::numeric_limits<double>::quiet_NaN(); }},
+    minHeight = BindOutput {room->step, [](int step) { return step == 0 ? 200.0 : 252.0; }},
     columnDefinitions = u"*,252",
     behind(),
     Rectangle {Margin {12}, fill = brush},

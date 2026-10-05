@@ -12,6 +12,7 @@
 #include "RsdnBlock.h"
 #include "launch.h"
 #include "MagnifyEffect.h"
+#include "AvailableSizeLayout.h"
 #include "SettingsCard.h"
 #include "SettingsExpander.h"
 #include "HeaderedContentControl.h"

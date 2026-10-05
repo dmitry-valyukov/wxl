@@ -63,12 +63,17 @@ std::u16string narrow(std::wstring const& text) {
     return std::u16string(text.begin(), text.end());
 }
 
-FrameworkElement titled(zstring_view title, FrameworkElement const& body, Thickness titleMargin) {
+// Отступ, который следует за шириной места страницы: широкий от 641, узкий ниже (NarrowLayout оригинала).
+auto byRoom(Thickness wide, Thickness narrow) {
+    return BindOutput {gallery::pageSize().wide, [wide, narrow](bool room) { return room ? wide : narrow; }};
+}
+
+FrameworkElement titled(zstring_view title, FrameworkElement const& body, Thickness titleMargin, Thickness narrowTitleMargin) {
     return Grid {
         rowDefinitions = u"auto,*",
         TextBlock {
             title,
-            margin = titleMargin,
+            margin = byRoom(titleMargin, narrowTitleMargin),
             automationHeadingLevel = AutomationHeadingLevel::Level1,
             styles.TextBlock.Title,
         },
@@ -86,7 +91,9 @@ wxl::FrameworkElement gallery::allControlsPage() {
         }
     }
     items = sortedByTitle(std::move(items));
-    return titled(L"Controls", tileGrid(items, Thickness {24, 16, 24, 36}, u"ItemGridView", u"Items In Group"), Thickness {36, 24, 16, 0});
+    auto const grid = tileGrid(items, Thickness {24, 16, 24, 36}, u"ItemGridView", u"Items In Group");
+    Apply {grid, padding = byRoom(Thickness {24, 16, 24, 36}, Thickness {16, 16, 16, 36})};
+    return titled(L"Controls", grid, Thickness {36, 24, 16, 0}, Thickness {16, 24, 16, 0});
 }
 
 wxl::FrameworkElement gallery::sectionPage(ControlGroup const& group) {
@@ -95,7 +102,9 @@ wxl::FrameworkElement gallery::sectionPage(ControlGroup const& group) {
         items.push_back(&item);
     }
     items = sortedByTitle(std::move(items));
-    return titled(group.title, tileGrid(items, Thickness {36, 0, 36, 0}, u"ItemGridView", u"Items In Group"), Thickness {36, 24, 16, 24});
+    auto const grid = tileGrid(items, Thickness {36, 0, 36, 0}, u"ItemGridView", u"Items In Group");
+    Apply {grid, padding = byRoom(Thickness {36, 0, 36, 0}, Thickness {16, 0, 16, 36})};
+    return titled(group.title, grid, Thickness {36, 24, 16, 24}, Thickness {24, 24, 16, 24});
 }
 
 wxl::FrameworkElement gallery::searchResultsPage(std::wstring_view query) {
@@ -124,7 +133,7 @@ wxl::FrameworkElement gallery::searchResultsPage(std::wstring_view query) {
     if (everything.empty()) {
         return TextBlock {
             u"No results match your search.",
-            Margin {24, 24, 0, 0},
+            margin = byRoom(Thickness {24, 24, 0, 0}, Thickness {14, 14, 0, 0}),
             automationHeadingLevel = AutomationHeadingLevel::Level2,
             styles.TextBlock.Title,
         };
@@ -136,7 +145,9 @@ wxl::FrameworkElement gallery::searchResultsPage(std::wstring_view query) {
     auto host = Border {};
     auto results = std::make_shared<std::vector<Filter>>(std::move(filters));
     auto show = [host, results](std::size_t index) {
-        host.child(tileGrid((*results)[index].items, Thickness {36, 24, 36, 36}, u"ResultsGridView", u"Search Results"));
+        auto const grid = tileGrid((*results)[index].items, Thickness {36, 24, 36, 36}, u"ResultsGridView", u"Search Results");
+        Apply {grid, padding = byRoom(Thickness {36, 24, 36, 36}, Thickness {16, 0, 16, 0}), margin = byRoom(Thickness {0}, Thickness {0, 24, 0, 36})};
+        host.child(grid);
     };
 
     auto navigation = NavigationView {
