@@ -1409,6 +1409,9 @@ public:
         for (auto const& [source, members] : sources.implemented) {
             addInterfaceGroup(source, members);
         }
+        // Интерфейс, выбранный безусловно (IClosable), — последним: выбирать
+        // в нём нечего.
+        std::ranges::stable_partition(groups_, [](Group const& group) { return !group.locked; });
         refilter();
     }
 
@@ -1650,7 +1653,6 @@ private:
         }
         Group& group = groups_.emplace_back(Group {source.TypeName(), &interfaceIcon, source});
         group.locked = full_name(source) == closableInterface;
-        group.expanded = false;
         for (auto const& [names, kind, icon] : {std::tuple {&members.properties, member_kind::Property, &propertyIcon},
                                                 std::tuple {&members.methods, member_kind::Method, &methodIcon},
                                                 std::tuple {&members.events, member_kind::Event, &eventIcon}}) {
