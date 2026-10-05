@@ -87,6 +87,43 @@ public:
     /// \throw system_exception at the co_await if it could not be created.
     static awaitable<async_file> create(const core::path& path);
 
+    /// The whole of a file, by name: opened, measured, read and closed inside one
+    /// operation that owns its buffer. That makes it orphanable -- it runs where
+    /// operations by name run, and a frame that gives it up does not wait for it
+    /// -- and it makes it one round trip for a file of any size, which is the
+    /// cheapest way to read a file whole: a read started from this thread after
+    /// an opening would be a second trip, since a cached read does not complete
+    /// inside the call on the systems this was measured on.
+    ///
+    /// The bytes are bytes: text in them is checked by whoever reads it as text.
+    ///
+    /// \throw system_exception at the co_await for whatever failed, with the
+    ///        system's code. A file that is not there is `ERROR_FILE_NOT_FOUND`
+    ///        like any other failure to open: whoever treats absence as the
+    ///        ordinary case -- settings on a first run -- asks the code, and
+    ///        everything else (no right to read, a torn disk) keeps its name.
+    [[nodiscard]] static awaitable<std::string> read_all(const core::path& path);
+
+    /// Replaces a file with these bytes, whole or not at all: written to
+    /// `<path>.tmp` beside it, pushed to the device, then renamed over the
+    /// original with the rename written through -- so a power cut leaves the
+    /// old file or the new one, never a torn one. Directories missing on the way
+    /// are made, and only then: the ordinary save finds them there and pays
+    /// nothing for them. Owns its bytes and the three names, so orphanable.
+    ///
+    /// One writer per file at a time. A second write_all of the same path while
+    /// one is under way fails on the temporary file, `ERROR_SHARING_VIOLATION`,
+    /// rather than racing the first for the rename: a caller whose saves come in
+    /// bursts coalesces them, and the last state wins by construction instead of
+    /// by luck.
+    ///
+    /// \throw system_exception at the co_await, naming the call that failed.
+    [[nodiscard]] static awaitable<void> write_all(const core::path& path, std::string bytes);
+
+    /// \return whether there is a file at this path. A directory there is not a
+    ///         file and answers `false`; the mirror of `async_directory::exists`.
+    [[nodiscard]] static awaitable<bool> exists(const core::path& path);
+
     /// Reads into the caller's buffer, which has to stay where it is until the
     /// read has been awaited or given up.
     /// \return how much was read; less than asked for at the end of the file,

@@ -17,6 +17,27 @@ awaitable<async_directory> async_directory::open(const core::path& pattern) {
     });
 }
 
+awaitable<std::vector<async_directory::listed_entry>> async_directory::list(const core::path& pattern) {
+    return sta_loop::async_call(orphanable, [pattern](const orphan_stage& stage) {
+        std::vector<listed_entry> found;
+
+        core::directory listing = core::directory::open(pattern.c_str());
+
+        if (!listing.opened()) {
+            // Nothing matched in a directory that is there: FindFirstFileExW
+            // calls that a file not found, and for a listing it is an empty one.
+            if (::GetLastError() == ERROR_FILE_NOT_FOUND) return found;
+
+            throw system_exception("FindFirstFileExW");
+        }
+
+        for (entry next; listing.next(next) && !stage.given_up();)
+            found.push_back({std::wstring(next.name), next.is_directory, next.size});
+
+        return found;
+    });
+}
+
 awaitable<std::optional<async_directory::entry>> async_directory::next() {
     ensure(directory_.opened() && "async_directory: no listing was opened");
 
