@@ -90,6 +90,27 @@ struct setter_method {
     std::string type;    // "Microsoft.UI.Xaml.Controls.TitleBar", or empty
 };
 
+// A wrapped class that a string builds: the abstract Geometry, which is made from
+// the path language of XAML by a converter and by nothing else. The class gets an
+// implicit constructor from text, defined with the function named here -- one that
+// takes the text and returns the projection's own object.
+struct from_text_t {
+    std::string function;  // "impl::geometry_from_text"
+    std::string include;   // header declaring it, as the generated source writes it
+};
+
+// A method of the platform whose call wxl replaces with its own: the class keeps the
+// method, with the signature the metadata gives it, and the body calls the function
+// named here instead of the projection. The function takes the arguments exactly as
+// the platform call would have been handed them -- already converted to the
+// projection's types -- and returns what the platform call returns, so it is a drop-in
+// for it. For a platform that refuses an argument the DSL has every reason to pass:
+// RandomAccessStreamReference.CreateFromUri takes an address and cannot read a file one.
+struct replaced_call {
+    std::string function;  // "impl::stream_reference_from_uri", under namespace wxl
+    std::string include;   // header declaring it, as the generated source writes it
+};
+
 // One NuGet package a profile draws metadata from. `metadata` names the
 // .winmd files to read out of `metadata_dir` inside the package; when it's
 // empty, every .winmd found there is read.
@@ -109,6 +130,13 @@ struct package_ref {
     std::vector<std::string> resources;
 
     std::string version;       // empty for a package the SDK release ships
+
+    // A version of a package the SDK release ships, named in place of the one
+    // the release declares -- for every entry of that id in every profile of
+    // the set. The one deliberate departure from "the release's packages are
+    // one consistent set": a package whose other channel declares types the
+    // stable one keeps out, and the profile that asks for them says why.
+    std::string override_version;
     std::string metadata_dir;  // empty means "metadata", the layout the SDK uses
 };
 
@@ -131,6 +159,8 @@ struct profile {
     std::map<std::string, member_filter> types;  // "Microsoft.UI.Xaml.Controls.Button" -> filter
     std::map<std::string, std::vector<synthetic_member>> synthetic;  // by the same type name
     std::map<std::string, std::vector<setter_method>> setter_methods;  // by the same type name
+    std::map<std::string, from_text_t> from_text;                      // by the same type name
+    std::map<std::string, std::map<std::string, replaced_call>> replaced_calls;  // type name -> method name
 
     // The named styles of a listed type, by dictionary key: "styles": [...]
     // under the type's entry narrows them to those; a type listed without it
@@ -224,6 +254,8 @@ struct profile_set {
     std::map<std::string, member_filter> types;     // roots of the walk
     std::map<std::string, std::vector<synthetic_member>> synthetic;  // properties wxl adds
     std::map<std::string, std::vector<setter_method>> setter_methods;  // methods written as tags
+    std::map<std::string, from_text_t> from_text;                      // classes a string builds
+    std::map<std::string, std::map<std::string, replaced_call>> replaced_calls;  // type name -> method name
 
     // Merged the way members are, as a union: a profile that lists a type
     // without "styles", or has no "brushes", asks for all of them, and so

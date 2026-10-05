@@ -44,6 +44,12 @@ struct member_info {
     // else: the wxl member returns that value (`GetText(options, out string)`
     // becomes `getText(options)`), and the call passes a local for it.
     bool out_result = false;
+
+    // A constructor of a composable class: its factory method carries the two parameters of
+    // composition after its own (the object being composed into, and the inner one handed
+    // back). They are dropped here, and the constructor is made through the projection's
+    // own, which supplies them.
+    bool composable_constructor = false;
     std::string args_type;  // events only: what the handler is handed besides the sender
 
     // Whether that args type is an ordinary wrapper rather than an EventArgs
@@ -75,6 +81,12 @@ struct member_info {
     // this hand-written function, taking the object and the value, instead
     // of a hop into the projection.
     std::string synthetic_call;
+
+    // A method whose call a profile replaces (see ReplacedCall in profile.h): the body
+    // calls this hand-written function with the arguments the projection call would
+    // get, and the header declaring it belongs to the .cpp side.
+    std::string replaced_call;
+    std::string replaced_include;
 
     // A property setter made out of a method a profile names (see profile.h):
     // the member is spelled as the property, `titleBar`, and its body calls

@@ -262,7 +262,7 @@ void describe_interfaces(class_source& source) {
 }
 
 class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generated,
-                           closure const& cl, type_map const& types,
+                           closure const& cl, type_map const& types, model const& m,
                            std::vector<std::string>& warnings) {
     class_source source{type};
     auto& info = source.info;
@@ -301,6 +301,11 @@ class_source analyze_class(TypeDef const& type, std::set<TypeDef> const& generat
     auto const c = construction_of(type);
     info.construction = c.kind;
     info.composable_factory = c.factory;
+    info.is_interface = get_category(type) == category::interface_type;
+    if (auto const it = m.from_text.find(full_name(type)); it != m.from_text.end()) {
+        info.from_text_function = it->second.function;
+        info.from_text_include = it->second.include;
+    }
 
     if (auto const it = cl.held_interfaces.find(type); it != cl.held_interfaces.end()) {
         source.held_interfaces = it->second;
@@ -411,20 +416,45 @@ struct public_header_needs {
 };
 
 public_header_needs public_needs(std::string_view ns, std::vector<class_info> const& classes,
-                                 std::map<std::string, std::string> const& group_of) {
+                                 std::map<std::string, std::string> const& group_of,
+                                 std::set<std::string> const& dropped) {
     public_header_needs needs{file_includes(ns, classes, group_of, /*impl_side=*/false), {}};
     auto& includes = needs.includes;
     // The classes a narrowed setter names are announced rather than included.
     // Such a class is routinely built on this very group -- Window.titleBar
     // takes a TitleBar, whose header includes this one for FrameworkElement --
     // and a declaration taking a reference needs the name alone.
+    //
+    // Every wrapped class a member names is announced as well as included:
+    // namespaces refer to each other through members (Input's XamlUICommand
+    // holds a Controls IconSource, while Controls reaches Input through
+    // Xaml), so whichever header a translation unit meets first has the other
+    // one's include skipped by #pragma once, and a declaration needs only the
+    // name.
+    auto announce = [&](type_use const& type) {
+        if (!type.element_type.empty()) {
+            needs.announced.insert(type.element_type);
+        } else if (type.is_wrapper && type.value_type != "Object") {
+            needs.announced.insert(type.value_type);
+        }
+    };
     for (auto&& info : classes) {
         for (auto&& member : info.members) {
+            if (!member.returns_void) {
+                announce(member.result);
+            }
+            for (auto&& param : member.params) {
+                announce(param.type);
+            }
             if (!member.returns_void) {
                 includes.insert(member.result.public_includes.begin(),
                                 member.result.public_includes.end());
             }
-            if (member.braced) {
+            // A property a profile wrote by hand over a wrapped class (a tip
+            // that is a ToolTip) is announced like a narrowed setter: its
+            // class is routinely on the far side of a circle of includes.
+            if (member.braced ||
+                (!member.synthetic_call.empty() && member.params.front().type.is_wrapper)) {
                 needs.announced.insert(member.params.front().type.value_type);
                 continue;
             }
@@ -443,6 +473,16 @@ public_header_needs public_needs(std::string_view ns, std::vector<class_info> co
         }
     }
     includes.erase(std::string(ns) + ".h");  // a member of this very file's own group
+
+    // A group that a member names and whose own headers lead back here is
+    // announced above and not included: in a circle of includes the header
+    // met first in a translation unit has the other's include skipped, and a
+    // class used as a base then stands undeclared. The edges of a circle are
+    // found by the analysis; a header that only leads away stays included,
+    // for the callers that use what a member hands back.
+    for (auto&& group : dropped) {
+        includes.erase(group + ".h");
+    }
 
     // The variadic constructors are the DSL's entry point, and they apply
     // whatever the braces contained. A group of nothing but statics-only
@@ -511,13 +551,21 @@ void write_constructor_declarations(std::ostream& out, class_info const& info) {
         // conversion in unrelated overload resolutions -- a string
         // argument would be as good a FontFamily as it is a string.
         std::print(out, R"(    template <typename... Setters>
-        requires impl::setter_pack<{0}, Setters...>
+        requires impl::setter_pack<{0}, Setters...>{1}
     explicit {0}(Setters&&... setters) : {0}() {{
         (impl::apply_argument(*this, std::forward<Setters>(setters)), ...);
     }}
 
 )",
-                   info.name);
+                   info.name,
+                   (info.from_text_function.empty() &&
+                    std::none_of(info.constructors.begin(), info.constructors.end(), [](factory_ctor const& ctor) {
+                        return ctor.method.params.size() == 1 &&
+                               ctor.method.params[0].type.param_type == "hstring_param const&";
+                    }))
+                       ? ""
+                       : " &&\n                 !(sizeof...(Setters) == 1 && ((std::same_as<std::remove_cvref_t<Setters>, hstring_param> || "
+                         "std::convertible_to<Setters, hstring_param>) && ...))");
     }
 
     // The constructors that take arguments, which is what WinRT means
@@ -580,6 +628,34 @@ public:
                        route.statement);
         }
     }
+    if (!info.from_text_function.empty()) {
+        // The class an application writes as a string: the path of a shape, which
+        // the framework turns into a Geometry. A template, not one more
+        // overload, so that a literal takes one conversion and not two.
+        std::print(out, R"(
+    /// Built from text, as XAML builds it from an attribute.
+    {0}(const hstring_param& text);
+
+    template <typename Text>
+        requires(!std::derived_from<Text, Object> && !std::same_as<Text, hstring_param> &&
+                 std::convertible_to<const Text&, hstring_param>)
+    {0}(const Text& text) : {0}(hstring_param(text)) {{}}
+)",
+                   info.name);
+    }
+    if (info.is_interface) {
+        // A wrapped interface has no class of its own above it: what
+        // implements it is AppBarButton, AppBarSeparator, anything, and
+        // none of them derives from this wrapper. Any object converts,
+        // by the QueryInterface the interface needs -- which is how a
+        // collection of the interface takes the classes that implement
+        // it, `primaryCommands = {AppBarButton {...}, AppBarSeparator {}}`.
+        std::print(out,
+                   "\n    /// Any object that implements {}: asked for it on the way in,\n"
+                   "    /// and a wiring mistake when it does not.\n"
+                   "    {}(Object const& object);\n",
+                   info.name, info.name);
+    }
     std::print(out, "\nprotected:\n");
     if (info.construction == construction_t::ProtectedOnly) {
         // Mirrors `protected extern X()` in the real class: only a type
@@ -614,9 +690,10 @@ void for_try_as(std::ostream& out, std::vector<class_info> const& classes, Line 
 void write_public_header(std::filesystem::path const& path, std::string_view ns,
                          std::vector<class_info> const& classes,
                          std::map<std::string, std::string> const& group_of,
-                         std::set<std::string> const& collection_elements) {
+                         std::set<std::string> const& instantiations,
+                         std::set<std::string> const& dropped) {
     auto out = open_output(path);
-    auto const needs = public_needs(ns, classes, group_of);
+    auto const needs = public_needs(ns, classes, group_of, dropped);
 
     std::print(out, R"({}// Public wrappers for {}.
 #pragma once
@@ -654,15 +731,15 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
         }
     }
 
-    if (!collection_elements.empty()) {
+    if (!instantiations.empty()) {
         // Stated after the classes, where every element type above is a
         // complete type. Without it a consumer would instantiate the whole
         // template itself -- exactly the per-translation-unit cost the
         // library exists to avoid; with it, the one definition compiled
         // inside wxl's own build is what every use links against.
         std::print(out, "\n");
-        for (auto&& element : collection_elements) {
-            std::print(out, "extern template class Collection<{}>;\n", element);
+        for (auto&& specialization : instantiations) {
+            std::print(out, "extern template class {};\n", specialization);
         }
     }
 
@@ -674,6 +751,7 @@ void write_public_header(std::filesystem::path const& path, std::string_view ns,
     // wxl, the same bargain Collection<T> above makes.
     for_try_as(out, classes, [&out](class_info const& info) {
         std::print(out, "extern template {0} Object::try_as<{0}>() const;\n", info.name);
+        std::print(out, "extern template bool Object::is<{0}>() const;\n", info.name);
     });
 
     std::print(out, "\n}}  // namespace wxl\n");
@@ -784,6 +862,12 @@ std::set<std::string> source_includes(std::vector<class_info> const& classes, fa
         }
         for (auto&& ctor : info.constructors) {
             includes.insert(ctor.include);
+            for (auto&& param : ctor.method.params) {
+                includes.insert(param.type.impl_includes.begin(), param.type.impl_includes.end());
+            }
+        }
+        if (!info.from_text_include.empty()) {
+            includes.insert(info.from_text_include);
         }
         // The factory interface a composable class is created through is
         // named in the body, so its namespace's projection header is needed
@@ -793,6 +877,9 @@ std::set<std::string> source_includes(std::vector<class_info> const& classes, fa
             includes.insert(winrt_include(std::string_view{info.composable_factory}.substr(0, dot)));
         }
         for (auto&& member : info.members) {
+            if (!member.replaced_include.empty()) {
+                includes.insert(member.replaced_include);
+            }
             if (!member.returns_void) {
                 includes.insert(member.result.impl_includes.begin(),
                                 member.result.impl_includes.end());
@@ -852,6 +939,13 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
     if (!info.statics_only) {
         std::print(out, "\n{}::{}(Impl* impl) noexcept : base_t(impl) {{}}\n", info.name,
                    info.name);
+        if (!info.from_text_function.empty()) {
+            std::print(out, "\n{0}::{0}(const hstring_param& text)\n    : base_t(new Impl{{{1}(text)}}) {{}}\n",
+                       info.name, info.from_text_function);
+        }
+        if (info.is_interface) {
+            std::print(out, "\n{0}::{0}(Object const& object) : {0}(object.try_as<{0}>()) {{}}\n", info.name);
+        }
     }
 
     switch (info.construction) {
@@ -904,6 +998,14 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
             arguments += substitute(param.type.to_winrt, param.name);
         }
 
+        if (ctor.method.composable_constructor) {
+            // The pair composition adds to the factory method is the projection's
+            // business: its own constructor takes the arguments alone.
+            std::print(out, "\n{}::{}({})\n    : base_t(new Impl{{{}{{{}}}}}) {{}}\n", info.name,
+                       info.name, parameter_list(ctor.method), winrt_type_name(info.metadata_name),
+                       arguments);
+            continue;
+        }
         std::print(out, "\n{}::{}({})\n    : base_t(new Impl{{impl::Statics<{}>->{}({})}}) {{}}\n",
                    info.name, info.name, parameter_list(ctor.method), ctor.statics_interface,
                    ctor.method.winrt_name, arguments);
@@ -1006,7 +1108,9 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
     // from a cached pointer; an instance member goes through the
     // object's own lazily cached interface field.
     auto const call =
-        member.is_static
+        !member.replaced_call.empty()
+            ? std::format("{}({})", member.replaced_call, arguments)
+        : member.is_static
             ? std::format("impl::Statics<{}>->{}({})", member.statics_interface, member.winrt_name,
                           arguments)
             : std::format("get<&Impl::{}>().{}({})", member.field,
@@ -1026,7 +1130,7 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
 void write_source(std::filesystem::path const& path, std::string_view ns,
                   std::vector<class_info> const& classes,
                   std::map<std::string, std::string> const& group_of,
-                  std::set<std::string> const& collection_elements) {
+                  std::set<std::string> const& instantiations) {
     auto out = open_output(path);
 
     auto const use = factory_use_of(classes);
@@ -1056,16 +1160,16 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
         }
     }
 
-    if (!collection_elements.empty()) {
+    if (!instantiations.empty()) {
         // The one definition of each specialization in the whole library.
         // Which translation unit gets it is arbitrary but has to be decided
-        // somewhere: it is the first file group that names the element, and
-        // that file already includes everything the instantiation needs --
-        // the element's own Impl, which is where Collection reads the WinRT
+        // somewhere: it is the first file group that names it, and that file
+        // already includes everything the instantiation needs -- the
+        // element's own Impl, which is where the template reads the WinRT
         // type it stands for.
         std::print(out, "\n");
-        for (auto&& element : collection_elements) {
-            std::print(out, "template class Collection<{}>;\n", element);
+        for (auto&& specialization : instantiations) {
+            std::print(out, "template class {};\n", specialization);
         }
     }
 
@@ -1074,6 +1178,7 @@ void write_source(std::filesystem::path const& path, std::string_view ns,
     // try_as reads the WinRT type the wrapper stands for.
     for_try_as(out, classes, [&out](class_info const& info) {
         std::print(out, "template {0} Object::try_as<{0}>() const;\n", info.name);
+        std::print(out, "template bool Object::is<{0}>() const;\n", info.name);
     });
 
     std::print(out, "\n}}  // namespace wxl\n");
@@ -1218,7 +1323,7 @@ std::vector<class_source> read_classes(wrapped_types const& wrapped, closure con
         if (!wrapped.generated.count(type)) {
             continue;  // EventArgs wrappers and projected types are emitted elsewhere
         }
-        auto source = analyze_class(type, wrapped.generated, cl, types, m.class_warnings);
+        auto source = analyze_class(type, wrapped.generated, cl, types, m, m.class_warnings);
         // Every wrapper lives in the one namespace wxl, so a second class of
         // the same name would be a second definition of the first.
         if (auto const [first, added] = written_names.emplace(source.info.name, type); !added) {
@@ -1275,8 +1380,23 @@ void add_constructors(class_source& source, closure const& cl, type_index const&
     auto& info = source.info;
     if (auto const factories = cl.factories.find(source.type);
         factories != cl.factories.end()) {
+        bool composable_default = false;  // its factory has the parameterless method too
         for (auto&& iface : factories->second) {
             for (auto&& member : members_of(iface, cl, index, skipped)) {
+                // The parameterless factory method of a composable class is its default
+                // constructor, which the class has already.
+                if (member.composable_constructor && member.params.empty()) {
+                    composable_default = true;
+                    continue;
+                }
+                // A parameter that can only be taken in -- a delegate, an interface -- has no
+                // conversion the projection's own constructor would accept as it is.
+                if (member.composable_constructor &&
+                    std::any_of(member.params.begin(), member.params.end(),
+                                [](auto const& param) { return param.type.parameter_only; })) {
+                    skipped.push_back({member.name, "constructor: a parameter that can only be taken in"});
+                    continue;
+                }
                 if (member.returns_void || member.result.value_type != info.name) {
                     skipped.push_back({member.name, std::format("constructor: {} hands back {}, "
                                                                 "not an instance of the class",
@@ -1289,6 +1409,14 @@ void add_constructors(class_source& source, closure const& cl, type_index const&
                                  iface.TypeName()),
                      winrt_include(iface.TypeNamespace()), std::move(member)});
             }
+        }
+
+        // A composable class whose factory has constructors with arguments and no
+        // parameterless one is made from arguments alone: no default constructor,
+        // and so no pack constructor that would call it.
+        if (info.construction == construction_t::PublicComposition && !info.constructors.empty() &&
+            !composable_default) {
+            info.construction = construction_t::PublicFactory;
         }
     }
 }
@@ -1317,7 +1445,7 @@ void add_synthetic_members(class_source& source, closure const& cl, type_index c
             }
             // The hand-written function behind it is what the body
             // calls, so its header belongs to the .cpp side.
-            use.impl_includes = {declaration.include};
+            use.impl_includes.insert(declaration.include);
 
             member_info member{member_info::kind_t::Forward, member_name(declaration.name),
                                declaration.name, {}, {},
@@ -1384,6 +1512,32 @@ void add_setter_methods(class_source& source, closure const& cl, type_index cons
     }
 }
 
+// The calls a profile replaces. The member stays what the metadata made it --
+// signature, key, tag -- and only the call in its body is another function.
+void add_replaced_calls(class_source& source, model const& m, std::vector<skipped_member>& skipped) {
+    auto& info = source.info;
+    auto const replaced = m.replaced_calls.find(info.metadata_name);
+    if (replaced == m.replaced_calls.end()) {
+        return;
+    }
+    for (auto&& [method, call] : replaced->second) {
+        bool found = false;
+        for (auto&& member : info.members) {
+            if (member.kind == member_info::kind_t::Forward && member.winrt_name == method &&
+                member.synthetic_call.empty() && member.method_call.empty()) {
+                member.replaced_call = call.function;
+                member.replaced_include = call.include;
+                found = true;
+            }
+        }
+        if (!found) {
+            skipped.push_back({method,
+                               "replaced call: the class declares no such method, or "
+                               "the profile filtered it out"});
+        }
+    }
+}
+
 // Two interfaces of one class can declare the same name (a revision
 // interface restating a member of the one it supersedes); C++ would
 // see a redeclaration, so the first one wins.
@@ -1408,7 +1562,7 @@ void drop_redeclared(std::vector<member_info>& members) {
 // the factory interfaces of its constructors, the properties a profile adds,
 // and the methods a profile writes as tags. What cannot be mapped is put in
 // `skipped`.
-void collect_members(class_source& source, closure const& cl, type_index const& index,
+void collect_members(class_source& source, closure const& cl, type_index const& index, model const& m,
                      std::vector<skipped_member>& skipped) {
     for (auto&& iface : source.held_interfaces) {
         for (auto&& member : members_of(iface, cl, index, skipped)) {
@@ -1419,6 +1573,7 @@ void collect_members(class_source& source, closure const& cl, type_index const& 
     add_constructors(source, cl, index, skipped);
     add_synthetic_members(source, cl, index, skipped);
     add_setter_methods(source, cl, index, skipped);
+    add_replaced_calls(source, m, skipped);
     drop_redeclared(source.info.members);
 }
 
@@ -1460,20 +1615,15 @@ public:
     }
 
     void add(member_info const& member) {
+        // Every signature counts, statics included: each of them hands a
+        // specialization out or takes one in.
+        note_instantiations(source_.info, member);
         if (member.is_static) {
             add_static(member);
             return;
         }
 
         auto& info = source_.info;
-        if (!member.returns_void && member.result.is_collection) {
-            info.collection_elements.insert(member.result.element_type);
-        }
-        for (auto&& param : member.params) {
-            if (param.type.is_collection) {
-                info.collection_elements.insert(param.type.element_type);
-            }
-        }
 
         if (member.kind == member_info::kind_t::EventAdd) {
             context_.m.dsl.events.insert(member.winrt_name);
@@ -1524,6 +1674,18 @@ public:
         context_.m.schema.classes.push_back(std::move(klass_));
     }
 
+    // What a signature names of wxl's templates is stated by the group's header.
+    static void note_instantiations(class_info& info, member_info const& member) {
+        if (!member.returns_void) {
+            info.instantiations.insert(member.result.instantiations.begin(),
+                                       member.result.instantiations.end());
+        }
+        for (auto&& param : member.params) {
+            info.instantiations.insert(param.type.instantiations.begin(),
+                                       param.type.instantiations.end());
+        }
+    }
+
 private:
     static std::vector<std::string> const& attached_of(TypeDef const& type, closure const& cl) {
         static std::vector<std::string> const none;
@@ -1543,9 +1705,8 @@ private:
             return;
         }
         auto& d = context_.m.dsl;
-        d.attached.emplace(member.winrt_name.substr(3),
-                           dsl::attached_t{source_.info.name, member.name,
-                                           member.params[1].type.value_type});
+        d.attached[member.winrt_name.substr(3)].push_back(
+            dsl::attached_t{source_.info.name, member.name, member.params[1].type.value_type});
         context_.attached_elsewhere.emplace_back(
             member.params.front().type.value_type,
             schema::member{schema::member::kind_t::Property, member.winrt_name.substr(3),
@@ -1689,14 +1850,73 @@ void group_classes(std::vector<class_source>& sources, model& m) {
     for (auto&& [name, infos] : by_group) {
         class_group group{name, std::move(infos), {}, {}};
         for (auto&& info : group.classes) {
-            for (auto&& element : info.collection_elements) {
-                group.collections_used.insert(element);
-                if (already_defined.insert(element).second) {
-                    group.collections_defined.insert(element);
+            for (auto&& specialization : info.instantiations) {
+                group.collections_used.insert(specialization);
+                if (already_defined.insert(specialization).second) {
+                    group.collections_defined.insert(specialization);
                 }
             }
         }
         m.class_groups.push_back(std::move(group));
+    }
+
+    // The public header of a group includes the homes of its bases and of the
+    // wrapped classes its members name. The first kind is a tree; the second
+    // can close a circle, and an edge that does is dropped from the header
+    // that would close it (public_needs announces the class instead).
+    std::set<std::string> group_names;
+    for (auto&& [space, group] : m.group_of) {
+        group_names.insert(group);
+    }
+    std::map<std::string, std::set<std::string>> named;  // member edges
+    std::map<std::string, std::set<std::string>> edges;  // all edges
+    for (auto&& group : m.class_groups) {
+        std::set<std::string> own_bases;  // the tree: never dropped
+        for (auto&& base : file_includes(group.name, group.classes, m.group_of, /*impl_side=*/false)) {
+            if (base.ends_with(".h") && group_names.count(base.substr(0, base.size() - 2))) {
+                own_bases.insert(base.substr(0, base.size() - 2));
+            }
+        }
+        auto const take = [&](type_use const& type) {
+            for (auto&& include : type.public_includes) {
+                if (include.ends_with(".h")) {
+                    auto const name = include.substr(0, include.size() - 2);
+                    if (group_names.count(name) && name != group.name && !own_bases.count(name)) {
+                        named[group.name].insert(name);
+                    }
+                }
+            }
+        };
+        for (auto&& info : group.classes) {
+            for (auto&& member : info.members) {
+                take(member.result);
+                for (auto&& param : member.params) {
+                    take(param.type);
+                }
+            }
+            for (auto&& ctor : info.constructors) {
+                for (auto&& param : ctor.method.params) {
+                    take(param.type);
+                }
+            }
+        }
+        edges[group.name] = named[group.name];
+        edges[group.name].insert(own_bases.begin(), own_bases.end());
+    }
+    auto reach = edges;
+    for (auto&& via : group_names) {
+        for (auto&& from : group_names) {
+            if (reach[from].count(via)) {
+                reach[from].insert(reach[via].begin(), reach[via].end());
+            }
+        }
+    }
+    for (auto&& group : m.class_groups) {
+        for (auto&& name : named[group.name]) {
+            if (reach[name].count(group.name)) {
+                group.dropped.insert(name);
+            }
+        }
     }
 }
 
@@ -1823,10 +2043,14 @@ type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map 
 
     for (auto&& source : sources) {
         std::vector<skipped_member> skipped;
-        collect_members(source, cl, index, skipped);
+        collect_members(source, cl, index, m, skipped);
         for (auto&& drop : skipped) {
             m.skipped_members.push_back(
                 std::format("{}.{}: {}", source.info.name, drop.name, drop.reason));
+        }
+
+        for (auto&& ctor : source.info.constructors) {
+            class_vocabulary::note_instantiations(source.info, ctor.method);
         }
 
         class_vocabulary vocabulary{source, cl, context};
@@ -1885,7 +2109,8 @@ void write_classes(output const& out, model const& m, emitted& em) {
         auto const header = out.dir / (group.name + ".h");
         auto const source = out.dir / (group.name + ".cpp");
 
-        write_public_header(header, group.name, group.classes, m.group_of, group.collections_used);
+        write_public_header(header, group.name, group.classes, m.group_of, group.collections_used,
+                            group.dropped);
         em.add(header);
 
         if (has_impl(group.classes)) {

@@ -3664,6 +3664,126 @@
       ]
     },
     {
+      "UniqueId": "Effects",
+      "Title": "Effects",
+      "IconGlyph": "",
+      "Items": [
+        {
+          "UniqueId": "Halo",
+          "Tags": ["effect", "glow", "halo", "shadow"],
+          "Title": "HaloEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A glow around the glyphs of an element: a shadow with no offset, cut out by the alpha of the text.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "A glow around the glyphs of an element: a shadow with no offset, cut out by the alpha of the text.",
+          "IsNew": true,
+          "RelatedControls": ["GaussianBlur", "Glass"]
+        },
+        {
+          "UniqueId": "GaussianBlur",
+          "Tags": ["effect", "blur", "glow", "gaussian"],
+          "Title": "GaussianBlurEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A halo made by a graph of effects, with a gamma of fall-off, over or under the glyphs.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "A halo made by a graph of effects, with a gamma of fall-off, over or under the glyphs.",
+          "IsNew": true,
+          "RelatedControls": ["Halo", "Glass"]
+        },
+        {
+          "UniqueId": "Bevel",
+          "Tags": ["effect", "bevel", "edge", "emboss"],
+          "Title": "BevelEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A beveled edge, light on one diagonal and dark on the other.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "A beveled edge, light on one diagonal and dark on the other.",
+          "IsNew": true,
+          "RelatedControls": ["Magnify"]
+        },
+        {
+          "UniqueId": "Magnify",
+          "Tags": ["effect", "magnify", "pop", "hover"],
+          "Title": "MagnifyEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "An element that grows or shrinks under the pointer.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "An element that grows or shrinks under the pointer.",
+          "IsNew": true,
+          "RelatedControls": ["Bevel"]
+        },
+        {
+          "UniqueId": "Glass",
+          "Tags": ["effect", "glass", "frost", "blur"],
+          "Title": "GlassEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "Frosted glass under an element: a blurred backing for letters.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "Frosted glass under an element: a blurred backing for letters.",
+          "IsNew": true,
+          "RelatedControls": ["Halo", "GaussianBlur"]
+        }
+      ]
+    },
+    {
+      "UniqueId": "CommunityToolkit",
+      "Title": "Community Toolkit",
+      "IconGlyph": "",
+      "Items": [
+        {
+          "UniqueId": "SettingsCard",
+          "Tags": ["settings", "card", "toolkit"],
+          "Title": "SettingsCard",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A row of a settings page: an icon, a header with a description and the setting itself at its right.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Expander.png",
+          "Description": "A row of a settings page: an icon, a header with a description and the setting itself at its right.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "Windows Community Toolkit",
+              "Uri": "https://aka.ms/toolkit/windows"
+            }
+          ],
+          "RelatedControls": ["SettingsExpander", "Expander"]
+        },
+        {
+          "UniqueId": "HeaderedContentControl",
+          "Tags": ["header", "content", "toolkit"],
+          "Title": "HeaderedContentControl",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A header over a piece of content.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Expander.png",
+          "Description": "A header over a piece of content.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "Windows Community Toolkit",
+              "Uri": "https://aka.ms/toolkit/windows"
+            }
+          ],
+          "RelatedControls": ["SettingsCard"]
+        },
+        {
+          "UniqueId": "SettingsExpander",
+          "Tags": ["settings", "expander", "toolkit"],
+          "Title": "SettingsExpander",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A SettingsCard that opens onto more of them.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Expander.png",
+          "Description": "A SettingsCard that opens onto more of them.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "Windows Community Toolkit",
+              "Uri": "https://aka.ms/toolkit/windows"
+            }
+          ],
+          "RelatedControls": ["SettingsCard", "Expander"]
+        }
+      ]
+    },
+    {
       "UniqueId": "Text",
       "Title": "Text",
       "IconGlyph": "",
@@ -4315,6 +4435,42 @@
             "AppWindow",
             "AppWindowTitleBar",
             "TitleBar"
+          ]
+        },
+        {
+          "UniqueId": "CompositionWindow",
+          "Tags": [
+            "wxl",
+            "composition",
+            "scene",
+            "background",
+            "no redirection surface",
+            "title bar",
+            "zoom",
+            "full screen",
+            "drag and drop"
+          ],
+          "Title": "CompositionWindow",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A top-level window whose pixels the compositor lays down, with a scene under a XAML island.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Windowing.png",
+          "Description": "wxl's own window: without a redirection surface, with a scene of composition visuals (a background and a page the application draws) under a transparent XAML island. Its title bar, background, zoom, size, full-screen mode, input and drag-and-drop are all written in the window's braces.",
+          "IsNew": true,
+          "Docs": [
+            {
+              "Title": "CompositionWindow - header",
+              "Uri": "https://github.com/dmitry-valyukov/wxl/blob/main/wxl.ui/src/CompositionWindow.h"
+            },
+            {
+              "Title": "Composition - overview",
+              "Uri": "https://learn.microsoft.com/windows/apps/windows-app-sdk/composition"
+            }
+          ],
+          "RelatedControls": [
+            "AppWindow",
+            "AppWindowTitleBar",
+            "TitleBar",
+            "Windowing"
           ]
         }
       ]

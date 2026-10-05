@@ -86,11 +86,9 @@ void note_type(type_use const& use, std::set<std::string> const& class_headers,
     // Only a type whose header was left out needs declaring: Object and the
     // hand-written wrappers come in as themselves.
     if (declared_elsewhere) {
-        file.forwards.insert(use.is_collection ? use.element_type : use.value_type);
+        file.forwards.insert(use.element_type.empty() ? use.value_type : use.element_type);
     }
-    if (use.is_collection) {
-        file.collections.insert(use.element_type);
-    }
+    file.collections.insert(use.instantiations.begin(), use.instantiations.end());
 }
 
 // Where an args view keeps its const-ness, and it is the one hierarchy in
@@ -133,8 +131,8 @@ void write_event_args_file(std::filesystem::path const& path, event_args_file co
             std::print(out, "class {};\n", name);
         }
     }
-    for (auto&& element : file.collections) {
-        std::print(out, "\nextern template class Collection<{}>;\n", element);
+    for (auto&& specialization : file.collections) {
+        std::print(out, "\nextern template class {};\n", specialization);
     }
     std::print(out, "\n");
 
@@ -199,8 +197,8 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
 
     if (!file.collection_definitions.empty()) {
         std::print(out, "\n");
-        for (auto&& element : file.collection_definitions) {
-            std::print(out, "template class Collection<{}>;\n", element);
+        for (auto&& specialization : file.collection_definitions) {
+            std::print(out, "template class {};\n", specialization);
         }
     }
 
@@ -299,9 +297,9 @@ void analyze_event_args(type_kinds const& kinds, closure const& cl, type_index c
         }
     });
 
-    // Which Collection specializations an args file is the one to define: the
-    // class files already define every element they name, so only an element
-    // nothing but an args member reaches is left over.
+    // Which template specializations an args file is the one to define: the
+    // class files already define every one they name, so only one nothing but
+    // an args member reaches is left over.
     std::set<std::string> already_defined;
     for (auto&& group : m.class_groups) {
         already_defined.insert(group.collections_defined.begin(), group.collections_defined.end());

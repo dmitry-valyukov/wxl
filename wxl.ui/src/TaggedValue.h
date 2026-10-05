@@ -18,7 +18,7 @@
 // type it holds one and converts back out. Either way it is the value where
 // a value is wanted, and the setter takes it unchanged.
 //
-// The tags themselves are generated/Tags.h, one alias per tagged property
+// The tags themselves are wxl/Tags.h, one alias per tagged property
 // the profile has. The property keeps the type the metadata gives it; the
 // tag exists only for the unnamed form.
 

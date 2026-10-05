@@ -152,9 +152,10 @@ inline Color from_winrt(winrt::Windows::UI::Color const& value) {
 // A URI. The real one parses its text, so an empty wxl::Uri must not be
 // handed to it -- a property left unset stays a null Uri, which is what the
 // runtime itself uses for "no link".
-inline winrt::Windows::Foundation::Uri to_winrt(Uri const& value) {
-    return value.empty() ? nullptr : winrt::Windows::Foundation::Uri{to_winrt(value.text())};
-}
+// A text with a scheme is an absolute URI as it stands; one without is the
+// application's own file, resolved next to the executable like an image path
+// (defined in ImageSource.cpp beside the folder it resolves against).
+winrt::Windows::Foundation::Uri to_winrt(Uri const& value);
 
 inline Uri from_winrt(winrt::Windows::Foundation::Uri const& value) {
     return value ? Uri{from_winrt(value.ToString())} : Uri{};
@@ -219,6 +220,7 @@ core::nullable<T> from_reference(WinRT const& value, Convert convert) {
 // image.
 winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value);
 ImageSource from_winrt(winrt::Microsoft::UI::Xaml::Media::ImageSource const& value);
+
 
 // The four edges. Margin, Padding and BorderThickness are tags over this
 // same type, and each of them is one, so the pair below covers them too.

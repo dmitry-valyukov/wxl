@@ -13,10 +13,10 @@
 
 #include "Object.impl.h"
 #include "events.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Controls.EventArgs.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/Microsoft.UI.Xaml.Controls.impl.h"
+#include <wxl/Members.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.EventArgs.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include "impl/binding.h"
 
 namespace wxl::impl {
@@ -79,7 +79,6 @@ template <EventKey key, class Control, class T, class Get, class Set>
 void bind_pair(Control const& control, core::observable<T>& model, bind_direction direction,
                Get get, Set set) {
     using Args = typename EventAdder<key>::template args_t<Control>;
-
     bool const shows = direction != bind_direction::input;
     bool const edits = direction != bind_direction::output;
 
@@ -94,7 +93,7 @@ void bind_pair(Control const& control, core::observable<T>& model, bind_directio
     EventToken token;
     if (edits) {
         token = EventAdder<key>::add(
-            control, [&model, get](Control const& sender, Args&) { model.set(get(sender)); });
+            control, [&model, get](Control const& sender, EventArgsRef<Args>) { model.set(get(sender)); });
     }
 
     handler_guard<key, Control> guard{control, token};
@@ -139,7 +138,7 @@ void apply_bind(ToggleButton const& control, core::observable<bool>& model,
     EventToken checked;
     EventToken unchecked;
     if (edits) {
-        auto const write = [&model, get](ToggleButton const& sender, Args&) { model.set(get(sender)); };
+        auto const write = [&model, get](ToggleButton const& sender, EventArgsRef<Args>) { model.set(get(sender)); };
         checked = EventAdder<EventKey::Checked>::add(control, write);
         unchecked = EventAdder<EventKey::Unchecked>::add(control, write);
     }
@@ -159,6 +158,75 @@ void apply_bind(ComboBox const& control, core::observable<int>& model, bind_dire
         control, model, direction,                                  //
         [](ComboBox const& c) { return c.selectedIndex(); },        // get
         [](ComboBox const& c, int v) { c.selectedIndex(v); });      // set
+}
+
+void apply_bind(RadioButtons const& control, core::observable<int>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::SelectionChanged>(
+        control, model, direction,                                     //
+        [](RadioButtons const& c) { return c.selectedIndex(); },       // get
+        [](RadioButtons const& c, int v) { c.selectedIndex(v); });     // set
+}
+
+void apply_bind(Slider const& control, core::observable<double>& model, bind_direction direction) {
+    bind_pair<EventKey::ValueChanged>(
+        control, model, direction,                          //
+        [](Slider const& c) { return c.value(); },          // get
+        [](Slider const& c, double v) { c.value(v); });     // set
+}
+
+void apply_bind(RatingControl const& control, core::observable<double>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::ValueChanged>(
+        control, model, direction,                                 //
+        [](RatingControl const& c) { return c.value(); },          // get
+        [](RatingControl const& c, double v) { c.value(v); });     // set
+}
+
+void apply_bind(ColorPicker const& control, core::observable<Color>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::ColorChanged>(
+        control, model, direction,                                 //
+        [](ColorPicker const& c) { return c.color(); },            // get
+        [](ColorPicker const& c, Color v) { c.color(v); });        // set
+}
+
+void apply_bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::Click>(
+        control, model, direction,                                    //
+        [](ToggleMenuFlyoutItem const& c) { return c.isChecked(); },  // get
+        [](ToggleMenuFlyoutItem const& c, bool v) { c.isChecked(v); });  // set
+}
+
+void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::Click>(
+        control, model, direction,                                    //
+        [](RadioMenuFlyoutItem const& c) { return c.isChecked(); },   // get
+        [](RadioMenuFlyoutItem const& c, bool v) { c.isChecked(v); });   // set
+}
+
+void apply_bind(FlipView const& control, core::observable<int>& model, bind_direction direction) {
+    bind_pair<EventKey::SelectionChanged>(
+        control, model, direction,                                 //
+        [](FlipView const& c) { return c.selectedIndex(); },       // get
+        [](FlipView const& c, int v) { c.selectedIndex(v); });     // set
+}
+
+void apply_bind(PipsPager const& control, core::observable<int>& model, bind_direction direction) {
+    bind_pair<EventKey::SelectedIndexChanged>(
+        control, model, direction,                                     //
+        [](PipsPager const& c) { return c.selectedPageIndex(); },      // get
+        [](PipsPager const& c, int v) { c.selectedPageIndex(v); });    // set
+}
+
+void apply_bind(PagerControl const& control, core::observable<int>& model,
+                bind_direction direction) {
+    bind_pair<EventKey::SelectedIndexChanged>(
+        control, model, direction,                                        //
+        [](PagerControl const& c) { return c.selectedPageIndex(); },      // get
+        [](PagerControl const& c, int v) { c.selectedPageIndex(v); });    // set
 }
 
 void apply_bind(NumberBox const& control, core::observable<int>& model, bind_direction direction) {

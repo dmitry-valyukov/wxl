@@ -2,6 +2,7 @@
 auto const current = std::make_shared<Color>(colors.green);
 
 auto editor = RichEditBox {
+    automationName = u"Custom editor",
     height = 200,
     minWidth = 300,
     onTextChanged = [current](RichEditBox const& self) {
@@ -34,6 +35,7 @@ auto toolbar = Grid {
     Button {
         tool,
         gallery::appPop(),
+        automationName = u"Bold",
         toolTip = u"Bold",
         content = FontIcon {glyph = u"\uE8DD"},
         onClick = [editor](Object const&, RoutedEventArgs&) {
@@ -44,6 +46,7 @@ auto toolbar = Grid {
         tool,
         gallery::appPop(),
         column = 1,
+        automationName = u"Italic",
         toolTip = u"Italic",
         content = FontIcon {glyph = u"\uE8DB"},
         onClick = [editor](Object const&, RoutedEventArgs&) {
@@ -55,6 +58,7 @@ auto toolbar = Grid {
         column = 3,
         background = colors.transparent,
         BorderThickness {0},
+        automationName = u"Font color",
         toolTip = u"Font color",
         content = SymbolIcon {symbol = Symbol::FontColor},
         flyout = Flyout {
@@ -69,14 +73,14 @@ auto toolbar = Grid {
             content = VariableSizedWrapGrid {
                 maximumRowsOrColumns = 3,
                 orientation.horizontal,
-                Button {cell, content = Rectangle {dot, fill = rgb(255, 0, 0)}},
-                Button {cell, content = Rectangle {dot, fill = rgb(255, 165, 0)}},
-                Button {cell, content = Rectangle {dot, fill = rgb(255, 255, 0)}},
-                Button {cell, content = Rectangle {dot, fill = rgb(0, 128, 0)}},
-                Button {cell, content = Rectangle {dot, fill = rgb(0, 0, 255)}},
-                Button {cell, content = Rectangle {dot, fill = rgb(75, 0, 130)}},
-                Button {cell, content = Rectangle {dot, fill = rgb(238, 130, 238)}},
-                Button {cell, content = Rectangle {dot, fill = rgb(128, 128, 128)}},
+                Button {cell, automationName = u"Red", content = Rectangle {dot, fill = rgb(255, 0, 0)}},
+                Button {cell, automationName = u"Orange", content = Rectangle {dot, fill = rgb(255, 165, 0)}},
+                Button {cell, automationName = u"Yellow", content = Rectangle {dot, fill = rgb(255, 255, 0)}},
+                Button {cell, automationName = u"Green", content = Rectangle {dot, fill = rgb(0, 128, 0)}},
+                Button {cell, automationName = u"Blue", content = Rectangle {dot, fill = rgb(0, 0, 255)}},
+                Button {cell, automationName = u"Indigo", content = Rectangle {dot, fill = rgb(75, 0, 130)}},
+                Button {cell, automationName = u"Violet", content = Rectangle {dot, fill = rgb(238, 130, 238)}},
+                Button {cell, automationName = u"Gray", content = Rectangle {dot, fill = rgb(128, 128, 128)}},
             },
         },
     },

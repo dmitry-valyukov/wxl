@@ -11,12 +11,12 @@
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
-#include "Microsoft.UI.Xaml.Media.impl.h"
-#include "Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.Media.impl.h>
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "brush_lookup.h"
-#include "brush_names.h"
+#include <wxl/brush_names.h>
 #include "style_lookup.h"
-#include "style_names.h"
+#include <wxl/style_names.h>
 
 namespace wxl::resources {
 namespace {
@@ -54,10 +54,12 @@ winrt::Windows::Foundation::IInspectable themed_lookup(
     winrt::Windows::Foundation::IInspectable const& theme,
     winrt::Windows::Foundation::IInspectable const& name) {
     if (auto const themes = dictionary.ThemeDictionaries()) {
-        if (auto const chosen = themes.TryLookup(theme)) {
+        // HasKey first: a dictionary that has no such theme answers the question with an error, not with nothing, and
+        // the walk meets dictionaries that declare only some of the themes.
+        if (auto const chosen = themes.HasKey(theme) ? themes.Lookup(theme) : winrt::Windows::Foundation::IInspectable{nullptr}) {
             if (auto const inner = chosen.try_as<winrt::Microsoft::UI::Xaml::ResourceDictionary>()) {
-                if (auto const hit = inner.TryLookup(name)) {
-                    return hit;
+                if (inner.HasKey(name)) {
+                    return inner.Lookup(name);
                 }
             }
         }

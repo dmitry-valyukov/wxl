@@ -9,7 +9,7 @@
 # project() -- exactly what wxl.core's own gate file below checks.
 #
 # The generated tree brings its own CMakeLists.txt, which only calls
-# target_sources() on this target -- hence add_subdirectory(src/generated)
+# target_sources() on this target -- hence add_subdirectory(src/wxl)
 # at the *end* of this file, after the target exists.
 cmake_minimum_required(VERSION 3.28)
 
@@ -39,6 +39,9 @@ endif()
 # from the WindowsAppSDK metadata and lives in the repo.
 find_package(cppwinrt CONFIG REQUIRED)
 
+# Where the NuGet packages are, and at which versions: cmake/wxl_packages.cmake.
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/wxl_packages.cmake")
+
 # Relative to this directory, not CMAKE_SOURCE_DIR: wxl.ui builds both
 # standalone and as a subdirectory, and the projection lives in the repo
 # next to both.
@@ -56,8 +59,9 @@ endif()
 # dependencies, so this is wired here
 # rather than by every consuming application. Declared before the target,
 # since both the include path and the import library below use it.
+wxl_nuget_package_dir(_wxl_foundation_dir Microsoft.WindowsAppSDK.Foundation)
 set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
-    "D:/Users/Dima/.nuget/packages/microsoft.windowsappsdk.foundation/2.3.5"
+    "${_wxl_foundation_dir}"
     CACHE PATH "WindowsAppSDK.Foundation NuGet package (Bootstrap headers/lib/dll)")
 
 # WinUI3's native interop headers: microsoft.ui.xaml.window.h, which is how
@@ -68,8 +72,9 @@ set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
 # Not the InteractiveExperiences package's Microsoft.UI.Interop.h, which
 # would answer the same question through a WindowId: it includes the ABI
 # header Microsoft.UI.h, which that package does not carry.
+wxl_nuget_package_dir(_wxl_winui_dir Microsoft.WindowsAppSDK.WinUI)
 set(WXL_WINDOWSAPPSDK_WINUI_DIR
-    "D:/Users/Dima/.nuget/packages/microsoft.windowsappsdk.winui/2.3.2"
+    "${_wxl_winui_dir}"
     CACHE PATH "WindowsAppSDK.WinUI NuGet package (native interop headers)")
 
 # Win2D (Microsoft.Graphics.Canvas) -- CompositionWindow grabs textures with it
@@ -77,9 +82,18 @@ set(WXL_WINDOWSAPPSDK_WINUI_DIR
 # DLL activates unpackaged and, like the bootstrapper above, must sit next to the
 # consumer's executable -- or the window's constructor faults building the shared
 # CanvasDevice. wxl declares the path; the consumer copies the DLL.
+wxl_nuget_package_dir(_wxl_win2d_dir Microsoft.Graphics.Win2D)
 set(WXL_WIN2D_DIR
-    "D:/Users/Dima/.nuget/packages/microsoft.graphics.win2d/1.4.0"
+    "${_wxl_win2d_dir}"
     CACHE PATH "Win2D (Microsoft.Graphics.Canvas) NuGet package (native runtime DLL)")
+
+# WebView2 -- MapControl of the framework draws its map in a WebView2, and the WebView2 control looks for
+# WebView2Loader.dll next to the executable; an unpackaged program has no package to bring it, and a map
+# control that cannot find it ends the process while its template is applied. Named here like Win2D below.
+wxl_nuget_package_dir(_wxl_webview2_dir Microsoft.Web.WebView2)
+set(WXL_WEBVIEW2_DIR
+    "${_wxl_webview2_dir}"
+    CACHE PATH "Microsoft.Web.WebView2 NuGet package (the loader DLL of the WebView2 control)")
 
 add_library(wxl.ui STATIC
     # Pre-defined -- never generated.
@@ -107,12 +121,19 @@ add_library(wxl.ui STATIC
     src/MagnifyEffect.cpp
     src/FocusEffect.h
     src/FocusEffect.cpp
+    src/RevealEffect.h
+    src/RevealEffect.cpp
     src/schema.h
     src/impl/event_waits.h
     src/aliases.h
     src/ui.h
     src/Collection.h
     src/Collection.impl.h
+    src/VectorView.h
+    src/VectorView.impl.h
+    src/iterable_param.h
+    src/impl/index_iterator.h
+    src/impl/vector_element.h
     src/Color.h
     src/Relief.h
     src/Thickness.h
@@ -176,6 +197,45 @@ add_library(wxl.ui STATIC
     src/Panels.cpp
     src/SplitPanel.h
     src/SplitPanel.cpp
+    src/CustomLayout.h
+    src/CustomLayout.cpp
+    src/CustomVirtualizingLayout.h
+    src/CustomVirtualizingLayout.cpp
+    src/Navigation.h
+    src/Navigation.cpp
+    src/ItemElement.h
+    src/ItemElement.cpp
+    src/Announce.h
+    src/Announce.cpp
+    src/ResourceBrush.h
+    src/ResourceBrush.cpp
+    src/KeyedIndexList.h
+    src/KeyedIndexList.cpp
+    src/BoundTemplate.h
+    src/BoundTemplate.cpp
+    src/FrameSource.h
+    src/FrameSource.cpp
+    src/Failure.h
+    src/Failure.cpp
+    src/LoadXaml.h
+    src/LoadXaml.cpp
+    src/SettingsCard.h
+    src/SettingsCard.cpp
+    src/SettingsCardAlignment.h
+    src/HeaderedContentControl.h
+    src/HeaderedContentControl.cpp
+    src/impl/headered_content_control.h
+    src/impl/headered_content_control.cpp
+    src/SettingsExpander.h
+    src/SettingsExpander.cpp
+    src/impl/settings_expander.h
+    src/impl/settings_expander.cpp
+    src/impl/settings_card.h
+    src/impl/settings_card.cpp
+    src/impl/navigation_view_search.h
+    src/impl/navigation_view_search.cpp
+    src/impl/automation_properties.h
+    src/impl/automation_properties.cpp
     src/AppZoom.h
     src/AppZoom.cpp
     src/ZoomEffect.h
@@ -221,6 +281,45 @@ add_library(wxl.ui STATIC
     src/impl/grid_definitions.cpp
     src/impl/tool_tip.h
     src/impl/tool_tip.cpp
+    src/impl/resource.h
+    src/impl/resource.cpp
+    src/impl/picker_file_types.h
+    src/impl/picker_file_types.cpp
+    src/impl/file_uri.h
+    src/impl/file_uri.cpp
+    src/impl/file_stream_reference.h
+    src/impl/file_stream_reference.cpp
+    src/PickerFileTypes.h
+    src/impl/item_factory.h
+    src/impl/item_factory.cpp
+    src/impl/item_template.h
+    src/impl/item_template.cpp
+    src/ItemBuilder.h
+    src/Box.h
+    src/Box.cpp
+    src/impl/element_items.h
+    src/impl/element_items.cpp
+    src/impl/items_panel.h
+    src/impl/items_panel.cpp
+    src/impl/title_bar_drag.h
+    src/impl/title_bar_drag.cpp
+    src/impl/backdrop_controller.h
+    src/impl/backdrop_controller.cpp
+    src/Packaged.h
+    src/Operation.h
+    src/impl/operation.h
+    src/Packaged.cpp
+    src/Resource.h
+    src/impl/geometry_from_text.h
+    src/impl/geometry_from_text.cpp
+    src/impl/points_from_text.h
+    src/impl/points_from_text.cpp
+    src/impl/scroll_controller.h
+    src/impl/scroll_controller.cpp
+    src/impl/swipe_items_mode.h
+    src/impl/swipe_items_mode.cpp
+    src/impl/wheel_to_parent.h
+    src/impl/wheel_to_parent.cpp
     src/impl/automation_name.h
     src/impl/automation_name.cpp
     src/impl/value_box.h
@@ -260,6 +359,7 @@ target_include_directories(wxl.ui PRIVATE
 # the pixels come from Direct2D through the compositor -- and the few files
 # that paint a GDI surface lift it for themselves.
 target_compile_definitions(wxl.ui PRIVATE NOGDI)
+
 
 target_link_libraries(wxl.ui
     PUBLIC
@@ -304,6 +404,17 @@ target_link_libraries(wxl.ui
         dwmapi.lib
 )
 
+# The channel of the Windows App Runtime the application starts on. The WinUI
+# metadata the wrappers are generated from is the experimental channel's (see
+# tools/packages.json: WrapPanel, TitleBar.RecomputeDragRegions and the Window
+# size properties are declared nowhere else), and a stable runtime answers a call
+# to any of them with "no such interface". So the default is the experimental
+# framework package, Microsoft.WindowsAppRuntime.2-experimentalF (tag experimentalF), which
+# tools/restore-packages.ps1 fetches the installer of and tools/install-runtime.ps1 installs. An empty value is the
+# stable channel, for a tree whose metadata is the stable package's.
+set(WXL_WINDOWSAPPSDK_VERSION_TAG "experimentalF"
+    CACHE STRING "Version tag of the Windows App Runtime framework package: experimentalF, or empty for the stable channel")
+
 # The bootstrapper as a target, not as a path to its import library: then
 # CMake knows the DLL behind it, and $<TARGET_RUNTIME_DLLS> of an application
 # names it without the application knowing where the SDK lies. GLOBAL, so the
@@ -315,7 +426,11 @@ if(EXISTS "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsA
         IMPORTED_LOCATION
             "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/runtimes/win-x64/native/Microsoft.WindowsAppRuntime.Bootstrap.dll"
         IMPORTED_IMPLIB
-            "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib")
+            "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib"
+        # Whoever compiles impl/bootstrap.cpp -- wxl.ui, or a sandbox that takes the
+        # file directly -- asks for the same channel.
+        INTERFACE_COMPILE_DEFINITIONS
+            "WXL_WINDOWSAPPSDK_VERSION_TAG=L\"${WXL_WINDOWSAPPSDK_VERSION_TAG}\"")
 
     target_link_libraries(wxl.ui PUBLIC wxl.winappsdk.bootstrap)
 else()
@@ -336,6 +451,15 @@ else()
         "will fault while building its shared CanvasDevice.")
 endif()
 
+if(EXISTS "${WXL_WEBVIEW2_DIR}/runtimes/win-x64/native/WebView2Loader.dll")
+    set_property(TARGET wxl.ui APPEND PROPERTY WXL_RUNTIME_FILES
+        "${WXL_WEBVIEW2_DIR}/runtimes/win-x64/native/WebView2Loader.dll")
+else()
+    message(WARNING
+        "No WebView2Loader.dll at ${WXL_WEBVIEW2_DIR}; a MapControl or a WebView2 will end the process "
+        "when it is shown.")
+endif()
+
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "src" REGULAR_EXPRESSION "src/.*")
 
 # ---- The declarative surface, compiled the way an application sees it ----
@@ -353,7 +477,7 @@ add_library(wxl.ui.surface-test OBJECT
 target_link_libraries(wxl.ui.surface-test PRIVATE wxl.ui)
 
 # Last: the generated sources add themselves to the two targets above.
-add_subdirectory(src/generated)
+add_subdirectory(src/wxl)
 
 # After that subdirectory and not before it: this reads the targets' SOURCES to
 # lay them out in the IDE, and until the generated sources are in, half of what
@@ -377,14 +501,26 @@ if(BUILD_TESTING)
     # would otherwise have to be believed. Needs only cppwinrt's base header,
     # no WinUI runtime. What hstring_param takes and refuses is in wxl.core's
     # tests; the surface test never runs, so what is about values goes here.
+    #
+    # VectorView and Collection are read over cppwinrt's own vector, which
+    # needs no runtime either. They are wrappers, so Object.cpp comes along --
+    # built here rather than linked through wxl.ui, whose INTERFACE
+    # /ENTRY:wWinMainCRTStartup would take main() away from gtest -- and with
+    # it the projection Object.impl.h names.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
+            test/vector_view_test.cpp
+            src/Object.cpp
         DEPS
             Microsoft::CppWinRT
+            runtimeobject.lib
             wxl::core
     )
-    target_include_directories(wxl.ui.tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_include_directories(wxl.ui.tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${WXL_CPPWINRT_PROJECTION_DIR}
+    )
 
     # Teardown is header-only over core::function, so its test needs only the
     # header and wxl.core -- not wxl.ui, whose INTERFACE
@@ -415,4 +551,28 @@ if(BUILD_TESTING)
         CXX_SCAN_FOR_MODULES ON)
     wxl_set_target_folders(wxl.ui.app-zoom-test PREFIX "tests")
     add_test(NAME wxl.ui.app-zoom COMMAND wxl.ui.app-zoom-test)
+
+    # The path an address with the file scheme names is plain text work over wxl.core, tested
+    # the way AppZoom is.
+    add_executable(wxl.ui.file-uri-test test/file_uri_test.cpp src/impl/file_uri.cpp)
+    target_link_libraries(wxl.ui.file-uri-test PRIVATE wxl::core)
+    target_include_directories(wxl.ui.file-uri-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(wxl.ui.file-uri-test PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON)
+    wxl_set_target_folders(wxl.ui.file-uri-test PREFIX "tests")
+    add_test(NAME wxl.ui.file-uri COMMAND wxl.ui.file-uri-test)
+
+    # The reference made for a file address, on the real platform: Windows.Storage and the
+    # streams, no WinUI. Not linked with wxl.ui, whose entry point would take main() away;
+    # the two sources it tests are built into it.
+    add_executable(wxl.ui.stream-reference-test test/stream_reference_test.cpp
+        src/impl/file_stream_reference.cpp src/impl/file_uri.cpp)
+    target_link_libraries(wxl.ui.stream-reference-test PRIVATE wxl::core Microsoft::CppWinRT runtimeobject.lib)
+    target_include_directories(wxl.ui.stream-reference-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(wxl.ui.stream-reference-test PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON)
+    wxl_set_target_folders(wxl.ui.stream-reference-test PREFIX "tests")
+    add_test(NAME wxl.ui.stream-reference COMMAND wxl.ui.stream-reference-test)
 endif()

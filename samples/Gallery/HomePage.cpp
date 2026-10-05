@@ -69,8 +69,8 @@ FrameworkElement heroHeader() {
         StackPanel {
             Margin {36, 48, 0, 0},
             vAlign.center,
-            TextBlock {u"Windows App SDK 2.4 · wxl", fontSize = 18},
-            TextBlock {u"WinUI 3 Gallery", styles.TextBlock.TitleLarge},
+            TextBlock {u"Windows App SDK 2.4", fontSize = 18},
+            TextBlock {u"WXL Gallery", styles.TextBlock.TitleLarge},
         },
         ScrollViewer {
             row = 2,
@@ -88,15 +88,11 @@ FrameworkElement heroHeader() {
                 headerTile(L"Design", L"Guidelines and toolkits for creating stunning WinUI experiences.",
                            L"https://learn.microsoft.com/windows/apps/design/",
                            picture(u"Assets/HomeHeaderTiles/Header-WindowsDesign.png")),
-                headerTile(L"WinUI on GitHub", L"Explore the WinUI source code and repository.",
-                           L"https://github.com/microsoft/microsoft-ui-xaml",
+                headerTile(L"WXL on GitHub", L"Explore the WXL source code and repository.",
+                           L"https://github.com/dmitry-valyukov/wxl",
                            FontIcon {glyph = u"", fontSize = 24}),
-                headerTile(L"Community Toolkit",
-                           L"A collection of helper functions, controls, and app services.",
-                           L"https://apps.microsoft.com/store/detail/windows-community-toolkit-sample-app/9NBLGGH4TLCQ",
-                           picture(u"Assets/HomeHeaderTiles/Header-Toolkit.png")),
                 headerTile(L"Code samples", L"Find samples that demonstrate specific tasks, features, and APIs.",
-                           L"https://learn.microsoft.com/windows/apps/get-started/samples",
+                           L"https://github.com/dmitry-valyukov/wxl/blob/main/samples/README.md",
                            FontIcon {glyph = u"", fontSize = 24}),
                 headerTile(L"Partner Center", L"Upload your app to the Store.",
                            L"https://developer.microsoft.com/windows/",
@@ -107,7 +103,7 @@ FrameworkElement heroHeader() {
 }
 
 FrameworkElement heading(zstring_view label, Thickness space) {
-    return TextBlock {label, margin = space, fontSize = 16, styles.TextBlock.BodyStrong};
+    return TextBlock {label, margin = space, fontSize = 16, automationHeadingLevel = AutomationHeadingLevel::Level2, styles.TextBlock.BodyStrong};
 }
 
 // Контролы по идентификаторам, которые ещё есть в каталоге.
@@ -140,10 +136,10 @@ wxl::FrameworkElement gallery::homePage() {
     auto recentPanel = StackPanel {spacing = 12.0};
     if (!visited.empty()) {
         recentPanel.children().append(heading(u"Recently visited", Thickness {0}));
-        recentPanel.children().append(tileGrid(visited, Thickness {0}));
+        recentPanel.children().append(tileGrid(visited, Thickness {0}, u"RecentlyVisitedGridView", u"Recently visited samples"));
     }
     recentPanel.children().append(heading(u"Recently added or updated", Thickness {0, 12, 0, 0}));
-    recentPanel.children().append(tileGrid(added, Thickness {0}));
+    recentPanel.children().append(tileGrid(added, Thickness {0}, u"RecentlyAddedAndUpdatedGridView", u"Recently added and updated Samples"));
 
     auto favoritePanel = StackPanel {};
     if (liked.empty()) {
@@ -159,7 +155,7 @@ wxl::FrameworkElement gallery::homePage() {
             },
         });
     } else {
-        favoritePanel.children().append(tileGrid(liked, Thickness {0}));
+        favoritePanel.children().append(tileGrid(liked, Thickness {0}, u"FavoriteSamplesGridView", u"Favorite Samples"));
     }
 
     auto body = Border {row = 2, Margin {36, 0, 36, 36}, recentPanel};

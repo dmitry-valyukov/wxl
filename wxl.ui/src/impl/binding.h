@@ -21,6 +21,7 @@
 
 #include "core.h"
 
+#include "Color.h"
 #include "member.h"
 
 namespace wxl {
@@ -30,6 +31,15 @@ class CheckBox;
 class ComboBox;
 class NumberBox;
 class TextBox;
+class RadioButtons;
+class Slider;
+class RatingControl;
+class ColorPicker;
+class ToggleMenuFlyoutItem;
+class RadioMenuFlyoutItem;
+class FlipView;
+class PipsPager;
+class PagerControl;
 }  // namespace wxl
 
 namespace wxl::impl {
@@ -62,6 +72,48 @@ void apply_bind(NumberBox const& control, core::observable<double>& model,
 /// TextBox.text <-> observable<u16_text>, under TextChanged -- validated
 /// UTF-16, repaired on the way in.
 void apply_bind(TextBox const& control, core::observable<core::u16_text>& model,
+                bind_direction direction = bind_direction::both);
+
+/// RadioButtons.selectedIndex <-> observable<int>, under SelectionChanged --
+/// the chosen button, by position, -1 while none is.
+void apply_bind(RadioButtons const& control, core::observable<int>& model,
+                bind_direction direction = bind_direction::both);
+
+/// Slider.value <-> observable<double>, under ValueChanged.
+void apply_bind(Slider const& control, core::observable<double>& model,
+                bind_direction direction = bind_direction::both);
+
+/// RatingControl.value <-> observable<double>, under ValueChanged -- -1 while
+/// the control holds no rating.
+void apply_bind(RatingControl const& control, core::observable<double>& model,
+                bind_direction direction = bind_direction::both);
+
+/// ColorPicker.color <-> observable<Color>, under ColorChanged.
+void apply_bind(ColorPicker const& control, core::observable<Color>& model,
+                bind_direction direction = bind_direction::both);
+
+/// ToggleMenuFlyoutItem.isChecked <-> observable<bool>, under Click -- the item
+/// flips itself when it is chosen, and says nothing else.
+void apply_bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
+                bind_direction direction = bind_direction::both);
+
+/// RadioMenuFlyoutItem.isChecked <-> observable<bool>, under Click. The group
+/// unchecks the others without a click of theirs: a field per item that must
+/// follow its group reads the group's choice from one field instead.
+void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
+                bind_direction direction = bind_direction::both);
+
+/// FlipView.selectedIndex <-> observable<int>, under SelectionChanged -- the page
+/// shown, by position, -1 while none is.
+void apply_bind(FlipView const& control, core::observable<int>& model,
+                bind_direction direction = bind_direction::both);
+
+/// PipsPager.selectedPageIndex <-> observable<int>, under SelectedIndexChanged.
+void apply_bind(PipsPager const& control, core::observable<int>& model,
+                bind_direction direction = bind_direction::both);
+
+/// PagerControl.selectedPageIndex <-> observable<int>, under SelectedIndexChanged.
+void apply_bind(PagerControl const& control, core::observable<int>& model,
                 bind_direction direction = bind_direction::both);
 
 /// NumberBox.intermediateValue -> observable<double>: the number as it is
@@ -124,6 +176,87 @@ struct PropertyBinder<PropertyKey::Value, NumberBox> {
         apply_bind(control, model, direction);
     }
     static void bind(NumberBox const& control, core::observable<double>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::SelectedIndex, RadioButtons> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(RadioButtons const& control, core::observable<int>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::Value, Slider> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(Slider const& control, core::observable<double>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::Value, RatingControl> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(RatingControl const& control, core::observable<double>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::Color, ColorPicker> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(ColorPicker const& control, core::observable<Color>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::IsChecked, ToggleMenuFlyoutItem> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::SelectedIndex, FlipView> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(FlipView const& control, core::observable<int>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::SelectedPageIndex, PipsPager> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(PipsPager const& control, core::observable<int>& model,
+                     bind_direction direction) {
+        apply_bind(control, model, direction);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::SelectedPageIndex, PagerControl> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(PagerControl const& control, core::observable<int>& model,
                      bind_direction direction) {
         apply_bind(control, model, direction);
     }

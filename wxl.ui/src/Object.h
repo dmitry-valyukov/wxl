@@ -7,7 +7,7 @@
 // wxl::Statics lives here too, and is the other half of the same statement:
 // what a generated class derives from when it is not a wrapper at all.
 //
-// The generated wrappers, generated/<Namespace>.h, follow the pattern these
+// The generated wrappers, wxl/<Namespace>.h, follow the pattern these
 // levels set. A file announces every class it defines and then defines them
 // in inheritance order, so every base is complete where a class derives
 // from it. A wrapper has the constructors of the real class: a public
@@ -19,6 +19,7 @@
 //
 // core.h is where the wxl.core import lives, for every wxl header alike.
 #include "core.h"
+#include "hstring_param.h"
 
 struct IInspectable;
 
@@ -80,7 +81,7 @@ using member_type = typename ImplTraits<member>::member_t;
 // which is the private, winrt-facing side. That is the module-visibility
 // boundary wxl's compile-time goal rests on -- no consumer of this header
 // parses a cppwinrt projection header. Every generated wrapper declares its
-// own Impl the same way and defines it in generated/<Namespace>.impl.h, so
+// own Impl the same way and defines it in wxl/<Namespace>.impl.h, so
 // a generated public header never names a winrt:: type either and including
 // one stays cheap.
 class Object {
@@ -146,10 +147,39 @@ public:
     template <typename T>
     T try_as() const;
 
+    // Whether this object is one of T -- the question try_as asks, without its assertion on a miss. For the
+    // walk up a tree that meets one kind of parent after another and wants to know which this is.
+    template <typename T>
+    bool is() const;
+
     // Whether this wrapper holds an object at all: a smart pointer's own
     // question. A moved-from wrapper and the empty result of a try_as miss hold
     // none; every freshly built or handed-over one does.
     explicit operator bool() const noexcept { return impl_ != nullptr; }
+
+    // ---- A string that came in an object ----
+    //
+    // A property that takes any object (CommandParameter, an item of a list)
+    // is given a string boxed as one, and an event hands it back as an Object:
+    // `args.parameter()` of a command that was asked to run. These two read
+    // the string out again. Only a string is read -- a number or a value of
+    // another kind is not turned into text -- and text() on an object that
+    // is not one is a wiring mistake, as try_as() on the wrong class is.
+
+    /// Whether this object is a boxed string.
+    bool is_text() const;
+
+    /// The string this object boxes.
+    hstring text() const;
+
+    /// Whether both are the same runtime object -- the identity COM defines,
+    /// which two wrappers of one window or one element share even when they
+    /// were obtained apart (an event's sender, a handle kept in a list).
+    bool is_same_object(Object const& other) const;
+
+    /// A string boxed into an object, for what takes any object and is given a text:
+    /// the content of a label, of a tooltip.
+    static Object from_text(hstring_param const& text);
 
     // ---- The way out of wxl, and back in ----
     //

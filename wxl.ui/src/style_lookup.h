@@ -3,10 +3,10 @@
 // The lookup behind every named style path. Hand-written, and next to the
 // generator's output rather than inside it: not a line here depends on which
 // styles a profile's resource dictionary happens to declare, so the
-// generator emits only what does -- `generated/styles.h` for the paths and
-// `generated/style_names.h` for the framework's key behind each one.
+// generator emits only what does -- `wxl/styles.h` for the paths and
+// `wxl/style_names.h` for the framework's key behind each one.
 
-#include "Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "impl/member.h"
 
 namespace wxl::resources {

@@ -249,10 +249,29 @@ void collect_method(MethodDef const& method, std::string_view field_view, type_i
         static_cast<void>(param);
         ++count;
     }
+    size_t slot = 0;  // place in the signature, where `position` counts what is kept
     for (auto&& param : signature.Params()) {
+        // The pair composition adds to a factory method, named so in every composable
+        // factory: baseInterface in, innerInterface out. Both are left out; the
+        // constructor is made through the projection's own, which supplies them.
+        if (slot < names.size() && names[slot] == "baseInterface" && count >= slot + 2) {
+            info.composable_constructor = true;
+            ++slot;
+            continue;
+        }
+        if (info.composable_constructor && param.ByRef()) {
+            ++slot;
+            continue;
+        }
+        ++slot;
+
         auto use = map_type(param.Type(), index);
         if (!use.supported) {
             skipped.push_back({info.name, std::format("parameter type: {}", use.reason)});
+            return;
+        }
+        if (use.result_only) {
+            skipped.push_back({info.name, std::format("parameter type: {} is only handed back", use.value_type)});
             return;
         }
         if (param.ByRef()) {
@@ -269,7 +288,7 @@ void collect_method(MethodDef const& method, std::string_view field_view, type_i
             return;
         }
         info.params.push_back(
-            {position < names.size() ? names[position] : std::format("arg{}", position),
+            {slot - 1 < names.size() ? names[slot - 1] : std::format("arg{}", slot - 1),
              std::move(use)});
         ++position;
     }

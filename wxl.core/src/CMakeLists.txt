@@ -136,6 +136,7 @@ if(WXL_UPDATE_INTELLISENSE AND WIN32)
     endif()
 endif()
 
+
 target_compile_definitions(wxl.core
     PUBLIC
         WXL_VERSION="${PROJECT_VERSION}"

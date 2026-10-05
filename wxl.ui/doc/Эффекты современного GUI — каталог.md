@@ -21,7 +21,7 @@
 | LGT-01 | Тени и высота | `ThemeShadow` + `translation = {0, 0, 32}` в `Card` |
 | LGT-03 | Градиенты | `LinearGradientBrush`, `RadialGradientBrush` в профиле; на композиторе — `CompositionLinearGradientBrush`. Конического нет ни в WinUI, ни в Direct2D — свой эффект |
 | LGT-06 | Цветные тени | `HaloEffect` со смещением (настройки — `Preset<DropShadow>`); пока только для элементов с `GetAlphaMask` — текста, картинки, фигуры |
-| LGT-07 | Свечение / неон | `HaloEffect` — `DropShadow` без смещения по альфе глифов; неоновая вывеска в `samples/Effects` (ветка `effects`, не влита) |
+| LGT-07 | Свечение / неон | `HaloEffect` — `DropShadow` без смещения по альфе глифов; неоновая вывеска в `samples/Gallery` (группа Effects) |
 | LGT-10 | Градиентная обводка | `BevelEffect`: ось градиента нацелена по диагонали и следует за `SizeChanged` |
 | LGT-11 | Системный акцент (вместо Material You) | Кисти `AccentFillColor*` следуют за акцентом Windows; палитра из картинки — это MAT-11 |
 | MOT-04 | Модальные окна и выпадающие панели | `wxl::showDialog` для `ContentDialog`, `Flyout` / `MenuFlyout` в профиле; анимации встроенные |
@@ -187,7 +187,7 @@
 
 **Проверка**
 
-- [ ] Каждый эффект — страница в `samples/Effects`. Снимок через `PrintWindow` / `BitBlt` DirectComposition не видит, поэтому пример и драйвер `run-wxl` — пока единственное покрытие; захват через `Windows.Graphics.Capture` дал бы настоящий тест.
+- [ ] Каждый эффект — страница группы Effects в `samples/Gallery`. Снимок через `PrintWindow` / `BitBlt` DirectComposition не видит, поэтому пример и драйвер `run-wxl` — пока единственное покрытие; захват через `Windows.Graphics.Capture` дал бы настоящий тест.
 
 ## Источники
 

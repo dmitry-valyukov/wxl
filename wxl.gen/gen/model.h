@@ -168,6 +168,9 @@ struct class_info {
     // The factory interface a composable class is created through, in
     // metadata form; empty for every other class.
     std::string composable_factory;
+    std::string from_text_function;  // see from_text_t in profile.h
+    std::string from_text_include;
+    bool is_interface = false;  // a wrapped interface: no class of its own above it
 
     // The projection headers the private side needs for this level: the
     // class's own namespace and that of every interface it holds.
@@ -206,11 +209,12 @@ struct class_info {
     std::vector<positional_route> positional;
     bool base_has_positional = false;
 
-    // Element types of the wxl::Collection specializations this level's
-    // members name. The template's bodies are not in its public header, so
-    // every specialization has to be stated: `extern template` wherever it is
-    // used, one `template class` definition across the whole library.
-    std::set<std::string> collection_elements;
+    // The specializations of wxl's templates this level's members name --
+    // Collection<UIElement>, VectorView<hstring>. A template's bodies are not
+    // in its public header, so every specialization has to be stated:
+    // `extern template` wherever it is used, one `template class` definition
+    // across the whole library.
+    std::set<std::string> instantiations;
 };
 
 // One file group: the classes of one namespace, or of several that derive
@@ -218,12 +222,17 @@ struct class_info {
 struct class_group {
     std::string name;  // "Microsoft.UI.Xaml.Controls"
     std::vector<class_info> classes;
-    // The Collection specializations the group's classes name, and those of
+    // The template specializations the group's classes name, and those of
     // them it is the one to define: an explicit instantiation definition may
-    // exist in exactly one translation unit, so the first group naming an
-    // element -- in the order the files are written -- takes it.
+    // exist in exactly one translation unit, so the first group naming a
+    // specialization -- in the order the files are written -- takes it.
     std::set<std::string> collections_used;
     std::set<std::string> collections_defined;
+    // Groups whose header is announced and not included: a member names a class
+    // of a group whose own headers lead back here, and in a circle of includes
+    // the header met first in a translation unit has the other's include
+    // skipped. Found by analysis from the edges of all groups.
+    std::set<std::string> dropped;
 };
 
 // ---- Members.h ----
@@ -256,7 +265,11 @@ struct dsl {
         std::string setter;      // "setRow"
         std::string value_type;  // "int32_t", for the braced form
     };
-    std::map<std::string, attached_t> attached;
+    //
+    // Several parents may declare a property of one name -- Grid.RowSpan and
+    // VariableSizedWrapGrid.RowSpan -- and the child cannot know which parent
+    // it will land in, so the one tag sets every one of them the object fits.
+    std::map<std::string, std::vector<attached_t>> attached;
 
     // Enum type (spelled as the value types above spell it, `Orientation`)
     // -> its enumerators, each as the member name the syntax surfaces it under
@@ -373,6 +386,11 @@ struct event_args_file {
 
 // Everything the writers write, in the order write_all() writes it.
 struct model {
+    // What the profiles say of the classes the analysis reads: the classes a string builds, and the
+    // calls wxl replaces with a function of its own (see profile.h).
+    std::map<std::string, from_text_t> from_text;
+    std::map<std::string, std::map<std::string, replaced_call>> replaced_calls;
+
     // PropertyKey.h / EventKey.h
     std::set<std::string> property_names;
     std::set<std::string> event_names;

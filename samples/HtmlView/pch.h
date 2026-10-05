@@ -6,5 +6,5 @@
 #include "RsdnBlock.h"
 #include "Panels.h"
 #include "ui.h"
-#include "generated/brushes.h"
+#include <wxl/brushes.h>
 #include "launch.h"

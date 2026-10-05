@@ -260,3 +260,51 @@ inline constexpr Matrix4x4 identity_matrix() {
     return {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
 }
 }  // namespace wxl
+
+namespace wxl::core {
+
+// A rectangle that may be absent -- ToolTip.PlacementRect, which WinRT boxes as
+// IReference<Rect> and which means "no rectangle to keep clear" when empty.
+// Four floats, each a real coordinate, so there is no bit pattern to spend as
+// the empty state, and nullable<Rect> is std::optional<Rect>, as Color's is.
+template <>
+struct optional_selector<wxl::Rect> {
+    using nullable = std::optional<wxl::Rect>;
+};
+
+}  // namespace wxl::core
+
+namespace wxl::core {
+
+// A point that may be absent -- FlyoutShowOptions.Position, where empty means
+// "by the flyout's own rule". Two floats that are both real coordinates, so
+// nullable<Point> is std::optional<Point>, like Rect's.
+template <>
+struct optional_selector<wxl::Offset> {
+    using nullable = std::optional<wxl::Offset>;
+};
+
+}  // namespace wxl::core
+
+namespace wxl::core {
+
+// A vector that may be absent -- the centre point of ScrollView.ZoomBy, where
+// empty means the centre of the view. No float pattern is spare, so
+// nullable<Vector2> is std::optional<Vector2>, like Rect's and Point's.
+template <>
+struct optional_selector<wxl::Vector2> {
+    using nullable = std::optional<wxl::Vector2>;
+};
+
+}  // namespace wxl::core
+
+namespace wxl::core {
+
+// A three-component vector that may be absent -- the final value of a spring animation, which WinRT boxes as
+// IReference<Vector3>. No float pattern is spare, so nullable<Vector3> is std::optional<Vector3>, like Vector2's.
+template <>
+struct optional_selector<wxl::Vector3> {
+    using nullable = std::optional<wxl::Vector3>;
+};
+
+}  // namespace wxl::core

@@ -9,7 +9,7 @@
 // Nothing here runs: the WinUI3 runtime is not up in a test, and activating
 // a real control without it fails. This is about the syntax and the types.
 //
-// The same target compiles generated/schema_surface.cpp: one line per
+// The same target compiles wxl/schema_surface.cpp: one line per
 // element of the generated schema.h, and nothing else. What it proves is
 // that every anchor the schema offers actually applies to the class it hangs
 // on -- that the key reaches a setter that class has, that the value type the
@@ -28,6 +28,7 @@
 #include "event_awaitable.h"
 #include "Card.h"
 #include "CompositionWindow.h"
+#include "CustomLayout.h"
 #include "DrawingSurface.h"
 #include "FocusEffect.h"
 #include "FormattedBlock.h"
@@ -40,11 +41,11 @@
 #include "Relief.h"
 #include "UiThread.h"
 #include "ui.h"
-#include "generated/Microsoft.UI.Dispatching.h"
+#include <wxl/Microsoft.UI.Dispatching.h>
 #include "schema.h"
-#include "generated/Microsoft.UI.Composition.h"
-#include "generated/Microsoft.UI.Xaml.Hosting.h"
-#include "generated/brushes.h"
+#include <wxl/Microsoft.UI.Composition.h>
+#include <wxl/Microsoft.UI.Xaml.Hosting.h>
+#include <wxl/brushes.h>
 
 namespace {
 
@@ -516,7 +517,7 @@ namespace library_presets {
 // object a property asks for is a template's to build.
 [[maybe_unused]] void own_preset() {
     constexpr Preset glow{
-        center = {0.33, 0.33},
+        center = Point {0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,
@@ -539,7 +540,7 @@ namespace library_presets {
 // the same way it would be written inside the object's.
 [[maybe_unused]] void templates_of_presets() {
     constexpr Preset shape{
-        center = {0.33, 0.33},
+        center = Point {0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,
@@ -604,6 +605,7 @@ struct BoundModel : core::sta_refcounted {
     core::observable<std::u16string> title{u"WXL"};
     core::observable<bool> busy;
     core::observable<core::u16_text> name;
+    core::observable<Color> tint;
     core::observable<int> row;
     core::observable<double> amount;
 };
@@ -621,6 +623,11 @@ struct BoundModel : core::sta_refcounted {
     CheckBox{isChecked = Bind{model->busy}};
     CheckBox{Bind{model->busy}};
     ToggleButton{isChecked = Bind{model->busy}};
+    RadioButtons{selectedIndex = Bind{model->row}};
+    Slider{value = Bind{model->amount}};
+    RatingControl{value = Bind{model->amount}};
+    ColorPicker{color = Bind{model->tint}};
+    Slider{Bind{model->amount}};
 
     // From the field: the control shows, pair or no pair.
     TextBlock{text = BindOutput{model->title}};  // no pair: the only form a TextBlock's text takes
@@ -1674,6 +1681,16 @@ struct probe_task {
     Button3DEffect const key{foreground = rgb(237, 239, 242), background = rgba(68, 72, 79, 0.933), shadow = 0.7,
                              emboss = -1};
     Button{u"7", key};
+    // The lights over the pointer, written bare: one pair given to two kinds
+    // of key, and one light written in place.
+    HoverLight const spot{size = 200, diffuseAmount = 0.4};
+    BorderLight const glow{size = 340};
+    Button3DEffect const lit{background = rgb(68, 72, 79), spot, glow};
+    Button3DEffect const other{background = rgb(48, 68, 116), spot, glow};
+    Button3DEffect const dark{background = rgb(48, 68, 116), HoverLight{intensity = 0}};
+    Button{u"8", lit};
+    Button{u"+", other};
+    Button{u"-", dark};
 }
 
 // BevelEffect -- written by hand, so its schema lines are too.
@@ -1727,6 +1744,73 @@ struct probe_task {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::delayTime = value);
 }
 
+// RevealEffect and its two lights -- written by hand, so their schema lines are too.
+[[maybe_unused]] void HoverLight_size_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::size = value);
+}
+[[maybe_unused]] void HoverLight_height_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::height = value);
+}
+[[maybe_unused]] void HoverLight_intensity_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::intensity = value);
+}
+[[maybe_unused]] void HoverLight_diffuseAmount_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::diffuseAmount = value);
+}
+[[maybe_unused]] void HoverLight_color_assigned(::wxl::HoverLight const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::color = value);
+}
+[[maybe_unused]] void HoverLight_constantAttenuation_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::constantAttenuation = value);
+}
+[[maybe_unused]] void HoverLight_linearAttenuation_assigned(::wxl::HoverLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::linearAttenuation = value);
+}
+[[maybe_unused]] void BorderLight_size_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::size = value);
+}
+[[maybe_unused]] void BorderLight_height_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::height = value);
+}
+[[maybe_unused]] void BorderLight_intensity_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::intensity = value);
+}
+[[maybe_unused]] void BorderLight_diffuseAmount_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::diffuseAmount = value);
+}
+[[maybe_unused]] void BorderLight_color_assigned(::wxl::BorderLight const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::color = value);
+}
+[[maybe_unused]] void BorderLight_constantAttenuation_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::constantAttenuation = value);
+}
+[[maybe_unused]] void BorderLight_linearAttenuation_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::linearAttenuation = value);
+}
+[[maybe_unused]] void BorderLight_strokeThickness_assigned(::wxl::BorderLight const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::strokeThickness = value);
+}
+[[maybe_unused]] void BorderLight_cornerRadius_assigned(::wxl::BorderLight const& object, ::wxl::CornerRadius value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::cornerRadius = value);
+}
+[[maybe_unused]] void RevealEffect_zIndex_assigned(::wxl::RevealEffect const& object, int32_t value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::RevealEffect::zIndex = value);
+}
+// The braces as they are written: the generic tags on each light, whole
+// numbers where the setter takes a double, a corner radius by its own type,
+// the lights bare in the effect and the effect attached to a Button.
+[[maybe_unused]] void RevealEffect_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    HoverLight const hover{size = 140, height = 120, intensity = 1.0, diffuseAmount = 0.69};
+    BorderLight const border{size = 340, height = 120, intensity = 1.0, diffuseAmount = 1.24, strokeThickness = 1.5,
+                             color = rgb(255, 255, 255), constantAttenuation = 1.0, linearAttenuation = 0.0,
+                             CornerRadius{4}};
+    RevealEffect const reveal{hover, border, zIndex = 1};
+    Button{u"7", reveal};
+    Border{RevealEffect{HoverLight{size = 90}}};
+}
+
 // SplitPanel -- written by hand: its orientation and pane placement take the tags
 // of StackPanel and SplitView.
 [[maybe_unused]] void SplitPanel_vertical_trailing(::wxl::UIElement const& top, ::wxl::UIElement const& bottom) {
@@ -1744,3 +1828,80 @@ struct probe_task {
 }
 
 }  // namespace
+
+// A ScrollViewer that hands the wheel it cannot use to the scroller above it.
+[[maybe_unused]] void wheel_to_parent() {
+    ScrollViewer{wheelToParent = true, horizontalScrollBarVisibility = ScrollBarVisibility::Auto};
+}
+
+// A layout written as two functions, in a LayoutPanel.
+[[maybe_unused]] void custom_layout() {
+    auto const custom = CustomLayout{
+        [](Collection<UIElement> const& children, Size available) { return available; },
+        [](Collection<UIElement> const& children, Size final) { return final; },
+    };
+    LayoutPanel{layout = custom};
+}
+
+// SettingsCard -- written by hand, so its schema lines are too.
+[[maybe_unused]] void SettingsCard_header_assigned(::wxl::SettingsCard const& object, ::wxl::Object const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::header = value);
+}
+[[maybe_unused]] void SettingsCard_description_assigned(::wxl::SettingsCard const& object, ::wxl::hstring const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::description = value);
+}
+[[maybe_unused]] void SettingsCard_headerIcon_assigned(::wxl::SettingsCard const& object, ::wxl::IconElement const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::headerIcon = value);
+}
+[[maybe_unused]] void SettingsCard_actionIcon_assigned(::wxl::SettingsCard const& object, ::wxl::IconElement const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::actionIcon = value);
+}
+[[maybe_unused]] void SettingsCard_isClickEnabled_assigned(::wxl::SettingsCard const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::isClickEnabled = value);
+}
+[[maybe_unused]] void SettingsCard_isActionIconVisible_assigned(::wxl::SettingsCard const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::isActionIconVisible = value);
+}
+[[maybe_unused]] void SettingsCard_contentAlignment_assigned(::wxl::SettingsCard const& object, ::wxl::SettingsCardContentAlignment value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::contentAlignment = value);
+}
+// The braces as the settings page writes them: the named members, the setting as the unnamed child, a click.
+[[maybe_unused]] void SettingsCard_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    SettingsCard{header = TextBlock{u"App theme"}, description = u"Select which app theme to display", headerIcon = FontIcon{glyph = u"x"},
+                 isClickEnabled = true, contentAlignment = SettingsCardContentAlignment::Vertical,
+                 onClick = [](Object const&, RoutedEventArgs&) {}, Button{u"Setting"}};
+}
+
+// SettingsExpander -- written by hand, so its schema lines are too.
+[[maybe_unused]] void SettingsExpander_header_assigned(::wxl::SettingsExpander const& object, ::wxl::Object const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::header = value);
+}
+[[maybe_unused]] void SettingsExpander_description_assigned(::wxl::SettingsExpander const& object, ::wxl::hstring const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::description = value);
+}
+[[maybe_unused]] void SettingsExpander_headerIcon_assigned(::wxl::SettingsExpander const& object, ::wxl::IconElement const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::headerIcon = value);
+}
+[[maybe_unused]] void SettingsExpander_isExpanded_assigned(::wxl::SettingsExpander const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::isExpanded = value);
+}
+// The braces as the settings page writes them: the head, its setting as the unnamed child, the cards of the list.
+[[maybe_unused]] void SettingsExpander_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    SettingsExpander{header = TextBlock{u"Sound"}, description = u"Audible feedback", isExpanded = true,
+                     onExpanding = [](Object const&, Object const&) {}, ToggleSwitch{},
+                     items[SettingsCard{header = TextBlock{u"Spatial audio"}}]};
+}
+
+// HeaderedContentControl -- written by hand, so its schema line is too.
+[[maybe_unused]] void HeaderedContentControl_header_assigned(::wxl::HeaderedContentControl const& object, ::wxl::Object const& value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HeaderedContentControl::header = value);
+}
+[[maybe_unused]] void HeaderedContentControl_in_braces() {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    HeaderedContentControl{header = TextBlock{u"Name"}, TextBox{}};
+}

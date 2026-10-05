@@ -163,17 +163,55 @@ std::set<std::string> declared_names(TypeDef const& type) {
 //                         made from a resource creator and from nothing else
 //                         -- and the factory is where its real constructors
 //                         are declared, one method each.
-std::vector<TypeDef> interfaces_named_by(TypeDef const& type, std::string_view attribute,
+std::vector<TypeDef> interfaces_named_by(TypeDef const& type, std::string_view attribute_name,
                                          cache const& db) {
     std::vector<TypeDef> found;
     for (auto&& declared : type.CustomAttribute()) {
-        if (!is_attribute(declared, metadata_namespace, attribute)) {
+        if (!is_attribute(declared, metadata_namespace, attribute_name)) {
             continue;
         }
         for (auto&& name : types_named_by(declared)) {
             if (auto const resolved = db.find(name)) {
                 found.push_back(resolved);
             }
+        }
+    }
+    // A composable class made from arguments alone -- ScrollingZoomOptions, which
+    // has constructors and no default one -- declares them on its composable
+    // factory. That factory is taken in when it has a method with arguments of
+    // its own: the usual one, with only the pair composition adds, is the
+    // default constructor, which the class has anyway.
+    for (auto&& attribute : type.CustomAttribute()) {
+        auto const [ns, name] = attribute.TypeNamespaceAndName();
+        if (attribute_name != "ActivatableAttribute" || ns != "Windows.Foundation.Metadata" ||
+            name != "ComposableAttribute") {
+            continue;
+        }
+        for (auto&& argument : attribute.Value().FixedArgs()) {
+            auto const* element = std::get_if<ElemSig>(&argument.value);
+            auto const* named = element ? std::get_if<ElemSig::SystemType>(&element->value) : nullptr;
+            if (!named) {
+                continue;
+            }
+            auto const factory = db.find(named->name);
+            if (!factory) {
+                break;
+            }
+            bool with_arguments = false;
+            for (auto&& method : factory.MethodList()) {
+                size_t parameters = 0;
+                // Named, not a temporary: Params() is a view into the signature.
+                auto const signature = method.Signature();
+                for (auto&& parameter : signature.Params()) {
+                    static_cast<void>(parameter);
+                    ++parameters;
+                }
+                with_arguments = with_arguments || parameters > 2;
+            }
+            if (with_arguments) {
+                found.push_back(factory);
+            }
+            break;
         }
     }
     return found;

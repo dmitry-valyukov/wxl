@@ -1,8 +1,19 @@
+struct Model {
+    core::observable<int> background {0}, border {1};
+};
+auto const model = gallery::hold<Model>();
+
 auto sample = Border {
     height = 50,
     Margin {0, 10, 0, 10},
-    background = rgb(0, 128, 0),
-    borderBrush = rgb(255, 215, 0),
+    background = BindOutput {model->background, [](int index) {
+        static constexpr Color colors[] = {rgb(0, 128, 0), rgb(255, 255, 0), rgb(255, 255, 255)};
+        return SolidColorBrush {color = colors[std::max(index, 0)]};
+    }},
+    borderBrush = BindOutput {model->border, [](int index) {
+        static constexpr Color colors[] = {rgb(0, 100, 0), rgb(255, 215, 0), rgb(255, 255, 255)};
+        return SolidColorBrush {color = colors[std::max(index, 0)]};
+    }},
     BorderThickness {10},
 };
 
@@ -12,14 +23,7 @@ auto background = RadioButtons {
     RadioButton {content = u"Green"},
     RadioButton {content = u"Yellow"},
     RadioButton {content = u"White"},
-    selectedIndex = 0,
-    onSelectionChanged = [sample](RadioButtons const& self) {
-        static constexpr Color colors[] = {rgb(0, 128, 0), rgb(255, 255, 0), rgb(255, 255, 255)};
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            sample.background(SolidColorBrush {color = colors[index]});
-        }
-    },
+    selectedIndex = Bind {model->background},
 };
 
 auto border = RadioButtons {
@@ -28,12 +32,5 @@ auto border = RadioButtons {
     RadioButton {content = u"Green"},
     RadioButton {content = u"Yellow"},
     RadioButton {content = u"White"},
-    selectedIndex = 1,
-    onSelectionChanged = [sample](RadioButtons const& self) {
-        static constexpr Color colors[] = {rgb(0, 100, 0), rgb(255, 215, 0), rgb(255, 255, 255)};
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            sample.borderBrush(SolidColorBrush {color = colors[index]});
-        }
-    },
+    selectedIndex = Bind {model->border},
 };

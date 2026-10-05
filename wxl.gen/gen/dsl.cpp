@@ -1,3 +1,4 @@
+#include <format>
 #include <ostream>
 #include <print>
 
@@ -68,21 +69,43 @@ struct PropertySetter<PropertyKey::{0}> {{
     // member of that name itself: a hand-written class may take the same
     // tag for a property of its own -- zIndex on an effect, saying where its
     // layer lies -- and then the tag is the object's.
-    for (auto&& [name, attached] : d.attached) {
+    //
+    // When several parents declare the name, the child cannot know which one
+    // it will be put into, so every setter the object fits is called and the
+    // others are skipped; the object has to fit at least one.
+    for (auto&& [name, owners] : d.attached) {
+        std::string calls;
+        if (owners.size() == 1) {
+            calls = std::format("            {}::{}(object, value);\n", owners.front().owner,
+                                owners.front().setter);
+        } else {
+            std::string fits;
+            for (auto&& attached : owners) {
+                calls += std::format(
+                    "            if constexpr (requires {{ {0}::{1}(object, value); }}) {{\n"
+                    "                {0}::{1}(object, value);\n"
+                    "            }}\n",
+                    attached.owner, attached.setter);
+                fits += std::format("{}requires {{ {}::{}(object, value); }}",
+                                    fits.empty() ? "" : " || ", attached.owner, attached.setter);
+            }
+            calls += std::format(
+                "            static_assert({}, \"wxl: no parent of the attached property {} takes this object\");\n",
+                fits, name);
+        }
         std::print(file, R"(
 template <>
 struct PropertySetter<PropertyKey::{0}> {{
     template <typename Obj, typename T>
     static void set(Obj const& object, T const& value) {{
-        if constexpr (requires {{ object.{3}(value); }}) {{
-            object.{3}(value);
+        if constexpr (requires {{ object.{1}(value); }}) {{
+            object.{1}(value);
         }} else {{
-            {1}::{2}(object, value);
-        }}
+{2}        }}
     }}
 }};
 )",
-                   name, attached.owner, attached.setter, member_name(name));
+                   name, member_name(name), calls);
     }
 
     // A collection-valued property is filled, not assigned: the setter is
@@ -164,9 +187,9 @@ void write_tag_objects(std::ostream& file, dsl const& d) {
 
     if (!d.attached.empty()) {
         std::print(file, "\n");
-        for (auto&& [name, attached] : d.attached) {
+        for (auto&& [name, owners] : d.attached) {
             std::print(file, "inline constexpr Property<PropertyKey::{}, {}> {};\n", name,
-                       attached.value_type, member_name(name));
+                       owners.front().value_type, member_name(name));
         }
     }
 
@@ -199,6 +222,11 @@ void write_dsl(output const& out, dsl const& d, emitted& em) {
 )",
                banner);
     write_includes(file, d.includes);
+
+    // small is a macro of the Windows SDK (rpcndr.h: #define small char), and the value tags of an
+    // enum are spelled with the enum's own names -- CompactOverlaySize::Small is the tag
+    // small. The tags are spelled below, after whatever Windows header was included first.
+    std::print(file, "\n#ifdef small\n#undef small\n#endif\n");
 
     std::print(file, "\nnamespace wxl {{\n\nnamespace impl {{\n");
     // Ahead of everything below: a specialisation has to precede the first

@@ -8,6 +8,7 @@ auto const model = gallery::hold<Model>();
 auto output = TextBlock {};
 
 auto button = Button {
+    automationName = u"Standard XAML",
     content = u"Standard button",
     isEnabled = BindOutput {model->enabled},
     onClick = [output] { output.text(u"You clicked: Button1"); },

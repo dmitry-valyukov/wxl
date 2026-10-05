@@ -52,6 +52,17 @@ inline wxl::MagnifyEffect appPop() {
     return wxl::MagnifyEffect {1.2, wxl::dsl::maximum = 1.35, wxl::dsl::minimum = 0.95};
 }
 
+// Страница-образец окон примеров Windowing (SamplePage1..4 оригинала): плитки
+// и абзац текста; номер — от 1 до 6.
+wxl::FrameworkElement samplePage(int number);
+
+// SampleSettingsPage оригинала: заголовок посреди страницы.
+wxl::FrameworkElement sampleSettingsPage();
+
+// Выбор цвета: образец на кнопке и ColorPicker в её выпадающей части
+// (ColorSelector оригинала). Цвет — поле модели.
+wxl::FrameworkElement colorSelector(wxl::core::observable<wxl::Color>& color, char16_t const* name);
+
 // Функция, строящая страницу примеров одного контрола.
 using ControlPage = wxl::FrameworkElement (*)();
 
@@ -79,13 +90,122 @@ wxl::FrameworkElement textBoxPage();
 wxl::FrameworkElement passwordBoxPage();
 wxl::FrameworkElement numberBoxPage();
 wxl::FrameworkElement autoSuggestBoxPage();
+wxl::FrameworkElement borderPage();
+wxl::FrameworkElement canvasPage();
+wxl::FrameworkElement expanderPage();
+wxl::FrameworkElement gridPage();
+wxl::FrameworkElement relativePanelPage();
+wxl::FrameworkElement splitViewPage();
+wxl::FrameworkElement stackPanelPage();
+wxl::FrameworkElement variableSizedWrapGridPage();
+wxl::FrameworkElement viewboxPage();
+wxl::FrameworkElement typographyPage();
+wxl::FrameworkElement geometryPage();
+wxl::FrameworkElement spacingPage();
+wxl::FrameworkElement colorPage();
+wxl::FrameworkElement iconographyPage();
+wxl::FrameworkElement accessibilityColorContrastPage();
+wxl::FrameworkElement accessibilityKeyboardPage();
+wxl::FrameworkElement accessibilityScreenReaderPage();
+wxl::FrameworkElement scratchPadPage();
+wxl::FrameworkElement xamlStylesPage();
+wxl::FrameworkElement glassPage();
+wxl::FrameworkElement magnifyPage();
+wxl::FrameworkElement bevelPage();
+wxl::FrameworkElement gaussianBlurPage();
+wxl::FrameworkElement haloPage();
+wxl::FrameworkElement xamlResourcesPage();
+wxl::FrameworkElement bindingPage();
+wxl::FrameworkElement settingsCardPage();
+wxl::FrameworkElement headeredContentControlPage();
+wxl::FrameworkElement settingsExpanderPage();
+wxl::FrameworkElement templatesPage();
+wxl::FrameworkElement customXamlConditionalsPage();
+wxl::FrameworkElement animatedVisualPlayerPage();
+wxl::FrameworkElement captureElementPreviewPage();
+wxl::FrameworkElement inkCanvasPage();
+wxl::FrameworkElement mapControlPage();
+wxl::FrameworkElement mediaPlayerElementPage();
+wxl::FrameworkElement soundPage();
+wxl::FrameworkElement personPicturePage();
+wxl::FrameworkElement imagePage();
+wxl::FrameworkElement tabViewPage();
+wxl::FrameworkElement navigationViewPage();
+wxl::FrameworkElement pivotPage();
+wxl::FrameworkElement selectorBarPage();
+wxl::FrameworkElement breadcrumbBarPage();
+wxl::FrameworkElement connectedAnimationPage();
+wxl::FrameworkElement xamlCompInteropPage();
+wxl::FrameworkElement parallaxViewPage();
+wxl::FrameworkElement pageTransitionPage();
+wxl::FrameworkElement themeTransitionPage();
+wxl::FrameworkElement implicitTransitionPage();
+wxl::FrameworkElement easingFunctionPage();
+wxl::FrameworkElement teachingTipPage();
+wxl::FrameworkElement popupPage();
+wxl::FrameworkElement flyoutPage();
+wxl::FrameworkElement contentDialogPage();
+wxl::FrameworkElement itemsRepeaterPage();
+wxl::FrameworkElement itemsViewPage();
+wxl::FrameworkElement listViewPage();
+wxl::FrameworkElement gridViewPage();
+wxl::FrameworkElement flipViewPage();
+wxl::FrameworkElement treeViewPage();
+wxl::FrameworkElement pullToRefreshPage();
+wxl::FrameworkElement contentIslandPage();
+wxl::FrameworkElement jumpListPage();
+wxl::FrameworkElement storagePickersPage();
+wxl::FrameworkElement clipboardPage();
+wxl::FrameworkElement appNotificationPage();
+wxl::FrameworkElement badgeNotificationManagerPage();
+wxl::FrameworkElement compositionWindowPage();
+wxl::FrameworkElement systemBackdropsPage();
+wxl::FrameworkElement appWindowPage();
+wxl::FrameworkElement appWindowTitleBarPage();
+wxl::FrameworkElement titleBarPage();
+wxl::FrameworkElement windowingPage();
+wxl::FrameworkElement compactSizingPage();
+wxl::FrameworkElement systemBackdropElementPage();
+wxl::FrameworkElement acrylicPage();
+wxl::FrameworkElement animatedIconPage();
+wxl::FrameworkElement radialGradientBrushPage();
+wxl::FrameworkElement linePage();
+wxl::FrameworkElement shapePage();
+wxl::FrameworkElement iconElementPage();
+wxl::FrameworkElement themeShadowPage();
+wxl::FrameworkElement scrollViewPage();
+wxl::FrameworkElement annotatedScrollBarPage();
+wxl::FrameworkElement pipsPagerPage();
+wxl::FrameworkElement pagerControlPage();
+wxl::FrameworkElement scrollViewerPage();
+wxl::FrameworkElement calendarViewPage();
+wxl::FrameworkElement timePickerPage();
+wxl::FrameworkElement datePickerPage();
+wxl::FrameworkElement calendarDatePickerPage();
+wxl::FrameworkElement standardUICommandPage();
+wxl::FrameworkElement xamlUICommandPage();
+wxl::FrameworkElement swipeControlPage();
+wxl::FrameworkElement commandBarFlyoutPage();
+wxl::FrameworkElement menuFlyoutPage();
+wxl::FrameworkElement menuBarPage();
+wxl::FrameworkElement commandBarPage();
+wxl::FrameworkElement layoutPanelPage();
+wxl::FrameworkElement wrapPanelPage();
+wxl::FrameworkElement appBarSeparatorPage();
+wxl::FrameworkElement appBarToggleButtonPage();
+wxl::FrameworkElement appBarButtonPage();
+wxl::FrameworkElement toolTipPage();
+wxl::FrameworkElement progressRingPage();
+wxl::FrameworkElement progressBarPage();
+wxl::FrameworkElement infoBarPage();
+wxl::FrameworkElement infoBadgePage();
 wxl::FrameworkElement richTextBlockPage();
 wxl::FrameworkElement richEditBoxPage();
 
 // Плитка контрола (ControlItemTemplate оригинала) и сетка плиток: GridView,
 // клик по плитке — переход на страницу контрола.
 wxl::FrameworkElement controlTile(ControlInfo const& item);
-wxl::FrameworkElement tileGrid(std::span<ControlInfo const* const> items, wxl::Thickness padding);
+wxl::FrameworkElement tileGrid(std::span<ControlInfo const* const> items, wxl::Thickness padding, wxl::zstring_view id, wxl::zstring_view name);
 
 // Текст как разметка: `&`, `<` и `>` заменены сущностями.
 std::wstring htmlEscape(std::wstring_view text);

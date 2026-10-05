@@ -25,8 +25,8 @@
 #include "../Object.h"
 #include "../TaggedValue.h"
 #include "../event_token.h"
-#include "EventKey.h"
-#include "PropertyKey.h"
+#include <wxl/EventKey.h>
+#include <wxl/PropertyKey.h>
 
 namespace wxl {
 

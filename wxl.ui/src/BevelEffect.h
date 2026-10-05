@@ -48,7 +48,7 @@
 #include "CornerRadius.h"
 #include "Relief.h"
 #include "Thickness.h"
-#include "generated/Microsoft.UI.Xaml.h"
+#include <wxl/Microsoft.UI.Xaml.h>
 #include "impl/member.h"
 
 namespace wxl {

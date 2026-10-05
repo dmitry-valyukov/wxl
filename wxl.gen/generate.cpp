@@ -75,6 +75,8 @@ model analyze(closure const& cl, profile_set const& profiles, type_map const& ty
     model m;
     m.property_names = cl.property_names;
     m.event_names = cl.event_names;
+    m.from_text = profiles.from_text;
+    m.replaced_calls = profiles.replaced_calls;
 
     gen::analyze_tags(types, m);
     gen::analyze_enums_and_structs(kinds, cl, types, m);

@@ -255,6 +255,37 @@ std::vector<setter_method> read_setter_methods(value const& entry,
     return methods;
 }
 
+// The methods whose call wxl replaces with a function of its own, keyed by the
+// method's name. Whether the class declares the method and the profile lets it
+// through is the class writer's to check: only it has read the members.
+std::map<std::string, replaced_call> read_replaced_calls(value const& entry,
+                                                        std::filesystem::path const& source,
+                                                        std::string_view type_name) {
+    value const* const listed = entry.find("replacedCalls");
+    if (!listed) {
+        return {};
+    }
+    if (!listed->is_object()) {
+        fail(source, std::format("type '{}': 'replacedCalls' must be an object keyed by method "
+                                 "name",
+                                 type_name));
+    }
+
+    std::map<std::string, replaced_call> calls;
+    for (value const& definition : listed->members()) {
+        std::string const name{definition.name().chars()};
+        if (!definition.is_object() || !definition.find("function") ||
+            !definition.find("include") || !definition["function"].is_string() ||
+            !definition["include"].is_string()) {
+            fail(source, std::format("type '{}': replaced call '{}' must be an object with a "
+                                     "string 'function' and a string 'include'",
+                                     type_name, name));
+        }
+        calls[name] = {text(definition["function"]), text(definition["include"])};
+    }
+    return calls;
+}
+
 package_ref read_package(value const& entry, std::filesystem::path const& source) {
     if (!entry.is_object() || !entry.find("id")) {
         fail(source, "every 'packages' entry must be an object with an 'id'");
@@ -264,6 +295,7 @@ package_ref read_package(value const& entry, std::filesystem::path const& source
     // Checked against the SDK release below, where it is known whether this
     // package is one the release ships.
     package.version = string_or(entry, source, "version", {});
+    package.override_version = string_or(entry, source, "overrideVersion", {});
     package.metadata_dir = string_or(entry, source, "metadataDir", {});
     if (value const* const listed = entry.find("metadata")) {
         auto const names = read_string_set(*listed, source, "metadata");
@@ -483,6 +515,18 @@ profile load_profile(std::filesystem::path const& path) {
             if (auto setters = read_setter_methods(entry, path, name); !setters.empty()) {
                 prof.setter_methods.emplace(name, std::move(setters));
             }
+            if (auto replaced = read_replaced_calls(entry, path, name); !replaced.empty()) {
+                prof.replaced_calls.emplace(name, std::move(replaced));
+            }
+            if (value const* const converted = entry.find("fromText")) {
+                if (!converted->is_object() || !converted->find("function") || !converted->find("include")) {
+                    fail(path, std::format("type '{}': 'fromText' must be an object with 'function' "
+                                           "and 'include'",
+                                           name));
+                }
+                prof.from_text[name] = {text(*converted->find("function")),
+                                           text(*converted->find("include"))};
+            }
         }
     }
 
@@ -567,6 +611,15 @@ struct profile_loader {
                 }
             }
         }
+        for (auto&& [name, converted] : prof.from_text) {
+            result.from_text[name] = converted;
+        }
+        // Replaced calls compose by the method's name, the extending profile winning.
+        for (auto&& [name, calls] : prof.replaced_calls) {
+            for (auto&& [method, call] : calls) {
+                result.replaced_calls[name][method] = call;
+            }
+        }
         // Setter methods compose the same way, by the method's name.
         for (auto&& [name, setters] : prof.setter_methods) {
             auto& known = result.setter_methods[name];
@@ -640,9 +693,30 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
         package_versions.emplace(wxl::core::ascii_lower(windows_app_sdk_id), chose_sdk->windows_app_sdk);
     }
 
+    // A version a profile puts in place of the release's own applies to the
+    // package wherever any profile of the set lists it.
+    std::map<std::string, std::string> overridden;
+    for (auto&& prof : with_packages) {
+        for (auto&& package : prof.packages) {
+            if (!package.override_version.empty()) {
+                overridden[wxl::core::ascii_lower(package.id)] = package.override_version;
+            }
+        }
+    }
+
     for (auto&& prof : with_packages) {
         for (auto&& package : prof.packages) {
             auto const shipped = package_versions.find(wxl::core::ascii_lower(package.id));
+            if (auto const over = overridden.find(wxl::core::ascii_lower(package.id));
+                over != overridden.end()) {
+                for (auto&& file : resolve_package(package, over->second, nuget_root, prof.source)) {
+                    metadata.insert(file);
+                }
+                for (auto&& file : resolve_resources(package, over->second, nuget_root, prof.source)) {
+                    resources.insert(file);
+                }
+                continue;
+            }
 
             // A package the release ships takes its version from the release
             // and may not name one: a hand-picked version there is the

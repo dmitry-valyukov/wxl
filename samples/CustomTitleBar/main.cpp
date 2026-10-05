@@ -9,7 +9,7 @@
 #include "Bind.h"
 #include "CompositionWindow.h"
 #include "Panels.h"
-#include "generated/brushes.h"
+#include <wxl/brushes.h>
 #include "launch.h"
 #include "ui.h"
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "generated/Microsoft.UI.Composition.h"
+#include <wxl/Microsoft.UI.Composition.h>
 
 // wxl::DrawingSurface -- a rectangle of pixels the application draws itself
 // and the compositor shows.

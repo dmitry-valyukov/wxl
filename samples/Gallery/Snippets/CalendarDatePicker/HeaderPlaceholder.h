@@ -1,0 +1,1 @@
+CalendarDatePicker {header = u"Calendar", placeholderText = u"Pick a date"}

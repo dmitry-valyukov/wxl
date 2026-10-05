@@ -53,11 +53,21 @@ struct type_use {
     bool is_wrapper = false;
 
     // wxl::Collection<E>, the one wrapper every vector-shaped WinRT
-    // collection maps onto. `element_type` is E's public wxl name; the class
-    // writer needs it to state the explicit instantiation, and the DSL writer
-    // to give the property a subscript tag instead of an assignable one.
+    // collection maps onto. The DSL writer gives such a property a subscript
+    // tag instead of an assignable one.
     bool is_collection = false;
+
+    // E of a Collection<E> or a VectorView<E>, when E is a wrapped class: the
+    // name a declaration announces instead of including its header, and the
+    // type a collection tag takes. Empty for any other type.
     std::string element_type;
+
+    // The specializations of wxl's own templates the type names --
+    // "Collection<UIElement>", "VectorView<hstring>". Their bodies are not in
+    // a public header, so each one is stated (`extern template class`) by the
+    // header handing it out and defined (`template class`) by exactly one
+    // .cpp.
+    std::set<std::string> instantiations;
 
     // A type a string literal turns into by itself (see type_map::projection
     // in profile.h). Such a type claims no unnamed-argument route: a bare
@@ -68,6 +78,10 @@ struct type_use {
     // whatever a caller passes, while turning one that a call *returned* into
     // a wxl callable is a wrapper of its own that nothing needs yet.
     bool parameter_only = false;
+
+    // The opposite: an asynchronous operation (wxl::Operation) is what a call hands back and
+    // awaits; there is nothing a caller could give in its place.
+    bool result_only = false;
 
     // Conversion expressions with '$' standing for the value being
     // converted; see substitute() below.

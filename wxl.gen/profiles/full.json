@@ -8,6 +8,30 @@
     "windowsAppSdk": "2.4.0",
     "windowsMetadata": true,
 
+    "packages": [
+        {
+            "id": "Microsoft.WindowsAppSDK.WinUI",
+            "overrideVersion": "2.3.10-experimental",
+            "comment": "WrapPanel and LayoutPanel: the stable WinUI package keeps them out of Microsoft.UI.Xaml.winmd, this channel declares them. The whole WinUI metadata and style catalogue are read from it, the rest of the release is the stable one. tools/packages.json pins the same version for tools/restore-packages.ps1."
+        },
+        {
+            "id": "Microsoft.WindowsAppSDK.Foundation",
+            "comment": "System and Shell pages: what the Windows App SDK adds outside the UI -- the badge of the taskbar button, the notifications, the storage pickers.",
+            "metadata": [
+                "Microsoft.Windows.BadgeNotifications.winmd",
+                "Microsoft.Windows.AppNotifications.winmd",
+                "Microsoft.Windows.AppNotifications.Builder.winmd",
+                "Microsoft.Windows.Storage.Pickers.winmd"
+            ]
+        },
+        {
+            "id": "Microsoft.Graphics.Win2D",
+            "version": "1.4.0",
+            "metadataDir": "lib/uap10.0",
+            "comment": "Lighting: the effect descriptions a composition effect graph is written in (Microsoft.Graphics.Canvas.Effects). Only the descriptions are wrapped -- an effect here is a set of properties the compositor reads, nothing is drawn through Win2D. tools/packages.json pins the same version."
+        }
+    ],
+
     "types": {
         "Microsoft.UI.Xaml.Controls.UserControl": {
             "comment": "The base of the Gallery's own controls (ControlExample, PageHeader) and of Page. Whole surface.",
@@ -28,7 +52,9 @@
                 "GoBack",
                 "GoForward",
                 "Navigated",
-                "Navigating"
+                "Navigating",
+                "BackStackDepth",
+                "IsNavigationStackEnabled"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItemHeader": {
@@ -59,9 +85,11 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.TitleBar": {
-            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar.",
+            "comment": "IconSource on top of what extended asks for: the Gallery's window icon in its title bar. RecomputeDragRegions: the regions that drag and the regions that take clicks, worked out again after content is added to or removed from the title bar at run time; AutoRefreshDragRegions says whether that is done without being asked.",
             "members": [
-                "IconSource"
+                "IconSource",
+                "AutoRefreshDragRegions",
+                "RecomputeDragRegions"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationView": {
@@ -71,28 +99,42 @@
                 "DisplayModeChanged",
                 "IsPaneToggleButtonVisible",
                 "IsPaneVisible",
+                "IsBackEnabled",
+                "AlwaysShowHeader",
+                "SelectionFollowsFocus",
+                "ExpandedModeThresholdWidth",
+                "CompactModeThresholdWidth",
                 "FooterMenuItems",
+                "PaneFooter",
+                "PaneCustomContent",
+                "MenuItemTemplate",
                 "OpenPaneLength"
-            ]
-        },
-        "Microsoft.UI.Xaml.UIElement": {
-            "comment": "Measure, to learn how wide an element wants to be before it stands anywhere -- a text sized by its own words.",
-            "members": [
-                "Measure"
-            ]
+            ],
+            "syntheticMembers": {
+                "AutoSuggestBox": {
+                    "comment": "The search box of the pane, or none: autoSuggestBox = nullptr takes it away, which the property of the framework allows and a wrapper cannot say.",
+                    "cppType": "core::nullable<AutoSuggestBox>",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_auto_suggest_box",
+                    "include": "../impl/navigation_view_search.h"
+                }
+            }
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItem": {
             "comment": "The group rows: they expand and are not themselves a page.",
             "members": [
                 "IsExpanded",
-                "SelectsOnInvoked"
+                "SelectsOnInvoked",
+                "InfoBadge"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewSelectionChangedEventArgs": {
             "comment": "Which item the selection landed on.",
             "members": [
                 "SelectedItem",
-                "IsSettingsSelected"
+                "IsSettingsSelected",
+                "RecommendedNavigationTransitionInfo",
+                "SelectedItemContainer"
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationViewItemInvokedEventArgs": {
@@ -181,7 +223,8 @@
             "members": [
                 "TickFrequency",
                 "TickPlacement",
-                "SnapsTo"
+                "SnapsTo",
+                "IsDirectionReversed"
             ]
         },
         "Microsoft.UI.Xaml.Controls.ComboBox": {
@@ -200,10 +243,1063 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.VariableSizedWrapGrid": {
-            "comment": "The swatch grid of the SplitButton text example.",
+            "comment": "The swatch grid of the SplitButton text example, and the Layout group's own page: the size of a cell, and the spans an item takes.",
             "members": [
                 "MaximumRowsOrColumns",
+                "Orientation",
+                "ItemHeight",
+                "ItemWidth",
+                "SetRowSpan",
+                "SetColumnSpan"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InfoBadge": {
+            "comment": "Status & info: the badge, whole -- its value, its icon, its dot."
+        },
+        "Microsoft.UI.Xaml.Controls.FontIconSource": {
+            "comment": "Status & info: the icon an InfoBadge takes as a glyph of a font.",
+            "members": [
+                "Glyph",
+                "FontFamily",
+                "FontSize"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InfoBar": {
+            "comment": "Status & info: the one button an InfoBar carries, and the content under its message (Windowing: the warning with formatted text).",
+            "members": [
+                "ActionButton",
+                "Content"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ToolTip": {
+            "comment": "Status & info: where a tip stands, and the rectangle it keeps clear.",
+            "members": [
+                "VerticalOffset",
+                "HorizontalOffset",
+                "PlacementRect"
+            ]
+        },
+        "Microsoft.UI.Xaml.UIElement": {
+            "comment": "Status & info: a tip that is an element of its own (ToolTipService.ToolTip over an object), beside toolTip, which is the text. Layout: Measure and Arrange, which a custom layout calls on its children.",
+            "members": [
+                "KeyboardAccelerators",
+                "ContextRequested",
+                "ContextFlyout",
+                "Measure",
+                "Arrange",
+                "TransformToVisual",
+                "AllowDrop",
+                "DragEnter",
+                "DragOver",
+                "Drop",
+                "GettingFocus",
+                "StartBringIntoView",
+                "OpacityTransition",
+                "RotationTransition",
+                "ScaleTransition",
+                "TranslationTransition",
+                "Rotation",
+                "Scale",
+                "CenterPoint",
+                "Transitions",
+                "StartAnimation",
+                "UpdateLayout",
+                "BringIntoViewRequested",
+                "XYFocusKeyboardNavigation",
+                "AccessKey"
+            ],
+            "syntheticMembers": {
+                "AutomationId": {
+                    "comment": "What a test or a reader's script finds the element by -- AutomationProperties.AutomationId, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_id",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationAccessibilityView": {
+                    "comment": "Which view of the automation tree the element is in -- Raw for a picture that says nothing a screen reader should read: AutomationProperties.AccessibilityView, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AccessibilityView",
+                    "function": "impl::set_automation_accessibility_view",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLiveSetting": {
+                    "comment": "That a change of the element's text is announced by a screen reader, politely or at once -- AutomationProperties.LiveSetting, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting",
+                    "function": "impl::set_automation_live_setting",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationHeadingLevel": {
+                    "comment": "Accessibility: that the element is a heading, and of which level -- AutomationProperties.HeadingLevel, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel",
+                    "function": "impl::set_automation_heading_level",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLandmarkType": {
+                    "comment": "Accessibility: the landmark of the page the element is -- navigation, main, search -- AutomationProperties.LandmarkType, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLandmarkType",
+                    "function": "impl::set_automation_landmark_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationControlType": {
+                    "comment": "Accessibility: what kind of control a screen reader takes the element for -- AutomationProperties.AutomationControlType, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationControlType",
+                    "function": "impl::set_automation_control_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLocalizedControlType": {
+                    "comment": "Accessibility: what a screen reader calls that kind of control in the user's language -- AutomationProperties.LocalizedControlType, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_localized_control_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLocalizedLandmarkType": {
+                    "comment": "Accessibility: what a screen reader calls the landmark in the user's language -- AutomationProperties.LocalizedLandmarkType, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_localized_landmark_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationAcceleratorKey": {
+                    "comment": "Accessibility: the shortcut that does what the element does, as a screen reader says it -- AutomationProperties.AcceleratorKey, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_accelerator_key",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationHelpText": {
+                    "comment": "Accessibility: a few words of help, spoken after the name -- AutomationProperties.HelpText, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_help_text",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationFullDescription": {
+                    "comment": "Accessibility: the long description of the element -- AutomationProperties.FullDescription, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_full_description",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationPositionInSet": {
+                    "comment": "Accessibility: the place of the element among its siblings, 1-based -- AutomationProperties.PositionInSet, the attached property.",
+                    "cppType": "int32_t",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_automation_position_in_set",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationSizeOfSet": {
+                    "comment": "Accessibility: how many siblings the element has with itself -- AutomationProperties.SizeOfSet, the attached property.",
+                    "cppType": "int32_t",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_automation_size_of_set",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLabeledBy": {
+                    "comment": "Accessibility: the element whose text names this one -- AutomationProperties.LabeledBy, the attached property.",
+                    "type": "Microsoft.UI.Xaml.UIElement",
+                    "function": "impl::set_automation_labeled_by",
+                    "include": "../impl/automation_properties.h"
+                },
+                "IsDragRegion": {
+                    "comment": "Windowing: whether an element in a TitleBar drags the window (true), takes clicks (false) or leaves the choice to the TitleBar (empty) -- TitleBar.IsDragRegion, the attached property.",
+                    "cppType": "core::nullable<bool>",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_drag_region",
+                    "include": "../impl/title_bar_drag.h"
+                },
+                "ToolTipElement": {
+                    "comment": "The tip as a ToolTip element: content that is not text, a placement, an offset. The hover half of toolTip only -- an element has no words to give a screen reader.",
+                    "type": "Microsoft.UI.Xaml.Controls.ToolTip",
+                    "function": "impl::set_tool_tip_element",
+                    "include": "../impl/tool_tip.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Input.KeyboardAccelerator": {
+            "comment": "Menus & toolbars: the key chord that invokes a command, written beside the command.",
+            "members": [
+                "Key",
+                "Modifiers",
+                "Invoked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PathIcon": {
+            "comment": "Menus & toolbars: an icon drawn from a path.",
+            "members": [
+                "Data"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.CommandBar": {
+            "comment": "Menus & toolbars: a bar that stays open until told to close, and says when it opens and closes (the user does that too, with the ellipsis).",
+            "members": [
+                "IsSticky",
+                "Opened",
+                "Closed"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ICommandBarElement": {
+            "comment": "Menus & toolbars: what a command bar holds -- AppBarButton, AppBarToggleButton, AppBarSeparator -- which has no class of its own, only this interface.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Media.RadialGradientBrush": {
+            "comment": "Styles: what the base profile leaves out of the radial brush -- how the gradient continues past its last stop.",
+            "members": [
+                "SpreadMethod"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedIcon": {
+            "comment": "Styles: an icon that plays an animation as its state changes -- the state is set by name, \"PointerOver\" and \"Normal\" by the control it sits in or by hand.",
+            "members": [
+                "Source",
+                "FallbackIconSource",
+                "SetState"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.IAnimatedVisualSource2": {
+            "comment": "Styles: what an AnimatedIcon plays -- any of the animated visuals below.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedBackVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronRightDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedChevronUpDownSmallVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedFindVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedGlobalNavigationButtonVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisuals.AnimatedSettingsVisualSource": {
+            "comment": "Styles: an animation of the set the Gallery plays in an AnimatedIcon.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Media.AcrylicBrush": {
+            "comment": "Styles: in-app acrylic -- frosted glass over what is behind it in the window, with a tint and a colour to fall back on where the effect is switched off.",
+            "members": [
+                "TintColor",
+                "TintOpacity",
+                "TintLuminosityOpacity",
+                "FallbackColor"
+            ]
+        },
+        "Microsoft.UI.Xaml.ResourceDictionary": {
+            "comment": "Resources: values looked up by key from the element down -- a dictionary merged from a file (Source, MergedDictionaries) and entries written in place (Entry). The framework's own density dictionary and the page's overrides of one key are how the Gallery's Compact Sizing page works.",
+            "members": [
+                "Source",
+                "MergedDictionaries"
+            ],
+            "syntheticMembers": {
+                "Entry": {
+                    "comment": "One key and its value. The same tag repeated adds one entry each.",
+                    "cppType": "Resource",
+                    "cppInclude": "../Resource.h",
+                    "function": "impl::add_resource",
+                    "include": "../impl/resource.h"
+                },
+                "ThemeEntry": {
+                    "comment": "The entries of one theme -- ThemeDictionaries[\"Light\"] of the XAML. The same tag repeated adds one theme each.",
+                    "cppType": "ThemeResources",
+                    "cppInclude": "../Resource.h",
+                    "function": "impl::add_theme_resources",
+                    "include": "../impl/resource.h"
+                }
+            }
+        },
+        "Microsoft.UI.Windowing.AppWindow": {
+            "comment": "Windowing: the size of the client area in physical pixels, independent of the frame around it; the icon of the taskbar and the icon of the title bar, each by itself.",
+            "members": [
+                "ResizeClient",
+                "SetTaskbarIcon",
+                "SetTitleBarIcon"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PersonPicture": {
+            "comment": "Windowing: the round avatar the title bar of the Gallery windows carries -- the initials of the person.",
+            "members": [
+                "Initials",
+                "DisplayName",
+                "ProfilePicture"
+            ]
+        },
+        "Microsoft.UI.Windowing.AppWindowTitleBar": {
+            "comment": "Windowing: the colours of the caption itself, active and inactive; the colours of its buttons are already asked for by extended.",
+            "members": [
+                "BackgroundColor",
+                "ForegroundColor",
+                "InactiveBackgroundColor",
+                "InactiveForegroundColor"
+            ]
+        },
+        "Microsoft.UI.Windowing.OverlappedPresenter": {
+            "comment": "Windowing: a presenter made for a dialog -- a window that is not a main one -- beside the ordinary one extended asks for.",
+            "members": [
+                "CreateForDialog"
+            ]
+        },
+        "Microsoft.UI.Windowing.CompactOverlayPresenter": {
+            "comment": "Windowing: a small window that stays above all others (picture-in-picture), and how big it starts.",
+            "members": [
+                "Create",
+                "InitialSize"
+            ]
+        },
+        "Microsoft.Windows.BadgeNotifications.BadgeNotificationManager": {
+            "comment": "System: the badge on the application's taskbar button -- a count or a glyph, set and cleared. It needs a packaged application: an unpackaged one has no taskbar identity for the shell to put it on.",
+            "members": [
+                "Current",
+                "SetBadgeAsCount",
+                "SetBadgeAsGlyph",
+                "ClearBadge"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.AppNotificationManager": {
+            "comment": "System: the notifications of the application in the shell -- shown as toasts, kept in the notification centre. The application registers with the shell once, and may show after that.",
+            "members": [
+                "Default",
+                "Register",
+                "Unregister",
+                "IsSupported",
+                "Show"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.AppNotification": {
+            "comment": "System: one notification, built by the builder.",
+            "members": []
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationBuilder": {
+            "comment": "System: the builder of a notification: texts, an image, a sound, a time, controls. Each call returns the builder, so a notification reads as one chain.",
+            "members": [
+                "AddText",
+                "SetAppLogoOverride",
+                "SetAudioEvent",
+                "SetTimeStamp",
+                "SetHeroImage",
+                "SetAttributionText",
+                "AddComboBox",
+                "AddTextBox",
+                "AddButton",
+                "AddProgressBar",
+                "BuildNotification"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationButton": {
+            "comment": "System: a button on a notification, with the arguments it hands back to the application.",
+            "members": [
+                "AddArgument"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationComboBox": {
+            "comment": "System: a list on a notification.",
+            "members": [
+                "AddItem",
+                "SetSelectedItem"
+            ]
+        },
+        "Microsoft.Windows.AppNotifications.Builder.AppNotificationProgressBar": {
+            "comment": "System: a progress bar on a notification.",
+            "members": [
+                "Title",
+                "Value",
+                "ValueStringOverride",
+                "Status"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.Geometry": {
+            "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
+            "fromText": {
+                "function": "impl::geometry_from_text",
+                "include": "../impl/geometry_from_text.h"
+            }
+        },
+        "Microsoft.UI.Xaml.Media.GeometryGroup": {
+            "comment": "Shapes: geometries drawn as one.",
+            "members": [
+                "Children",
+                "FillRule"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.LineGeometry": {
+            "comment": "Shapes: a segment between two points.",
+            "members": [
+                "StartPoint",
+                "EndPoint"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.EllipseGeometry": {
+            "comment": "Shapes: an ellipse by its centre and radii.",
+            "members": [
+                "Center",
+                "RadiusX",
+                "RadiusY"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.RectangleGeometry": {
+            "comment": "Shapes: a rectangle by its Rect.",
+            "members": [
+                "Rect"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Line": {
+            "comment": "Shapes: a straight line between two points.",
+            "members": [
+                "X1",
+                "Y1",
+                "X2",
+                "Y2"
+            ]
+        },
+        "Microsoft.UI.Xaml.Shapes.Polyline": {
+            "comment": "Shapes: connected straight lines.",
+            "members": [],
+            "syntheticMembers": {
+                "Points": {
+                    "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
+                    "type": "String",
+                    "function": "impl::set_points",
+                    "include": "../impl/points_from_text.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Shapes.Polygon": {
+            "comment": "Shapes: connected straight lines that close.",
+            "members": [],
+            "syntheticMembers": {
+                "Points": {
+                    "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
+                    "type": "String",
+                    "function": "impl::set_points",
+                    "include": "../impl/points_from_text.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Shapes.Path": {
+            "comment": "Shapes: a shape drawn from a geometry.",
+            "members": [
+                "Data"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.WrapPanel": {
+            "comment": "Layout: items that flow and wrap."
+        },
+        "Microsoft.UI.Xaml.Controls.LayoutPanel": {
+            "comment": "Layout: a panel that places its children by a layout object."
+        },
+        "Microsoft.UI.Xaml.Controls.StackLayout": {
+            "comment": "Layout: the layout LayoutPanel gets beside a custom one; the one an ItemsRepeater or an ItemsView stacks its items by.",
+            "members": [
+                "Orientation",
+                "Spacing"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.UniformGridLayout": {
+            "comment": "Collections: items in rows and columns of one size.",
+            "members": [
+                "MinItemWidth",
+                "MinItemHeight",
+                "MinRowSpacing",
+                "MinColumnSpacing",
+                "ItemsStretch",
+                "ItemsJustification",
+                "MaximumRowsOrColumns",
                 "Orientation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.FlowLayout": {
+            "comment": "Collections: items one after another, wrapped into lines.",
+            "members": [
+                "LineAlignment",
+                "LineSpacing",
+                "MinItemSpacing",
+                "Orientation"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.LinedFlowLayout": {
+            "comment": "Collections: items in lines of one height, each as wide as its picture is.",
+            "members": [
+                "LineHeight",
+                "LineSpacing",
+                "MinItemSpacing",
+                "ItemsStretch",
+                "ItemsJustification"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsRepeater": {
+            "comment": "Collections: a panel that makes elements for the items of a data source as they come into view. The item template is a function (itemTemplate = [](Object const& item) { return ...; }), made into the factory the control asks.",
+            "members": [
+                "ItemsSource",
+                "Layout",
+                "HorizontalCacheLength",
+                "VerticalCacheLength",
+                "ElementPrepared",
+                "ElementClearing",
+                "GetElementIndex",
+                "TryGetElement",
+                "GetOrCreateElement",
+                "ItemsSourceView"
+            ],
+            "syntheticMembers": {
+                "ItemTemplate": {
+                    "comment": "The function that makes the element of an item.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_repeater_template",
+                    "include": "../impl/item_factory.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.BringIntoViewOptions": {
+            "comment": "Collections: how an element is brought into view -- animated or at once, and where in the viewport it comes to rest (0 the near edge, 1 the far one).",
+            "members": [
+                "AnimationDesired",
+                "VerticalAlignmentRatio",
+                "HorizontalAlignmentRatio"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.GettingFocusEventArgs": {
+            "comment": "Collections: focus about to move -- from which element, to which; the target can be replaced.",
+            "members": [
+                "OldFocusedElement",
+                "NewFocusedElement"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsSourceView": {
+            "comment": "Collections: what an ItemsRepeater sees of its data source: how many items there are.",
+            "members": [
+                "Count"
+            ]
+        },
+        "Microsoft.UI.Xaml.Hosting.ElementCompositionPreview": {
+            "comment": "Motion: the property set that follows the scrolling of a ScrollViewer, which an animation reads as its reference. Lighting: the property set that follows the pointer over an element, which a light reads its place from.",
+            "members": [
+                "GetScrollViewerManipulationPropertySet",
+                "GetPointerPositionPropertySet"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsRepeaterElementPreparedEventArgs": {
+            "comment": "Collections: the element an ItemsRepeater has made ready for an item, and the position of the item.",
+            "members": [
+                "Element",
+                "Index"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsRepeaterElementClearingEventArgs": {
+            "comment": "Collections: the element an ItemsRepeater is taking back.",
+            "members": [
+                "Element"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.VirtualizingLayoutContext": {
+            "comment": "Collections: what a virtualizing layout is given by the panel it lays out: how many items there are, which part of the panel is in view, and the element of an item to measure and arrange.",
+            "members": [
+                "ItemCount",
+                "RealizationRect",
+                "GetOrCreateElementAt",
+                "RecycleElement"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsViewItemInvokedEventArgs": {
+            "comment": "Collections: the item an ItemsView was told to invoke.",
+            "members": [
+                "InvokedItem"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemContainer": {
+            "comment": "Collections: the container an ItemsView puts an item in: what it shows (Child) and whether it is selected.",
+            "members": [
+                "Child",
+                "IsSelected"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsView": {
+            "comment": "Collections: a scrolling collection of items in a layout of its choosing, with selection and invocation. The item template is a function, as on ItemsRepeater.",
+            "members": [
+                "ItemsSource",
+                "Layout",
+                "SelectionMode",
+                "IsItemInvokedEnabled",
+                "SelectedItem",
+                "SelectionChanged",
+                "ItemInvoked",
+                "ScrollView",
+                "SelectAll",
+                "DeselectAll",
+                "Select",
+                "Deselect"
+            ],
+            "syntheticMembers": {
+                "ItemTemplate": {
+                    "comment": "The function that makes the element of an item.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_items_view_template",
+                    "include": "../impl/item_factory.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollViewer": {
+            "comment": "Gallery: the chaining of a viewer that cannot scroll, and a code block in a horizontal ScrollViewer must not keep the wheel from the page around it.",
+            "members": [
+                "IsVerticalScrollChainingEnabled",
+                "IsHorizontalScrollChainingEnabled",
+                "VerticalOffset",
+                "HorizontalOffset",
+                "ChangeView"
+            ],
+            "syntheticMembers": {
+                "WheelToParent": {
+                    "comment": "A wheel turn this viewer cannot use (nothing to scroll up or down, no modifier key) goes on up to the panel that scrolls the page. The viewer takes the wheel and marks it handled even when it scrolls nothing, so without this a horizontal strip of code stops the page.",
+                    "cppType": "bool",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_wheel_to_parent",
+                    "include": "../impl/wheel_to_parent.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.RadioMenuFlyoutItem": {
+            "comment": "Menus & toolbars: a menu item that is one of a group, checked like a radio button."
+        },
+        "Microsoft.UI.Xaml.Controls.SplitMenuFlyoutItem": {
+            "comment": "Menus & toolbars: a menu item with a submenu beside its own action."
+        },
+        "Microsoft.UI.Xaml.Controls.CommandBarFlyout": {
+            "comment": "Menus & toolbars: a command bar in a flyout."
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeControl": {
+            "comment": "Menus & toolbars: items revealed or invoked by swiping. LeftItems and RightItems are the collections themselves (SwipeItems is a vector and wxl stands it for the collection), so the Mode the class carries has a property of its own here.",
+            "syntheticMembers": {
+                "LeftItemsMode": {
+                    "comment": "SwipeItems.Mode of the left items: Reveal shows the buttons, Execute runs the first on a full swipe.",
+                    "type": "Microsoft.UI.Xaml.Controls.SwipeMode",
+                    "function": "impl::set_left_items_mode",
+                    "include": "../impl/swipe_items_mode.h"
+                },
+                "RightItemsMode": {
+                    "comment": "SwipeItems.Mode of the right items.",
+                    "type": "Microsoft.UI.Xaml.Controls.SwipeMode",
+                    "function": "impl::set_right_items_mode",
+                    "include": "../impl/swipe_items_mode.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeItemInvokedEventArgs": {
+            "comment": "Menus & toolbars: which control the item was invoked on.",
+            "members": [
+                "SwipeControl"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeItem": {
+            "comment": "Menus & toolbars: one swipe action."
+        },
+        "Microsoft.UI.Xaml.Controls.SwipeItems": {
+            "comment": "Menus & toolbars: a group of swipe actions and what invoking one does."
+        },
+        "Microsoft.UI.Xaml.Input.XamlUICommand": {
+            "comment": "Menus & toolbars: a command shared by every control that shows it."
+        },
+        "Microsoft.UI.Xaml.Input.StandardUICommand": {
+            "comment": "Menus & toolbars: a command the system names and gives a glyph and a key."
+        },
+        "Microsoft.UI.Xaml.Media.Animation.Timeline": {
+            "comment": "Motion: what every animation and storyboard has -- how long it runs.",
+            "members": ["Duration"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.Storyboard": {
+            "comment": "Motion: animations put together and started: the target of each is named with SetTarget and SetTargetProperty, the whole is begun with Begin.",
+            "members": ["Children", "Begin", "SetTarget", "SetTargetProperty"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.DoubleAnimation": {
+            "comment": "Motion: a number moved from one value to another, by an easing function.",
+            "members": ["From", "To", "EasingFunction"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.EasingFunctionBase": {
+            "comment": "Motion: how the speed of an animation changes along it; the mode says at which end.",
+            "members": ["EasingMode"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.BackEase": { "comment": "Motion: pulls back before it goes.", "members": ["Amplitude"] },
+        "Microsoft.UI.Xaml.Media.Animation.BounceEase": { "comment": "Motion: bounces at the end.", "members": ["Bounces", "Bounciness"] },
+        "Microsoft.UI.Xaml.Media.Animation.CircleEase": { "comment": "Motion: speed along a circle.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.CubicEase": { "comment": "Motion: speed as a cube.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ElasticEase": { "comment": "Motion: swings like a spring.", "members": ["Oscillations", "Springiness"] },
+        "Microsoft.UI.Xaml.Media.Animation.ExponentialEase": { "comment": "Motion: speed by an exponent.", "members": ["Exponent"] },
+        "Microsoft.UI.Xaml.Media.Animation.PowerEase": { "comment": "Motion: speed by a power.", "members": ["Power"] },
+        "Microsoft.UI.Xaml.Media.Animation.QuadraticEase": { "comment": "Motion: speed as a square.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.QuarticEase": { "comment": "Motion: speed as a fourth power.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.QuinticEase": { "comment": "Motion: speed as a fifth power.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.SineEase": { "comment": "Motion: speed along a sine.", "members": [] },
+        "Microsoft.UI.Xaml.Media.TranslateTransform": {
+            "comment": "Motion: an element moved by a distance, which a storyboard can animate (X, Y).",
+            "members": ["X", "Y"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.TransitionCollection": {
+            "comment": "Motion: the transitions of an element or panel, played as its items come, go and move."
+        },
+        "Microsoft.UI.Xaml.Media.Animation.Transition": {
+            "comment": "Motion: the base of the theme transitions."
+        },
+        "Microsoft.UI.Xaml.Media.Animation.EntranceThemeTransition": {
+            "comment": "Motion: an item coming onto the page, one after another when staggered.",
+            "members": ["IsStaggeringEnabled"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.RepositionThemeTransition": { "comment": "Motion: an element that moves because the layout changed.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ContentThemeTransition": { "comment": "Motion: content that was refreshed.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.AddDeleteThemeTransition": { "comment": "Motion: an item added to or deleted from a collection.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.PopupThemeTransition": { "comment": "Motion: a popup that opens or closes.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.NavigationThemeTransition": { "comment": "Motion: the page of a frame that was navigated to.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.NavigationTransitionInfo": { "comment": "Motion: how a navigation animates.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.EntranceNavigationTransitionInfo": { "comment": "Motion: the page enters.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.DrillInNavigationTransitionInfo": { "comment": "Motion: the page drills in.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo": { "comment": "Motion: no animation of the navigation.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.SlideNavigationTransitionInfo": { "comment": "Motion: the page slides in from a side.", "members": ["Effect"] },
+        "Microsoft.UI.Xaml.Media.Animation.CommonNavigationTransitionInfo": { "comment": "Motion: the common transition of a page.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ContinuumNavigationTransitionInfo": { "comment": "Motion: the continuum transition of a page.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.ConnectedAnimationService": {
+            "comment": "Motion: where a connected animation is prepared by key before navigation and found again after it. Statics and instances: the service of the window.",
+            "members": ["GetForCurrentView", "PrepareToAnimate", "GetAnimation"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.ConnectedAnimation": {
+            "comment": "Motion: an element flying from one page to the next; it is started on the element it ends on.",
+            "members": ["TryStart", "Configuration", "Completed"]
+        },
+        "Microsoft.UI.Xaml.Media.Animation.ConnectedAnimationConfiguration": { "comment": "Motion: how a connected animation moves.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.GravityConnectedAnimationConfiguration": { "comment": "Motion: with gravity.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.DirectConnectedAnimationConfiguration": { "comment": "Motion: direct.", "members": [] },
+        "Microsoft.UI.Xaml.Media.Animation.BasicConnectedAnimationConfiguration": { "comment": "Motion: basic.", "members": [] },
+        "Microsoft.UI.Xaml.ScalarTransition": {
+            "comment": "Motion: an implicit animation of a number: a change of Opacity or Rotation runs over a duration instead of at once.",
+            "members": ["Duration"]
+        },
+        "Microsoft.UI.Xaml.Vector3Transition": {
+            "comment": "Motion: an implicit animation of a vector (Scale, Translation), by components.",
+            "members": ["Duration", "Components"]
+        },
+        "Microsoft.UI.Xaml.BrushTransition": {
+            "comment": "Motion: an implicit animation of a brush: a change of Background fades.",
+            "members": ["Duration"]
+        },
+        "Microsoft.UI.Xaml.Controls.ParallaxView": {
+            "comment": "Motion: a picture that moves slower than what scrolls (Source), by a shift.",
+            "members": ["Source", "VerticalShift", "HorizontalShift", "Child"]
+        },
+        "Microsoft.UI.Composition.SpringVector3NaturalMotionAnimation": {
+            "comment": "Motion: a vector that goes to its final value as a spring does: damping ratio and period.",
+            "members": ["FinalValue", "DampingRatio", "Period"]
+        },
+        "Microsoft.UI.Xaml.Controls.Panel": {
+            "comment": "Motion: the transitions of the children of a panel, and of its background.",
+            "members": ["ChildrenTransitions", "BackgroundTransition"]
+        },
+        "Microsoft.UI.Xaml.Controls.ContentControl": {
+            "comment": "Motion: the transitions of the content of a control (the page of a frame).",
+            "members": ["ContentTransitions"]
+        },
+        "Microsoft.UI.Xaml.Controls.ListViewItem": {
+            "comment": "Collections: the item of a list that is a control of its own, put in Items.",
+            "members": []
+        },
+        "Microsoft.UI.Composition.IAnimationObject": {
+            "comment": "Motion: what an element is to an expression animation: an object whose properties (Scale, Translation) the expression reads.",
+            "members": []
+        },
+        "Microsoft.UI.Composition.CompositionAnimation": {
+            "comment": "Motion: an expression animation that reads an element: its Scale and Translation, through the element as an animation object.",
+            "members": ["SetExpressionReferenceParameter"]
+        },
+        "Microsoft.UI.Composition.Compositor": {
+            "comment": "Motion: the spring animation of a vector. Lighting: the four lights, the factory an effect description is compiled by, the brushes an effect reads besides a surface (what is behind the sprite, a nine-grid, a mask, a radial gradient), a rounded clip, the animation of a colour, and the shadow a light casts.",
+            "members": ["CreateSpringVector3Animation", "CreateAmbientLight", "CreateDistantLight", "CreatePointLight", "CreateSpotLight", "CreateEffectFactory", "CreateBackdropBrush", "CreateNineGridBrush", "CreateMaskBrush", "CreateRadialGradientBrush", "CreateRoundedRectangleGeometry", "CreateGeometricClip", "CreateColorKeyFrameAnimation", "CreateProjectedShadow", "CreateProjectedShadowCaster", "CreateProjectedShadowReceiver"]
+        },
+        "Microsoft.UI.Xaml.Media.CompositionTarget": {
+            "comment": "Motion: the compositor XAML draws with on this thread, which an animation of an element is made by.",
+            "members": ["GetCompositorForCurrentThread"]
+        },
+        "Microsoft.UI.Xaml.Controls.Grid": {
+            "comment": "Motion: a grid with a frame of its own -- the border of a connected animation's destination and of a section that changes its theme.",
+            "members": ["BorderBrush", "BorderThickness"]
+        },
+        "Microsoft.UI.Xaml.Controls.StackPanel": {
+            "comment": "Accessibility: a stack that is a card -- a frame, rounded corners -- as a landmark of a page is drawn.",
+            "members": ["CornerRadius"]
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.Popup": {
+            "comment": "Dialogs & flyouts: a piece of the interface drawn over the page at an offset of its own, opened and closed by the application (IsOpen), closing by itself when light-dismissed.",
+            "members": [
+                "IsOpen",
+                "Child",
+                "HorizontalOffset",
+                "VerticalOffset",
+                "IsLightDismissEnabled",
+                "Opened",
+                "Closed",
+                "ChildTransitions"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.BreadcrumbBar": {
+            "comment": "Navigation: the path to where the user is, each step clickable.",
+            "members": [
+                "ItemsSource",
+                "ItemTemplate",
+                "ItemClicked"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.BreadcrumbBarItem": {
+            "comment": "Navigation: one step of a BreadcrumbBar; the root of an item template that builds its steps itself."
+        },
+        "Microsoft.UI.Xaml.Controls.BreadcrumbBarItemClickedEventArgs": {
+            "comment": "Navigation: which step of the path was clicked.",
+            "members": [
+                "Index",
+                "Item"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Pivot": {
+            "comment": "Navigation: a few pages under a header strip, one shown at a time.",
+            "members": [
+                "Title",
+                "SelectedIndex"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.PivotItem": {
+            "comment": "Navigation: one page of a Pivot and the header that selects it.",
+            "members": [
+                "Header"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SelectorBarSelectionChangedEventArgs": {
+            "comment": "Navigation: raised when the chosen tab of a SelectorBar changes; the bar itself says which."
+        },
+        "Microsoft.UI.Xaml.Controls.TabView": {
+            "comment": "Navigation: tabs that open and close, with a header and a footer beside the strip, tabs that tear out into windows of their own, and the keys of a tabbed program.",
+            "members": [
+                "TabItemTemplate",
+                "TabStripHeader",
+                "TabStripFooter",
+                "CloseButtonOverlayMode",
+                "CanTearOutTabs",
+                "TabTearOutWindowRequested",
+                "TabTearOutRequested",
+                "ExternalTornOutTabsDropping",
+                "ExternalTornOutTabsDropped"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewTabCloseRequestedEventArgs": {
+            "comment": "Navigation: which tab, and which item of a bound source, the user asked to close.",
+            "members": [
+                "Tab",
+                "Item"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewTabTearOutWindowRequestedEventArgs": {
+            "comment": "Navigation: a tab is dragged out of the strip -- the window it is to land in is named here.",
+            "members": [
+                "NewWindowId"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewTabTearOutRequestedEventArgs": {
+            "comment": "Navigation: the tabs torn out of a strip, to be put in the window made for them.",
+            "members": [
+                "Tabs"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewExternalTornOutTabsDroppingEventArgs": {
+            "comment": "Navigation: tabs from another window are over this strip; the answer is whether it takes them.",
+            "members": [
+                "AllowDrop",
+                "Tabs"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TabViewExternalTornOutTabsDroppedEventArgs": {
+            "comment": "Navigation: tabs of another window dropped into this strip at a position.",
+            "members": [
+                "DropIndex",
+                "Tabs"
+            ]
+        },
+        "Microsoft.UI.Xaml.BringIntoViewRequestedEventArgs": {
+            "comment": "Navigation: a request to scroll an element into view that a handler can mark handled.",
+            "members": [
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs": {
+            "comment": "Navigation: the element a key chord was pressed over, and whether the handler took it.",
+            "members": [
+                "Element",
+                "Handled"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.VisualTreeHelper": {
+            "comment": "Navigation: the way up the visual tree from a tab to its strip and window.",
+            "members": [
+                "GetParent"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TeachingTip": {
+            "comment": "Dialogs & flyouts: a tip that points at an element (Target) or stands free, with an icon, a hero, content and up to two buttons.",
+            "members": [
+                "IsOpen",
+                "Title",
+                "Subtitle",
+                "Target",
+                "IconSource",
+                "ActionButtonContent",
+                "CloseButtonContent",
+                "IsLightDismissEnabled",
+                "PlacementMargin",
+                "PreferredPlacement",
+                "HeroContent",
+                "Content"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SymbolIconSource": {
+            "comment": "Menus & toolbars: the symbol of a command or swipe item."
+        },
+        "Microsoft.UI.Xaml.Controls.BitmapIconSource": {
+            "comment": "Menus & toolbars: the bitmap of a command or swipe item."
+        },
+        "Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions": {
+            "comment": "Menus & toolbars: how a flyout is shown -- where it stands and whether it takes the focus."
+        },
+        "Microsoft.UI.Xaml.Input.ExecuteRequestedEventArgs": {
+            "comment": "Menus & toolbars: what a command was asked to run with.",
+            "members": [
+                "Parameter"
+            ]
+        },
+        "Microsoft.UI.Xaml.Input.Pointer": {
+            "comment": "Menus & toolbars: a hover button shows for a mouse or a pen and not for a finger, which has no hover.",
+            "members": [
+                "PointerDeviceType"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.DatePicker": {
+            "comment": "Date & time: the date and what of it is shown.",
+            "members": [
+                "Date",
+                "DayFormat",
+                "DayVisible",
+                "MonthVisible",
+                "YearVisible",
+                "MinYear",
+                "MaxYear",
+                "CalendarIdentifier"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.TimePicker": {
+            "comment": "Date & time: the clock and how finely minutes go.",
+            "members": [
+                "MinuteIncrement",
+                "ClockIdentifier",
+                "Time"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.CalendarView": {
+            "comment": "Date & time: the month calendar the Gallery's CalendarView page shows."
+        },
+        "Microsoft.UI.Xaml.Controls.PagerControl": {
+            "comment": "Scrolling: a pager for a count of pages, bounded or not."
+        },
+        "Microsoft.UI.Xaml.Controls.PipsPager": {
+            "comment": "Scrolling: dots for the pages of a flip view or a list."
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollView": {
+            "comment": "Scrolling: the ScrollViewer of the compositor, with programmatic scrolling. The scroll controllers of its presenter are properties of the view here, given an AnnotatedScrollBar.",
+            "syntheticMembers": {
+                "VerticalScrollController": {
+                    "comment": "The bar that drives the view up and down, and is told where it is.",
+                    "type": "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar",
+                    "function": "impl::set_vertical_scroll_controller",
+                    "include": "../impl/scroll_controller.h"
+                },
+                "HorizontalScrollController": {
+                    "comment": "The same, sideways.",
+                    "type": "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar",
+                    "function": "impl::set_horizontal_scroll_controller",
+                    "include": "../impl/scroll_controller.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.AnnotatedScrollBarDetailLabelRequestedEventArgs": {
+            "comment": "Scrolling: where the pointer is on the rail, and what to show there.",
+            "members": [
+                "Content",
+                "ScrollOffset"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar": {
+            "comment": "Scrolling: a scroll bar with labels along it."
+        },
+        "Microsoft.UI.Xaml.Controls.SemanticZoom": {
+            "comment": "Scrolling: two views of one collection, close and far."
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollingScrollAnimationStartingEventArgs": {
+            "comment": "Scrolling: the animation a programmatic scroll is about to run, which the handler may replace.",
+            "members": [
+                "Animation",
+                "StartPosition",
+                "EndPosition"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollingScrollOptions": {
+            "comment": "Scrolling: how a programmatic scroll goes -- animated or at once, and whether it snaps."
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollingZoomOptions": {
+            "comment": "Scrolling: the same for a programmatic zoom."
+        },
+        "Microsoft.UI.Xaml.Controls.NumberBoxValueChangedEventArgs": {
+            "comment": "Scrolling: the value before and after, which a velocity box turns round on.",
+            "members": [
+                "OldValue",
+                "NewValue"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.ThemeShadow": {
+            "comment": "Styles: the elements a theme shadow falls on.",
+            "members": [
+                "Receivers"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SplitView": {
+            "comment": "Layout: the pane's own paint, which the page changes from a list.",
+            "members": [
+                "PaneBackground"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Viewbox": {
+            "comment": "Layout: what the viewbox holds and how it stretches it.",
+            "members": [
+                "Child",
+                "Stretch",
+                "StretchDirection"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RelativePanel": {
+            "comment": "Layout: the panel, and every attached property its children are placed by -- against a sibling or against the panel.",
+            "members": [
+                "SetAbove",
+                "SetBelow",
+                "SetLeftOf",
+                "SetRightOf",
+                "SetAlignHorizontalCenterWith",
+                "SetAlignVerticalCenterWith",
+                "SetAlignLeftWith",
+                "SetAlignTopWith",
+                "SetAlignRightWith",
+                "SetAlignBottomWith",
+                "SetAlignLeftWithPanel",
+                "SetAlignTopWithPanel",
+                "SetAlignRightWithPanel",
+                "SetAlignBottomWithPanel",
+                "SetAlignHorizontalCenterWithPanel",
+                "SetAlignVerticalCenterWithPanel"
             ]
         },
         "Microsoft.UI.Text.RichEditTextDocument": {
@@ -236,30 +1332,611 @@
             "members": [
                 "ListType"
             ]
-        },        "Microsoft.UI.Xaml.FrameworkElement": {
-            "comment": "Parent: a handler reads its siblings from the panel it is in, so that no handler has to capture an element (a captured sibling that captures back is a cycle nothing breaks).",
+        },
+        "Microsoft.UI.Xaml.FrameworkElement": {
+            "comment": "AllowFocusOnInteraction: a button that opens a flyout holding an input keeps focus when pressed. Parent: a handler reads its siblings from the panel it is in, so that no handler has to capture an element (a captured sibling that captures back is a cycle nothing breaks).",
             "members": [
-                "Parent"
+                "Parent",
+                "Language",
+                "AllowFocusOnInteraction",
+                "Resources",
+                "FlowDirection"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragEventArgs": {
+            "comment": "Collections: an item dragged over or dropped on an element: what it may do there, the data, where the pointer is, the deferral that keeps the drop open while it is handled.",
+            "members": [
+                "AcceptedOperation",
+                "DataView",
+                "DragUIOverride",
+                "GetPosition",
+                "GetDeferral"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragUIOverride": {
+            "comment": "Collections: the look of the drag while it is over an element.",
+            "members": [
+                "IsGlyphVisible"
+            ]
+        },
+        "Microsoft.UI.Xaml.DragOperationDeferral": {
+            "comment": "Collections: a drop that is not finished when its handler returns ends when this is completed.",
+            "members": [
+                "Complete"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.DragItemsStartingEventArgs": {
+            "comment": "Collections: the items a list starts to drag, and the data that goes with them.",
+            "members": [
+                "Items",
+                "Data",
+                "Cancel"
             ]
         },
         "Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase": {
             "comment": "Target: the element a flyout is attached to. A coroutine started when the flyout opens finds its owner there, so no handler has to capture the owner (which holds the flyout: a cycle).",
             "members": [
-                "Target"
+                "Target",
+                "Opening",
+                "Hide"
             ]
         },
         "Windows.ApplicationModel.DataTransfer.Clipboard": {
-            "comment": "The copy button under every example puts the code on the clipboard; the Clipboard page of the Gallery reads it back.",
+            "comment": "The copy button under every example puts the code on the clipboard; the Clipboard page of the Gallery reads it back, clears it, asks whether its history and roaming are on, puts content with options, and hears it change.",
             "members": [
                 "SetContent",
-                "Flush"
+                "Flush",
+                "GetContent",
+                "Clear",
+                "IsHistoryEnabled",
+                "IsRoamingEnabled",
+                "SetContentWithOptions",
+                "ContentChanged"
             ]
         },
         "Windows.ApplicationModel.DataTransfer.DataPackage": {
-            "comment": "What goes on the clipboard: text, and whether it is a copy.",
+            "comment": "What goes on the clipboard: text, a picture, files, and whether it is a copy.",
             "members": [
                 "SetText",
+                "SetBitmap",
+                "SetStorageItems",
                 "RequestedOperation"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.DataPackageView": {
+            "comment": "What the clipboard holds, read: which formats, whether one is there, and its content -- the awaited operations are the ones that give it up.",
+            "members": [
+                "Contains",
+                "AvailableFormats",
+                "RequestedOperation",
+                "GetTextAsync",
+                "GetBitmapAsync",
+                "GetStorageItemsAsync"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.ClipboardContentOptions": {
+            "comment": "How content goes on the clipboard: whether it enters the history and whether it roams to the other devices.",
+            "members": [
+                "IsAllowedInHistory",
+                "IsRoamable"
+            ]
+        },
+        "Windows.ApplicationModel.DataTransfer.StandardDataFormats": {
+            "comment": "The names of the formats the clipboard is asked for.",
+            "members": [
+                "Text",
+                "Bitmap",
+                "StorageItems"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsControl": {
+            "comment": "Collections: the panel the items are laid out in -- ItemsPanelRoot, the panel itself once the control is loaded -- and its direction, as a virtualizing stack. ItemsPanel is a template that only XAML text makes.",
+            "members": [
+                "ItemsPanelRoot",
+                "ItemContainerTransitions",
+                "ContainerFromItem",
+                "IndexFromContainer"
+            ],
+            "syntheticMembers": {
+                "ItemsPanelOrientation": {
+                    "comment": "A virtualizing stack in this direction: itemsPanelOrientation = Orientation::Vertical.",
+                    "type": "Microsoft.UI.Xaml.Controls.Orientation",
+                    "function": "impl::set_items_panel_orientation",
+                    "include": "../impl/items_panel.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.ListViewBase": {
+            "comment": "Collections: ListView and GridView -- dragging and reordering of items, and the item template written as a function (itemTemplate = [](Object const& item) { return ...; }), which fills the containers as they come into view.",
+            "members": [
+                "CanDragItems",
+                "CanReorderItems",
+                "DragItemsStarting",
+                "PrepareConnectedAnimation",
+                "TryStartConnectedAnimationAsync",
+                "ScrollIntoView",
+                "Header"
+            ],
+            "syntheticMembers": {
+                "ItemMargin": {
+                    "comment": "The margin of every item container, as an ItemContainerStyle with a Setter for Margin would give it: itemMargin = Thickness {5}.",
+                    "type": "Microsoft.UI.Xaml.Thickness",
+                    "function": "impl::set_item_margin",
+                    "include": "../impl/item_template.h"
+                },
+                "ItemTemplate": {
+                    "comment": "What an ItemTemplate says, as a function from the item to the element that shows it. A DataTemplate of XAML is text bound to the properties of a data object; here the data are C++ objects and the element is made by code.",
+                    "cppType": "ItemBuilder",
+                    "cppInclude": "../ItemBuilder.h",
+                    "function": "impl::set_item_template",
+                    "include": "../impl/item_template.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.TreeView": {
+            "comment": "Collections: items that can be dragged out of and within the tree.",
+            "members": [
+                "CanDragItems",
+                "CanReorderItems"
+            ],
+            "syntheticMembers": {
+                "ElementItems": {
+                    "comment": "The items (the content of the nodes, or the items of ItemsSource) are elements, and each is shown as itself: elementItems = true. The template of that is XAML text only.",
+                    "cppType": "bool",
+                    "cppInclude": "../core.h",
+                    "function": "impl::set_element_items",
+                    "include": "../impl/element_items.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.Controls.TreeViewItem": {
+            "comment": "Collections: an item of a tree that is its own container: its content, its children (ItemsSource), whether it is open. What the DataTemplate of the original puts in a TreeView.",
+            "members": [
+                "ItemsSource",
+                "IsExpanded"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsWrapGrid": {
+            "comment": "Collections: the default panel of a GridView -- items wrap after this many rows or columns.",
+            "members": [
+                "MaximumRowsOrColumns",
+                "ItemWidth",
+                "ItemHeight"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ItemsStackPanel": {
+            "comment": "Collections: the default panel of a ListView -- what it does when items are added (keep the last in view) and whether group headers stick.",
+            "members": [
+                "ItemsUpdatingScrollMode",
+                "AreStickyGroupHeadersEnabled",
+                "FirstVisibleIndex",
+                "LastVisibleIndex"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RefreshContainer": {
+            "comment": "Collections: pull to refresh -- the container that asks for new content when the content is pulled, and the visualizer it draws while it does.",
+            "members": [
+                "Visualizer",
+                "PullDirection",
+                "RefreshRequested",
+                "RequestRefresh"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RefreshVisualizer": {
+            "comment": "Collections: what a refresh container draws while it is pulled: the content (an icon) and the state. Orientation is left out: it would make the tag orientation ambiguous between two enums.",
+            "members": [
+                "Content",
+                "State",
+                "RefreshStateChanged",
+                "RequestRefresh"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.RefreshRequestedEventArgs": {
+            "comment": "Collections: the request of a refresh container: the deferral that keeps the visualizer going until the work is done.",
+            "members": [
+                "GetDeferral"
+            ]
+        },
+        "Windows.Foundation.Deferral": {
+            "comment": "Collections: tells the framework that the work it was told to wait for is done.",
+            "members": [
+                "Complete"
+            ]
+        },
+        "Windows.UI.StartScreen.JumpList": {
+            "comment": "System & Shell: the list the taskbar button of a packaged application opens: its items, loaded, changed and saved.",
+            "members": [
+                "LoadCurrentAsync",
+                "Items",
+                "SaveAsync"
+            ]
+        },
+        "Windows.UI.StartScreen.JumpListItem": {
+            "comment": "System & Shell: one line of a jump list -- a task, or an item of a named group. It starts the application with its arguments.",
+            "members": [
+                "CreateWithArguments",
+                "Description",
+                "Logo",
+                "GroupName"
+            ]
+        },
+        "Windows.Storage.Streams.RandomAccessStreamReference": {
+            "comment": "A reference to a stream to open: a picture of an address, as the clipboard takes it, and the bitmap the clipboard gives back. The interface IRandomAccessStreamReference has no wrapper of its own: it is this one.",
+            "members": [
+                "CreateFromUri",
+                "CreateFromFile",
+                "OpenReadAsync"
+            ],
+            "replacedCalls": {
+                "CreateFromUri": {
+                    "comment": "The platform opens such a reference only for http, https, ms-appx and ms-appdata: an address with the file scheme fails at OpenReadAsync with E_NOTIMPL, and an unpackaged application has no ms-appx. A file address gets a reference that opens the file when asked; any other address is the platform's.",
+                    "function": "impl::stream_reference_from_uri",
+                    "include": "../impl/file_stream_reference.h"
+                }
+            }
+        },
+        "Windows.Storage.Streams.IRandomAccessStreamWithContentType": {
+            "comment": "The stream a bitmap is read from.",
+            "members": []
+        },
+        "Windows.Storage.StorageFile": {
+            "comment": "A file by its path, as the clipboard carries it.",
+            "members": [
+                "GetFileFromPathAsync",
+                "GetThumbnailAsync",
+                "Name",
+                "Path"
+            ]
+        },
+        "Windows.Storage.IStorageItem": {
+            "comment": "A file or a folder on the clipboard: what it is called.",
+            "members": [
+                "Name"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.Imaging.BitmapImage": {
+            "comment": "A picture a control shows, given a stream to read from.",
+            "members": [
+                "SetSource",
+                "SetSourceAsync",
+                "DecodePixelHeight",
+                "UriSource",
+                "AutoPlay",
+                "IsAnimatedBitmap",
+                "Play",
+                "Stop",
+                "ImageOpened"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.Imaging.SvgImageSource": {
+            "comment": "Media: a picture drawn from SVG text -- Image.Source is this when the file is a .svg.",
+            "members": [
+                "UriSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.ElementSoundPlayer": {
+            "comment": "Media: the sounds the controls make when focused, invoked, shown, hidden or moved through -- whether they are on, whether they are spatial, and one played by hand.",
+            "members": [
+                "State",
+                "SpatialAudioMode",
+                "Play"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MediaPlayerElement": {
+            "comment": "Media: a video or audio player with transport controls; what it plays and whether it starts by itself.",
+            "members": [
+                "Source",
+                "AreTransportControlsEnabled",
+                "AutoPlay",
+                "MediaPlayer",
+                "Stretch"
+            ]
+        },
+        "Windows.Media.Playback.IMediaPlaybackSource": {
+            "comment": "Media: what a player plays -- a MediaSource is one.",
+            "members": []
+        },
+        "Windows.Media.Playback.MediaPlayer": {
+            "comment": "Media: the player behind a MediaPlayerElement -- started and paused from outside.",
+            "members": [
+                "Play",
+                "Pause"
+            ]
+        },
+        "Windows.Media.Core.MediaSource": {
+            "comment": "Media: a source of media -- a file, an address, a camera.",
+            "members": [
+                "CreateFromUri",
+                "CreateFromStorageFile",
+                "CreateFromMediaFrameSource"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.Image": {
+            "comment": "Media: the part of a picture that keeps its size when it is stretched (the nine-grid), beside what base and rich ask of it.",
+            "members": [
+                "NineGrid"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MapControl": {
+            "comment": "Media: a map of the world -- where it looks, how far in, the key of the map service, and the layers drawn over it.",
+            "members": [
+                "Center",
+                "ZoomLevel",
+                "MapServiceToken",
+                "Layers"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MapLayer": {
+            "comment": "Media: what a map holds layers of.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.MapElementsLayer": {
+            "comment": "Media: a layer of pins and shapes.",
+            "members": [
+                "MapElements"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.MapElement": {
+            "comment": "Media: one pin or shape of a layer.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.MapIcon": {
+            "comment": "Media: a pin on the map.",
+            "members": [
+                "Location"
+            ]
+        },
+        "Windows.Devices.Geolocation.Geopoint": {
+            "comment": "Media: a place on the earth, made of its latitude and longitude.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkCanvas": {
+            "comment": "Media: a surface drawn on with a pen, a finger or a mouse; the drawing is done by its presenter.",
+            "members": [
+                "InkPresenter"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkPresenter": {
+            "comment": "Media: what an InkCanvas draws with -- which devices it listens to, whether it listens, the attributes of a new stroke, the strokes drawn so far.",
+            "members": [
+                "InputDeviceTypes",
+                "IsInputEnabled",
+                "CopyDefaultDrawingAttributes",
+                "UpdateDefaultDrawingAttributes",
+                "StrokeContainer",
+                "StrokesCollected",
+                "StrokesErased"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkStrokeContainer": {
+            "comment": "Media: the strokes of a drawing: counted, cleared, saved to a stream and loaded back.",
+            "members": [
+                "Clear",
+                "GetStrokes",
+                "SaveAsync",
+                "LoadAsync"
+            ]
+        },
+        "Windows.UI.Input.Inking.InkDrawingAttributes": {
+            "comment": "Media: how a stroke looks -- its color and the size of the pen.",
+            "members": [
+                "Color",
+                "Size"
+            ]
+        },
+        "Windows.UI.Input.Inking.InkStroke": {
+            "comment": "Media: one stroke of a drawing.",
+            "members": []
+        },
+        "Windows.Storage.Streams.InMemoryRandomAccessStream": {
+            "comment": "Media: a stream kept in memory -- where a drawing is saved to and a photograph is taken to.",
+            "members": [
+                "GetOutputStreamAt",
+                "GetInputStreamAt",
+                "Seek",
+                "Close"
+            ]
+        },
+        "Windows.Storage.Streams.IOutputStream": {
+            "comment": "Media: where a drawing is written to.",
+            "members": []
+        },
+        "Windows.Storage.Streams.IInputStream": {
+            "comment": "Media: where a drawing is read from.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbar": {
+            "comment": "Media: the strip of pens and an eraser that goes with an InkCanvas -- which tools it holds, which one is chosen, and where its flyouts open.",
+            "members": [
+                "InitialControls",
+                "TargetInkCanvas",
+                "Children",
+                "ButtonFlyoutPlacement",
+                "ActiveTool",
+                "GetToolButton",
+                "ActiveToolChanged"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarToolButton": {
+            "comment": "Media: a tool of the toolbar, and what kind of tool it is.",
+            "members": [
+                "ToolKind"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarBallpointPenButton": {
+            "comment": "Media: the ballpoint pen of a toolbar.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarPencilButton": {
+            "comment": "Media: the pencil of a toolbar.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarHighlighterButton": {
+            "comment": "Media: the highlighter of a toolbar.",
+            "members": []
+        },
+        "Microsoft.UI.Xaml.Controls.InkToolbarEraserButton": {
+            "comment": "Media: the eraser of a toolbar.",
+            "members": []
+        },
+        "Windows.Media.Capture.Frames.MediaFrameSourceGroup": {
+            "comment": "Media: a camera, as the frame sources of the machine group it -- found, named and asked for its sources.",
+            "members": [
+                "FindAllAsync",
+                "DisplayName",
+                "SourceInfos"
+            ]
+        },
+        "Windows.Media.Capture.Frames.MediaFrameSourceInfo": {
+            "comment": "Media: one source of a camera, by its id.",
+            "members": [
+                "Id"
+            ]
+        },
+        "Windows.Media.Capture.Frames.MediaFrameSource": {
+            "comment": "Media: one source of a camera that a player can play.",
+            "members": []
+        },
+        "Windows.Media.Capture.MediaCapture": {
+            "comment": "Media: a camera in use -- started with settings, asked for a photograph, closed.",
+            "members": [
+                "InitializeAsync",
+                "CapturePhotoToStreamAsync",
+                "Close"
+            ]
+        },
+        "Windows.Media.Capture.MediaCaptureInitializationSettings": {
+            "comment": "Media: what a camera is started with -- the group, whether others may share it, what it captures, where frames are kept.",
+            "members": [
+                "SourceGroup",
+                "SharingMode",
+                "StreamingCaptureMode",
+                "MemoryPreference"
+            ]
+        },
+        "Windows.Media.MediaProperties.ImageEncodingProperties": {
+            "comment": "Media: the format a photograph is taken in.",
+            "members": [
+                "CreateJpeg"
+            ]
+        },
+        "Windows.System.Launcher": {
+            "comment": "Media: opens an address in the program that is for it -- the privacy settings of the camera, from the page that found it denied.",
+            "members": [
+                "LaunchUriAsync"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.AnimatedVisualPlayer": {
+            "comment": "Media: plays an animation made of composition objects -- the Lottie logo -- with controls for play, pause, resume, stop and the direction.",
+            "members": [
+                "AutoPlay",
+                "Source",
+                "PlaybackRate",
+                "Pause",
+                "Resume",
+                "Stop",
+                "PlayAsync",
+                "IsPlaying"
+            ]
+        },
+        "Microsoft.UI.Xaml.XamlRoot": {
+            "comment": "The window a control hangs in, as the pickers want to know it: through the environment of the island, which names the window by its id; and the island itself, the parent of the islands of other frameworks.",
+            "members": [
+                "ContentIslandEnvironment",
+                "ContentIsland"
+            ]
+        },
+        "Microsoft.UI.Content.ContentIsland": {
+            "comment": "System: an island of content over a visual -- the unit that hosts another framework, or a scene drawn by hand, inside a window.",
+            "members": [
+                "Create"
+            ]
+        },
+        "Microsoft.UI.Content.ChildSiteLink": {
+            "comment": "System: where a child island sits in the parent island -- a visual to place it by, the size, the transform, the connection.",
+            "members": [
+                "Create",
+                "ActualSize",
+                "LocalToParentTransformMatrix",
+                "Connect"
+            ]
+        },
+        "Microsoft.UI.Xaml.Media.GeneralTransform": {
+            "comment": "Layout: the transform between the coordinates of two elements; a point goes through it.",
+            "members": [
+                "TransformPoint"
+            ]
+        },
+        "Microsoft.UI.Content.ContentIslandEnvironment": {
+            "comment": "The window id of the island: what a picker takes to open over the right window.",
+            "members": [
+                "AppWindowId"
+            ]
+        },
+        "Microsoft.Windows.Storage.Pickers.FileOpenPicker": {
+            "comment": "Storage pickers: choose one file or several. Made over the window it opens above. The types of files are the tag fileType, repeated.",
+            "members": [
+                "CommitButtonText",
+                "SuggestedStartLocation",
+                "ViewMode",
+                "PickSingleFileAsync",
+                "PickMultipleFilesAsync"
+            ],
+            "syntheticMembers": {
+                "FileType": {
+                    "comment": "One extension of the filter: \".txt\", or \"*\" for all. Each use of the tag adds one.",
+                    "type": "String",
+                    "function": "impl::add_file_type",
+                    "include": "../impl/picker_file_types.h"
+                }
+            }
+        },
+        "Microsoft.Windows.Storage.Pickers.FileSavePicker": {
+            "comment": "Storage pickers: name a file to save. The types the dialog offers are the tag fileTypeChoice, repeated.",
+            "members": [
+                "CommitButtonText",
+                "SuggestedStartLocation",
+                "SuggestedFileName",
+                "SuggestedFolder",
+                "DefaultFileExtension",
+                "PickSaveFileAsync"
+            ],
+            "syntheticMembers": {
+                "FileTypeChoice": {
+                    "comment": "One line of the list of types: the words and the extensions behind them. Each use of the tag adds one.",
+                    "cppType": "FileTypeChoice",
+                    "cppInclude": "../PickerFileTypes.h",
+                    "function": "impl::add_file_type_choice",
+                    "include": "../impl/picker_file_types.h"
+                }
+            }
+        },
+        "Microsoft.Windows.Storage.Pickers.FolderPicker": {
+            "comment": "Storage pickers: choose a folder.",
+            "members": [
+                "CommitButtonText",
+                "SuggestedStartLocation",
+                "ViewMode",
+                "PickSingleFolderAsync"
+            ]
+        },
+        "Microsoft.Windows.Storage.Pickers.PickFileResult": {
+            "comment": "Storage pickers: the file that was chosen, by its path.",
+            "members": [
+                "Path"
+            ]
+        },
+        "Microsoft.Windows.Storage.Pickers.PickFolderResult": {
+            "comment": "Storage pickers: the folder that was chosen, by its path.",
+            "members": [
+                "Path"
+            ]
+        },
+        "Windows.Storage.FileProperties.StorageItemThumbnail": {
+            "comment": "The picture the shell keeps of a file: its size before it was scaled to the one asked for, and the stream to read it from.",
+            "members": [
+                "OriginalWidth",
+                "OriginalHeight"
             ]
         },
         "Microsoft.UI.Xaml.Documents.TextElement": {
@@ -308,7 +1985,8 @@
         "Microsoft.UI.Xaml.Documents.Hyperlink": {
             "comment": "A link inside a paragraph.",
             "members": [
-                "NavigateUri"
+                "NavigateUri",
+                "Click"
             ]
         },
         "Microsoft.UI.Xaml.Documents.Block": {
@@ -350,11 +2028,14 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.Control": {
-            "comment": "Text group: what a TextBox is set up with beyond base -- the italic face and letter spacing.",
+            "comment": "Text group: what a TextBox is set up with beyond base -- the italic face and letter spacing. Styles: whether a slider takes the arrow keys only after Enter.",
             "members": [
                 "FontStyle",
                 "CharacterSpacing",
-                "Foreground"
+                "Foreground",
+                "IsFocusEngagementEnabled",
+                "ElementSoundMode",
+                "TabIndex"
             ]
         },
         "Microsoft.UI.Xaml.Controls.TextBox": {
@@ -376,7 +2057,8 @@
             "members": [
                 "AcceptsExpression",
                 "LargeChange",
-                "NumberFormatter"
+                "NumberFormatter",
+                "ValidationMode"
             ]
         },
         "Windows.Globalization.NumberFormatting.DecimalFormatter": {
@@ -403,7 +2085,9 @@
             "comment": "Whole surface: control templates and the Gallery's own presenters use it.",
             "members": [
                 "Content",
-                "ContentTemplate"
+                "ContentTemplate",
+                "BackgroundTransition",
+                "Background"
             ]
         },
         "Microsoft.UI.Xaml.Controls.RadioButtons": {
@@ -418,8 +2102,17 @@
             ]
         },
         "Microsoft.UI.Xaml.Media.MicaBackdrop": {
-            "comment": "The Gallery window's system backdrop.",
-            "members": []
+            "comment": "The Gallery window's system backdrop; Kind switches Base and BaseAlt.",
+            "members": [
+                "Kind"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.SystemBackdropElement": {
+            "comment": "Styles: an element that is itself a piece of system backdrop -- acrylic or Mica inside the window, with rounded corners -- instead of the backdrop of the whole window.",
+            "members": [
+                "SystemBackdrop",
+                "CornerRadius"
+            ]
         },
         "Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop": {
             "comment": "The acrylic sibling of MicaBackdrop.",
@@ -430,7 +2123,196 @@
             "members": []
         },
         "Microsoft.UI.Xaml.Window": {
-            "comment": "Window is an implicit root with the whole surface; listed only so that SystemBackdrop stays in the profile if that ever changes."
+            "comment": "Window is an implicit root with the whole surface; listed only so that SystemBackdrop stays in the profile if that ever changes. A controller of the system backdrop is given to the window it draws under: the window is the target of its material.",
+            "syntheticMembers": {
+                "NoSystemBackdrop": {
+                    "comment": "Takes the system backdrop off the window: `noSystemBackdrop = true`. A wrapper is never empty, so there is no empty backdrop to give systemBackdrop; false leaves the window as it is.",
+                    "cppType": "bool",
+                    "cppInclude": "../core.h",
+                    "function": "impl::clear_system_backdrop",
+                    "include": "../impl/backdrop_controller.h"
+                },
+                "MicaController": {
+                    "comment": "The Mica controller of this window: the window becomes its target. The controller still needs its configuration, and Close when the window closes.",
+                    "type": "Microsoft.UI.Composition.SystemBackdrops.MicaController",
+                    "function": "impl::set_mica_controller",
+                    "include": "../impl/backdrop_controller.h"
+                },
+                "DesktopAcrylicController": {
+                    "comment": "The desktop acrylic controller of this window, the same way.",
+                    "type": "Microsoft.UI.Composition.SystemBackdrops.DesktopAcrylicController",
+                    "function": "impl::set_desktop_acrylic_controller",
+                    "include": "../impl/backdrop_controller.h"
+                }
+            }
+        },
+        "Microsoft.UI.Xaml.WindowActivatedEventArgs": {
+            "comment": "Windowing: whether the window is the active one, which the controllers of a system backdrop are told (an inactive window shows the material faded).",
+            "members": [
+                "WindowActivationState"
+            ]
+        },
+        "Microsoft.UI.Composition.SystemBackdrops.SystemBackdropConfiguration": {
+            "comment": "Windowing: the policy a system backdrop controller follows: whether the window takes input, which theme it is in, and whether the system is in high contrast.",
+            "members": [
+                "IsInputActive",
+                "Theme",
+                "IsHighContrast"
+            ]
+        },
+        "Microsoft.UI.Composition.SystemBackdrops.MicaController": {
+            "comment": "Windowing: the Mica material under a window, with its kind and its configuration; IsSupported says whether the system can draw it.",
+            "members": [
+                "Kind",
+                "IsSupported",
+                "SetSystemBackdropConfiguration",
+                "Close"
+            ]
+        },
+        "Microsoft.UI.Composition.SystemBackdrops.DesktopAcrylicController": {
+            "comment": "Windowing: the desktop acrylic material under a window, the same way.",
+            "members": [
+                "Kind",
+                "IsSupported",
+                "SetSystemBackdropConfiguration",
+                "Close"
+            ]
+        },
+        "Microsoft.UI.Composition.CompositionLight": {
+            "comment": "Lighting: what every light has: the visuals it lights (each with its whole subtree), the ones it leaves out, and a switch.",
+            "members": ["Targets", "ExclusionsFromTargets", "IsEnabled"]
+        },
+        "Microsoft.UI.Composition.VisualUnorderedCollection": {
+            "comment": "Lighting: the targets of a light -- a set, with no order to speak of.",
+            "members": ["Add", "Remove", "RemoveAll", "Count"]
+        },
+        "Microsoft.UI.Composition.AmbientLight": {
+            "comment": "Lighting: light from all around, the same on every surface whatever way it faces.",
+            "members": ["Color", "Intensity"]
+        },
+        "Microsoft.UI.Composition.DistantLight": {
+            "comment": "Lighting: a light infinitely far away -- one direction for the whole scene, written in the coordinates of a visual.",
+            "members": ["Color", "CoordinateSpace", "Direction", "Intensity"]
+        },
+        "Microsoft.UI.Composition.PointLight": {
+            "comment": "Lighting: a lamp at a point of the coordinate space of a visual, falling off with the distance by three attenuation terms.",
+            "members": ["Color", "CoordinateSpace", "Offset", "Intensity", "ConstantAttenuation", "LinearAttenuation", "QuadraticAttenuation", "MinAttenuationCutoff", "MaxAttenuationCutoff"]
+        },
+        "Microsoft.UI.Composition.SpotLight": {
+            "comment": "Lighting: a lamp with a direction and two cones, each cone with a colour and an intensity.",
+            "members": ["CoordinateSpace", "Offset", "Direction", "InnerConeAngle", "InnerConeAngleInDegrees", "InnerConeColor", "InnerConeIntensity", "OuterConeAngle", "OuterConeAngleInDegrees", "OuterConeColor", "OuterConeIntensity", "ConstantAttenuation", "LinearAttenuation", "QuadraticAttenuation", "MinAttenuationCutoff", "MaxAttenuationCutoff"]
+        },
+        "Microsoft.UI.Composition.CompositionEffectFactory": {
+            "comment": "Lighting: a compiled effect description; every brush made from it has its own sources and its own animated properties.",
+            "members": ["CreateBrush", "LoadStatus"]
+        },
+        "Microsoft.UI.Composition.CompositionEffectBrush": {
+            "comment": "Lighting: the output of an effect graph as a brush; a named input of the graph is given a brush here.",
+            "members": ["SetSourceParameter", "GetSourceParameter"]
+        },
+        "Microsoft.UI.Composition.CompositionEffectSourceParameter": {
+            "comment": "Lighting: a named input of an effect graph, to be given a brush once the graph is compiled.",
+            "members": ["Name"]
+        },
+        "Microsoft.UI.Composition.CompositionBackdropBrush": {
+            "comment": "Lighting: what is behind a sprite, as an input of an effect.",
+            "members": []
+        },
+        "Microsoft.UI.Composition.CompositionNineGridBrush": {
+            "comment": "Lighting: a brush stretched by nine parts -- corners kept, edges stretched one way, the centre both ways -- which is how one small normal map serves a key of any size.",
+            "members": ["Source", "SetInsets", "SetInsetScales", "LeftInset", "TopInset", "RightInset", "BottomInset", "IsCenterHollow"]
+        },
+        "Microsoft.UI.Composition.CompositionMaskBrush": {
+            "comment": "Lighting: a brush shown through the alpha of another.",
+            "members": ["Source", "Mask"]
+        },
+        "Microsoft.UI.Composition.CompositionRadialGradientBrush": {
+            "comment": "Lighting: a gradient round a centre, as an input of an effect or the face of a sprite.",
+            "members": ["EllipseCenter", "EllipseRadius", "GradientOriginOffset"]
+        },
+        "Microsoft.UI.Composition.CompositionRoundedRectangleGeometry": {
+            "comment": "Lighting: the shape of a key: a rectangle with rounded corners, for a clip.",
+            "members": ["Size", "Offset", "CornerRadius"]
+        },
+        "Microsoft.UI.Composition.CompositionGeometricClip": {
+            "comment": "Lighting: a clip by a geometry, which is what rounds the corners of a sprite.",
+            "members": ["Geometry"]
+        },
+        "Microsoft.UI.Composition.ColorKeyFrameAnimation": {
+            "comment": "Lighting: a colour through key frames -- a light that changes colour or goes out.",
+            "members": ["InsertKeyFrame"]
+        },
+        "Microsoft.UI.Composition.CompositionPropertySet": {
+            "comment": "Lighting: the animated properties of an effect brush are written here by name -- a colour or a pair of numbers as well as a scalar.",
+            "members": ["InsertColor", "InsertVector2"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadow": {
+            "comment": "Lighting: the shadow a light casts from some visuals onto others: the light, who casts, who receives, and how soft the shadow gets with the distance.",
+            "members": ["LightSource", "Casters", "Receivers", "BlurRadiusMultiplier", "MinBlurRadius", "MaxBlurRadius"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowCaster": {
+            "comment": "Lighting: a visual that casts a projected shadow, and the brush its outline is taken from.",
+            "members": ["CastingVisual", "Brush"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowReceiver": {
+            "comment": "Lighting: a visual a projected shadow falls on.",
+            "members": ["ReceivingVisual"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowCasterCollection": {
+            "comment": "Lighting: the casters of a projected shadow, in order.",
+            "members": ["InsertAtTop", "InsertAtBottom", "Remove", "RemoveAll", "Count"]
+        },
+        "Microsoft.UI.Composition.CompositionProjectedShadowReceiverUnorderedCollection": {
+            "comment": "Lighting: the receivers of a projected shadow.",
+            "members": ["Add", "Remove", "RemoveAll", "Count"]
+        },
+        "Microsoft.UI.Composition.Effects.SceneLightingEffect": {
+            "comment": "Lighting: how the sprite it paints answers the lights that target it: the shares of ambient, diffuse and specular light, the shine, the reflectance model, and the normal map that gives every pixel a direction of its own. Its output is the light, not the lit picture: the graph multiplies or adds it to the content.",
+            "members": ["Name", "AmbientAmount", "DiffuseAmount", "SpecularAmount", "SpecularShine", "ReflectanceModel", "NormalMapSource"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.ArithmeticCompositeEffect": {
+            "comment": "Lighting: two inputs put together by a formula -- their product, each of them and a constant, by four weights; the product is what makes light fall on a colour.",
+            "members": ["Name", "Source1", "Source2", "MultiplyAmount", "Source1Amount", "Source2Amount", "Offset", "ClampOutput"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.CompositeEffect": {
+            "comment": "Lighting: inputs laid over one another by a Porter-Duff mode: Add puts light on top of a picture, DestinationIn cuts a picture by the alpha of another.",
+            "members": ["Name", "Mode", "Sources"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.ColorSourceEffect": {
+            "comment": "Lighting: a plain colour as an input of a graph.",
+            "members": ["Name", "Color"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.ColorMatrixEffect": {
+            "comment": "Lighting: a 5x4 matrix over the channels -- how the brightness of a light becomes the alpha of a highlight.",
+            "members": ["Name", "Source", "ColorMatrix", "AlphaMode", "ClampOutput"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.DistantDiffuseEffect": {
+            "comment": "Lighting: the diffuse light of a distant lamp as an effect, the lamp written in the properties of the effect rather than being a CompositionLight.",
+            "members": ["Name", "Source", "Azimuth", "Elevation", "LightColor", "DiffuseAmount", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.DistantSpecularEffect": {
+            "comment": "Lighting: the specular light of a distant lamp, the same way.",
+            "members": ["Name", "Source", "Azimuth", "Elevation", "LightColor", "SpecularAmount", "SpecularExponent", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.PointDiffuseEffect": {
+            "comment": "Lighting: the diffuse light of a lamp at a point, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightColor", "DiffuseAmount", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.PointSpecularEffect": {
+            "comment": "Lighting: the specular light of a lamp at a point, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightColor", "SpecularAmount", "SpecularExponent", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.SpotDiffuseEffect": {
+            "comment": "Lighting: the diffuse light of a lamp with a cone, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightTarget", "Focus", "LimitingConeAngle", "LightColor", "DiffuseAmount", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Microsoft.Graphics.Canvas.Effects.SpotSpecularEffect": {
+            "comment": "Lighting: the specular light of a lamp with a cone, the same way.",
+            "members": ["Name", "Source", "LightPosition", "LightTarget", "Focus", "LimitingConeAngle", "LightColor", "SpecularAmount", "SpecularExponent", "HeightMapScale", "HeightMapKernelSize"]
+        },
+        "Windows.Graphics.Effects.IGraphicsEffectSource": {
+            "comment": "Lighting: an input of an effect graph -- another effect or a named source parameter. It has no class of its own, only this interface; wrapped, so that a list of inputs (CompositeEffect.Sources) can be written.",
+            "members": []
         }
     }
 }

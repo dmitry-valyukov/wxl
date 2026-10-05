@@ -10,6 +10,10 @@
 #include <string_view>
 #include <vector>
 
+namespace wxl {
+class CompositionWindow;
+}
+
 namespace gallery {
 
 // Куда ведёт переход; `id` — контрол, группа или строка запроса.
@@ -22,10 +26,27 @@ struct Destination {
 
 void navigate(Destination destination);
 
+// Панель навигации сверху (Top) или слева (Auto) — настройка «Navigation style» страницы настроек.
+void setNavigationOnTop(bool top);
+bool navigationOnTop();
+
 // Модель, поля которой привязаны к элементам страницы, живёт, пока страница
 // на экране: привязка держит поле по адресу и не владеет им, а поле держит
 // элемент. Страницу сменили — модель отпускается, и вместе с ней элементы.
 void holdModel(std::shared_ptr<void> model);
+
+// Окно, открытое примером, оболочка помнит, пока оно не закрыто, и закрывает
+// вместе с главным (WindowHelper.TrackWindow оригинала). state — то, что окно
+// держит живым до закрытия, например модель его содержимого: обработчики
+// окна захватывают её слабой ссылкой, а владеет ею окно, поэтому цикла нет.
+void trackWindow(wxl::Window const& window, std::shared_ptr<void> state = {});
+
+// Главное окно: владелец модальных окон примеров.
+wxl::Window const& mainWindow();
+
+// То же для CompositionWindow wxl: окно помнится, пока не закрыто, закрывается
+// вместе с главным, а state живёт, пока оно открыто.
+void trackWindow(wxl::CompositionWindow const& window, std::shared_ptr<void> state = {});
 
 // Строит модель и отдаёт её оболочке: `auto const model = gallery::hold<Model>();`
 template <class Model, class... Arguments>

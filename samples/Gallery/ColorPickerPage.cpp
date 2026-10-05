@@ -1,6 +1,7 @@
 // Страница ColorPicker — ColorPickerPage оригинала.
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;

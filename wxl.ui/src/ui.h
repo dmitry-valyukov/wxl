@@ -5,6 +5,6 @@
 // Whatever every such file needs is added here rather than to each of them.
 
 #include "aliases.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Controls.h"
-#include "generated/styles.h"
+#include <wxl/Members.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
+#include <wxl/styles.h>

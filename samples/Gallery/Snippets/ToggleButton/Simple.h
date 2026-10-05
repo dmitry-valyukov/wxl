@@ -2,16 +2,15 @@
 // the control shows it as it is. The model lives while the page is on the
 // screen.
 struct Model {
-    core::observable<bool> enabled{true};
+    core::observable<bool> enabled{true}, on{false};
 };
 auto const model = gallery::hold<Model>();
-auto output = TextBlock {u"Off"};
+auto output = TextBlock {text = BindOutput {model->on, [](bool on) { return on ? u"On" : u"Off"; }}};
 
 auto toggle = ToggleButton {
     content = u"ToggleButton",
     isEnabled = BindOutput {model->enabled},
-    onChecked = [output](Object const&, RoutedEventArgs&) { output.text(u"On"); },
-    onUnchecked = [output](Object const&, RoutedEventArgs&) { output.text(u"Off"); },
+    isChecked = Bind {model->on},
 };
 
 auto disable = CheckBox {

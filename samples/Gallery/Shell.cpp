@@ -10,9 +10,14 @@
 #include "Shell.h"
 
 #include "Pages.h"
+#include "StringList.h"
 
 #include <algorithm>
 #include <memory>
+
+#include "CompositionWindow.h"
+#include <wxl/Microsoft.Windows.AppNotifications.h>
+#include <wxl/Microsoft.UI.Windowing.h>
 
 using namespace wxl;
 using namespace wxl::dsl;
@@ -27,6 +32,63 @@ std::vector<std::wstring> recent;
 std::vector<std::wstring> favorite;
 
 constexpr std::size_t maxRecentlyVisited = 7;
+
+// Недавние, избранные и размер окна живут между запусками (SettingsHelper оригинала пишет их в ApplicationData, а у
+// приложения без пакета её нет): файл в %LOCALAPPDATA%\wxl\Gallery. Он крошечный, и пишется при каждой перемене,
+// чтобы закрытие процесса ничего не теряло. Названия контролов — ASCII.
+struct WindowSize {
+    int width = 1280;
+    int height = 800;
+};
+WindowSize savedSize;
+
+std::filesystem::path stateFile() {
+    wchar_t const* const base = _wgetenv(L"LOCALAPPDATA");
+    return base ? std::filesystem::path{base} / L"wxl" / L"Gallery" / L"state.txt" : std::filesystem::path{};
+}
+
+void loadState() {
+    auto const file = stateFile();
+    if (file.empty()) {
+        return;
+    }
+    std::ifstream input{file};
+    std::string kind;
+    while (input >> kind) {
+        if (kind == "size") {
+            WindowSize size;
+            if (input >> size.width >> size.height && size.width >= 640 && size.height >= 500) {
+                savedSize = size;
+            }
+        } else {
+            std::string id;
+            if (input >> id) {
+                (kind == "recent" ? recent : favorite).emplace_back(id.begin(), id.end());
+            }
+        }
+    }
+    if (recent.size() > maxRecentlyVisited) {
+        recent.resize(maxRecentlyVisited);
+    }
+}
+
+void saveState() {
+    auto const file = stateFile();
+    if (file.empty()) {
+        return;
+    }
+    std::error_code ignored;
+    std::filesystem::create_directories(file.parent_path(), ignored);
+    std::ofstream output{file, std::ios::trunc};
+    auto const narrow = [](std::wstring const& text) { return std::string{text.begin(), text.end()}; };
+    for (auto const& id : recent) {
+        output << "recent " << narrow(id) << '\n';
+    }
+    for (auto const& id : favorite) {
+        output << "favorite " << narrow(id) << '\n';
+    }
+    output << "size " << savedSize.width << ' ' << savedSize.height << '\n';
+}
 
 // ---- Имена пунктов панели --------------------------------------------------
 
@@ -117,8 +179,10 @@ FrameworkElement itemContent(ControlInfo const& item) {
 
 void onSelected(NavigationView const& sender, bool settingsSelected);
 void goBack();
+void goForward();
 void togglePane();
 void submitQuery(std::wstring query);
+void focusSearch();
 
 struct Shell {
     Border host;
@@ -131,23 +195,61 @@ struct Shell {
             onSelected(sender.try_as<NavigationView>(), args.isSettingsSelected());
         },
     };
+    // Поле поиска: Ctrl+F переводит на него фокус.
+    AutoSuggestBox search {
+        minWidth = 320.0,
+        hAlign.stretch,
+        vAlign.center,
+        // Содержимое TitleBar лежит в PART_ContentPresenter с выравниванием по центру, и поле получает ширину по тексту:
+        // растягиваем его на всю область содержимого, ширина которой от самого поля не зависит.
+        onLoaded = [](Object const& sender, auto&&...) {
+            auto const box = sender.try_as<AutoSuggestBox>();
+            auto const area = VisualTreeHelper::getParent(VisualTreeHelper::getParent(box)).try_as<FrameworkElement>();
+            if (!area) {
+                return;
+            }
+            box.width(area.actualWidth());
+            area.add_onSizeChanged([box](Object const& area, auto&&...) { box.width(area.try_as<FrameworkElement>().actualWidth()); });
+        },
+        placeholderText = u"Search controls and samples...",
+        queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
+        onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
+            // Подсказки даёт только ввод пользователя; выбранная подсказка сама вписывается в текст.
+            if (args.reason() != AutoSuggestionBoxTextChangeReason::UserInput) {
+                return;
+            }
+            auto found = gallery::controlTitles(self.text());
+            if (found.empty()) {
+                found.emplace_back(u"No results found");
+            }
+            self.itemsSource(stringList(found));
+        },
+        onSuggestionChosen = [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
+            auto const title = stringOf(args.selectedItem());
+            if (title != u"No results found") {
+                self.text(title);
+            }
+        },
+        onQuerySubmitted = [](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
+            // Выбранная подсказка ведёт прямо на страницу контрола, набранный текст — на результаты поиска.
+            if (args.chosenSuggestion()) {
+                auto const title = stringOf(args.chosenSuggestion());
+                if (auto const* control = gallery::controlByTitle(title)) {
+                    navigate({Place::Item, control->uniqueId});
+                }
+                return;
+            }
+            submitQuery(gallery::wide(args.queryText()));
+        },
+    };
     TitleBar titleBar {
-        title = u"WinUI 3 Gallery",
+        title = u"WXL Gallery",
         isBackButtonVisible = false,
         isPaneToggleButtonVisible = true,
         iconSource = ImageIconSource {imageSource = u"Assets/Tiles/GalleryIcon.ico"},
         onBackRequested = [] { goBack(); },
         onPaneToggleRequested = [] { togglePane(); },
-        content = AutoSuggestBox {
-            maxWidth = 580.0,
-            hAlign.stretch,
-            vAlign.center,
-            placeholderText = u"Search controls and samples...",
-            queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
-            onQuerySubmitted = [](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
-                submitQuery(gallery::wide(args.queryText()));
-            },
-        },
+        content = search,
     };
     // Пункты панели по порядку и индекс родителя каждого (-1 — верхний
     // уровень): по ним `select` находит элемент и раскрывает его группу.
@@ -155,6 +257,19 @@ struct Shell {
     std::vector<int> parents;
     std::vector<Destination> back;
     std::vector<Destination> forward;
+    // Окна, открытые примерами (см. trackWindow).
+    struct Tracked {
+        Window window;
+        std::shared_ptr<void> state;
+    };
+    std::vector<Tracked> windows;
+    struct TrackedComposition {
+        CompositionWindow window;
+        std::shared_ptr<void> state;
+    };
+    std::vector<TrackedComposition> compositionWindows;
+    // Главное окно: владелец модальных окон примеров (см. mainWindow).
+    std::shared_ptr<Window> main;
     // Модели показанной страницы (см. holdModel).
     std::vector<std::shared_ptr<void>> models;
     Destination current;
@@ -165,6 +280,10 @@ struct Shell {
 };
 
 std::shared_ptr<Shell> shell;
+
+void focusSearch() {
+    shell->search.focus(FocusState::Programmatic);
+}
 
 FrameworkElement buildPage(Destination const& destination) {
     auto const& all = catalog();
@@ -242,6 +361,7 @@ void show(Destination destination, bool record) {
         if (recent.size() > maxRecentlyVisited) {
             recent.resize(maxRecentlyVisited);
         }
+        saveState();
     }
 
     // Модели прежней страницы отпускаются, когда новая уже на месте.
@@ -263,11 +383,22 @@ void goBack() {
     show(destination, false);
 }
 
+// Кнопка мыши «вперёд»: возвращает на страницу, с которой ушли назад.
+void goForward() {
+    auto& s = *shell;
+    if (s.forward.empty()) {
+        return;
+    }
+    s.back.push_back(s.current);
+    auto const destination = s.forward.back();
+    s.forward.pop_back();
+    show(destination, false);
+}
+
 void togglePane() {
     auto& s = *shell;
     s.navigation.isPaneOpen(!s.navigation.isPaneOpen());
 }
-
 void submitQuery(std::wstring query) {
     if (!query.empty()) {
         show({Place::Search, std::move(query)}, true);
@@ -292,7 +423,16 @@ void onSelected(NavigationView const& sender, bool settingsSelected) {
     }
     auto const name = gallery::wide(selected.name());
     if (name == homeName) {
-        show({Place::Home, {}}, true);
+        // The notifications of the application are shown by the shell once it knows the application.
+    if (AppNotificationManager::isSupported()) {
+        try {
+            AppNotificationManager::default_().register_();
+        } catch (...) {
+            // An application the shell cannot register shows no notifications; the page says nothing else.
+        }
+    }
+
+    show({Place::Home, {}}, true);
     } else if (name == allControlsName) {
         show({Place::AllControls, {}}, true);
     } else if (name.starts_with(L"group:")) {
@@ -319,19 +459,21 @@ void buildMenu(Shell& s) {
 
     s.navigation.menuItems().append(addItem(s, std::wstring{homeName}, -1,
                                             NavigationViewItem {
+                                                automationId = u"Home",
                                                 content = u"Home",
                                                 icon = SymbolIcon {symbol = FluentSymbol::Home},
                                             }));
 
     for (auto const& section : specialSections()) {
         auto group = NavigationViewItem {
+            automationId = std::u16string(section.content.begin(), section.content.end()) + u"Item",
             content = section.content,
             selectsOnInvoked = false,
             icon = FontIcon {glyph = section.glyph},
         };
         s.navigation.menuItems().append(group);
         for (auto const& entry : section.items) {
-            auto row = NavigationViewItem {content = entry.content};
+            auto row = NavigationViewItem {automationId = std::wstring{entry.id}, content = entry.content};
             if (!entry.glyph.empty()) {
                 row.icon(FontIcon {glyph = entry.glyph});
             }
@@ -367,8 +509,9 @@ void buildMenu(Shell& s) {
         s.navigation.menuItems().append(row);
         int const parent = lastIndex(s);
         for (auto const& item : group->items) {
-            auto child = NavigationViewItem {content = itemContent(item)};
+            auto child = NavigationViewItem {automationId = item.uniqueId, content = itemContent(item)};
             child.horizontalContentAlignment(HorizontalAlignment::Stretch);
+            child.icon(ImageIcon {source = gallery::assetPath(item.imagePath)});
             child.isEnabled(pageFor(item.uniqueId) != nullptr);
             row.menuItems().append(addItem(s, itemName(item.uniqueId), parent, child));
         }
@@ -379,12 +522,28 @@ void buildMenu(Shell& s) {
 
 // ---- Настройки -------------------------------------------------------------
 
+
+void setNavigationOnTop(bool top) {
+    if (shell) {
+        shell->navigation.paneDisplayMode(top ? NavigationViewPaneDisplayMode::Top : NavigationViewPaneDisplayMode::Auto);
+        // Страница, что открыта, остаётся с раскладкой прежнего вида панели: её строят заново.
+        if (shell->hasCurrent) {
+            show(shell->current, false);
+        }
+    }
+}
+
+bool navigationOnTop() {
+    return shell && shell->navigation.paneDisplayMode() == NavigationViewPaneDisplayMode::Top;
+}
+
 std::vector<std::wstring> const& recentlyVisited() {
     return recent;
 }
 
 void clearRecentlyVisited() {
     recent.clear();
+    saveState();
 }
 
 std::vector<std::wstring> const& favorites() {
@@ -400,10 +559,12 @@ void setFavorite(std::wstring_view id, bool on) {
     if (on) {
         favorite.emplace_back(id);
     }
+    saveState();
 }
 
 void clearFavorites() {
     favorite.clear();
+    saveState();
 }
 
 // ---- Окно и переходы -------------------------------------------------------
@@ -422,7 +583,7 @@ Window createMainWindow() {
     buildMenu(s);
 
     Window window {
-        title = u"WinUI 3 Gallery",
+        title = u"WXL Gallery",
         minSize = {640, 500},
         systemBackdrop = MicaBackdrop {},
         extendsContentIntoTitleBar = true,
@@ -430,16 +591,98 @@ Window createMainWindow() {
             rowDefinitions = u"auto,*",
             s.titleBar,
             s.navigation,
+            // Боковые кнопки мыши — «назад» и «вперёд», как у оригинала.
+            onPointerPressed = [](Object const& sender, PointerRoutedEventArgs& args) {
+                auto const properties = args.getCurrentPoint(sender.try_as<UIElement>()).properties();
+                if (properties.isXButton1Pressed()) {
+                    goBack();
+                } else if (properties.isXButton2Pressed()) {
+                    goForward();
+                }
+            },
+            keyboardAccelerators[KeyboardAccelerator {
+                key = VirtualKey::F,
+                modifiers = VirtualKeyModifiers::Control,
+                onInvoked = [](Object const&, KeyboardAcceleratorInvokedEventArgs& args) {
+                    focusSearch();
+                    args.handled(true);
+                },
+            }],
         },
     };
+    window.appWindow().titleBar().preferredHeightOption(TitleBarHeightOption::Tall);
     window.setTitleBar(s.titleBar);
-    window.appWindow().resize({1280, 800});
+    window.appWindow().setIcon(u"Assets/Tiles/GalleryIcon.ico");
+    loadState();
+    window.appWindow().resize({savedSize.width, savedSize.height});
+    window.add_onClosed([](auto&&...) {
+        if (shell && shell->main) {
+            auto const size = shell->main->appWindow().size();
+            savedSize = {size.width, size.height};
+            saveState();
+        }
+    });
+    s.main = std::make_shared<Window>(window);
+
+    // The notifications of the application are shown by the shell once it knows the application.
+    if (AppNotificationManager::isSupported()) {
+        try {
+            AppNotificationManager::default_().register_();
+        } catch (...) {
+            // An application the shell cannot register shows no notifications; the page says nothing else.
+        }
+    }
 
     show({Place::Home, {}}, true);
+
+    // Для проверки страницы без ввода: GALLERY_PAGE=<UniqueId> открывает её сразу (Settings — страницу настроек),
+    // GALLERY_TOP=1 ставит панель навигации сверху.
+    if (wchar_t const* const top = _wgetenv(L"GALLERY_TOP"); top && *top) {
+        setNavigationOnTop(true);
+    }
+    if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE"); page && *page) {
+        show({std::wstring_view{page} == L"Settings" ? Place::Settings : Place::Item, page}, true);
+    }
     return window;
 }
 
+Window const& mainWindow() {
+    return *shell->main;
+}
+
+void trackWindow(Window const& window, std::shared_ptr<void> state) {
+    shell->windows.push_back({window, std::move(state)});
+    window.add_onClosed([](Object const& sender, auto&) {
+        if (shell) {
+            std::erase_if(shell->windows, [&](Shell::Tracked const& each) { return each.window.is_same_object(sender); });
+        }
+    });
+}
+
+void trackWindow(CompositionWindow const& window, std::shared_ptr<void> state) {
+    shell->compositionWindows.push_back({window, std::move(state)});
+    window.add_onClosed([handle = window.handle()](auto&&...) {
+        if (shell) {
+            std::erase_if(shell->compositionWindows,
+                          [&](Shell::TrackedComposition const& each) { return each.window.handle() == handle; });
+        }
+    });
+}
+
 void destroyMainWindow() {
+    if (AppNotificationManager::isSupported()) {
+        try {
+            AppNotificationManager::default_().unregister();
+        } catch (...) {
+        }
+    }
+    for (auto const& tracked : std::vector<Shell::TrackedComposition>(shell->compositionWindows)) {
+        tracked.window.close();
+    }
+    // Закрытие убирает окно из списка, поэтому закрываем копию.
+    for (auto const& tracked : std::vector<Shell::Tracked>(shell->windows)) {
+        tracked.window.close();
+    }
     shell.reset();
 }
 

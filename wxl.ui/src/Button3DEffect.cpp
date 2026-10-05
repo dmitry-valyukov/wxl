@@ -7,17 +7,36 @@
 #include "BevelEffect.h"
 #include "ThemeBrush.h"
 #include "Thickness.h"
-#include "generated/Members.h"
-#include "generated/Microsoft.UI.Xaml.Media.h"
+#include <wxl/Members.h>
+#include <wxl/Microsoft.UI.Xaml.Media.h>
 #include "impl/member.h"
 
 namespace wxl {
+
+namespace {
+
+// The pointer's light as a key takes it when none is written: RevealEffect's
+// lamps, given back dimmer. One pair for every Button3DEffect, so that the
+// kinds of key on a keypad -- each an effect of its own -- are lit by the
+// same two lamps.
+HoverLight const& keyHover() {
+    static HoverLight const light{dsl::diffuseAmount = 0.5};
+    return light;
+}
+
+BorderLight const& keyBorder() {
+    static BorderLight const light{dsl::diffuseAmount = 0.9};
+    return light;
+}
+
+}  // namespace
 
 struct Button3DEffect::State : core::sta_refcounted {
     Color ink = rgb(237, 239, 242);
     Color albedo = rgb(68, 72, 79);
     double shadow = 0.7;
     double emboss = -1.0;
+    RevealEffect reveal{keyHover(), keyBorder()};
 };
 
 Button3DEffect::Button3DEffect() : state_{new State, /*add_ref=*/false} {}
@@ -29,6 +48,9 @@ void Button3DEffect::foreground(Color value) const { state_->ink = value; }
 void Button3DEffect::background(Color value) const { state_->albedo = value; }
 void Button3DEffect::shadow(double value) const { state_->shadow = std::clamp(value, 0.0, 1.0); }
 void Button3DEffect::emboss(double value) const { state_->emboss = std::clamp(value, -1.0, 1.0); }
+
+void Button3DEffect::setPositional(HoverLight const& value) const { state_->reveal.setPositional(value); }
+void Button3DEffect::setPositional(BorderLight const& value) const { state_->reveal.setPositional(value); }
 
 namespace {
 
@@ -97,7 +119,7 @@ constexpr Color bevelShade = rgba(0, 0, 0, 0.75);
 // is a schematic rendering, and the light brush of the bevel is the gleam.
 RadialGradientBrush faceBrush(Face const& tones) {
     return RadialGradientBrush{
-        dsl::center = {0.5, 0.5},
+        dsl::center = Point{0.5, 0.5},
         dsl::gradientOrigin = spot(),
         dsl::radiusX = 1.85,
         dsl::radiusY = 1.15,
@@ -132,6 +154,9 @@ void Button3DEffect::attach(Button const& button) const {
         BorderThickness{1},
         BevelEffect{bevelLight, bevelShade, Margin{1.5}, dsl::strokeThickness = 1, dsl::offset = 2},
     };
+
+    // After the rim: the light's layers go over everything the key draws.
+    s.reveal(button);
 }
 
 }  // namespace wxl

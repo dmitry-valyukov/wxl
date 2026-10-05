@@ -172,15 +172,26 @@ type_use interface_parameter(std::string_view winrt_name, std::string_view winrt
 
 // The WinRT interfaces wxl reads as "a vector of T". Only these two, because
 // wxl::Collection holds an IVector<T> and both of them answer to that IID --
-// IObservableVector<T> requires IVector<T>. A read-only IVectorView<T> or a
-// bare IIterable<T> does not, and would need a collection type of its own.
+// IObservableVector<T> requires IVector<T>. A read-only IVectorView<T> does
+// not, and is a wxl::VectorView; a bare IIterable<T> is neither.
 constexpr std::string_view vector_interfaces[] = {
     "Windows.Foundation.Collections.IVector`1",
     "Windows.Foundation.Collections.IObservableVector`1",
 };
 
+constexpr std::string_view vector_view_interface = "Windows.Foundation.Collections.IVectorView`1";
+
+// A sequence handed in: wxl::iterable_param.
+constexpr std::string_view iterable_interface = "Windows.Foundation.Collections.IIterable`1";
+
 // WinRT's nullable box, which is core::nullable in everything but name.
 constexpr std::string_view reference_interface = "Windows.Foundation.IReference`1";
+
+// An asynchronous operation with a result, with or without progress, and one without a result.
+constexpr std::string_view async_operation_interface = "Windows.Foundation.IAsyncOperation`1";
+constexpr std::string_view async_operation_with_progress_interface = "Windows.Foundation.IAsyncOperationWithProgress`2";
+constexpr std::string_view async_action_interface = "Windows.Foundation.IAsyncAction";
+constexpr std::string_view async_action_with_progress_interface = "Windows.Foundation.IAsyncActionWithProgress`1";
 
 // The generic type of an instantiation of one of `names` with a single
 // argument -- IVector`1, IObservableVector`1, IReference`1 -- or an empty
@@ -210,6 +221,32 @@ TypeDef generic_of(GenericTypeInstSig const& instantiation,
 // the instantiation, so good for as long as it is.
 TypeSig const& single_argument(GenericTypeInstSig const& instantiation) {
     return *instantiation.GenericArgs().first;
+}
+
+// An operation with progress: the result is the first argument, the progress is not carried over
+// (nothing in wxl observes it). An action with progress has no result at all. True when the
+// instantiation is one; `element` then points into it, and is null for an action.
+bool async_with_progress(GenericTypeInstSig const& instantiation, TypeSig const*& element) {
+    auto const generic = instantiation.GenericType();
+    if (generic.type() == TypeDefOrRef::TypeSpec) {
+        return false;
+    }
+    auto const type = md::find(generic);
+    if (!type) {
+        return false;
+    }
+    auto const arguments = instantiation.GenericArgs();
+    auto const count = arguments.second - arguments.first;
+    auto const name = full_name(type);
+    if (name == async_operation_with_progress_interface && count == 2) {
+        element = &*arguments.first;
+        return true;
+    }
+    if (name == async_action_with_progress_interface && count == 1) {
+        element = nullptr;
+        return true;
+    }
+    return false;
 }
 
 // The same, for a *class* that implements one of the vector interfaces --
@@ -276,10 +313,55 @@ type_use collection_of(type_use const& item, std::string_view winrt_name,
     use.winrt_type = winrt_name;
     use.to_winrt = std::format("Object::Impl::as<{}>($)", winrt_name);
     use.from_winrt = std::format("Object::Impl::wrap<{}>($)", use.value_type);
+    use.instantiations = {use.value_type};
     use.public_includes = item.public_includes;
     use.public_includes.insert("../Collection.h");
     use.impl_includes = item.impl_includes;
     use.impl_includes.insert("../Collection.impl.h");
+    use.impl_includes.insert(std::string{winrt_header});
+    return use;
+}
+
+// Whether VectorView<E> and iterable_param<E> can hold E: impl::vector_element
+// knows a wrapper, a number, and a type crossing through impl/conversions.h. A
+// generated enum crosses by a cast and a generated struct through
+// Structs.impl.h, and the template sees neither, so a list of one is refused
+// until something needs it.
+bool view_element(type_use const& item) {
+    return item.is_wrapper || item.to_winrt == "$" ||
+           (item.to_winrt == "impl::to_winrt($)" &&
+            item.impl_includes.contains(std::string{conversions_include}));
+}
+
+// wxl::VectorView<E> out of an IVectorView<T>: the interface itself, held the
+// way any wrapper holds its object, and read through on every access -- so a
+// view that follows its source is seen to follow it. Taken in, it hands over
+// the view it holds.
+type_use view_of(type_use const& item, std::string_view winrt_name, std::string_view winrt_header) {
+    if (!item.supported) {
+        return unsupported(std::format("view element: {}", item.reason));
+    }
+    if (!view_element(item)) {
+        return unsupported(std::format("view of {}, which is not a wrapper, a number or a type of "
+                                       "impl/conversions.h",
+                                       item.value_type));
+    }
+
+    type_use use;
+    use.supported = true;
+    if (item.is_wrapper) {
+        use.element_type = item.value_type;
+    }
+    use.value_type = std::format("VectorView<{}>", item.value_type);
+    use.param_type = std::format("{} const&", use.value_type);
+    use.winrt_type = winrt_name;
+    use.to_winrt = std::format("*Object::Impl::get_typed<{}>($)", use.value_type);
+    use.from_winrt = std::format("Object::Impl::wrap<{}>($)", use.value_type);
+    use.instantiations = {use.value_type};
+    use.public_includes = item.public_includes;
+    use.public_includes.insert("../VectorView.h");
+    use.impl_includes = item.impl_includes;
+    use.impl_includes.insert("../VectorView.impl.h");
     use.impl_includes.insert(std::string{winrt_header});
     return use;
 }
@@ -317,6 +399,73 @@ type_use reference_of(type_use const& item, std::string_view winrt_name,
     return use;
 }
 
+// An IIterable<T> parameter: wxl::iterable_param<E>, which hands a VectorView or a Collection over
+// as the object it is and copies elements in memory into a WinRT vector of the call's own. The
+// elements cross by impl::vector_element, as a view's do, so the same ones are taken.
+type_use iterable_of(type_use const& item, std::string_view winrt_name, std::string_view winrt_header) {
+    if (!item.supported) {
+        return unsupported(std::format("iterable element: {}", item.reason));
+    }
+    if (!view_element(item)) {
+        return unsupported(std::format("iterable of {}, which is not a wrapper, a number or a type "
+                                       "of impl/conversions.h",
+                                       item.value_type));
+    }
+
+    type_use use;
+    use.supported = true;
+    use.parameter_only = true;
+    use.value_type = std::format("iterable_param<{}>", item.value_type);
+    use.param_type = std::format("{} const&", use.value_type);
+    use.winrt_type = std::string{winrt_name};
+    use.to_winrt = "impl::to_winrt($)";
+    use.public_includes = item.public_includes;
+    use.public_includes.insert("../iterable_param.h");
+    use.impl_includes = item.impl_includes;
+    use.impl_includes.insert("../impl/vector_element.h");
+    use.impl_includes.insert(std::string{winrt_header});
+    return use;
+}
+
+// wxl::Operation<R> -- the awaitable an asynchronous operation becomes. The result is converted
+// by the element's own expression, on the interface thread, once the operation has finished.
+type_use operation_of(type_use const& item) {
+    if (!item.supported) {
+        return unsupported(std::format("operation result: {}", item.reason));
+    }
+    if (item.parameter_only || item.result_only) {
+        return unsupported(std::format("operation result: {} cannot be handed back", item.value_type));
+    }
+
+    type_use use;
+    use.supported = true;
+    use.result_only = true;
+    use.value_type = std::format("Operation<{}>", item.value_type);
+    use.param_type = use.value_type;
+    use.winrt_type = "winrt::Windows::Foundation::IInspectable";
+    use.from_winrt = std::format("impl::start_operation<{}>($, [](auto const& v) {{ return {}; }})",
+                                 item.value_type, substitute(item.from_winrt, "v"));
+    use.instantiations = item.instantiations;
+    use.public_includes = item.public_includes;
+    use.public_includes.insert("../Operation.h");
+    use.impl_includes = item.impl_includes;
+    use.impl_includes.insert("../impl/operation.h");
+    return use;
+}
+
+type_use action_operation() {
+    type_use use;
+    use.supported = true;
+    use.result_only = true;
+    use.value_type = "Operation<void>";
+    use.param_type = use.value_type;
+    use.winrt_type = "winrt::Windows::Foundation::IInspectable";
+    use.from_winrt = "impl::start_action($)";
+    use.public_includes = {"../Operation.h"};
+    use.impl_includes = {"../impl/operation.h"};
+    return use;
+}
+
 // A parameterized type named directly in a signature -- IVector<MenuFlyoutItemBase>,
 // IObservableVector<Object>, IReference<int32_t>.
 type_use map_generic(GenericTypeInstSig const& instantiation, type_index const& index) {
@@ -329,6 +478,23 @@ type_use map_generic(GenericTypeInstSig const& instantiation, type_index const& 
         auto const item = map_type(single_argument(instantiation), index);
         return reference_of(item, winrt_generic_name(generic, item.winrt_type),
                             winrt_include(generic.TypeNamespace()));
+    }
+    if (auto const generic = generic_of(instantiation, {&vector_view_interface, 1})) {
+        auto const item = map_type(single_argument(instantiation), index);
+        return view_of(item, winrt_generic_name(generic, item.winrt_type),
+                       winrt_include(generic.TypeNamespace()));
+    }
+    if (auto const generic = generic_of(instantiation, {&iterable_interface, 1})) {
+        auto const item = map_type(single_argument(instantiation), index);
+        return iterable_of(item, winrt_generic_name(generic, item.winrt_type),
+                           winrt_include(generic.TypeNamespace()));
+    }
+    if (generic_of(instantiation, {&async_operation_interface, 1})) {
+        return operation_of(map_type(single_argument(instantiation), index));
+    }
+    TypeSig const* progress_element = nullptr;
+    if (async_with_progress(instantiation, progress_element)) {
+        return progress_element ? operation_of(map_type(*progress_element, index)) : action_operation();
     }
     return unsupported("generic instantiation");
 }
@@ -391,8 +557,7 @@ type_use map_type_def(TypeDef const& type, type_index const& index) {
         return unsupported("unresolved type reference");
     }
 
-    std::string const winrt_name =
-        std::format("{}::{}", winrt_namespace(type.TypeNamespace()), type.TypeName());
+    std::string const winrt_name = winrt_type_name(type.TypeNamespace(), type.TypeName());
     std::string const winrt_header = winrt_include(type.TypeNamespace());
 
     // A projected type has a wxl equivalent that is not a wrapper at all,
@@ -435,6 +600,10 @@ type_use map_type_def(TypeDef const& type, type_index const& index) {
 
     if (get_category(type) == category::delegate_type) {
         return map_delegate(type, index, winrt_name, winrt_header);
+    }
+
+    if (full_name(type) == async_action_interface) {
+        return action_operation();
     }
 
     if (get_category(type) == category::interface_type) {
@@ -562,10 +731,39 @@ std::string substitute(std::string_view expression, std::string_view argument) {
     return result;
 }
 
+type_use map_scalar(TypeSig const& sig, type_index const& index);
+
 type_use map_type(TypeSig const& sig, type_index const& index) {
-    if (sig.is_szarray()) {
-        return unsupported("arrays are not mapped yet");
+    type_use scalar = map_scalar(sig, index);
+    if (!sig.is_szarray()) {
+        return scalar;
     }
+
+    // An array comes out of a call as a com_array of the projection and goes to the application as a vector of
+    // wrappers: what an event carries a few of, the tabs torn out of a strip. Only an array of wrapped classes, and
+    // only handed out; nothing takes one in yet.
+    if (!scalar.supported || !scalar.is_wrapper) {
+        return unsupported("arrays are mapped only when their elements are wrapped classes");
+    }
+    type_use use;
+    use.supported = true;
+    use.value_type = std::format("std::vector<{}>", scalar.value_type);
+    use.param_type = std::format("{} const&", use.value_type);
+    use.winrt_type = std::format("winrt::com_array<{}>", scalar.winrt_type);
+    use.to_winrt = "static_assert(false, \"an array is not taken in\")";
+    use.from_winrt = std::format(
+        "[&](auto const& array) {{ std::vector<{0}> result; result.reserve(array.size()); "
+        "for (auto const& item : array) {{ result.push_back(Object::Impl::wrap<{0}>(item)); }} return result; }}($)",
+        scalar.value_type);
+    use.public_includes = scalar.public_includes;
+    use.public_includes.insert("../core.h");
+    use.element_type = scalar.value_type;
+    use.impl_includes = scalar.impl_includes;
+    use.impl_includes.insert("../core.h");
+    return use;
+}
+
+type_use map_scalar(TypeSig const& sig, type_index const& index) {
 
     auto const element = sig.element_type();
     if (auto const* name = primitive_name(element)) {

@@ -15,7 +15,7 @@
 
 #include "FocusEffect.h"
 #include "Object.impl.h"
-#include "generated/Microsoft.UI.Xaml.impl.h"
+#include <wxl/Microsoft.UI.Xaml.impl.h>
 #include "impl/effect_layer.h"
 
 namespace wxl {

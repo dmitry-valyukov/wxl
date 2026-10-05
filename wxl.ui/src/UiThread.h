@@ -3,7 +3,7 @@
 #include <coroutine>
 #include <memory>
 
-#include "generated/Microsoft.UI.Dispatching.h"
+#include <wxl/Microsoft.UI.Dispatching.h>
 #include "impl/event_waits.h"
 
 // wxl::UiThread -- when work runs on the UI thread: post() hands it over from

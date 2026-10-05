@@ -1,0 +1,1 @@
+auto example = Image {height = 100, source = BitmapImage {decodePixelHeight = 100, uriSource = u"Assets/SampleMedia/treetops.jpg"}};
