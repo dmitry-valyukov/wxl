@@ -197,9 +197,20 @@ struct Shell {
     };
     // Поле поиска: Ctrl+F переводит на него фокус.
     AutoSuggestBox search {
-        maxWidth = 580.0,
+        minWidth = 320.0,
         hAlign.stretch,
         vAlign.center,
+        // Содержимое TitleBar лежит в PART_ContentPresenter с выравниванием по центру, и поле получает ширину по тексту:
+        // растягиваем его на всю область содержимого, ширина которой от самого поля не зависит.
+        onLoaded = [](Object const& sender, auto&&...) {
+            auto const box = sender.try_as<AutoSuggestBox>();
+            auto const area = VisualTreeHelper::getParent(VisualTreeHelper::getParent(box)).try_as<FrameworkElement>();
+            if (!area) {
+                return;
+            }
+            box.width(area.actualWidth());
+            area.add_onSizeChanged([box](Object const& area, auto&&...) { box.width(area.try_as<FrameworkElement>().actualWidth()); });
+        },
         placeholderText = u"Search controls and samples...",
         queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
         onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
@@ -232,7 +243,7 @@ struct Shell {
         },
     };
     TitleBar titleBar {
-        title = u"WinUI 3 Gallery",
+        title = u"WXL Gallery",
         isBackButtonVisible = false,
         isPaneToggleButtonVisible = true,
         iconSource = ImageIconSource {imageSource = u"Assets/Tiles/GalleryIcon.ico"},
@@ -522,6 +533,10 @@ void setNavigationOnTop(bool top) {
     }
 }
 
+bool navigationOnTop() {
+    return shell && shell->navigation.paneDisplayMode() == NavigationViewPaneDisplayMode::Top;
+}
+
 std::vector<std::wstring> const& recentlyVisited() {
     return recent;
 }
@@ -568,7 +583,7 @@ Window createMainWindow() {
     buildMenu(s);
 
     Window window {
-        title = u"WinUI 3 Gallery",
+        title = u"WXL Gallery",
         minSize = {640, 500},
         systemBackdrop = MicaBackdrop {},
         extendsContentIntoTitleBar = true,
@@ -595,7 +610,9 @@ Window createMainWindow() {
             }],
         },
     };
+    window.appWindow().titleBar().preferredHeightOption(TitleBarHeightOption::Tall);
     window.setTitleBar(s.titleBar);
+    window.appWindow().setIcon(u"Assets/Tiles/GalleryIcon.ico");
     loadState();
     window.appWindow().resize({savedSize.width, savedSize.height});
     window.add_onClosed([](auto&&...) {
@@ -618,9 +635,13 @@ Window createMainWindow() {
 
     show({Place::Home, {}}, true);
 
-    // Для проверки страницы без ввода: GALLERY_PAGE=<UniqueId> открывает её сразу.
-    if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE")) {
-        show({Place::Item, page}, true);
+    // Для проверки страницы без ввода: GALLERY_PAGE=<UniqueId> открывает её сразу (Settings — страницу настроек),
+    // GALLERY_TOP=1 ставит панель навигации сверху.
+    if (wchar_t const* const top = _wgetenv(L"GALLERY_TOP"); top && *top) {
+        setNavigationOnTop(true);
+    }
+    if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE"); page && *page) {
+        show({std::wstring_view{page} == L"Settings" ? Place::Settings : Place::Item, page}, true);
     }
     return window;
 }
