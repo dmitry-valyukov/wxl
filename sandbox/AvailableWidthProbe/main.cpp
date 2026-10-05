@@ -11,7 +11,9 @@
 // Ответы (2026-10-05): да на все три. На каждую смену размера функция измерения зовётся один раз, значения стоят в том же
 // проходе, ошибки цикла раскладки и падений нет: свойство (margin), присоединённое свойство (column: Border встаёт во вторую
 // колонку) и структура (child заменяется новым TextBlock) меняются из функции измерения до измерения ребёнка.
-// Не проверено: бесконечная доступная ширина, перетаскивание границы окна мышью, панель внутри NavigationView.
+// Внутри NavigationView (nav: панель слева, navtop: сверху) контейнер получает ширину своего места: при окне 900 и панели слева
+// это 563 -- ступень узкая, при панели сверху 884 -- широкая. По ширине окна обе были бы широкими.
+// Не проверено: бесконечная доступная ширина, перетаскивание границы окна мышью.
 //
 // Окно ставится в 1000, 500, 900, 500; через 1,2 с после каждого шага в PROBE_LOG пишется, что видно.
 
@@ -106,7 +108,18 @@ wxl::Teardown wxl_launched() {
         },
     };
 
-    mainWindow = Window {title = u"Available width probe", content = LayoutPanel {layout = widthLayout, *page}};
+    FrameworkElement body = LayoutPanel {layout = widthLayout, *page};
+    if (has("nav") || has("navtop")) {
+        // Контейнер — содержимое NavigationView: панель слева (nav, всегда раскрыта) или сверху (navtop).
+        body = NavigationView {
+            isBackButtonVisible = NavigationViewBackButtonVisible::Collapsed,
+            isSettingsVisible = false,
+            paneDisplayMode = has("navtop") ? NavigationViewPaneDisplayMode::Top : NavigationViewPaneDisplayMode::Left,
+            menuItems[NavigationViewItem {content = u"One"}, NavigationViewItem {content = u"Two"}],
+            content = body,
+        };
+    }
+    mainWindow = Window {title = u"Available width probe", content = body};
     mainWindow->appWindow().resize({1000, 600});
     mainWindow->activate();
 
