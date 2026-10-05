@@ -13,8 +13,10 @@
 // рисуется он шириной 1064. Тот же сдвиг даёт страница из чистого XAML (вариант `top,xaml,short`: x=495.5 против 100),
 // значит это поведение WinUI, не wxl. Убирают его ScrollView вместо ScrollViewer или Border вокруг стека (`view`, `border`),
 // как у оригинала. В режиме Auto окно уже MaxWidth, ограничение не действует и сдвига нет.
-// Отдельный дефект wxl: SettingsCard с `description = u""` (пустое описание) падает при первой раскладке; `u16` (заголовок
-// std::u16string) не падает.
+// Отдельный дефект (исправлен): SettingsCard с пустым заголовком или описанием падал при первой раскладке (варианты mptyhdr,
+// `emptydesc`); теперь пустая строка, как и null, сворачивает часть, как в Toolkit.
+// Диагностика: launch.cpp печатает сообщение необработанной ошибки XAML в stderr (в этом случае: 0x80040111,
+// Windows.ApplicationModel.LimitedAccessFeatures).
 
 #include "ui.h"
 #include "SettingsCard.h"
@@ -24,6 +26,7 @@
 #include <wxl/Microsoft.UI.Dispatching.h>
 #include <wxl/brushes.h>
 #include "LoadXaml.h"
+#include "StringList.h"
 
 import std;
 
@@ -90,6 +93,15 @@ FrameworkElement card(std::u16string head, std::u16string descr) {
         // Заголовок — std::u16string, описание — непустой литерал.
         return SettingsCard {header = head, description = u"d", ComboBox {ComboBoxItem {content = u"Left"}, selectedIndex = 0}};
     }
+    if (has("spacedesc")) {
+        return SettingsCard {header = u"h", description = u" ", ComboBox {ComboBoxItem {content = u"Left"}, selectedIndex = 0}};
+    }
+    if (has("emptyhdr")) {
+        return SettingsCard {header = u"", description = u"d", ComboBox {ComboBoxItem {content = u"Left"}, selectedIndex = 0}};
+    }
+    if (has("nodesc")) {
+        return SettingsCard {header = u"h", ComboBox {ComboBoxItem {content = u"Left"}, selectedIndex = 0}};
+    }
     if (has("emptydesc")) {
         // Заголовок — литерал, описание — пустой литерал.
         return SettingsCard {header = u"h", description = u"", ComboBox {ComboBoxItem {content = u"Left"}, selectedIndex = 0}};
@@ -111,6 +123,33 @@ FrameworkElement dslStack() {
     auto s = StackPanel {name = u"S", spacing = 4.0};
     if (!has("nomax")) s.maxWidth(1064);
     if (has("center")) s.horizontalAlignment(HorizontalAlignment::Center);
+    if (has("cc") || has("cc2")) {
+        // Чистый ContentControl с шаблоном из XAML: пустая строка в Content (cc) и в Content, который ставится после показа (cc2).
+        auto const control = loadXaml(
+            L"<ContentControl xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><ContentControl.Template>"
+            L"<ControlTemplate TargetType='ContentControl'><ContentPresenter TextWrapping='WrapWholeWords' FontSize='12'/>"
+            L"</ControlTemplate></ContentControl.Template></ContentControl>").try_as<ContentControl>();
+        if (has("cc")) {
+            control.content(stringBox(u""));
+        } else {
+            control.add_onLoaded([control](auto&&...) { control.content(stringBox(u"")); });
+        }
+        s.children().append(control);
+        return s;
+    }
+    if (has("cp2") || has("cp3") || has("cp4")) {
+        // ContentPresenter из XAML со свойствами из шаблона SettingsCard; пустая строка кладётся в Content из C++.
+        std::wstring attrs = has("cp2") ? L" TextWrapping='WrapWholeWords'" : has("cp3") ? L" FontSize='12'" : L" TextWrapping='WrapWholeWords' FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'";
+        auto const presenter = loadXaml(L"<ContentPresenter xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'" + attrs + L"/>").try_as<ContentPresenter>();
+        presenter.content(stringBox(u""));
+        s.children().append(presenter);
+        return s;
+    }
+    if (has("cp")) {
+        // Голый ContentPresenter с пустой строкой в Content, как у SettingsCard с description = u"".
+        s.children().append(ContentPresenter {content = stringBox(u"")});
+        return s;
+    }
     for (int i = 0; i < 4; ++i) s.children().append(card(u"Setting " + std::u16string(1, char16_t(u'0' + i)), u"Some description of the setting"));
     if (!has("short")) s.children().append(card(u"THIS CODE AND INFORMATION IS PROVIDED AS IS WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.", u""));
     if (!has("noexp") && !has("plain")) {

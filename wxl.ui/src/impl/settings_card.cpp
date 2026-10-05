@@ -1,4 +1,5 @@
 #include "settings_card.h"
+#include "blank_content.h"
 
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Windows.System.h>
@@ -95,8 +96,10 @@ void SettingsCardCore::apply() {
         if (!part) {
             return;
         }
-        part.Content(content);
-        part.Visibility(content ? xaml::Visibility::Visible : xaml::Visibility::Collapsed);
+        // Null and an empty string are the same thing here -- no text -- and the part is collapsed.
+        bool const blank = is_blank(content);
+        part.Content(blank ? winrt::Windows::Foundation::IInspectable{nullptr} : content);
+        part.Visibility(blank ? xaml::Visibility::Collapsed : xaml::Visibility::Visible);
     };
     show(headerIconPart_, headerIcon_);
     show(headerPart_, header_);
