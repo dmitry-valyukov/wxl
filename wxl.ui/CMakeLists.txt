@@ -59,10 +59,17 @@ endif()
 # dependencies, so this is wired here
 # rather than by every consuming application. Declared before the target,
 # since both the include path and the import library below use it.
+#
+# The four package directories below are derived values, not settings: INTERNAL
+# cache entries, written anew by every configure. They are in the cache only to
+# be seen from the sample and sandbox directories. As ordinary cache entries they
+# kept the path of the first configure for good, and a build directory made before
+# a version changed went on building against the old package -- the version is
+# changed in the pins (wxl.gen/profiles/base.json, tools/packages.json), never here.
 wxl_nuget_package_dir(_wxl_foundation_dir Microsoft.WindowsAppSDK.Foundation)
 set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
     "${_wxl_foundation_dir}"
-    CACHE PATH "WindowsAppSDK.Foundation NuGet package (Bootstrap headers/lib/dll)")
+    CACHE INTERNAL "WindowsAppSDK.Foundation NuGet package (Bootstrap headers/lib/dll)")
 
 # WinUI3's native interop headers: microsoft.ui.xaml.window.h, which is how
 # a Window hands out its HWND, and microsoft.ui.xaml.media.dxinterop.h, which
@@ -75,7 +82,7 @@ set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
 wxl_nuget_package_dir(_wxl_winui_dir Microsoft.WindowsAppSDK.WinUI)
 set(WXL_WINDOWSAPPSDK_WINUI_DIR
     "${_wxl_winui_dir}"
-    CACHE PATH "WindowsAppSDK.WinUI NuGet package (native interop headers)")
+    CACHE INTERNAL "WindowsAppSDK.WinUI NuGet package (native interop headers)")
 
 # Win2D (Microsoft.Graphics.Canvas) -- CompositionWindow grabs textures with it
 # (TextureCache: covers, backdrops) asynchronously into video memory. The native
@@ -85,7 +92,7 @@ set(WXL_WINDOWSAPPSDK_WINUI_DIR
 wxl_nuget_package_dir(_wxl_win2d_dir Microsoft.Graphics.Win2D)
 set(WXL_WIN2D_DIR
     "${_wxl_win2d_dir}"
-    CACHE PATH "Win2D (Microsoft.Graphics.Canvas) NuGet package (native runtime DLL)")
+    CACHE INTERNAL "Win2D (Microsoft.Graphics.Canvas) NuGet package (native runtime DLL)")
 
 # WebView2 -- MapControl of the framework draws its map in a WebView2, and the WebView2 control looks for
 # WebView2Loader.dll next to the executable; an unpackaged program has no package to bring it, and a map
@@ -93,7 +100,7 @@ set(WXL_WIN2D_DIR
 wxl_nuget_package_dir(_wxl_webview2_dir Microsoft.Web.WebView2)
 set(WXL_WEBVIEW2_DIR
     "${_wxl_webview2_dir}"
-    CACHE PATH "Microsoft.Web.WebView2 NuGet package (the loader DLL of the WebView2 control)")
+    CACHE INTERNAL "Microsoft.Web.WebView2 NuGet package (the loader DLL of the WebView2 control)")
 
 add_library(wxl.ui STATIC
     # Given from above -- never generated.
