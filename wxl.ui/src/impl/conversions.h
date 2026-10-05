@@ -277,10 +277,10 @@ inline DateTime from_winrt(winrt::Windows::Foundation::DateTime const& value) {
 
 
 // The numerics a composition object is written in. cppwinrt spells these
-// float2 / float3 / float4x4 -- the C++ names of the metadata types
-// Vector2 / Vector3 / Matrix4x4 -- which is the one place a projection
-// name and a metadata name differ enough that the generator cannot derive
-// one from the other, and the reason these three are projected by hand
+// float2 / float3 / float3x2 / float4x4 -- the C++ names of the metadata
+// types Vector2 / Vector3 / Matrix3x2 / Matrix4x4 -- which is the one place
+// a projection name and a metadata name differ enough that the generator
+// cannot derive one from the other, and the reason these four are projected by hand
 // instead of generated.
 inline winrt::Windows::Foundation::Numerics::float2 to_winrt(Vector2 value) {
     return std::bit_cast<winrt::Windows::Foundation::Numerics::float2>(value);
@@ -297,6 +297,15 @@ inline winrt::Windows::Foundation::Numerics::float3 to_winrt(Vector3 value) {
 
 inline Vector3 from_winrt(winrt::Windows::Foundation::Numerics::float3 const& value) {
     return std::bit_cast<Vector3>(value);
+}
+
+
+inline winrt::Windows::Foundation::Numerics::float3x2 to_winrt(Matrix3x2 const& value) {
+    return std::bit_cast<winrt::Windows::Foundation::Numerics::float3x2>(value);
+}
+
+inline Matrix3x2 from_winrt(winrt::Windows::Foundation::Numerics::float3x2 const& value) {
+    return std::bit_cast<Matrix3x2>(value);
 }
 
 

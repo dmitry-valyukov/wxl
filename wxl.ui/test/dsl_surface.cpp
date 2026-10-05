@@ -917,6 +917,21 @@ void own_drawing(Compositor const& compositor, FrameworkElement const& host, Xam
     SpriteVisual sprite = compositor.createSpriteVisual();
     sprite.brush(page.brush());
     sprite.size({width, height});
+
+    // The brush has a transform of its own, over the picture it paints: one
+    // drawn surface turned, moved or scaled inside the sprite, in the
+    // sprite's own units. Matrix3x2 is a wxl type like the vectors, and a
+    // braced literal is the whole of writing one.
+    CompositionSurfaceBrush turned = page.brush();
+    turned.centerPoint({width / 2, height / 2});
+    turned.rotationAngleInDegrees(180.0f);
+    turned.rotationAngle(3.14159265f);
+    turned.scale({1, 1});
+    turned.offset({0, 0});
+    turned.anchorPoint({0, 0});
+    turned.transformMatrix({-1, 0, 0, -1, width, height});
+    Matrix3x2 const placed = turned.transformMatrix();
+    (void)placed;
     ElementCompositionPreview::setElementChildVisual(host, sprite);
 }
 

@@ -36,13 +36,14 @@
     "projectedTypes": [
 
         // The numerics a composition object is written in. cppwinrt spells
-        // them float2 / float3 / float4x4 -- the only place where the C++
-        // name of a metadata type is not the metadata name, so the generator
-        // has nothing to derive one from. wxl declares the three itself for
+        // them float2 / float3 / float3x2 / float4x4 -- the only place where
+        // the C++ name of a metadata type is not the metadata name, so the
+        // generator has nothing to derive one from. wxl declares the four itself for
         // the same reason it declares Size and Point, and their conversions
         // stand beside those in impl/conversions.h.
         { "type": "Windows.Foundation.Numerics.Vector2", "wxl": "Vector2", "include": "../geometry.h" },
         { "type": "Windows.Foundation.Numerics.Vector3", "wxl": "Vector3", "include": "../geometry.h" },
+        { "type": "Windows.Foundation.Numerics.Matrix3x2", "wxl": "Matrix3x2", "include": "../geometry.h" },
         { "type": "Windows.Foundation.Numerics.Matrix4x4", "wxl": "Matrix4x4", "include": "../geometry.h" },
         // Plain float aggregates plus real geometry helpers. A generated
         // wrapper would duplicate them and add a type to every signature

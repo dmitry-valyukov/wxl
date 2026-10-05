@@ -127,11 +127,18 @@
             ]
         },
         "Microsoft.UI.Composition.CompositionSurfaceBrush": {
-            "comment": "What puts a drawn surface on a sprite. Surface is not here: its type is ICompositionSurface, an interface, and wxl wraps classes -- so the brush arrives ready-made from wxl::DrawingSurface::brush() and what is left to say about it is how it fills the sprite.",
+            "comment": "What puts a drawn surface on a sprite. Surface is not here: its type is ICompositionSurface, an interface, and wxl wraps classes -- so the brush arrives ready-made from wxl::DrawingSurface::brush() and what is left to say about it is how it fills the sprite, and how the picture is turned, moved and scaled inside it: the brush has a transform of its own, apart from the visual's, and it is what lets one drawn surface be shown several ways without being drawn again.",
             "members": [
                 "Stretch",
                 "HorizontalAlignmentRatio",
-                "VerticalAlignmentRatio"
+                "VerticalAlignmentRatio",
+                "AnchorPoint",
+                "CenterPoint",
+                "Offset",
+                "RotationAngle",
+                "RotationAngleInDegrees",
+                "Scale",
+                "TransformMatrix"
             ]
         },
         "Microsoft.UI.Composition.CompositionColorBrush": {
