@@ -28,6 +28,7 @@ Experiment scenesPage();    // ScenesPage.cpp
 Experiment samplePage();    // SamplePage.cpp
 Experiment systemPage();    // SystemPage.cpp
 Experiment keyPage();       // KeyPage.cpp
+Experiment normalsPage();   // NormalsPage.cpp
 
 // Сцена опыта в DIP: одна у всех, чтобы опыты сравнивались глазом.
 inline constexpr float stageWidth = 720.0f;
@@ -131,6 +132,16 @@ void drawKeyMap(wxl::DrawingSurface const& surface, KeyRelief const& key);
 // маски идёт по стыку лица с кантом и размыт на ту же ширину smooth, что и
 // наклон в карте, но не уже одного пикселя поверхности.
 void drawFaceMask(wxl::DrawingSurface const& surface, KeyRelief const& key);
+
+// Карта нормалей конуса во всю поверхность: в круге поперечником 0,9 стороны
+// нормаль наклонена от середины, slope -- тангенс наклона; вне круга она смотрит
+// на зрителя. Круг задан в долях поверхности: растянутая на квадрат, она даёт
+// круг при любой своей плотности.
+void drawConeMap(wxl::DrawingSurface const& surface, double slope);
+
+// Карта нормалей с одной нормалью на всю поверхность: наклон вправо и вверх
+// экрана, тангенсами.
+void drawTiltMap(wxl::DrawingSurface const& surface, double slopeRight, double slopeUp);
 
 // Заливает поверхность одним цветом.
 void drawSolid(wxl::DrawingSurface const& surface, wxl::Color color);

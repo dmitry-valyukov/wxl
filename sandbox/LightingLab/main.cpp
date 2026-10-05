@@ -55,11 +55,15 @@ constexpr Entry catalogue[] = {
      u"Прототип: форма клавиши задана картой нормалей -- грани канта и лицо чашей или куполом. Свет считает "
      u"композитор XAML: постоянная далёкая лампа и две лампы над указателем -- пятно на лице и свет на гранях.",
      &lab::keyPage},
+    {u"Матрица нормалей",
+     u"Откуда композитор XAML берёт поворот нормалей карты: конус и постоянная нормаль под одной лампой при "
+     u"разных преобразованиях кисти и спрайта, с жёсткой и с мягкой границей.",
+     &lab::normalsPage},
 };
 
 constexpr char16_t const* names[] = {
     catalogue[0].name, catalogue[1].name, catalogue[2].name, catalogue[3].name, catalogue[4].name, catalogue[5].name,
-    catalogue[6].name, catalogue[7].name, catalogue[8].name,
+    catalogue[6].name, catalogue[7].name, catalogue[8].name, catalogue[9].name,
 };
 
 // Опыт на экране. Поле page пишет список опытов; сцена и панель настроек
