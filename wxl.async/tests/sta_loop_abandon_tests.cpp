@@ -105,7 +105,7 @@ awaitable<void> start_failure() {
 
 /// The code from the discussion: two reads started, the first one awaited fails, and the
 /// frame unwinds with the second still on the worker, writing into `second_buf`.
-task first_fails_second_in_flight(probe& p) {
+task<> first_fails_second_in_flight(probe& p) {
     frame_witness witness(p);
     std::byte second_buf[64]{};
 
@@ -118,7 +118,7 @@ task first_fails_second_in_flight(probe& p) {
 
 /// Awaited in the order opposite to the one they were started in: `a` comes back while the
 /// coroutine is suspended on `b`, with nobody waiting for it yet.
-task awaits_in_the_opposite_order(int& first, int& second) {
+task<> awaits_in_the_opposite_order(int& first, int& second) {
     auto a = sta_loop::async_call([] { return 1; });
     auto b = sta_loop::async_call([] { return 2; });
 
@@ -127,7 +127,7 @@ task awaits_in_the_opposite_order(int& first, int& second) {
 }
 
 /// Starts a read and walks away without ever awaiting it.
-task starts_and_walks_away(probe& p) {
+task<> starts_and_walks_away(probe& p) {
     frame_witness witness(p);
     std::byte buf[16]{};
 
@@ -138,7 +138,7 @@ task starts_and_walks_away(probe& p) {
 
 /// The worker is held inside `k` while `a` fails, so `b` is still queued behind it when the
 /// frame gives it up; cancelling `b` is what lets `k` go.
-task fails_with_one_running_and_one_queued(probe& running, probe& queued) {
+task<> fails_with_one_running_and_one_queued(probe& running, probe& queued) {
     frame_witness running_witness(running);
     frame_witness queued_witness(queued);
     std::byte running_buf[16]{};
@@ -153,13 +153,13 @@ task fails_with_one_running_and_one_queued(probe& running, probe& queued) {
     co_await b;
 }
 
-task returns_seven(int& out) {
+task<> returns_seven(int& out) {
     out = co_await sta_loop::async_call([] { return 7; });
 }
 
 /// The first operation is ahead of the second in every queue, so by the time the second
 /// has been awaited the loop has taken the first out as well, with nobody waiting for it.
-task watches_readiness(bool& before, bool& after, bool& here) {
+task<> watches_readiness(bool& before, bool& after, bool& here) {
     auto first = sta_loop::async_call([] { return 3; });
 
     before = first.ready();
@@ -187,8 +187,8 @@ private:
 
 /// The same as above, with another coroutine's operation started between `k` and `b`: it
 /// comes back while this frame is unwinding, and must wait for the unwinding to end.
-task fails_while_another_coroutine_is_answered(probe& running, probe& queued,
-                                              std::vector<task>& others, int& other_out,
+task<> fails_while_another_coroutine_is_answered(probe& running, probe& queued,
+                                              std::vector<task<>>& others, int& other_out,
                                               int& other_out_while_unwinding) {
     snapshot_at_exit snapshot(other_out, other_out_while_unwinding);
     frame_witness running_witness(running);
@@ -209,7 +209,7 @@ task fails_while_another_coroutine_is_answered(probe& running, probe& queued,
 }
 
 /// Suspends on a read into its own frame, and is dropped by its owner there.
-task reads_into_its_frame(probe& p) {
+task<> reads_into_its_frame(probe& p) {
     frame_witness witness(p);
     std::byte buf[64]{};
 
@@ -222,7 +222,7 @@ task reads_into_its_frame(probe& p) {
 /// in the same unwinding, in the order a vector destroys its elements -- the order the
 /// operations went out in, so each is looked for from the head of the return channel
 /// past all the ones given up before it.
-task fails_with_many_reads_out(probe& p, std::size_t count) {
+task<> fails_with_many_reads_out(probe& p, std::size_t count) {
     frame_witness witness(p);
     std::vector<std::array<std::byte, 16>> buffers(count);
     std::vector<awaitable<std::size_t>> reads;
@@ -271,7 +271,7 @@ private:
 
 /// Starts an operation that touches nothing of the frame, and gives it up before awaiting
 /// -- once the worker is inside it, so that it has something to finish alone.
-task opens_and_changes_its_mind(hevent& started, hevent& gate, release_record& record,
+task<> opens_and_changes_its_mind(hevent& started, hevent& gate, release_record& record,
                                 bool changes_its_mind) {
     auto opening = sta_loop::async_call(orphanable, [&started, &gate, &record] {
         started.set();
@@ -308,7 +308,7 @@ private:
 
 /// Queues an orphan behind a read the worker is held inside, and gives both up: the orphan
 /// before the worker can have reached it.
-task queues_an_orphan_and_changes_its_mind(probe& running, std::atomic<bool>& orphan_ran,
+task<> queues_an_orphan_and_changes_its_mind(probe& running, std::atomic<bool>& orphan_ran,
                                            std::atomic<int>& orphan_deleted,
                                            bool changes_its_mind) {
     frame_witness witness(running);
@@ -340,7 +340,7 @@ void take_what_was_given_up() {
 
 TEST(StaLoopAbandonTest, AFrameUnwindingPastAnOperationWaitsForTheWorkerToLetGo) {
     probe p;
-    task work = first_fails_second_in_flight(p);
+    task<> work = first_fails_second_in_flight(p);
 
     // The worker is inside the second read before the first one is looked at, so the
     // unwinding below finds it running rather than queued.
@@ -361,7 +361,7 @@ TEST(StaLoopAbandonTest, AFrameUnwindingPastAnOperationWaitsForTheWorkerToLetGo)
 TEST(StaLoopAbandonTest, AnOperationBackBeforeItsCoAwaitIsTakenThereWithoutAResume) {
     int first = 0;
     int second = 0;
-    task work = awaits_in_the_opposite_order(first, second);
+    task<> work = awaits_in_the_opposite_order(first, second);
 
     sta_loop::run_until([&] { return work.done(); });
     work.result();
@@ -374,7 +374,7 @@ TEST(StaLoopAbandonTest, AnAwaitableIsReadyOnceTheLoopHasTakenItsOperationOut) {
     bool before = true;
     bool after = false;
     bool here = false;
-    task work = watches_readiness(before, after, here);
+    task<> work = watches_readiness(before, after, here);
 
     sta_loop::run_until([&] { return work.done(); });
     work.result();
@@ -386,7 +386,7 @@ TEST(StaLoopAbandonTest, AnAwaitableIsReadyOnceTheLoopHasTakenItsOperationOut) {
 
 TEST(StaLoopAbandonTest, AnOperationNeverAwaitedIsWaitedForByTheFrameThatStartedIt) {
     probe p;
-    task work = starts_and_walks_away(p);
+    task<> work = starts_and_walks_away(p);
 
     // The whole body ran inside the call, the wait included: the coroutine never suspended.
     EXPECT_TRUE(work.done());
@@ -404,7 +404,7 @@ TEST(StaLoopAbandonTest, AnOperationNeverAwaitedIsWaitedForByTheFrameThatStarted
 TEST(StaLoopAbandonTest, AnOperationGivenUpBeforeItStartsNeverRuns) {
     probe running;
     probe queued;
-    task work = fails_with_one_running_and_one_queued(running, queued);
+    task<> work = fails_with_one_running_and_one_queued(running, queued);
 
     // The worker is inside `k`, so `b` is behind it and cannot have started.
     running.started.wait();
@@ -426,11 +426,11 @@ TEST(StaLoopAbandonTest, AnOperationGivenUpBeforeItStartsNeverRuns) {
 TEST(StaLoopAbandonTest, NobodyElseIsResumedWhileAFrameUnwinds) {
     probe running;
     probe queued;
-    std::vector<task> others;
+    std::vector<task<>> others;
     int other_out = 0;
     int other_out_while_unwinding = -1;
 
-    task work = fails_while_another_coroutine_is_answered(running, queued, others, other_out,
+    task<> work = fails_while_another_coroutine_is_answered(running, queued, others, other_out,
                                                           other_out_while_unwinding);
     running.started.wait();
 
@@ -459,7 +459,7 @@ TEST(StaLoopAbandonTest, DroppingATaskSuspendedOnAnOperationWaitsForTheWorker) {
     probe p;
 
     {
-        task work = reads_into_its_frame(p);
+        task<> work = reads_into_its_frame(p);
 
         p.started.wait();
 
@@ -479,7 +479,7 @@ TEST(StaLoopAbandonTest, ManyOperationsGivenUpInOneUnwindingAllWaitForTheWorker)
     constexpr std::size_t count = 64;
 
     probe p;
-    task work = fails_with_many_reads_out(p, count);
+    task<> work = fails_with_many_reads_out(p, count);
 
     sta_loop::run_until([&] { return work.done(); });
 
@@ -508,7 +508,7 @@ TEST(StaLoopAbandonTest, AnOrphanGivenUpWhileItRunsLetsGoOfWhatItMakesAsSoonAsIt
         gate.set();
     });
 
-    task work = opens_and_changes_its_mind(started, gate, record, true);
+    task<> work = opens_and_changes_its_mind(started, gate, record, true);
 
     unwound.release();
     watchdog.join();
@@ -558,7 +558,7 @@ TEST(StaLoopAbandonTest, AnOrphanGivenUpBeforeItStartsIsNeverRunAndStillDeleted)
     std::atomic<bool> orphan_ran{false};
     std::atomic<int> orphan_deleted{0};
 
-    task work = queues_an_orphan_and_changes_its_mind(running, orphan_ran, orphan_deleted, true);
+    task<> work = queues_an_orphan_and_changes_its_mind(running, orphan_ran, orphan_deleted, true);
 
     EXPECT_TRUE(work.done());
     EXPECT_THROW(work.result(), std::runtime_error);

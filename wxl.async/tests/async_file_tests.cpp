@@ -18,7 +18,7 @@ namespace {
 
 /// The coroutine the whole scheme exists for: opening and reading a file
 /// without a single blocking call on the thread it is written on.
-task read_all(path file_path, std::string& out, std::thread::id& worker_thread) {
+task<> read_all(path file_path, std::string& out, std::thread::id& worker_thread) {
     // Proof, from inside the coroutine, that the other side of the loop really
     // is another thread -- and the shortest possible use of async_call.
     worker_thread =
@@ -34,7 +34,7 @@ task read_all(path file_path, std::string& out, std::thread::id& worker_thread) 
 
 /// The same through a character buffer: the array overload of read() spells
 /// the byte view itself, and what comes out appends without a cast.
-task read_all_as_text(path file_path, std::string& out) {
+task<> read_all_as_text(path file_path, std::string& out) {
     async_file f = co_await async_file::open_read(file_path);
 
     char buffer[1024];
@@ -44,7 +44,7 @@ task read_all_as_text(path file_path, std::string& out) {
 
 /// The same, for a file that is not there: the failure happens on the worker
 /// thread and is caught here, at the co_await, as an ordinary exception.
-task open_and_catch(path file_path, std::string& message) {
+task<> open_and_catch(path file_path, std::string& message) {
     try {
         co_await async_file::open_read(file_path);
         message = "no exception";
@@ -55,7 +55,7 @@ task open_and_catch(path file_path, std::string& message) {
 
 /// The writing half, through the same machinery: create, write, flush, close,
 /// and then read the whole thing back and compare.
-task write_then_read_back(path file_path, std::string_view content,
+task<> write_then_read_back(path file_path, std::string_view content,
                           std::string& got, std::uint64_t& reported_size) {
     {
         async_file out = co_await async_file::create(file_path);
@@ -114,7 +114,7 @@ protected:
                   content.size());
     }
 
-    void run(task work) {
+    void run(task<> work) {
         wait_until([&] { return work.done(); });
 
         work.result();
@@ -194,7 +194,7 @@ TEST_F(AsyncFileTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
     std::string got;
     std::thread::id worker_thread;
 
-    task work = read_all(path(root_.native()) / L"brief.bin", got, worker_thread);
+    task<> work = read_all(path(root_.native()) / L"brief.bin", got, worker_thread);
 
     run(std::move(work));
 
@@ -204,7 +204,7 @@ TEST_F(AsyncFileTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
 namespace {
 
 /// Two reads started one after the other, and awaited in the opposite order.
-task reads_two_parts(path file_path, std::string& first, std::string& second) {
+task<> reads_two_parts(path file_path, std::string& first, std::string& second) {
     async_file f = co_await async_file::open_read(file_path);
 
     char first_buffer[1000];
@@ -218,7 +218,7 @@ task reads_two_parts(path file_path, std::string& first, std::string& second) {
 }
 
 /// Into a buffer too large to be read on the thread that asks.
-task reads_in_large_pieces(path file_path, std::string& out) {
+task<> reads_in_large_pieces(path file_path, std::string& out) {
     async_file f = co_await async_file::open_read(file_path);
 
     std::vector<char> buffer(async_file::direct_read_limit * 2);
@@ -230,7 +230,7 @@ task reads_in_large_pieces(path file_path, std::string& out) {
 
 /// Writes the whole of `content` in one write and reads it back in one read, each of
 /// them more than one call to the system carries.
-task writes_and_reads_in_one_go(path file_path, std::span<const std::byte> content,
+task<> writes_and_reads_in_one_go(path file_path, std::span<const std::byte> content,
                                 std::vector<std::byte>& got, std::size_t& brought) {
     {
         async_file out = co_await async_file::create(file_path);
@@ -246,14 +246,14 @@ task writes_and_reads_in_one_go(path file_path, std::span<const std::byte> conte
 }
 
 /// Reads once into the whole buffer and says how much came.
-task reads_once_into(path file_path, std::span<std::byte> into, std::size_t& brought) {
+task<> reads_once_into(path file_path, std::span<std::byte> into, std::size_t& brought) {
     async_file in = co_await async_file::open_read(file_path);
 
     brought = co_await in.read(into);
 }
 
 /// Writes nothing and reads into nothing.
-task reads_and_writes_nothing(path file_path, std::size_t& written, std::size_t& read) {
+task<> reads_and_writes_nothing(path file_path, std::size_t& written, std::size_t& read) {
     {
         async_file out = co_await async_file::create(file_path);
 
