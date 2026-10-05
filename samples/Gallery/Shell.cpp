@@ -87,7 +87,13 @@ async::detached_task saveState() {
         co_return;
     }
     std::string text;
-    auto const narrow = [](std::wstring const& id) { return std::string{id.begin(), id.end()}; };
+    // Имена контролов — ASCII из каталога, а прочитанные из файла расширены из
+    // байтов по одному (loadState), так что суррогатов в них нет и проверять
+    // нечего. Сужение — через UTF-8, а не поэлементным копированием: то молча
+    // обрезает wchar_t до char.
+    auto const narrow = [](std::wstring const& id) {
+        return std::string{core::unicode::assume_valid(std::wstring_view{id}).to_utf8().chars()};
+    };
     for (auto const& id : recent) {
         text += "recent " + narrow(id) + '\n';
     }
