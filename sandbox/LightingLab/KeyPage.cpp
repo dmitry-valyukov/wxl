@@ -85,6 +85,12 @@ std::vector<Place> layout() {
 // Лампа над указателем загорается и гаснет за fadeTime; нажатие действует
 // быстрее, отпускание медленнее. Вспышка -- как у RevealEffect: втрое ярче
 // сразу и обратно за flashTime.
+// Что кисть делает с картой нормалей перед тем, как отдать её графу.
+enum class Turn { none, half, shifted, halfAside };
+
+// На сколько сдвигает карту проба сдвига.
+constexpr float probeShift = 12.0f;
+
 constexpr std::chrono::milliseconds fadeTime {180};
 constexpr std::chrono::milliseconds pressTime {120};
 constexpr std::chrono::milliseconds releaseTime {250};
@@ -135,6 +141,8 @@ struct Keys {
 
     // Нажатая клавиша: что с ней происходит. Отмеченное действует вместе.
     core::observable<bool> pressFlipsRim {true};
+    // Проба преобразования кисти над клавиатурой: показать её или нет.
+    core::observable<bool> probe {false};
     core::observable<bool> pressDivesLamp {true};
     core::observable<bool> pressFlashes {false};
     core::observable<bool> pressMovesLabel {true};
@@ -166,6 +174,10 @@ struct Keys {
     ContainerVisual rims;
     ContainerVisual faces;
     ContainerVisual shades;
+    ContainerVisual probes;
+    // Освещённые клавиши пробы: на них светят только общий свет и постоянная лампа.
+    ContainerVisual litProbes;
+    std::vector<SpriteVisual> litProbeSprites;
     CompositionColorBrush numericBrush;
     CompositionColorBrush actionBrush;
     CompositionColorBrush black;
@@ -203,6 +215,8 @@ struct Keys {
           rims(compositor.createContainerVisual()),
           faces(compositor.createContainerVisual()),
           shades(compositor.createContainerVisual()),
+          probes(compositor.createContainerVisual()),
+          litProbes(compositor.createContainerVisual()),
           numericBrush(compositor.createColorBrush(numericColor.get())),
           actionBrush(compositor.createColorBrush(actionColor.get())),
           black(compositor.createColorBrush(rgb(0, 0, 0))),
@@ -211,7 +225,7 @@ struct Keys {
           spot(compositor, 260.0, 120.0, 30.0, 0.4),
           edge(compositor, 340.0, 200.0, 60.0, 1.5) {
         root.size({lab::stageWidth, lab::stageHeight});
-        for (ContainerVisual const* layer : {&unlit, &rims, &faces, &shades}) {
+        for (ContainerVisual const* layer : {&unlit, &rims, &faces, &shades, &probes, &litProbes}) {
             layer->relativeSizeAdjustment({1.0f, 1.0f});
             root.children().insertAtTop(*layer);
         }
@@ -224,9 +238,10 @@ struct Keys {
             faceShapes.emplace_back(compositor, size);
         }
         makeKeys();
+        makeProbe();
 
         distant.coordinateSpace(root);
-        for (ContainerVisual const* layer : {&rims, &faces}) {
+        for (ContainerVisual const* layer : {&rims, &faces, &litProbes}) {
             ambient.targets().add(*layer);
             distant.targets().add(*layer);
         }
@@ -245,6 +260,10 @@ struct Keys {
             aim(*lamp);
         }
         hardBorder.on_change([this](bool const&) noexcept { sharpen(); });
+        probe.on_change([this](bool const& on) noexcept {
+            probes.isVisible(on);
+            litProbes.isVisible(on);
+        });
         hold.on_change([this](bool const& on) noexcept {
             if (!pointerDown) {
                 setPressed(on ? heldKey : -1);
@@ -304,6 +323,72 @@ struct Keys {
             covers.push_back(cover);
         }
         sharpen();
+    }
+
+    // Кисть карты нормалей клавиши с преобразованием: пол-оборота вокруг
+    // середины клавиши, сдвиг вправо или пол-оборота вокруг точки правее
+    // середины на половину сдвига -- картинку он ставит туда же, куда сдвиг.
+    CompositionSurfaceBrush mapBrush(DrawingSurface const& normals, Form const& form, Turn turn) const {
+        auto const map = normals.brush();
+        map.stretch(CompositionStretch::Fill);
+        switch (turn) {
+        case Turn::half:
+            map.centerPoint({form.width / 2.0f, form.height / 2.0f});
+            map.rotationAngleInDegrees(180.0f);
+            break;
+        case Turn::shifted:
+            map.offset({probeShift, 0.0f});
+            break;
+        case Turn::halfAside:
+            map.centerPoint({form.width / 2.0f + probeShift / 2.0f, form.height / 2.0f});
+            map.rotationAngleInDegrees(180.0f);
+            break;
+        case Turn::none:
+            break;
+        }
+        return map;
+    }
+
+    // Проба преобразования кисти на карте нормалей малой клавиши. Верхний ряд --
+    // карта цветом: как есть; развёрнутая на пол-оборота и стоящая кистью
+    // спрайта; развёрнутая так же, но поданная входом эффекта, который отдаёт
+    // вход без изменений. Нижний ряд -- клавиши под постоянной лампой, карта --
+    // вход NormalMapSource: как есть; развёрнутая; сдвинутая вправо; развёрнутая
+    // вокруг точки правее середины. Свет у второй тот же, что у первой, а у
+    // четвёртой тот же, что у третьей: вместе с картинкой композитор
+    // поворачивает и сами нормали, так что разворот кисти кант не переворачивает.
+    // Кисти нижнего ряда ставит paint().
+    void makeProbe() {
+        Form const& form = forms[0];
+
+        ArithmeticCompositeEffect pass;
+        pass.source1(GraphicsEffectSource {CompositionEffectSourceParameter {u"Map"}});
+        pass.source2(GraphicsEffectSource {CompositionEffectSourceParameter {u"Map"}});
+        pass.multiplyAmount(0.0f);
+        pass.source1Amount(1.0f);
+        pass.source2Amount(0.0f);
+        auto const through = compositor.createEffectFactory(pass).createBrush();
+        through.setSourceParameter(u"Map", mapBrush(maps[0], form, Turn::half));
+
+        CompositionBrush const brushes[] = {mapBrush(maps[0], form, Turn::none),
+                                            mapBrush(maps[0], form, Turn::half), through};
+        for (int index = 0; index < 3; ++index) {
+            auto const sprite = compositor.createSpriteVisual();
+            sprite.size({form.width, form.height});
+            sprite.offset({28.0f + static_cast<float>(index) * 96.0f, 18.0f, 0.0f});
+            sprite.brush(brushes[index]);
+            probes.children().insertAtTop(sprite);
+        }
+        for (int index = 0; index < 4; ++index) {
+            auto const sprite = compositor.createSpriteVisual();
+            sprite.size({form.width, form.height});
+            sprite.offset({28.0f + static_cast<float>(index) * 96.0f, 408.0f, 0.0f});
+            sprite.borderMode(CompositionBorderMode::Hard);
+            litProbes.children().insertAtTop(sprite);
+            litProbeSprites.push_back(sprite);
+        }
+        probes.isVisible(false);
+        litProbes.isVisible(false);
     }
 
     void sharpen() noexcept {
@@ -397,11 +482,10 @@ struct Keys {
 
             auto const factory = compositor.createEffectFactory(cut);
 
-            auto const brushOf = [&](Kind const& kind, DrawingSurface const& normals, DrawingSurface const& shape) {
+            auto const brushOf = [&](Kind const& kind, DrawingSurface const& normals, DrawingSurface const& shape,
+                                     Turn turn) {
                 auto const brush = factory.createBrush();
-                auto const map = normals.brush();
-                map.stretch(CompositionStretch::Fill);
-                brush.setSourceParameter(u"NormalMap", map);
+                brush.setSourceParameter(u"NormalMap", mapBrush(normals, forms[kind.form], turn));
                 brush.setSourceParameter(u"Base", kind.action ? actionBrush : numericBrush);
                 auto const mask = shape.brush();
                 mask.stretch(CompositionStretch::Fill);
@@ -412,9 +496,15 @@ struct Keys {
             sunkBrushes.clear();
             faceBrushes.clear();
             for (Kind const& kind : kinds) {
-                rimBrushes.push_back(brushOf(kind, maps[kind.form], wholeShapes[kind.form]));
-                sunkBrushes.push_back(brushOf(kind, sunkMaps[kind.form], wholeShapes[kind.form]));
-                faceBrushes.push_back(brushOf(kind, maps[kind.form], faceShapes[kind.form]));
+                rimBrushes.push_back(brushOf(kind, maps[kind.form], wholeShapes[kind.form], Turn::none));
+                // Перевёрнутый кант -- вторая карта: развернуть первую кистью нельзя,
+                // вместе с картинкой композитор поворачивает и нормали (проба ниже).
+                sunkBrushes.push_back(brushOf(kind, sunkMaps[kind.form], wholeShapes[kind.form], Turn::none));
+                faceBrushes.push_back(brushOf(kind, maps[kind.form], faceShapes[kind.form], Turn::none));
+            }
+            constexpr Turn probeTurns[] = {Turn::none, Turn::half, Turn::shifted, Turn::halfAside};
+            for (std::size_t index = 0; index < litProbeSprites.size(); ++index) {
+                litProbeSprites[index].brush(brushOf(kinds[0], maps[0], wholeShapes[0], probeTurns[index]));
             }
             for (int index = 0; index < static_cast<int>(places.size()); ++index) {
                 bool const sunk = index == pressed && pressFlipsRim.get();
@@ -670,6 +760,16 @@ lab::Experiment lab::keyPage() {
                        lab::sliderRow(u"Нырок: доля высоты лампы", model->diveDepth, 0.1, 1.0, 0.01),
                        lab::sliderRow(u"Нырок: яркость, раз", model->diveGain, 1.0, 4.0, 0.05),
                        lab::sliderRow(u"Притемнение: доля", model->shadeAmount, 0.0, 0.6, 0.01),
+                   }),
+        lab::group(u"Проба: преобразование кисти и карта нормалей", false,
+                   {
+                       lab::noteRow(u"Верхний ряд -- карта нормалей цветом: как есть; развёрнутая кистью на пол-оборота; "
+                                    u"развёрнутая так же и поданная входом эффекта. Картинка поворачивается. Нижний ряд -- "
+                                    u"клавиши под постоянной лампой: карта как есть; развёрнутая; сдвинутая вправо; "
+                                    u"развёрнутая вокруг точки правее середины. Свет второй равен свету первой, свет "
+                                    u"четвёртой -- свету третьей: вместе с картинкой поворачиваются и нормали, поэтому "
+                                    u"разворот кисти кант не переворачивает."),
+                       lab::toggleRow(u"Показать пробу разворота кисти", model->probe),
                    }),
         lab::group(u"Пятно на лице: лампа над указателем", true,
                    {
