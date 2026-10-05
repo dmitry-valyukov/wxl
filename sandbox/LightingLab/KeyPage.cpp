@@ -14,8 +14,8 @@
 //
 // Нажатая клавиша показана пятью способами, каждый включается своим флажком:
 // кант переворачивается в стенки колодца, лампа пятна ныряет за пальцем,
-// пятно вспыхивает, знак и сама клавиша уходят на единицу вниз и вправо,
-// клавиша темнеет.
+// пятно вспыхивает, знак и кант с лицом уходят на единицу вниз и вправо внутри
+// неподвижной внешней формы, клавиша темнеет.
 //
 // Спрайты клавиш -- с жёсткой границей: при мягкой ответ карты нормалей на
 // свет повёрнут. Гладкий край формы даёт маска в графе эффекта.
@@ -67,6 +67,10 @@ constexpr char16_t const* padLabels[] = {
 
 // Клавиша «5»: её переключатель панели держит нажатой без указателя.
 constexpr int heldKey = 5;
+
+// На сколько нажатие сдвигает знак и кант: отступ канта от края клавиши слева и
+// сверху растёт на эту единицу, справа и снизу на неё же убывает.
+constexpr float pressShift = 1.0f;
 
 // Слева клавиатура четыре на четыре, правый её столбец -- клавиши действия;
 // справа две большие клавиши, на которых форму видно глазом.
@@ -127,6 +131,8 @@ struct Keys {
     core::observable<double> slope {1.0};
     core::observable<bool> rounded {false};
     core::observable<double> corner {8.0};
+    // Отступ канта от края клавиши: между краем и кантом плоская полоса.
+    core::observable<double> margin {2.0};
     // Ширина полосы вокруг стыка лица с кантом, где наклон канта переходит в
     // наклон лица, а свет одной лампы над указателем -- в свет другой.
     core::observable<double> smooth {2.0};
@@ -189,7 +195,7 @@ struct Keys {
     Lamp edge;
     // Карты нормалей: клавиша над панелью и она же с обратным кантом, утопленная.
     std::vector<DrawingSurface> maps;
-    std::vector<DrawingSurface> sunkMaps;
+    std::vector<DrawingSurface> pressedMaps;
     // Маски формы: вся клавиша и её лицо без канта.
     std::vector<DrawingSurface> wholeShapes;
     std::vector<DrawingSurface> faceShapes;
@@ -200,7 +206,7 @@ struct Keys {
     std::vector<CompositionRoundedRectangleGeometry> covers;
     // По кисти на вид клавиши: грани, утопленные грани, лицо.
     std::vector<CompositionEffectBrush> rimBrushes;
-    std::vector<CompositionEffectBrush> sunkBrushes;
+    std::vector<CompositionEffectBrush> pressedBrushes;
     std::vector<CompositionEffectBrush> faceBrushes;
     core::nullable<CompositionPropertySet> pointer;
     bool shining = false;
@@ -234,7 +240,7 @@ struct Keys {
         for (Form const& form : forms) {
             SizeInt32 const size {static_cast<int>(form.width) * density, static_cast<int>(form.height) * density};
             maps.emplace_back(compositor, size);
-            sunkMaps.emplace_back(compositor, size);
+            pressedMaps.emplace_back(compositor, size);
             wholeShapes.emplace_back(compositor, size);
             faceShapes.emplace_back(compositor, size);
         }
@@ -251,7 +257,9 @@ struct Keys {
 
         numericColor.on_change([this](Color const& value) noexcept { numericBrush.color(value); });
         actionColor.on_change([this](Color const& value) noexcept { actionBrush.color(value); });
-        lab::onAny([this] { reshape(); }, emboss, rim, slope, rounded, corner, smooth);
+        // Карта нажатой клавиши зависит от флажков нажатия: они её и перерисовывают.
+        lab::onAny([this] { reshape(); }, emboss, rim, slope, rounded, corner, margin, smooth, pressFlipsRim,
+                   pressMovesLabel);
         lab::onAny([this] { paint(); }, specularAmount, specularShine);
         lab::onAny([this] { relight(); }, shadow, azimuth, elevation, lampColor, ambientColor);
         for (Lamp* lamp : {&spot, &edge}) {
@@ -418,12 +426,20 @@ struct Keys {
                 key.rounded = rounded.get();
                 key.emboss = emboss.get() * form.embossSign;
                 key.smooth = smooth.get();
+                key.margin = margin.get();
 
                 lab::drawKeyMap(maps[index], key);
                 lab::drawFaceMask(faceShapes[index], key);
                 lab::drawShape(wholeShapes[index], radius * density);
-                key.sunk = true;
-                lab::drawKeyMap(sunkMaps[index], key);
+
+                // Карта нажатой клавиши: кант обратный и сдвинут внутри неподвижной
+                // внешней формы -- то и другое по своему флажку.
+                key.sunk = pressFlipsRim.get();
+                if (pressMovesLabel.get()) {
+                    key.shiftX = pressShift;
+                    key.shiftY = pressShift;
+                }
+                lab::drawKeyMap(pressedMaps[index], key);
             }
             for (auto const& outline : outlines) {
                 outline.cornerRadius({radius + 1.0f, radius + 1.0f});
@@ -494,13 +510,14 @@ struct Keys {
                 return brush;
             };
             rimBrushes.clear();
-            sunkBrushes.clear();
+            pressedBrushes.clear();
             faceBrushes.clear();
             for (Kind const& kind : kinds) {
                 rimBrushes.push_back(brushOf(kind, maps[kind.form], wholeShapes[kind.form], Turn::none));
-                // Перевёрнутый кант -- вторая карта: развернуть первую кистью нельзя,
-                // вместе с картинкой композитор поворачивает и нормали (проба ниже).
-                sunkBrushes.push_back(brushOf(kind, sunkMaps[kind.form], wholeShapes[kind.form], Turn::none));
+                // Нажатая клавиша -- вторая карта: развернуть первую кистью нельзя, вместе
+                // с картинкой композитор поворачивает и нормали (проба ниже), а сдвиг
+                // кисти оставил бы у края полосу без карты.
+                pressedBrushes.push_back(brushOf(kind, pressedMaps[kind.form], wholeShapes[kind.form], Turn::none));
                 faceBrushes.push_back(brushOf(kind, maps[kind.form], faceShapes[kind.form], Turn::none));
             }
             constexpr Turn probeTurns[] = {Turn::none, Turn::half, Turn::shifted, Turn::halfAside};
@@ -508,8 +525,7 @@ struct Keys {
                 litProbeSprites[index].brush(brushOf(kinds[0], maps[0], wholeShapes[0], probeTurns[index]));
             }
             for (int index = 0; index < static_cast<int>(places.size()); ++index) {
-                bool const sunk = index == pressed && pressFlipsRim.get();
-                rimSprites[index].brush((sunk ? sunkBrushes : rimBrushes)[places[index].kind]);
+                rimSprites[index].brush((index == pressed ? pressedBrushes : rimBrushes)[places[index].kind]);
                 faceSprites[index].brush(faceBrushes[places[index].kind]);
             }
         });
@@ -634,32 +650,27 @@ struct Keys {
         }
     }
 
-    // Клавиша уходит вместе со знаком: грани, лицо и притемнение сдвигаются вниз
-    // и вправо на ту же единицу, что знак, а чёрная обводка стоит на месте. Сверху
-    // и слева обводки становится видно вдвое больше, снизу и справа клавиша её
-    // закрывает.
+    // Со знаком уходит кант и лицо внутри него, а внешняя форма клавиши стоит на
+    // месте: отступ канта от края слева и сверху растёт, справа и снизу убывает.
+    // Кант сдвинут в самой карте нажатой клавиши; здесь сдвигается спрайт лица,
+    // чья маска идёт по внутреннему краю канта.
     void shift(int index, float by) {
         Place const& place = places[index];
-        Vector3 const at {place.left + by, place.top + by, 0.0f};
-        rimSprites[index].offset(at);
-        faceSprites[index].offset(at);
-        shadeSprites[index].offset(at);
+        faceSprites[index].offset({place.left + by, place.top + by, 0.0f});
     }
 
     // Нажатие берёт то, что отмечено в эту минуту; отпускание возвращает всё,
     // что нажатие могло тронуть, что бы ни было отмечено теперь.
     void press(int index) noexcept {
         lab::attempt(brushStatus, u"Нажатая клавиша", [&] {
-            if (pressFlipsRim.get()) {
-                rimSprites[index].brush(sunkBrushes[places[index].kind]);
-            }
+            rimSprites[index].brush(pressedBrushes[places[index].kind]);
             if (pressShades.get()) {
                 shadeSprites[index].startAnimation(u"Opacity",
                                                    toward(static_cast<float>(shadeAmount.get()), pressTime));
             }
             if (pressMovesLabel.get()) {
                 labelDown.set(index);
-                shift(index, 1.0f);
+                shift(index, pressShift);
             }
             if (pressDivesLamp.get()) {
                 dived = true;
@@ -769,7 +780,8 @@ lab::Experiment lab::keyPage() {
                                      model->pressFlipsRim),
                        lab::checkRow(u"Лампа пятна ныряет за пальцем", model->pressDivesLamp),
                        lab::checkRow(u"Вспышка пятна", model->pressFlashes),
-                       lab::checkRow(u"Знак и клавиша уходят вниз и вправо на единицу", model->pressMovesLabel),
+                       lab::checkRow(u"Знак и кант уходят вниз и вправо на единицу, внешняя форма стоит",
+                                     model->pressMovesLabel),
                        lab::checkRow(u"Клавиша темнеет", model->pressShades),
                        lab::toggleRow(u"Держать клавишу 5 нажатой", model->hold),
                        lab::sliderRow(u"Нырок: доля высоты лампы", model->diveDepth, 0.1, 1.0, 0.01),
@@ -810,6 +822,7 @@ lab::Experiment lab::keyPage() {
                        lab::sliderRow(u"Наклон канта (тангенс)", model->slope, 0.0, 4.0, 0.05),
                        lab::toggleRow(u"Кант скруглён", model->rounded),
                        lab::sliderRow(u"Скругление угла", model->corner, 0.0, 24.0, 0.5),
+                       lab::sliderRow(u"Отступ канта от края клавиши", model->margin, 0.0, 8.0, 0.5),
                        lab::sliderRow(u"Сглаживание стыка лица с кантом, ширина", model->smooth, 0.0, 6.0, 0.25),
                    }),
         lab::group(u"Постоянный свет", false,
