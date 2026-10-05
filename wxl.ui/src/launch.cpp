@@ -59,6 +59,18 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
         Resources().MergedDictionaries().Append(
             winrt::Microsoft::UI::Xaml::Controls::XamlControlsResources{});
 
+        // XAML records an error raised under it (a failed property set in a template, a layout call) and
+        // reports it only on the next tick, by failing fast: the stack that reaches the debugger names no cause.
+        // The event is raised before that; the message goes to stderr and the debugger, and the failure itself
+        // is left to run its course -- nothing is marked handled.
+        UnhandledException([](winrt::Windows::Foundation::IInspectable const&,
+                              winrt::Microsoft::UI::Xaml::UnhandledExceptionEventArgs const& args) {
+            std::wstring text = L"wxl: unhandled error 0x" + std::format(L"{:08X}", static_cast<std::uint32_t>(args.Exception())) +
+                                L": " + std::wstring{args.Message()} + L"\n";
+            std::wcerr << text << std::flush;
+            ::OutputDebugStringW(text.c_str());
+        });
+
         teardownHandler = wxl_launched();
 
         // The application has built and shown its windows by now, so this
