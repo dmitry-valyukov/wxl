@@ -3,7 +3,7 @@
     "description": "Baseline WinUI3 surface for wxl: the WinForms-equivalent control set (layout, text, buttons, lists, indication, navigation containers, flyouts/menus), trimmed to the members needed to experiment with Flutter-style declarative UI and Command-based model binding. Window and Application are given from above (hand-written, never generated), so they are deliberately absent.",
     "extends": [],
 
-    "windowsAppSdk": "2.4.0",
+    "windowsAppSdk": "2.5.1",
 
     "packages": [
         {
