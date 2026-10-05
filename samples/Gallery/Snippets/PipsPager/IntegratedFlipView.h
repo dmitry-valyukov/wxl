@@ -10,6 +10,8 @@ auto example = StackPanel {
     FlipView {
         height = 270,
         maxWidth = 400,
+        automationControlType = AutomationControlType::List,
+        automationLocalizedControlType = u"list",
         picture(u"Assets/SampleMedia/LandscapeImage1.jpg"),
         picture(u"Assets/SampleMedia/LandscapeImage2.jpg"),
         picture(u"Assets/SampleMedia/LandscapeImage3.jpg"),

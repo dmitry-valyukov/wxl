@@ -67,6 +67,14 @@ target_link_libraries(wxl.async.tests
         wxl::test-support
 )
 
+# The queues keep their hot fields on cache lines of their own with alignas, and C4324
+# ("structure was padded due to alignment specifier", level 4) is silenced at each of
+# those declarations, since the padding it reports is the intent. That silence has to
+# reach the point of instantiation through the module interface, and this is where it is
+# checked: the suites instantiate every one of those classes, and here C4324 is pulled up
+# to level 1 and made an error. A failure names a padded class the pragma no longer covers.
+target_compile_options(wxl.async.tests PRIVATE /w14324 /we4324)
+
 wxl_set_target_folders(wxl.async.tests)
 
 include(GoogleTest)

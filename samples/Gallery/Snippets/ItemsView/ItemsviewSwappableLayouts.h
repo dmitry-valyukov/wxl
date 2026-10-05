@@ -5,7 +5,7 @@ auto const* objects = &gallery::dataObjects(true);
 auto const imageOf = [objects](Object const& item) {
     auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
     return ItemContainer {width = 200, height = 140, horizontalAlignment = HorizontalAlignment::Left,
-                          child = Image {Margin {4}, horizontalAlignment = HorizontalAlignment::Center,
+                          child = Image {Margin {4}, automationAccessibilityView = AccessibilityView::Raw, horizontalAlignment = HorizontalAlignment::Center,
                                  verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
                                  source = object.imageLocation}};
 };
@@ -72,7 +72,7 @@ model->view.add_onLoaded([model, objects](auto&&...) {
 
 // A number box that tells one number to a layout.
 auto const number = [](char16_t const* label, double from, double to, double start, auto apply) {
-    auto box = NumberBox {header = label, minimum = from, maximum = to, value = start, smallChange = 1.0, maxWidth = 250,
+    auto box = NumberBox {automationName = label, header = label, minimum = from, maximum = to, value = start, smallChange = 1.0, maxWidth = 250,
                           spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, Margin {0, 0, 0, 16}};
     box.add_onValueChanged([apply](NumberBox const& self, NumberBoxValueChangedEventArgs&) { apply(self.value()); });
     return box;

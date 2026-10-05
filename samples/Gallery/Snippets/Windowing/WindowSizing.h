@@ -1,11 +1,11 @@
 // The model owns the six boxes and the bar, which the handler reads by address.
 struct Model {
-    NumberBox clientWidth = dimension(u"Width", 640, 0, 0);
-    NumberBox clientHeight = dimension(u"Height", 480, 0, 1);
-    NumberBox minimumWidth = dimension(u"MinWidth", 320, 1, 0);
-    NumberBox minimumHeight = dimension(u"MinHeight", 240, 1, 1);
-    NumberBox maximumWidth = dimension(u"MaxWidth", 960, 2, 0);
-    NumberBox maximumHeight = dimension(u"MaxHeight", 720, 2, 1);
+    NumberBox clientWidth = dimension(u"Width", u"Client width in DIPs", u"WindowingClientWidth", 640, 0, 0);
+    NumberBox clientHeight = dimension(u"Height", u"Client height in DIPs", u"WindowingClientHeight", 480, 0, 1);
+    NumberBox minimumWidth = dimension(u"MinWidth", u"Minimum client width in DIPs", u"WindowingMinimumWidth", 320, 1, 0);
+    NumberBox minimumHeight = dimension(u"MinHeight", u"Minimum client height in DIPs", u"WindowingMinimumHeight", 240, 1, 1);
+    NumberBox maximumWidth = dimension(u"MaxWidth", u"Maximum client width in DIPs", u"WindowingMaximumWidth", 960, 2, 0);
+    NumberBox maximumHeight = dimension(u"MaxHeight", u"Maximum client height in DIPs", u"WindowingMaximumHeight", 720, 2, 1);
 
     InfoBar validation {
         isClosable = true,
@@ -14,9 +14,11 @@ struct Model {
         title = u"Check the window dimensions",
     };
 
-    static NumberBox dimension(char16_t const* label, double initial, int boxRow, int boxColumn) {
+    static NumberBox dimension(char16_t const* label, char16_t const* name, char16_t const* id, double initial, int boxRow, int boxColumn) {
         return NumberBox {
             hAlign.stretch,
+            automationId = id,
+            automationName = name,
             header = label,
             row = boxRow,
             column = boxColumn,
@@ -112,6 +114,7 @@ auto example = StackPanel {
     },
     model->validation,
     Button {
+        automationId = u"WindowingOpenConfiguredWindow",
         automationName = u"Open a window with the configured client size and constraints",
         content = u"Open configured window",
         onClick = [model](Button const&) { model->open(); },

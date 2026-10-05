@@ -45,6 +45,8 @@ auto panelHost = Border {
 };
 
 auto stretchToggle = ToggleSwitch {
+    automationId = u"WrapPanelStretchLastItem",
+    automationName = u"Stretch final item",
     header = u"ItemsStretch",
     onContent = u"Last",
     offContent = u"None",

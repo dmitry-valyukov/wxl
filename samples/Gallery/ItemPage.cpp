@@ -5,6 +5,7 @@
 // Введение оригинал даёт статичным TextBlock; здесь это HtmlBlock.
 
 #include "Pages.h"
+#include "StringList.h"
 #include "Shell.h"
 
 using namespace wxl;
@@ -68,22 +69,14 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         });
     }
     if (!item.baseClasses.empty()) {
-        std::wstring chain;
+        // Цепочка наследования — BreadcrumbBar, как в панели оригинала.
+        std::vector<std::u16string> chain;
         for (auto const& name : item.baseClasses) {
-            if (!chain.empty()) {
-                chain += L" › ";
-            }
-            chain += name;
+            chain.emplace_back(name.begin(), name.end());
         }
         panel.children().append(StackPanel {
             caption(u"Inheritance"),
-            TextBlock {
-                chain,
-                fontFamily = u"Consolas",
-                isTextSelectionEnabled = true,
-                styles.TextBlock.Caption,
-                textWrapping.wrap,
-            },
+            BreadcrumbBar {itemsSource = stringList(chain)},
         });
     }
     return Button {
@@ -92,6 +85,7 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         vAlign.bottom,
         Margin {0, 0, 0, 3},
         styles.Button.Subtle,
+        automationName = u"API details",
         toolTip = u"API namespace and inheritance",
         content = infoGlyph(u"API namespace and inheritance"),
         flyout = Flyout {
@@ -100,6 +94,7 @@ FrameworkElement apiDetails(gallery::ControlInfo const& item) {
         },
     };
 }
+
 FrameworkElement documentation(gallery::ControlInfo const& item) {
     if (item.docs.empty()) {
         return Border {};
@@ -110,6 +105,7 @@ FrameworkElement documentation(gallery::ControlInfo const& item) {
     }
     return DropDownButton {
         gallery::appPop(),
+        automationName = u"Documentation",
         toolTip = u"Documentation",
         content = StackPanel {
             orientation.horizontal,
@@ -134,6 +130,7 @@ FrameworkElement sourceLinks(gallery::ControlInfo const& item) {
     auto const uri = std::wstring{winUIBaseUrl} + item.sourcePath;
     return DropDownButton {
         gallery::appPop(),
+        automationName = u"Source code",
         toolTip = u"Source code of this control",
         content = StackPanel {
             orientation.horizontal,
@@ -159,6 +156,7 @@ FrameworkElement themeButton() {
         height = 32,
         Margin {0, 0, 4, 0},
         toolTip = u"Toggle theme",
+        automationName = u"Toggle theme",
         content = FontIcon {glyph = u"", fontSize = 16},
         onClick = [](Object const& sender, RoutedEventArgs&) {
             auto const button = sender.try_as<Button>();
@@ -177,6 +175,7 @@ FrameworkElement favoriteButton(std::wstring id) {
         height = 32,
         Margin {4, 0, 0, 0},
         isChecked = on,
+        automationName = u"Favorite sample",
         toolTip = on ? u"Remove from favorites" : u"Add to favorites",
         content = FontIcon {glyph = on ? u"" : u"", fontSize = 16},
         onClick = [id](Object const& sender, RoutedEventArgs&) {
@@ -198,6 +197,8 @@ FrameworkElement pageHeader(gallery::ControlInfo const& item) {
             spacing = 4.0,
             TextBlock {
                 item.title,
+                automationId = u"PageHeader",
+                automationHeadingLevel = AutomationHeadingLevel::Level1,
                 styles.TextBlock.Title,
                 textTrimming = TextTrimming::CharacterEllipsis,
                 textWrapping.noWrap,

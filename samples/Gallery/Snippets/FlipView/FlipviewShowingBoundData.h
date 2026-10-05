@@ -3,6 +3,8 @@
 auto example = FlipView {
     height = 180,
     maxWidth = 400,
+    automationControlType = AutomationControlType::List,
+    automationLocalizedControlType = u"list",
     borderBrush = rgb(0, 0, 0),
     borderThickness = 1,
 };

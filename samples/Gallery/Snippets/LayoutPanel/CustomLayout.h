@@ -99,12 +99,16 @@ auto options = StackPanel {
     width = 220,
     spacing = 12.0,
     RadioButtons {
+        automationId = u"LayoutPanelLayoutSelector",
+        automationName = u"LayoutPanel layout",
         header = u"Layout",
-        RadioButton {content = u"Featured tile"},
-        RadioButton {content = u"Vertical stack"},
+        RadioButton {automationId = u"LayoutPanelFeaturedLayout", automationName = u"Featured tile layout", content = u"Featured tile"},
+        RadioButton {automationId = u"LayoutPanelStackLayout", automationName = u"Vertical StackLayout", content = u"Vertical stack"},
         selectedIndex = Bind {model->layout},
     },
     Slider {
+        automationId = u"LayoutPanelSpacing",
+        automationName = u"Layout spacing",
         header = u"Spacing",
         maximum = 24.0,
         snapsTo = SliderSnapsTo::Ticks,

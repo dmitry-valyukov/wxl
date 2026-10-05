@@ -13,7 +13,7 @@ auto example = StackPanel {
         itemTemplate = [objects](Object const& item) {
             auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
             return ItemContainer {width = 200, height = 140, horizontalAlignment = HorizontalAlignment::Left,
-                                  child = Image {Margin {4}, horizontalAlignment = HorizontalAlignment::Center,
+                                  child = Image {Margin {4}, automationAccessibilityView = AccessibilityView::Raw, horizontalAlignment = HorizontalAlignment::Center,
                                          verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
                                          source = object.imageLocation}};
         },

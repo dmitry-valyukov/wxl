@@ -16,6 +16,6 @@ auto const animate = [translate, animation, storyboard](auto&&...) {
 auto example = Grid {
     minWidth = 420,
     columnDefinitions = u"auto,*",
-    Button {content = u"Animate", onClick = animate},
+    Button {content = u"Animate", automationName = u"Animate rectangle using Standard Easing Function", onClick = animate},
     Rectangle {column = 1, width = 50, height = 50, hAlign.left, fill = resourceBrush(u"SystemAccentColor"), renderTransform = translate},
 };

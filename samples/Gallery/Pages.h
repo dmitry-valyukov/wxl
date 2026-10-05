@@ -116,6 +116,9 @@ wxl::FrameworkElement gaussianBlurPage();
 wxl::FrameworkElement haloPage();
 wxl::FrameworkElement xamlResourcesPage();
 wxl::FrameworkElement bindingPage();
+wxl::FrameworkElement settingsCardPage();
+wxl::FrameworkElement headeredContentControlPage();
+wxl::FrameworkElement settingsExpanderPage();
 wxl::FrameworkElement templatesPage();
 wxl::FrameworkElement customXamlConditionalsPage();
 wxl::FrameworkElement animatedVisualPlayerPage();
@@ -202,7 +205,7 @@ wxl::FrameworkElement richEditBoxPage();
 // Плитка контрола (ControlItemTemplate оригинала) и сетка плиток: GridView,
 // клик по плитке — переход на страницу контрола.
 wxl::FrameworkElement controlTile(ControlInfo const& item);
-wxl::FrameworkElement tileGrid(std::span<ControlInfo const* const> items, wxl::Thickness padding);
+wxl::FrameworkElement tileGrid(std::span<ControlInfo const* const> items, wxl::Thickness padding, wxl::zstring_view id, wxl::zstring_view name);
 
 // Текст как разметка: `&`, `<` и `>` заменены сущностями.
 std::wstring htmlEscape(std::wstring_view text);

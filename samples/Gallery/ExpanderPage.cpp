@@ -1,6 +1,7 @@
 // Страница Expander — ExpanderPage оригинала: два примера.
 
 #include "Pages.h"
+#include "Shell.h"
 
 using namespace wxl;
 using namespace wxl::dsl;
@@ -32,7 +33,7 @@ constexpr char8_t alignmentCode[] = {
 #include "Snippets/Expander/ModifyingExpandersContentAlignment.h.embed"
 };
 
-FrameworkElement contentAlignment() {
+FrameworkElement contentAlignmentExample() {
     return gallery::controlExample({
         .header = gallery::snippet(alignmentHeader),
         .example =
@@ -45,5 +46,5 @@ FrameworkElement contentAlignment() {
 }  // namespace
 
 wxl::FrameworkElement gallery::expanderPage() {
-    return StackPanel {textHeaderContent(), contentAlignment()};
+    return StackPanel {textHeaderContent(), contentAlignmentExample()};
 }

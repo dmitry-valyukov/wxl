@@ -5,7 +5,7 @@
         "rich"
     ],
 
-    "windowsAppSdk": "2.4.0",
+    "windowsAppSdk": "2.5.1",
     "windowsMetadata": true,
 
     "packages": [
@@ -336,6 +336,18 @@
                     "comment": "Accessibility: the landmark of the page the element is -- navigation, main, search -- AutomationProperties.LandmarkType, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLandmarkType",
                     "function": "impl::set_automation_landmark_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationControlType": {
+                    "comment": "Accessibility: what kind of control a screen reader takes the element for -- AutomationProperties.AutomationControlType, the attached property.",
+                    "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationControlType",
+                    "function": "impl::set_automation_control_type",
+                    "include": "../impl/automation_properties.h"
+                },
+                "AutomationLocalizedControlType": {
+                    "comment": "Accessibility: what a screen reader calls that kind of control in the user's language -- AutomationProperties.LocalizedControlType, the attached property.",
+                    "type": "String",
+                    "function": "impl::set_automation_localized_control_type",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationLocalizedLandmarkType": {

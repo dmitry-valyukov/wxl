@@ -2,6 +2,7 @@ auto output = TextBlock {u"0"};
 
 auto slider = Slider {
     width = 100,
+    automationName = u"Vertical example",
     height = 100,
     minimum = -50.0,
     maximum = 50.0,

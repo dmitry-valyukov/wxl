@@ -5,6 +5,7 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 auto ring = ProgressRing {
+    automationName = u"Progress image",
     isIndeterminate = false,
     isActive = true,
     value = BindOutput {model->progress},
@@ -12,6 +13,7 @@ auto ring = ProgressRing {
 };
 
 auto progressSlider = Slider {
+    automationName = u"Progress amount",
     header = u"Progress",
     minimum = 0.0,
     maximum = 100.0,

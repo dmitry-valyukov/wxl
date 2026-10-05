@@ -1,8 +1,15 @@
+struct Model {
+    core::observable<int> direction {1};
+    core::observable<double> gap {8.0};
+};
+auto const model = gallery::hold<Model>();
+
 const Preset square {width = 40, height = 40};
 
 auto panel = StackPanel {
     vAlign.top,
-    spacing = 8.0,
+    spacing = BindOutput {model->gap},
+    orientation = BindOutput {model->direction, [](int index) { return index == 0 ? Orientation::Horizontal : Orientation::Vertical; }},
     Rectangle {square, fill = colors.red},
     Rectangle {square, fill = colors.blue},
     Rectangle {square, fill = colors.green},
@@ -13,13 +20,7 @@ auto orientationGroup = RadioButtons {
     header = u"Orientation",
     RadioButton {content = u"Horizontal"},
     RadioButton {content = u"Vertical"},
-    selectedIndex = 1,
-    onSelectionChanged = [panel](RadioButtons const& self) {
-        int const index = self.selectedIndex();
-        if (index >= 0) {
-            panel.orientation(index == 0 ? orientation.horizontal : orientation.vertical);
-        }
-    },
+    selectedIndex = Bind {model->direction},
 };
 
 auto gapSlider = Slider {
@@ -29,6 +30,5 @@ auto gapSlider = Slider {
     snapsTo = SliderSnapsTo::Ticks,
     stepFrequency = 1.0,
     tickFrequency = 1.0,
-    value = 8.0,
-    onValueChanged = [panel](Slider const& self) { panel.spacing(self.value()); },
+    value = Bind {model->gap},
 };

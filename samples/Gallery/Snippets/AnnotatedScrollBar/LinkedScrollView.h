@@ -22,6 +22,7 @@ static constexpr int tileHeight = 90;
 // The model owns the panel and the bar, which handlers of both reach by
 // address; nothing they hold owns the model.
 struct Model {
+    core::observable<double> barHeight {500.0};
     WrapPanel tiles {
         Margin {2},
         // When the panel is resized the rows change, and with them the labels.
@@ -30,7 +31,7 @@ struct Model {
 
     AnnotatedScrollBar bar {
         column = 1,
-        maxHeight = 500,
+        maxHeight = BindOutput {barHeight},
         Margin {4, 0, 48, 0},
         hAlign.right,
         // The labels are placed when the bar is on the screen, and again when the rows change.
@@ -104,8 +105,7 @@ auto options = Grid {
         header = u"AnnotatedScrollBar maximum height:",
         minimum = 100.0,
         maximum = 500.0,
-        value = 500.0,
         // The labels that no longer fit are hidden, as they would collide.
-        onValueChanged = [model](Slider const& self) { model->bar.maxHeight(self.value()); },
+        value = Bind {model->barHeight},
     },
 };

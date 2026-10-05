@@ -1,6 +1,6 @@
 struct Model {
     TextBlock status {textWrapping = TextWrapping::Wrap};
-    ToggleSwitch monitor {header = u"Monitor ContentChanged"};
+    ToggleSwitch monitor {header = u"Monitor ContentChanged", automationName = u"Monitor clipboard content changed event"};
     EventToken token {};
 
     static std::u16string formats(DataPackageView const& package, std::u16string heading, std::u16string empty) {

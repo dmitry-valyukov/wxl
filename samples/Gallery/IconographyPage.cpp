@@ -66,7 +66,8 @@ struct Model {
                                   u"Segoe MDL2 Assets is used by default, so the icon may not appear unless Segoe Fluent Icons is installed."};
     TextBlock name, textGlyph, codeGlyph, fontIconCode, symbolCode;
     TextBlock symbolLabel = heading(u"SymbolIcon");
-    ItemsView tagView {Margin {0, 8, 0, 4}, isItemInvokedEnabled = true, selectionMode = ItemsViewSelectionMode::None,
+    TextBlock tagsLabel {Margin {0, 4, 0, 0}, foreground = brushes.Text.FillColor.Secondary, styles.TextBlock.Caption, u"Tags"};
+    ItemsView tagView {Margin {0, 8, 0, 4}, automationLabeledBy = tagsLabel, isItemInvokedEnabled = true, selectionMode = ItemsViewSelectionMode::None,
                        layout = FlowLayout {orientation.horizontal, lineSpacing = 4.0, minItemSpacing = 4.0}};
     TextBlock noTags {Margin {0, 4, 0, 0}, u"No tags available."};
 
@@ -222,7 +223,7 @@ FrameworkElement gallery::iconographyPage() {
                 model->fontIconCode,
                 model->symbolLabel,
                 model->symbolCode,
-                TextBlock {Margin {0, 4, 0, 0}, foreground = brushes.Text.FillColor.Secondary, styles.TextBlock.Caption, u"Tags"},
+                model->tagsLabel,
                 model->tagView,
                 model->noTags,
             },

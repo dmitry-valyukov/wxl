@@ -34,6 +34,7 @@ auto viewer = ScrollViewer {
         hAlign.left,
         vAlign.top,
         toolTip = u"cliff",
+        automationName = u"cliff",
         source = u"Assets/SampleMedia/cliff.jpg",
         stretch = Stretch::None,
     },
@@ -53,7 +54,7 @@ auto caption = [](char16_t const* words, int line, Thickness around, bool center
 // The names of a choice are its rows; its position is the value of the enumeration.
 auto choice = [](int line, Thickness around, char16_t const* description, std::initializer_list<char16_t const*> names,
                  core::observable<int>& field) {
-    auto box = ComboBox {row = line, column = 1, margin = around, hAlign.stretch, toolTip = description, selectedIndex = Bind {field}};
+    auto box = ComboBox {row = line, column = 1, margin = around, hAlign.stretch, toolTip = description, automationName = description, selectedIndex = Bind {field}};
     for (auto const name : names) {
         box.items().append(ComboBoxItem {content = name});
     }

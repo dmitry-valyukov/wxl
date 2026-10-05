@@ -1,16 +1,26 @@
-// The items of the original are "Item 1" ... "Item 500"; here the repeater is given the number of each.
 struct Model {
-    FlowLayout flow {orientation.horizontal, lineAlignment = FlowLayoutLineAlignment::Start, lineSpacing = 8.0, minItemSpacing = 8.0};
+    core::observable<int> direction {0}, alignment {0};
+    core::observable<double> itemGap {8.0}, lineGap {8.0};
+    FlowLayout flow {
+        orientation = BindOutput {direction, [](int index) { return index == 0 ? Orientation::Horizontal : Orientation::Vertical; }},
+        lineAlignment = BindOutput {alignment, [](int index) {
+            static constexpr FlowLayoutLineAlignment alignments[] = {FlowLayoutLineAlignment::Start, FlowLayoutLineAlignment::Center,
+                                                                     FlowLayoutLineAlignment::SpaceBetween, FlowLayoutLineAlignment::SpaceEvenly};
+            return alignments[index];
+        }},
+        lineSpacing = BindOutput {lineGap},
+        minItemSpacing = BindOutput {itemGap},
+    };
     ScrollViewer scroll {
         width = 520,
         height = 320,
         hAlign.left,
-        horizontalScrollBarVisibility = ScrollBarVisibility::Disabled,
-        horizontalScrollMode = ScrollMode::Disabled,
+        horizontalScrollBarVisibility = BindOutput {direction, [](int index) { return index == 0 ? ScrollBarVisibility::Disabled : ScrollBarVisibility::Auto; }},
+        horizontalScrollMode = BindOutput {direction, [](int index) { return index == 0 ? ScrollMode::Disabled : ScrollMode::Enabled; }},
         isHorizontalScrollChainingEnabled = false,
         isVerticalScrollChainingEnabled = false,
-        verticalScrollBarVisibility = ScrollBarVisibility::Auto,
-        verticalScrollMode = ScrollMode::Enabled,
+        verticalScrollBarVisibility = BindOutput {direction, [](int index) { return index == 0 ? ScrollBarVisibility::Auto : ScrollBarVisibility::Disabled; }},
+        verticalScrollMode = BindOutput {direction, [](int index) { return index == 0 ? ScrollMode::Enabled : ScrollMode::Disabled; }},
     };
     TextBlock realizedCount {text = u"Realized elements: 0 of 500", automationLiveSetting = AutomationLiveSetting::Polite};
     std::vector<UIElement> realized;
@@ -76,15 +86,7 @@ auto options = StackPanel {
         header = u"Orientation",
         RadioButton {content = u"Horizontal", automationId = u"FlowLayoutHorizontal", automationName = u"Horizontal flow"},
         RadioButton {content = u"Vertical", automationId = u"FlowLayoutVertical", automationName = u"Vertical flow"},
-        selectedIndex = 0,
-        onSelectionChanged = [model](RadioButtons const& self) {
-            bool const horizontal = self.selectedIndex() == 0;
-            model->flow.orientation(horizontal ? Orientation::Horizontal : Orientation::Vertical);
-            model->scroll.horizontalScrollMode(horizontal ? ScrollMode::Disabled : ScrollMode::Enabled);
-            model->scroll.horizontalScrollBarVisibility(horizontal ? ScrollBarVisibility::Disabled : ScrollBarVisibility::Auto);
-            model->scroll.verticalScrollMode(horizontal ? ScrollMode::Enabled : ScrollMode::Disabled);
-            model->scroll.verticalScrollBarVisibility(horizontal ? ScrollBarVisibility::Auto : ScrollBarVisibility::Disabled);
-        },
+        selectedIndex = Bind {model->direction},
     },
     ComboBox {
         automationId = u"FlowLayoutLineAlignment",
@@ -94,18 +96,8 @@ auto options = StackPanel {
         ComboBoxItem {content = u"Center"},
         ComboBoxItem {content = u"Space between"},
         ComboBoxItem {content = u"Space evenly"},
-        selectedIndex = 0,
-        onSelectionChanged = [model](ComboBox const& self) {
-            static constexpr FlowLayoutLineAlignment alignments[] = {FlowLayoutLineAlignment::Start, FlowLayoutLineAlignment::Center,
-                                                                     FlowLayoutLineAlignment::SpaceBetween,
-                                                                     FlowLayoutLineAlignment::SpaceEvenly};
-            if (self.selectedIndex() >= 0) {
-                model->flow.lineAlignment(alignments[self.selectedIndex()]);
-            }
-        },
+        selectedIndex = Bind {model->alignment},
     },
-    Slider {automationId = u"FlowLayoutItemSpacing", automationName = u"Minimum item spacing", header = u"MinItemSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = 8,
-            onValueChanged = [model](Slider const& self) { model->flow.minItemSpacing(self.value()); }},
-    Slider {automationId = u"FlowLayoutLineSpacing", automationName = u"Line spacing", header = u"LineSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = 8,
-            onValueChanged = [model](Slider const& self) { model->flow.lineSpacing(self.value()); }},
+    Slider {automationId = u"FlowLayoutItemSpacing", automationName = u"Minimum item spacing", header = u"MinItemSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = Bind {model->itemGap}},
+    Slider {automationId = u"FlowLayoutLineSpacing", automationName = u"Line spacing", header = u"LineSpacing", maximum = 32, snapsTo = SliderSnapsTo::Ticks, stepFrequency = 2, tickFrequency = 2, value = Bind {model->lineGap}},
 };

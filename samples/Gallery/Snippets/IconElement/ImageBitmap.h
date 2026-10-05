@@ -5,5 +5,5 @@ auto example = StackPanel {
         u"Image class. The two examples here show a PNG and SVG image as the icon.",
         styles.TextBlock.Body,
     },
-    Button {width = 100, content = ImageIcon {source = u"Assets/SampleMedia/Slices.png"}},
+    Button {width = 100, automationName = u"ImageExample1", content = ImageIcon {source = u"Assets/SampleMedia/Slices.png"}},
 };

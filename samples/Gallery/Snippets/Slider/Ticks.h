@@ -2,6 +2,7 @@ auto output = TextBlock {u"0"};
 
 auto slider = Slider {
     width = 290,
+    automationName = u"Example with ticks",
     tickFrequency = 20.0,
     tickPlacement = TickPlacement::Outside,
     onValueChanged = [output](Slider const& self) {

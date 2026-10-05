@@ -5,5 +5,5 @@ auto example = StackPanel {
         u"display. SymbolIcon's enum is based off of icons from the Segoe MDL2 font used by Windows 10.",
         styles.TextBlock.Body,
     },
-    Button {content = StackPanel {SymbolIcon {symbol = Symbol::Accept}, TextBlock {u"Accept"}}},
+    Button {automationName = u"AcceptButton", content = StackPanel {SymbolIcon {symbol = Symbol::Accept}, TextBlock {u"Accept"}}},
 };
