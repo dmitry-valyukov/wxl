@@ -674,7 +674,8 @@ Window createMainWindow() {
         setNavigationOnTop(true);
     }
     if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE"); page && *page) {
-        show({std::wstring_view{page} == L"Settings" ? Place::Settings : Place::Item, page}, true);
+        std::wstring_view const name {page};
+        show({name == L"Settings" ? Place::Settings : name == L"AllControls" ? Place::AllControls : Place::Item, page}, true);
     }
     return window;
 }

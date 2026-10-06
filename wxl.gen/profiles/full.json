@@ -1457,6 +1457,13 @@
                 "Header"
             ],
             "syntheticMembers": {
+                "ItemContainerStyle": {
+                    "comment": "What an ItemContainerStyle says, as a preset every container wears once, as the control makes it: itemContainerStyle = Preset {margin = Thickness {5}, horizontalContentAlignment = HorizontalAlignment::Stretch}. The style of wxl is a preset, and a container the control makes is dressed the way a control written by hand is.",
+                    "cppType": "ItemContainerPreset",
+                    "cppInclude": "../ItemContainerPreset.h",
+                    "function": "impl::set_item_container_style",
+                    "include": "../impl/item_template.h"
+                },
                 "ItemMargin": {
                     "comment": "The margin of every item container, as an ItemContainerStyle with a Setter for Margin would give it: itemMargin = Thickness {5}.",
                     "type": "Microsoft.UI.Xaml.Thickness",

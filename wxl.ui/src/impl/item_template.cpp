@@ -9,6 +9,7 @@
 
 #include "../Object.impl.h"
 #include <wxl/Microsoft.UI.Xaml.impl.h>
+#include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include "conversions.h"
 
 namespace wxl::impl {
@@ -23,8 +24,26 @@ struct Template {
     ItemBuilder build;
     bool has_margin = false;
     xaml::Thickness margin{};
+    core::nullable<ItemContainerPreset::dress_t> dress;
+    // The containers dressed so far, by identity: a container the control reuses for another item comes back
+    // through ContainerContentChanging and is not dressed again -- a preset holds bindings and handlers, which must
+    // not double. A weak reference tells a container that is gone from a new one at the same address.
+    std::map<void*, winrt::weak_ref<xaml::Controls::Primitives::SelectorItem>> dressed;
     winrt::event_token token;
 };
+
+// Dresses a container the first time it is seen. Making the containers here instead (ChoosingItemContainer) was
+// tried and refused: the control asks for a container of an item more than once and put the item into both.
+void dress_once(Template& state, xaml::Controls::Primitives::SelectorItem const& container) {
+    if (!state.dress.has_value()) return;
+    void* const key = winrt::get_abi(container);
+    if (auto const found = state.dressed.find(key); found != state.dressed.end()) {
+        if (found->second.get() == container) return;
+        state.dressed.erase(found);
+    }
+    (*state.dress)(Object::Impl::wrap<SelectorItem>(container));
+    state.dressed[key] = winrt::make_weak(container);
+}
 
 std::map<void*, std::shared_ptr<Template>>& templates() {
     static std::map<void*, std::shared_ptr<Template>> all;
@@ -50,6 +69,7 @@ std::shared_ptr<Template> state_of(xaml::Controls::ListViewBase const& list) {
         auto const container = args.ItemContainer().try_as<xaml::Controls::ContentControl>();
         if (!container) return;
         if (state->has_margin) container.Margin(state->margin);
+        if (auto const item = container.try_as<xaml::Controls::Primitives::SelectorItem>()) dress_once(*state, item);
         if (!state->build) return;
         if (args.InRecycleQueue()) {
             if (auto const place = container.ContentTemplateRoot().try_as<xaml::Controls::ContentControl>()) place.Content(nullptr);
@@ -107,6 +127,20 @@ void set_item_margin(xaml::Controls::ListViewBase const& list, Thickness const& 
     for (uint32_t index = 0; index < items.Size(); ++index) {
         if (auto const container = list.ContainerFromIndex(index).try_as<xaml::Controls::ContentControl>()) {
             container.Margin(state->margin);
+        }
+    }
+}
+
+void set_item_container_style(xaml::Controls::ListViewBase const& list, ItemContainerPreset const& preset) {
+    auto const state = state_of(list);
+    state->dress = preset.dress();
+
+    // The containers already made: dressed now, once. A new preset on a list whose containers wear the old one
+    // dresses them over it -- the preset adds, nothing takes a value back.
+    auto const items = list.Items();
+    for (uint32_t index = 0; index < items.Size(); ++index) {
+        if (auto const container = list.ContainerFromIndex(index).try_as<xaml::Controls::Primitives::SelectorItem>()) {
+            dress_once(*state, container);
         }
     }
 }
