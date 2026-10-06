@@ -114,7 +114,9 @@ struct Lamp {
     core::observable<double> full;
     core::observable<double> height;
     core::observable<double> intensity;
-    // На сколько лампа стоит левее и выше указателя. У лампы прямо над ним ноль.
+    // Лампа нажатой клавиши стоит не над указателем, а над верхним левым углом
+    // клавиши; aside -- на сколько ещё левее и выше угла. У остальных ламп не
+    // используется.
     core::observable<double> aside {0.0};
     SpotLight light;
 
@@ -124,7 +126,7 @@ struct Lamp {
         light.innerConeIntensity(0.0f);
         light.outerConeIntensity(0.0f);
         light.properties().insertScalar(u"Height", static_cast<float>(height));
-        light.properties().insertScalar(u"Aside", 0.0f);
+
     }
 };
 
@@ -181,9 +183,10 @@ struct Keys {
     // Снизу вверх: обводки вне света, грани, лица, притемнение нажатой клавиши.
     ContainerVisual unlit;
     ContainerVisual rims;
-    // Грани нажатой клавиши: на них светит своя лампа указателя, смещённая влево
-    // и вверх, -- стенки колодца сверху и слева обращены от неё и светятся
-    // слабее, снизу и справа сильнее, как и от постоянной лампы.
+    // Грани нажатой клавиши: на них светит своя лампа, стоящая над верхним
+    // левым углом клавиши, -- стенки колодца сверху и слева обращены от неё и
+    // светятся слабее, снизу и справа сильнее, как и от постоянной лампы. Где
+    // при этом указатель, неважно: нажатая клавиша выглядит нажатой одинаково.
     ContainerVisual pressedRims;
     ContainerVisual faces;
     ContainerVisual shades;
@@ -241,7 +244,6 @@ struct Keys {
           edge(compositor, 340.0, 200.0, 60.0, 1.5),
           well(compositor, 340.0, 200.0, 60.0, 1.5) {
         root.size({lab::stageWidth, lab::stageHeight});
-        well.aside.set(40.0);
         for (ContainerVisual const* layer : {&unlit, &rims, &pressedRims, &faces, &shades, &probes, &litProbes}) {
             layer->relativeSizeAdjustment({1.0f, 1.0f});
             root.children().insertAtTop(*layer);
@@ -597,15 +599,26 @@ struct Keys {
             lamp.light.innerConeAngle(static_cast<float>(inner));
             lamp.light.outerConeAngle(static_cast<float>(outer));
             lamp.light.properties().insertScalar(u"Height", heightOf(lamp));
-            lamp.light.properties().insertScalar(u"Aside", static_cast<float>(lamp.aside.get()));
-            if (pointer) {
+            // Лампу нажатой клавиши ставит нажатие, остальные идут за указателем.
+            if (&lamp == &well) {
+                if (pressed >= 0) {
+                    place(well, pressed);
+                }
+            } else if (pointer) {
                 auto const over =
-                    compositor.createExpressionAnimation(u"pointer.Position + Vector3(-lamp.Aside, -lamp.Aside, lamp.Height)");
+                    compositor.createExpressionAnimation(u"pointer.Position + Vector3(0, 0, lamp.Height)");
                 over.setReferenceParameter(u"pointer", *pointer);
                 over.setReferenceParameter(u"lamp", lamp.light.properties());
                 lamp.light.startAnimation(u"Offset", over);
             }
         });
+    }
+
+    // Лампа над верхним левым углом клавиши, на своей высоте.
+    void place(Lamp const& lamp, int index) const {
+        Place const& at = places[index];
+        float const aside = static_cast<float>(lamp.aside.get());
+        lamp.light.offset({at.left - aside, at.top - aside, heightOf(lamp)});
     }
 
     // Яркость и высота идут к своему месту оттуда, где они сейчас: один
@@ -688,6 +701,7 @@ struct Keys {
             rimSprites[index].brush(pressedBrushes[places[index].kind]);
             rims.children().remove(rimSprites[index]);
             pressedRims.children().insertAtTop(rimSprites[index]);
+            place(well, index);
             if (pressShades.get()) {
                 shadeSprites[index].startAnimation(u"Opacity",
                                                    toward(static_cast<float>(shadeAmount.get()), pressTime));
@@ -840,8 +854,8 @@ lab::Experiment lab::keyPage() {
                        lab::sliderRow(u"Грани: высота лампы", model->edge.height, 5.0, 600.0, 1.0),
                        lab::sliderRow(u"Грани: яркость", model->edge.intensity, 0.0, 6.0, 0.01),
                        lab::toggleRow(u"Нажатая клавиша: своя лампа граней включена", model->well.on),
-                       lab::sliderRow(u"Нажатая клавиша: лампа граней левее и выше указателя на", model->well.aside,
-                                      0.0, 200.0, 1.0),
+                       lab::sliderRow(u"Нажатая клавиша: лампа граней левее и выше её угла на", model->well.aside,
+                                      0.0, 100.0, 1.0),
                        lab::sliderRow(u"Нажатая клавиша: яркость лампы граней", model->well.intensity, 0.0, 6.0, 0.01),
                        lab::colorRow(u"Цвет ламп над указателем", model->pointerColor),
                    }),
