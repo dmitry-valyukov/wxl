@@ -12,12 +12,21 @@
 // клавиш вокруг указателя, и ярче те, что к нему обращены. Чёрная обводка --
 // отдельный визуал, на который лампы не нацелены.
 //
-// Нажатая клавиша показана пятью способами, каждый включается своим флажком:
-// кант переворачивается в стенки колодца, лампа пятна ныряет за пальцем,
-// пятно вспыхивает, внутренняя часть клавиши уходит на единицу вниз и вправо,
-// клавиша темнеет. Внутренняя часть -- знак, лицо и внутренний край канта:
-// внешний край канта, силуэт клавиши и обводка стоят на месте, а сам кант слева
-// и сверху становится на единицу шире, справа и снизу на единицу уже.
+// Нажатие -- движение тела, а не смена его формы. Клавиша стоит над панелью на
+// высоте rise, панель -- визуал под клавишами на эту высоту ниже, и клавиша
+// бросает на неё тень от постоянной лампы (CompositionProjectedShadow). Нажатая
+// уходит вниз на travel: тень на панели короче, пока клавиша над панелью, а то,
+// что ушло под панель, край отверстия заслоняет от лампы -- на верхней и левой
+// грани ложится тень от внешнего края внутрь, и остаётся на них один общий
+// свет. Форма граней и их наклон при этом те же, что у покоящейся клавиши. Тень
+// края считается по той же формуле формы, что и карта нормалей, и ложится в
+// кисть нажатой клавиши маской.
+//
+// Кроме движения тела, по флажкам: лампа пятна ныряет за пальцем, пятно
+// вспыхивает, внутренняя часть клавиши уходит на единицу вниз и вправо, клавиша
+// темнеет. Внутренняя часть -- знак, лицо и внутренний край канта: внешний
+// край канта, силуэт клавиши и обводка стоят на месте, а сам кант слева и
+// сверху становится на единицу шире, справа и снизу на единицу уже.
 //
 // Спрайты клавиш -- с жёсткой границей: при мягкой ответ карты нормалей на
 // свет повёрнут. Гладкий край формы даёт маска в графе эффекта.
@@ -73,6 +82,9 @@ constexpr int heldKey = 5;
 // На сколько нажатие сдвигает внутреннюю часть клавиши вниз и вправо.
 constexpr float pressShift = 1.0f;
 
+// Скругление панели -- то же, что у рамки сцены XAML под ней.
+constexpr float panelCorner = 12.0f;
+
 // Слева клавиатура четыре на четыре, правый её столбец -- клавиши действия;
 // справа две большие клавиши, на которых форму видно глазом.
 std::vector<Place> layout() {
@@ -88,15 +100,15 @@ std::vector<Place> layout() {
     return places;
 }
 
-// Лампа над указателем загорается и гаснет за fadeTime; нажатие действует
-// быстрее, отпускание медленнее. Вспышка -- как у RevealEffect: втрое ярче
-// сразу и обратно за flashTime.
 // Что кисть делает с картой нормалей перед тем, как отдать её графу.
 enum class Turn { none, half, shifted, halfAside };
 
 // На сколько сдвигает карту проба сдвига.
 constexpr float probeShift = 12.0f;
 
+// Лампа над указателем загорается и гаснет за fadeTime; нажатие действует
+// быстрее, отпускание медленнее. Вспышка -- как у RevealEffect: втрое ярче
+// сразу и обратно за flashTime.
 constexpr std::chrono::milliseconds fadeTime {180};
 constexpr std::chrono::milliseconds pressTime {120};
 constexpr std::chrono::milliseconds releaseTime {250};
@@ -114,10 +126,6 @@ struct Lamp {
     core::observable<double> full;
     core::observable<double> height;
     core::observable<double> intensity;
-    // Лампа нажатой клавиши стоит не над указателем, а над верхним левым углом
-    // клавиши; aside -- на сколько ещё левее и выше угла. У остальных ламп не
-    // используется.
-    core::observable<double> aside {0.0};
     SpotLight light;
 
     Lamp(Compositor const& compositor, double size, double full, double height, double intensity)
@@ -126,7 +134,6 @@ struct Lamp {
         light.innerConeIntensity(0.0f);
         light.outerConeIntensity(0.0f);
         light.properties().insertScalar(u"Height", static_cast<float>(height));
-
     }
 };
 
@@ -141,6 +148,15 @@ struct Keys {
     // наклон лица, а свет одной лампы над указателем -- в свет другой.
     core::observable<double> smooth {2.0};
 
+    // Тело над панелью: высота внешнего края канта над ней и ход нажатия.
+    core::observable<double> rise {3.0};
+    core::observable<double> travel {5.0};
+    // Тень края отверстия: во сколько слабее полной и ширина полутени.
+    core::observable<double> holeAmount {1.0};
+    core::observable<double> holeSoft {1.0};
+    // Падающая тень на панель: размытие в долях того, что даёт композитор.
+    core::observable<double> castBlur {1.0};
+
     // Постоянный свет: сколько его от лампы и сколько со всех сторон.
     core::observable<double> shadow {0.7};
     core::observable<double> azimuth {120.0};
@@ -150,10 +166,10 @@ struct Keys {
 
     core::observable<Color> pointerColor {rgb(255, 255, 255)};
 
-    // Нажатая клавиша: что с ней происходит. Отмеченное действует вместе.
-    core::observable<bool> pressFlipsRim {true};
     // Проба преобразования кисти над клавиатурой: показать её или нет.
     core::observable<bool> probe {false};
+    // Нажатая клавиша: что с ней происходит сверх движения тела. Отмеченное
+    // действует вместе.
     core::observable<bool> pressDivesLamp {true};
     core::observable<bool> pressFlashes {false};
     core::observable<bool> pressMovesLabel {true};
@@ -175,19 +191,18 @@ struct Keys {
     core::observable<hstring> mapStatus;
     core::observable<hstring> brushStatus;
     core::observable<hstring> lightStatus;
+    core::observable<hstring> shadowStatus;
 
     std::vector<Place> places = layout();
 
     Compositor compositor;
     ContainerVisual root;
+    // Панель под клавишами, на rise ниже их: фон сцены, он же принимает
+    // падающую тень. Скруглена как рамка сцены XAML, в которой стоит.
+    SpriteVisual panel;
     // Снизу вверх: обводки вне света, грани, лица, притемнение нажатой клавиши.
     ContainerVisual unlit;
     ContainerVisual rims;
-    // Грани нажатой клавиши: на них светит своя лампа, стоящая над верхним
-    // левым углом клавиши, -- стенки колодца сверху и слева обращены от неё и
-    // светятся слабее, снизу и справа сильнее, как и от постоянной лампы. Где
-    // при этом указатель, неважно: нажатая клавиша выглядит нажатой одинаково.
-    ContainerVisual pressedRims;
     ContainerVisual faces;
     ContainerVisual shades;
     ContainerVisual probes;
@@ -197,27 +212,34 @@ struct Keys {
     CompositionColorBrush numericBrush;
     CompositionColorBrush actionBrush;
     CompositionColorBrush black;
+    // Падающая тень: чёрное с альфой в долю лампы -- на панели в тени остаётся
+    // один общий свет.
+    CompositionColorBrush shadowBrush;
     AmbientLight ambient;
     DistantLight distant;
     // Пятно на лице клавиши под указателем и свет на гранях клавиш вокруг него.
     Lamp spot;
     Lamp edge;
-    Lamp well;
-    // Карты нормалей: клавиша над панелью и она же с обратным кантом, утопленная.
+    // Карты нормалей: клавиша и она же со сдвинутой внутренней частью.
     std::vector<DrawingSurface> maps;
     std::vector<DrawingSurface> pressedMaps;
     // Маски формы: вся клавиша и её лицо без канта.
     std::vector<DrawingSurface> wholeShapes;
     std::vector<DrawingSurface> faceShapes;
+    // Тень края отверстия на гранях нажатой клавиши.
+    std::vector<DrawingSurface> holeShadows;
     std::vector<SpriteVisual> rimSprites;
     std::vector<SpriteVisual> faceSprites;
     std::vector<SpriteVisual> shadeSprites;
     std::vector<CompositionRoundedRectangleGeometry> outlines;
     std::vector<CompositionRoundedRectangleGeometry> covers;
-    // По кисти на вид клавиши: грани, утопленные грани, лицо.
+    // По кисти на вид клавиши: грани, грани нажатой клавиши, лицо.
     std::vector<CompositionEffectBrush> rimBrushes;
     std::vector<CompositionEffectBrush> pressedBrushes;
     std::vector<CompositionEffectBrush> faceBrushes;
+    // Падающие тени, по одной на клавишу: кастеров у одной тени система
+    // уважает лишь MaxRespectedCasters, у тени с одним кастером -- всегда его.
+    std::vector<CompositionProjectedShadow> casts;
     core::nullable<CompositionPropertySet> pointer;
     bool shining = false;
     bool pointerDown = false;
@@ -228,9 +250,9 @@ struct Keys {
     Keys()
         : compositor(CompositionTarget::getCompositorForCurrentThread()),
           root(compositor.createContainerVisual()),
+          panel(compositor.createSpriteVisual()),
           unlit(compositor.createContainerVisual()),
           rims(compositor.createContainerVisual()),
-          pressedRims(compositor.createContainerVisual()),
           faces(compositor.createContainerVisual()),
           shades(compositor.createContainerVisual()),
           probes(compositor.createContainerVisual()),
@@ -238,16 +260,22 @@ struct Keys {
           numericBrush(compositor.createColorBrush(numericColor.get())),
           actionBrush(compositor.createColorBrush(actionColor.get())),
           black(compositor.createColorBrush(rgb(0, 0, 0))),
+          shadowBrush(compositor.createColorBrush(rgb(0, 0, 0))),
           ambient(compositor.createAmbientLight()),
           distant(compositor.createDistantLight()),
           spot(compositor, 260.0, 120.0, 30.0, 0.4),
-          edge(compositor, 340.0, 200.0, 60.0, 1.5),
-          well(compositor, 340.0, 200.0, 60.0, 1.5) {
+          edge(compositor, 340.0, 200.0, 60.0, 1.5) {
         root.size({lab::stageWidth, lab::stageHeight});
-        // За углом на 40: так верхняя и левая стенки колодца почти не получают её
-        // света, а нижняя и правая -- умеренно; вид, который пользователь одобрил.
-        well.aside.set(40.0);
-        for (ContainerVisual const* layer : {&unlit, &rims, &pressedRims, &faces, &shades, &probes, &litProbes}) {
+
+        panel.size({lab::stageWidth, lab::stageHeight});
+        panel.brush(compositor.createColorBrush(rgb(30, 31, 34)));
+        auto const panelShape = compositor.createRoundedRectangleGeometry();
+        panelShape.size({lab::stageWidth, lab::stageHeight});
+        panelShape.cornerRadius({panelCorner, panelCorner});
+        panel.clip(compositor.createGeometricClip(panelShape));
+        root.children().insertAtTop(panel);
+
+        for (ContainerVisual const* layer : {&unlit, &rims, &faces, &shades, &probes, &litProbes}) {
             layer->relativeSizeAdjustment({1.0f, 1.0f});
             root.children().insertAtTop(*layer);
         }
@@ -258,39 +286,34 @@ struct Keys {
             pressedMaps.emplace_back(compositor, size);
             wholeShapes.emplace_back(compositor, size);
             faceShapes.emplace_back(compositor, size);
+            holeShadows.emplace_back(compositor, size);
         }
         makeKeys();
         makeProbe();
+        makeCast();
 
         distant.coordinateSpace(root);
-        for (ContainerVisual const* layer : {&rims, &pressedRims, &faces, &litProbes}) {
+        for (ContainerVisual const* layer : {&rims, &faces, &litProbes}) {
             ambient.targets().add(*layer);
             distant.targets().add(*layer);
         }
         spot.light.targets().add(faces);
         edge.light.targets().add(rims);
-        well.light.targets().add(pressedRims);
 
         numericColor.on_change([this](Color const& value) noexcept { numericBrush.color(value); });
         actionColor.on_change([this](Color const& value) noexcept { actionBrush.color(value); });
-        // Карта нажатой клавиши зависит от флажков нажатия: они её и перерисовывают.
-        lab::onAny([this] { reshape(); }, emboss, rim, slope, rounded, corner, smooth, pressFlipsRim,
-                   pressMovesLabel);
+        // Карта нажатой клавиши зависит от флажка сдвига: он её и перерисовывает.
+        lab::onAny([this] { reshape(); }, emboss, rim, slope, rounded, corner, smooth, pressMovesLabel);
+        // Тень края зависит и от формы -- её перерисовывает reshape() -- и от
+        // хода с лампой.
+        lab::onAny([this] { reshade(); }, rise, travel, holeAmount, holeSoft, shadow, azimuth, elevation);
         lab::onAny([this] { paint(); }, specularAmount, specularShine);
         lab::onAny([this] { relight(); }, shadow, azimuth, elevation, lampColor, ambientColor);
-        // Конус лампы граней нажатой клавиши -- тот же, что у лампы граней: свои у
-        // неё только смещение и яркость.
-        lab::onAny(
-            [this] {
-                well.size.set(edge.size.get());
-                well.full.set(edge.full.get());
-                well.height.set(edge.height.get());
-            },
-            edge.size, edge.full, edge.height);
-        for (Lamp* lamp : {&spot, &edge, &well}) {
+        rise.on_change([this](double const&) noexcept { sink(); });
+        castBlur.on_change([this](double const&) noexcept { blur(); });
+        for (Lamp* lamp : {&spot, &edge}) {
             lamp->light.coordinateSpace(root);
-            lab::onAny([this, lamp] { aim(*lamp); }, lamp->size, lamp->full, lamp->height, lamp->aside,
-                       pointerColor);
+            lab::onAny([this, lamp] { aim(*lamp); }, lamp->size, lamp->full, lamp->height, pointerColor);
             lab::onAny([this, lamp] { fade(*lamp, fadeTime); }, lamp->intensity, lamp->on);
             aim(*lamp);
         }
@@ -308,6 +331,7 @@ struct Keys {
         reshape();
         paint();
         relight();
+        sink();
     }
 
     // Сцена встаёт визуалом-ребёнком элемента; указатель над элементом ведёт лампы.
@@ -316,7 +340,6 @@ struct Keys {
         pointer = ElementCompositionPreview::getPointerPositionPropertySet(host);
         aim(spot);
         aim(edge);
-        aim(well);
     }
 
     void makeKeys() {
@@ -359,6 +382,45 @@ struct Keys {
             covers.push_back(cover);
         }
         sharpen();
+    }
+
+    // Падающая тень: от постоянной лампы, бросают спрайты граней -- они во всю
+    // клавишу, -- принимает панель. Тень только от далёкого источника: на
+    // точечный и прожектор система отвечает «Unsupported light type».
+    void makeCast() noexcept {
+        lab::attempt(shadowStatus, u"CreateProjectedShadow", [this] {
+            for (auto const& sprite : rimSprites) {
+                auto const made = compositor.createProjectedShadow();
+                made.lightSource(distant);
+                auto const receiver = compositor.createProjectedShadowReceiver();
+                receiver.receivingVisual(panel);
+                made.receivers().add(receiver);
+                auto const caster = compositor.createProjectedShadowCaster();
+                caster.castingVisual(sprite);
+                caster.brush(shadowBrush);
+                made.casters().insertAtTop(caster);
+                casts.push_back(made);
+            }
+        });
+        blur();
+        // Система считает тень не от всех кастеров одной тени, а от скольких --
+        // говорит сама.
+        std::u16string line {shadowStatus.get()};
+        line += u"; теней ";
+        core::append_number(line, static_cast<std::uint32_t>(casts.size()), 10);
+        line += u" по кастеру, MaxRespectedCasters ";
+        core::append_number(line, static_cast<std::uint32_t>(CompositionProjectedShadowCasterCollection::maxRespectedCasters()), 10);
+        shadowStatus.set(hstring {line});
+    }
+
+    void blur() noexcept {
+        lab::attempt(shadowStatus, u"CompositionProjectedShadow", [this] {
+            for (auto const& made : casts) {
+                made.blurRadiusMultiplier(static_cast<float>(castBlur.get()));
+                made.minBlurRadius(0.0f);
+                made.maxBlurRadius(8.0f);
+            }
+        });
     }
 
     // Кисть карты нормалей клавиши с преобразованием: пол-оборота вокруг
@@ -439,33 +501,33 @@ struct Keys {
         });
     }
 
+    // Форма клавиши по настройкам; у нажатой внутренняя часть сдвинута, если
+    // отмечено.
+    lab::KeyRelief reliefOf(Form const& form, bool pressedKey) const {
+        lab::KeyRelief key;
+        key.width = form.width;
+        key.height = form.height;
+        key.corner = corner.get();
+        key.rim = rim.get();
+        key.slope = slope.get();
+        key.rounded = rounded.get();
+        key.emboss = emboss.get() * form.embossSign;
+        key.smooth = smooth.get();
+        if (pressedKey && pressMovesLabel.get()) {
+            key.shiftX = pressShift;
+            key.shiftY = pressShift;
+        }
+        return key;
+    }
+
     void reshape() noexcept {
         lab::attempt(mapStatus, u"Карты нормалей клавиш", [this] {
             float const radius = static_cast<float>(corner.get());
             for (int index = 0; index < formCount; ++index) {
-                Form const& form = forms[index];
-                lab::KeyRelief key;
-                key.width = form.width;
-                key.height = form.height;
-                key.corner = corner.get();
-                key.rim = rim.get();
-                key.slope = slope.get();
-                key.rounded = rounded.get();
-                key.emboss = emboss.get() * form.embossSign;
-                key.smooth = smooth.get();
-
-                lab::drawKeyMap(maps[index], key);
-                lab::drawFaceMask(faceShapes[index], key);
+                lab::drawKeyMap(maps[index], reliefOf(forms[index], false));
+                lab::drawFaceMask(faceShapes[index], reliefOf(forms[index], false));
                 lab::drawShape(wholeShapes[index], radius * density);
-
-                // Карта нажатой клавиши: кант обратный, внутренняя часть сдвинута -- то и
-                // другое по своему флажку.
-                key.sunk = pressFlipsRim.get();
-                if (pressMovesLabel.get()) {
-                    key.shiftX = pressShift;
-                    key.shiftY = pressShift;
-                }
-                lab::drawKeyMap(pressedMaps[index], key);
+                lab::drawKeyMap(pressedMaps[index], reliefOf(forms[index], true));
             }
             for (auto const& outline : outlines) {
                 outline.cornerRadius({radius + 1.0f, radius + 1.0f});
@@ -474,81 +536,118 @@ struct Keys {
                 cover.cornerRadius({radius, radius});
             }
         });
+        reshade();
+    }
+
+    // Тень края отверстия на нажатой клавише: её внешний край ниже панели на
+    // travel - rise; пока ход меньше высоты, тени нет.
+    void reshade() noexcept {
+        lab::attempt(mapStatus, u"Тень края отверстия", [this] {
+            lab::HoleShadow hole;
+            hole.depth = travel.get() - rise.get();
+            hole.azimuth = azimuth.get();
+            hole.elevation = elevation.get();
+            hole.share = shadow.get();
+            hole.amount = holeAmount.get();
+            hole.soft = holeSoft.get();
+            for (int index = 0; index < formCount; ++index) {
+                lab::drawHoleShadow(holeShadows[index], reliefOf(forms[index], true), hole);
+            }
+        });
     }
 
     // Граф клавиши: цвет, умноженный на общий и рассеянный свет, плюс блик, не
     // крашенный цветом; сверху вырезание по альфе формы. У граней и у лица граф
-    // один, разные у них маска формы и лампа над указателем.
+    // один, разные у них маска формы и лампа над указателем. У граней нажатой
+    // клавиши перед вырезанием сверху ложится тень края отверстия.
     void paint() noexcept {
         lab::attempt(brushStatus, u"Кисть клавиши", [this] {
             auto const source = [](char16_t const* name) {
                 return GraphicsEffectSource {CompositionEffectSourceParameter {name}};
             };
 
-            SceneLightingEffect matte;
-            matte.name(u"Matte");
-            matte.normalMapSource(source(u"NormalMap"));
-            matte.ambientAmount(1.0f);
-            matte.diffuseAmount(1.0f);
-            matte.specularAmount(0.0f);
+            auto const lit = [&] {
+                SceneLightingEffect matte;
+                matte.name(u"Matte");
+                matte.normalMapSource(source(u"NormalMap"));
+                matte.ambientAmount(1.0f);
+                matte.diffuseAmount(1.0f);
+                matte.specularAmount(0.0f);
 
-            SceneLightingEffect gloss;
-            gloss.name(u"Gloss");
-            gloss.normalMapSource(source(u"NormalMap"));
-            gloss.ambientAmount(0.0f);
-            gloss.diffuseAmount(0.0f);
-            gloss.specularAmount(static_cast<float>(specularAmount.get()));
-            gloss.specularShine(static_cast<float>(specularShine.get()));
+                SceneLightingEffect gloss;
+                gloss.name(u"Gloss");
+                gloss.normalMapSource(source(u"NormalMap"));
+                gloss.ambientAmount(0.0f);
+                gloss.diffuseAmount(0.0f);
+                gloss.specularAmount(static_cast<float>(specularAmount.get()));
+                gloss.specularShine(static_cast<float>(specularShine.get()));
 
-            ArithmeticCompositeEffect tinted;
-            tinted.source1(source(u"Base"));
-            tinted.source2(matte);
-            tinted.multiplyAmount(1.0f);
-            tinted.source1Amount(0.0f);
-            tinted.source2Amount(0.0f);
+                ArithmeticCompositeEffect tinted;
+                tinted.source1(source(u"Base"));
+                tinted.source2(matte);
+                tinted.multiplyAmount(1.0f);
+                tinted.source1Amount(0.0f);
+                tinted.source2Amount(0.0f);
 
-            // Сумма складывает и альфу: у обоих слагаемых она единица, выходит
-            // два. Без обрезки полупрозрачный край маски лица вычитает спрайт
-            // граней под собой, и на скруглениях стыка встают тёмные точки.
-            ArithmeticCompositeEffect whole;
-            whole.source1(tinted);
-            whole.source2(gloss);
-            whole.multiplyAmount(0.0f);
-            whole.source1Amount(1.0f);
-            whole.source2Amount(1.0f);
-            whole.clampOutput(true);
+                // Сумма складывает и альфу: у обоих слагаемых она единица, выходит
+                // два. Без обрезки полупрозрачный край маски лица вычитает спрайт
+                // граней под собой, и на скруглениях стыка встают тёмные точки.
+                ArithmeticCompositeEffect whole;
+                whole.source1(tinted);
+                whole.source2(gloss);
+                whole.multiplyAmount(0.0f);
+                whole.source1Amount(1.0f);
+                whole.source2Amount(1.0f);
+                whole.clampOutput(true);
+                return whole;
+            };
 
-            CompositeEffect cut;
-            cut.mode(CanvasComposite::DestinationIn);
-            cut.sources().append(whole);
-            cut.sources().append(source(u"Shape"));
+            auto const cutOf = [&](auto const& body) {
+                CompositeEffect cut;
+                cut.mode(CanvasComposite::DestinationIn);
+                cut.sources().append(body);
+                cut.sources().append(source(u"Shape"));
+                return compositor.createEffectFactory(cut);
+            };
 
-            auto const factory = compositor.createEffectFactory(cut);
+            CompositeEffect shaded;
+            shaded.mode(CanvasComposite::SourceOver);
+            shaded.sources().append(lit());
+            shaded.sources().append(source(u"HoleShadow"));
 
-            auto const brushOf = [&](Kind const& kind, DrawingSurface const& normals, DrawingSurface const& shape,
-                                     Turn turn) {
+            auto const plain = cutOf(lit());
+            auto const pressedFactory = cutOf(shaded);
+
+            auto const maskOf = [](DrawingSurface const& surface) {
+                auto const mask = surface.brush();
+                mask.stretch(CompositionStretch::Fill);
+                return mask;
+            };
+            auto const brushOf = [&](CompositionEffectFactory const& factory, Kind const& kind,
+                                     DrawingSurface const& normals, DrawingSurface const& shape, Turn turn) {
                 auto const brush = factory.createBrush();
                 brush.setSourceParameter(u"NormalMap", mapBrush(normals, forms[kind.form], turn));
                 brush.setSourceParameter(u"Base", kind.action ? actionBrush : numericBrush);
-                auto const mask = shape.brush();
-                mask.stretch(CompositionStretch::Fill);
-                brush.setSourceParameter(u"Shape", mask);
+                brush.setSourceParameter(u"Shape", maskOf(shape));
                 return brush;
             };
             rimBrushes.clear();
             pressedBrushes.clear();
             faceBrushes.clear();
             for (Kind const& kind : kinds) {
-                rimBrushes.push_back(brushOf(kind, maps[kind.form], wholeShapes[kind.form], Turn::none));
+                rimBrushes.push_back(brushOf(plain, kind, maps[kind.form], wholeShapes[kind.form], Turn::none));
                 // Нажатая клавиша -- вторая карта: развернуть первую кистью нельзя, вместе
                 // с картинкой композитор поворачивает и нормали (проба ниже), а сдвиг
                 // кисти оставил бы у края полосу без карты.
-                pressedBrushes.push_back(brushOf(kind, pressedMaps[kind.form], wholeShapes[kind.form], Turn::none));
-                faceBrushes.push_back(brushOf(kind, maps[kind.form], faceShapes[kind.form], Turn::none));
+                auto const pressedBrush =
+                    brushOf(pressedFactory, kind, pressedMaps[kind.form], wholeShapes[kind.form], Turn::none);
+                pressedBrush.setSourceParameter(u"HoleShadow", maskOf(holeShadows[kind.form]));
+                pressedBrushes.push_back(pressedBrush);
+                faceBrushes.push_back(brushOf(plain, kind, maps[kind.form], faceShapes[kind.form], Turn::none));
             }
             constexpr Turn probeTurns[] = {Turn::none, Turn::half, Turn::shifted, Turn::halfAside};
             for (std::size_t index = 0; index < litProbeSprites.size(); ++index) {
-                litProbeSprites[index].brush(brushOf(kinds[0], maps[0], wholeShapes[0], probeTurns[index]));
+                litProbeSprites[index].brush(brushOf(plain, kinds[0], maps[0], wholeShapes[0], probeTurns[index]));
             }
             for (int index = 0; index < static_cast<int>(places.size()); ++index) {
                 rimSprites[index].brush((index == pressed ? pressedBrushes : rimBrushes)[places[index].kind]);
@@ -559,7 +658,8 @@ struct Keys {
 
     // Плоское место клавиши остаётся её цветом при любом shadow: общий свет
     // даёт 1 - shadow, лампа на плоском -- shadow. Лампа стоит под азимутом и
-    // высотой: 0 -- справа, 90 -- сверху экрана; свет идёт от неё.
+    // высотой: 0 -- справа, 90 -- сверху экрана; свет идёт от неё. Падающая
+    // тень снимает с панели долю лампы.
     void relight() noexcept {
         lab::attempt(lightStatus, u"Постоянный свет", [this] {
             double const a = azimuth.get() * pi / 180.0;
@@ -572,7 +672,23 @@ struct Keys {
             distant.intensity(static_cast<float>(share / std::sin(e)));
             distant.direction({static_cast<float>(-std::cos(a) * std::cos(e)),
                                static_cast<float>(std::sin(a) * std::cos(e)), static_cast<float>(-std::sin(e))});
+            shadowBrush.color({static_cast<std::uint8_t>(std::lround(share * 255.0)), 0, 0, 0});
         });
+    }
+
+    // Панель на rise ниже клавиш: клавиши и лампы над ними стоят, где стояли.
+    // Нажатая клавиша ушла вниз на ход, но не ниже панели: что ниже, тени на
+    // панель не бросает.
+    float depthOf(int index) const {
+        return index == pressed ? -static_cast<float>(std::min(travel.get(), rise.get())) : 0.0f;
+    }
+
+    void sink() noexcept {
+        panel.offset({0.0f, 0.0f, -static_cast<float>(rise.get())});
+        for (int index = 0; index < static_cast<int>(places.size()); ++index) {
+            Place const& place = places[index];
+            rimSprites[index].offset({place.left, place.top, depthOf(index)});
+        }
     }
 
     // Нырнуть может только лампа пятна: она идёт за пальцем.
@@ -602,12 +718,7 @@ struct Keys {
             lamp.light.innerConeAngle(static_cast<float>(inner));
             lamp.light.outerConeAngle(static_cast<float>(outer));
             lamp.light.properties().insertScalar(u"Height", heightOf(lamp));
-            // Лампу нажатой клавиши ставит нажатие, остальные идут за указателем.
-            if (&lamp == &well) {
-                if (pressed >= 0) {
-                    place(well, pressed);
-                }
-            } else if (pointer) {
+            if (pointer) {
                 auto const over =
                     compositor.createExpressionAnimation(u"pointer.Position + Vector3(0, 0, lamp.Height)");
                 over.setReferenceParameter(u"pointer", *pointer);
@@ -615,13 +726,6 @@ struct Keys {
                 lamp.light.startAnimation(u"Offset", over);
             }
         });
-    }
-
-    // Лампа над верхним левым углом клавиши, на своей высоте.
-    void place(Lamp const& lamp, int index) const {
-        Place const& at = places[index];
-        float const aside = static_cast<float>(lamp.aside.get());
-        lamp.light.offset({at.left - aside, at.top - aside, heightOf(lamp)});
     }
 
     // Яркость и высота идут к своему месту оттуда, где они сейчас: один
@@ -648,7 +752,6 @@ struct Keys {
         shining = on;
         fade(spot, fadeTime);
         fade(edge, fadeTime);
-        fade(well, fadeTime);
     }
 
     // Клавиша под точкой сцены или -1.
@@ -698,13 +801,13 @@ struct Keys {
     }
 
     // Нажатие берёт то, что отмечено в эту минуту; отпускание возвращает всё,
-    // что нажатие могло тронуть, что бы ни было отмечено теперь.
+    // что нажатие могло тронуть, что бы ни было отмечено теперь. Тело уходит
+    // вниз за время нажатия и возвращается за время отпускания; тень края
+    // отверстия приходит с кистью сразу.
     void press(int index) noexcept {
         lab::attempt(brushStatus, u"Нажатая клавиша", [&] {
             rimSprites[index].brush(pressedBrushes[places[index].kind]);
-            rims.children().remove(rimSprites[index]);
-            pressedRims.children().insertAtTop(rimSprites[index]);
-            place(well, index);
+            rimSprites[index].startAnimation(u"Offset.Z", toward(depthOf(index), pressTime));
             if (pressShades.get()) {
                 shadeSprites[index].startAnimation(u"Opacity",
                                                    toward(static_cast<float>(shadeAmount.get()), pressTime));
@@ -733,8 +836,7 @@ struct Keys {
     void release(int index) noexcept {
         lab::attempt(brushStatus, u"Отпущенная клавиша", [&] {
             rimSprites[index].brush(rimBrushes[places[index].kind]);
-            pressedRims.children().remove(rimSprites[index]);
-            rims.children().insertAtTop(rimSprites[index]);
+            rimSprites[index].startAnimation(u"Offset.Z", toward(0.0f, releaseTime));
             shadeSprites[index].startAnimation(u"Opacity", toward(0.0f, releaseTime));
             labelDown.set(-1);
             shift(index, 0.0f);
@@ -757,7 +859,9 @@ lab::Experiment lab::keyPage() {
         vAlign.center,
         requestedTheme = ElementTheme::Dark,
         Border {
-            background = SolidColorBrush {color = rgb(30, 31, 34)},
+            // Фон рисует панель сцены; прозрачный фон рамки нужен указателю:
+            // без фона элемент не получает событий указателя.
+            background = SolidColorBrush {color = rgba(30, 31, 34, 0.0)},
             CornerRadius {12},
             // Лампы зажигает движение, а не вход: сцена, вставшая под неподвижный
             // указатель, получает вход раньше, чем набор свойств узнаёт его место,
@@ -816,11 +920,18 @@ lab::Experiment lab::keyPage() {
         lab::statusRow(model->mapStatus),
         lab::statusRow(model->brushStatus),
         lab::statusRow(model->lightStatus),
+        lab::statusRow(model->shadowStatus),
         lab::group(u"Нажатая клавиша", true,
                    {
-                       lab::noteRow(u"Нажмите клавишу мышью. Отмеченное действует вместе."),
-                       lab::checkRow(u"Кант переворачивается: грани становятся стенками колодца",
-                                     model->pressFlipsRim),
+                       lab::noteRow(u"Нажмите клавишу мышью. Клавиша -- тело над панелью: нажатие уводит его вниз на "
+                                    u"ход, падающая тень на панель короче, а грани, ушедшие под панель, сверху и "
+                                    u"слева накрывает тень края отверстия -- от внешнего края внутрь, на них остаётся "
+                                    u"один общий свет. Отмеченное ниже действует вместе с движением."),
+                       lab::sliderRow(u"Высота клавиши над панелью", model->rise, 0.0, 8.0, 0.5),
+                       lab::sliderRow(u"Ход нажатия", model->travel, 0.0, 8.0, 0.5),
+                       lab::sliderRow(u"Тень края отверстия: доля полной", model->holeAmount, 0.0, 1.0, 0.05),
+                       lab::sliderRow(u"Тень края отверстия: полутень, ширина", model->holeSoft, 0.0, 3.0, 0.25),
+                       lab::sliderRow(u"Падающая тень: размытие, раз", model->castBlur, 0.0, 4.0, 0.1),
                        lab::checkRow(u"Лампа пятна ныряет за пальцем", model->pressDivesLamp),
                        lab::checkRow(u"Вспышка пятна", model->pressFlashes),
                        lab::checkRow(u"Знак, лицо и внутренний край канта уходят вниз и вправо на единицу",
@@ -856,10 +967,6 @@ lab::Experiment lab::keyPage() {
                        lab::sliderRow(u"Грани: поперечник полного света", model->edge.full, 0.0, 1200.0, 1.0),
                        lab::sliderRow(u"Грани: высота лампы", model->edge.height, 5.0, 600.0, 1.0),
                        lab::sliderRow(u"Грани: яркость", model->edge.intensity, 0.0, 6.0, 0.01),
-                       lab::toggleRow(u"Нажатая клавиша: своя лампа граней включена", model->well.on),
-                       lab::sliderRow(u"Нажатая клавиша: лампа граней левее и выше её угла на", model->well.aside,
-                                      0.0, 100.0, 1.0),
-                       lab::sliderRow(u"Нажатая клавиша: яркость лампы граней", model->well.intensity, 0.0, 6.0, 0.01),
                        lab::colorRow(u"Цвет ламп над указателем", model->pointerColor),
                    }),
         lab::group(u"Форма клавиши", true,

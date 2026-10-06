@@ -2258,8 +2258,8 @@
             "members": ["ReceivingVisual"]
         },
         "Microsoft.UI.Composition.CompositionProjectedShadowCasterCollection": {
-            "comment": "Lighting: the casters of a projected shadow, in order.",
-            "members": ["InsertAtTop", "InsertAtBottom", "Remove", "RemoveAll", "Count"]
+            "comment": "Lighting: the casters of a projected shadow, in order; the system respects only so many of them, from the bottom of the collection up.",
+            "members": ["InsertAtTop", "InsertAtBottom", "Remove", "RemoveAll", "Count", "MaxRespectedCasters"]
         },
         "Microsoft.UI.Composition.CompositionProjectedShadowReceiverUnorderedCollection": {
             "comment": "Lighting: the receivers of a projected shadow.",

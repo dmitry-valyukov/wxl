@@ -1,5 +1,5 @@
-// Карты нормалей клавиши и маска рамки: считаются здесь по формуле формы и
-// пишутся в поверхность композитора одним битмапом.
+// Карты нормалей клавиши, маски формы и тень края отверстия: считаются здесь
+// по формуле формы и пишутся в поверхность композитора одним битмапом.
 
 #include "platform.h"
 
@@ -208,9 +208,6 @@ Normal keyNormalAt(lab::KeyRelief const& key, double px, double py) {
         double const t = std::clamp(1.0 - edge.inside / width, 0.0, 1.0);
         slope = std::clamp(key.slope * t / std::sqrt(std::max(1.0 - t * t, 1e-4)), -8.0, 8.0);
     }
-    if (key.sunk) {
-        slope = -slope;
-    }
     double const rimX = edge.gx * slope, rimY = edge.gy * slope;
 
     // В полосе стыка смешиваются наклоны поверхности, а не нормали: так выглядит
@@ -219,7 +216,71 @@ Normal keyNormalAt(lab::KeyRelief const& key, double px, double py) {
     return unit(rimX + (faceX - rimX) * share, rimY + (faceY - rimY) * share, 1.0);
 }
 
+// Высота точки клавиши над внешним краем канта: кант поднимается от края по
+// своему профилю до внутреннего края, лицо стоит на его высоте. Та же ширина
+// канта в этом месте, что и у нормали.
+double keyHeightAt(lab::KeyRelief const& key, Edge const& edge, double depth) {
+    if (key.rim <= 0.0) {
+        return 0.0;
+    }
+    double const width = std::max(edge.inside - depth, 1e-6);
+    double const climb = std::clamp(edge.inside, 0.0, width);
+    if (key.rounded) {
+        double const t = 1.0 - climb / width;
+        return key.slope * width * std::sqrt(std::max(1.0 - t * t, 0.0));
+    }
+    return key.slope * climb;
+}
+
 }  // namespace
+
+void lab::drawHoleShadow(DrawingSurface const& surface, KeyRelief const& key, HoleShadow const& shadow) {
+    SizeInt32 const size = surface.size();
+    int const width = size.width, height = size.height;
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    double const a = shadow.azimuth * 3.14159265358979 / 180.0;
+    double const e = shadow.elevation * 3.14159265358979 / 180.0;
+    // Свет идёт по экрану от лампы и за единицу спуска проходит cot e; к лампе
+    // -- обратно. Общий свет и свет лампы на плоском месте -- как у стенда.
+    double const run = std::cos(e) / std::max(std::sin(e), 1e-3);
+    double const towardX = std::cos(a), towardY = -std::sin(a);
+    Normal const toLamp = unit(towardX * std::cos(e), towardY * std::cos(e), std::sin(e));
+    double const ambient = 1.0 - shadow.share;
+    double const lamp = shadow.share / std::max(std::sin(e), 1e-3);
+    // Полутень не уже пикселя поверхности, иначе край тени ступенчатый.
+    double const soft = std::max(shadow.soft, key.width / width);
+
+    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            double const px = ((x + 0.5) / width - 0.5) * key.width, py = ((y + 0.5) / height - 0.5) * key.height;
+            Edge const edge = edgeAt(key, px, py);
+            double const depth = faceDepth(key, edge, px, py);
+            // Точка над панелью края не видит.
+            double const below = shadow.depth - keyHeightAt(key, edge, depth);
+            if (below <= 0.0) {
+                continue;
+            }
+            // Где луч к этой точке прошёл плоскость панели: в тени, если вне
+            // отверстия, а отверстие -- след клавиши.
+            Edge const opening = edgeAt(key, px + towardX * run * below, py + towardY * run * below);
+            double const cover = std::clamp(0.5 - opening.inside / soft, 0.0, 1.0);
+            if (cover <= 0.0) {
+                continue;
+            }
+            // Тень снимает долю лампы в свете этой точки, остальное -- общий свет.
+            Normal const normal = keyNormalAt(key, px, py);
+            double const lit = lamp * std::max(normal.x * toLamp.x + normal.y * toLamp.y + normal.z * toLamp.z, 0.0);
+            double const alpha = cover * shadow.amount * lit / std::max(ambient + lit, 1e-6);
+            pixels[static_cast<std::size_t>(y) * width + x] =
+                static_cast<std::uint32_t>(std::lround(std::clamp(alpha, 0.0, 1.0) * 255.0)) << 24;
+        }
+    }
+    blit(surface, pixels, width, height);
+}
 
 void lab::drawKeyMap(DrawingSurface const& surface, KeyRelief const& key) {
     SizeInt32 const size = surface.size();
