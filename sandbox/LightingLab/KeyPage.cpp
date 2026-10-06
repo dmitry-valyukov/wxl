@@ -114,6 +114,8 @@ struct Lamp {
     core::observable<double> full;
     core::observable<double> height;
     core::observable<double> intensity;
+    // На сколько лампа стоит левее и выше указателя. У лампы прямо над ним ноль.
+    core::observable<double> aside {0.0};
     SpotLight light;
 
     Lamp(Compositor const& compositor, double size, double full, double height, double intensity)
@@ -122,6 +124,7 @@ struct Lamp {
         light.innerConeIntensity(0.0f);
         light.outerConeIntensity(0.0f);
         light.properties().insertScalar(u"Height", static_cast<float>(height));
+        light.properties().insertScalar(u"Aside", 0.0f);
     }
 };
 
@@ -178,6 +181,10 @@ struct Keys {
     // Снизу вверх: обводки вне света, грани, лица, притемнение нажатой клавиши.
     ContainerVisual unlit;
     ContainerVisual rims;
+    // Грани нажатой клавиши: на них светит своя лампа указателя, смещённая влево
+    // и вверх, -- стенки колодца сверху и слева обращены от неё и светятся
+    // слабее, снизу и справа сильнее, как и от постоянной лампы.
+    ContainerVisual pressedRims;
     ContainerVisual faces;
     ContainerVisual shades;
     ContainerVisual probes;
@@ -192,6 +199,7 @@ struct Keys {
     // Пятно на лице клавиши под указателем и свет на гранях клавиш вокруг него.
     Lamp spot;
     Lamp edge;
+    Lamp well;
     // Карты нормалей: клавиша над панелью и она же с обратным кантом, утопленная.
     std::vector<DrawingSurface> maps;
     std::vector<DrawingSurface> pressedMaps;
@@ -219,6 +227,7 @@ struct Keys {
           root(compositor.createContainerVisual()),
           unlit(compositor.createContainerVisual()),
           rims(compositor.createContainerVisual()),
+          pressedRims(compositor.createContainerVisual()),
           faces(compositor.createContainerVisual()),
           shades(compositor.createContainerVisual()),
           probes(compositor.createContainerVisual()),
@@ -229,9 +238,11 @@ struct Keys {
           ambient(compositor.createAmbientLight()),
           distant(compositor.createDistantLight()),
           spot(compositor, 260.0, 120.0, 30.0, 0.4),
-          edge(compositor, 340.0, 200.0, 60.0, 1.5) {
+          edge(compositor, 340.0, 200.0, 60.0, 1.5),
+          well(compositor, 340.0, 200.0, 60.0, 1.5) {
         root.size({lab::stageWidth, lab::stageHeight});
-        for (ContainerVisual const* layer : {&unlit, &rims, &faces, &shades, &probes, &litProbes}) {
+        well.aside.set(40.0);
+        for (ContainerVisual const* layer : {&unlit, &rims, &pressedRims, &faces, &shades, &probes, &litProbes}) {
             layer->relativeSizeAdjustment({1.0f, 1.0f});
             root.children().insertAtTop(*layer);
         }
@@ -247,12 +258,13 @@ struct Keys {
         makeProbe();
 
         distant.coordinateSpace(root);
-        for (ContainerVisual const* layer : {&rims, &faces, &litProbes}) {
+        for (ContainerVisual const* layer : {&rims, &pressedRims, &faces, &litProbes}) {
             ambient.targets().add(*layer);
             distant.targets().add(*layer);
         }
         spot.light.targets().add(faces);
         edge.light.targets().add(rims);
+        well.light.targets().add(pressedRims);
 
         numericColor.on_change([this](Color const& value) noexcept { numericBrush.color(value); });
         actionColor.on_change([this](Color const& value) noexcept { actionBrush.color(value); });
@@ -261,9 +273,19 @@ struct Keys {
                    pressMovesLabel);
         lab::onAny([this] { paint(); }, specularAmount, specularShine);
         lab::onAny([this] { relight(); }, shadow, azimuth, elevation, lampColor, ambientColor);
-        for (Lamp* lamp : {&spot, &edge}) {
+        // Конус лампы граней нажатой клавиши -- тот же, что у лампы граней: свои у
+        // неё только смещение и яркость.
+        lab::onAny(
+            [this] {
+                well.size.set(edge.size.get());
+                well.full.set(edge.full.get());
+                well.height.set(edge.height.get());
+            },
+            edge.size, edge.full, edge.height);
+        for (Lamp* lamp : {&spot, &edge, &well}) {
             lamp->light.coordinateSpace(root);
-            lab::onAny([this, lamp] { aim(*lamp); }, lamp->size, lamp->full, lamp->height, pointerColor);
+            lab::onAny([this, lamp] { aim(*lamp); }, lamp->size, lamp->full, lamp->height, lamp->aside,
+                       pointerColor);
             lab::onAny([this, lamp] { fade(*lamp, fadeTime); }, lamp->intensity, lamp->on);
             aim(*lamp);
         }
@@ -289,6 +311,7 @@ struct Keys {
         pointer = ElementCompositionPreview::getPointerPositionPropertySet(host);
         aim(spot);
         aim(edge);
+        aim(well);
     }
 
     void makeKeys() {
@@ -574,9 +597,10 @@ struct Keys {
             lamp.light.innerConeAngle(static_cast<float>(inner));
             lamp.light.outerConeAngle(static_cast<float>(outer));
             lamp.light.properties().insertScalar(u"Height", heightOf(lamp));
+            lamp.light.properties().insertScalar(u"Aside", static_cast<float>(lamp.aside.get()));
             if (pointer) {
                 auto const over =
-                    compositor.createExpressionAnimation(u"pointer.Position + Vector3(0, 0, lamp.Height)");
+                    compositor.createExpressionAnimation(u"pointer.Position + Vector3(-lamp.Aside, -lamp.Aside, lamp.Height)");
                 over.setReferenceParameter(u"pointer", *pointer);
                 over.setReferenceParameter(u"lamp", lamp.light.properties());
                 lamp.light.startAnimation(u"Offset", over);
@@ -608,6 +632,7 @@ struct Keys {
         shining = on;
         fade(spot, fadeTime);
         fade(edge, fadeTime);
+        fade(well, fadeTime);
     }
 
     // Клавиша под точкой сцены или -1.
@@ -661,6 +686,8 @@ struct Keys {
     void press(int index) noexcept {
         lab::attempt(brushStatus, u"Нажатая клавиша", [&] {
             rimSprites[index].brush(pressedBrushes[places[index].kind]);
+            rims.children().remove(rimSprites[index]);
+            pressedRims.children().insertAtTop(rimSprites[index]);
             if (pressShades.get()) {
                 shadeSprites[index].startAnimation(u"Opacity",
                                                    toward(static_cast<float>(shadeAmount.get()), pressTime));
@@ -689,6 +716,8 @@ struct Keys {
     void release(int index) noexcept {
         lab::attempt(brushStatus, u"Отпущенная клавиша", [&] {
             rimSprites[index].brush(rimBrushes[places[index].kind]);
+            pressedRims.children().remove(rimSprites[index]);
+            rims.children().insertAtTop(rimSprites[index]);
             shadeSprites[index].startAnimation(u"Opacity", toward(0.0f, releaseTime));
             labelDown.set(-1);
             shift(index, 0.0f);
@@ -810,6 +839,10 @@ lab::Experiment lab::keyPage() {
                        lab::sliderRow(u"Грани: поперечник полного света", model->edge.full, 0.0, 1200.0, 1.0),
                        lab::sliderRow(u"Грани: высота лампы", model->edge.height, 5.0, 600.0, 1.0),
                        lab::sliderRow(u"Грани: яркость", model->edge.intensity, 0.0, 6.0, 0.01),
+                       lab::toggleRow(u"Нажатая клавиша: своя лампа граней включена", model->well.on),
+                       lab::sliderRow(u"Нажатая клавиша: лампа граней левее и выше указателя на", model->well.aside,
+                                      0.0, 200.0, 1.0),
+                       lab::sliderRow(u"Нажатая клавиша: яркость лампы граней", model->well.intensity, 0.0, 6.0, 0.01),
                        lab::colorRow(u"Цвет ламп над указателем", model->pointerColor),
                    }),
         lab::group(u"Форма клавиши", true,
