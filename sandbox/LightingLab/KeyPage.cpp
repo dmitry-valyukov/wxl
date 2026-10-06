@@ -244,6 +244,9 @@ struct Keys {
           edge(compositor, 340.0, 200.0, 60.0, 1.5),
           well(compositor, 340.0, 200.0, 60.0, 1.5) {
         root.size({lab::stageWidth, lab::stageHeight});
+        // За углом на 40: так верхняя и левая стенки колодца почти не получают её
+        // света, а нижняя и правая -- умеренно; вид, который пользователь одобрил.
+        well.aside.set(40.0);
         for (ContainerVisual const* layer : {&unlit, &rims, &pressedRims, &faces, &shades, &probes, &litProbes}) {
             layer->relativeSizeAdjustment({1.0f, 1.0f});
             root.children().insertAtTop(*layer);
