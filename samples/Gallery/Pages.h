@@ -42,6 +42,20 @@ struct ExampleParts {
     Snippet code;                        // исходник показанного
 };
 
+// Место страницы: ширина, которую оболочка отдала странице, и ступени, по которым оригинал меняет раскладку. Оригинал
+// меряет окно (AdaptiveTrigger); здесь меряется место самой страницы (wxl::AvailableSizeLayout в оболочке): рядом с
+// раскрытой панелью навигации его меньше, чем у окна. Поля живут, пока страница на экране.
+struct PageSize {
+    wxl::core::observable<double> width;
+    wxl::core::observable<bool> wide;           // от 641 (Breakpoint640Plus оригинала): широкие поля страницы
+    wxl::core::observable<bool> optionsBeside;  // от 740: параметры примера стоят сбоку от него, а не под ним
+
+    PageSize();
+};
+
+// Место страницы, которая сейчас строится или показана.
+PageSize& pageSize();
+
 // Один ControlExample: введение, показ с параметрами и исходник под ним.
 wxl::FrameworkElement controlExample(ExampleParts const& parts);
 
@@ -205,7 +219,7 @@ wxl::FrameworkElement richEditBoxPage();
 // Плитка контрола (ControlItemTemplate оригинала) и сетка плиток: GridView,
 // клик по плитке — переход на страницу контрола.
 wxl::FrameworkElement controlTile(ControlInfo const& item);
-wxl::FrameworkElement tileGrid(std::span<ControlInfo const* const> items, wxl::Thickness padding, wxl::zstring_view id, wxl::zstring_view name);
+wxl::GridView tileGrid(std::span<ControlInfo const* const> items, wxl::Thickness padding, wxl::zstring_view id, wxl::zstring_view name);
 
 // Текст как разметка: `&`, `<` и `>` заменены сущностями.
 std::wstring htmlEscape(std::wstring_view text);

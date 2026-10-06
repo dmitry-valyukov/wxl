@@ -87,7 +87,13 @@ async::detached_task saveState() {
         co_return;
     }
     std::string text;
-    auto const narrow = [](std::wstring const& id) { return std::string{id.begin(), id.end()}; };
+    // Имена контролов — ASCII из каталога, а прочитанные из файла расширены из
+    // байтов по одному (loadState), так что суррогатов в них нет и проверять
+    // нечего. Сужение — через UTF-8, а не поэлементным копированием: то молча
+    // обрезает wchar_t до char.
+    auto const narrow = [](std::wstring const& id) {
+        return std::string{core::unicode::assume_valid(std::wstring_view{id}).to_utf8().chars()};
+    };
     for (auto const& id : recent) {
         text += "recent " + narrow(id) + '\n';
     }
@@ -281,6 +287,8 @@ struct Shell {
     std::vector<TrackedComposition> compositionWindows;
     // Главное окно: владелец модальных окон примеров (см. mainWindow).
     std::shared_ptr<Window> main;
+    // Место показанной страницы (см. pageSize).
+    std::shared_ptr<PageSize> size;
     // Модели показанной страницы (см. holdModel).
     std::vector<std::shared_ptr<void>> models;
     Destination current;
@@ -378,7 +386,12 @@ void show(Destination destination, bool record) {
     // Модели прежней страницы отпускаются, когда новая уже на месте.
     auto const previous = std::move(s.models);
     s.models.clear();
-    s.host.child(buildPage(destination));
+    // Место заводится до страницы: её свойства привязываются к его полям, пока она строится.
+    s.size = hold<PageSize>();
+    s.host.child(LayoutPanel {
+        layout = AvailableSizeLayout {availableWidth = BindInput {s.size->width}},
+        buildPage(destination),
+    });
     s.titleBar.isBackButtonVisible(!s.back.empty());
     select(destination);
 }
@@ -579,6 +592,15 @@ void clearFavorites() {
 }
 
 // ---- Окно и переходы -------------------------------------------------------
+
+PageSize::PageSize() {
+    wide.follow(width, [](double room) { return room >= 641; });
+    optionsBeside.follow(width, [](double room) { return room >= 740; });
+}
+
+PageSize& pageSize() {
+    return *shell->size;
+}
 
 void navigate(Destination destination) {
     show(std::move(destination), true);
