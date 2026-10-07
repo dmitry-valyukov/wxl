@@ -84,6 +84,7 @@ struct Button3DEffect {
     static constexpr ::wxl::Property<::wxl::PropertyKey::DiveDepth, double, ::wxl::Button3DEffect> diveDepth{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::DiveGain, double, ::wxl::Button3DEffect> diveGain{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::ShadeAmount, double, ::wxl::Button3DEffect> shadeAmount{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::LabelShade, double, ::wxl::Button3DEffect> labelShade{};
 };
 
 struct BevelEffect {

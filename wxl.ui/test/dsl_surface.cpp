@@ -1736,6 +1736,9 @@ struct probe_task {
 [[maybe_unused]] void Button3DEffect_shadeAmount_assigned(::wxl::Button3DEffect const& object, double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::shadeAmount = value);
 }
+[[maybe_unused]] void Button3DEffect_labelShade_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::labelShade = value);
+}
 // The braces as a button writes them: the generic tags, a colour where the
 // foreground is a brush elsewhere, and the effect attached to a Button.
 [[maybe_unused]] void Button3DEffect_in_braces() {

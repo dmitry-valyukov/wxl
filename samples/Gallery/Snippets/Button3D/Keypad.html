@@ -1,0 +1,66 @@
+<h2>Button3DEffect — клавиша как тело под лампой</h2>
+<p>Кнопка рисуется как клавиша фиксированной формы: тело, поднятое над
+панелью на <code>rise</code>, с гранями канта по краю и лицом внутри — чашей
+(<code>emboss</code> ниже нуля), плоским или куполом. Форма записана картой
+нормалей, и свет считает композитор через <code>SceneLightingEffect</code>:
+общий свет, постоянная далёкая лампа (<code>shadow</code> делит свет между
+ними так, что плоское место остаётся цветом материала) и две лампы над
+указателем — <code>HoverLight</code> кладёт пятно на лица клавиш,
+<code>BorderLight</code> светит на их грани, и ярче те, что обращены к
+указателю. Чёрная обводка — вне света.</p>
+<pre>Button {
+    u"7",
+    Button3DEffect {foreground = rgb(237, 239, 242), background = rgb(68, 72, 79)},
+}</pre>
+<p><b>Нажатие — движение тела, а не смена его формы.</b> Клавиша уходит вниз
+на <code>travel</code>: её тень на панели (проекционная тень композитора от той
+же далёкой лампы) становится короче, а то, что ушло под панель, край
+отверстия заслоняет от лампы — на верхней и левой грани ложится тень от
+внешнего края внутрь, и на них остаётся один общий свет. Сверх движения, по
+флажкам: знак, лицо и внутренний край канта уходят на единицу вниз и вправо
+при неподвижной обводке; клавиша темнеет; лампа пятна ныряет за пальцем;
+пятно вспыхивает. Знак нажатой клавиши тускнеет на <code>labelShade</code>.</p>
+<p><b>Под собственной отрисовкой кнопки.</b> Тело — спрайты среди детей
+визуала кнопки, под тем, что рисует XAML: фон, кисти состояний и рамка кнопки
+делаются прозрачными, ей остаются знаки, а <code>BorderThickness 1</code>
+держит место обводки. Скругление тела — <code>CornerRadius</code> кнопки без
+единицы. Карты рисуются на размер кнопки вдвое плотнее DIP и общие у клавиш
+одного размера. Один экземпляр эффекта — на все клавиши одного вида; поменять
+сеттер после присоединения можно: клавиши перерисуются, что и делает панель
+справа.</p>
+<p>Клавиши ниже — стенд эффекта: клавиатура четыре на четыре, правый столбец —
+клавиши действия, и две большие клавиши, у нижней <code>emboss</code> с
+обратным знаком. Нажмите клавишу мышью.</p>
+<h3>Настройки</h3>
+<table>
+<tr><th>Запись</th><th>Тип</th><th>По умолчанию</th><th>Что задаёт</th></tr>
+<tr><td><code>foreground</code></td><td><code>Color</code></td><td>rgb(237, 239, 242)</td><td>цвет знаков</td></tr>
+<tr><td><code>background</code></td><td><code>Color</code></td><td>rgb(68, 72, 79)</td><td>цвет материала клавиши; всё остальное — свет</td></tr>
+<tr><td><code>emboss</code></td><td><code>double</code>, −1…1</td><td>−1</td><td>лицо: чаша ниже нуля, плоское, купол</td></tr>
+<tr><td><code>rim</code></td><td><code>double</code></td><td>3</td><td>ширина канта в DIP</td></tr>
+<tr><td><code>slope</code></td><td><code>double</code></td><td>1</td><td>тангенс наклона граней канта наружу</td></tr>
+<tr><td><code>rounded</code></td><td><code>bool</code></td><td>false</td><td>кант — четверть круга, а не ровная фаска</td></tr>
+<tr><td><code>smooth</code></td><td><code>double</code></td><td>2</td><td>ширина полосы на стыке лица с кантом, где один наклон переходит в другой</td></tr>
+<tr><td><code>rise</code></td><td><code>double</code></td><td>3</td><td>высота внешнего края канта над панелью</td></tr>
+<tr><td><code>travel</code></td><td><code>double</code></td><td>5</td><td>ход нажатия вниз; что больше <code>rise</code>, уходит под панель</td></tr>
+<tr><td><code>shadow</code></td><td><code>double</code>, 0…1</td><td>0.7</td><td>доля далёкой лампы в свете на плоском месте; остальное — общий свет</td></tr>
+<tr><td><code>azimuth</code></td><td><code>double</code>, градусы</td><td>120</td><td>откуда светит далёкая лампа: 0 — справа, 90 — сверху экрана</td></tr>
+<tr><td><code>elevation</code></td><td><code>double</code>, градусы</td><td>50</td><td>высота далёкой лампы над горизонтом</td></tr>
+<tr><td><code>lampColor</code></td><td><code>Color</code></td><td>белый</td><td>цвет далёкой лампы</td></tr>
+<tr><td><code>ambientColor</code></td><td><code>Color</code></td><td>белый</td><td>цвет общего света</td></tr>
+<tr><td><code>castBlur</code></td><td><code>double</code></td><td>1</td><td>размытие падающей тени, множитель <code>BlurRadiusMultiplier</code></td></tr>
+<tr><td><code>holeShadow</code></td><td><code>double</code>, 0…1</td><td>1</td><td>тень края отверстия на нажатой клавише: какая доля света лампы снимается</td></tr>
+<tr><td><code>holeSoftness</code></td><td><code>double</code></td><td>1</td><td>ширина полутени по краю этой тени</td></tr>
+<tr><td><code>specularAmount</code></td><td><code>double</code></td><td>0.15</td><td>сила блика материала</td></tr>
+<tr><td><code>specularShine</code></td><td><code>double</code></td><td>30</td><td>острота блика</td></tr>
+<tr><td><code>pressMovesLabel</code></td><td><code>bool</code></td><td>true</td><td>нажатие сдвигает знак, лицо и внутренний край канта на единицу вниз и вправо</td></tr>
+<tr><td><code>pressShades</code></td><td><code>bool</code></td><td>false</td><td>нажатая клавиша темнеет</td></tr>
+<tr><td><code>shadeAmount</code></td><td><code>double</code>, 0…1</td><td>0.2</td><td>на сколько темнеет</td></tr>
+<tr><td><code>labelShade</code></td><td><code>double</code>, 0…1</td><td>0.15</td><td>на сколько тускнеет знак нажатой клавиши</td></tr>
+<tr><td><code>pressDivesLamp</code></td><td><code>bool</code></td><td>true</td><td>лампа пятна ныряет за пальцем</td></tr>
+<tr><td><code>diveDepth</code></td><td><code>double</code>, 0…1</td><td>0.33</td><td>доля высоты, на которой лампа стоит нырнув</td></tr>
+<tr><td><code>diveGain</code></td><td><code>double</code></td><td>2</td><td>во сколько раз ярче нырнувшая лампа</td></tr>
+<tr><td><code>pressFlashes</code></td><td><code>bool</code></td><td>false</td><td>пятно вспыхивает при нажатии: втрое ярче и обратно за 400 мс</td></tr>
+<tr><td><code>HoverLight {…}</code> без имени</td><td><code>HoverLight</code></td><td>поперечник 260, полный свет 120, высота 30, яркость 0.4</td><td>лампа пятна на лицах; <code>fullSize</code> — поперечник круга полного света</td></tr>
+<tr><td><code>BorderLight {…}</code> без имени</td><td><code>BorderLight</code></td><td>поперечник 340, полный свет 200, высота 60, яркость 1.5</td><td>лампа на гранях клавиш вокруг указателя</td></tr>
+</table>

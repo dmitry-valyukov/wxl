@@ -176,6 +176,7 @@
             { "property": "DiveDepth", "value": "double" },
             { "property": "DiveGain", "value": "double" },
             { "property": "ShadeAmount", "value": "double" },
+            { "property": "LabelShade", "value": "double" },
             { "property": "FullSize", "value": "double" },
             { "property": "Gamma", "value": "double" },
             { "property": "HeaderIcon", "value": "IconElement" },

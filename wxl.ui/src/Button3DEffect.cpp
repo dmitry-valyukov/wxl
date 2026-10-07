@@ -152,6 +152,7 @@ struct Button3DEffect::State : core::sta_refcounted {
     double diveDepth = 0.33;
     double diveGain = 2.0;
     double shadeAmount = 0.2;
+    double labelShade = 0.15;
 
     HoverLight hover = keyHover();
     BorderLight border = keyBorder();
@@ -163,6 +164,10 @@ struct Button3DEffect::State : core::sta_refcounted {
     std::vector<Patch*> patches;
     composition::CompositionColorBrush base{nullptr};
     composition::CompositionColorBrush shadowBrush{nullptr};
+    // The glyphs of a pressed key: one brush for every key of the effect,
+    // made with the first key -- a XAML brush cannot be made before the
+    // framework is up, and an effect may be written at namespace scope.
+    core::nullable<SolidColorBrush> pressedInk;
     composition::CompositionEffectFactory plain{nullptr};
     composition::CompositionEffectFactory pressed{nullptr};
 
@@ -361,6 +366,13 @@ struct Button3DEffect::State : core::sta_refcounted {
     // The pictures of a size nobody wears any more go; the patches that
     // wear later ones move down with them.
     void release_maps(int index);
+
+    // The glyphs of a pressed key keep 1 - labelShade of their colour.
+    Color pressedInkColor() const { return color_helper::shade(ink, 1.0 - labelShade); }
+
+    void redye() const {
+        if (pressedInk) pressedInk->color(pressedInkColor());
+    }
 
     void reshape();
     void reshade() {
@@ -688,7 +700,10 @@ Button3DEffect::~Button3DEffect() = default;
 
 // The material: the colour of the glyphs is written on the button when the
 // effect is attached; the rest reaches the keys already attached.
-void Button3DEffect::foreground(Color value) const { state_->ink = value; }
+void Button3DEffect::foreground(Color value) const {
+    state_->ink = value;
+    state_->redye();
+}
 void Button3DEffect::background(Color value) const {
     state_->albedo = value;
     state_->repaint();
@@ -780,12 +795,17 @@ void Button3DEffect::pressShades(bool value) const { state_->pressShades = value
 void Button3DEffect::diveDepth(double value) const { state_->diveDepth = std::clamp(value, 0.0, 1.0); }
 void Button3DEffect::diveGain(double value) const { state_->diveGain = std::max(value, 0.0); }
 void Button3DEffect::shadeAmount(double value) const { state_->shadeAmount = std::clamp(value, 0.0, 1.0); }
+void Button3DEffect::labelShade(double value) const {
+    state_->labelShade = std::clamp(value, 0.0, 1.0);
+    state_->redye();
+}
 
 void Button3DEffect::setPositional(HoverLight const& value) const { state_->hover = value; }
 void Button3DEffect::setPositional(BorderLight const& value) const { state_->border = value; }
 
 void Button3DEffect::attach(Button const& button) const {
-    State const& s = *state_;
+    State& s = *state_;
+    if (!s.pressedInk) s.pressedInk = SolidColorBrush{s.pressedInkColor()};
 
     // The button draws its glyphs and nothing else: the body is the
     // effect's, under them, and the outline is drawn with it. A clear
@@ -799,7 +819,7 @@ void Button3DEffect::attach(Button const& button) const {
         ThemeBrush{u"ButtonBackgroundPointerOver", clear},
         ThemeBrush{u"ButtonBackgroundPressed", clear},
         ThemeBrush{u"ButtonForegroundPointerOver", SolidColorBrush{s.ink}},
-        ThemeBrush{u"ButtonForegroundPressed", SolidColorBrush{color_helper::shade(s.ink, 0.55)}},
+        ThemeBrush{u"ButtonForegroundPressed", *s.pressedInk},
         ThemeBrush{u"ButtonBorderBrushPointerOver", clear},
         ThemeBrush{u"ButtonBorderBrushPressed", clear},
         dsl::borderBrush = clear,

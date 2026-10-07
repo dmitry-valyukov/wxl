@@ -36,7 +36,7 @@
 // one unit down and right while the outline stays; `pressShades` darkens the
 // key by `shadeAmount`; `pressDivesLamp` lowers the spot's lamp to
 // `diveDepth` of its height and brightens it `diveGain` times; `pressFlashes`
-// flashes the spot. The glyphs dim while pressed.
+// flashes the spot. The glyphs darken by `labelShade` while pressed.
 //
 // **The light over the pointer.** Two lamps follow the pointer, the two a
 // RevealEffect has: HoverLight shines on the faces and BorderLight on the
@@ -72,7 +72,7 @@ public:
     /// smooth, rise, travel, holeShadow, holeSoftness, castBlur, azimuth,
     /// elevation, lampColor, ambientColor, specularAmount, specularShine,
     /// pressDivesLamp, pressFlashes, pressMovesLabel, pressShades, diveDepth,
-    /// diveGain, shadeAmount; bare HoverLight and BorderLight.
+    /// diveGain, shadeAmount, labelShade; bare HoverLight and BorderLight.
     template <typename... Setters>
         requires(sizeof...(Setters) > 0) && impl::setter_pack<Button3DEffect, Setters...>
     explicit Button3DEffect(Setters&&... setters) : Button3DEffect() {
@@ -116,6 +116,7 @@ public:
     void diveDepth(double value) const;
     void diveGain(double value) const;
     void shadeAmount(double value) const;
+    void labelShade(double value) const;
 
     /// A bare light takes the place of the key's own. Buttons attached before
     /// it keep the light they were attached under.
