@@ -8,7 +8,6 @@
 #include "Button3DEffect.h"
 #include "Relief.h"
 #include "HaloEffect.h"
-#include "GaussianBlurEffect.h"
 #include "launch.h"
 #include <wxl/Microsoft.UI.Composition.h>
 #include <wxl/Microsoft.UI.Xaml.Hosting.h>

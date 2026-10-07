@@ -156,6 +156,8 @@ struct Keys {
     core::observable<double> holeSoft {1.0};
     // Падающая тень на панель: размытие в долях того, что даёт композитор.
     core::observable<double> castBlur {1.0};
+    // Проба: панель без своего цвета -- ложится ли тень на прозрачный приёмник.
+    core::observable<bool> clearPanel {false};
 
     // Постоянный свет: сколько его от лампы и сколько со всех сторон.
     core::observable<double> shadow {0.7};
@@ -215,6 +217,7 @@ struct Keys {
     // Падающая тень: чёрное с альфой в долю лампы -- на панели в тени остаётся
     // один общий свет.
     CompositionColorBrush shadowBrush;
+    CompositionColorBrush panelBrush;
     AmbientLight ambient;
     DistantLight distant;
     // Пятно на лице клавиши под указателем и свет на гранях клавиш вокруг него.
@@ -261,6 +264,7 @@ struct Keys {
           actionBrush(compositor.createColorBrush(actionColor.get())),
           black(compositor.createColorBrush(rgb(0, 0, 0))),
           shadowBrush(compositor.createColorBrush(rgb(0, 0, 0))),
+          panelBrush(compositor.createColorBrush(rgb(30, 31, 34))),
           ambient(compositor.createAmbientLight()),
           distant(compositor.createDistantLight()),
           spot(compositor, 260.0, 120.0, 30.0, 0.4),
@@ -268,7 +272,7 @@ struct Keys {
         root.size({lab::stageWidth, lab::stageHeight});
 
         panel.size({lab::stageWidth, lab::stageHeight});
-        panel.brush(compositor.createColorBrush(rgb(30, 31, 34)));
+        panel.brush(panelBrush);
         auto const panelShape = compositor.createRoundedRectangleGeometry();
         panelShape.size({lab::stageWidth, lab::stageHeight});
         panelShape.cornerRadius({panelCorner, panelCorner});
@@ -311,6 +315,9 @@ struct Keys {
         lab::onAny([this] { relight(); }, shadow, azimuth, elevation, lampColor, ambientColor);
         rise.on_change([this](double const&) noexcept { sink(); });
         castBlur.on_change([this](double const&) noexcept { blur(); });
+        clearPanel.on_change([this](bool const& clear) noexcept {
+            panelBrush.color(clear ? rgba(30, 31, 34, 0.0) : rgb(30, 31, 34));
+        });
         for (Lamp* lamp : {&spot, &edge}) {
             lamp->light.coordinateSpace(root);
             lab::onAny([this, lamp] { aim(*lamp); }, lamp->size, lamp->full, lamp->height, pointerColor);
@@ -932,6 +939,7 @@ lab::Experiment lab::keyPage() {
                        lab::sliderRow(u"Тень края отверстия: доля полной", model->holeAmount, 0.0, 1.0, 0.05),
                        lab::sliderRow(u"Тень края отверстия: полутень, ширина", model->holeSoft, 0.0, 3.0, 0.25),
                        lab::sliderRow(u"Падающая тень: размытие, раз", model->castBlur, 0.0, 4.0, 0.1),
+                       lab::toggleRow(u"Проба: панель прозрачна (тень на прозрачном приёмнике)", model->clearPanel),
                        lab::checkRow(u"Лампа пятна ныряет за пальцем", model->pressDivesLamp),
                        lab::checkRow(u"Вспышка пятна", model->pressFlashes),
                        lab::checkRow(u"Знак, лицо и внутренний край канта уходят вниз и вправо на единицу",

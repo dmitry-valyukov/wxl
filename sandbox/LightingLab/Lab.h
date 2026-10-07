@@ -8,6 +8,7 @@
 // адресу и им не владеет.
 
 #include "pch.h"
+#include "impl/key_relief.h"
 
 namespace lab {
 
@@ -109,48 +110,21 @@ struct ReliefShape {
 // зрителя, а форму клавише даёт обрезка визуала.
 void drawNormalMap(wxl::DrawingSurface const& surface, Relief relief, ReliefShape const& shape);
 
-// Клавиша Button3DEffect формой: тело, поднятое над панелью, с кантом по краю
-// и лицом внутри него. Размеры -- в DIP.
-struct KeyRelief {
-    double width = 0.0;
-    double height = 0.0;
-    double corner = 0.0;   // скругление угла
-    double rim = 0.0;      // ширина канта
-    double slope = 1.0;    // тангенс наклона канта наружу
-    bool rounded = false;  // кант -- четверть круга, а не ровная фаска
-    double emboss = 0.0;   // лицо: чаша (меньше нуля), плоское, купол
-    double smooth = 0.0;   // ширина полосы вокруг стыка лица с кантом, где один наклон переходит в другой
-    double shiftX = 0.0;   // на сколько внутренняя часть -- лицо и внутренний край канта --
-    double shiftY = 0.0;   // сдвинута вправо и вниз; внешний край канта при этом стоит
-};
+// Клавиша Button3DEffect формой и её тени -- то, чем рисует сам эффект
+// (wxl.ui/src/impl/key_relief.h): стенд берёт формулу оттуда, чтобы
+// показывать ровно то, что получит кнопка.
+using KeyRelief = wxl::impl::KeyRelief;
+using HoleShadow = wxl::impl::HoleShadow;
 
-// Нажатая клавиша в отверстии панели: тело ушло вниз, и те точки граней, что
-// оказались ниже панели, край отверстия заслоняет от далёкой лампы. Общий свет
-// тень не трогает.
-struct HoleShadow {
-    double depth = 0.0;      // на сколько внешний край канта ниже панели, DIP
-    double azimuth = 0.0;    // лампа: откуда свет, градусы; 0 -- справа, 90 -- сверху экрана
-    double elevation = 0.0;  // лампа: над горизонтом, градусы
-    double share = 0.0;      // доля лампы в свете на плоском месте (shadow стенда); общий свет -- остальное
-    double amount = 1.0;     // во сколько тень слабее полной: единица снимает всю долю лампы
-    double soft = 0.0;       // ширина полутени по краю тени, DIP
-};
-
-// Пишет в поверхность маску тени края отверстия для клавиши: чёрное с альфой в
-// долю света, которую тень снимает, прозрачное на свету. Лицо считается
-// плоским на высоте внутреннего края канта: чаша и купол на тень у края не
-// влияют.
-void drawHoleShadow(wxl::DrawingSurface const& surface, KeyRelief const& key, HoleShadow const& shadow);
-
-// Пишет в поверхность карту нормалей такой клавиши -- во всю поверхность,
-// какой бы плотности та ни была. Зелёный канал растёт вверх экрана, как у карт
-// образцов Microsoft.
-void drawKeyMap(wxl::DrawingSurface const& surface, KeyRelief const& key);
-
-// Пишет в поверхность маску лица той же клавиши: белое лицо без канта. Край
-// маски идёт по стыку лица с кантом и размыт на ту же ширину smooth, что и
-// наклон в карте, но не уже одного пикселя поверхности.
-void drawFaceMask(wxl::DrawingSurface const& surface, KeyRelief const& key);
+inline void drawKeyMap(wxl::DrawingSurface const& surface, KeyRelief const& key) {
+    wxl::impl::draw_key_map(surface, key);
+}
+inline void drawFaceMask(wxl::DrawingSurface const& surface, KeyRelief const& key) {
+    wxl::impl::draw_face_mask(surface, key);
+}
+inline void drawHoleShadow(wxl::DrawingSurface const& surface, KeyRelief const& key, HoleShadow const& shadow) {
+    wxl::impl::draw_hole_shadow(surface, key, shadow);
+}
 
 // Карта нормалей конуса во всю поверхность: в круге поперечником 0,9 стороны
 // нормаль наклонена от середины, slope -- тангенс наклона; вне круга она смотрит
@@ -177,8 +151,8 @@ struct Pixels {
 };
 Pixels readImage(wchar_t const* name);
 
-// Пишет в поверхность белый скруглённый прямоугольник во весь её размер: маска
-// формы клавиши. Радиус -- в пикселях поверхности.
-void drawShape(wxl::DrawingSurface const& surface, float radius);
+// Белый скруглённый прямоугольник во всю поверхность: маска формы. Радиус --
+// в пикселях поверхности.
+inline void drawShape(wxl::DrawingSurface const& surface, float radius) { wxl::impl::draw_shape(surface, radius); }
 
 }  // namespace lab
