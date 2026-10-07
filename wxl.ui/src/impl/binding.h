@@ -132,8 +132,8 @@ template <>
 struct PropertyBinder<PropertyKey::IsOn, ToggleSwitch> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ToggleSwitch const& control, core::observable<bool>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -141,8 +141,8 @@ template <>
 struct PropertyBinder<PropertyKey::IsChecked, ToggleButton> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ToggleButton const& control, core::observable<bool>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -154,8 +154,8 @@ struct PropertyBinder<PropertyKey::IsChecked, CheckBox> {
     static constexpr bind_direction direction = bind_direction::both;
     template <class Control>
     static void bind(Control const& control, core::observable<bool>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -163,8 +163,8 @@ template <>
 struct PropertyBinder<PropertyKey::SelectedIndex, ComboBox> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ComboBox const& control, core::observable<int>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -172,12 +172,12 @@ template <>
 struct PropertyBinder<PropertyKey::Value, NumberBox> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(NumberBox const& control, core::observable<int>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
     static void bind(NumberBox const& control, core::observable<double>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -185,8 +185,8 @@ template <>
 struct PropertyBinder<PropertyKey::SelectedIndex, RadioButtons> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(RadioButtons const& control, core::observable<int>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -194,8 +194,8 @@ template <>
 struct PropertyBinder<PropertyKey::Value, Slider> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(Slider const& control, core::observable<double>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -203,8 +203,8 @@ template <>
 struct PropertyBinder<PropertyKey::Value, RatingControl> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(RatingControl const& control, core::observable<double>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -212,8 +212,8 @@ template <>
 struct PropertyBinder<PropertyKey::Color, ColorPicker> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ColorPicker const& control, core::observable<Color>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -221,8 +221,8 @@ template <>
 struct PropertyBinder<PropertyKey::IsChecked, ToggleMenuFlyoutItem> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -230,8 +230,8 @@ template <>
 struct PropertyBinder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -239,8 +239,8 @@ template <>
 struct PropertyBinder<PropertyKey::SelectedIndex, FlipView> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(FlipView const& control, core::observable<int>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -248,8 +248,8 @@ template <>
 struct PropertyBinder<PropertyKey::SelectedPageIndex, PipsPager> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(PipsPager const& control, core::observable<int>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -257,8 +257,8 @@ template <>
 struct PropertyBinder<PropertyKey::SelectedPageIndex, PagerControl> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(PagerControl const& control, core::observable<int>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
@@ -274,8 +274,8 @@ template <>
 struct PropertyBinder<PropertyKey::Text, TextBox> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(TextBox const& control, core::observable<core::u16_text>& model,
-                     bind_direction direction) {
-        apply_bind(control, model, direction);
+                     bind_direction asked) {
+        apply_bind(control, model, asked);
     }
 };
 
