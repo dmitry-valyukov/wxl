@@ -3,6 +3,7 @@ add_executable(wxl.core.tests
     bit_vector_tests.cpp
     compressed_optional_tests.cpp
     directory_tests.cpp
+    environment_tests.cpp
     event_tests.cpp
     file_tests.cpp
     function_tests.cpp
