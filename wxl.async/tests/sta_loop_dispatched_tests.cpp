@@ -7,7 +7,7 @@ using namespace wxl::async;
 
 namespace {
 
-task asks_where(std::thread::id& worker, std::thread::id& orphan) {
+task<> asks_where(std::thread::id& worker, std::thread::id& orphan) {
     worker = co_await sta_loop::async_call([] { return std::this_thread::get_id(); });
     orphan = co_await sta_loop::async_call(orphanable, [] { return std::this_thread::get_id(); });
 }
@@ -64,7 +64,7 @@ private:
 };
 
 /// Starts an opening and gives it up once the pool is inside it.
-task opens_and_changes_its_mind(hevent& started, hevent& gate, release_record& record,
+task<> opens_and_changes_its_mind(hevent& started, hevent& gate, release_record& record,
                                 std::atomic<bool>& deleted) {
     auto opening =
         sta_loop::async_call(orphanable, [&started, &gate, &record, mark = deletion_mark(deleted)] {
@@ -86,7 +86,7 @@ TEST(StaLoopDispatchedTest, AnOrphanableOperationRunsOnThePoolAndNotOnTheWorker)
     std::thread::id worker;
     std::thread::id orphan;
 
-    task work = asks_where(worker, orphan);
+    task<> work = asks_where(worker, orphan);
 
     wait_until([&] { return work.done(); });
     work.result();
@@ -116,7 +116,7 @@ TEST(StaLoopDispatchedTest, AnOrphanGivenUpWhileItRunsLetsGoOfWhatItMakesAsSoonA
         gate.set();
     });
 
-    task work = opens_and_changes_its_mind(started, gate, record, deleted);
+    task<> work = opens_and_changes_its_mind(started, gate, record, deleted);
 
     unwound.release();
     watchdog.join();
@@ -170,7 +170,7 @@ TEST(StaLoopDispatchedTest, AnOrphanComingBackIsTakenByTheCoAwaitThatFollows) {
     // and the co_await that comes later finds it there.
     int value = 0;
 
-    auto answers = [](int& out) -> task {
+    auto answers = [](int& out) -> task<> {
         auto answer = sta_loop::async_call(orphanable, [] { return 7; });
 
         co_await sta_loop::async_call([] {});
@@ -179,7 +179,7 @@ TEST(StaLoopDispatchedTest, AnOrphanComingBackIsTakenByTheCoAwaitThatFollows) {
         out = co_await answer;
     };
 
-    task work = answers(value);
+    task<> work = answers(value);
 
     wait_until([&] { return work.done(); });
     work.result();
@@ -190,7 +190,7 @@ TEST(StaLoopDispatchedTest, AnOrphanComingBackIsTakenByTheCoAwaitThatFollows) {
 TEST(StaLoopDispatchedTest, AnExceptionFromThePoolArrivesAtTheCoAwait) {
     std::string message;
 
-    auto fails = [](std::string& out) -> task {
+    auto fails = [](std::string& out) -> task<> {
         try {
             co_await sta_loop::async_call(orphanable,
                                           [] { throw std::runtime_error("from the pool"); });
@@ -200,7 +200,7 @@ TEST(StaLoopDispatchedTest, AnExceptionFromThePoolArrivesAtTheCoAwait) {
         }
     };
 
-    task work = fails(message);
+    task<> work = fails(message);
 
     wait_until([&] { return work.done(); });
     work.result();

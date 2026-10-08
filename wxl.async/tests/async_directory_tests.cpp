@@ -15,7 +15,7 @@ using namespace wxl::async;
 namespace {
 
 /// Walks a directory in a coroutine and keeps what it found, sorted.
-task list_all(path pattern, std::vector<std::wstring>& out) {
+task<> list_all(path pattern, std::vector<std::wstring>& out) {
     async_directory listing = co_await async_directory::open(pattern);
 
     while (const std::optional<async_directory::entry> found = co_await listing.next())
@@ -28,7 +28,7 @@ task list_all(path pattern, std::vector<std::wstring>& out) {
 
 /// Makes a chain of directories, checks it is there, and takes it apart again --
 /// the whole of the static half in one coroutine.
-task make_check_remove(path deep, bool& existed_after, bool& exists_at_the_end) {
+task<> make_check_remove(path deep, bool& existed_after, bool& exists_at_the_end) {
     co_await async_directory::create_all(deep);
 
     existed_after = co_await async_directory::exists(deep);
@@ -38,7 +38,7 @@ task make_check_remove(path deep, bool& existed_after, bool& exists_at_the_end) 
     exists_at_the_end = co_await async_directory::exists(deep);
 }
 
-task open_and_catch(path pattern, std::string& message) {
+task<> open_and_catch(path pattern, std::string& message) {
     try {
         co_await async_directory::open(pattern);
         message = "no exception";
@@ -47,7 +47,7 @@ task open_and_catch(path pattern, std::string& message) {
     }
 }
 
-task remove_and_catch(path directory, std::string& message) {
+task<> remove_and_catch(path directory, std::string& message) {
     try {
         co_await async_directory::remove(directory);
         message = "no exception";
@@ -78,7 +78,7 @@ protected:
     }
 
     /// Runs a coroutine to its end on the loop and lets whatever left it out.
-    void run(task work) {
+    void run(task<> work) {
         wait_until([&] { return work.done(); });
 
         work.result();
@@ -175,7 +175,7 @@ TEST_F(AsyncDirectoryTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
 
     std::vector<std::wstring> found;
 
-    task work = list_all(path(root_.native()) / L"*", found);
+    task<> work = list_all(path(root_.native()) / L"*", found);
 
     run(std::move(work));
 

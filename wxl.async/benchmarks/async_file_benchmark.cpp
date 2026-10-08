@@ -26,10 +26,10 @@ struct outcome {
     std::size_t over_at_once = 0;
 };
 
-using reader = task (*)(const wchar_t*, std::span<std::byte>, outcome&);
+using reader = task<> (*)(const wchar_t*, std::span<std::byte>, outcome&);
 
 /// The read with no loop under it: what the rest is compared with.
-task on_the_calling_thread(const wchar_t* path, std::span<std::byte> buffer, outcome& out) {
+task<> on_the_calling_thread(const wchar_t* path, std::span<std::byte> buffer, outcome& out) {
     file f = file::open_read(path);
 
     while (f.read(buffer)) ++out.chunks;
@@ -38,14 +38,14 @@ task on_the_calling_thread(const wchar_t* path, std::span<std::byte> buffer, out
 }
 
 /// A blocking read carried to the worker and back.
-task on_the_worker(const wchar_t* path, std::span<std::byte> buffer, outcome& out) {
+task<> on_the_worker(const wchar_t* path, std::span<std::byte> buffer, outcome& out) {
     file f = file::open_read(path);
 
     while (co_await sta_loop::async_call([&] { return f.read(buffer); })) ++out.chunks;
 }
 
 template <bool started_here>
-task overlapped(const wchar_t* path, std::span<std::byte> buffer, outcome& out) {
+task<> overlapped(const wchar_t* path, std::span<std::byte> buffer, outcome& out) {
     file f = file::open_read_overlapped(path);
     const bool skips_port = sta_loop::port().attach(f.native_handle());
 
@@ -74,7 +74,7 @@ outcome measure(reader read, const wchar_t* path, std::size_t chunk, int rounds)
         outcome out;
         const auto started = bench_clock::now();
 
-        task work = read(path, buffer, out);
+        task<> work = read(path, buffer, out);
 
         sta_loop::run_until([&] { return work.done(); });
         work.result();

@@ -56,14 +56,14 @@ inline ::testing::Environment* const driven_env =
 
 /// One operation whose body says, on the worker, that it has run -- so a test can wait
 /// for a whole burst to have been executed before it lets the STA side look.
-task counted_operation(std::latch& executed, int& out) {
+task<> counted_operation(std::latch& executed, int& out) {
     out = co_await sta_loop::async_call([&executed] {
         executed.count_down();
         return 1;
     });
 }
 
-task failing_operation(std::string& message) {
+task<> failing_operation(std::string& message) {
     try {
         co_await sta_loop::async_call([] { throw std::runtime_error("from the worker"); });
         message = "no exception";
@@ -141,7 +141,7 @@ awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into) {
 
 /// Two reads out, the first awaited one fails, the frame unwinds with the second on the
 /// worker -- inside run_pending(), which is where a GUI thread resumes its coroutines.
-task first_fails_second_in_flight(probe& p) {
+task<> first_fails_second_in_flight(probe& p) {
     frame_witness witness(p);
     std::byte second_buf[64]{};
 
@@ -152,24 +152,24 @@ task first_fails_second_in_flight(probe& p) {
     co_await b;
 }
 
-task reads_into_its_frame(probe& p) {
+task<> reads_into_its_frame(probe& p) {
     frame_witness witness(p);
     std::byte buf[64]{};
 
     co_await start_read(p, buf);
 }
 
-task returns_seven(int& out) {
+task<> returns_seven(int& out) {
     out = co_await sta_loop::async_call([] { return 7; });
 }
 
 /// Resumed inside a drain, opens a modal loop there -- what a MessageBox after a read
 /// does. The modal loop is modelled the way the window runs it: on every idle it drains
 /// the loop (WM_ENTERIDLE), otherwise it waits for a post.
-task runs_a_modal_loop_in_its_continuation(int& got) {
+task<> runs_a_modal_loop_in_its_continuation(int& got) {
     co_await sta_loop::async_call([] {});
 
-    task inner = returns_seven(got);
+    task<> inner = returns_seven(got);
 
     for (;;) {
         sta_loop::run_pending();
@@ -182,13 +182,13 @@ task runs_a_modal_loop_in_its_continuation(int& got) {
     inner.result();
 }
 
-bool all_done(const std::vector<task>& work) {
-    return std::all_of(work.begin(), work.end(), [](const task& t) { return t.done(); });
+bool all_done(const std::vector<task<>>& work) {
+    return std::all_of(work.begin(), work.end(), [](const task<>& t) { return t.done(); });
 }
 
 /// Drains the way an application's callback does: run_pending() on every post, until
 /// the work is done.
-void drain_until_done(const std::vector<task>& work) {
+void drain_until_done(const std::vector<task<>>& work) {
     while (!all_done(work)) {
         dispatcher().wait_for_a_post();
         sta_loop::run_pending();
@@ -217,7 +217,7 @@ TEST(StaLoopDrivenTest, ABurstFinishedBeforeTheStaSideLooksCostsOneCallbackNotOn
     const int posts_before = dispatcher().posts();
     std::latch executed(burst);
     int results[burst]{};
-    std::vector<task> work;
+    std::vector<task<>> work;
 
     for (int i = 0; i < burst; ++i) work.push_back(counted_operation(executed, results[i]));
 
@@ -225,7 +225,7 @@ TEST(StaLoopDrivenTest, ABurstFinishedBeforeTheStaSideLooksCostsOneCallbackNotOn
 
     drain_until_done(work);
 
-    for (task& t : work) t.result();
+    for (task<>& t : work) t.result();
     for (const int r : results) EXPECT_EQ(r, 1);
 
     const int posts = dispatcher().posts() - posts_before;
@@ -247,7 +247,7 @@ TEST(StaLoopDrivenTest, TheTriggerIsArmedAgainAfterEveryDrain) {
         const int posts_before = dispatcher().posts();
         std::latch executed(1);
         int result = 0;
-        std::vector<task> work;
+        std::vector<task<>> work;
 
         work.push_back(counted_operation(executed, result));
 
@@ -264,7 +264,7 @@ TEST(StaLoopDrivenTest, TheTriggerIsArmedAgainAfterEveryDrain) {
 
 TEST(StaLoopDrivenTest, AnExceptionFromTheWorkerArrivesAtTheCoAwait) {
     std::string message;
-    std::vector<task> work;
+    std::vector<task<>> work;
 
     work.push_back(failing_operation(message));
 
@@ -280,7 +280,7 @@ TEST(StaLoopDrivenTest, AFrameUnwindingInsideRunPendingWaitsInPlaceNotThroughThe
     // frame. So the handover it waits for has to wake it in place: a callback posted to
     // the dispatcher instead would leave this test asleep for good.
     probe p;
-    std::vector<task> work;
+    std::vector<task<>> work;
 
     work.push_back(first_fails_second_in_flight(p));
     p.started.wait();
@@ -300,11 +300,11 @@ TEST(StaLoopDrivenTest, GivingUpAnOperationOutsideRunPendingKeepsTheCallbackTheL
     // out, or the operation queued behind the read comes back to nobody.
     probe p;
     int seven = 0;
-    std::vector<task> others;
+    std::vector<task<>> others;
     const int posts_before = dispatcher().posts();
 
     {
-        task dropped = reads_into_its_frame(p);
+        task<> dropped = reads_into_its_frame(p);
 
         p.started.wait();
         others.push_back(returns_seven(seven));
@@ -325,7 +325,7 @@ TEST(StaLoopDrivenTest, ADrainNestedInAModalLoopOfAContinuationDeliversAndLeaves
     // Without the drain at the modal loop's idle this hangs: the outer drain holds the
     // trigger, so the inner operation's handover posts nothing.
     int got = 0;
-    task outer = runs_a_modal_loop_in_its_continuation(got);
+    task<> outer = runs_a_modal_loop_in_its_continuation(got);
 
     while (!outer.done()) {
         dispatcher().wait_for_a_post();
@@ -337,7 +337,7 @@ TEST(StaLoopDrivenTest, ADrainNestedInAModalLoopOfAContinuationDeliversAndLeaves
 
     // And the protocol is where every drain leaves it: armed, so the next handover posts.
     int value = 0;
-    task after = returns_seven(value);
+    task<> after = returns_seven(value);
 
     while (!after.done()) {
         dispatcher().wait_for_a_post();

@@ -83,7 +83,7 @@ private:
     std::jthread thread_;
 };
 
-task reads_once(path pipe_name, std::string& got, bool& reading) {
+task<> reads_once(path pipe_name, std::string& got, bool& reading) {
     async_file in = co_await async_file::open_read(pipe_name);
 
     char buffer[64];
@@ -97,7 +97,7 @@ task reads_once(path pipe_name, std::string& got, bool& reading) {
 /// The code from the discussion, on handles of its own: the first read fails, and the
 /// frame unwinds with the second one in the kernel's hands, waiting to write into
 /// `second_buffer`.
-task first_read_fails_second_is_with_the_kernel(path refusing, path pipe_name) {
+task<> first_read_fails_second_is_with_the_kernel(path refusing, path pipe_name) {
     async_file out = co_await async_file::create(refusing);
     async_file in = co_await async_file::open_read(pipe_name);
 
@@ -114,7 +114,7 @@ task first_read_fails_second_is_with_the_kernel(path refusing, path pipe_name) {
 
 /// Opens, lets the test write, and only then reads: the data is in the pipe before the
 /// read starts, so the system can finish the read inside the call.
-task reads_what_is_already_there(path pipe_name, bool& opened, hevent& written, bool& inline_done,
+task<> reads_what_is_already_there(path pipe_name, bool& opened, hevent& written, bool& inline_done,
                                  std::string& got) {
     async_file in = co_await async_file::open_read(pipe_name);
 
@@ -133,7 +133,7 @@ task reads_what_is_already_there(path pipe_name, bool& opened, hevent& written, 
 
 /// A read of more than one call carries, dropped once the first call has brought all it
 /// asked for and the second is in the kernel's hands.
-task reads_a_chain_and_is_dropped(path pipe_name, std::vector<std::byte>& buffer, bool& reading) {
+task<> reads_a_chain_and_is_dropped(path pipe_name, std::vector<std::byte>& buffer, bool& reading) {
     async_file in = co_await async_file::open_read(pipe_name);
 
     auto read = in.read(buffer);
@@ -144,7 +144,7 @@ task reads_a_chain_and_is_dropped(path pipe_name, std::vector<std::byte>& buffer
     ADD_FAILURE() << "resumed after its task was dropped";
 }
 
-task reads_and_is_dropped(path pipe_name, bool& reading) {
+task<> reads_and_is_dropped(path pipe_name, bool& reading) {
     async_file in = co_await async_file::open_read(pipe_name);
 
     std::byte buffer[64];
@@ -232,7 +232,7 @@ private:
 /// Gives an orphan up the moment it is started, over and over, and between the orphans
 /// awaits a blocking read carried out where they are -- which has to come through every
 /// time: cutting short is for the call of the operation given up, and no other.
-task reads_among_orphans_given_up(path file_path, int rounds, int& cut_short, int& read) {
+task<> reads_among_orphans_given_up(path file_path, int rounds, int& cut_short, int& read) {
     for (int round = 0; round < rounds; ++round) {
         { auto given_up = async_directory::exists(file_path); }
 
@@ -281,7 +281,7 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHeldArrivesThroughThePort) {
     std::string got;
     bool reading = false;
 
-    task work = reads_once(pipe_.name(), got, reading);
+    task<> work = reads_once(pipe_.name(), got, reading);
 
     wait_until([&] { return reading; });
 
@@ -297,7 +297,7 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHeldArrivesThroughThePort) {
 TEST_F(AsyncFilePipeTest, AFrameUnwindingPastAReadInTheKernelCancelsIt) {
     rescue watchdog(pipe_);
 
-    task work = first_read_fails_second_is_with_the_kernel(root_ / L"refusing.bin", pipe_.name());
+    task<> work = first_read_fails_second_is_with_the_kernel(root_ / L"refusing.bin", pipe_.name());
 
     wait_until([&] { return work.done(); });
 
@@ -318,7 +318,7 @@ TEST_F(AsyncFilePipeTest, DroppingATaskSuspendedOnAReadInTheKernelCancelsIt) {
     bool reading = false;
 
     {
-        task work = reads_and_is_dropped(pipe_.name(), reading);
+        task<> work = reads_and_is_dropped(pipe_.name(), reading);
 
         wait_until([&] { return reading; });
 
@@ -393,7 +393,7 @@ TEST_F(AsyncFilePipeTest, GivingAnOrphanUpNeverCutsShortACallOfAnotherOperation)
     int cut_short = 0;
     int read = 0;
 
-    task work = reads_among_orphans_given_up(target, rounds, cut_short, read);
+    task<> work = reads_among_orphans_given_up(target, rounds, cut_short, read);
 
     wait_until([&] { return work.done(); });
     work.result();
@@ -448,7 +448,7 @@ TEST_F(AsyncFilePipeTest, AReadOfDataAlreadyInThePipeNeedNotSuspend) {
     bool inline_done = false;
     std::string got;
 
-    task work = reads_what_is_already_there(pipe_.name(), opened, written, inline_done, got);
+    task<> work = reads_what_is_already_there(pipe_.name(), opened, written, inline_done, got);
 
     wait_until([&] { return opened; });
 
@@ -484,7 +484,7 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingBetweenTwoCallsOfAChainCancelsTheSecond
     });
 
     {
-        task work = reads_a_chain_and_is_dropped(pipe_.name(), buffer, reading);
+        task<> work = reads_a_chain_and_is_dropped(pipe_.name(), buffer, reading);
 
         wait_until([&] { return reading; });
 

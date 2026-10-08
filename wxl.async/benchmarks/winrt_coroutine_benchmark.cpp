@@ -157,7 +157,7 @@ summary summarize(std::vector<double> samples) {
 // sta_loop, driven: async_call() sends the body to the worker; run_pending(), called
 // from the dispatcher, resumes the coroutine here.
 
-task loop_ping(int count, latency_samples& samples, int& remaining) {
+task<> loop_ping(int count, latency_samples& samples, int& remaining) {
     for (int i = 0; i < count; ++i) {
         const bench_clock::time_point sent = bench_clock::now();
         const bench_clock::time_point seen =
@@ -171,7 +171,7 @@ task loop_ping(int count, latency_samples& samples, int& remaining) {
     --remaining;
 }
 
-task loop_fan(int count, std::uint64_t& sum, int& remaining) {
+task<> loop_fan(int count, std::uint64_t& sum, int& remaining) {
     for (int i = 0; i < count; ++i)
         sum += co_await sta_loop::async_call([i] { return static_cast<std::uint64_t>(i); });
 
@@ -257,7 +257,7 @@ struct via_sta_loop {
     static constexpr const char* name = "sta_loop, driven";
     static constexpr bool posts_measured = true;
 
-    using keeper = task;
+    using keeper = task<>;
 
     static keeper ping(ws::DispatcherQueue const&, int count, latency_samples& samples,
                        int& remaining) {
