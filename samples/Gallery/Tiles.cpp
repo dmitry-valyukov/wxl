@@ -68,9 +68,11 @@ wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
     // Не перенесённый контрол виден, но не открывается — как в оригинале
     // контрол, не попавший в сборку.
     bool const ported = pageFor(item.uniqueId) != nullptr;
+    // NarrowLayout оригинала (ItemTemplates): ниже 641 карточка на всю ширину места и выше.
+    auto& wide = gallery::pageSize().wide;
     return Border {
-        width = 300,
-        height = 96,
+        width = BindOutput {wide, [](bool room) { return room ? 300.0 : std::numeric_limits<double>::quiet_NaN(); }},
+        height = BindOutput {wide, [](bool room) { return room ? 96.0 : 120.0; }},
         Padding {8},
         hAlign.stretch,
         background = brushes.Control.FillColor.Default,
@@ -85,9 +87,15 @@ wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
 
 wxl::GridView gallery::tileGrid(std::span<ControlInfo const* const> items,
                                         wxl::Thickness padding, wxl::zstring_view id, wxl::zstring_view name) {
+    // GridViewItemStyle и GridViewItemStyleSmall оригинала: контейнер плитки с отступом, в узком виде растянут на всю ширину.
+    auto& wide = gallery::pageSize().wide;
     auto grid = GridView {
         automationId = id,
         automationName = name,
+        itemContainerStyle = Preset {
+            margin = BindOutput {wide, [](bool room) { return room ? Thickness {0, 0, 12, 12} : Thickness {0, 0, 0, 12}; }},
+            horizontalContentAlignment = BindOutput {wide, [](bool room) { return room ? HorizontalAlignment::Left : HorizontalAlignment::Stretch; }},
+        },
         selectionMode = ListViewSelectionMode::None,
         isItemClickEnabled = true,
         Padding {padding},
