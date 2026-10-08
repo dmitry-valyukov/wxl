@@ -302,6 +302,7 @@ add_library(wxl.ui STATIC
     src/impl/item_template.h
     src/impl/item_template.cpp
     src/ItemBuilder.h
+    src/ItemContainerPreset.h
     src/Box.h
     src/Box.cpp
     src/impl/element_items.h
