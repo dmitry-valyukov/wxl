@@ -259,7 +259,7 @@ std::vector<SolidColorBrush> inkPalette() {
     return palette;
 }
 
-void writeText(TextBlock const& block, bench::PassValues const& v, std::u16string_view word,
+void writeText(TextBlock const& block, bench::PassValues const& v, core::zstring_view word,
                Brush const& ink, Thickness const& edge) {
     block.text(word);
     block.fontSize(v.fontSize);
@@ -270,7 +270,7 @@ void writeText(TextBlock const& block, bench::PassValues const& v, std::u16strin
     block.margin(edge);
 }
 
-void writeButton(Button const& button, bench::PassValues const& v, std::u16string_view word,
+void writeButton(Button const& button, bench::PassValues const& v, core::zstring_view word,
                  Thickness const& edge) {
     button.content(word);
     button.isEnabled(v.flag);
@@ -288,7 +288,7 @@ core::nullable<bool> checkState(int state) {
     return state == 2 ? core::nullable<bool>{} : core::nullable<bool>{state == 1};
 }
 
-void writeCheck(CheckBox const& check, bench::PassValues const& v, std::u16string_view word,
+void writeCheck(CheckBox const& check, bench::PassValues const& v, core::zstring_view word,
                 Thickness const& edge) {
     check.isThreeState(true);
     check.isChecked(checkState(v.threeState));
@@ -298,7 +298,7 @@ void writeCheck(CheckBox const& check, bench::PassValues const& v, std::u16strin
     check.margin(edge);
 }
 
-void writeRadio(RadioButton const& radio, bench::PassValues const& v, std::u16string_view word,
+void writeRadio(RadioButton const& radio, bench::PassValues const& v, core::zstring_view word,
                 Thickness const& edge) {
     radio.content(word);
     radio.groupName(word);
@@ -312,7 +312,10 @@ void pass(std::vector<CardHandles> const& handles, std::vector<SolidColorBrush> 
     auto const v = bench::valuesOf(index);
     auto const& ink = palette[v.ink];
     auto const& fill = palette[(v.ink + 1) % bench::paletteSize];
-    auto const word = bench::labels[v.word];
+    // A C string from the shared table (scene_shape.h): the projection takes
+    // text whose terminator is promised by its type, and a zstring_view over a
+    // C string is that promise, made once per pass.
+    core::zstring_view const word = bench::labels[v.word];
     Thickness const edge{v.edge};
     CornerRadius const corner{v.edge};
 
