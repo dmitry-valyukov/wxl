@@ -497,11 +497,11 @@ TEST_F(AsyncFileTest, AFileGivenUpOnceOpenCanBeAskedForAgainAtOnce) {
 
 namespace {
 
-task reads_whole(path file_path, std::string& out) {
+task<> reads_whole(path file_path, std::string& out) {
     out = co_await async_file::read_all(file_path);
 }
 
-task reads_whole_and_catches(path file_path, int& code) {
+task<> reads_whole_and_catches(path file_path, int& code) {
     try {
         co_await async_file::read_all(file_path);
         code = 0;
@@ -510,11 +510,11 @@ task reads_whole_and_catches(path file_path, int& code) {
     }
 }
 
-task writes_whole(path file_path, std::string bytes) {
+task<> writes_whole(path file_path, std::string bytes) {
     co_await async_file::write_all(file_path, std::move(bytes));
 }
 
-task asks_whether_exists(path file_path, bool& out) {
+task<> asks_whether_exists(path file_path, bool& out) {
     out = co_await async_file::exists(file_path);
 }
 

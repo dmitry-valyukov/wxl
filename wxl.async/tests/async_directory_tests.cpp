@@ -186,13 +186,13 @@ TEST_F(AsyncDirectoryTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
 
 namespace {
 
-task lists_at_once(path pattern, std::vector<async_directory::listed_entry>& out) {
+task<> lists_at_once(path pattern, std::vector<async_directory::listed_entry>& out) {
     out = co_await async_directory::list(pattern);
 
     std::ranges::sort(out, {}, &async_directory::listed_entry::name);
 }
 
-task lists_and_catches(path pattern, int& code) {
+task<> lists_and_catches(path pattern, int& code) {
     try {
         co_await async_directory::list(pattern);
         code = 0;
