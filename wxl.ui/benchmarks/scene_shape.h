@@ -38,8 +38,8 @@ inline constexpr int cards = columns * rows;
 // definitions as objects instead, because it has no parser to write them for.
 // Pinned to the counts above, so a change to one is a compile error until the
 // other follows.
-inline constexpr std::u16string_view cardColumns = u"*,*,*,*,*,*";
-inline constexpr std::u16string_view cardRows = u"*,*";
+inline constexpr const char16_t* cardColumns = u"*,*,*,*,*,*";
+inline constexpr const char16_t* cardRows = u"*,*";
 
 constexpr int definitionCount(std::u16string_view text) {
     int counted = 1;
@@ -142,25 +142,27 @@ inline constexpr uint32_t captionInk = 0xFF9A9AA6;
 
 // ---- The words -----------------------------------------------------------
 //
-// char16_t throughout: that is the unit an HSTRING is made of, and both sides
-// reach it without converting anything -- wxl's string_param takes it as it
-// is, and the winrt side renames the pointer, which is what the two spellings
-// of UTF-16 differ by on Windows.
+// C strings of char16_t throughout: that is the unit an HSTRING is made of,
+// and a literal carries its terminator, which is what both sides want. wxl's
+// hstring_param takes text whose terminator is promised by its type -- a C
+// string is, a plain view is not -- and the winrt side reads the same pointer
+// as a view and renames it, which is what the two spellings of UTF-16 differ
+// by on Windows. Neither side converts anything.
 
-inline constexpr std::u16string_view windowTitle = u"wxl scene benchmark";
-inline constexpr std::u16string_view headerTitle = u"Scene construction benchmark";
-inline constexpr std::u16string_view headerNote =
+inline constexpr const char16_t* windowTitle = u"wxl scene benchmark";
+inline constexpr const char16_t* headerTitle = u"Scene construction benchmark";
+inline constexpr const char16_t* headerNote =
     u"the same scene, built twice over: declaratively and by hand";
 
-inline constexpr std::u16string_view actionA = u"Apply";
-inline constexpr std::u16string_view actionB = u"Reset";
-inline constexpr std::u16string_view checkLabel = u"Enabled";
-inline constexpr std::u16string_view firstChoice = u"Automatic";
-inline constexpr std::u16string_view secondChoice = u"Manual";
-inline constexpr std::u16string_view switchHeader = u"Mode";
-inline constexpr std::u16string_view switchOn = u"On";
-inline constexpr std::u16string_view switchOff = u"Off";
-inline constexpr std::u16string_view caption =
+inline constexpr const char16_t* actionA = u"Apply";
+inline constexpr const char16_t* actionB = u"Reset";
+inline constexpr const char16_t* checkLabel = u"Enabled";
+inline constexpr const char16_t* firstChoice = u"Automatic";
+inline constexpr const char16_t* secondChoice = u"Manual";
+inline constexpr const char16_t* switchHeader = u"Mode";
+inline constexpr const char16_t* switchOn = u"On";
+inline constexpr const char16_t* switchOff = u"Off";
+inline constexpr const char16_t* caption =
     u"Created, configured and wired to a handler.";
 
 // The two texts that differ from card to card. They are built once, before
@@ -203,7 +205,7 @@ inline constexpr int paletteSize = 4;
 inline constexpr uint32_t palette[paletteSize] = {0xFFE8E8EE, 0xFF9AD0FF, 0xFFFFC38A, 0xFF9EE7B8};
 
 inline constexpr int labelCount = 4;
-inline constexpr std::u16string_view labels[labelCount] = {u"Alpha", u"Beta", u"Gamma", u"Delta"};
+inline constexpr const char16_t* labels[labelCount] = {u"Alpha", u"Beta", u"Gamma", u"Delta"};
 
 // The values one pass writes, all of them moving with the pass number: a
 // property store is free to be quick about a value it already holds, and

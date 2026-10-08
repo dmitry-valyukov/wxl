@@ -312,12 +312,10 @@ void pass(std::vector<CardHandles> const& handles, std::vector<SolidColorBrush> 
     auto const v = bench::valuesOf(index);
     auto const& ink = palette[v.ink];
     auto const& fill = palette[(v.ink + 1) % bench::paletteSize];
-    // The labels are literals (scene_shape.h) and carry their zero, but the
-    // table holds them as plain views, since the WinRT twin reads the same
-    // header. The projection takes only text with a terminator promised by
-    // its type (hstring_param), so the promise is written here, once per
-    // pass, where it is known to hold.
-    core::zstring_view const word = core::assume_terminated(bench::labels[v.word]);
+    // A C string from the shared table (scene_shape.h): the projection takes
+    // text whose terminator is promised by its type, and a zstring_view over a
+    // C string is that promise, made once per pass.
+    core::zstring_view const word = bench::labels[v.word];
     Thickness const edge{v.edge};
     CornerRadius const corner{v.edge};
 
