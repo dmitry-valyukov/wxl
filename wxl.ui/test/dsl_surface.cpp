@@ -26,6 +26,7 @@
 #include "BbBlock.h"
 #include "Bind.h"
 #include "event_awaitable.h"
+#include "method.h"
 #include "Card.h"
 #include "CompositionWindow.h"
 #include "CustomLayout.h"
@@ -1226,6 +1227,69 @@ concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
 
     Button{}.add_onClick([] {});
 }
+
+// A handler may be a member of the object that builds the tree. method() hands
+// it over with the member's own parameters, so each form above is read off the
+// member as it is off a lambda, and the three stay disjoint for members too.
+// `this` inside a const member function points to const, and then a const
+// member goes; a coroutine member is called and its token dropped.
+struct HandlersAsMembers {
+    void clicked(Button const& self, RoutedEventArgs& args) {
+        Object const source = args.originalSource();
+        (void)source;
+        self.isEnabled(false);
+    }
+    void toggled(ToggleSwitch const& self) { self.isOn(false); }
+    void pressed() noexcept {}
+    void keyDown(TextBox const&, KeyRoutedEventArgs& args) const {
+        if (args.key() == VirtualKey::Enter) {
+            args.handled(true);
+        }
+    }
+    async::detached_task loaded(Button self, RoutedEventArgs&) {
+        co_await UiThread::onIdle();
+        self.isEnabled(true);
+    }
+
+    void build(DispatcherQueue const& queue) {
+        Button{
+            onClick = method(this, &HandlersAsMembers::clicked),
+            onLoaded = method(this, &HandlersAsMembers::loaded),
+        };
+        ToggleSwitch{onToggled = method(this, &HandlersAsMembers::toggled)};
+        Button{onClick = method(this, &HandlersAsMembers::pressed)};
+
+        // The same value after the braces, and as a delegate parameter.
+        Button{}.add_onClick(method(this, &HandlersAsMembers::clicked));
+        queue.tryEnqueue(method(this, &HandlersAsMembers::pressed));
+    }
+
+    void build() const { TextBox{onKeyDown = method(this, &HandlersAsMembers::keyDown)}; }
+};
+
+// What a member may return: nothing, or a coroutine's token. The refusal of
+// anything else is a static_assert in method()'s body -- a hard error, never a
+// false answer to a requires-expression -- so its condition is what is pinned
+// here.
+static_assert(impl::droppable_result<void> && impl::droppable_result<async::detached_task>);
+static_assert(!impl::droppable_result<bool> && !impl::droppable_result<async::task<>>);
+
+// And the call reaches the member with what it was given, a reference as a
+// reference -- worked out by the compiler on a member constexpr allows, since
+// nothing in this file runs.
+static_assert([] {
+    struct Probe {
+        int sender = 0;
+        constexpr void take(int const& from, int& args) {
+            sender = from;
+            args = 2;
+        }
+    };
+    Probe probe;
+    int args = 0;
+    method(&probe, &Probe::take)(1, args);
+    return probe.sender == 1 && args == 2;
+}());
 
 // Tabs at the bottom of a window and the dialog that answers by events: both
 // arrived for the forum client, and both are here so that a change to the
