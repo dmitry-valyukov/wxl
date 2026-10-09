@@ -1293,8 +1293,9 @@ static_assert(impl::droppable_result<void> && impl::droppable_result<async::deta
 static_assert(!impl::droppable_result<bool> && !impl::droppable_result<async::task<>>);
 
 // And the call reaches the member with what it was given, a reference as a
-// reference -- worked out by the compiler on a member constexpr allows, since
-// nothing in this file runs.
+// reference, through the plain operator and the noexcept one alike -- worked
+// out by the compiler on members constexpr allows, since nothing in this file
+// runs.
 static_assert([] {
     struct Probe {
         int sender = 0;
@@ -1302,12 +1303,44 @@ static_assert([] {
             sender = from;
             args = 2;
         }
+        constexpr void keep(int const& from, int& args) noexcept {
+            sender += from;
+            args += 3;
+        }
     };
     Probe probe;
     int args = 0;
     method(&probe, &Probe::take)(1, args);
-    return probe.sender == 1 && args == 2;
+    method(&probe, &Probe::keep)(4, args);
+    return probe.sender == 5 && args == 5;
 }());
+
+// A noexcept member makes a noexcept call, and that is what lets a member
+// watch a field: an observable, like any core::event, takes only a callback
+// that cannot throw. A member that may throw makes a call that may too, and
+// the field refuses it. With the sender and the args, a noexcept member is
+// still read as that form of handler.
+struct Watcher {
+    core::observable<int> count;
+
+    void counted(int const&) noexcept {}
+    void recounted(int const&) {}
+    void clicked(Button const&, RoutedEventArgs&) noexcept {}
+
+    void watch() { count.on_change(method(this, &Watcher::counted)); }
+    void build() { Button{onClick = method(this, &Watcher::clicked)}; }
+};
+
+using counted_call = decltype(method(std::declval<Watcher*>(), &Watcher::counted));
+using recounted_call = decltype(method(std::declval<Watcher*>(), &Watcher::recounted));
+using clicked_call = decltype(method(std::declval<Watcher*>(), &Watcher::clicked));
+
+static_assert(std::is_nothrow_invocable_v<counted_call, int const&>);
+static_assert(core::invocable<counted_call, void(int const&) noexcept>);
+static_assert(std::is_invocable_v<recounted_call, int const&> &&
+              !std::is_nothrow_invocable_v<recounted_call, int const&>);
+static_assert(!core::invocable<recounted_call, void(int const&) noexcept>);
+static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
 
 // Tabs at the bottom of a window and the dialog that answers by events: both
 // arrived for the forum client, and both are here so that a change to the

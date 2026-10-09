@@ -22,33 +22,61 @@ namespace wxl {
 
 namespace impl {
 
-// The call method() returns: an object, one of its members, and a call
-// operator that is not a template but takes the member's parameters as they
-// are declared. A coroutine member's token is dropped here; method() admits
-// no other result.
+// What a call made by method() holds: an object and one of its members, and
+// the check that the one can call the other, made here once for both
+// spellings of the call below.
 template <typename Obj, typename Member, typename... Params>
-class method_call {
+class method_target {
     static_assert(std::is_invocable_v<Member, Obj*, Params...>,
                   "wxl: method() was given a member this object cannot call. Through a pointer to "
                   "const -- `this` inside a const member function -- only a const member can be "
                   "named; otherwise the member belongs to another class.");
 
 public:
-    constexpr method_call(Obj* object, Member member) noexcept : object_{object}, member_{member} {}
+    constexpr method_target(Obj* object, Member member) noexcept
+        : object_{object}, member_{member} {}
 
-    constexpr void operator()(Params... params) const {
-        static_cast<void>((object_->*member_)(std::forward<Params>(params)...));
-    }
-
-private:
+protected:
     Obj* object_;
     Member member_;
+};
+
+// The call method() returns: a call operator that is not a template but takes
+// the member's parameters as they are declared. A coroutine member's token is
+// dropped here; method() admits no other result.
+//
+// `NoExcept` picks one of two operators, each spelled out, rather than one
+// with a dependent `noexcept(NoExcept)`: the handler forms and core::function
+// read the operator's type off its address, so it is kept a concrete
+// spelling, the way wxl.core's `impl::sig` keeps a signature.
+template <typename Obj, typename Member, bool NoExcept, typename... Params>
+class method_call : public method_target<Obj, Member, Params...> {
+public:
+    using method_target<Obj, Member, Params...>::method_target;
+
+    constexpr void operator()(Params... params) const {
+        static_cast<void>((this->object_->*this->member_)(std::forward<Params>(params)...));
+    }
+};
+
+template <typename Obj, typename Member, typename... Params>
+class method_call<Obj, Member, true, Params...> : public method_target<Obj, Member, Params...> {
+public:
+    using method_target<Obj, Member, Params...>::method_target;
+
+    constexpr void operator()(Params... params) const noexcept {
+        static_cast<void>((this->object_->*this->member_)(std::forward<Params>(params)...));
+    }
 };
 
 // A member pointer taken apart into its result and the call over its
 // parameters. The four spellings a handler member has -- const or not,
 // noexcept or not -- the same four events.h reads off a call operator; a
 // ref-qualified or volatile member has no specialisation and stops here.
+//
+// A noexcept member makes a noexcept call, unless handing it its arguments
+// can throw: a parameter taken by value is moved on from the call's own, and
+// a move may throw.
 template <typename Member>
 struct member_signature;
 
@@ -56,25 +84,29 @@ template <typename R, typename C, typename... P>
 struct member_signature<R (C::*)(P...)> {
     using result_t = R;
     template <typename Obj>
-    using call_t = method_call<Obj, R (C::*)(P...), P...>;
+    using call_t = method_call<Obj, R (C::*)(P...), false, P...>;
 };
 template <typename R, typename C, typename... P>
 struct member_signature<R (C::*)(P...) const> {
     using result_t = R;
     template <typename Obj>
-    using call_t = method_call<Obj, R (C::*)(P...) const, P...>;
+    using call_t = method_call<Obj, R (C::*)(P...) const, false, P...>;
 };
 template <typename R, typename C, typename... P>
 struct member_signature<R (C::*)(P...) noexcept> {
     using result_t = R;
+    using member_t = R (C::*)(P...) noexcept;
     template <typename Obj>
-    using call_t = method_call<Obj, R (C::*)(P...) noexcept, P...>;
+    using call_t =
+        method_call<Obj, member_t, std::is_nothrow_invocable_v<member_t, Obj*, P...>, P...>;
 };
 template <typename R, typename C, typename... P>
 struct member_signature<R (C::*)(P...) const noexcept> {
     using result_t = R;
+    using member_t = R (C::*)(P...) const noexcept;
     template <typename Obj>
-    using call_t = method_call<Obj, R (C::*)(P...) const noexcept, P...>;
+    using call_t =
+        method_call<Obj, member_t, std::is_nothrow_invocable_v<member_t, Obj*, P...>, P...>;
 };
 
 // What the caller of a handler may drop without losing anything: no result
@@ -95,6 +127,9 @@ concept droppable_result = std::is_void_v<R> || std::is_same_v<R, async::detache
 /// member exactly as off a lambda: the sender and the args
 /// (`void searchKeyDown(TextBox const&, KeyRoutedEventArgs&)`), the sender
 /// alone, or nothing; `const` and `noexcept` members are taken as they are.
+/// The call of a `noexcept` member is `noexcept` too, so a member can watch a
+/// field: `observable::on_change`, like any `core::event`, takes only a
+/// callback that cannot throw.
 /// Through a pointer to const -- `this` inside a const member function -- only
 /// a const member can be named.
 ///
