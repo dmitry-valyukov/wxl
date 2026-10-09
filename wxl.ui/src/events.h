@@ -166,6 +166,10 @@ concept NullaryHandler =
 // when the args say nothing it needs, which is most events; or take nothing
 // at all -- `[type, symbol] { type(symbol); }` -- when it carries what it
 // needs in its capture.
+//
+// A member function takes any of these forms as it is written, handed over by
+// `method(this, &Screen::clicked)` (method.h) rather than by a lambda that
+// calls it.
 template <typename Args>
 class EventHandler : public std::function<void(Object const&, EventArgsRef<Args>)> {
     using base_t = std::function<void(Object const&, EventArgsRef<Args>)>;
