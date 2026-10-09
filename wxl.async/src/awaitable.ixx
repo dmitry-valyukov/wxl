@@ -52,6 +52,14 @@ public:
         return op_->delivered();
     }
 
+    /// Asks the operation to stop early, if it is still out (`async_op::cancel`). The
+    /// co_await still ends when the operation comes back -- that is when nobody writes
+    /// into the frame any more -- which is what `cancellable()` waits for before it
+    /// answers with the cancellation.
+    void cancel() noexcept {
+        if (op_ && !op_->delivered()) op_->cancel();
+    }
+
     bool await_ready() const noexcept { return ready(); }
 
     void await_suspend(std::coroutine_handle<> coro) noexcept { op_->suspend(coro); }
