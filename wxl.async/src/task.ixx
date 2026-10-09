@@ -1,9 +1,10 @@
 module;
 
-#include <cassert>
+#include "coroutine_checks.h"
 
 export module wxl.async:task;
 
+import :coroutine_checks;
 import wxl.core;
 import std;
 
@@ -14,7 +15,52 @@ class task;
 
 namespace task_detail {
 
-#ifndef NDEBUG
+using coro_detail::site;
+
+/// The coroutine awaiting a task, in one word. The handle's address is that of a frame,
+/// which starts with pointers, so its two lowest bits are free; where the checks are
+/// compiled in they say whether the waiter stands in a join_awaiter and whether the
+/// task's own body is on the stack. Without the checks the bits are never set, and the
+/// word is the handle and nothing else -- kept as a pointer, as the handle keeps it, so
+/// that the compiler treats it the same.
+class continuation_word
+{
+public:
+    /// Whom final_suspend hands the thread to: the waiter, or nobody.
+    inline std::coroutine_handle<> next() const noexcept {
+        const std::uintptr_t handle = bits() & ~flags;
+        return handle ? std::coroutine_handle<>::from_address(reinterpret_cast<void*>(handle))
+                      : std::noop_coroutine();
+    }
+
+    inline bool waited() const noexcept { return (bits() & ~flags) != 0; }
+    inline bool joined() const noexcept { return (bits() & joined_bit) != 0; }
+    inline bool running() const noexcept { return (bits() & running_bit) != 0; }
+
+    /// The waiter parks; the body's own bit stays as it is.
+    inline void park(std::coroutine_handle<> waiter, bool by_join) noexcept {
+        set((bits() & running_bit) | reinterpret_cast<std::uintptr_t>(waiter.address()) |
+            (by_join ? joined_bit : 0));
+    }
+
+    /// The waiter leaves; the body's own bit stays as it is.
+    inline void clear() noexcept { set(bits() & running_bit); }
+
+    inline void set_running(bool running) noexcept {
+        if constexpr (coro_detail::checked) set(running ? bits() | running_bit : bits() & ~running_bit);
+    }
+
+private:
+    static constexpr std::uintptr_t joined_bit = coro_detail::checked ? 1 : 0;
+    static constexpr std::uintptr_t running_bit = coro_detail::checked ? 2 : 0;
+    static constexpr std::uintptr_t flags = joined_bit | running_bit;
+
+    inline std::uintptr_t bits() const noexcept { return reinterpret_cast<std::uintptr_t>(word_); }
+    inline void set(std::uintptr_t bits) noexcept { word_ = reinterpret_cast<void*>(bits); }
+
+    /// Set at birth: initial_suspend does not suspend, so the body starts on the stack.
+    void* word_ = reinterpret_cast<void*>(running_bit);
+};
 
 /// The awaiter co_await would use for an awaitable: what a member operator
 /// co_await returns, else what a free one returns, else the awaitable itself,
@@ -29,55 +75,82 @@ inline decltype(auto) awaiter_of(Awaitable&& awaitable) {
         return static_cast<std::remove_reference_t<Awaitable>&>(awaitable);
 }
 
-/// A co_await in the body of a task, as a Debug build compiles it: the same
-/// awaiter, with the promise's `running` taken down while the body is
-/// suspended, so that destroying a frame that is on the stack is caught.
+/// A co_await in the body of a task, as a build that checks compiles it: the same
+/// awaiter, with the body's bit taken down while the body is suspended, so that
+/// destroying a frame that is on the stack is caught. Each hook takes the place of the
+/// co_await -- the compiler calls it, so the default is evaluated there -- and hands it
+/// on to an awaiter that takes one.
 template <class Awaiter>
 class tracked_awaiter
 {
 public:
     template <class Awaitable>
-    inline tracked_awaiter(bool& running, Awaitable&& awaitable)
-        : running_(running), awaiter_(awaiter_of(std::forward<Awaitable>(awaitable))) {}
+    inline tracked_awaiter(continuation_word& continuation, Awaitable&& awaitable)
+        : continuation_(continuation), awaiter_(awaiter_of(std::forward<Awaitable>(awaitable))) {}
 
-    inline bool await_ready() { return awaiter_.await_ready(); }
+    inline bool await_ready(site where = site::current()) {
+        if constexpr (requires { awaiter_.await_ready(where); })
+            return awaiter_.await_ready(where);
+        else
+            return awaiter_.await_ready();
+    }
 
     /// Down before the hand-over: past it, the frame may already have been
     /// resumed elsewhere, or destroyed.
     template <class Promise>
-    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> self) {
-        running_ = false;
+    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> self, site where = site::current()) {
+        continuation_.set_running(false);
 
-        if constexpr (noexcept(awaiter_.await_suspend(self))) {
+        if constexpr (requires { awaiter_.await_suspend(self, where); }) {
+            // One of this module's, which do not throw.
+            return awaiter_.await_suspend(self, where);
+        } else if constexpr (noexcept(awaiter_.await_suspend(self))) {
             return awaiter_.await_suspend(self);
         } else {
             // An await_suspend that throws resumes the coroutine with the exception.
             try {
                 return awaiter_.await_suspend(self);
             } catch (...) {
-                running_ = true;
+                continuation_.set_running(true);
                 throw;
             }
         }
     }
 
-    inline decltype(auto) await_resume() {
-        running_ = true;
-        return awaiter_.await_resume();
+    inline decltype(auto) await_resume(site where = site::current()) {
+        continuation_.set_running(true);
+
+        if constexpr (requires { awaiter_.await_resume(where); })
+            return awaiter_.await_resume(where);
+        else
+            return awaiter_.await_resume();
     }
 
 private:
-    bool& running_;
+    continuation_word& continuation_;
     Awaiter awaiter_;
 };
 
-#endif
+/// What only a build that checks gives a task's promise: await_transform, through
+/// which every co_await of the body passes. It is a base, not a constrained member,
+/// because the compiler calls await_transform whenever the name is there at all.
+template <class Promise, bool = coro_detail::checked>
+struct body_tracking {};
+
+template <class Promise>
+struct body_tracking<Promise, true> {
+    template <class Awaitable>
+    inline auto await_transform(Awaitable&& awaitable) {
+        return tracked_awaiter<decltype(awaiter_of(std::forward<Awaitable>(awaitable)))>(
+            static_cast<Promise&>(*this).continuation, std::forward<Awaitable>(awaitable));
+    }
+};
 
 /// What every task's promise has in common: the frame from the pool, the
 /// start on the calling thread, the exception kept for whoever reads the
 /// task, and the way out -- which hands the thread to the coroutine awaiting
 /// this one, if there is one.
-struct promise_base {
+struct promise_base : body_tracking<promise_base> {
     /// The frame, from the pool. The sized form of the deallocation is the one
     /// the compiler calls for a coroutine frame, so the pool gets back the very
     /// size it handed out and never has to be asked to remember it.
@@ -107,11 +180,8 @@ struct promise_base {
             inline void await_resume() const noexcept {}
         };
 
-#ifndef NDEBUG
-        running = false;
-#endif
-
-        return handover{continuation ? continuation : std::noop_coroutine()};
+        continuation.set_running(false);
+        return handover{continuation.next()};
     }
 
     inline void unhandled_exception() noexcept { error = std::current_exception(); }
@@ -120,27 +190,10 @@ struct promise_base {
         if (error) std::rethrow_exception(error);
     }
 
-#ifndef NDEBUG
-    template <class Awaitable>
-    inline auto await_transform(Awaitable&& awaitable) {
-        return tracked_awaiter<decltype(awaiter_of(std::forward<Awaitable>(awaitable)))>(
-            running, std::forward<Awaitable>(awaitable));
-    }
-#endif
-
     /// The coroutine awaiting this one, parked by the awaiter's await_suspend;
     /// empty while nobody is. One at most: a task is awaited once at a time.
-    std::coroutine_handle<> continuation;
+    continuation_word continuation;
     std::exception_ptr error;
-
-#ifndef NDEBUG
-    /// The body is on the stack: started and not suspended since, or resumed.
-    bool running = true;
-
-    /// The waiting coroutine stands in a join_awaiter, which will write here
-    /// on its way out.
-    bool joined = false;
-#endif
 };
 
 template <class T>
@@ -153,19 +206,19 @@ struct value_promise : promise_base {
     inline void return_value(T value) { result.emplace(std::move(value)); }
 
     /// The value, moved out, or what left the coroutine. The value goes once:
-    /// a Debug build empties the optional behind it, so a second read fails the
-    /// check instead of handing over a moved-from value. The exception stays.
-    inline T take_result() {
+    /// a build that checks empties the optional behind it, so a second read fails
+    /// the check instead of handing over a moved-from value. The exception stays.
+    inline T take_result([[maybe_unused]] site where) {
         rethrow();
-        assert(result.has_value() && "task: the value has already been taken");
+        coro_check(result.has_value(), "task: the value has already been taken", where);
 
-#ifdef NDEBUG
-        return std::move(*result);
-#else
-        T taken = std::move(*result);
-        result.reset();
-        return taken;
-#endif
+        if constexpr (coro_detail::checked) {
+            T taken = std::move(*result);
+            result.reset();
+            return taken;
+        } else {
+            return std::move(*result);
+        }
     }
 
     std::optional<T> result;
@@ -178,7 +231,7 @@ struct void_promise : promise_base {
 
     /// Nothing is moved out, so asking again is asking again: what left the
     /// coroutine is thrown each time.
-    inline void take_result() const { rethrow(); }
+    inline void take_result(site) const { rethrow(); }
 };
 
 /// What a coroutine awaiting a task stands in: the task's handle. It parks
@@ -192,29 +245,59 @@ struct void_promise : promise_base {
 /// join_awaiter instead.
 ///
 /// The awaiting coroutine has to be on the task's own thread -- the thread of
-/// the pool its frame came from, the one thread there is. A Debug build checks.
+/// the pool its frame came from, the one thread there is. A build that checks
+/// makes sure.
+///
+/// Each hook is declared twice, and a build has one of the two: a strict build's
+/// takes the place of the co_await as a defaulted parameter, which the compiler,
+/// calling the hook, evaluates there; any other build's has no parameter, the
+/// signature the hook always had, so that nothing new reaches the frame.
 template <class Promise>
 class awaiter
 {
 public:
     /// A task that has already ended is awaited without suspending.
-    inline bool await_ready() const noexcept {
-        assert(core::sta_memory_pool::is_safe() && "task: awaited from a thread other than its own");
-        return handle_.done();
+    inline bool await_ready() const noexcept requires(!coro_detail::strict) {
+        return ready(site::current());
+    }
+
+    inline bool await_ready(site where = site::current()) const noexcept requires(coro_detail::strict) {
+        return ready(where);
     }
 
     /// Nothing else happens: the task is already running, or suspended on an
     /// operation that will resume it on this same thread.
-    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept {
-        assert(!handle_.promise().continuation &&
-               "task: awaited by a second coroutine while the first one still waits");
-        handle_.promise().continuation = awaiting;
+    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!coro_detail::strict) {
+        park(awaiting, false, site::current());
     }
 
-    inline decltype(auto) await_resume() { return handle_.promise().take_result(); }
+    inline void await_suspend(std::coroutine_handle<> awaiting, site where = site::current()) noexcept
+        requires(coro_detail::strict)
+    {
+        park(awaiting, false, where);
+    }
+
+    inline decltype(auto) await_resume() requires(!coro_detail::strict) {
+        return handle_.promise().take_result(site::current());
+    }
+
+    inline decltype(auto) await_resume(site where = site::current()) requires(coro_detail::strict) {
+        return handle_.promise().take_result(where);
+    }
 
 protected:
     inline explicit awaiter(std::coroutine_handle<Promise> handle) noexcept : handle_(handle) {}
+
+    inline bool ready([[maybe_unused]] site where) const noexcept {
+        coro_check(core::sta_memory_pool::is_safe(), "task: awaited from a thread other than its own", where);
+        return handle_.done();
+    }
+
+    inline void park(std::coroutine_handle<> awaiting, bool by_join, [[maybe_unused]] site where) noexcept {
+        coro_check(!handle_.promise().continuation.waited(),
+                   "task: awaited by a second coroutine while the first one still waits", where);
+        handle_.promise().continuation.park(awaiting, by_join);
+    }
 
     std::coroutine_handle<Promise> handle_;
 };
@@ -225,8 +308,9 @@ protected:
 /// and a task that ends after its waiter is gone hands the thread to nobody.
 ///
 /// The task has to outlive the wait, as anything waited on does: one
-/// destroyed while joined would leave this writing into its frame. A Debug
-/// build catches that where the task is destroyed.
+/// destroyed while joined would leave this writing into its frame. A build
+/// that checks marks the parked handle as a join's and catches that where the
+/// task is destroyed.
 template <class Promise>
 class join_awaiter : public awaiter<Promise>
 {
@@ -237,19 +321,16 @@ public:
     join_awaiter(const join_awaiter&) = delete;
     join_awaiter& operator=(const join_awaiter&) = delete;
 
-    inline ~join_awaiter() {
-        Promise& promise = this->handle_.promise();
-        promise.continuation = {};
-#ifndef NDEBUG
-        promise.joined = false;
-#endif
+    inline ~join_awaiter() { this->handle_.promise().continuation.clear(); }
+
+    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!coro_detail::strict) {
+        this->park(awaiting, true, site::current());
     }
 
-    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept {
-#ifndef NDEBUG
-        this->handle_.promise().joined = true;
-#endif
-        awaiter<Promise>::await_suspend(awaiting);
+    inline void await_suspend(std::coroutine_handle<> awaiting, site where = site::current()) noexcept
+        requires(coro_detail::strict)
+    {
+        this->park(awaiting, true, where);
     }
 };
 
@@ -267,11 +348,15 @@ public:
         return *this;
     }
 
+    /// Where a destructor is called nothing gives the line, so a check here names
+    /// its own.
     inline ~owner() {
         if (this->handle_) {
-            assert(!promise().running &&
-                   "task: destroyed while its coroutine runs -- dropped from inside its own chain");
-            assert(!promise().joined && "task: destroyed while a coroutine joins it");
+            coro_check(!promise().continuation.running(),
+                       "task: destroyed while its coroutine runs -- dropped from inside its own chain",
+                       site::current());
+            coro_check(!promise().continuation.joined(), "task: destroyed while a coroutine joins it",
+                       site::current());
             this->handle_.destroy();
         }
     }
@@ -353,7 +438,7 @@ protected:
 /// this thread, until the worker has let go of the frame -- as long as the
 /// operation takes to finish or be cancelled. It is dropped from outside the
 /// chain: a frame that is on the stack cannot be destroyed under it, and a
-/// Debug build catches the attempt.
+/// Debug build catches the attempt -- any build does under STRICT_CORO.
 ///
 /// **The frame comes from sta_memory_pool.** It is exactly what that pool is
 /// for -- a small object, made and unmade on the one thread, over and over --
@@ -373,9 +458,10 @@ public:
 
     /// \return the value, moved out: ask once, after done().
     /// \throw whatever left the coroutine.
-    inline T result() {
-        assert(this->done() && "task: result() asked before the coroutine ended");
-        return this->promise().take_result();
+    /// \param where the caller's line, for a strict build's report; left to its default.
+    inline T result(task_detail::site where = task_detail::site::current()) {
+        coro_check(this->done(), "task: result() asked before the coroutine ended", where);
+        return this->promise().take_result(where);
     }
 
 private:
@@ -395,9 +481,10 @@ public:
     using promise_type = task_detail::void_promise;
 
     /// \throw whatever left the coroutine. Ask after done(), as often as needed.
-    inline void result() const {
-        assert(this->done() && "task: result() asked before the coroutine ended");
-        this->promise().take_result();
+    /// \param where the caller's line, for a strict build's report; left to its default.
+    inline void result(task_detail::site where = task_detail::site::current()) const {
+        coro_check(this->done(), "task: result() asked before the coroutine ended", where);
+        this->promise().take_result(where);
     }
 
 private:
