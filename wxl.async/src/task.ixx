@@ -1,3 +1,7 @@
+module;
+
+#include <cassert>
+
 export module wxl.async:task;
 
 import wxl.core;
@@ -9,6 +13,65 @@ template <class T = void>
 class task;
 
 namespace task_detail {
+
+#ifndef NDEBUG
+
+/// The awaiter co_await would use for an awaitable: what a member operator
+/// co_await returns, else what a free one returns, else the awaitable itself,
+/// by reference -- it outlives the co_await either way.
+template <class Awaitable>
+inline decltype(auto) awaiter_of(Awaitable&& awaitable) {
+    if constexpr (requires { std::forward<Awaitable>(awaitable).operator co_await(); })
+        return std::forward<Awaitable>(awaitable).operator co_await();
+    else if constexpr (requires { operator co_await(std::forward<Awaitable>(awaitable)); })
+        return operator co_await(std::forward<Awaitable>(awaitable));
+    else
+        return static_cast<std::remove_reference_t<Awaitable>&>(awaitable);
+}
+
+/// A co_await in the body of a task, as a Debug build compiles it: the same
+/// awaiter, with the promise's `running` taken down while the body is
+/// suspended, so that destroying a frame that is on the stack is caught.
+template <class Awaiter>
+class tracked_awaiter
+{
+public:
+    template <class Awaitable>
+    inline tracked_awaiter(bool& running, Awaitable&& awaitable)
+        : running_(running), awaiter_(awaiter_of(std::forward<Awaitable>(awaitable))) {}
+
+    inline bool await_ready() { return awaiter_.await_ready(); }
+
+    /// Down before the hand-over: past it, the frame may already have been
+    /// resumed elsewhere, or destroyed.
+    template <class Promise>
+    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> self) {
+        running_ = false;
+
+        if constexpr (noexcept(awaiter_.await_suspend(self))) {
+            return awaiter_.await_suspend(self);
+        } else {
+            // An await_suspend that throws resumes the coroutine with the exception.
+            try {
+                return awaiter_.await_suspend(self);
+            } catch (...) {
+                running_ = true;
+                throw;
+            }
+        }
+    }
+
+    inline decltype(auto) await_resume() {
+        running_ = true;
+        return awaiter_.await_resume();
+    }
+
+private:
+    bool& running_;
+    Awaiter awaiter_;
+};
+
+#endif
 
 /// What every task's promise has in common: the frame from the pool, the
 /// start on the calling thread, the exception kept for whoever reads the
@@ -34,7 +97,7 @@ struct promise_base {
     /// after another without the stack growing by a frame per link. When
     /// nobody awaits, the thread goes back to whoever resumed this coroutine.
     inline auto final_suspend() noexcept {
-        struct awaiter {
+        struct handover {
             std::coroutine_handle<> next;
 
             inline bool await_ready() const noexcept { return false; }
@@ -44,15 +107,40 @@ struct promise_base {
             inline void await_resume() const noexcept {}
         };
 
-        return awaiter{continuation ? continuation : std::noop_coroutine()};
+#ifndef NDEBUG
+        running = false;
+#endif
+
+        return handover{continuation ? continuation : std::noop_coroutine()};
     }
 
     inline void unhandled_exception() noexcept { error = std::current_exception(); }
 
-    /// The coroutine awaiting this one, parked by task::await_suspend; empty
-    /// while nobody is. One at most: a task is awaited once, like any awaitable.
+    inline void rethrow() const {
+        if (error) std::rethrow_exception(error);
+    }
+
+#ifndef NDEBUG
+    template <class Awaitable>
+    inline auto await_transform(Awaitable&& awaitable) {
+        return tracked_awaiter<decltype(awaiter_of(std::forward<Awaitable>(awaitable)))>(
+            running, std::forward<Awaitable>(awaitable));
+    }
+#endif
+
+    /// The coroutine awaiting this one, parked by the awaiter's await_suspend;
+    /// empty while nobody is. One at most: a task is awaited once at a time.
     std::coroutine_handle<> continuation;
     std::exception_ptr error;
+
+#ifndef NDEBUG
+    /// The body is on the stack: started and not suspended since, or resumed.
+    bool running = true;
+
+    /// The waiting coroutine stands in a join_awaiter, which will write here
+    /// on its way out.
+    bool joined = false;
+#endif
 };
 
 template <class T>
@@ -64,6 +152,22 @@ struct value_promise : promise_base {
     /// rvalue is nothing next to the operation the coroutine just awaited.
     inline void return_value(T value) { result.emplace(std::move(value)); }
 
+    /// The value, moved out, or what left the coroutine. The value goes once:
+    /// a Debug build empties the optional behind it, so a second read fails the
+    /// check instead of handing over a moved-from value. The exception stays.
+    inline T take_result() {
+        rethrow();
+        assert(result.has_value() && "task: the value has already been taken");
+
+#ifdef NDEBUG
+        return std::move(*result);
+#else
+        T taken = std::move(*result);
+        result.reset();
+        return taken;
+#endif
+    }
+
     std::optional<T> result;
 };
 
@@ -71,52 +175,129 @@ struct void_promise : promise_base {
     task<void> get_return_object();
 
     inline void return_void() const noexcept {}
+
+    /// Nothing is moved out, so asking again is asking again: what left the
+    /// coroutine is thrown each time.
+    inline void take_result() const { rethrow(); }
+};
+
+/// What a coroutine awaiting a task stands in: the task's handle. It parks
+/// the awaiting coroutine for final_suspend to hand the thread to, and reads
+/// the result once the thread comes back.
+///
+/// For the task a call has just returned this is the task itself, its public
+/// base: the temporary lives in the awaiting frame and goes with it, so the
+/// handle it already holds is all the wait needs and nothing has to be taken
+/// back on the way out. A task kept elsewhere is awaited through a
+/// join_awaiter instead.
+///
+/// The awaiting coroutine has to be on the task's own thread -- the thread of
+/// the pool its frame came from, the one thread there is. A Debug build checks.
+template <class Promise>
+class awaiter
+{
+public:
+    /// A task that has already ended is awaited without suspending.
+    inline bool await_ready() const noexcept {
+        assert(core::sta_memory_pool::is_safe() && "task: awaited from a thread other than its own");
+        return handle_.done();
+    }
+
+    /// Nothing else happens: the task is already running, or suspended on an
+    /// operation that will resume it on this same thread.
+    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept {
+        assert(!handle_.promise().continuation &&
+               "task: awaited by a second coroutine while the first one still waits");
+        handle_.promise().continuation = awaiting;
+    }
+
+    inline decltype(auto) await_resume() { return handle_.promise().take_result(); }
+
+protected:
+    inline explicit awaiter(std::coroutine_handle<Promise> handle) noexcept : handle_(handle) {}
+
+    std::coroutine_handle<Promise> handle_;
+};
+
+/// The awaiter of a task that the awaiting coroutine does not own -- one kept
+/// in a container or a field and joined there. Either of the two may go first,
+/// so the awaiting frame takes its handle back out of the task on its way out,
+/// and a task that ends after its waiter is gone hands the thread to nobody.
+///
+/// The task has to outlive the wait, as anything waited on does: one
+/// destroyed while joined would leave this writing into its frame. A Debug
+/// build catches that where the task is destroyed.
+template <class Promise>
+class join_awaiter : public awaiter<Promise>
+{
+public:
+    inline explicit join_awaiter(std::coroutine_handle<Promise> handle) noexcept
+        : awaiter<Promise>(handle) {}
+
+    join_awaiter(const join_awaiter&) = delete;
+    join_awaiter& operator=(const join_awaiter&) = delete;
+
+    inline ~join_awaiter() {
+        Promise& promise = this->handle_.promise();
+        promise.continuation = {};
+#ifndef NDEBUG
+        promise.joined = false;
+#endif
+    }
+
+    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept {
+#ifndef NDEBUG
+        this->handle_.promise().joined = true;
+#endif
+        awaiter<Promise>::await_suspend(awaiting);
+    }
 };
 
 /// The handle and what every task does with it: owns the frame, answers
 /// done(), and lets another coroutine await it.
 template <class Promise>
-class owner {
+class owner : public awaiter<Promise>
+{
 public:
     inline owner(owner&& other) noexcept
-        : handle_(std::exchange(other.handle_, {})) {}
+        : awaiter<Promise>(std::exchange(other.handle_, {})) {}
 
     inline owner& operator=(owner&& other) noexcept {
-        std::swap(handle_, other.handle_);
+        std::swap(this->handle_, other.handle_);
         return *this;
     }
 
     inline ~owner() {
-        if (handle_) handle_.destroy();
+        if (this->handle_) {
+            assert(!promise().running &&
+                   "task: destroyed while its coroutine runs -- dropped from inside its own chain");
+            assert(!promise().joined && "task: destroyed while a coroutine joins it");
+            this->handle_.destroy();
+        }
     }
 
     /// \return `true` once the coroutine has run to its end, whether by
     ///         reaching it or by leaving through an exception.
-    inline bool done() const noexcept { return handle_.done(); }
+    inline bool done() const noexcept { return this->handle_.done(); }
 
-    /// A task that has already ended is awaited without suspending.
-    inline bool await_ready() const noexcept { return handle_.done(); }
-
-    /// Parks the awaiting coroutine for final_suspend to hand the thread to.
-    /// Nothing else happens: this coroutine is already running, or suspended
-    /// on an operation that will resume it on this same thread.
-    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept {
-        handle_.promise().continuation = awaiting;
+    /// A task awaited as an lvalue is joined: it belongs to somebody else, and
+    /// the wait gets an awaiter of its own in the awaiting frame. Nothing here
+    /// matches an rvalue, so co_await takes that one as it stands -- its own
+    /// awaiter, with not a word added to the frame. A const one is not awaited:
+    /// waiting writes into it. The last condition keeps out whatever else
+    /// argument-dependent lookup brings here, such as an optional of a task.
+    template <class Self>
+        requires(std::is_lvalue_reference_v<Self> && !std::is_const_v<std::remove_reference_t<Self>> &&
+                 std::derived_from<std::remove_reference_t<Self>, owner>)
+    inline friend join_awaiter<Promise> operator co_await(Self&& kept) noexcept {
+        return join_awaiter<Promise>(kept.handle_);
     }
 
 protected:
     inline explicit owner(std::coroutine_handle<Promise> handle) noexcept
-        : handle_(handle) {}
+        : awaiter<Promise>(handle) {}
 
-    inline Promise& promise() const noexcept { return handle_.promise(); }
-
-    inline void rethrow() const {
-        if (const std::exception_ptr& error = handle_.promise().error)
-            std::rethrow_exception(error);
-    }
-
-private:
-    std::coroutine_handle<Promise> handle_;
+    inline Promise& promise() const noexcept { return this->handle_.promise(); }
 };
 
 }  // namespace task_detail
@@ -128,7 +309,9 @@ private:
 /// answers to nobody. Here the caller keeps what comes back -- the Reader's
 /// `Io` keeps them in a vector and sweeps the finished ones -- because there
 /// is something to read at the end, and, while an operation of this module is
-/// in flight, because there is something the worker still points at.
+/// in flight, because there is something the worker still points at. Not
+/// keeping it is dropping it, which takes its work down at once; the compiler
+/// says so.
 ///
 /// `task<T>` ends with a value, `task<>` without one; both end the same way.
 /// `result()` gives the value or throws what left the coroutine, and gives the
@@ -137,6 +320,11 @@ private:
 /// suspends until this one ends and is resumed there, with the value or the
 /// exception, on the thread this one ended on -- which is the one thread both
 /// belong to. A task that has already ended is awaited without suspending.
+///
+/// The usual co_await is of the task a call has just returned, which lives and
+/// dies with the awaiting frame. A task kept elsewhere is joined: `co_await`
+/// of an lvalue, from any coroutine of the thread, one at a time; the waiter
+/// that goes first takes itself off. The task has to outlive the wait.
 ///
 /// It starts running the moment it is called (initial_suspend is
 /// suspend_never), on the calling thread: an asynchronous operation is created
@@ -163,7 +351,9 @@ private:
 /// no other end. For the asynchronous operations in this module the awaitable
 /// gives its operation up (`async_op::abandon`), and the destruction waits, on
 /// this thread, until the worker has let go of the frame -- as long as the
-/// operation takes to finish or be cancelled.
+/// operation takes to finish or be cancelled. It is dropped from outside the
+/// chain: a frame that is on the stack cannot be destroyed under it, and a
+/// Debug build catches the attempt.
 ///
 /// **The frame comes from sta_memory_pool.** It is exactly what that pool is
 /// for -- a small object, made and unmade on the one thread, over and over --
@@ -173,7 +363,8 @@ private:
 /// scheme is allocated there too, and a coroutine on any other thread would
 /// have nowhere to put its operations anyway.
 template <class T>
-class task : public task_detail::owner<task_detail::value_promise<T>>
+class [[nodiscard("a task nobody keeps is destroyed at once, and its work with it")]] task
+    : public task_detail::owner<task_detail::value_promise<T>>
 {
     using base = task_detail::owner<task_detail::value_promise<T>>;
 
@@ -183,11 +374,9 @@ public:
     /// \return the value, moved out: ask once, after done().
     /// \throw whatever left the coroutine.
     inline T result() {
-        this->rethrow();
-        return std::move(*this->promise().result);
+        assert(this->done() && "task: result() asked before the coroutine ended");
+        return this->promise().take_result();
     }
-
-    inline T await_resume() { return result(); }
 
 private:
     friend promise_type;
@@ -197,17 +386,19 @@ private:
 };
 
 template <>
-class task<void> : public task_detail::owner<task_detail::void_promise>
+class [[nodiscard("a task nobody keeps is destroyed at once, and its work with it")]] task<void>
+    : public task_detail::owner<task_detail::void_promise>
 {
     using base = task_detail::owner<task_detail::void_promise>;
 
 public:
     using promise_type = task_detail::void_promise;
 
-    /// \throw whatever left the coroutine. Ask after done().
-    inline void result() const { this->rethrow(); }
-
-    inline void await_resume() const { result(); }
+    /// \throw whatever left the coroutine. Ask after done(), as often as needed.
+    inline void result() const {
+        assert(this->done() && "task: result() asked before the coroutine ended");
+        this->promise().take_result();
+    }
 
 private:
     friend promise_type;

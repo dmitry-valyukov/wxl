@@ -498,4 +498,108 @@ TYPED_TEST(DetachedTaskHoldsTest, ADestroyedFrameLetsGoOfTheObject) {
     EXPECT_EQ(scene.notes.deaths, 1);
 }
 
+// A detached task awaiting a task: a scenario awaiting the step it hands its work to.
+// The task stands on ThrowingCapture, so it ends with whatever the test resumes it
+// with -- a value, a failure or a cancellation -- and that travels up through the
+// co_await into the detached one, which deals with it the way it deals with its own.
+
+task<int> answers_when_resumed(std::coroutine_handle<>& out, std::exception_ptr error) {
+    co_await ThrowingCapture{&out, error};
+    co_return 42;
+}
+
+task<int> passes_the_answer_on(std::coroutine_handle<>& out, std::exception_ptr error) {
+    co_return 1 + co_await answers_when_resumed(out, error);
+}
+
+detached_task awaits_the_answer(std::coroutine_handle<>& out, std::exception_ptr error, int& got,
+                                bool* released) {
+    const Trace trace{released};
+
+    got = co_await answers_when_resumed(out, error);
+}
+
+detached_task awaits_the_answer_through_a_chain(std::coroutine_handle<>& out,
+                                                std::exception_ptr error, int& got,
+                                                bool* released) {
+    const Trace trace{released};
+
+    got = co_await passes_the_answer_on(out, error);
+}
+
+TEST_F(DetachedTaskTest, TheValueOfATaskReachesTheDetachedTaskAwaitingIt) {
+    std::coroutine_handle<> out;
+    int got = 0;
+    bool released = false;
+
+    awaits_the_answer(out, {}, got, &released);
+
+    ASSERT_TRUE(out);
+    EXPECT_FALSE(released);
+
+    out.resume();
+
+    EXPECT_EQ(got, 42);
+    EXPECT_TRUE(released);
+    EXPECT_FALSE(reported);
+}
+
+TEST_F(DetachedTaskTest, AFailureOfTheTaskItAwaitsGoesToTheHandler) {
+    std::coroutine_handle<> out;
+    int got = 0;
+    bool released = false;
+
+    awaits_the_answer(out, std::make_exception_ptr(std::runtime_error("the task failed")), got,
+                      &released);
+
+    ASSERT_TRUE(out);
+    out.resume();
+
+    EXPECT_EQ(got, 0);
+    EXPECT_TRUE(released);
+    ASSERT_TRUE(reported);
+
+    try {
+        std::rethrow_exception(reported);
+        FAIL() << "the reported exception was empty";
+    } catch (const std::runtime_error& error) {
+        EXPECT_STREQ(error.what(), "the task failed");
+    }
+}
+
+TEST_F(DetachedTaskTest, ACancellationOfTheTaskItAwaitsIsTheOrdinaryEnd) {
+    std::coroutine_handle<> out;
+    int got = 0;
+    bool released = false;
+
+    awaits_the_answer(out, std::make_exception_ptr(operation_canceled_exception{}), got,
+                      &released);
+
+    ASSERT_TRUE(out);
+    out.resume();
+
+    EXPECT_EQ(got, 0);
+    EXPECT_TRUE(released);
+    EXPECT_FALSE(reported);
+}
+
+// The way an application going down ends a chain: the wait at the bottom ends with a
+// cancellation, every task above passes it on, and the detached one at the top
+// swallows it.
+TEST_F(DetachedTaskTest, ACancellationClimbsAChainOfTasksAndEndsQuietly) {
+    std::coroutine_handle<> out;
+    int got = 0;
+    bool released = false;
+
+    awaits_the_answer_through_a_chain(out, std::make_exception_ptr(operation_canceled_exception{}),
+                                      got, &released);
+
+    ASSERT_TRUE(out);
+    out.resume();
+
+    EXPECT_EQ(got, 0);
+    EXPECT_TRUE(released);
+    EXPECT_FALSE(reported);
+}
+
 }  // namespace
