@@ -133,6 +133,32 @@ TEST(bound_items_source, a_slot_follows_its_item) {
     EXPECT_EQ(value_of(wxl::impl::bound_element(thirty)), -1);
 }
 
+// Inside a run the list is already past it, and a control may read the items between two
+// steps -- build the element of each, hand out its selection -- as a panel that does not
+// virtualise does inside VectorChanged. Each slot still leads to its own item, and one whose
+// item is erased with the rest of the run to nothing.
+TEST(bound_items_source, a_slot_leads_to_its_item_inside_a_run) {
+    bound_list bound{{1, 2, 3, 4, 5}};
+    std::vector<std::vector<int>> built;
+    std::vector<std::vector<int64_t>> places;
+    bound.vector.VectorChanged([&](IObservableVector<IInspectable> const& vector, IVectorChangedEventArgs const&) {
+        std::vector<int> elements;
+        std::vector<int64_t> positions;
+        for (IInspectable const& slot : vector) {
+            elements.push_back(value_of(wxl::impl::bound_element(slot)));
+            positions.push_back(bound.position(slot));
+        }
+        built.push_back(std::move(elements));
+        places.push_back(std::move(positions));
+    });
+
+    bound.list.erase(1, 2);
+    bound.list.insert_range(1, std::vector<int>{7, 8});
+
+    EXPECT_EQ(built, (std::vector<std::vector<int>>{{1, -1, 4, 5}, {1, 4, 5}, {1, 7, 4, 5}, {1, 7, 8, 4, 5}}));
+    EXPECT_EQ(places, (std::vector<std::vector<int64_t>>{{0, -1, 1, 2}, {0, 1, 2}, {0, 1, 3, 4}, {0, 1, 2, 3, 4}}));
+}
+
 // A replaced item is another object at that place, so the control shows it anew.
 TEST(bound_items_source, a_replaced_item_is_a_new_slot) {
     bound_list bound{{1, 2}};

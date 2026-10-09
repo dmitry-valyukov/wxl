@@ -96,8 +96,16 @@ void bound_items_source::disarm() noexcept {
 }
 
 Object bound_items_source::build(uint32_t at) const {
-    if (!build_ || at >= size()) return Object::copy_from_abi(nullptr);
-    return (*build_)(at);
+    int64_t const place = at < size() ? position(at) : -1;
+    if (!build_ || place < 0) return Object::copy_from_abi(nullptr);
+    return (*build_)(static_cast<uint32_t>(place));
+}
+
+int64_t bound_items_source::position(uint32_t at) const noexcept {
+    if (lag_.count == 0 || at < lag_.at) return at;
+    if (!lag_.erased) return int64_t{at} + lag_.count;
+    if (at < lag_.at + lag_.count) return -1;
+    return int64_t{at} - lag_.count;
 }
 
 bound_slot& bound_items_source::slot(uint32_t at) {
@@ -117,29 +125,33 @@ void bound_items_source::drop(bound_slot* slot) noexcept {
     slot->Release();
 }
 
-void bound_items_source::insert(uint32_t at) {
+void bound_items_source::insert(uint32_t at, uint32_t still) {
     assert(at <= size());
     slots_.insert(slots_.begin() + at, nullptr);
     renumber(at + 1);
+    lag_ = {at + 1, still, false};
     raise(CollectionChange::ItemInserted, at);
 }
 
-void bound_items_source::erase(uint32_t at) {
+void bound_items_source::erase(uint32_t at, uint32_t still) {
     assert(at < size());
     bound_slot* const gone = slots_[at];
     slots_.erase(slots_.begin() + at);
     renumber(at);
     if (gone) drop(gone);
+    lag_ = {at, still, true};
     raise(CollectionChange::ItemRemoved, at);
 }
 
 void bound_items_source::replace(uint32_t at) {
     assert(at < size());
+    lag_ = {};
     if (bound_slot* const gone = std::exchange(slots_[at], nullptr)) drop(gone);
     raise(CollectionChange::ItemChanged, at);
 }
 
 void bound_items_source::reset(uint32_t count) {
+    lag_ = {};
     core::sta_vector<bound_slot*> gone(count, nullptr);
     gone.swap(slots_);
     for (bound_slot* const slot : gone) {
@@ -281,7 +293,7 @@ int64_t bound_position(void const* list, Object const& box) noexcept {
     if (!list || !box) return -1;
     auto const slot = own_object<bound_slot>(static_cast<void*>(box.get_abi()));
     if (!slot || !slot->source() || slot->source()->list() != list) return -1;
-    return slot->index();
+    return slot->source()->position(slot->index());
 }
 
 }  // namespace wxl::impl

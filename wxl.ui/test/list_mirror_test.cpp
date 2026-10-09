@@ -15,23 +15,26 @@ using wxl::core::list_change;
 using wxl::core::observable_list;
 using wxl::impl::list_mirror;
 
-// A view of a list: the items it shows, read from the list as the mirror asks, and every
-// call it was given, in order.
+// A view of a list: the items it shows, read from the list as the mirror asks, every call
+// it was given, in order, and how far behind the list each step of a run left it.
 struct vector_view {
     observable_list<int const> const* list;
     std::vector<int> items;
     std::vector<std::string> calls;
+    std::vector<uint32_t> behind;
 
     uint32_t size() const { return static_cast<uint32_t>(items.size()); }
 
-    void insert(uint32_t at) {
+    void insert(uint32_t at, uint32_t still) {
         items.insert(items.begin() + at, (*list)[at]);
         calls.push_back("insert " + std::to_string(at));
+        behind.push_back(still);
     }
 
-    void erase(uint32_t at) {
+    void erase(uint32_t at, uint32_t still) {
         items.erase(items.begin() + at);
         calls.push_back("erase " + std::to_string(at));
+        behind.push_back(still);
     }
 
     void replace(uint32_t at) {
@@ -55,7 +58,7 @@ std::vector<int> items_of(observable_list<int> const& list) {
 // A view that starts as the list is, and follows it from here on.
 struct mirrored {
     explicit mirrored(observable_list<int>& source, uint32_t threshold = wxl::impl::list_reset_threshold)
-        : list(source), view{&source, items_of(source), {}} {
+        : list(source), view{&source, items_of(source), {}, {}} {
         list.on_change([this, threshold](list_change const& change) noexcept { list_mirror{view, threshold}(change); });
     }
 
@@ -118,14 +121,14 @@ TEST(list_mirror, an_assignment_and_a_clear_are_resets) {
 // reads inside a call is the size it last knew, plus or minus one.
 TEST(list_mirror, each_call_is_one_item_from_the_last) {
     observable_list<int> list{{1, 2, 3}};
-    vector_view view{&list, items_of(list), {}};
+    vector_view view{&list, items_of(list), {}, {}};
     std::vector<uint32_t> sizes;
     struct counting {
         vector_view* view;
         std::vector<uint32_t>* sizes;
         uint32_t size() const { return view->size(); }
-        void insert(uint32_t at) { view->insert(at); sizes->push_back(view->size()); }
-        void erase(uint32_t at) { view->erase(at); sizes->push_back(view->size()); }
+        void insert(uint32_t at, uint32_t still) { view->insert(at, still); sizes->push_back(view->size()); }
+        void erase(uint32_t at, uint32_t still) { view->erase(at, still); sizes->push_back(view->size()); }
         void replace(uint32_t at) { view->replace(at); }
         void reset(uint32_t size) { view->reset(size); }
     } sink{&view, &sizes};
@@ -136,6 +139,20 @@ TEST(list_mirror, each_call_is_one_item_from_the_last) {
 
     EXPECT_EQ(sizes, (std::vector<uint32_t>{4, 5, 6, 5, 4, 3}));
     EXPECT_EQ(view.items, items_of(list));
+}
+
+// Inside a run the list is already past it: each step says how many of its items the view
+// is still to be told, down to none at the last.
+TEST(list_mirror, each_step_of_a_run_says_how_far_the_view_is_behind) {
+    observable_list<int> list{{1, 2, 3, 4, 5}};
+    mirrored m{list};
+
+    list.insert_range(1, std::vector<int>{7, 8, 9});
+    list.erase(0, 2);
+    list.push_back(6);
+
+    EXPECT_EQ(m.view.items, items_of(list));
+    EXPECT_EQ(m.view.behind, (std::vector<uint32_t>{2, 1, 0, 1, 0, 0}));
 }
 
 // Above the threshold a run is cheaper as one reset than as an item at a time.

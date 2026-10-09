@@ -20,6 +20,9 @@
 // The vector is read-only to the control: the list is written by its model, and every
 // method that would change it answers E_NOTIMPL. Changes reach it through list_mirror,
 // the source being its sink: one item at a time, VectorChanged after each, or one Reset.
+// Inside a run the list is already past it, so a slot is read through its place in the
+// list (position), not its number among the slots: a control that builds an element or
+// hands out its selection inside VectorChanged reaches the slot's own item.
 //
 // Only the Windows.Foundation projection is needed here, not WinUI: the source and its
 // slots are tested on their own (test/bound_items_source_test.cpp).
@@ -82,17 +85,22 @@ public:
     /// an item asked for from now on is built as nothing.
     void disarm() noexcept;
 
-    /// The element of the item at `at`, built by the application's function; an empty
-    /// object once disarmed.
+    /// The element of the item of the slot at `at`, built by the application's function; an
+    /// empty object once disarmed or once its item is gone from the list.
     Object build(uint32_t at) const;
+
+    /// Where the item of the slot at `at` stands in the list, or -1 if the list has it no
+    /// more. Out of a run it is the slot's own number; inside one (list_mirror) the slots
+    /// lag behind the list.
+    int64_t position(uint32_t at) const noexcept;
 
     /// The slot of the item at `at`, made now if the control has not asked for it before.
     bound_slot& slot(uint32_t at);
 
     // The sink of list_mirror.
     uint32_t size() const noexcept { return static_cast<uint32_t>(slots_.size()); }
-    void insert(uint32_t at);
-    void erase(uint32_t at);
+    void insert(uint32_t at, uint32_t still);
+    void erase(uint32_t at, uint32_t still);
     void replace(uint32_t at);
     void reset(uint32_t count);
 
@@ -131,8 +139,20 @@ private:
     static void drop(bound_slot* slot) noexcept;
     void raise(winrt::Windows::Foundation::Collections::CollectionChange change, uint32_t index) noexcept;
 
+    // How the slots lag behind the list inside a run: `count` items of it are still to be
+    // told, at the slot `at`. Inserted, they are in the list and not among the slots yet, so
+    // the slots from `at` stand `count` places later in the list; erased, the slots
+    // [at, at + count) are of items already gone, and those after stand `count` places
+    // earlier. Out of a run, `count` is 0.
+    struct lag_behind {
+        uint32_t at = 0;
+        uint32_t count = 0;
+        bool erased = false;
+    };
+
     void const* list_;
     core::nullable<bound_source::item_builder> build_;
+    lag_behind lag_;
     // One per item; null where the control has not asked for the item yet. Each holds one
     // reference.
     core::sta_vector<bound_slot*> slots_;
