@@ -84,9 +84,16 @@ task<int> answers_at_once() {
     co_return 7;
 }
 
+/// Throws, and to the compiler "gives" a T: the body of a coroutine with a value
+/// has to end in co_return, and MSVC does not count a throw as its end.
+template <class T>
+[[noreturn]] T fail_with(const char* what) {
+    throw std::runtime_error(what);
+}
+
 task<std::string> fails_after_a_pause(std::coroutine_handle<>& slot) {
     co_await parked{slot};
-    throw std::runtime_error("inner");
+    co_return fail_with<std::string>("inner");
 }
 
 task<std::unique_ptr<int>> hands_over_ownership() {
