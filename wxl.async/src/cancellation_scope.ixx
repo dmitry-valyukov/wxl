@@ -119,7 +119,7 @@ public:
         }
     }
 
-    inline decltype(auto) await_resume(coro_detail::site where = coro_detail::site::current()) {
+    inline decltype(auto) await_resume([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
         // Not suspended at all -- ready at once, or an await_suspend that declined --
         // leaves the frame running where it was.
         if (running != &self_) {

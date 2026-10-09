@@ -270,7 +270,7 @@ public:
 
     template <class Promise>
     inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
-                                        coro_detail::site where = coro_detail::site::current()) {
+                                        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
         if constexpr (can_be_told)
             if (state_ && !state_->canceled()) state_->enter(*this);
 
@@ -280,7 +280,7 @@ public:
             return awaiter_.await_suspend(awaiting);
     }
 
-    inline decltype(auto) await_resume(coro_detail::site where = coro_detail::site::current()) {
+    inline decltype(auto) await_resume([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
         this->leave();
 
         if (state_ && state_->canceled()) [[unlikely]]
