@@ -639,6 +639,24 @@ struct BoundModel : core::sta_refcounted {
     ToggleSwitch{BindOutput{model->busy}};
 }
 
+// State the control takes only on its own terms, bound as a pair that answers
+// back: isFocused on any element, verticalOffset on a ScrollViewer. Bind and
+// BindInput, never BindOutput -- the field says what the control did, not what
+// was asked -- and never unnamed: a bool would otherwise mean focus to every
+// element.
+[[maybe_unused]] void binding_state_pairs() {
+    core::intrusive_ptr<BoundModel> const model{new BoundModel{}};
+
+    TextBox{isFocused = Bind{model->busy}};
+    Border{isFocused = Bind{model->busy}};       // a panel too: UIElement declares the focus
+    Grid{isFocused = BindInput{model->busy}};    // only told
+    Button{isFocused = Bind{model->busy, std::logical_not{}}};
+    TextBox{schema::TextBox::isFocused = Bind{model->busy}};  // inherited from UIElement's anchor
+    ScrollViewer{verticalOffset = Bind{model->amount}};
+    ScrollViewer{verticalOffset = BindInput{model->amount}};
+    ScrollViewer{schema::ScrollViewer::verticalOffset = Bind{model->amount}};
+}
+
 // Copy construction must not be hijacked by the variadic constructor -- the
 // single-argument case is what the constraint on it exists for.
 [[maybe_unused]] void copying(Button const& source) {
