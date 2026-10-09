@@ -713,8 +713,9 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
 }
 
 // The Debug checks cost a Release build nothing: no field in the promise, and
-// a task stays one handle wide, as does the awaiter of a joined one.
-#ifdef NDEBUG
+// a task stays one handle wide, as does the awaiter of a joined one. (The implicit
+// token's own price is checked with it, in cancellation_tests.cpp.)
+#if defined(NDEBUG) && !defined(WXL_AMBIENT_CANCELLATION)
 static_assert(sizeof(task_detail::promise_base) ==
               sizeof(std::coroutine_handle<>) + sizeof(std::exception_ptr));
 static_assert(sizeof(task<>) == sizeof(void*) && sizeof(task<int>) == sizeof(void*));

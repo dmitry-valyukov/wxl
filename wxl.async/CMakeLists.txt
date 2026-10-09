@@ -15,6 +15,12 @@
 # module and that setup already lives at the root.
 option(WXL_ENABLE_PCH "Use a precompiled header (src/pch.h)." ON)
 
+# Off by default, an experiment beside the explicit token: with it on, every task takes
+# the cancellation token of the coroutine that calls it, and every co_await in a task or
+# a detached task stands under its frame's token -- two words more in every promise and
+# a few instructions more on every co_await, whether or not anything is ever cancelled.
+option(WXL_AMBIENT_CANCELLATION "Give every coroutine of wxl.async an implicit cancellation token (experiment)." OFF)
+
 # Off by default: the benchmarks are measurement tools, run deliberately, and
 # an ordinary build has no reason to spend time on them.
 option(WXL_BUILD_BENCHMARKS "Build the wxl.async benchmark executables." OFF)

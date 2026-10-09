@@ -293,7 +293,9 @@ static_assert(!std::is_constructible_v<detached_promise, int&, Counted<refcounte
 // The lowest bit of a pointer to either counting base is free to say which
 // one it is, and that word is all the promise adds to a frame.
 static_assert(alignof(wxl::core::refcounted) > 1 && alignof(refcounted_mt) > 1);
+#ifndef WXL_AMBIENT_CANCELLATION
 static_assert(sizeof(detached_promise) == sizeof(void*));
+#endif
 
 // A counted object made on the heap and held from outside by the one
 // reference it was born with, which a test can drop; and the handle of the

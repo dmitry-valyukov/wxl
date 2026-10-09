@@ -4,6 +4,8 @@ module;
 
 export module wxl.async:task;
 
+import :cancellation;
+import :cancellation_scope;
 import wxl.core;
 import std;
 
@@ -66,6 +68,14 @@ public:
         return awaiter_.await_resume();
     }
 
+#ifdef WXL_AMBIENT_CANCELLATION
+    inline void cancel() noexcept
+        requires cancellable_awaiter<std::remove_reference_t<Awaiter>>
+    {
+        awaiter_.cancel();
+    }
+#endif
+
 private:
     bool& running_;
     Awaiter awaiter_;
@@ -77,7 +87,11 @@ private:
 /// start on the calling thread, the exception kept for whoever reads the
 /// task, and the way out -- which hands the thread to the coroutine awaiting
 /// this one, if there is one.
-struct promise_base {
+struct promise_base
+#ifdef WXL_AMBIENT_CANCELLATION
+    : cancellation_scope_detail::inheriting_frame
+#endif
+{
     /// The frame, from the pool. The sized form of the deallocation is the one
     /// the compiler calls for a coroutine frame, so the pool gets back the very
     /// size it handed out and never has to be asked to remember it.
@@ -111,6 +125,10 @@ struct promise_base {
         running = false;
 #endif
 
+#ifdef WXL_AMBIENT_CANCELLATION
+        cancellation_scope_detail::running = resumer;
+#endif
+
         return handover{continuation ? continuation : std::noop_coroutine()};
     }
 
@@ -120,7 +138,24 @@ struct promise_base {
         if (error) std::rethrow_exception(error);
     }
 
+#ifdef WXL_AMBIENT_CANCELLATION
+    /// Every co_await under the implicit token, over what a Debug build makes of it.
+    template <class Awaitable>
+    inline auto await_transform(Awaitable&& awaitable) {
+        constexpr bool joins = cancellation_scope_detail::coroutine_object<Awaitable>;
 #ifndef NDEBUG
+        using awaiter_t = tracked_awaiter<decltype(awaiter_of(std::forward<Awaitable>(awaitable)))>;
+        return cancellation_scope_detail::scoped_wait<awaiter_t, joins>(*this, [&] {
+            return awaiter_t(running, std::forward<Awaitable>(awaitable));
+        });
+#else
+        using awaiter_t = decltype(cancellation_detail::operand_awaiter(std::forward<Awaitable>(awaitable)));
+        return cancellation_scope_detail::scoped_wait<awaiter_t, joins>(*this, [&]() -> awaiter_t {
+            return cancellation_detail::operand_awaiter(std::forward<Awaitable>(awaitable));
+        });
+#endif
+    }
+#elif !defined(NDEBUG)
     template <class Awaitable>
     inline auto await_transform(Awaitable&& awaitable) {
         return tracked_awaiter<decltype(awaiter_of(std::forward<Awaitable>(awaitable)))>(

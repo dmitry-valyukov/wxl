@@ -1,6 +1,7 @@
 export module wxl.async:detached_task;
 
 import :cancellation;
+import :cancellation_scope;
 import wxl.core;
 import std;
 
@@ -121,7 +122,11 @@ private:
 class detached_task
 {
 public:
-    struct promise_type {
+    struct promise_type
+#ifdef WXL_AMBIENT_CANCELLATION
+        : cancellation_scope_detail::orphan_frame
+#endif
+    {
         /// A coroutine whose first argument does not count its references:
         /// nothing is held.
         promise_type() noexcept = default;
@@ -165,7 +170,25 @@ public:
 
         /// And releases itself at the end. This is the whole difference from
         /// `task`, whose frame stays for its owner to read.
-        inline std::suspend_never final_suspend() const noexcept { return {}; }
+        inline std::suspend_never final_suspend() const noexcept {
+#ifdef WXL_AMBIENT_CANCELLATION
+            cancellation_scope_detail::running = resumer;
+#endif
+            return {};
+        }
+
+#ifdef WXL_AMBIENT_CANCELLATION
+        template <class Awaitable>
+        inline auto await_transform(Awaitable&& awaitable) {
+            using awaiter_t =
+                decltype(cancellation_detail::operand_awaiter(std::forward<Awaitable>(awaitable)));
+            constexpr bool joins = cancellation_scope_detail::coroutine_object<Awaitable>;
+
+            return cancellation_scope_detail::scoped_wait<awaiter_t, joins>(*this, [&]() -> awaiter_t {
+                return cancellation_detail::operand_awaiter(std::forward<Awaitable>(awaitable));
+            });
+        }
+#endif
 
         inline void return_void() const noexcept {}
 

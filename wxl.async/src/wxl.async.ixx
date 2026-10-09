@@ -9,6 +9,7 @@ export import :awaitable;
 export import :barrier;
 export import :bump_buffer;
 export import :cancellation;
+export import :cancellation_scope;
 export import :completion_counter;
 export import :countdown_event;
 export import :detached_task;
