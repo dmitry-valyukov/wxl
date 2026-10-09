@@ -119,6 +119,15 @@ public:
 
 namespace impl {
 
+// A type counted by a wxl base, whose count is born at one: make_refcounted makes
+// it as it is and adopts that reference, and refcounted_mixin, which would give
+// it a second count, refuses it. A constant rather than a concept: a concept asked
+// about a type that is only declared may answer no and keep that answer for the
+// translation unit, where the trait outside a constraint is an error.
+template <class T>
+inline constexpr bool counts_own_references =
+    std::is_base_of_v<refcounted, T> || std::is_base_of_v<refcounted_mt, T>;
+
 // The count mixed into the type rather than wrapped around it: a pointer to
 // this *is* a pointer to T, so `->` reaches T's own members and `*` binds to a
 // `T&`, the way make_shared's pointer does. What it adds is the count and the
@@ -130,9 +139,9 @@ class refcounted_mixin final : public sta_refcounted, public T
                   "wxl: make_refcounted mixes the count into the type itself, so the type "
                   "has to be a class that can be derived from");
 
-    static_assert(!std::derived_from<T, refcounted> && !std::derived_from<T, refcounted_mt>,
-                  "wxl: this type counts its own references already -- hold it as "
-                  "intrusive_ptr<T> and make it with new");
+    static_assert(!counts_own_references<T>,
+                  "wxl: this type counts its own references already -- make_refcounted<T> "
+                  "makes it as it is, without a second count mixed in");
 
 public:
     // Everything is forwarded to T, including nothing at all.
@@ -158,18 +167,48 @@ public:
     using T::operator=;
 };
 
+// What make_refcounted<T> creates, chosen here once, so that make_refcounted and
+// refcounted_ptr cannot disagree about it.
+template <class T>
+using refcounted_object = std::conditional_t<counts_own_references<T>, T, refcounted_mixin<T>>;
+
 }  // namespace impl
 
 /**
- * A value shared by reference count, the way `std::make_shared` shares one: the pointer
- * that comes back points at a `T` -- `->` reaches its members, `*` is a `T&` -- and a copy
- * of the pointer is another reference to the same value, which goes when the last of them
- * does. Arguments are forwarded to `T`'s constructor; with none, it is default-constructed.
+ * What `make_refcounted<T>` returns, for a member or a parameter that has to spell it:
+ * `intrusive_ptr<T>` for a type that counts its own references, and for any other a pointer
+ * to `T` with the count mixed in. The choice reads `T`'s bases, so `T` has to be complete
+ * where this is named.
+ */
+template <class T>
+using refcounted_ptr = intrusive_ptr<impl::refcounted_object<T>>;
+
+/**
+ * An object with a reference count, and the first reference to it -- the way
+ * `std::make_shared` makes one. Arguments are forwarded to `T`'s constructor; with none, it is
+ * default-constructed. The pointer that comes back points at a `T` -- `->` reaches its
+ * members, `*` is a `T&` -- and a copy of it is another reference to the same object, which
+ * goes when the last of them does. Spelled out, its type is `refcounted_ptr<T>`.
  *
- * What wants this is a value two parties share and neither owns. The case it was written
- * for is a subscription that takes itself off: the handler needs the token, and it is
- * called const, so it cannot keep one it was handed afterwards -- and the token does not
- * exist yet when the handler is written.
+ * A type that counts its own references -- derived from `refcounted`, `sta_refcounted` or
+ * `refcounted_mt` -- is made as it is, by `new T` and so from the pool when it is an
+ * `sta_refcounted`, and the pointer adopts the reference the object is born with: `new` and
+ * `intrusive_ptr(p, false)` in one call, with no `false` to forget and leak the object. The
+ * class may be `final` and its destructor protected -- nothing is derived from it, and only
+ * the count deletes it -- so the constraint asks for the `new` alone, not for
+ * `std::constructible_from`, which wants a public destructor.
+ *
+ * ```cpp
+ * class App final : public core::sta_refcounted { ... };
+ *
+ * auto const app = core::make_refcounted<App>(window);
+ * ```
+ *
+ * Any other type gets the count mixed in, so it has to be a class that can be derived from:
+ * not `int`, not a `final` one. That is a value two parties share and neither owns. The case
+ * it was written for is a subscription that takes itself off: the handler needs the token,
+ * and it is called const, so it cannot keep one it was handed afterwards -- and the token does
+ * not exist yet when the handler is written.
  *
  * ```cpp
  * auto const token = core::make_refcounted<EventToken>();
@@ -177,16 +216,11 @@ public:
  *     element.remove_onLayoutUpdated(*token);
  * });
  * ```
- *
- * The count is mixed into the type, so the type has to be a class that can be derived
- * from: not `int`, not a `final` one. A type that counts its own references belongs in
- * `intrusive_ptr<T>` instead, and says so.
  */
 template <class T, class... Args>
-    requires std::constructible_from<T, Args...>
-intrusive_ptr<impl::refcounted_mixin<T>> make_refcounted(Args&&... args) {
-    return intrusive_ptr<impl::refcounted_mixin<T>>{
-        new impl::refcounted_mixin<T>(std::forward<Args>(args)...), /*add_ref=*/false};
+    requires requires { new impl::refcounted_object<T>(std::declval<Args>()...); }
+refcounted_ptr<T> make_refcounted(Args&&... args) {
+    return {new impl::refcounted_object<T>(std::forward<Args>(args)...), /*add_ref=*/false};
 }
 
 }  // export namespace wxl::core
