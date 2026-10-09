@@ -10,6 +10,7 @@ export import :barrier;
 export import :bump_buffer;
 export import :cancellation;
 export import :completion_counter;
+export import :coroutine_checks;
 export import :countdown_event;
 export import :detached_task;
 export import :drain_stack;
