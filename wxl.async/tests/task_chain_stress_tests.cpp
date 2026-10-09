@@ -571,9 +571,8 @@ TEST_F(TaskChainStressTest, ChainsKeepTheirFramesWhateverHappensToThem) {
     run_rounds(stress_seed, stress_rounds, false);
 }
 
-// Disabled while an lvalue co_await of a task leaves the awaiting frame in the task's
-// promise: a task that awaits a stored one and is dropped first is resumed there, gone,
-// when the stored one ends.
-TEST_F(TaskChainStressTest, DISABLED_AJoinerDroppedFirstIsNotResumed) {
+// A task that awaits a stored one may be dropped by its owner while it waits: its awaiter
+// takes it off the stored task on the way out, so the stored one, ending, resumes nobody.
+TEST_F(TaskChainStressTest, AJoinerDroppedFirstIsNotResumed) {
     run_rounds(stress_seed, stress_rounds, true);
 }
