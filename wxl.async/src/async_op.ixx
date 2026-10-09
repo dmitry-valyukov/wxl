@@ -148,14 +148,28 @@ public:
     /// Defined with the loop, whose return channel it waits on (sta_loop.cpp).
     static void abandon(async_op* op) noexcept;
 
+    /// The STA thread's call, while the operation is out: asks it to stop, the way giving
+    /// it up does, and keeps it. It still comes back, and whoever waits for it still
+    /// waits, only not as long: one not started does not start, and one running is
+    /// interrupted by on_cancel() if it can be. Asking twice asks once.
+    inline void cancel() noexcept {
+        if (canceled_.load(std::memory_order_relaxed)) return;
+
+        // Ordered against the worker's second look at the flag, which it takes after
+        // handing an operation to the kernel.
+        canceled_.store(true, std::memory_order_seq_cst);
+        on_cancel();
+    }
+
     inline bool has_exception() const noexcept { return error_ != nullptr; }
 
 protected:
     /// The work itself, on the worker thread. \see packaged_execute().
     virtual bool execute() = 0;
 
-    /// Called on the STA thread when the awaitable gives the operation up while it is
-    /// still out, after the flag packaged_execute() reads has been set.
+    /// Called on the STA thread, once, when the operation is asked to stop while it is
+    /// still out -- given up by its awaitable, or cancelled under a token -- after the
+    /// flag packaged_execute() reads has been set.
     ///
     /// For an operation the worker has not reached, the flag is all it takes. One already
     /// running is interrupted here, if what it waits for can be interrupted -- the way

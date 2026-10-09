@@ -5,6 +5,7 @@ module;
 export module wxl.async:async_file;
 
 import :awaitable;
+import :cancellation;
 import :sta_loop;
 import wxl.core;
 import std;
@@ -43,6 +44,15 @@ export namespace wxl::async {
 ///
 /// **Which loop is not asked and cannot be told**: there is one, it is the STA
 /// thread's, and `sta_loop` is static from top to bottom.
+///
+/// **Asking an operation to end.** What can be cut short has a second form, with a
+/// `cancellation_token` as its last argument: under a cancelled token an operation not
+/// started is never started, a read or a write the kernel holds is let go by CancelIoEx,
+/// and an opening or a file by name standing in the system is cut short -- and the
+/// co_await ends with operation_canceled_exception, once nothing writes into the frame
+/// any more. The form without a token is the same operation and costs what it always
+/// did. size(), flush() and close() have no such form: there is nothing in them to cut
+/// short, and a flush cut short is a file that does not survive a power cut.
 ///
 /// **Giving an operation up.** Opening and creating own everything they touch,
 /// so an awaitable that goes away before them leaves them to finish alone
@@ -154,6 +164,46 @@ public:
     /// Not required: an async_file left alone closes itself when it is
     /// destroyed.
     [[nodiscard]] awaitable<void> close();
+
+    /// The operations above under a token, its last argument; see "Asking an operation
+    /// to end" above.
+    ///@{
+    static cancellable_awaitable<async_file> open_read(const core::path& path, cancellation_token stop) {
+        return cancellable_awaitable<async_file>(std::move(stop), [&] { return open_read(path); });
+    }
+
+    static cancellable_awaitable<async_file> create(const core::path& path, cancellation_token stop) {
+        return cancellable_awaitable<async_file>(std::move(stop), [&] { return create(path); });
+    }
+
+    static cancellable_awaitable<std::string> read_all(const core::path& path, cancellation_token stop) {
+        return cancellable_awaitable<std::string>(std::move(stop), [&] { return read_all(path); });
+    }
+
+    static cancellable_awaitable<void> write_all(const core::path& path, std::string bytes,
+                                                 cancellation_token stop) {
+        return cancellable_awaitable<void>(std::move(stop),
+                                           [&] { return write_all(path, std::move(bytes)); });
+    }
+
+    static cancellable_awaitable<bool> exists(const core::path& path, cancellation_token stop) {
+        return cancellable_awaitable<bool>(std::move(stop), [&] { return exists(path); });
+    }
+
+    cancellable_awaitable<std::size_t> read(std::span<std::byte> into, cancellation_token stop) {
+        return cancellable_awaitable<std::size_t>(std::move(stop), [&] { return read(into); });
+    }
+
+    template <class T, std::size_t N>
+        requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
+    cancellable_awaitable<std::size_t> read(T (&into)[N], cancellation_token stop) {
+        return read(std::as_writable_bytes(std::span{into}), std::move(stop));
+    }
+
+    cancellable_awaitable<std::size_t> write(std::span<const std::byte> from, cancellation_token stop) {
+        return cancellable_awaitable<std::size_t>(std::move(stop), [&] { return write(from); });
+    }
+    ///@}
 
     inline bool opened() const noexcept { return file_.opened(); }
 
