@@ -27,6 +27,8 @@
 
 #include "../core.h"
 
+#include "coroutine_checks.h"
+
 import wxl.async;
 
 namespace wxl::impl {
@@ -73,8 +75,11 @@ public:
     }
 
 protected:
-    void arm(std::coroutine_handle<> waiter) noexcept {
-        assert(!waiter_ && "wxl: two coroutines waiting on one event proxy");
+    /// \param where the co_await, which a build that checks coroutines names
+    ///        when the wait breaks the rule.
+    void arm(std::coroutine_handle<> waiter,
+             [[maybe_unused]] async::coro_detail::site where = async::coro_detail::site::current()) noexcept {
+        coro_check(!waiter_, "wxl: two coroutines waiting on one event proxy", where);
 
         waiter_ = waiter;
         ended_ = false;
@@ -105,7 +110,8 @@ protected:
         // resume it with. It cannot happen where a proxy belongs -- in the
         // frame of the coroutine awaiting it, whose awaiter is younger and so
         // disarms first.
-        assert(!waiter_ && "wxl: an event proxy outlived the coroutine waiting on it");
+        coro_check(!waiter_, "wxl: an event proxy outlived the coroutine waiting on it",
+                   async::coro_detail::site::current());
     }
 
     /// What the throwing form of a wait does when the wait ended instead.

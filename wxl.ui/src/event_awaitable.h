@@ -196,8 +196,20 @@ public:
         // cancellation and waits again from being ended over and over.
         bool await_ready() const noexcept { return impl::events_closing(); }
 
-        void await_suspend(std::coroutine_handle<> waiter) noexcept {
+        // Each hook that checks how it is used is declared twice, as task's
+        // are: a strict build's takes the place of the co_await, any other
+        // build's has the signature it always had.
+
+        void await_suspend(std::coroutine_handle<> waiter) noexcept requires(!async::coro_detail::strict) {
             event_->arm(waiter);
+            armed_ = true;
+        }
+
+        void await_suspend(std::coroutine_handle<> waiter,
+                           async::coro_detail::site where = async::coro_detail::site::current()) noexcept
+            requires(async::coro_detail::strict)
+        {
+            event_->arm(waiter, where);
             armed_ = true;
         }
 
