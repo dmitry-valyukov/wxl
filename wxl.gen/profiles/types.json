@@ -152,7 +152,10 @@
     // braces; the class itself declares the member. CompositionWindow is the
     // one so far: how much its whole content is enlarged, the client size it
     // took (physical pixels and the scale they are divided by, straight from
-    // WM_SIZE), and the moment its place changed.
+    // WM_SIZE), the moment its place changed, and the request to close it,
+    // which a handler may refuse. Closing is AppWindow's in the profiles that
+    // list AppWindow; named here, it is there in every profile, and the key
+    // and the tag are one either way.
     "handWrittenMembers": {
         "properties": [
             { "property": "ZoomFactor", "value": "double" },
@@ -166,7 +169,7 @@
             { "property": "IsClickEnabled", "value": "bool" },
             { "property": "ContentAlignment", "value": "SettingsCardContentAlignment", "include": "../SettingsCardAlignment.h" }
         ],
-        "events": ["ClientSizeChanged", "GeometryChanged"],
+        "events": ["ClientSizeChanged", "Closing", "GeometryChanged"],
 
         // A property a generated class has as a binding target alone: no
         // metadata declares it and no setter writes it -- the pair in
