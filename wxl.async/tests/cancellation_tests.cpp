@@ -610,6 +610,41 @@ TEST(CancellationTest, AnOperationUnderATokenMovesBeforeItIsAwaited) {
     EXPECT_TRUE(ends_cancelled(chain));
 }
 
+// A frame destroyed while it stands on the form with a token takes the wait off the list
+// before the token it holds goes: asking afterwards reaches nothing that is gone, and a
+// token that was the state's last holder lets go of it only once the wait is off.
+TEST(CancellationTest, AFrameDestroyedOnTheFormWithATokenLeavesTheToken) {
+    {
+        probe p;
+        cancellation_source stop;
+        {
+            task<std::size_t> chain = overload_top(p, stop.token());
+            p.started.wait();
+        }
+
+        EXPECT_EQ(p.told, 1) << "the read was given up";
+
+        stop.cancel();
+        EXPECT_EQ(p.told, 1);
+    }
+
+    probe p;
+    std::coroutine_handle<> slot;
+    std::optional<cancellation_source> stop(std::in_place);
+    {
+        task<std::size_t> chain = keeps_the_read(p, stop->token(), slot);
+
+        p.started.wait();
+        slot.resume();
+
+        // The kept read now stands on the list of a state only its own token holds.
+        stop.reset();
+    }
+
+    EXPECT_EQ(p.told, 1);
+    EXPECT_EQ(p.alive, 0);
+}
+
 // The token is one thread's: a build that checks coroutines stops a cancel() from any other
 // -- assert in a Debug build, core::abort with the caller's line under STRICT_CORO.
 
