@@ -26,8 +26,7 @@ target_link_libraries(wxl.async.coroutine-frame-benchmark PRIVATE wxl::async)
 
 wxl_set_target_folders(wxl.async.coroutine-frame-benchmark)
 
-# A co_await of one task from another, plain and under a cancellation token -- the explicit
-# one, or the implicit one in a build with WXL_AMBIENT_CANCELLATION.
+# A co_await of one task from another, plain and under a cancellation token.
 add_executable(wxl.async.coroutine-chain-benchmark coroutine_chain_benchmark.cpp)
 
 target_link_libraries(wxl.async.coroutine-chain-benchmark PRIVATE wxl::async)

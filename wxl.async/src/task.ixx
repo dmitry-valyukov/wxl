@@ -4,8 +4,6 @@ module;
 
 export module wxl.async:task;
 
-import :cancellation;
-import :cancellation_scope;
 import :coroutine_checks;
 import wxl.core;
 import std;
@@ -128,14 +126,6 @@ public:
             return awaiter_.await_resume();
     }
 
-#ifdef WXL_AMBIENT_CANCELLATION
-    inline void cancel() noexcept
-        requires cancellable_awaiter<std::remove_reference_t<Awaiter>>
-    {
-        awaiter_.cancel();
-    }
-#endif
-
 private:
     continuation_word& continuation_;
     Awaiter awaiter_;
@@ -156,42 +146,11 @@ struct body_tracking<Promise, true> {
     }
 };
 
-#ifdef WXL_AMBIENT_CANCELLATION
-/// What the implicit token gives a task's promise in every build: every co_await of the
-/// body stands under the frame's token, over what a build that checks makes of it.
-template <class Promise>
-struct ambient_tracking {
-    template <class Awaitable>
-    inline auto await_transform(Awaitable&& awaitable) {
-        constexpr bool joins = cancellation_scope_detail::coroutine_object<Awaitable>;
-        Promise& self = static_cast<Promise&>(*this);
-
-        if constexpr (coro_detail::checked) {
-            using awaiter_t = tracked_awaiter<decltype(awaiter_of(std::forward<Awaitable>(awaitable)))>;
-            return cancellation_scope_detail::scoped_wait<awaiter_t, joins>(self, [&] {
-                return awaiter_t(self.continuation, std::forward<Awaitable>(awaitable));
-            });
-        } else {
-            using awaiter_t = decltype(awaiter_of(std::forward<Awaitable>(awaitable)));
-            return cancellation_scope_detail::scoped_wait<awaiter_t, joins>(self, [&]() -> awaiter_t {
-                return awaiter_of(std::forward<Awaitable>(awaitable));
-            });
-        }
-    }
-};
-#endif
-
 /// What every task's promise has in common: the frame from the pool, the
 /// start on the calling thread, the exception kept for whoever reads the
 /// task, and the way out -- which hands the thread to the coroutine awaiting
 /// this one, if there is one.
-struct promise_base
-#ifdef WXL_AMBIENT_CANCELLATION
-    : cancellation_scope_detail::inheriting_frame, ambient_tracking<promise_base>
-#else
-    : body_tracking<promise_base>
-#endif
-{
+struct promise_base : body_tracking<promise_base> {
     /// The frame, from the pool. The sized form of the deallocation is the one
     /// the compiler calls for a coroutine frame, so the pool gets back the very
     /// size it handed out and never has to be asked to remember it.
@@ -222,9 +181,6 @@ struct promise_base
         };
 
         continuation.set_running(false);
-#ifdef WXL_AMBIENT_CANCELLATION
-        cancellation_scope_detail::running = resumer;
-#endif
         return handover{continuation.next()};
     }
 

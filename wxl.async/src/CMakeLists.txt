@@ -9,7 +9,6 @@ wxl_add_module_library(wxl.async STATIC
         barrier.ixx
         bump_buffer.ixx
         cancellation.ixx
-        cancellation_scope.ixx
         completion_counter.ixx
         coroutine_checks.ixx
         countdown_event.ixx
@@ -92,12 +91,6 @@ set_target_properties(wxl.async PROPERTIES
 # them needs the module and the headers its global module fragments include
 # (abi.h, platform.h travel with wxl::core's header file set).
 target_link_libraries(wxl.async PUBLIC wxl::core)
-
-# PUBLIC for the same reason: the interfaces of task and detached_task read it, and a
-# consumer compiling them has to get the same answer as this target.
-if(WXL_AMBIENT_CANCELLATION)
-    target_compile_definitions(wxl.async PUBLIC WXL_AMBIENT_CANCELLATION)
-endif()
 
 # PRIVATE: every worker thread brings COM up as MTA (thread_group.cpp), so a
 # worker body can make WinRT calls off the UI thread -- Win2D, say.

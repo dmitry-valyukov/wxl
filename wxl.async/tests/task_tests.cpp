@@ -715,11 +715,8 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
 // The checks cost the promise nothing in any build, strict or not: what they keep --
 // whether the body is on the stack, whether the waiter joined -- is two bits of the
 // waiter's handle. A task stays one handle wide, as does the awaiter of a joined one.
-// (The implicit token's price is checked with it, in cancellation_tests.cpp.)
-#ifndef WXL_AMBIENT_CANCELLATION
 static_assert(sizeof(task_detail::promise_base) ==
               sizeof(std::coroutine_handle<>) + sizeof(std::exception_ptr));
-#endif
 static_assert(sizeof(task<>) == sizeof(void*) && sizeof(task<int>) == sizeof(void*));
 static_assert(sizeof(task_detail::join_awaiter<task_detail::value_promise<int>>) == sizeof(void*));
 

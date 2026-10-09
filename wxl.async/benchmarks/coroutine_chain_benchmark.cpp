@@ -1,7 +1,6 @@
 // What a co_await of one task from another costs on the path with no error, and what
-// cancellation by request adds to it -- the explicit token, passed as an argument and
-// named at the wait, and, in a build with WXL_AMBIENT_CANCELLATION, the implicit one
-// every frame keeps whether or not anything is ever cancelled.
+// cancellation by request adds to it -- the token passed as an argument and named at
+// the wait.
 //
 // One thread, no loop: a wait that stands for an operation is resumed by hand, so what
 // is timed is the coroutines and nothing under them. Every row does n iterations of the
@@ -12,11 +11,10 @@
 //   after a pause     co_await f(slot, i), where f suspends once and is resumed by hand;
 //   three links       co_await of a task that co_awaits one that co_awaits the pause.
 //
-// Each shape is timed plain and under a token: the explicit one is an argument copied
-// into every frame of the chain, and the pause is `co_await cancellable(...)`, a wait
-// that stands on the token's list while it is suspended; the implicit one is a scope the
-// outer task is started under. Nothing is cancelled: this is what asking costs those
-// that are never asked.
+// Each shape is timed plain and under a token: the token is an argument copied into
+// every frame of the chain, and the pause is `co_await cancellable(...)`, a wait that
+// stands on the token's list while it is suspended. Nothing is cancelled: this is what
+// asking costs those that are never asked.
 //
 // The callees are noinline: a frame whose whole life the caller can see is elided onto
 // the stack, and a benchmark of an elided frame measures nothing (see
@@ -155,26 +153,6 @@ int main() {
     cancellation_source stop;
     const cancellation_token token = stop.token();
 
-#ifdef WXL_AMBIENT_CANCELLATION
-    std::printf("implicit token: ns per iteration, under no scope and under a scope\n");
-
-    // The implicit token: the same chains with no token in them, started under a scope
-    // or not.
-    auto under = [&](auto start) {
-        return [&, start](std::coroutine_handle<>* slot) {
-            cancellation_scope scope(token);
-            return start(slot);
-        };
-    };
-
-    auto at_once_rows = [](std::coroutine_handle<>*) { return loop_at_once(iterations); };
-    auto pause_rows = [](std::coroutine_handle<>* slot) { return loop_pause(slot, iterations); };
-    auto link_rows = [](std::coroutine_handle<>* slot) { return loop_links(slot, iterations); };
-
-    row("ended at once", best_of(at_once_rows), best_of(under(at_once_rows)));
-    row("after a pause", best_of(pause_rows), best_of(under(pause_rows)));
-    row("three links", best_of(link_rows), best_of(under(link_rows)));
-#else
     std::printf("explicit token: ns per iteration, plain and under a token\n");
 
     row("ended at once", best_of([](std::coroutine_handle<>*) { return loop_at_once(iterations); }),
@@ -183,5 +161,4 @@ int main() {
         best_of([&](std::coroutine_handle<>* slot) { return loop_pause_under(slot, iterations, token); }));
     row("three links", best_of([](std::coroutine_handle<>* slot) { return loop_links(slot, iterations); }),
         best_of([&](std::coroutine_handle<>* slot) { return loop_links_under(slot, iterations, token); }));
-#endif
 }
