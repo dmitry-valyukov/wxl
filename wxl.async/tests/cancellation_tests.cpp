@@ -170,6 +170,30 @@ task<int> waits_where_nobody_can_tell(std::coroutine_handle<>& slot, cancellatio
     co_return co_await cancellable(parked{slot}, stop);
 }
 
+/// An awaiter that does not move, as the waits of wxl.ui do not; it can be told.
+class pinned
+{
+public:
+    explicit pinned(std::coroutine_handle<>& slot, int& told) noexcept : slot_(slot), told_(told) {}
+
+    pinned(const pinned&) = delete;
+    pinned& operator=(const pinned&) = delete;
+
+    bool await_ready() const noexcept { return false; }
+    void await_suspend(std::coroutine_handle<> here) noexcept { slot_ = here; }
+    int await_resume() const noexcept { return 3; }
+
+    void cancel() noexcept { ++told_; }
+
+private:
+    std::coroutine_handle<>& slot_;
+    int& told_;
+};
+
+task<int> waits_on_a_pinned_awaiter(std::coroutine_handle<>& slot, int& told, cancellation_token stop) {
+    co_return co_await cancellable(pinned{slot, told}, stop);
+}
+
 /// What cancelled() answered.
 template <class Task>
 bool ends_cancelled(Task& t) {
@@ -389,6 +413,26 @@ TEST(CancellationTest, AWaitThatCannotBeToldEndsWhenItEndsAndThenWithTheCancella
     EXPECT_TRUE(ends_cancelled(late));
 }
 
+// An awaiter that does not move is borrowed for the full expression it was made in -- the
+// co_await's -- and told like any other.
+TEST(CancellationTest, AnAwaiterThatDoesNotMoveIsBorrowedForItsCoAwait) {
+    std::coroutine_handle<> slot;
+    int told = 0;
+    cancellation_source stop;
+
+    task<int> plain = waits_on_a_pinned_awaiter(slot, told, cancellation_token{});
+    ASSERT_TRUE(slot);
+    slot.resume();
+    EXPECT_EQ(plain.result(), 3);
+
+    task<int> asked = waits_on_a_pinned_awaiter(slot, told, stop.token());
+    stop.cancel();
+    EXPECT_EQ(told, 1);
+
+    slot.resume();
+    EXPECT_TRUE(ends_cancelled(asked));
+}
+
 // Without a request the wait is the operand's own, and the read is never told.
 TEST(CancellationTest, WithoutARequestTheWaitIsTheOperandsOwn) {
     std::coroutine_handle<> slot;
@@ -410,3 +454,4 @@ TEST(CancellationTest, WithoutARequestTheWaitIsTheOperandsOwn) {
 static_assert(sizeof(cancellation_token) == sizeof(void*));
 static_assert(cancellable_awaiter<awaitable<std::size_t>>);
 static_assert(!cancellable_awaiter<parked>);
+

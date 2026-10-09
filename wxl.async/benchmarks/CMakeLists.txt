@@ -26,6 +26,14 @@ target_link_libraries(wxl.async.coroutine-frame-benchmark PRIVATE wxl::async)
 
 wxl_set_target_folders(wxl.async.coroutine-frame-benchmark)
 
+# A co_await of one task from another, plain and under a cancellation token -- the explicit
+# one, or the implicit one in a build with WXL_AMBIENT_CANCELLATION.
+add_executable(wxl.async.coroutine-chain-benchmark coroutine_chain_benchmark.cpp)
+
+target_link_libraries(wxl.async.coroutine-chain-benchmark PRIVATE wxl::async)
+
+wxl_set_target_folders(wxl.async.coroutine-chain-benchmark)
+
 # The loop end to end: what one co_await costs through it, with the real sta_loop in the
 # first row and the variants beside it. synchronization.lib is WaitOnAddress, which the
 # address rows stand on.

@@ -73,6 +73,31 @@ private:
 
 using cancellation_state_ptr = core::intrusive_ptr<cancellation_state>;
 
+/// The place a wait takes in the state's list -- or none, for a wait that cannot be told
+/// and so never stands in one: such a wait carries nothing of the list.
+template <bool can_be_told>
+class standing;
+
+template <>
+class standing<true> : public wait
+{
+protected:
+    inline explicit standing(tell_t tell) noexcept : wait(tell) {}
+
+    inline void leave() noexcept {
+        if (linked()) core::intrusive_list<wait>::remove(core::not_null<wait>(this));
+    }
+};
+
+template <>
+class standing<false>
+{
+protected:
+    inline explicit standing(wait::tell_t) noexcept {}
+
+    inline void leave() noexcept {}
+};
+
 /// What `co_await` makes of an operand: what its member operator co_await returns,
 /// else what a free one returns, else the operand itself.
 template <class Awaitable>
@@ -178,8 +203,8 @@ private:
 /// A wait under a token: `co_await cancellable(operation, token)`.
 ///
 /// Until the token is cancelled it is the operand's own wait, and the coroutine stands
-/// on the token's list while it is suspended -- three pointers written in, three out,
-/// in the frame and in the state, and nothing else. Once the token is cancelled the
+/// on the token's list while it is suspended -- four pointers written in, four out, in
+/// the frame and in the state, and nothing else. Once the token is cancelled the
 /// wait ends with operation_canceled_exception: one standing is told through the
 /// awaiter's cancel() and ends when the awaiter lets it, and one that begins later
 /// does not stand at all -- unless its awaiter still has something out that borrows
@@ -187,18 +212,28 @@ private:
 ///
 /// An awaiter that cannot be told is not interrupted: a wait standing on it ends when
 /// it ends, and only then with the cancellation.
+///
+/// The operand is held as `co_await` would hold it: an lvalue is borrowed, an rvalue is
+/// moved in -- or, if it cannot be moved, as the awaiters of waits on this thread
+/// cannot, borrowed for the full expression it was made in. The token is borrowed the
+/// same way. So the wait is co_awaited where it is made, as `co_await f()` is.
 template <class Awaitable>
 class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] cancellable_wait
-    : cancellation_detail::wait
+    : cancellation_detail::standing<cancellable_awaiter<std::remove_reference_t<
+          decltype(cancellation_detail::operand_awaiter(std::declval<Awaitable>()))>>>
 {
     using awaiter_t = decltype(cancellation_detail::operand_awaiter(std::declval<Awaitable>()));
     using awaiter_value_t = std::remove_reference_t<awaiter_t>;
 
     static constexpr bool can_be_told = cancellable_awaiter<awaiter_value_t>;
 
+    using standing = cancellation_detail::standing<can_be_told>;
+
+    using operand_t = std::conditional_t<std::move_constructible<Awaitable>, Awaitable, Awaitable&&>;
+
 public:
     inline cancellable_wait(Awaitable&& awaitable, const cancellation_token& token)
-        : wait(&tell_this),
+        : standing(&tell_this),
           operand_(std::forward<Awaitable>(awaitable)),
           awaiter_(cancellation_detail::operand_awaiter(std::forward<Awaitable>(operand_))),
           state_(cancellation_detail::state_of(token)) {}
@@ -207,9 +242,7 @@ public:
     cancellable_wait& operator=(const cancellable_wait&) = delete;
 
     /// A frame destroyed while it stands here takes the wait off the list.
-    inline ~cancellable_wait() {
-        if (linked()) core::intrusive_list<wait>::remove(core::not_null<wait>(this));
-    }
+    inline ~cancellable_wait() { this->leave(); }
 
     inline bool await_ready() {
         if (state_ && state_->canceled()) [[unlikely]] {
@@ -233,8 +266,7 @@ public:
     }
 
     inline decltype(auto) await_resume() {
-        if constexpr (can_be_told)
-            if (linked()) core::intrusive_list<wait>::remove(core::not_null<wait>(this));
+        this->leave();
 
         if (state_ && state_->canceled()) [[unlikely]]
             throw operation_canceled_exception();
@@ -243,19 +275,19 @@ public:
     }
 
 private:
-    static void tell_this(wait& told) noexcept {
+    static void tell_this(cancellation_detail::wait& told) noexcept {
         if constexpr (can_be_told) static_cast<cancellable_wait&>(told).awaiter_.cancel();
     }
 
-    Awaitable operand_;
+    operand_t operand_;
     awaiter_t awaiter_;
 
-    /// Borrowed from the token, which outlives the full expression this wait is part of.
+    /// Borrowed from the token, which outlives the full expression the wait is made in.
     cancellation_detail::cancellation_state* state_;
 };
 
-/// \return the wait for `awaitable` under `token`. An lvalue operand is borrowed, an
-///         rvalue one moved in.
+/// \return the wait for `awaitable` under `token`, to be co_awaited in the same
+///         expression: `co_await cancellable(file.read(buf), stop)`.
 template <class Awaitable>
 [[nodiscard]] inline cancellable_wait<Awaitable> cancellable(Awaitable&& awaitable,
                                                              const cancellation_token& token) {
