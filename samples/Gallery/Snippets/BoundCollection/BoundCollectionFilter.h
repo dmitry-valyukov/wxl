@@ -31,7 +31,7 @@ auto example = StackPanel {
     TextBlock {text = BindOutput {model->shown.count(), [](uint32_t count) { return core::format(u"{} found", count); }}},
     ScrollViewer {
         height = 200,
-        ItemsRepeater {
+        content = ItemsRepeater {
             itemsSource = BindOutput {model->shown, [](core::u16_text const& word) {
                 return Border {Padding {4}, TextBlock {text = word}};
             }},
