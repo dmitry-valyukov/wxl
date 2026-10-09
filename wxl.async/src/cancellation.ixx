@@ -129,7 +129,9 @@ cancellation_state* state_of(const cancellation_token& token) noexcept;
 /// later does not stand at all -- unless its awaiter still has something out that
 /// borrows the frame, which it is told about and waited for, without holding the thread.
 /// An awaiter that cannot be told is not interrupted: a wait on it ends when it ends,
-/// and then with the cancellation. A told awaiter is left without its await_resume().
+/// and then with the cancellation. A told awaiter is left without its await_resume();
+/// one that answers a cancellation rather than throwing it -- the answering form of an
+/// event wait -- gives its answer through await_canceled().
 ///
 /// Each hook takes the place of the co_await and hands it on to an awaiter that takes
 /// one, so that a strict build reports the line of the co_await rather than this file's.
@@ -162,8 +164,12 @@ public:
     inline decltype(auto) await_resume([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
         this->leave();
 
-        if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]]
-            throw operation_canceled_exception();
+        if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]] {
+            if constexpr (requires { self().awaiter().await_canceled(); })
+                return self().awaiter().await_canceled();
+            else
+                throw operation_canceled_exception();
+        }
 
         if constexpr (requires { self().awaiter().await_resume(where); })
             return self().awaiter().await_resume(where);
@@ -210,7 +216,11 @@ private:
 /// ends anyway -- the operation comes back, the event ends -- only sooner; and it is
 /// told on the coroutine's own thread, while the coroutine is suspended in it or just
 /// before it would be. A told awaiter is then left without its await_resume(): whatever
-/// it would have handed over is not asked for.
+/// it would have handed over is not asked for. Told before it suspends, it suspends only
+/// while something it has out borrows the frame -- an operation in flight, until it comes
+/// back -- and an event wait, which has nothing out, does not suspend at all. A form that
+/// answers rather than throws says what a cancelled wait answers through
+/// `await_canceled()`, which a wait under a token then gives instead of the exception.
 template <class Awaiter>
 concept cancellable_awaiter = requires(Awaiter& awaiter) {
     { awaiter.cancel() } noexcept;
