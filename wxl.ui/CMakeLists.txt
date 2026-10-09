@@ -527,18 +527,25 @@ if(BUILD_TESTING)
     # The source a bound list gives its control is a vector of wxl's own over
     # the same projection, and its source file comes along for the same
     # reason; the mirror that drives it is a template, tested over a vector.
+    #
+    # A wait on an event, asked to end through a cancellation token, is tested
+    # over a fake event, with the test standing for the thread's queue: the
+    # coroutines are wxl.async's, and the turn a told wait asks for is a
+    # function the test defines, so UiThread.cpp stays out.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
             test/vector_view_test.cpp
             test/list_mirror_test.cpp
             test/bound_items_source_test.cpp
+            test/event_cancel_test.cpp
             src/Object.cpp
             src/impl/bound_items_source.cpp
         DEPS
             Microsoft::CppWinRT
             runtimeobject.lib
             wxl::core
+            wxl::async
     )
     target_include_directories(wxl.ui.tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src

@@ -421,6 +421,14 @@ struct Event {
     template <typename Obj>
         requires std::derived_from<Obj, Object>
     auto operator()(Obj const& source) const;
+
+    // The same wait under a cancellation token, given last: `co_await
+    // onClick(button, stop)`. The token's type is wxl.async's, which this
+    // header does not import; the definition beside the other says which one
+    // it takes.
+    template <typename Obj, typename Stop>
+        requires std::derived_from<Obj, Object>
+    auto operator()(Obj const& source, Stop stop) const;
 };
 
 // A repeated child: `[](repeat<20> i) { return Button { ... }; }` inside a

@@ -101,8 +101,21 @@ bool UiThread::Idle::await_suspend(std::coroutine_handle<> waiter) {
     }
 
     disarm();
-    refused_ = true;
+    skipped_ = true;
     return false;
+}
+
+// At normal priority, the one an event comes at: a told wait ends as soon as
+// what was already in the queue has run, not once the thread is idle. A queue
+// that throws or refuses is one going down, and the waits are ended with the
+// rest by close_event_waits().
+bool impl::post_told_waits() noexcept {
+    try {
+        auto const queue = queue_t::GetForCurrentThread();
+        return queue && queue.TryEnqueue([] { impl::resume_told_waits(); });
+    } catch (...) {
+        return false;
+    }
 }
 
 }  // namespace wxl
