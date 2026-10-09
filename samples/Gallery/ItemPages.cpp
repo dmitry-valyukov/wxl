@@ -62,6 +62,7 @@ constexpr Entry ported[] = {
     {L"Halo", &gallery::haloPage},
     {L"XamlResources", &gallery::xamlResourcesPage},
     {L"Binding", &gallery::bindingPage},
+    {L"BoundCollection", &gallery::boundCollectionPage},
     {L"SettingsCard", &gallery::settingsCardPage},
     {L"HeaderedContentControl", &gallery::headeredContentControlPage},
     {L"SettingsExpander", &gallery::settingsExpanderPage},

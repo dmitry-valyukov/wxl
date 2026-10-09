@@ -156,11 +156,11 @@ void apply_bind(ToggleButton const& control, core::observable<bool>& model,
     }
 }
 
-void apply_bind(ComboBox const& control, core::observable<int>& model, bind_direction direction) {
+void apply_bind(Selector const& control, core::observable<int>& model, bind_direction direction) {
     bind_pair<EventKey::SelectionChanged>(
         control, model, direction,                                  //
-        [](ComboBox const& c) { return c.selectedIndex(); },        // get
-        [](ComboBox const& c, int v) { c.selectedIndex(v); });      // set
+        [](Selector const& c) { return c.selectedIndex(); },        // get
+        [](Selector const& c, int v) { c.selectedIndex(v); });      // set
 }
 
 void apply_bind(RadioButtons const& control, core::observable<int>& model,
@@ -208,13 +208,6 @@ void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& mode
         control, model, direction,                                    //
         [](RadioMenuFlyoutItem const& c) { return c.isChecked(); },   // get
         [](RadioMenuFlyoutItem const& c, bool v) { c.isChecked(v); });   // set
-}
-
-void apply_bind(FlipView const& control, core::observable<int>& model, bind_direction direction) {
-    bind_pair<EventKey::SelectionChanged>(
-        control, model, direction,                                 //
-        [](FlipView const& c) { return c.selectedIndex(); },       // get
-        [](FlipView const& c, int v) { c.selectedIndex(v); });     // set
 }
 
 void apply_bind(PipsPager const& control, core::observable<int>& model, bind_direction direction) {
