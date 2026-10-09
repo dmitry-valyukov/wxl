@@ -31,6 +31,7 @@ struct probe {
     /// Set by the first body to reach the gate, so a test can know the worker is inside it.
     hevent started{true};
 
+    std::atomic<int> made{0};
     std::atomic<int> ran{0};
     std::atomic<int> wrote{0};
     std::atomic<int> told{0};
@@ -45,7 +46,10 @@ struct probe {
 class gated_read : public async_op_t<std::size_t>
 {
 public:
-    gated_read(probe& p, std::span<std::byte> into) : p_(p), into_(into) { ++p_.alive; }
+    gated_read(probe& p, std::span<std::byte> into) : p_(p), into_(into) {
+        ++p_.made;
+        ++p_.alive;
+    }
 
     ~gated_read() override { --p_.alive; }
 
@@ -80,6 +84,12 @@ private:
 
 awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into) {
     return sta_loop::async_run(std::unique_ptr<async_op_t<std::size_t>>(new gated_read(p, into)));
+}
+
+/// The same read under a token, in the form the operations of this module take one:
+/// `async_file::read_all(path, stop)`.
+cancellable_awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into, cancellation_token stop) {
+    return cancellable_awaitable<std::size_t>(std::move(stop), [&] { return start_read(p, into); });
 }
 
 /// Three links, the token passed down by hand; the bottom one reads into its frame.
@@ -194,6 +204,36 @@ private:
 
 task<int> waits_on_a_pinned_awaiter(std::coroutine_handle<>& slot, int& told, cancellation_token stop) {
     co_return co_await cancellable(pinned{slot, told}, stop);
+}
+
+/// Three links again, the bottom one reading by the form with a token.
+task<std::size_t> overload_bottom(probe& p, cancellation_token stop) {
+    std::byte buf[16]{};
+    co_return co_await start_read(p, buf, stop);
+}
+
+task<std::size_t> overload_top(probe& p, cancellation_token stop) {
+    co_return co_await overload_bottom(p, stop);
+}
+
+/// Starts the read under the token, keeps it, waits for something else first, and only
+/// then awaits the read.
+task<std::size_t> keeps_the_read(probe& p, cancellation_token stop, std::coroutine_handle<>& slot) {
+    std::byte buf[16]{};
+    cancellable_awaitable<std::size_t> read = start_read(p, buf, std::move(stop));
+
+    co_await parked{slot};
+    co_return co_await read;
+}
+
+/// Moves the read into a container before awaiting it there.
+task<std::size_t> moves_the_read(probe& p, cancellation_token stop) {
+    std::byte buf[16]{};
+    std::vector<cancellable_awaitable<std::size_t>> reads;
+
+    reads.push_back(start_read(p, buf, std::move(stop)));
+
+    co_return co_await reads.front();
 }
 
 /// What cancelled() answered.
@@ -453,6 +493,123 @@ TEST(CancellationTest, WithoutARequestTheWaitIsTheOperandsOwn) {
     EXPECT_EQ(unowned.result(), 7);
 }
 
+// ---- The operations' own form under a token --------------------------------------------
+
+// Without a request the form with a token answers what the plain one does, and its
+// operation is never told.
+TEST(CancellationTest, TheFormWithATokenAnswersLikeThePlainOne) {
+    probe p;
+    p.gate.set();
+
+    cancellation_source stop;
+    task<std::size_t> chain = overload_top(p, stop.token());
+
+    sta_loop::run_until([&] { return chain.done(); });
+
+    EXPECT_EQ(chain.result(), 16u);
+    EXPECT_EQ(p.told, 0);
+    EXPECT_EQ(p.wrote, 1);
+}
+
+TEST(CancellationTest, TheFormWithATokenIsToldAtTheBottomOfAChain) {
+    probe p;
+    cancellation_source stop;
+    task<std::size_t> chain = overload_top(p, stop.token());
+
+    p.started.wait();
+    stop.cancel();
+
+    EXPECT_EQ(p.told, 1);
+    EXPECT_FALSE(chain.done());
+
+    sta_loop::run_until([&] { return chain.done(); });
+
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.wrote, 0);
+    EXPECT_EQ(p.alive, 0);
+}
+
+// Under a token cancelled already the operation is not even made: the co_await ends at
+// once, without a trip to the worker.
+TEST(CancellationTest, UnderACancelledTokenTheFormWithATokenStartsNothing) {
+    probe p;
+    cancellation_source stop;
+    stop.cancel();
+
+    task<std::size_t> chain = overload_top(p, stop.token());
+
+    EXPECT_TRUE(chain.done());
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.made, 0);
+}
+
+// What the form with a token returns is an object like the awaitable: kept and awaited
+// later, it holds its token, so it does not matter what has become of the source by then.
+TEST(CancellationTest, AKeptOperationUnderATokenIsAwaitedLater) {
+    std::coroutine_handle<> slot;
+
+    {
+        probe p;
+        p.gate.set();
+
+        std::optional<cancellation_source> stop(std::in_place);
+        task<std::size_t> chain = keeps_the_read(p, stop->token(), slot);
+
+        stop.reset();
+
+        ASSERT_TRUE(slot);
+        slot.resume();
+        sta_loop::run_until([&] { return chain.done(); });
+
+        EXPECT_EQ(chain.result(), 16u);
+        EXPECT_EQ(p.told, 0);
+    }
+
+    // Asked while it is kept, it is not standing yet and nobody is told; the co_await
+    // tells it, waits for it to come back, and ends with the cancellation.
+    probe p;
+    cancellation_source stop;
+    task<std::size_t> chain = keeps_the_read(p, stop.token(), slot);
+
+    p.started.wait();
+    stop.cancel();
+    EXPECT_EQ(p.told, 0);
+
+    slot.resume();
+    EXPECT_EQ(p.told, 1);
+
+    sta_loop::run_until([&] { return chain.done(); });
+
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.wrote, 0);
+    EXPECT_EQ(p.alive, 0);
+}
+
+// And it moves, while it is not awaited.
+TEST(CancellationTest, AnOperationUnderATokenMovesBeforeItIsAwaited) {
+    {
+        probe p;
+        p.gate.set();
+
+        cancellation_source stop;
+        task<std::size_t> chain = moves_the_read(p, stop.token());
+
+        sta_loop::run_until([&] { return chain.done(); });
+        EXPECT_EQ(chain.result(), 16u);
+    }
+
+    probe p;
+    cancellation_source stop;
+    task<std::size_t> chain = moves_the_read(p, stop.token());
+
+    p.started.wait();
+    stop.cancel();
+    EXPECT_EQ(p.told, 1);
+
+    sta_loop::run_until([&] { return chain.done(); });
+    EXPECT_TRUE(ends_cancelled(chain));
+}
+
 // The token is one thread's: a build that checks coroutines stops a cancel() from any other
 // -- assert in a Debug build, core::abort with the caller's line under STRICT_CORO.
 
@@ -484,18 +641,33 @@ protected:
     }
 };
 
+/// A strict build's report names the line of the caller.
+class CancellationStrictDeathTest : public ::testing::Test
+{
+protected:
+    void SetUp() override {
+        if constexpr (!coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+    }
+};
+
 }  // namespace
 
 TEST_F(CancellationDeathTest, ASourceIsCancelledOnItsCoroutinesThread) {
-    if constexpr (coro_detail::strict)
-        EXPECT_DEATH(cancel_from_another_thread(),
-                     std::format("cancellation_tests\\.cpp\\({}\\): cancellation_source: cancelled from a thread",
-                                 line_of_the_foreign_cancel));
-    else
-        EXPECT_DEATH(cancel_from_another_thread(), "other than its coroutines'");
+    EXPECT_DEATH(cancel_from_another_thread(), "cancelled from a thread other than its coroutines'");
+}
+
+TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignCancel) {
+    EXPECT_DEATH(cancel_from_another_thread(),
+                 std::format("cancellation_tests\\.cpp\\({}\\): cancellation_source: cancelled from a thread",
+                             line_of_the_foreign_cancel));
 }
 
 static_assert(sizeof(cancellation_token) == sizeof(void*));
 static_assert(cancellable_awaiter<awaitable<std::size_t>>);
 static_assert(!cancellable_awaiter<parked>);
+
+// The form with a token adds the token and the place in its list to the awaitable, and
+// nothing to the plain form.
+static_assert(sizeof(awaitable<std::size_t>) == sizeof(void*));
+static_assert(sizeof(cancellable_awaitable<std::size_t>) == 5 * sizeof(void*));
 

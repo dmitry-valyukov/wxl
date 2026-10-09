@@ -5,10 +5,14 @@ module;
 export module wxl.async:awaitable;
 
 import :async_op;
+import :cancellation;
 import :coroutine_checks;
 import std;
 
 export namespace wxl::async {
+
+template <class R>
+class cancellable_awaitable;
 
 /// What every asynchronous operation returns, and the only thing a coroutine ever
 /// sees of one: `file f = co_await file::open(path);`.
@@ -56,7 +60,7 @@ public:
 
     /// Asks the operation to stop early, if it is still out (`async_op::cancel`). The
     /// co_await still ends when the operation comes back -- that is when nobody writes
-    /// into the frame any more -- which is what `cancellable()` waits for before it
+    /// into the frame any more -- which is what a wait under a token waits for before it
     /// answers with the cancellation.
     void cancel() noexcept {
         if (op_ && !op_->delivered()) op_->cancel();
@@ -97,6 +101,68 @@ private:
     }
 
     std::unique_ptr<async_op_t<R>> op_;
+
+    /// Which starts none at all, under a token that is cancelled already.
+    friend class cancellable_awaitable<R>;
+};
+
+/// An operation under a token: what the operations of this module that can be cut short
+/// return when they are given one -- `co_await async_file::read_all(path, stop)` -- and
+/// what a wait under a token does (`cancellation_detail::wait_under`), with the
+/// operation's awaitable made in place and the token held, not borrowed.
+///
+/// So it is an ordinary object, as the awaitable is: awaited at once, or kept and awaited
+/// later -- the token kept with it, whatever happens to the source -- or moved while it is
+/// not awaited. Under a token that is cancelled already nothing is started, and the
+/// co_await ends with the cancellation at once.
+template <class R>
+class [[nodiscard("an operation under a token is given up at once if nobody keeps it")]] cancellable_awaitable
+    : public cancellation_detail::wait_under<cancellable_awaitable<R>, true>
+{
+    using base = cancellation_detail::wait_under<cancellable_awaitable, true>;
+
+    friend base;
+
+public:
+    /// \param start makes the operation's awaitable -- called here, unless `stop` is
+    ///        cancelled already, and then the operation is never made.
+    template <class Start>
+    inline cancellable_awaitable(cancellation_token stop, Start&& start)
+        : token_(std::move(stop)),
+          awaitable_(token_.is_canceled() ? awaitable<R>(std::unique_ptr<async_op_t<R>>()) : start()) {}
+
+    inline cancellable_awaitable(cancellable_awaitable&& other) noexcept
+        : base(std::move(other)), token_(std::move(other.token_)), awaitable_(std::move(other.awaitable_)) {
+        coro_check(!other.linked(), "cancellable_awaitable: moved while it is awaited",
+                   coro_detail::site::current());
+    }
+
+    inline cancellable_awaitable& operator=(cancellable_awaitable&& other) noexcept {
+        coro_check(!this->linked() && !other.linked(), "cancellable_awaitable: moved while it is awaited",
+                   coro_detail::site::current());
+
+        awaitable_ = std::move(other.awaitable_);
+        token_ = std::move(other.token_);
+        return *this;
+    }
+
+    /// A frame destroyed while it stands here takes the wait off the list first: the
+    /// token below may be what keeps the list.
+    inline ~cancellable_awaitable() { this->leave(); }
+
+private:
+    inline awaitable<R>& awaiter() noexcept { return awaitable_; }
+
+    inline cancellation_detail::cancellation_state* state() const noexcept {
+        return cancellation_detail::state_of(token_);
+    }
+
+    inline bool ready_when_told(coro_detail::site where) {
+        return !awaitable_.op_ || base::ready_when_told(where);
+    }
+
+    cancellation_token token_;
+    awaitable<R> awaitable_;
 };
 
 }  // export namespace wxl::async

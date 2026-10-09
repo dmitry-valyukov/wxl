@@ -118,6 +118,92 @@ inline decltype(auto) operand_awaiter(Awaitable&& awaitable) {
 /// The state behind a token, for the waits that stand on it.
 cancellation_state* state_of(const cancellation_token& token) noexcept;
 
+/// The hooks of a wait under a token, over what `Wait` gives them: `awaiter()`, the
+/// awaiter of what is awaited, and `state()`, the token's state or null. `told` says
+/// whether that awaiter can be told (`cancellable_awaiter`).
+///
+/// Until the token is cancelled the wait is the awaiter's own, and stands on the token's
+/// list while the coroutine is suspended -- four pointers written in, four out. Once it
+/// is cancelled the wait ends with operation_canceled_exception: one standing is told
+/// through the awaiter's cancel() and ends when the awaiter lets it; one that would begin
+/// later does not stand at all -- unless its awaiter still has something out that
+/// borrows the frame, which it is told about and waited for, without holding the thread.
+/// An awaiter that cannot be told is not interrupted: a wait on it ends when it ends,
+/// and then with the cancellation. A told awaiter is left without its await_resume().
+///
+/// Each hook takes the place of the co_await and hands it on to an awaiter that takes
+/// one, so that a strict build reports the line of the co_await rather than this file's.
+/// `Wait` leaves the list in its own destructor, before its members go: one of them may
+/// be what keeps the state alive.
+template <class Wait, bool told>
+class wait_under : public standing<told>
+{
+public:
+    inline bool await_ready(coro_detail::site where = coro_detail::site::current()) {
+        if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]]
+            return self().ready_when_told(where);
+
+        return ready(where);
+    }
+
+    template <class Promise>
+    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
+                                        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
+        if constexpr (told)
+            if (cancellation_state* const state = self().state(); state && !state->canceled())
+                state->enter(*this);
+
+        if constexpr (requires { self().awaiter().await_suspend(awaiting, where); })
+            return self().awaiter().await_suspend(awaiting, where);
+        else
+            return self().awaiter().await_suspend(awaiting);
+    }
+
+    inline decltype(auto) await_resume([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
+        this->leave();
+
+        if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]]
+            throw operation_canceled_exception();
+
+        if constexpr (requires { self().awaiter().await_resume(where); })
+            return self().awaiter().await_resume(where);
+        else
+            return self().awaiter().await_resume();
+    }
+
+protected:
+    inline wait_under() noexcept : standing<told>(&tell_this) {}
+
+    /// A place of its own, in no list: a wait is moved only while it does not stand.
+    inline wait_under(wait_under&&) noexcept : standing<told>(&tell_this) {}
+
+    ~wait_under() = default;
+
+    /// The token was cancelled before the wait stood.
+    inline bool ready_when_told(coro_detail::site where) {
+        if constexpr (told) {
+            self().awaiter().cancel();
+            return ready(where);
+        } else {
+            return true;
+        }
+    }
+
+    inline bool ready([[maybe_unused]] coro_detail::site where) {
+        if constexpr (requires { self().awaiter().await_ready(where); })
+            return self().awaiter().await_ready(where);
+        else
+            return self().awaiter().await_ready();
+    }
+
+private:
+    inline Wait& self() noexcept { return static_cast<Wait&>(*this); }
+
+    static void tell_this(wait& standing_wait) noexcept {
+        if constexpr (told) static_cast<Wait&>(static_cast<wait_under&>(standing_wait)).awaiter().cancel();
+    }
+};
+
 }  // namespace cancellation_detail
 
 /// An awaiter that can be told to end its wait early. Told, it still ends the way it
@@ -133,7 +219,9 @@ concept cancellable_awaiter = requires(Awaiter& awaiter) {
 /// The right to ask the coroutines that were given it to end.
 ///
 /// A token is passed down a chain of coroutines explicitly, as an argument, and read at
-/// the waits that name it -- `co_await cancellable(file.read(buf), stop)`. Asking does
+/// the waits that name it: the operations of this module that can be cut short take one
+/// as their last argument -- `co_await async_file::read_all(path, stop)` -- and any other
+/// wait is put under one by `co_await cancellable(wait, stop)`. Asking does
 /// not end anything by itself: a wait standing under the token ends with
 /// operation_canceled_exception, and every later one ends with it at once, so the chain
 /// unwinds by its own exceptions, through its own catch blocks, on the live thread --
@@ -208,18 +296,8 @@ private:
     cancellation_detail::cancellation_state_ptr state_;
 };
 
-/// A wait under a token: `co_await cancellable(operation, token)`.
-///
-/// Until the token is cancelled it is the operand's own wait, and the coroutine stands
-/// on the token's list while it is suspended -- four pointers written in, four out, in
-/// the frame and in the state, and nothing else. Once the token is cancelled the
-/// wait ends with operation_canceled_exception: one standing is told through the
-/// awaiter's cancel() and ends when the awaiter lets it, and one that begins later
-/// does not stand at all -- unless its awaiter still has something out that borrows
-/// the frame, which it is told about and waited for, without blocking the thread.
-///
-/// An awaiter that cannot be told is not interrupted: a wait standing on it ends when
-/// it ends, and only then with the cancellation.
+/// A wait under a token, for an operand that has no overload taking one:
+/// `co_await cancellable(wait, token)`. What it does is `cancellation_detail::wait_under`'s.
 ///
 /// The operand is held as `co_await` would hold it: an lvalue is borrowed, an rvalue is
 /// moved in -- or, if it cannot be moved, as the awaiters of waits on this thread
@@ -227,22 +305,23 @@ private:
 /// same way. So the wait is co_awaited where it is made, as `co_await f()` is.
 template <class Awaitable>
 class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] cancellable_wait
-    : cancellation_detail::standing<cancellable_awaiter<std::remove_reference_t<
-          decltype(cancellation_detail::operand_awaiter(std::declval<Awaitable>()))>>>
+    : public cancellation_detail::wait_under<
+          cancellable_wait<Awaitable>,
+          cancellable_awaiter<std::remove_reference_t<
+              decltype(cancellation_detail::operand_awaiter(std::declval<Awaitable>()))>>>
 {
     using awaiter_t = decltype(cancellation_detail::operand_awaiter(std::declval<Awaitable>()));
-    using awaiter_value_t = std::remove_reference_t<awaiter_t>;
 
-    static constexpr bool can_be_told = cancellable_awaiter<awaiter_value_t>;
+    using base = cancellation_detail::wait_under<
+        cancellable_wait, cancellable_awaiter<std::remove_reference_t<awaiter_t>>>;
 
-    using standing = cancellation_detail::standing<can_be_told>;
+    friend base;
 
     using operand_t = std::conditional_t<std::move_constructible<Awaitable>, Awaitable, Awaitable&&>;
 
 public:
     inline cancellable_wait(Awaitable&& awaitable, const cancellation_token& token)
-        : standing(&tell_this),
-          operand_(std::forward<Awaitable>(awaitable)),
+        : operand_(std::forward<Awaitable>(awaitable)),
           awaiter_(cancellation_detail::operand_awaiter(std::forward<Awaitable>(operand_))),
           state_(cancellation_detail::state_of(token)) {}
 
@@ -252,57 +331,10 @@ public:
     /// A frame destroyed while it stands here takes the wait off the list.
     inline ~cancellable_wait() { this->leave(); }
 
-    // Each hook takes the place of the co_await, and hands it on to an awaiter that
-    // takes one: a strict build reports the line of the co_await, not of this file.
-
-    inline bool await_ready(coro_detail::site where = coro_detail::site::current()) {
-        if (state_ && state_->canceled()) [[unlikely]] {
-            if constexpr (can_be_told) {
-                awaiter_.cancel();
-                return ready(where);
-            } else {
-                return true;
-            }
-        }
-
-        return ready(where);
-    }
-
-    template <class Promise>
-    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
-                                        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
-        if constexpr (can_be_told)
-            if (state_ && !state_->canceled()) state_->enter(*this);
-
-        if constexpr (requires { awaiter_.await_suspend(awaiting, where); })
-            return awaiter_.await_suspend(awaiting, where);
-        else
-            return awaiter_.await_suspend(awaiting);
-    }
-
-    inline decltype(auto) await_resume([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
-        this->leave();
-
-        if (state_ && state_->canceled()) [[unlikely]]
-            throw operation_canceled_exception();
-
-        if constexpr (requires { awaiter_.await_resume(where); })
-            return awaiter_.await_resume(where);
-        else
-            return awaiter_.await_resume();
-    }
-
 private:
-    inline bool ready([[maybe_unused]] coro_detail::site where) {
-        if constexpr (requires { awaiter_.await_ready(where); })
-            return awaiter_.await_ready(where);
-        else
-            return awaiter_.await_ready();
-    }
+    inline std::remove_reference_t<awaiter_t>& awaiter() noexcept { return awaiter_; }
 
-    static void tell_this(cancellation_detail::wait& told) noexcept {
-        if constexpr (can_be_told) static_cast<cancellable_wait&>(told).awaiter_.cancel();
-    }
+    inline cancellation_detail::cancellation_state* state() const noexcept { return state_; }
 
     operand_t operand_;
     awaiter_t awaiter_;

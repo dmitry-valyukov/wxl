@@ -16,6 +16,11 @@
 // stands on the token's list while it is suspended. Nothing is cancelled: this is what
 // asking costs those that are never asked.
 //
+// And one operation of this module's kind -- an async_op behind an awaitable, which the
+// loop would resume and here a hand does (`come_back()`) -- awaited in its three forms:
+// plain; the form with a token, `co_await read(..., stop)`, which the operations that
+// can be cut short have; and `co_await cancellable(read(...), stop)`.
+//
 // The callees are noinline: a frame whose whole life the caller can see is elided onto
 // the stack, and a benchmark of an elided frame measures nothing (see
 // coroutine_frame_benchmark.cpp).
@@ -116,6 +121,46 @@ __declspec(noinline) task<long long> loop_links_under(std::coroutine_handle<>* s
     co_return sum;
 }
 
+/// An operation that is over when it is made and is delivered by hand: what the loop
+/// does when one comes back, without the loop.
+class handed_op : public async_op_t<int>
+{
+public:
+    explicit handed_op(int value) { set_value(int(value)); }
+
+protected:
+    bool execute() override { return true; }
+};
+
+awaitable<int> handed(handed_op*& slot, int i) {
+    auto* const op = new handed_op(i);
+    slot = op;
+    return awaitable<int>(std::unique_ptr<async_op_t<int>>(op));
+}
+
+/// The form with a token, as the operations of async_file have it.
+cancellable_awaitable<int> handed(handed_op*& slot, int i, cancellation_token stop) {
+    return cancellable_awaitable<int>(std::move(stop), [&] { return handed(slot, i); });
+}
+
+__declspec(noinline) task<long long> loop_op(handed_op** slot, int n) {
+    long long sum = 0;
+    for (int i = 0; i < n; ++i) sum += co_await handed(*slot, i);
+    co_return sum;
+}
+
+__declspec(noinline) task<long long> loop_op_with(handed_op** slot, int n, cancellation_token stop) {
+    long long sum = 0;
+    for (int i = 0; i < n; ++i) sum += co_await handed(*slot, i, stop);
+    co_return sum;
+}
+
+__declspec(noinline) task<long long> loop_op_cancellable(handed_op** slot, int n, cancellation_token stop) {
+    long long sum = 0;
+    for (int i = 0; i < n; ++i) sum += co_await cancellable(handed(*slot, i), stop);
+    co_return sum;
+}
+
 constexpr int iterations = 2'000'000;
 constexpr int rounds = 15;
 constexpr long long expected = static_cast<long long>(iterations) * (iterations - 1) / 2;
@@ -143,6 +188,27 @@ double best_of(Start start) {
     return best;
 }
 
+/// The same for the operations: each one delivered by hand as it is awaited.
+template <class Start>
+double best_of_ops(Start start) {
+    double best = 1e30;
+
+    for (int r = 0; r < rounds; ++r) {
+        handed_op* slot = nullptr;
+
+        const auto from = std::chrono::steady_clock::now();
+        task<long long> outer = start(&slot);
+        while (!outer.done()) slot->come_back();
+        const auto to = std::chrono::steady_clock::now();
+
+        if (outer.result() != expected) return -1;
+
+        best = std::min(best, std::chrono::duration<double, std::nano>(to - from).count() / iterations);
+    }
+
+    return best;
+}
+
 void row(const char* name, double plain, double under) {
     std::printf("  %-16s %8.2f %8.2f %+8.2f\n", name, plain, under, under - plain);
 }
@@ -161,4 +227,12 @@ int main() {
         best_of([&](std::coroutine_handle<>* slot) { return loop_pause_under(slot, iterations, token); }));
     row("three links", best_of([](std::coroutine_handle<>* slot) { return loop_links(slot, iterations); }),
         best_of([&](std::coroutine_handle<>* slot) { return loop_links_under(slot, iterations, token); }));
+
+    std::printf("an operation: ns per iteration, plain and under a token\n");
+
+    const double plain = best_of_ops([](handed_op** slot) { return loop_op(slot, iterations); });
+
+    row("its own form", plain, best_of_ops([&](handed_op** slot) { return loop_op_with(slot, iterations, token); }));
+    row("cancellable()", plain,
+        best_of_ops([&](handed_op** slot) { return loop_op_cancellable(slot, iterations, token); }));
 }
