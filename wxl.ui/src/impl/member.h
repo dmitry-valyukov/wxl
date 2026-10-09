@@ -225,6 +225,15 @@ void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) 
     }
 }
 
+// A binding of a list -- `itemsSource = BindOutput{list, build}` (Bind.h). It is not one
+// property following one field: it gives the control its items and the template that
+// builds their elements, so it applies itself to the control, as it does unnamed.
+template <typename T>
+inline constexpr bool is_list_binding = false;
+
+template <typename T, typename Fn>
+inline constexpr bool is_list_binding<BindOutput<core::observable_list<T const>, Fn>> = true;
+
 }  // namespace impl
 
 // A pending assignment: the value, plus the key saying where it goes. The
@@ -240,7 +249,11 @@ struct SetterOp {
     template <typename Obj>
     void operator()(Obj const& object) const {
         impl::check_owner<Owner, Obj>();
-        if constexpr (impl::is_bind<T>) {
+        if constexpr (impl::is_list_binding<T>) {
+            static_assert(key == PropertyKey::ItemsSource,
+                          "wxl: a list is bound as the items of a list control: itemsSource = BindOutput{list, fn}.");
+            value_(object);
+        } else if constexpr (impl::is_bind<T>) {
             impl::bind_property<key, T::direction>(object, *value_.model, value_.fn);
         } else {
             impl::PropertySetter<key>::set(object, value_);

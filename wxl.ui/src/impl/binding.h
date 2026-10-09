@@ -25,10 +25,10 @@
 #include "member.h"
 
 namespace wxl {
+class Selector;
 class ToggleSwitch;
 class ToggleButton;
 class CheckBox;
-class ComboBox;
 class NumberBox;
 class TextBox;
 class RadioButtons;
@@ -37,7 +37,6 @@ class RatingControl;
 class ColorPicker;
 class ToggleMenuFlyoutItem;
 class RadioMenuFlyoutItem;
-class FlipView;
 class PipsPager;
 class PagerControl;
 }  // namespace wxl
@@ -54,9 +53,11 @@ void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
 void apply_bind(ToggleButton const& control, core::observable<bool>& model,
                 bind_direction direction = bind_direction::both);
 
-/// ComboBox.selectedIndex <-> observable<int>, under SelectionChanged -- the
-/// chosen row, by position.
-void apply_bind(ComboBox const& control, core::observable<int>& model,
+/// Selector.selectedIndex <-> observable<int>, under SelectionChanged -- the
+/// chosen item, by position, -1 while none is: a ComboBox, a ListView or a
+/// GridView, a FlipView (the page shown). The index is the control's: a reset
+/// of its items clears the choice, and the field hears -1.
+void apply_bind(Selector const& control, core::observable<int>& model,
                 bind_direction direction = bind_direction::both);
 
 /// NumberBox.value <-> observable<int>, under ValueChanged -- the number,
@@ -101,11 +102,6 @@ void apply_bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& mod
 /// unchecks the others without a click of theirs: a field per item that must
 /// follow its group reads the group's choice from one field instead.
 void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
-                bind_direction direction = bind_direction::both);
-
-/// FlipView.selectedIndex <-> observable<int>, under SelectionChanged -- the page
-/// shown, by position, -1 while none is.
-void apply_bind(FlipView const& control, core::observable<int>& model,
                 bind_direction direction = bind_direction::both);
 
 /// PipsPager.selectedPageIndex <-> observable<int>, under SelectedIndexChanged.
@@ -159,10 +155,15 @@ struct PropertyBinder<PropertyKey::IsChecked, CheckBox> {
     }
 };
 
-template <>
-struct PropertyBinder<PropertyKey::SelectedIndex, ComboBox> {
+// Every selector chooses by index the same way, so the pair is one partial
+// specialisation over whatever derives from Selector. The constraint and the
+// conversion to Selector are checked where a binding is written, which has the
+// control's whole class.
+template <class Control>
+    requires std::derived_from<Control, Selector>
+struct PropertyBinder<PropertyKey::SelectedIndex, Control> {
     static constexpr bind_direction direction = bind_direction::both;
-    static void bind(ComboBox const& control, core::observable<int>& model,
+    static void bind(Selector const& control, core::observable<int>& model,
                      bind_direction asked) {
         apply_bind(control, model, asked);
     }
@@ -230,15 +231,6 @@ template <>
 struct PropertyBinder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
-                     bind_direction asked) {
-        apply_bind(control, model, asked);
-    }
-};
-
-template <>
-struct PropertyBinder<PropertyKey::SelectedIndex, FlipView> {
-    static constexpr bind_direction direction = bind_direction::both;
-    static void bind(FlipView const& control, core::observable<int>& model,
                      bind_direction asked) {
         apply_bind(control, model, asked);
     }

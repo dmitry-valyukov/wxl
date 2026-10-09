@@ -302,6 +302,12 @@ add_library(wxl.ui STATIC
     src/impl/item_factory.cpp
     src/impl/item_template.h
     src/impl/item_template.cpp
+    src/impl/sta_com.h
+    src/impl/element_scope.h
+    src/impl/list_mirror.h
+    src/impl/bound_list.h
+    src/impl/bound_items_source.h
+    src/impl/bound_items_source.cpp
     src/ItemBuilder.h
     src/ItemContainerPreset.h
     src/Box.h
@@ -516,11 +522,18 @@ if(BUILD_TESTING)
     # built here rather than linked through wxl.ui, whose INTERFACE
     # /ENTRY:wWinMainCRTStartup would take main() away from gtest -- and with
     # it the projection Object.impl.h names.
+    #
+    # The source a bound list gives its control is a vector of wxl's own over
+    # the same projection, and its source file comes along for the same
+    # reason; the mirror that drives it is a template, tested over a vector.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
             test/vector_view_test.cpp
+            test/list_mirror_test.cpp
+            test/bound_items_source_test.cpp
             src/Object.cpp
+            src/impl/bound_items_source.cpp
         DEPS
             Microsoft::CppWinRT
             runtimeobject.lib
