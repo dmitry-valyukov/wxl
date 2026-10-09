@@ -16,6 +16,12 @@
 // direction is input has that half only: the control reports the property and
 // never shows it, so it takes BindInput and nothing else.
 //
+// Two pairs bind state the control takes only on its own terms -- isFocused
+// and a ScrollViewer's verticalOffset (impl/state_pair.h). They have no
+// setter: the field asks, the control does what it can, and the field says
+// what it did. So they take Bind or BindInput, never BindOutput, which would
+// leave the field saying what was asked.
+//
 // Declared with wrapper types and observables and no winrt, so Bind.h (and the
 // application that includes it) never sees the projection.
 
@@ -25,10 +31,10 @@
 #include "member.h"
 
 namespace wxl {
+class Selector;
 class ToggleSwitch;
 class ToggleButton;
 class CheckBox;
-class ComboBox;
 class NumberBox;
 class TextBox;
 class RadioButtons;
@@ -37,9 +43,10 @@ class RatingControl;
 class ColorPicker;
 class ToggleMenuFlyoutItem;
 class RadioMenuFlyoutItem;
-class FlipView;
 class PipsPager;
 class PagerControl;
+class UIElement;
+class ScrollViewer;
 }  // namespace wxl
 
 namespace wxl::impl {
@@ -54,9 +61,11 @@ void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
 void apply_bind(ToggleButton const& control, core::observable<bool>& model,
                 bind_direction direction = bind_direction::both);
 
-/// ComboBox.selectedIndex <-> observable<int>, under SelectionChanged -- the
-/// chosen row, by position.
-void apply_bind(ComboBox const& control, core::observable<int>& model,
+/// Selector.selectedIndex <-> observable<int>, under SelectionChanged -- the
+/// chosen item, by position, -1 while none is: a ComboBox, a ListView or a
+/// GridView, a FlipView (the page shown). The index is the control's: a reset
+/// of its items clears the choice, and the field hears -1.
+void apply_bind(Selector const& control, core::observable<int>& model,
                 bind_direction direction = bind_direction::both);
 
 /// NumberBox.value <-> observable<int>, under ValueChanged -- the number,
@@ -103,11 +112,6 @@ void apply_bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& mod
 void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
                 bind_direction direction = bind_direction::both);
 
-/// FlipView.selectedIndex <-> observable<int>, under SelectionChanged -- the page
-/// shown, by position, -1 while none is.
-void apply_bind(FlipView const& control, core::observable<int>& model,
-                bind_direction direction = bind_direction::both);
-
 /// PipsPager.selectedPageIndex <-> observable<int>, under SelectedIndexChanged.
 void apply_bind(PipsPager const& control, core::observable<int>& model,
                 bind_direction direction = bind_direction::both);
@@ -121,6 +125,23 @@ void apply_bind(PagerControl const& control, core::observable<int>& model,
 /// its text, NaN while the text is not a number yet. Input alone -- the box
 /// commits to Value on its own terms, and this is the value before that.
 void apply_bind_intermediate_value(NumberBox const& control, core::observable<double>& model);
+
+/// UIElement.isFocused <-> observable<bool>, under GotFocus and LostFocus: whether
+/// the element itself has the focus. True asks for it -- an element out of the
+/// tree is asked when it is loaded -- and the field then says whether the
+/// element took it; false is no request, since XAML gives focus up only by
+/// giving it to another element, so a focused element reads true again. A
+/// control that hands its focus to a part of its template reads false.
+void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
+                      bind_direction direction = bind_direction::both);
+
+/// ScrollViewer.verticalOffset <-> observable<double>, under ViewChanged once the
+/// view has settled. A value scrolls the viewer there without animation, cut to
+/// the content's extent; a viewer out of the tree is scrolled when it is
+/// loaded. The field says where the viewer is, or is going: the offset it was
+/// cut to, or the one it stays at when the viewer refuses.
+void apply_bind_vertical_offset(ScrollViewer const& control, core::observable<double>& model,
+                                bind_direction direction = bind_direction::both);
 
 // The same pairs by property, for the named form `isOn = Bind{...}`. A
 // specialisation is what tells bind_property that this property is the
@@ -159,10 +180,15 @@ struct PropertyBinder<PropertyKey::IsChecked, CheckBox> {
     }
 };
 
-template <>
-struct PropertyBinder<PropertyKey::SelectedIndex, ComboBox> {
+// Every selector chooses by index the same way, so the pair is one partial
+// specialisation over whatever derives from Selector. The constraint and the
+// conversion to Selector are checked where a binding is written, which has the
+// control's whole class.
+template <class Control>
+    requires std::derived_from<Control, Selector>
+struct PropertyBinder<PropertyKey::SelectedIndex, Control> {
     static constexpr bind_direction direction = bind_direction::both;
-    static void bind(ComboBox const& control, core::observable<int>& model,
+    static void bind(Selector const& control, core::observable<int>& model,
                      bind_direction asked) {
         apply_bind(control, model, asked);
     }
@@ -236,15 +262,6 @@ struct PropertyBinder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::SelectedIndex, FlipView> {
-    static constexpr bind_direction direction = bind_direction::both;
-    static void bind(FlipView const& control, core::observable<int>& model,
-                     bind_direction asked) {
-        apply_bind(control, model, asked);
-    }
-};
-
-template <>
 struct PropertyBinder<PropertyKey::SelectedPageIndex, PipsPager> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(PipsPager const& control, core::observable<int>& model,
@@ -267,6 +284,29 @@ struct PropertyBinder<PropertyKey::IntermediateValue, NumberBox> {
     static constexpr bind_direction direction = bind_direction::input;
     static void bind(NumberBox const& control, core::observable<double>& model, bind_direction) {
         apply_bind_intermediate_value(control, model);
+    }
+};
+
+// Every element has a focus, so the pair is one partial specialisation over
+// whatever derives from UIElement rather than one per class. The constraint is
+// checked where a binding is written, which has the control's whole class; the
+// conversion to UIElement happens there too.
+template <class Element>
+    requires std::derived_from<Element, UIElement>
+struct PropertyBinder<PropertyKey::IsFocused, Element> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(UIElement const& control, core::observable<bool>& model,
+                     bind_direction asked) {
+        apply_bind_focus(control, model, asked);
+    }
+};
+
+template <>
+struct PropertyBinder<PropertyKey::VerticalOffset, ScrollViewer> {
+    static constexpr bind_direction direction = bind_direction::both;
+    static void bind(ScrollViewer const& control, core::observable<double>& model,
+                     bind_direction asked) {
+        apply_bind_vertical_offset(control, model, asked);
     }
 };
 

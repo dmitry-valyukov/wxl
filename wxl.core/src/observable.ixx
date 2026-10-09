@@ -1,5 +1,6 @@
 export module wxl.core:observable;
 
+import :binding_scope;
 import :event;
 import std;
 
@@ -65,9 +66,13 @@ public:
     /// must, to write to it, and a borrowed pointer would dangle, the control
     /// being a temporary in the description tree. Kept on a list of their own
     /// so that unbind() can cut them without touching the application's.
+    ///
+    /// Made while a binding_scope is open, the watch is collected by it as
+    /// well, and the scope can take it off again -- the way a list drops the
+    /// bindings of an element it has given back.
     template <class F>
     void watch_for_binding(F&& callback) {
-        static_cast<void>(bound_.add(std::forward<F>(callback)));
+        impl::add_binding_watch(bound_, std::forward<F>(callback));
     }
 
     /// Cuts every binding watch (see watch_for_binding), letting go of whatever
@@ -187,6 +192,15 @@ public:
         return *this;
     }
 };
+
+namespace impl {
+
+// A field a binding can be cut from: an observable, an observable_list.
+template <class Model>
+concept unbindable = requires(Model& model) { model.unbind(); };
+
+}  // namespace impl
+
 /**
  * Cuts the binding watches of every model named -- the teardown a window does
  * from its Closed handler when the models it bound to will outlive it:
@@ -196,10 +210,11 @@ public:
  * Each model lets go of the controls its watches held, so the controls, and
  * the window that held them, are freed. Naming the models is the whole of it:
  * a binding leaves no cookie for the caller to keep, on purpose -- the model
- * remembers it, and this is where it is spent.
+ * remembers it, and this is where it is spent. A model is any field a binding
+ * watches: an observable or an observable_list.
  */
-template <class... Ts>
-void unsubscribe_all(observable<Ts>&... models) {
+template <impl::unbindable... Models>
+void unsubscribe_all(Models&... models) {
     (models.unbind(), ...);
 }
 

@@ -111,6 +111,7 @@ add_library(wxl.ui STATIC
     src/Object.cpp
     src/events.h
     src/event_awaitable.h
+    src/method.h
     src/BevelEffect.h
     src/BevelEffect.cpp
     src/Button3DEffect.h
@@ -248,6 +249,7 @@ add_library(wxl.ui STATIC
     src/ZoomEffect.h
     src/ZoomEffect.cpp
     src/impl/binding.h
+    src/impl/state_pair.h
     src/binding.cpp
     src/WindowShade.h
     src/WindowShade.cpp
@@ -301,6 +303,12 @@ add_library(wxl.ui STATIC
     src/impl/item_factory.cpp
     src/impl/item_template.h
     src/impl/item_template.cpp
+    src/impl/sta_com.h
+    src/impl/element_scope.h
+    src/impl/list_mirror.h
+    src/impl/bound_list.h
+    src/impl/bound_items_source.h
+    src/impl/bound_items_source.cpp
     src/ItemBuilder.h
     src/ItemContainerPreset.h
     src/Box.h
@@ -515,11 +523,18 @@ if(BUILD_TESTING)
     # built here rather than linked through wxl.ui, whose INTERFACE
     # /ENTRY:wWinMainCRTStartup would take main() away from gtest -- and with
     # it the projection Object.impl.h names.
+    #
+    # The source a bound list gives its control is a vector of wxl's own over
+    # the same projection, and its source file comes along for the same
+    # reason; the mirror that drives it is a template, tested over a vector.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
             test/vector_view_test.cpp
+            test/list_mirror_test.cpp
+            test/bound_items_source_test.cpp
             src/Object.cpp
+            src/impl/bound_items_source.cpp
         DEPS
             Microsoft::CppWinRT
             runtimeobject.lib
@@ -559,6 +574,18 @@ if(BUILD_TESTING)
         CXX_SCAN_FOR_MODULES ON)
     wxl_set_target_folders(wxl.ui.app-zoom-test PREFIX "tests")
     add_test(NAME wxl.ui.app-zoom COMMAND wxl.ui.app-zoom-test)
+
+    # The rules of the isFocused and verticalOffset pairs (impl/state_pair.h) are
+    # templates over the element, checked over a fake one and wxl.core's observable,
+    # the way AppZoom is: no source to build, no XAML.
+    add_executable(wxl.ui.state-pair-test test/state_pair_test.cpp)
+    target_link_libraries(wxl.ui.state-pair-test PRIVATE wxl::core)
+    target_include_directories(wxl.ui.state-pair-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(wxl.ui.state-pair-test PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON)
+    wxl_set_target_folders(wxl.ui.state-pair-test PREFIX "tests")
+    add_test(NAME wxl.ui.state-pair COMMAND wxl.ui.state-pair-test)
 
     # The path an address with the file scheme names is plain text work over wxl.core, tested
     # the way AppZoom is.

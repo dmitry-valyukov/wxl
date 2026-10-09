@@ -26,6 +26,7 @@
 #include "BbBlock.h"
 #include "Bind.h"
 #include "event_awaitable.h"
+#include "method.h"
 #include "Card.h"
 #include "CompositionWindow.h"
 #include "CustomLayout.h"
@@ -638,6 +639,24 @@ struct BoundModel : core::sta_refcounted {
     ToggleSwitch{BindOutput{model->busy}};
 }
 
+// State the control takes only on its own terms, bound as a pair that answers
+// back: isFocused on any element, verticalOffset on a ScrollViewer. Bind and
+// BindInput, never BindOutput -- the field says what the control did, not what
+// was asked -- and never unnamed: a bool would otherwise mean focus to every
+// element.
+[[maybe_unused]] void binding_state_pairs() {
+    core::intrusive_ptr<BoundModel> const model{new BoundModel{}};
+
+    TextBox{isFocused = Bind{model->busy}};
+    Border{isFocused = Bind{model->busy}};       // a panel too: UIElement declares the focus
+    Grid{isFocused = BindInput{model->busy}};    // only told
+    Button{isFocused = Bind{model->busy, std::logical_not{}}};
+    TextBox{schema::TextBox::isFocused = Bind{model->busy}};  // inherited from UIElement's anchor
+    ScrollViewer{verticalOffset = Bind{model->amount}};
+    ScrollViewer{verticalOffset = BindInput{model->amount}};
+    ScrollViewer{schema::ScrollViewer::verticalOffset = Bind{model->amount}};
+}
+
 // Copy construction must not be hijacked by the variadic constructor -- the
 // single-argument case is what the constraint on it exists for.
 [[maybe_unused]] void copying(Button const& source) {
@@ -1226,6 +1245,102 @@ concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
 
     Button{}.add_onClick([] {});
 }
+
+// A handler may be a member of the object that builds the tree. method() hands
+// it over with the member's own parameters, so each form above is read off the
+// member as it is off a lambda, and the three stay disjoint for members too.
+// `this` inside a const member function points to const, and then a const
+// member goes; a coroutine member is called and its token dropped.
+struct HandlersAsMembers {
+    void clicked(Button const& self, RoutedEventArgs& args) {
+        Object const source = args.originalSource();
+        (void)source;
+        self.isEnabled(false);
+    }
+    void toggled(ToggleSwitch const& self) { self.isOn(false); }
+    void pressed() noexcept {}
+    void keyDown(TextBox const&, KeyRoutedEventArgs& args) const {
+        if (args.key() == VirtualKey::Enter) {
+            args.handled(true);
+        }
+    }
+    async::detached_task loaded(Button self, RoutedEventArgs&) {
+        co_await UiThread::onIdle();
+        self.isEnabled(true);
+    }
+
+    void build(DispatcherQueue const& queue) {
+        Button{
+            onClick = method(this, &HandlersAsMembers::clicked),
+            onLoaded = method(this, &HandlersAsMembers::loaded),
+        };
+        ToggleSwitch{onToggled = method(this, &HandlersAsMembers::toggled)};
+        Button{onClick = method(this, &HandlersAsMembers::pressed)};
+
+        // The same value after the braces, and as a delegate parameter.
+        Button{}.add_onClick(method(this, &HandlersAsMembers::clicked));
+        queue.tryEnqueue(method(this, &HandlersAsMembers::pressed));
+    }
+
+    void build() const { TextBox{onKeyDown = method(this, &HandlersAsMembers::keyDown)}; }
+};
+
+// What a member may return: nothing, or a coroutine's token. The refusal of
+// anything else is a static_assert in method()'s body -- a hard error, never a
+// false answer to a requires-expression -- so its condition is what is pinned
+// here.
+static_assert(impl::droppable_result<void> && impl::droppable_result<async::detached_task>);
+static_assert(!impl::droppable_result<bool> && !impl::droppable_result<async::task<>>);
+
+// And the call reaches the member with what it was given, a reference as a
+// reference, through the plain operator and the noexcept one alike -- worked
+// out by the compiler on members constexpr allows, since nothing in this file
+// runs.
+static_assert([] {
+    struct Probe {
+        int sender = 0;
+        constexpr void take(int const& from, int& args) {
+            sender = from;
+            args = 2;
+        }
+        constexpr void keep(int const& from, int& args) noexcept {
+            sender += from;
+            args += 3;
+        }
+    };
+    Probe probe;
+    int args = 0;
+    method(&probe, &Probe::take)(1, args);
+    method(&probe, &Probe::keep)(4, args);
+    return probe.sender == 5 && args == 5;
+}());
+
+// A noexcept member makes a noexcept call, and that is what lets a member
+// watch a field: an observable, like any core::event, takes only a callback
+// that cannot throw. A member that may throw makes a call that may too, and
+// the field refuses it. With the sender and the args, a noexcept member is
+// still read as that form of handler.
+struct Watcher {
+    core::observable<int> count;
+
+    void counted(int const&) noexcept {}
+    void recounted(int const&) {}
+    void clicked(Button const&, RoutedEventArgs&) noexcept {}
+
+    void watch() { count.on_change(method(this, &Watcher::counted)); }
+    void build() { Button{onClick = method(this, &Watcher::clicked)}; }
+};
+
+using counted_call = decltype(method(std::declval<Watcher*>(), &Watcher::counted));
+using recounted_call = decltype(method(std::declval<Watcher*>(), &Watcher::recounted));
+using clicked_call = decltype(method(std::declval<Watcher*>(), &Watcher::clicked));
+
+static_assert(std::is_nothrow_invocable_v<counted_call, int const&>);
+static_assert(core::invocable<counted_call, void(int const&) noexcept>);
+static_assert(std::is_invocable_v<recounted_call, int const&> &&
+              !std::is_nothrow_invocable_v<recounted_call, int const&>);
+static_assert(!core::invocable<recounted_call, void(int const&) noexcept>);
+static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
 
 // Tabs at the bottom of a window and the dialog that answers by events: both
 // arrived for the forum client, and both are here so that a change to the
@@ -1905,4 +2020,59 @@ struct probe_task {
     using namespace ::wxl::dsl;
     GridView{itemContainerStyle = Preset{margin = Thickness{0, 0, 12, 12}, horizontalContentAlignment = HorizontalAlignment::Stretch}, TextBlock{u"item"}};
     ListView{itemContainerStyle = Preset{padding = Thickness{4}}, TextBlock{u"item"}};
+}
+
+// A list bound to an observable_list: itemsSource = BindOutput{list, fn} on the four list controls, named, unnamed and
+// through the schema; a read-only list; an item held by pointer whose own field is bound inside its element; the item
+// back from what a click hands out (boundItem); the selection as a field of any Selector.
+namespace {
+struct ShelfCard : ::wxl::core::sta_refcounted {
+    explicit ShelfCard(::wxl::core::u16_text t) : title(std::move(t)) {}
+
+    ::wxl::core::u16_text const title;
+    ::wxl::core::observable<::wxl::core::u16_text> progress;
+};
+
+struct Shelf {
+    ::wxl::core::observable_list<::wxl::core::intrusive_ptr<ShelfCard>> cards;
+    ::wxl::core::observable_list<::wxl::core::u16_text> words;
+    ::wxl::core::observable<int> chosen;
+
+    ::wxl::core::observable_list<::wxl::core::u16_text const>& shown() { return words; }
+};
+}  // namespace
+
+[[maybe_unused]] void bound_lists(Shelf& shelf) {
+    using namespace ::wxl;
+    using namespace ::wxl::dsl;
+    auto const row = [](core::u16_text const& word) { return TextBlock{text = word}; };
+
+    ListView{itemsSource = BindOutput{shelf.words, row}};
+    GridView{itemsSource = BindOutput{shelf.words, row}};
+    ItemsRepeater{itemsSource = BindOutput{shelf.words, row}};
+    ItemsView{itemsSource = BindOutput{shelf.words, [](core::u16_text const& word) {
+                  return ItemContainer{child = TextBlock{text = word}};
+              }}};
+    ListView{BindOutput{shelf.words, row}};  // unnamed: what a list control binds a list to is its items
+    ItemsRepeater{BindOutput{shelf.words, row}};
+    ListView{itemsSource = BindOutput{shelf.shown(), row}};  // read-only: only the model changes it
+    ListView{schema::ItemsControl::itemsSource = BindOutput{shelf.words, row}};
+
+    ListView{
+        isItemClickEnabled = true,
+        itemsSource = BindOutput{shelf.cards, [](core::intrusive_ptr<ShelfCard> const& card) {
+            return StackPanel{TextBlock{text = card->title}, TextBlock{text = BindOutput{card->progress}}};
+        }},
+        onItemClick = [&cards = shelf.cards](ListView const&, ItemClickEventArgs& args) {
+            if (core::intrusive_ptr<ShelfCard> const* card = boundItem(cards, args.clickedItem())) {
+                (*card)->progress.set(core::u16_text{u"opened"});
+            }
+        },
+        selectedIndex = Bind{shelf.chosen},
+    };
+    ListView{itemsSource = BindOutput{shelf.words, row}, selectedIndex = BindInput{shelf.chosen}};
+    GridView{itemsSource = BindOutput{shelf.words, row}, selectedIndex = BindOutput{shelf.chosen}};
+    ListView{Bind{shelf.chosen}};  // unnamed: an int on a selector is its index
+    FlipView{selectedIndex = Bind{shelf.chosen}};
+    ComboBox{Bind{shelf.chosen}};
 }

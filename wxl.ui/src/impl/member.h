@@ -145,6 +145,12 @@ inline constexpr bool is_bind<BindOutput<T, Fn>> = true;
 template <typename>
 inline constexpr bool bind_always_false = false;
 
+// A pair that runs both ways. Where its property has no setter beside it --
+// isFocused, verticalOffset -- the pair is the only way in, and it answers
+// back: BindOutput, which would only ask, is refused with Bind named instead.
+template <class Pair>
+concept two_way_pair = Pair::direction == bind_direction::both;
+
 // An input binding through a function: the control is bound to a field of its
 // own, which takes the control's value as the binding is made and after every
 // change, and the field the binding names takes fn of it. The field of its own
@@ -194,7 +200,12 @@ void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) 
     constexpr bool paired = requires { Pair::bind(object, model, direction); };
 
     if constexpr (direction == bind_direction::output) {
-        static_assert(requires { PropertySetter<key>::set(object, fn(model.get())); },
+        constexpr bool settable = requires { PropertySetter<key>::set(object, fn(model.get())); };
+        static_assert(settable || !two_way_pair<Pair>,
+                      "wxl: BindOutput{} names a property the control takes only through its "
+                      "pair, which answers back: the field says what the control did with the "
+                      "value (the focus it took, the offset it reached). Write Bind{}.");
+        static_assert(settable || two_way_pair<Pair>,
                       "wxl: BindOutput{} names a property this control only reports and never "
                       "shows, so there is nothing to write to. It takes BindInput{}.");
         PropertySetter<key>::set(object, fn(model.get()));
@@ -225,6 +236,15 @@ void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) 
     }
 }
 
+// A binding of a list -- `itemsSource = BindOutput{list, build}` (Bind.h). It is not one
+// property following one field: it gives the control its items and the template that
+// builds their elements, so it applies itself to the control, as it does unnamed.
+template <typename T>
+inline constexpr bool is_list_binding = false;
+
+template <typename T, typename Fn>
+inline constexpr bool is_list_binding<BindOutput<core::observable_list<T const>, Fn>> = true;
+
 }  // namespace impl
 
 // A pending assignment: the value, plus the key saying where it goes. The
@@ -240,7 +260,11 @@ struct SetterOp {
     template <typename Obj>
     void operator()(Obj const& object) const {
         impl::check_owner<Owner, Obj>();
-        if constexpr (impl::is_bind<T>) {
+        if constexpr (impl::is_list_binding<T>) {
+            static_assert(key == PropertyKey::ItemsSource,
+                          "wxl: a list is bound as the items of a list control: itemsSource = BindOutput{list, fn}.");
+            value_(object);
+        } else if constexpr (impl::is_bind<T>) {
             impl::bind_property<key, T::direction>(object, *value_.model, value_.fn);
         } else {
             impl::PropertySetter<key>::set(object, value_);

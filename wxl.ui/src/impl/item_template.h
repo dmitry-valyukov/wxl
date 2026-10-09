@@ -6,12 +6,17 @@
 #include "../ItemContainerPreset.h"
 #include "../Thickness.h"
 
-// What stands behind `itemTemplate = [](Object const& item) {...}` on a ListView or GridView.
+// What stands behind `itemTemplate = [](Object const& item) {...}` on a ListView or GridView, and
+// behind `itemsSource = BindOutput{list, build}` (attach_items in bound_list.h).
 //
 // The two controls make a container for an item when it comes into view and give the application a
 // moment to fill it (ContainerContentChanging): the container's content is set to the element the
 // function made for the item, and cleared when the container goes to the recycle queue. That is
 // what an ItemTemplate does, with the function in place of the template.
+//
+// The function is called inside a binding_scope the container keeps (impl/element_scope.h), so the
+// bindings an element makes go when the container gives the element back -- to the recycle queue,
+// to another item, or with itself. The state of a list is held by the list, through its handler.
 //
 // Private: the control arrives as the projection type the wrapper already holds, so this header is
 // one only wxl's own sources ever include.
