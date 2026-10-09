@@ -1,5 +1,10 @@
+module;
+
+#include "coroutine_checks.h"
+
 export module wxl.async:cancellation;
 
+import :coroutine_checks;
 import wxl.core;
 import std;
 
@@ -180,16 +185,19 @@ inline cancellation_detail::cancellation_state* cancellation_detail::state_of(
 class cancellation_source
 {
 public:
-    /// The reference the state is born with is taken over rather than added
-    /// to: counted objects start at a count of one.
-    inline cancellation_source() : state_(new cancellation_detail::cancellation_state, false) {}
+    inline cancellation_source()
+        : state_(core::make_refcounted<cancellation_detail::cancellation_state>()) {}
 
     inline cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
 
     /// Tells every wait standing under a token of this source, and answers every later
     /// one at once. Held across the telling: a wait told may end something that holds
-    /// this source.
-    inline void cancel() noexcept {
+    /// this source. On the coroutines' own thread, like everything about them; a build
+    /// that checks coroutines makes sure.
+    inline void cancel([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) noexcept {
+        coro_check(core::sta_memory_pool::is_safe(),
+                   "cancellation_source: cancelled from a thread other than its coroutines'", where);
+
         const cancellation_detail::cancellation_state_ptr held = state_;
         held->cancel();
     }
@@ -244,37 +252,54 @@ public:
     /// A frame destroyed while it stands here takes the wait off the list.
     inline ~cancellable_wait() { this->leave(); }
 
-    inline bool await_ready() {
+    // Each hook takes the place of the co_await, and hands it on to an awaiter that
+    // takes one: a strict build reports the line of the co_await, not of this file.
+
+    inline bool await_ready(coro_detail::site where = coro_detail::site::current()) {
         if (state_ && state_->canceled()) [[unlikely]] {
             if constexpr (can_be_told) {
                 awaiter_.cancel();
-                return awaiter_.await_ready();
+                return ready(where);
             } else {
                 return true;
             }
         }
 
-        return awaiter_.await_ready();
+        return ready(where);
     }
 
     template <class Promise>
-    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting) {
+    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
+                                        coro_detail::site where = coro_detail::site::current()) {
         if constexpr (can_be_told)
             if (state_ && !state_->canceled()) state_->enter(*this);
 
-        return awaiter_.await_suspend(awaiting);
+        if constexpr (requires { awaiter_.await_suspend(awaiting, where); })
+            return awaiter_.await_suspend(awaiting, where);
+        else
+            return awaiter_.await_suspend(awaiting);
     }
 
-    inline decltype(auto) await_resume() {
+    inline decltype(auto) await_resume(coro_detail::site where = coro_detail::site::current()) {
         this->leave();
 
         if (state_ && state_->canceled()) [[unlikely]]
             throw operation_canceled_exception();
 
-        return awaiter_.await_resume();
+        if constexpr (requires { awaiter_.await_resume(where); })
+            return awaiter_.await_resume(where);
+        else
+            return awaiter_.await_resume();
     }
 
 private:
+    inline bool ready([[maybe_unused]] coro_detail::site where) {
+        if constexpr (requires { awaiter_.await_ready(where); })
+            return awaiter_.await_ready(where);
+        else
+            return awaiter_.await_ready();
+    }
+
     static void tell_this(cancellation_detail::wait& told) noexcept {
         if constexpr (can_be_told) static_cast<cancellable_wait&>(told).awaiter_.cancel();
     }

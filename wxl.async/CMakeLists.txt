@@ -25,6 +25,15 @@ option(WXL_AMBIENT_CANCELLATION "Give every coroutine of wxl.async an implicit c
 # an ordinary build has no reason to spend time on them.
 option(WXL_BUILD_BENCHMARKS "Build the wxl.async benchmark executables." OFF)
 
+# Off by default: the checks of how coroutines are used -- a task awaited twice at
+# once, a value read twice, a task dropped while it runs or while somebody joins it,
+# an awaitable used after a move -- are then assert's, a Debug build's alone, and a
+# Release build has neither a byte nor an instruction of them. On, they stay in every
+# build, Release included, and a broken one ends the process through wxl::core::abort,
+# naming the reason and the line of the code that broke the rule where the language
+# gives it (std::source_location).
+option(WXL_STRICT_CORO "Keep the coroutine checks of wxl.async in every build (defines STRICT_CORO)." OFF)
+
 add_subdirectory(src)
 
 if(BUILD_TESTING)

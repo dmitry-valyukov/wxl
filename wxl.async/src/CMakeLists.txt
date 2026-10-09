@@ -11,6 +11,7 @@ wxl_add_module_library(wxl.async STATIC
         cancellation.ixx
         cancellation_scope.ixx
         completion_counter.ixx
+        coroutine_checks.ixx
         countdown_event.ixx
         detached_task.ixx
         drain_stack.ixx
@@ -42,6 +43,10 @@ wxl_add_module_library(wxl.async STATIC
         stop_reason.ixx
         system_exception.ixx
         threaded_component.ixx
+    HEADERS
+        # The check itself, a macro -- it is assert when the checks are Debug's -- for
+        # the global module fragment of the interfaces that check.
+        coroutine_checks.h
     SRC
         pch.h
 
@@ -71,6 +76,13 @@ wxl_add_module_library(wxl.async STATIC
 )
 
 add_library(wxl::async ALIAS wxl.async)
+
+# PUBLIC: the module interfaces read it, and whoever compiles them -- this target, a
+# consumer that builds them in its own tree, the tests that ask what a build checks --
+# has to get the same answer.
+if(WXL_STRICT_CORO)
+    target_compile_definitions(wxl.async PUBLIC STRICT_CORO)
+endif()
 
 set_target_properties(wxl.async PROPERTIES
     EXPORT_NAME async

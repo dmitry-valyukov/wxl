@@ -7,6 +7,8 @@
 // The operations here are the module's own, on the loop: a read standing for one on a slow
 // device, held at a gate on the worker, which cancelling opens -- the way CancelIoEx
 // completes a read the kernel is holding.
+#include <crtdbg.h>
+
 #include <gtest/gtest.h>
 
 #include "sta_pool.h"
@@ -451,6 +453,48 @@ TEST(CancellationTest, WithoutARequestTheWaitIsTheOperandsOwn) {
     EXPECT_EQ(unowned.result(), 7);
 }
 
+// The token is one thread's: a build that checks coroutines stops a cancel() from any other
+// -- assert in a Debug build, core::abort with the caller's line under STRICT_CORO.
+
+namespace {
+
+/// A failed check goes to stderr and ends the process without a dialog, so
+/// that a death test can read why.
+void report_failures_to_stderr() {
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+}
+
+constexpr std::uint_least32_t line_of_the_foreign_cancel = std::source_location::current().line() + 1;
+void cancel_there(cancellation_source& stop) { stop.cancel(); }
+
+void cancel_from_another_thread() {
+    report_failures_to_stderr();
+
+    cancellation_source stop;
+    std::thread([&stop] { cancel_there(stop); }).join();
+}
+
+class CancellationDeathTest : public ::testing::Test
+{
+protected:
+    void SetUp() override {
+        if constexpr (!coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+    }
+};
+
+}  // namespace
+
+TEST_F(CancellationDeathTest, ASourceIsCancelledOnItsCoroutinesThread) {
+    if constexpr (coro_detail::strict)
+        EXPECT_DEATH(cancel_from_another_thread(),
+                     std::format("cancellation_tests\\.cpp\\({}\\): cancellation_source: cancelled from a thread",
+                                 line_of_the_foreign_cancel));
+    else
+        EXPECT_DEATH(cancel_from_another_thread(), "other than its coroutines'");
+}
+
 static_assert(sizeof(cancellation_token) == sizeof(void*));
 static_assert(cancellable_awaiter<awaitable<std::size_t>>);
 static_assert(!cancellable_awaiter<parked>);
@@ -817,10 +861,8 @@ TEST(ImplicitCancellationTest, AWaitThatDoesNotSuspendLeavesTheRunningFrameAlone
 
 // What every frame pays for the implicit token: the token it stands under and the frame
 // that resumed it -- two words in the promise of every task and every detached task.
-#ifdef NDEBUG
 static_assert(sizeof(task_detail::promise_base) ==
               2 * sizeof(void*) + sizeof(std::coroutine_handle<>) + sizeof(std::exception_ptr));
-#endif
 static_assert(sizeof(detached_task::promise_type) == 3 * sizeof(void*));
 
 #endif

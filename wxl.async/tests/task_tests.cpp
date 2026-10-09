@@ -712,15 +712,20 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
     EXPECT_EQ(kept.result(), 5);
 }
 
-// The Debug checks cost a Release build nothing: no field in the promise, and
-// a task stays one handle wide, as does the awaiter of a joined one. (The implicit
-// token's own price is checked with it, in cancellation_tests.cpp.)
-#if defined(NDEBUG) && !defined(WXL_AMBIENT_CANCELLATION)
+// The checks cost the promise nothing in any build, strict or not: what they keep --
+// whether the body is on the stack, whether the waiter joined -- is two bits of the
+// waiter's handle. A task stays one handle wide, as does the awaiter of a joined one.
+// (The implicit token's price is checked with it, in cancellation_tests.cpp.)
+#ifndef WXL_AMBIENT_CANCELLATION
 static_assert(sizeof(task_detail::promise_base) ==
               sizeof(std::coroutine_handle<>) + sizeof(std::exception_ptr));
+#endif
 static_assert(sizeof(task<>) == sizeof(void*) && sizeof(task<int>) == sizeof(void*));
 static_assert(sizeof(task_detail::join_awaiter<task_detail::value_promise<int>>) == sizeof(void*));
-#endif
+
+// What a build that checks does pay, in the frame of a task: the awaiter of each co_await
+// in its body is wrapped, one reference more.
+static_assert(sizeof(task_detail::tracked_awaiter<task<int>&>) == 2 * sizeof(void*));
 
 // The debug CRT heap is what the probe below reads, and it is only there in a
 // debug build.
@@ -758,8 +763,9 @@ TEST(TaskTest, TheProbeNoticesAFrameFromTheOrdinaryHeap) {
 
 #endif
 
-// The Debug checks: each misuse ends the process at the check that names it.
-#ifndef NDEBUG
+// The checks: each misuse ends the process at the check that names it -- assert in a
+// Debug build, core::abort under STRICT_CORO in any build. A build with neither has
+// nothing to stop at, and the misuse is undefined behaviour, so it is not run there.
 
 namespace {
 
@@ -840,30 +846,137 @@ void drop_a_joined_task() {
     kept.reset();
 }
 
+/// The place a strict build's report names: the file's own name and the line, in the
+/// form core::abort writes them.
+std::string place_of(std::string_view file, std::uint_least32_t line) {
+    return std::format("{}\\({}\\): ", file, line);
+}
+
+/// The report of a check in task's own code, a destructor, which no line of the caller
+/// reaches: the place is wxl's.
+std::string in_task(std::string_view why) {
+    return std::format("task\\..*\\(.*\\): {}", why);
+}
+
+// Each misuse a strict build reports with the caller's line sits alone on the line
+// below the one that records it.
+
+constexpr std::uint_least32_t line_of_the_second_take = std::source_location::current().line() + 1;
+void take_again(task<int>& t) { (void)t.result(); }
+
+void take_the_value_twice_by_result() {
+    report_failures_to_stderr();
+
+    task<int> t = answers_at_once();
+    (void)t.result();
+    take_again(t);
+}
+
+constexpr std::uint_least32_t line_of_the_early_ask = std::source_location::current().line() + 1;
+void ask(task<int>& t) { (void)t.result(); }
+
+void ask_too_early() {
+    report_failures_to_stderr();
+
+    std::coroutine_handle<> slot;
+    int deaths = 0;
+    task<int> t = answers_after_a_pause(slot, deaths);
+    ask(t);
+}
+
+// A task awaiting a task: the place comes through the awaiter await_transform wraps.
+constexpr std::uint_least32_t line_of_the_second_join = std::source_location::current().line() + 1;
+task<> joins_second(task<int>& kept) { (void)co_await kept; }
+
+void join_second_while_the_first_waits() {
+    report_failures_to_stderr();
+
+    std::coroutine_handle<> slot;
+    int first = 0, deaths = 0;
+    task<int> kept = answers_after_a_pause(slot, deaths);
+    task<> one = joins(kept, first, deaths);
+    task<> two = joins_second(kept);
+}
+
+// Any other coroutine awaiting a task: the compiler calls the task's own awaiter.
+constexpr std::uint_least32_t line_of_the_second_await = std::source_location::current().line() + 1;
+heap_task awaits_twice_by_value(task<int>& kept) { (void)co_await kept; (void)co_await kept; }
+
+void take_the_value_twice_by_co_await() {
+    report_failures_to_stderr();
+
+    task<int> kept = answers_at_once();
+    heap_task twice = awaits_twice_by_value(kept);
+}
+
+/// Death tests of the checks: skipped where the build has none.
+class TaskDeathTest : public ::testing::Test
+{
+protected:
+    void SetUp() override {
+        if constexpr (!coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+    }
+};
+
+/// The report of a strict build: the reason, and the line of the code that broke the
+/// rule. Skipped elsewhere: a Debug build's assert names the condition and its own line.
+class TaskStrictDeathTest : public ::testing::Test
+{
+protected:
+    void SetUp() override {
+        if constexpr (!coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+    }
+};
+
 }  // namespace
 
-TEST(TaskDeathTest, ASecondCoroutineMayNotJoinWhileTheFirstWaits) {
+TEST_F(TaskDeathTest, ASecondCoroutineMayNotJoinWhileTheFirstWaits) {
     EXPECT_DEATH(join_while_another_waits(), "second coroutine");
 }
 
-TEST(TaskDeathTest, TheValueIsTakenOnce) {
+TEST_F(TaskDeathTest, TheValueIsTakenOnce) {
     EXPECT_DEATH(take_the_value_twice(), "already been taken");
 }
 
-TEST(TaskDeathTest, TheResultIsAskedAfterTheEnd) {
+TEST_F(TaskDeathTest, TheResultIsAskedAfterTheEnd) {
     EXPECT_DEATH(ask_before_the_end(), "before the coroutine ended");
 }
 
-TEST(TaskDeathTest, ATaskIsAwaitedOnItsOwnThread) {
+TEST_F(TaskDeathTest, ATaskIsAwaitedOnItsOwnThread) {
     EXPECT_DEATH(await_from_another_thread(), "other than its own");
 }
 
-TEST(TaskDeathTest, AChainIsNotDroppedFromInside) {
+TEST_F(TaskDeathTest, AChainIsNotDroppedFromInside) {
     EXPECT_DEATH(drop_the_chain_from_inside(), "while its coroutine runs");
 }
 
-TEST(TaskDeathTest, AJoinedTaskOutlivesTheWait) {
+TEST_F(TaskDeathTest, AJoinedTaskOutlivesTheWait) {
     EXPECT_DEATH(drop_a_joined_task(), "while a coroutine joins it");
 }
 
-#endif
+TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTwice) {
+    EXPECT_DEATH(take_the_value_twice_by_result(),
+                 place_of("task_tests\\.cpp", line_of_the_second_take) + "task: the value has already been taken");
+}
+
+TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTooEarly) {
+    EXPECT_DEATH(ask_too_early(),
+                 place_of("task_tests\\.cpp", line_of_the_early_ask) + "task: result\\(\\) asked before the coroutine ended");
+}
+
+TEST_F(TaskStrictDeathTest, ATaskAwaitingNamesItsCoAwait) {
+    EXPECT_DEATH(join_second_while_the_first_waits(),
+                 place_of("task_tests\\.cpp", line_of_the_second_join) +
+                     "task: awaited by a second coroutine while the first one still waits");
+}
+
+TEST_F(TaskStrictDeathTest, AnyCoroutineAwaitingNamesItsCoAwait) {
+    EXPECT_DEATH(take_the_value_twice_by_co_await(),
+                 place_of("task_tests\\.cpp", line_of_the_second_await) + "task: the value has already been taken");
+}
+
+TEST_F(TaskStrictDeathTest, ADestructorNamesTheReasonAndItsOwnPlace) {
+    EXPECT_DEATH(drop_a_joined_task(), in_task("task: destroyed while a coroutine joins it"));
+    EXPECT_DEATH(drop_the_chain_from_inside(),
+                 in_task("task: destroyed while its coroutine runs -- dropped from inside its own chain"));
+}

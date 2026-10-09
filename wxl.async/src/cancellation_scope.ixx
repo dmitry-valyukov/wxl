@@ -1,6 +1,7 @@
 export module wxl.async:cancellation_scope;
 
 import :cancellation;
+import :coroutine_checks;
 import wxl.core;
 import std;
 
@@ -76,23 +77,24 @@ public:
 
     inline ~scoped_wait() { this->leave(); }
 
-    inline bool await_ready() {
+    inline bool await_ready(coro_detail::site where = coro_detail::site::current()) {
         if constexpr (!joins) {
             if (scope_ && scope_->canceled()) [[unlikely]] {
                 if constexpr (can_be_told) {
                     awaiter_.cancel();
-                    return awaiter_.await_ready();
+                    return ready(where);
                 } else {
                     return true;
                 }
             }
         }
 
-        return awaiter_.await_ready();
+        return ready(where);
     }
 
     template <class Promise>
-    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting) {
+    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
+                                        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
         if constexpr (can_be_told)
             if (scope_ && !scope_->canceled()) scope_->enter(*this);
 
@@ -100,7 +102,10 @@ public:
         // elsewhere, or gone.
         running = self_.resumer;
 
-        if constexpr (noexcept(awaiter_.await_suspend(awaiting))) {
+        if constexpr (requires { awaiter_.await_suspend(awaiting, where); }) {
+            // One of this module's, which do not throw.
+            return awaiter_.await_suspend(awaiting, where);
+        } else if constexpr (noexcept(awaiter_.await_suspend(awaiting))) {
             return awaiter_.await_suspend(awaiting);
         } else {
             // An await_suspend that throws resumes the body with the exception, past
@@ -114,7 +119,7 @@ public:
         }
     }
 
-    inline decltype(auto) await_resume() {
+    inline decltype(auto) await_resume(coro_detail::site where = coro_detail::site::current()) {
         // Not suspended at all -- ready at once, or an await_suspend that declined --
         // leaves the frame running where it was.
         if (running != &self_) {
@@ -128,10 +133,20 @@ public:
             if (scope_ && scope_->canceled()) [[unlikely]]
                 throw operation_canceled_exception();
 
-        return awaiter_.await_resume();
+        if constexpr (requires { awaiter_.await_resume(where); })
+            return awaiter_.await_resume(where);
+        else
+            return awaiter_.await_resume();
     }
 
 private:
+    inline bool ready([[maybe_unused]] coro_detail::site where) {
+        if constexpr (requires { awaiter_.await_ready(where); })
+            return awaiter_.await_ready(where);
+        else
+            return awaiter_.await_ready();
+    }
+
     static void tell_this(cancellation_detail::wait& told) noexcept {
         if constexpr (can_be_told) static_cast<scoped_wait&>(told).awaiter_.cancel();
     }
