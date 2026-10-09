@@ -1631,6 +1631,35 @@ static_assert(sizeof(core::nullable<std::exception_ptr>) == sizeof(std::exceptio
 static_assert(
     requires(click_wait_t& proxy) { proxy.operator co_await(); });
 
+// Under a cancellation token, given last as wxl.async's operations take one.
+// The proxy is a type of its own, so a wait made without a token keeps every
+// byte it had: its awaiter is the pointer and two flags it can be told
+// through -- by cancellable() as well -- and the idle wait the size it was.
+using click_wait_under_t = decltype(on_event<EventKey::Click>(std::declval<Button const&>(),
+                                                              std::declval<async::cancellation_token>()));
+using key_wait_under_t = decltype(on_event<EventKey::KeyDown>(std::declval<Button const&>(),
+                                                              std::declval<async::cancellation_token>()));
+
+static_assert(std::is_same_v<click_wait_under_t,
+                             cancellable_event_awaitable<impl::keyed_event<EventKey::Click, Button>>>);
+static_assert(std::is_same_v<decltype(onClick(std::declval<Button const&>(),
+                                              std::declval<async::cancellation_token>())),
+                             click_wait_under_t>);
+static_assert(!std::is_move_constructible_v<click_wait_under_t>);
+
+// The two forms answer as they do without a token.
+static_assert(std::is_same_v<decltype(std::declval<key_wait_under_t&>().operator co_await().await_resume()),
+                             KeyRoutedEventArgs&>);
+static_assert(std::is_same_v<decltype(std::declval<key_wait_under_t&>().next().await_resume()),
+                             key_wait_t::next_result_t>);
+
+static_assert(sizeof(click_wait_t::awaiter) == 2 * sizeof(void*));
+static_assert(sizeof(click_wait_under_t) == sizeof(click_wait_t) + sizeof(async::cancellation_token));
+static_assert(async::cancellable_awaiter<click_wait_t::awaiter>);
+static_assert(async::cancellable_awaiter<UiThread::Idle>);
+static_assert(sizeof(UiThread::Idle) ==
+              sizeof(impl::waiting_event) + sizeof(std::shared_ptr<UiThread::Idle*>) + sizeof(void*));
+
 // The protocol itself, proven the only way it can be: by a coroutine. Never
 // called -- activating a control needs a runtime that is not up here -- and
 // compiled, which is the whole of what this file does.
@@ -1691,6 +1720,34 @@ struct probe_task {
             std::rethrow_exception(*got.error());
         }
     }
+}
+
+// The same waits under a cancellation token, given last -- and the idle wait
+// beside them, with and without one.
+[[maybe_unused]] probe_task awaiting_under_a_token(Button button, async::cancellation_token stop) {
+    auto clicks = on_event<EventKey::Click>(button, stop);
+    RoutedEventArgs& args = co_await clicks;
+    static_cast<void>(args);
+
+    RoutedEventArgs& tagged = co_await onClick(button, stop);
+    static_cast<void>(tagged);
+    RoutedEventArgs& owned = co_await schema::Button::onClick(button, stop);
+    static_cast<void>(owned);
+    RoutedEventArgs& again =
+        co_await on_event(button, &Button::add_onClick, &Button::remove_onClick, stop);
+    static_cast<void>(again);
+
+    if (auto const got = co_await on_event<EventKey::KeyUp>(button, stop).next()) {
+        got->get().handled(true);
+    }
+
+    // A plain wait put under a token where it is awaited.
+    RoutedEventArgs& wrapped = co_await async::cancellable(onClick(button), stop);
+    static_cast<void>(wrapped);
+
+    co_await UiThread::onIdle(stop);
+    co_await UiThread::onIdle();
+    co_await async::cancellable(UiThread::onIdle(), stop);
 }
 
 // HaloEffect and GaussianBlurEffect -- written by hand, so their schema

@@ -42,7 +42,10 @@
 //     }
 //
 // Going down ends the wait the way it ends an event wait: the coroutine
-// resumes with async::operation_canceled_exception.
+// resumes with async::operation_canceled_exception. So does a cancellation
+// token given last -- `co_await UiThread::onIdle(stop)` -- once it is
+// cancelled: the step in progress ends on the queue's next turn, without
+// waiting for the thread to be idle, and every later one ends at once.
 
 // Declared, not included: what is kept is one COM pointer, and an application
 // that posts work should not have to parse a Windows header to do it.
@@ -76,6 +79,11 @@ public:
     /// urgent to do.
     [[nodiscard]] static Idle onIdle();
 
+    /// The same under a cancellation token: once it is cancelled the wait
+    /// ends with async::operation_canceled_exception.
+    [[nodiscard]] static impl::event_wait_under<Idle, async::cancellation_token> onIdle(
+        async::cancellation_token stop);
+
 private:
     ::IInspectable* queue_ = nullptr;
 };
@@ -88,24 +96,46 @@ public:
     Idle(Idle const&) = delete;
     Idle& operator=(Idle const&) = delete;
 
-    bool await_ready() const noexcept { return impl::events_closing(); }
+    bool await_ready() const noexcept { return skipped_ || impl::events_closing(); }
     bool await_suspend(std::coroutine_handle<> waiter);
 
     void await_resume() const {
-        if (refused_ || ended() || impl::events_closing()) {
+        if (skipped_ || ended() || impl::events_closing()) {
             throw_ended();
+        }
+    }
+
+    /// Told by a cancellation token (async::cancellable_awaiter): a wait that
+    /// is suspended leaves its idle turn -- which finds nobody when it comes --
+    /// and is resumed by the queue's next turn of any priority; one that has
+    /// not begun never suspends.
+    void cancel() noexcept {
+        if (waiting()) {
+            *self_ = nullptr;
+            tell();
+        } else {
+            skipped_ = true;
         }
     }
 
 private:
     // The queued resumption finds the wait through this; a wait ended on the
-    // way down is gone by the time the queue gets to it, and leaves it empty.
+    // way down, or told, is gone by the time the queue gets to it, and leaves
+    // it empty.
     std::shared_ptr<Idle*> self_;
-    bool refused_ = false;  // the queue takes nothing more
+
+    // Ended without suspending: the queue takes nothing more, or the wait was
+    // told before it began.
+    bool skipped_ = false;
 };
 
 inline UiThread::Idle UiThread::onIdle() {
     return {};
+}
+
+inline impl::event_wait_under<UiThread::Idle, async::cancellation_token> UiThread::onIdle(
+    async::cancellation_token stop) {
+    return impl::event_wait_under<Idle, async::cancellation_token>{std::move(stop)};
 }
 
 }  // namespace wxl
