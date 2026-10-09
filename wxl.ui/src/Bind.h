@@ -15,6 +15,8 @@
 //     TextBlock { text = BindOutput{calc->entry} }        // from the field: the control shows
 //     TextBox { text = BindInput{search.query} }          // into the field: the control writes
 //     NumberBox { intermediateValue = BindInput{eq.a} }   // into the field, as typed
+//     TextBox { isFocused = Bind{form.nameFocused} }      // asks for focus, says if it has it
+//     ScrollViewer { verticalOffset = Bind{note.top} }    // scrolls there, says where it is
 //
 // Three forms, one shape each, and a property takes the form its shape allows.
 //
@@ -40,13 +42,21 @@
 // The field takes the control's value as the binding is made, and every value
 // after; the control is left as the description made it.
 //
+// Some state a control takes only on its own terms: focus, which an element may
+// refuse, and a viewer's offset, which stops at the end of the content. Such a
+// pair answers back -- the field asks, the control does what it can, and the
+// field says what it did -- so the next value asked is always a change. It
+// takes Bind and BindInput; BindOutput, which would leave the field saying what
+// was asked, is refused.
+//
 // Unnamed, `Bind{field}` inside the braces rides the route every unnamed
 // argument does -- a callable applied to the object -- and binds the control's
 // canonical property by the data's type (observable<bool> on a ToggleSwitch ->
 // isOn). Only the pairs have that route, and BindInput and BindOutput take it
-// the same way; a binding of any other property names it, because a control
-// has several of one type (isEnabled and visibility are both bool) and the
-// type alone cannot choose.
+// the same way -- the state pairs excepted: every element has a focus, and a
+// bool alone would mean it. A binding of any other property names it, because
+// a control has several of one type (isEnabled and visibility are both bool)
+// and the type alone cannot choose.
 //
 // A binding holds the field by address and never owns it. The field is a
 // member of a model that outlives the description, and the binding is a watch

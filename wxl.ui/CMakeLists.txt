@@ -249,6 +249,7 @@ add_library(wxl.ui STATIC
     src/ZoomEffect.h
     src/ZoomEffect.cpp
     src/impl/binding.h
+    src/impl/state_pair.h
     src/binding.cpp
     src/WindowShade.h
     src/WindowShade.cpp
@@ -560,6 +561,18 @@ if(BUILD_TESTING)
         CXX_SCAN_FOR_MODULES ON)
     wxl_set_target_folders(wxl.ui.app-zoom-test PREFIX "tests")
     add_test(NAME wxl.ui.app-zoom COMMAND wxl.ui.app-zoom-test)
+
+    # The rules of the isFocused and verticalOffset pairs (impl/state_pair.h) are
+    # templates over the element, checked over a fake one and wxl.core's observable,
+    # the way AppZoom is: no source to build, no XAML.
+    add_executable(wxl.ui.state-pair-test test/state_pair_test.cpp)
+    target_link_libraries(wxl.ui.state-pair-test PRIVATE wxl::core)
+    target_include_directories(wxl.ui.state-pair-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(wxl.ui.state-pair-test PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON)
+    wxl_set_target_folders(wxl.ui.state-pair-test PREFIX "tests")
+    add_test(NAME wxl.ui.state-pair COMMAND wxl.ui.state-pair-test)
 
     # The path an address with the file scheme names is plain text work over wxl.core, tested
     # the way AppZoom is.

@@ -175,12 +175,32 @@
         // the pair allows. NumberBox commits Value only on Enter, a spin or
         // the focus leaving; the number as it is being typed goes under the
         // Slider's own name for a value not yet committed.
+        //
+        // IsFocused and ScrollViewer's VerticalOffset are state a control has
+        // and takes only on its own terms: focus through Focus(), which an
+        // element may refuse, the offset through ChangeView(), which stops at
+        // the end of the content. Both ways, the field asking and the control
+        // answering with what it did; a one-way flag would go on saying what
+        // was asked. IsFocused hangs on UIElement, where Focus, FocusState
+        // and the focus events are declared, so every element has it.
         "boundMembers": [
             {
                 "class": "Microsoft.UI.Xaml.Controls.NumberBox",
                 "property": "IntermediateValue",
                 "value": "double",
                 "direction": "input"
+            },
+            {
+                "class": "Microsoft.UI.Xaml.UIElement",
+                "property": "IsFocused",
+                "value": "bool",
+                "direction": "both"
+            },
+            {
+                "class": "Microsoft.UI.Xaml.Controls.ScrollViewer",
+                "property": "VerticalOffset",
+                "value": "double",
+                "direction": "both"
             }
         ]
     }
