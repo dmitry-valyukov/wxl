@@ -200,6 +200,7 @@ struct WindowState : core::refcounted {
     content::ContentIsland sceneIsland{nullptr};
     input::InputPointerSource pointerInput{nullptr};   // указатель сцены; клавиатура -- через WndProc
 
+    handler_list<WindowClosingEventArgs> closing;
     handler_list<Object> closed;
     handler_list<Object> geometryChanged;
     handler_list<ClientSize> clientSizeChanged;
@@ -1286,8 +1287,19 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             break;
 
         case WM_CLOSE:
-            // Приложению есть что сохранить по дороге -- место чтения, геометрию.
-            if (state) state->closed.fire(Object::Impl::empty<Object>());
+            // Просьба закрыть: Closing может её отклонить, Closed -- сохранить по
+            // дороге. Обработчик с модальным циклом может разобрать вложенный
+            // WM_CLOSE и уничтожить окно раньше, чем кончится этот, -- состояние
+            // держится здесь, и этот кончается вместе с окном.
+            if (state) {
+                core::intrusive_ptr<WindowState> const held{state};
+                WindowClosingEventArgs request;
+                held->closing.fire(request);
+                if (request.cancel() || !held->hwnd) return 0;
+
+                held->closed.fire(Object::Impl::empty<Object>());
+                if (!held->hwnd) return 0;
+            }
             ::DestroyWindow(hwnd);
             return 0;
 
@@ -1827,9 +1839,11 @@ void CompositionWindow::captionColor(Color caption, Color text) const {
 }
 
 void CompositionWindow::close() const {
-    // PostMessage, а не Send: закрытие встаёт в очередь, как системный крестик,
-    // и разбирается тем же WM_CLOSE (Closed -> DestroyWindow -> WM_DESTROY).
-    ::PostMessageW(state_->hwnd, WM_CLOSE, 0, 0);
+    // PostMessage, а не Send: просьба встаёт в очередь, как от системного
+    // крестика, и разбирается тем же WM_CLOSE (Closing -> Closed ->
+    // DestroyWindow -> WM_DESTROY). Без окна hwnd пуст, а PostMessage с пустым
+    // окном послал бы WM_CLOSE самому потоку.
+    if (state_->hwnd) ::PostMessageW(state_->hwnd, WM_CLOSE, 0, 0);
 }
 
 void CompositionWindow::acceptFileDrops(std::function<void(std::filesystem::path)> handler) const {
@@ -1838,6 +1852,11 @@ void CompositionWindow::acceptFileDrops(std::function<void(std::filesystem::path
 }
 
 // ---- События ----------------------------------------------------------------
+
+EventToken CompositionWindow::add_onClosing(EventHandler<WindowClosingEventArgs> const& handler) const {
+    return state_->closing.add(handler);
+}
+void CompositionWindow::remove_onClosing(EventToken token) const { state_->closing.remove(token); }
 
 EventToken CompositionWindow::add_onClosed(EventHandler<Object> const& handler) const {
     return state_->closed.add(handler);
