@@ -192,6 +192,13 @@ task<> lists_at_once(path pattern, std::vector<async_directory::listed_entry>& o
     std::ranges::sort(out, {}, &async_directory::listed_entry::name);
 }
 
+task<> lists_at_once_under(path pattern, cancellation_token stop,
+                           std::vector<async_directory::listed_entry>& out) {
+    out = co_await async_directory::list(pattern, stop);
+
+    std::ranges::sort(out, {}, &async_directory::listed_entry::name);
+}
+
 task<> lists_and_catches(path pattern, int& code) {
     try {
         co_await async_directory::list(pattern);
@@ -222,6 +229,29 @@ TEST_F(AsyncDirectoryTest, ListBringsEveryMatchAtOnce) {
     EXPECT_FALSE(found[1].is_directory);
     EXPECT_EQ(found[1].size, 0u);
     EXPECT_EQ(found[2].name, L"two.fb3");
+}
+
+TEST_F(AsyncDirectoryTest, ListUnderATokenBringsWhatThePlainOneDoesUntilAsked) {
+    given_a_file(L"one.fb3");
+    given_a_file(L"two.fb3");
+
+    cancellation_source stop;
+    std::vector<async_directory::listed_entry> found;
+
+    run(lists_at_once_under(root_ / L"*.fb3", stop.token(), found));
+
+    ASSERT_EQ(found.size(), 2u);
+    EXPECT_EQ(found[0].name, L"one.fb3");
+    EXPECT_EQ(found[1].name, L"two.fb3");
+
+    stop.cancel();
+
+    std::vector<async_directory::listed_entry> again;
+    task<> asked = lists_at_once_under(root_ / L"*.fb3", stop.token(), again);
+
+    EXPECT_TRUE(asked.done()) << "an operation was started under a cancelled token";
+    EXPECT_THROW(asked.result(), operation_canceled_exception);
+    EXPECT_TRUE(again.empty());
 }
 
 TEST_F(AsyncDirectoryTest, ListOfNoMatchIsEmptyAndNotAFailure) {

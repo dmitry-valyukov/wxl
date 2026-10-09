@@ -518,6 +518,26 @@ task<> asks_whether_exists(path file_path, bool& out) {
     out = co_await async_file::exists(file_path);
 }
 
+task<> reads_whole_under(path file_path, cancellation_token stop, std::string& out, bool& cancelled) {
+    try {
+        out = co_await async_file::read_all(file_path, stop);
+    } catch (const operation_canceled_exception&) {
+        cancelled = true;
+    }
+}
+
+task<> writes_whole_under(path file_path, std::string bytes, cancellation_token stop, bool& cancelled) {
+    try {
+        co_await async_file::write_all(file_path, std::move(bytes), stop);
+    } catch (const operation_canceled_exception&) {
+        cancelled = true;
+    }
+}
+
+task<> asks_whether_exists_under(path file_path, cancellation_token stop, bool& out) {
+    out = co_await async_file::exists(file_path, stop);
+}
+
 /// What is on the disk under this name, read the plain way: the check of a write.
 std::string on_disk(const path& file_path) {
     file in = file::open_read(file_path.c_str());
@@ -584,6 +604,62 @@ TEST_F(AsyncFileTest, WriteAllOfNothingLeavesAnEmptyFile) {
 
     EXPECT_TRUE(file::exists((root_ / L"state.txt").c_str()));
     EXPECT_TRUE(on_disk(root_ / L"state.txt").empty());
+}
+
+// The forms with a token: the same answers until the token is cancelled, and none after
+// -- under a cancelled token nothing is started, and the co_await ends at once.
+TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
+    const std::string content = test_content();
+
+    given_a_file(L"book.bin", content);
+
+    cancellation_source stop;
+    std::string got;
+    bool cancelled = false;
+
+    run(reads_whole_under(root_ / L"book.bin", stop.token(), got, cancelled));
+
+    EXPECT_EQ(got, content);
+    EXPECT_FALSE(cancelled);
+
+    stop.cancel();
+
+    std::string again;
+    task<> asked = reads_whole_under(root_ / L"book.bin", stop.token(), again, cancelled);
+
+    EXPECT_TRUE(asked.done()) << "an operation was started under a cancelled token";
+    run(std::move(asked));
+
+    EXPECT_TRUE(cancelled);
+    EXPECT_TRUE(again.empty());
+}
+
+TEST_F(AsyncFileTest, WriteAllUnderACancelledTokenLeavesTheFileAsItWas) {
+    given_a_file(L"state.txt", "the old state");
+
+    cancellation_source stop;
+    stop.cancel();
+
+    bool cancelled = false;
+
+    run(writes_whole_under(root_ / L"state.txt", "new", stop.token(), cancelled));
+
+    EXPECT_TRUE(cancelled);
+    EXPECT_EQ(on_disk(root_ / L"state.txt"), "the old state");
+    EXPECT_FALSE(file::exists((root_ / L"state.txt.tmp").c_str()));
+}
+
+TEST_F(AsyncFileTest, ExistsUnderATokenAnswersLikeThePlainOne) {
+    given_a_file(L"here.bin", "x");
+
+    cancellation_source stop;
+    bool is_file = false, is_nothing = true;
+
+    run(asks_whether_exists_under(root_ / L"here.bin", stop.token(), is_file));
+    run(asks_whether_exists_under(root_ / L"nowhere.bin", stop.token(), is_nothing));
+
+    EXPECT_TRUE(is_file);
+    EXPECT_FALSE(is_nothing);
 }
 
 TEST_F(AsyncFileTest, ExistsTellsAFileFromADirectoryAndFromNothing) {

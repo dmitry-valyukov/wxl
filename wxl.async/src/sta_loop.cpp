@@ -12,8 +12,7 @@ void async_op::abandon(async_op* op) noexcept {
 
     // Left to finish alone, wherever it is; one that has not started will not.
     if (op->orphanable_) {
-        op->canceled_.store(true, std::memory_order_seq_cst);
-        op->on_cancel();
+        op->cancel();
         return;
     }
 
@@ -22,10 +21,7 @@ void async_op::abandon(async_op* op) noexcept {
     // One already in the return channel is the worker's no more, and there is nothing
     // to cancel.
     if (!sta_loop::is_back(op)) {
-        // Ordered against the worker's second look at the flag, which it takes after
-        // handing an operation to the kernel.
-        op->canceled_.store(true, std::memory_order_seq_cst);
-        op->on_cancel();
+        op->cancel();
 
         owed = sta_loop::wait_until_back(op);
     }

@@ -3,6 +3,7 @@ module;
 export module wxl.async:async_directory;
 
 import :awaitable;
+import :cancellation;
 import :sta_loop;
 import wxl.core;
 import std;
@@ -19,6 +20,11 @@ export namespace wxl::async {
 /// The same split between what may be left to finish alone and what is waited
 /// for: opening, list(), exists(), create_all() and remove() own what they touch
 /// and are orphanable; next() and close() borrow this object.
+///
+/// And the same second form under a `cancellation_token`, its last argument, for all
+/// of them but close(): an operation not started is never started, one standing in the
+/// system is cut short where the system allows, and the co_await ends with
+/// operation_canceled_exception once nothing writes into the frame any more.
 ///
 /// A listing is worth having asynchronous even more than a file is. A directory
 /// on a network share, or one with tens of thousands of names in it, keeps
@@ -93,6 +99,34 @@ public:
     /// Removes an empty directory.
     /// \throw system_exception at the co_await if it could not be removed.
     [[nodiscard]] static awaitable<void> remove(const core::path& path);
+
+    /// The operations above under a token, its last argument.
+    ///@{
+    static cancellable_awaitable<async_directory> open(const core::path& pattern, cancellation_token stop) {
+        return cancellable_awaitable<async_directory>(std::move(stop), [&] { return open(pattern); });
+    }
+
+    static cancellable_awaitable<std::vector<listed_entry>> list(const core::path& pattern,
+                                                                 cancellation_token stop) {
+        return cancellable_awaitable<std::vector<listed_entry>>(std::move(stop), [&] { return list(pattern); });
+    }
+
+    cancellable_awaitable<std::optional<entry>> next(cancellation_token stop) {
+        return cancellable_awaitable<std::optional<entry>>(std::move(stop), [&] { return next(); });
+    }
+
+    static cancellable_awaitable<bool> exists(const core::path& path, cancellation_token stop) {
+        return cancellable_awaitable<bool>(std::move(stop), [&] { return exists(path); });
+    }
+
+    static cancellable_awaitable<void> create_all(const core::path& p, cancellation_token stop) {
+        return cancellable_awaitable<void>(std::move(stop), [&] { return create_all(p); });
+    }
+
+    static cancellable_awaitable<void> remove(const core::path& path, cancellation_token stop) {
+        return cancellable_awaitable<void>(std::move(stop), [&] { return remove(path); });
+    }
+    ///@}
 
 private:
     inline explicit async_directory(core::directory&& opened) : directory_(std::move(opened)) {}
