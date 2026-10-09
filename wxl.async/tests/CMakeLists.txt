@@ -19,6 +19,7 @@ add_executable(wxl.async.tests
     one_shot_event_tests.cpp
     pool_tests.cpp
     public_future_tests.cpp
+    scenario_owner_tests.cpp
     async_directory_tests.cpp
     async_file_pipe_tests.cpp
     async_file_tests.cpp

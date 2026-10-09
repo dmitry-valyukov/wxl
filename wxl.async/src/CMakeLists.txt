@@ -52,6 +52,7 @@ wxl_add_module_library(wxl.async STATIC
         async_directory.cpp
         async_file.cpp
         async_op.cpp
+        detached_task.cpp
         future.cpp
         future_shared_state.cpp
         io_op.cpp
