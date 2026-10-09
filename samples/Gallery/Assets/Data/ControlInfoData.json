@@ -119,6 +119,26 @@
           ]
         },
         {
+          "UniqueId": "BoundCollection",
+          "Tags": [
+            "ObservableCollection",
+            "ItemsSource",
+            "ItemTemplate",
+            "observable_list",
+            "data binding"
+          ],
+          "Title": "Bound collection",
+          "IsNew": true,
+          "Subtitle": "A list control that follows a list of the model, item by item.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/CodeTagIcon.png",
+          "Description": "In wxl a list control is bound to a list of the model, core::observable_list, together with the function that builds the element of an item: itemsSource = BindOutput {list, build}. Every change of the list reaches the control as that change, the control builds the elements in view only, and the bindings an element makes go when the control gives the element back.",
+          "RelatedControls": [
+            "Binding",
+            "ListView",
+            "ItemsRepeater"
+          ]
+        },
+        {
           "UniqueId": "Templates",
           "Tags": [
             "ControlTemplate",

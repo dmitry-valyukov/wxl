@@ -93,6 +93,7 @@ wxl_add_executable(sample.gallery
     HaloPage.cpp
     XamlResourcesPage.cpp
     BindingPage.cpp
+    BoundCollectionPage.cpp
     SettingsCardPage.cpp
     HeaderedContentControlPage.cpp
     SettingsExpanderPage.cpp

@@ -7,6 +7,7 @@ export import wxl.stdint;
 
 export import :allocator;
 export import :atomic_trigger;
+export import :binding_scope;
 export import :bit_vector;
 export import :checks;
 export import :compressed_optional;
@@ -30,6 +31,7 @@ export import :not_null;
 export import :noncopyable;
 export import :numbers;
 export import :observable;
+export import :observable_list;
 export import :path;
 export import :pool_ptr;
 export import :refcounted;

@@ -141,6 +141,7 @@ std::vector<SpecialSection> const& specialSections() {
          {{L"XamlResources", L"Resources", L""},
           {L"XamlStyles", L"Styles", L""},
           {L"Binding", L"Binding", L""},
+          {L"BoundCollection", L"Bound collection", L""},
           {L"Templates", L"Templates", L""},
           {L"CustomUserControls", L"Custom & User Controls", L""},
           {L"CustomXamlConditionals", L"XAML Conditions", L""},

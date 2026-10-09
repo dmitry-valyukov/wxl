@@ -1,3 +1,7 @@
+module;
+
+#include "abi.h"
+
 export module wxl.core:event;
 
 import :function;
@@ -31,7 +35,12 @@ public:
     /// of the event itself was spelled -- the `noexcept` on the callback is not optional.
     using func_t = impl::func_body<R(Args...) noexcept, Base>;
 
-    ~basic_event() { clear(); }
+    /// An event is not destroyed from inside one of its own callbacks: the fire under way
+    /// would come back to a list that is gone.
+    ~basic_event() {
+        assert(!firing_ && "wxl: an event is destroyed from inside its own fire()");
+        clear();
+    }
 
     /// Calls every callback, in the order they were added.
     ///
@@ -39,12 +48,33 @@ public:
     /// the same argument, so a value moved into the first of them would reach the second
     /// one empty.
     ///
+    /// The list may change while it is being walked, and the walk keeps to two rules. A
+    /// callback removed before its turn -- by itself, by another, by clear() -- is not
+    /// called, however far the walk has got; one added is not called by a fire already
+    /// under way, only by the next. The callback that removes itself finishes its call
+    /// first: the walk destroys it once it returns. A callback may fire the event again;
+    /// that inner fire calls what the list holds when it starts.
+    ///
     /// Noexcept, because a callback is noexcept: with no result to report and no way to
     /// tell one subscriber's failure to the next, an event that let an exception out would
     /// leave the rest of the list uncalled and hand the raiser to whoever happened to be
     /// firing.
     void fire(Args... args) noexcept {
-        for (auto & fn : callbacks_) fn(args...);
+        if (callbacks_.empty()) return;
+
+        firing frame{.next = callbacks_.front(), .outer = firing_};
+        firing_ = &frame;
+        while (frame.next && frame.next != frame.end) {
+            func_t* const fn = frame.next;
+            frame.current = fn;
+            frame.next = fn->next_;
+            (*fn)(args...);
+            if (frame.doomed) {
+                frame.doomed = false;
+                delete fn;
+            }
+        }
+        firing_ = frame.outer;
     }
 
     /// Adds a callback to the end of the list.
@@ -58,42 +88,102 @@ public:
     /// this event and wants the callback built at its own caller's side, so that what the
     /// caller wrote goes into the node directly instead of through a std::function on the
     /// way. The event takes it over, as it does any other.
-    cookie_t add(not_null<func_t> fn) { return callbacks_.push_back(fn); }
+    cookie_t add(not_null<func_t> fn) {
+        for (firing* f = firing_; f; f = f->outer) {
+            if (!f->end) f->end = fn.get();
+        }
+        return callbacks_.push_back(fn);
+    }
 
-    /// Removes and destroys the callback named by `cookie`.
+    /// Removes and destroys the callback named by `cookie` -- at once, or, when it is the
+    /// one being called, as soon as it returns. Either way it is called no more.
     /// \return false if this event has no such callback -- it was never added here, or it
     ///         is gone already.
     bool remove(cookie_t cookie) {
-        func_t* fn = callbacks_.remove(cookie);
-        delete fn;
+        // Compared by address only: a node a fire is about to reach is in the list, so
+        // a match is one, and only a match is read through.
+        if (firing_) step_past(static_cast<func_t const*>(cookie.get()));
+        func_t* const fn = callbacks_.remove(cookie);
+        if (fn) release(fn);
         return fn != nullptr;
     }
 
-    /// Removes and destroys every callback.
+    /// Removes and destroys every callback; one being called goes when it returns.
     void clear() {
         // Emptied first and walked afterwards, so that a callback whose destructor reaches
         // back into the event finds it empty rather than halfway through being freed.
         intrusive_slist<func_t> orphans;
         orphans.swap(callbacks_);
+        for (firing* f = firing_; f; f = f->outer) {
+            f->next = nullptr;
+            f->end = nullptr;
+        }
 
         auto it = orphans.begin();
         while (it != orphans.end()) {
             func_t * fn = &*it;
             ++it;
-            delete fn;
+            release(fn);
         }
     }
 
     /// Exchanges the callbacks of two events; a cookie follows its callback into the other
     /// one. This is how a notification that happens once is fired: empty the event into a
     /// local one and fire that, so that a callback unsubscribing from inside the call finds
-    /// nothing left to unsubscribe from, instead of the list being walked underneath it.
-    void swap(basic_event & other) noexcept { callbacks_.swap(other.callbacks_); }
+    /// nothing left to unsubscribe from. Neither event may be firing.
+    void swap(basic_event & other) noexcept {
+        assert(!firing_ && !other.firing_ && "wxl: an event is swapped while it fires");
+        callbacks_.swap(other.callbacks_);
+    }
 
     explicit operator bool() const { return !callbacks_.empty(); }
 
 protected:
     intrusive_slist<func_t> callbacks_;
+
+private:
+    // A fire under way, kept on its own stack frame; the event knows the innermost, and
+    // each knows the one it interrupted. This is what lets the list change while it is
+    // walked without a mark on every node: whatever takes a callback out moves every
+    // walk past it, and only the callback being called has to wait for its walk.
+    struct firing {
+        func_t* current = nullptr;
+        // What the walk calls next; null when nothing is left.
+        func_t* next = nullptr;
+        // The first callback added while this walk was under way, where it stops: whatever
+        // is added goes to the tail, so everything from here on is new to it.
+        func_t* end = nullptr;
+        firing* outer = nullptr;
+        // `current` left the list during its call, and this walk -- the outermost one in
+        // that call -- destroys it once the call returns.
+        bool doomed = false;
+    };
+
+    // `fn` is about to leave the list: a walk that would call it next calls what follows
+    // instead, and a walk that would stop at it stops where it would have gone on to.
+    void step_past(func_t const* fn) noexcept {
+        for (firing* f = firing_; f; f = f->outer) {
+            if (f->next == fn) f->next = fn->next_;
+            if (f->end == fn) f->end = fn->next_;
+        }
+    }
+
+    // Destroys a callback that has left the list, unless a walk is inside its call: then
+    // the outermost such walk destroys it on return, so the code of the call never runs
+    // on freed memory.
+    void release(func_t* fn) noexcept {
+        firing* caller = nullptr;
+        for (firing* f = firing_; f; f = f->outer) {
+            if (f->current == fn) caller = f;
+        }
+        if (caller) {
+            caller->doomed = true;
+        } else {
+            delete fn;
+        }
+    }
+
+    firing* firing_ = nullptr;
 };
 
 }  // namespace wxl::core

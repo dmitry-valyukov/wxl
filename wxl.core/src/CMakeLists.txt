@@ -5,6 +5,7 @@ wxl_add_module_library(wxl.core STATIC
 
         allocator.ixx
         atomic_trigger.ixx
+        binding_scope.ixx
         bit_vector.ixx
         checks.ixx
         compressed_optional.ixx
@@ -28,6 +29,7 @@ wxl_add_module_library(wxl.core STATIC
         noncopyable.ixx
         numbers.ixx
         observable.ixx
+        observable_list.ixx
         path.ixx
         pool_ptr.ixx
         refcounted.ixx

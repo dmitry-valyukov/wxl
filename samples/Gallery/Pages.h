@@ -130,6 +130,7 @@ wxl::FrameworkElement gaussianBlurPage();
 wxl::FrameworkElement haloPage();
 wxl::FrameworkElement xamlResourcesPage();
 wxl::FrameworkElement bindingPage();
+wxl::FrameworkElement boundCollectionPage();
 wxl::FrameworkElement settingsCardPage();
 wxl::FrameworkElement headeredContentControlPage();
 wxl::FrameworkElement settingsExpanderPage();
