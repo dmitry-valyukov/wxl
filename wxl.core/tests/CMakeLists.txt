@@ -1,5 +1,6 @@
 add_executable(wxl.core.tests
     basic_text_tests.cpp
+    binding_scope_tests.cpp
     bit_vector_tests.cpp
     compressed_optional_tests.cpp
     directory_tests.cpp
@@ -15,6 +16,7 @@ add_executable(wxl.core.tests
     mutex_tests.cpp
     not_null_tests.cpp
     numbers_tests.cpp
+    observable_list_tests.cpp
     observable_tests.cpp
     path_tests.cpp
     refcounted_tests.cpp
