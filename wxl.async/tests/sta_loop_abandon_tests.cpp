@@ -218,6 +218,34 @@ task<> reads_into_its_frame(probe& p) {
     ADD_FAILURE() << "resumed after its task was dropped";
 }
 
+task<> fails_through_an_operation() {
+    co_await start_failure();
+}
+
+task<std::size_t> answers_with_a_read_into_its_frame(probe& p) {
+    frame_witness witness(p);
+    std::byte buf[64]{};
+
+    co_return co_await start_read(p, buf);
+}
+
+/// The code from the discussion one level up: two tasks in flight rather than two
+/// operations. The first one awaited fails, and the frame unwinds past the second, which
+/// stands on a read into its own frame -- and goes with the outer one, giving the read up.
+task<> first_task_fails_second_in_flight(probe& p) {
+    auto a = fails_through_an_operation();
+    auto b = answers_with_a_read_into_its_frame(p);
+
+    co_await a;
+
+    // Not reached. A frame that went on would wait for a read nobody lets go of, so the
+    // gate is opened for it: the test fails instead of hanging.
+    ADD_FAILURE() << "went on past a task that failed";
+    p.gate.set();
+
+    co_await b;
+}
+
 /// Many reads out at once and the first awaited one fails: every one of them is given up
 /// in the same unwinding, in the order a vector destroys its elements -- the order the
 /// operations went out in, so each is looked for from the head of the return channel
@@ -467,6 +495,27 @@ TEST(StaLoopAbandonTest, DroppingATaskSuspendedOnAnOperationWaitsForTheWorker) {
     }
 
     EXPECT_EQ(p.canceled.load(), 1);
+    EXPECT_EQ(p.ran_with_frame_alive.load(), 1) << "the worker wrote into a frame that was gone";
+    EXPECT_FALSE(p.frame_alive.load());
+
+    take_what_was_given_up();
+
+    EXPECT_EQ(p.alive.load(), 0);
+}
+
+TEST(StaLoopAbandonTest, ATaskInFlightPastWhichAFrameUnwindsWaitsForTheWorkerToLetGo) {
+    probe p;
+    task<> work = first_task_fails_second_in_flight(p);
+
+    // The failure went to the worker first, so by the time it is inside the read the
+    // failure is on its way back, and the second task is found running, not queued.
+    p.started.wait();
+
+    sta_loop::run_until([&] { return work.done(); });
+
+    EXPECT_THROW(work.result(), std::runtime_error);
+    EXPECT_EQ(p.canceled.load(), 1) << "the second task's read was never given up";
+    EXPECT_EQ(p.ran.load(), 1);
     EXPECT_EQ(p.ran_with_frame_alive.load(), 1) << "the worker wrote into a frame that was gone";
     EXPECT_FALSE(p.frame_alive.load());
 
