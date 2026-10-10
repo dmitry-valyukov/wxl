@@ -159,22 +159,21 @@ task<> reads_and_is_dropped(path pipe_name, bool& reading) {
 
 /// Reads from the pipe under a token, and says what came of it: the frame stays, and
 /// the read ends with an answer -- the bytes, or the cancellation. The read is the form
-/// with a token, kept before it is awaited; or the plain one, under cancellable().
-task<> reads_under_a_token(path pipe_name, cancellation_token stop, bool by_its_own_form, bool& reading,
+/// with a token, kept before it is awaited, or awaited as the call returns it.
+task<> reads_under_a_token(path pipe_name, cancellation_token stop, bool kept, bool& reading,
                            std::string& outcome) {
     async_file in = co_await async_file::open_read(pipe_name);
 
     std::byte buffer[64];
 
     try {
-        if (by_its_own_form) {
+        if (kept) {
             auto read = in.read(buffer, stop);
             reading = true;
             co_await read;
         } else {
-            auto read = in.read(buffer);
             reading = true;
-            co_await cancellable(read, stop);
+            co_await in.read(buffer, stop);
         }
 
         outcome = "read";
@@ -343,7 +342,7 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingPastAReadInTheKernelCancelsIt) {
 // it comes back through the port like any other, and the coroutine goes on past its
 // co_await with the cancellation -- nothing is destroyed, and nothing waits in place.
 TEST_F(AsyncFilePipeTest, AReadTheKernelHoldsEndsWithTheCancellationWhenAsked) {
-    for (const bool by_its_own_form : {true, false}) {
+    for (const bool kept : {true, false}) {
         quiet_pipe pipe;
         ASSERT_TRUE(pipe.made());
 
@@ -352,7 +351,7 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHoldsEndsWithTheCancellationWhenAsked) {
         std::string outcome;
         cancellation_source stop;
 
-        task<> work = reads_under_a_token(pipe.name(), stop.token(), by_its_own_form, reading, outcome);
+        task<> work = reads_under_a_token(pipe.name(), stop.token(), kept, reading, outcome);
 
         wait_until([&] { return reading; });
         EXPECT_FALSE(work.done());
@@ -364,7 +363,7 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHoldsEndsWithTheCancellationWhenAsked) {
 
         EXPECT_FALSE(watchdog.was_needed()) << "the read was not interrupted";
         EXPECT_NO_THROW(work.result());
-        EXPECT_EQ(outcome, "cancelled") << (by_its_own_form ? "read(buffer, stop)" : "cancellable(read, stop)");
+        EXPECT_EQ(outcome, "cancelled") << (kept ? "kept, then awaited" : "awaited as returned");
     }
 }
 

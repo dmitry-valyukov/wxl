@@ -5,7 +5,10 @@
 // и с единым task<R> на обе роли. Поэтому тип того, что возвращают операции, здесь не
 // назван нигде: с результатом sta_loop::async_call, call_here и async_file делают только
 // co_await, auto и decltype, а своё -- корутины task<T>. Одна и та же проба собирается на
-// обоих устройствах, и её таблицы сравниваются строка в строку.
+// обоих устройствах, и её таблицы сравниваются строка в строку. С тех пор как формы с
+// токеном есть у самих операций sta_loop (async_call(fn, stop), call_here(fn, stop)), а
+// cancellable() убран, строки «+token» собираются только на едином устройстве -- их имена
+// прежние, чтобы сравниваться с замером «до».
 //
 // Замеры -- наносекунды на итерацию, медиана и лучший из прогонов:
 //
@@ -84,11 +87,6 @@ struct parked {
     void await_resume() const noexcept {}
 };
 
-/// То же, до которого дотягивается токен.
-struct parked_cancellable : parked {
-    void cancel() noexcept {}
-};
-
 // ---------------------------------------------------------------------------------------
 // Корутины замеров. Вызываемые -- noinline: кадр, вся жизнь которого видна вызывающему,
 // компилятор вправе держать на стеке, и замер такого кадра не мерит ничего.
@@ -108,7 +106,9 @@ __declspec(noinline) task<int> paused_under(int depth, std::coroutine_handle<>* 
                                             cancellation_token stop) {
     if (depth > 1) co_return co_await paused_under(depth - 1, slot, i, stop);
 
-    co_await cancellable(parked_cancellable{{slot}}, stop);
+    // Ожидание приложения, до которого wxl не дотягивается: токен корутина спрашивает сама.
+    co_await parked{slot};
+    stop.throw_if_canceled();
     co_return i;
 }
 
@@ -130,11 +130,15 @@ auto operation(int i) {
         return sta_loop::async_call(orphanable, [i] { return i; });
 }
 
-/// Операция под токеном. У async_call и call_here формы с токеном нет, и ожидание ставит
-/// под него cancellable(): оно занимает место в списке токена, пока корутина стоит.
+/// Операция под токеном -- её форма с токеном: операция стоит в событии токена, пока жива.
 template <leaf kind>
 auto operation_under(int i, const cancellation_token& stop) {
-    return cancellable(operation<kind>(i), stop);
+    if constexpr (kind == leaf::here)
+        return sta_loop::call_here([i] { return i; }, stop);
+    else if constexpr (kind == leaf::call)
+        return sta_loop::async_call([i] { return i; }, stop);
+    else
+        return sta_loop::async_call(orphanable, [i] { return i; }, stop);
 }
 
 template <leaf kind>
@@ -437,8 +441,9 @@ void size_table(const path& file, const cancellation_token& stop) {
     std::printf("  %-38s %4zu\n", "async_call orphanable",
                 sizeof(decltype(sta_loop::async_call(orphanable, one))));
     std::printf("  %-38s %4zu\n", "call_here", sizeof(decltype(sta_loop::call_here(one))));
+    // Имя строки прежнее, чтобы сравниваться с замером «до»; меряется форма с токеном.
     std::printf("  %-38s %4zu\n", "cancellable(async_call, stop)",
-                sizeof(decltype(cancellable(sta_loop::async_call(one), stop))));
+                sizeof(decltype(sta_loop::async_call(one, stop))));
     std::printf("  %-38s %4zu\n", "async_file::read_all",
                 sizeof(decltype(async_file::read_all(file))));
     std::printf("  %-38s %4zu\n", "async_file::read_all +token",
@@ -483,7 +488,7 @@ constexpr int mixed_answer(int depth, int value) {
 /// спрашивается и читается целиком.
 __declspec(noinline) task<std::string> files_under(int depth, path file, std::string text,
                                                    cancellation_token stop) {
-    co_await cancellable(sta_loop::async_call([] { return 0; }), stop);
+    co_await sta_loop::async_call([] { return 0; }, stop);
 
     if (depth > 1)
         co_return co_await files_under(depth - 1, std::move(file), std::move(text), stop);
@@ -527,7 +532,7 @@ __declspec(noinline) task<int> waits_at_gate(int depth, cancellation_token stop,
         return 1;
     };
 
-    const int got = co_await cancellable(sta_loop::async_call(blocked), stop);
+    const int got = co_await sta_loop::async_call(blocked, stop);
     ++*passed;
     co_return got;
 }

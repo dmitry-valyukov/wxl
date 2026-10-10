@@ -250,10 +250,11 @@ public:
             }
         }
 
-        // Told by a cancellation token (async::cancellable_awaiter): a wait
-        // that is suspended is resumed by the queue's next turn, or by the
-        // event if it comes first -- never by cancel() itself; one that has not
-        // begun never suspends. Either way the args are not asked for.
+        // Told by the cancellation token of the form with one
+        // (async::cancellation_detail::cancellable_awaiter): a wait that is
+        // suspended is resumed by the queue's next turn, or by the event if it
+        // comes first -- never by cancel() itself; one that has not begun never
+        // suspends. Either way the args are not asked for.
         void cancel() noexcept {
             if (armed_) {
                 event_->tell();

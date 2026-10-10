@@ -105,10 +105,11 @@ public:
         }
     }
 
-    /// Told by a cancellation token (async::cancellable_awaiter): a wait that
-    /// is suspended leaves its idle turn -- which finds nobody when it comes --
-    /// and is resumed by the queue's next turn of any priority; one that has
-    /// not begun never suspends.
+    /// Told by the token of onIdle(stop)
+    /// (async::cancellation_detail::cancellable_awaiter): a wait that is
+    /// suspended leaves its idle turn -- which finds nobody when it comes -- and
+    /// is resumed by the queue's next turn of any priority; one that has not
+    /// begun never suspends.
     void cancel() noexcept {
         if (waiting()) {
             *self_ = nullptr;

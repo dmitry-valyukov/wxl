@@ -46,12 +46,13 @@ export namespace wxl::async {
 /// thread's, and `sta_loop` is static from top to bottom.
 ///
 /// **Asking an operation to end.** What can be cut short has a second form, with a
-/// `cancellation_token` as its last argument: under a cancelled token an operation not
-/// started is never started, a read or a write the kernel holds is let go by CancelIoEx,
-/// and an opening or a file by name standing in the system is cut short -- and the
-/// co_await ends with operation_canceled_exception, once nothing writes into the frame
-/// any more. The form without a token is the same operation and costs what it always
-/// did. size(), flush() and close() have no such form: there is nothing in them to cut
+/// `cancellation_token` as its last argument, and the operation stands under the token
+/// while it lives: under a cancelled token an operation not started is never started, a
+/// read or a write the kernel holds is let go by CancelIoEx, and an opening or a file by
+/// name standing in the system is cut short -- and the co_await ends with
+/// operation_canceled_exception, once nothing writes into the frame any more. Under a
+/// token cancelled already nothing is started at all. The form without a token is the
+/// same operation and costs what it always did. size(), flush() and close() have no such form: there is nothing in them to cut
 /// short, and a flush cut short is a file that does not survive a power cut.
 ///
 /// **Giving an operation up.** Opening and creating own everything they touch,
@@ -166,43 +167,27 @@ public:
     [[nodiscard]] task<> close();
 
     /// The operations above under a token, its last argument; see "Asking an operation
-    /// to end" above.
+    /// to end" above. Each returns the same task as its form without a token.
     ///@{
-    static cancellable_task<async_file> open_read(const core::path& path, cancellation_token stop) {
-        return cancellable_task<async_file>(std::move(stop), [&] { return open_read(path); });
-    }
+    static task<async_file> open_read(const core::path& path, cancellation_token stop);
 
-    static cancellable_task<async_file> create(const core::path& path, cancellation_token stop) {
-        return cancellable_task<async_file>(std::move(stop), [&] { return create(path); });
-    }
+    static task<async_file> create(const core::path& path, cancellation_token stop);
 
-    static cancellable_task<std::string> read_all(const core::path& path, cancellation_token stop) {
-        return cancellable_task<std::string>(std::move(stop), [&] { return read_all(path); });
-    }
+    [[nodiscard]] static task<std::string> read_all(const core::path& path, cancellation_token stop);
 
-    static cancellable_task<void> write_all(const core::path& path, std::string bytes,
-                                                 cancellation_token stop) {
-        return cancellable_task<void>(std::move(stop),
-                                           [&] { return write_all(path, std::move(bytes)); });
-    }
+    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes, cancellation_token stop);
 
-    static cancellable_task<bool> exists(const core::path& path, cancellation_token stop) {
-        return cancellable_task<bool>(std::move(stop), [&] { return exists(path); });
-    }
+    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token stop);
 
-    cancellable_task<std::size_t> read(std::span<std::byte> into, cancellation_token stop) {
-        return cancellable_task<std::size_t>(std::move(stop), [&] { return read(into); });
-    }
+    [[nodiscard]] task<std::size_t> read(std::span<std::byte> into, cancellation_token stop);
 
     template <class T, std::size_t N>
         requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
-    cancellable_task<std::size_t> read(T (&into)[N], cancellation_token stop) {
+    [[nodiscard]] task<std::size_t> read(T (&into)[N], cancellation_token stop) {
         return read(std::as_writable_bytes(std::span{into}), std::move(stop));
     }
 
-    cancellable_task<std::size_t> write(std::span<const std::byte> from, cancellation_token stop) {
-        return cancellable_task<std::size_t>(std::move(stop), [&] { return write(from); });
-    }
+    [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from, cancellation_token stop);
     ///@}
 
     inline bool opened() const noexcept { return file_.opened(); }
@@ -211,6 +196,10 @@ private:
     /// Attaches the file to the loop's port and asks what kind it is. Called where
     /// the file was opened, which is not the STA thread.
     explicit async_file(core::file&& opened);
+
+    /// The bodies the two forms of open_read() and create() share (async_file.cpp).
+    static auto opening(const core::path& path);
+    static auto creating(const core::path& path);
 
     core::file file_;
     std::uint64_t position_ = 0;

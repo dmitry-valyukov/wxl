@@ -158,13 +158,12 @@ private:
 };
 
 /// The read, in the form with a token the operations of this module have.
-cancellable_task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return cancellable_task<int>(std::move(stop), [&] {
-        return sta_loop::async_run(std::unique_ptr<async_op_t<int>>(new gated_read(p, into)));
-    });
+task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
+    return sta_loop::async_run<gated_read>(std::move(stop), p, into);
 }
 
-/// The operation a level awaits besides its subroutine, answering the level's number.
+/// The operation a level awaits besides its subroutine, answering the level's number, in
+/// its form with a token.
 ///
 /// An odd level awaits it before it calls down, so it is over before anything below is
 /// sent, and it takes the three kinds by turns: inside the call, on the worker,
@@ -172,16 +171,16 @@ cancellable_task<int> read(probe& p, std::span<std::byte> into, cancellation_tok
 /// at the bottom may hold the one worker -- so it is answered inside the call or
 /// orphanable: one queued behind the read would be waited for by an owner dropping it
 /// before the read is given up, which is what opens the read's gate.
-task<int> step(int depth) {
+task<int> step(int depth, cancellation_token stop) {
     const int kind = depth % 2 == 1 ? depth % 3 : depth % 4 == 0 ? 0 : 2;
 
     switch (kind) {
         case 0:
-            return sta_loop::call_here([depth] { return depth; });
+            return sta_loop::call_here([depth] { return depth; }, std::move(stop));
         case 1:
-            return sta_loop::async_call([depth] { return depth; });
+            return sta_loop::async_call([depth] { return depth; }, std::move(stop));
         default:
-            return sta_loop::async_call(orphanable, [depth] { return depth; });
+            return sta_loop::async_call(orphanable, [depth] { return depth; }, std::move(stop));
     }
 }
 
@@ -207,7 +206,7 @@ task<int> bottom(chain_state& c, cancellation_token stop) {
     if (c.bottom == bottom_kind::worker_failure)
         co_return co_await sta_loop::async_call([]() -> int { throw std::runtime_error("from the worker"); });
 
-    const int value = co_await cancellable(sta_loop::async_call([] { return 1000; }), stop);
+    const int value = co_await sta_loop::async_call([] { return 1000; }, stop);
 
     if (c.bottom == bottom_kind::coroutine_failure) throw std::runtime_error("from the bottom coroutine");
 
@@ -232,11 +231,11 @@ task<int> level(chain_state& c, int depth, cancellation_token stop) {
 
         sum = depth;
     } else if (depth % 2 == 1) {
-        sum = co_await cancellable(step(depth), stop);
+        sum = co_await step(depth, stop);
         sum += co_await level(c, depth - 1, stop);
     } else {
         task<int> below = level(c, depth - 1, stop);
-        sum = co_await cancellable(step(depth), stop);
+        sum = co_await step(depth, stop);
         sum += co_await below;
     }
 

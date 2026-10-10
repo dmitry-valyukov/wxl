@@ -31,122 +31,88 @@ class cancellation_token;
 
 namespace cancellation_detail {
 
-/// A wait the source can reach: linked into the shared state for as long as a
-/// coroutine stands in it, and taken out before it is told -- so that whatever the
-/// telling sets off, a resumption included, finds the list whole.
-class wait : public core::intrusive_list_node<wait>
-{
-public:
-    using tell_t = void (*)(wait&) noexcept;
+/// What is told when a token is cancelled: an event of no arguments. Whoever stands under
+/// a token -- an operation or a wait of wxl -- builds its node into itself (a member
+/// deriving from `told_event::func_t`, whose release() does nothing), so that standing
+/// allocates nothing; it adds the node while it stands and removes it when it is over.
+using told_event = core::event<void() noexcept>;
 
-    inline explicit wait(tell_t tell) noexcept : tell_(tell) {}
-
-    inline void tell() noexcept { tell_(*this); }
-
-private:
-    tell_t tell_;
-};
-
-/// What a source and its tokens share: the answer, and the waits standing on it.
+/// What a source and its tokens share: the answer, and the event that tells it. Nothing
+/// else -- whoever stands under the token subscribes and unsubscribes itself, through
+/// the event, and the state knows none of them.
 ///
-/// One thread, the one the waits are on. Nothing here travels to a worker: an
-/// operation that is told sets its own flag, the one the worker reads before the
-/// body anyway, so the count and the answer are plain fields.
+/// One thread, the one the coroutines are on: an operation that is told sets its own
+/// flag, the one the worker reads before the body anyway, so the answer is a plain field
+/// and the event an STA one.
 class cancellation_state : public core::sta_refcounted
 {
 public:
     inline bool canceled() const noexcept { return canceled_; }
 
-    /// Tells every wait standing on this state, each taken out first. A wait that
-    /// begins afterwards finds the answer and does not stand, so a second call has
-    /// nobody left to tell.
+    /// The event a subscriber adds itself to and removes itself from.
+    inline told_event& told() noexcept { return told_; }
+
+    /// Sets the answer and tells everyone standing, once: the event is emptied into a local
+    /// one and fired there, so a subscriber that unsubscribes later -- or from inside its
+    /// call -- finds it gone, and remove() answers false. Telling resumes nobody (an
+    /// operation is cut short, a wait is handed to its thread's queue), so no subscriber
+    /// goes away in the middle of the fire. One that begins standing afterwards finds the
+    /// answer and does not stand at all.
     inline void cancel() noexcept {
         canceled_ = true;
 
-        while (wait* const told = waits_.front()) {
-            core::intrusive_list<wait>::remove(core::not_null<wait>(told));
-            told->tell();
-        }
+        told_event once;
+        once.swap(told_);
+        once.fire();
     }
-
-    inline void enter(wait& standing) noexcept { waits_.push_back(core::not_null<wait>(&standing)); }
 
 private:
     bool canceled_ = false;
-    core::intrusive_list<wait> waits_;
+    told_event told_;
 };
 
 using cancellation_state_ptr = core::intrusive_ptr<cancellation_state>;
 
-/// The place a wait takes in the state's list -- or none, for a wait that cannot be told
-/// and so never stands in one: such a wait carries nothing of the list.
-template <bool can_be_told>
-class standing;
-
-template <>
-class standing<true> : public wait
-{
-protected:
-    inline explicit standing(tell_t tell) noexcept : wait(tell) {}
-
-    inline void leave() noexcept {
-        if (linked()) core::intrusive_list<wait>::remove(core::not_null<wait>(this));
-    }
-};
-
-template <>
-class standing<false>
-{
-protected:
-    inline explicit standing(wait::tell_t) noexcept {}
-
-    inline void leave() noexcept {}
-};
-
-/// What `co_await` makes of an operand: what its member operator co_await returns,
-/// else what a free one returns, else the operand itself.
-template <class Awaitable>
-inline decltype(auto) operand_awaiter(Awaitable&& awaitable) {
-    if constexpr (requires { std::forward<Awaitable>(awaitable).operator co_await(); })
-        return std::forward<Awaitable>(awaitable).operator co_await();
-    else if constexpr (requires { operator co_await(std::forward<Awaitable>(awaitable)); })
-        return operator co_await(std::forward<Awaitable>(awaitable));
-    else
-        return static_cast<std::remove_reference_t<Awaitable>&>(awaitable);
-}
-
-/// The state behind a token, for the waits that stand on it.
+/// The state behind a token, for whoever stands on it; null for a token that has none.
 cancellation_state* state_of(const cancellation_token& token) noexcept;
 
-/// The hooks of a wait under a token, over what `Wait` gives them: `awaiter()`, the
-/// awaiter of what is awaited, and `state()`, the token's state or null. `told` says
-/// whether that awaiter can be told (`cancellable_awaiter`).
+/// What a wait of wxl under a token asks of its awaiter: `cancel() noexcept`, which tells
+/// it to end its wait early. Told, it still ends the way it ends anyway -- the event ends,
+/// the thread's turn comes -- only sooner; and it is told on the coroutine's own thread,
+/// while the coroutine is suspended in it or just before it would be, and resumes nobody
+/// from inside the call. A told awaiter is then left without its await_resume(): whatever
+/// it would have handed over is not asked for. Told before it suspends, it does not
+/// suspend. A form that answers rather than throws says what a cancelled wait answers
+/// through `await_canceled()`, which the wait then gives instead of the exception.
+template <class Awaiter>
+concept cancellable_awaiter = requires(Awaiter& awaiter) {
+    { awaiter.cancel() } noexcept;
+};
+
+/// The hooks of a wait of wxl under a token, over what `Wait` gives them: `awaiter()`, the
+/// awaiter of what is awaited (`cancellable_awaiter`), and `state()`, the token's state
+/// or null.
 ///
-/// Until the token is cancelled the wait is the awaiter's own, and stands on the token's
-/// list while the coroutine is suspended -- four pointers written in, four out. Once it
-/// is cancelled the wait ends with operation_canceled_exception: one standing is told
-/// through the awaiter's cancel() and ends when the awaiter lets it; one that would begin
-/// later does not stand at all -- unless its awaiter still has something out that
-/// borrows the frame, which it is told about and waited for, without holding the thread.
-/// An awaiter that cannot be told is not interrupted: a wait on it ends when it ends,
-/// and then with the cancellation. One whose cancel() answers says each time whether it
-/// could be told -- a task can be when an operation makes its result, and cannot when a
-/// coroutine does -- and one that could not is waited on as such. A told awaiter is left
-/// without its await_resume();
-/// one that answers a cancellation rather than throwing it -- the answering form of an
-/// event wait -- gives its answer through await_canceled().
+/// Until the token is cancelled the wait is the awaiter's own, and stands under the token
+/// while the coroutine is suspended: its node -- built in, nothing is allocated -- is added
+/// to the token's event when it suspends and removed when it resumes. Once the token is
+/// cancelled the wait ends with operation_canceled_exception: one standing is told through
+/// the awaiter's cancel() and ends when the awaiter lets it; one that would begin later is
+/// told before it suspends, and does not. One that answers a cancellation rather than
+/// throwing it -- the answering form of an event wait -- gives its answer through
+/// await_canceled().
 ///
 /// Each hook takes the place of the co_await and hands it on to an awaiter that takes
 /// one, so that a strict build reports the line of the co_await rather than this file's.
-/// `Wait` leaves the list in its own destructor, before its members go: one of them may
+/// `Wait` leaves the event in its own destructor, before its members go: one of them may
 /// be what keeps the state alive.
-template <class Wait, bool told>
-class wait_under : public standing<told>
+template <class Wait>
+class wait_under
 {
 public:
     inline bool await_ready(coro_detail::site where = coro_detail::site::current()) {
         if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]]
-            return self().ready_when_told(where);
+            self().awaiter().cancel();
 
         return ready(where);
     }
@@ -154,9 +120,10 @@ public:
     template <class Promise>
     inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
                                         [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
-        if constexpr (told)
-            if (cancellation_state* const state = self().state(); state && !state->canceled())
-                state->enter(*this);
+        if (cancellation_state* const state = self().state(); state && !state->canceled()) {
+            state->told().add(core::as_not_null<told_event::func_t>(&node_));
+            standing_ = true;
+        }
 
         if constexpr (requires { self().awaiter().await_suspend(awaiting, where); })
             return self().awaiter().await_suspend(awaiting, where);
@@ -165,7 +132,7 @@ public:
     }
 
     inline decltype(auto) await_resume([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
-        this->leave();
+        leave();
 
         if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]] {
             if constexpr (requires { self().awaiter().await_canceled(); })
@@ -181,24 +148,40 @@ public:
     }
 
 protected:
-    inline wait_under() noexcept : standing<told>(&tell_this) {}
-
-    /// A place of its own, in no list: a wait is moved only while it does not stand.
-    inline wait_under(wait_under&&) noexcept : standing<told>(&tell_this) {}
+    inline wait_under() noexcept : node_(*this) {}
 
     ~wait_under() = default;
 
-    /// The token was cancelled before the wait stood.
-    inline bool ready_when_told(coro_detail::site where) {
-        if constexpr (!told) {
-            return true;
-        } else if constexpr (std::same_as<decltype(self().awaiter().cancel()), bool>) {
-            return !self().awaiter().cancel() || ready(where);
-        } else {
-            self().awaiter().cancel();
-            return ready(where);
+    /// Takes the wait out of the token's event, if it stands there.
+    inline void leave() noexcept {
+        if (standing_) {
+            standing_ = false;
+            self().state()->told().remove(core::cookie_t{static_cast<told_event::func_t*>(&node_)});
         }
     }
+
+private:
+    /// The wait's place in the token's event, built into it.
+    class node final : public told_event::func_t
+    {
+    public:
+        inline explicit node(wait_under& wait) noexcept : wait_(wait) {}
+
+        /// The token was cancelled: the event the node stood in is gone, and the awaiter is
+        /// told.
+        inline void operator()() noexcept override {
+            wait_.standing_ = false;
+            wait_.self().awaiter().cancel();
+        }
+
+        /// The wait owns its node.
+        inline void release() noexcept override {}
+
+    private:
+        wait_under& wait_;
+    };
+
+    inline Wait& self() noexcept { return static_cast<Wait&>(*this); }
 
     inline bool ready([[maybe_unused]] coro_detail::site where) {
         if constexpr (requires { self().awaiter().await_ready(where); })
@@ -207,47 +190,34 @@ protected:
             return self().awaiter().await_ready();
     }
 
-private:
-    inline Wait& self() noexcept { return static_cast<Wait&>(*this); }
-
-    static void tell_this(wait& standing_wait) noexcept {
-        if constexpr (told) static_cast<Wait&>(static_cast<wait_under&>(standing_wait)).awaiter().cancel();
-    }
+    node node_;
+    bool standing_ = false;
 };
 
 }  // namespace cancellation_detail
 
-/// An awaiter that can be told to end its wait early. Told, it still ends the way it
-/// ends anyway -- the operation comes back, the event ends -- only sooner; and it is
-/// told on the coroutine's own thread, while the coroutine is suspended in it or just
-/// before it would be. A told awaiter is then left without its await_resume(): whatever
-/// it would have handed over is not asked for. Told before it suspends, it suspends only
-/// while something it has out borrows the frame -- an operation in flight, until it comes
-/// back -- and an event wait, which has nothing out, does not suspend at all. A form that
-/// answers rather than throws says what a cancelled wait answers through
-/// `await_canceled()`, which a wait under a token then gives instead of the exception.
-/// A cancel() that answers says whether there was anybody to tell: one that answers
-/// `false` is, for that wait, an awaiter that cannot be told.
-template <class Awaiter>
-concept cancellable_awaiter = requires(Awaiter& awaiter) {
-    { awaiter.cancel() } noexcept;
-};
-
 /// The right to ask the coroutines that were given it to end.
 ///
-/// A token is passed down a chain of coroutines explicitly, as an argument, and read at
-/// the waits that name it: the operations of this module that can be cut short take one
-/// as their last argument -- `co_await async_file::read_all(path, stop)` -- and any other
-/// wait is put under one by `co_await cancellable(wait, stop)`. Asking does
-/// not end anything by itself: a wait standing under the token ends with
-/// operation_canceled_exception, and every later one ends with it at once, so the chain
-/// unwinds by its own exceptions, through its own catch blocks, on the live thread --
-/// and cleanup past a handler may co_await again, under no token or another. A chain
-/// that ignores the answer runs on; destroying it is still its owner's to do.
+/// A token is passed down a chain of coroutines explicitly, as an argument, and read where
+/// the chain's own code reads it. Two kinds of reader:
+///
+/// - **The operations and waits of wxl** that can be cut short take it as their last
+///   argument -- `co_await async_file::read_all(path, stop)`, `co_await onClick(button,
+///   stop)` -- and stand under it while they are out: asked, the operation is cut short
+///   and the wait is ended, and the co_await ends with operation_canceled_exception. Under
+///   a token cancelled already nothing is started, and the co_await ends with it at once.
+/// - **The application's own coroutine** asks it itself -- is_canceled(),
+///   throw_if_canceled() -- where it has something to stop, and decides what to do about
+///   it. wxl asks nobody else's code to end: there is no wrapper that puts an awaiter of
+///   somebody else's under a token.
+///
+/// Asking does not end anything by itself: the chain unwinds by its own exceptions,
+/// through its own catch blocks, on the live thread -- and cleanup past a handler may
+/// co_await again, under no token or another. A chain that ignores the answer runs on;
+/// destroying it is still its owner's to do.
 ///
 /// What a token does not do is interrupt a call already under way that has nothing to
-/// interrupt it with: the grain is one wait, and what ends a wait early is the
-/// awaiter's own cancel().
+/// interrupt it with: the grain is one operation or one wait.
 ///
 /// One thread: tokens and their source live on the thread the coroutines run on. A
 /// default-constructed token is never cancelled and costs nothing: it has no state,
@@ -295,10 +265,10 @@ public:
 
     inline cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
 
-    /// Tells every wait standing under a token of this source, and answers every later
-    /// one at once. Held across the telling: a wait told may end something that holds
-    /// this source. On the coroutines' own thread, like everything about them; a build
-    /// that checks coroutines makes sure.
+    /// Tells every operation and wait standing under a token of this source, and answers
+    /// every later one at once. Held across the telling: an operation told may let go of
+    /// something that holds this source. On the coroutines' own thread, like everything
+    /// about them; a build that checks coroutines makes sure.
     inline void cancel([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) noexcept {
         coro_check(core::sta_memory_pool::is_safe(),
                    "cancellation_source: cancelled from a thread other than its coroutines'", where);
@@ -312,60 +282,5 @@ public:
 private:
     cancellation_detail::cancellation_state_ptr state_;
 };
-
-/// A wait under a token, for an operand that has no overload taking one:
-/// `co_await cancellable(wait, token)`. What it does is `cancellation_detail::wait_under`'s.
-///
-/// The operand is held as `co_await` would hold it: an lvalue is borrowed, an rvalue is
-/// moved in -- or, if it cannot be moved, as the awaiters of waits on this thread
-/// cannot, borrowed for the full expression it was made in. The token is borrowed the
-/// same way. So the wait is co_awaited where it is made, as `co_await f()` is.
-template <class Awaitable>
-class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] cancellable_wait
-    : public cancellation_detail::wait_under<
-          cancellable_wait<Awaitable>,
-          cancellable_awaiter<std::remove_reference_t<
-              decltype(cancellation_detail::operand_awaiter(std::declval<Awaitable>()))>>>
-{
-    using awaiter_t = decltype(cancellation_detail::operand_awaiter(std::declval<Awaitable>()));
-
-    using base = cancellation_detail::wait_under<
-        cancellable_wait, cancellable_awaiter<std::remove_reference_t<awaiter_t>>>;
-
-    friend base;
-
-    using operand_t = std::conditional_t<std::move_constructible<Awaitable>, Awaitable, Awaitable&&>;
-
-public:
-    inline cancellable_wait(Awaitable&& awaitable, const cancellation_token& token)
-        : operand_(std::forward<Awaitable>(awaitable)),
-          awaiter_(cancellation_detail::operand_awaiter(std::forward<Awaitable>(operand_))),
-          state_(cancellation_detail::state_of(token)) {}
-
-    cancellable_wait(const cancellable_wait&) = delete;
-    cancellable_wait& operator=(const cancellable_wait&) = delete;
-
-    /// A frame destroyed while it stands here takes the wait off the list.
-    inline ~cancellable_wait() { this->leave(); }
-
-private:
-    inline std::remove_reference_t<awaiter_t>& awaiter() noexcept { return awaiter_; }
-
-    inline cancellation_detail::cancellation_state* state() const noexcept { return state_; }
-
-    operand_t operand_;
-    awaiter_t awaiter_;
-
-    /// Borrowed from the token, which outlives the full expression the wait is made in.
-    cancellation_detail::cancellation_state* state_;
-};
-
-/// \return the wait for `awaitable` under `token`, to be co_awaited in the same
-///         expression: `co_await cancellable(file.read(buf), stop)`.
-template <class Awaitable>
-[[nodiscard]] inline cancellable_wait<Awaitable> cancellable(Awaitable&& awaitable,
-                                                             const cancellation_token& token) {
-    return cancellable_wait<Awaitable>(std::forward<Awaitable>(awaitable), token);
-}
 
 }  // export namespace wxl::async

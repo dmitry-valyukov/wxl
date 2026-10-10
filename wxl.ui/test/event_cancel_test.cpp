@@ -46,7 +46,6 @@ using wxl::EventArgsBase;
 using wxl::EventHandler;
 using wxl::EventToken;
 using wxl::Object;
-using wxl::async::cancellable;
 using wxl::async::cancellation_source;
 using wxl::async::cancellation_token;
 using wxl::async::operation_canceled_exception;
@@ -131,22 +130,6 @@ task<> answers_keys(event_state& event, cancellation_token stop, std::vector<std
 
         got->get().handled = true;
         log.push_back("key");
-    }
-}
-
-/// The plain proxy, each wait put under the token by cancellable(): a wait any awaiter can be.
-task<> takes_keys_through_cancellable(event_state& event, cancellation_token stop, int& taken,
-                                      std::string& ended) {
-    plain_keys keys{fake_event{&event}};
-
-    try {
-        while (true) {
-            key_args& args = co_await cancellable(keys, stop);
-            args.handled = true;
-            ++taken;
-        }
-    } catch (operation_canceled_exception const&) {
-        ended = "cancelled";
     }
 }
 
@@ -430,26 +413,6 @@ TEST_F(EventCancelTest, TheFormWithATokenAnswersLikeThePlainOne) {
     EXPECT_EQ(taken_plain, 4);
 }
 
-// The plain proxy under cancellable(): the awaiter of an event wait can be told like any other.
-TEST_F(EventCancelTest, ThePlainProxyIsToldThroughCancellable) {
-    event_state event;
-    cancellation_source stop;
-    int taken = 0;
-    std::string ended;
-
-    task<> keys = takes_keys_through_cancellable(event, stop.token(), taken, ended);
-
-    EXPECT_TRUE(raise(event));
-    stop.cancel();
-    EXPECT_FALSE(keys.done());
-
-    wxl::impl::resume_told_waits();
-
-    ASSERT_TRUE(keys.done());
-    EXPECT_EQ(ended, "cancelled");
-    EXPECT_EQ(taken, 1);
-}
-
 // Going down with a told wait the queue has not resumed yet: phase one ends it with the rest,
 // since the queue will not.
 TEST_F(EventCancelTest, GoingDownEndsAToldWaitTheQueueHasNotResumed) {
@@ -480,8 +443,8 @@ TEST_F(EventCancelTest, GoingDownEndsAToldWaitTheQueueHasNotResumed) {
 // as it was a pointer and one, and the proxy has no field it did not have.
 static_assert(sizeof(plain_keys::awaiter) == 2 * sizeof(void*));
 static_assert(sizeof(keys_under_token) == sizeof(plain_keys) + sizeof(cancellation_token));
-static_assert(wxl::async::cancellable_awaiter<plain_keys::awaiter>);
-static_assert(wxl::async::cancellable_awaiter<plain_keys::awaiter_t<false>>);
+static_assert(wxl::async::cancellation_detail::cancellable_awaiter<plain_keys::awaiter>);
+static_assert(wxl::async::cancellation_detail::cancellable_awaiter<plain_keys::awaiter_t<false>>);
 
 // ---- The checks of how a wait is used: assert in a Debug build, core::abort under STRICT_CORO --
 

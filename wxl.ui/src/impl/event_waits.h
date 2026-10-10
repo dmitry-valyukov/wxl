@@ -206,17 +206,18 @@ inline void close_event_waits() noexcept {
 inline bool event_waits_drained() noexcept { return waiting_events().empty() && told_waits().empty(); }
 
 /// A wait of this thread under a cancellation token: the awaiter made in place,
-/// what async::cancellation_detail::wait_under does with it. `Stop` is how the
-/// token is had -- held (`async::cancellation_token`), for a wait made by a call
-/// that was handed the token, or borrowed as its state, for the wait of a proxy
-/// that holds the token and outlives the co_await.
+/// what async::cancellation_detail::wait_under does with it -- the wait stands in
+/// the token's event while it is suspended, by a node built into it. `Stop` is how
+/// the token is had -- held (`async::cancellation_token`), for a wait made by a
+/// call that was handed the token, or borrowed as its state, for the wait of a
+/// proxy that holds the token and outlives the co_await.
 ///
 /// Neither copied nor moved, like the awaiter: it is co_awaited where it is made.
 template <typename Awaiter, typename Stop>
 class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] event_wait_under
-    : public async::cancellation_detail::wait_under<event_wait_under<Awaiter, Stop>, true>
+    : public async::cancellation_detail::wait_under<event_wait_under<Awaiter, Stop>>
 {
-    using base = async::cancellation_detail::wait_under<event_wait_under, true>;
+    using base = async::cancellation_detail::wait_under<event_wait_under>;
 
     friend base;
 
@@ -228,8 +229,8 @@ public:
     event_wait_under(event_wait_under const&) = delete;
     event_wait_under& operator=(event_wait_under const&) = delete;
 
-    /// A frame destroyed while it stands here takes the wait off the token's
-    /// list before the token it may hold goes.
+    /// A frame destroyed while it stands here takes the wait out of the token's
+    /// event before the token it may hold goes.
     ~event_wait_under() { this->leave(); }
 
 private:

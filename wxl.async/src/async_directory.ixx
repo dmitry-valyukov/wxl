@@ -100,36 +100,29 @@ public:
     /// \throw system_exception at the co_await if it could not be removed.
     [[nodiscard]] static task<> remove(const core::path& path);
 
-    /// The operations above under a token, its last argument.
+    /// The operations above under a token, its last argument: the operation stands under
+    /// the token while it lives, and under a token cancelled already nothing is started.
+    /// Each returns the same task as its form without a token.
     ///@{
-    static cancellable_task<async_directory> open(const core::path& pattern, cancellation_token stop) {
-        return cancellable_task<async_directory>(std::move(stop), [&] { return open(pattern); });
-    }
+    static task<async_directory> open(const core::path& pattern, cancellation_token stop);
 
-    static cancellable_task<std::vector<listed_entry>> list(const core::path& pattern,
-                                                                 cancellation_token stop) {
-        return cancellable_task<std::vector<listed_entry>>(std::move(stop), [&] { return list(pattern); });
-    }
+    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern, cancellation_token stop);
 
-    cancellable_task<std::optional<entry>> next(cancellation_token stop) {
-        return cancellable_task<std::optional<entry>>(std::move(stop), [&] { return next(); });
-    }
+    [[nodiscard]] task<std::optional<entry>> next(cancellation_token stop);
 
-    static cancellable_task<bool> exists(const core::path& path, cancellation_token stop) {
-        return cancellable_task<bool>(std::move(stop), [&] { return exists(path); });
-    }
+    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token stop);
 
-    static cancellable_task<void> create_all(const core::path& p, cancellation_token stop) {
-        return cancellable_task<void>(std::move(stop), [&] { return create_all(p); });
-    }
+    [[nodiscard]] static task<> create_all(const core::path& p, cancellation_token stop);
 
-    static cancellable_task<void> remove(const core::path& path, cancellation_token stop) {
-        return cancellable_task<void>(std::move(stop), [&] { return remove(path); });
-    }
+    [[nodiscard]] static task<> remove(const core::path& path, cancellation_token stop);
     ///@}
 
 private:
     inline explicit async_directory(core::directory&& opened) : directory_(std::move(opened)) {}
+
+    /// The bodies the two forms of open() and next() share (async_directory.cpp).
+    static auto opening(const core::path& pattern);
+    auto next_entry();
 
     core::directory directory_;
 };

@@ -5,6 +5,7 @@ module;
 export module wxl.async:sta_loop;
 
 import :async_op;
+import :cancellation;
 import :io_op;
 import :io_port;
 import :spsc_channel;
@@ -437,6 +438,48 @@ public:
         return task<result_t>(std::move(op));
     }
 
+    /// The form with a token of async_call(): the same operation, standing under `stop`
+    /// while it lives (`cancellation_detail::operation_under`). Cancelled, the token cuts
+    /// it short -- one not reached by the worker never runs -- and the co_await ends with
+    /// operation_canceled_exception once nothing writes into the frame any more. Under a
+    /// token cancelled already nothing is made, and the task answers the cancellation at
+    /// once; under one with no source this is the form without a token.
+    template <class Fn>
+    [[nodiscard]] static task<std::invoke_result_t<std::decay_t<Fn>&>> async_call(
+        Fn&& fn, cancellation_token stop) {
+        using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
+
+        if (!cancellation_detail::state_of(stop)) return async_call(std::forward<Fn>(fn));
+        if (stop.is_canceled()) return canceled<result_t>();
+
+        std::unique_ptr<async_op_t<result_t>> op(
+            new cancellation_detail::operation_under<async_op_f<std::decay_t<Fn>>>(std::move(stop),
+                                                                                std::forward<Fn>(fn)));
+
+        return async_run(std::move(op));
+    }
+
+    /// The form with a token of the orphanable async_call(): cancelled, the token cuts the
+    /// body short as giving it up does -- one not started is not, one standing in a call
+    /// to the system has that call cut short -- and the co_await ends with the
+    /// cancellation as soon as the body has let go.
+    template <class Fn>
+    [[nodiscard]] static task<orphan_result_t<std::decay_t<Fn>>> async_call(
+        orphanable_t, Fn&& fn, cancellation_token stop) {
+        using result_t = orphan_result_t<std::decay_t<Fn>>;
+
+        if (!cancellation_detail::state_of(stop)) return async_call(orphanable, std::forward<Fn>(fn));
+        if (stop.is_canceled()) return canceled<result_t>();
+
+        std::unique_ptr<async_op_t<result_t>> op(
+            new cancellation_detail::operation_under<orphan_op_f<std::decay_t<Fn>>>(std::move(stop),
+                                                                                 std::forward<Fn>(fn)));
+
+        shape_->send_orphan(*op);
+
+        return task<result_t>(std::move(op));
+    }
+
     /// The same for an operation written out as a class of its own: whoever
     /// needs more than a lambda can do -- state that survives being executed
     /// twice, a body that answers `false` and waits for something to fire --
@@ -449,6 +492,23 @@ public:
         enqueue(core::as_not_null<async_op>(op.get()));
 
         return task<R>(std::move(op));
+    }
+
+    /// The form with a token of async_run(): `Op` is made here out of `args`, standing under
+    /// `stop` while it lives, and started as async_run() starts one. The token comes first
+    /// here, ahead of whatever the operation is made of. Under a token cancelled already
+    /// nothing is made, and the task answers the cancellation at once.
+    template <class Op, class... Args>
+    [[nodiscard]] static task<typename Op::result_type> async_run(cancellation_token stop, Args&&... args) {
+        using result_t = typename Op::result_type;
+
+        if (!cancellation_detail::state_of(stop))
+            return async_run(std::unique_ptr<async_op_t<result_t>>(new Op(std::forward<Args>(args)...)));
+
+        if (stop.is_canceled()) return canceled<result_t>();
+
+        return async_run(std::unique_ptr<async_op_t<result_t>>(
+            new cancellation_detail::operation_under<Op>(std::move(stop), std::forward<Args>(args)...)));
     }
 
     /// Starts an overlapped operation here, on the STA thread, without the trip to the
@@ -485,6 +545,37 @@ public:
         op->deliver_here();
 
         return task<result_t>(std::move(op));
+    }
+
+    /// The form with a token of call_here(): the body runs here unless `stop` is cancelled
+    /// already, and the answer stands under the token as long as the task keeps it -- a
+    /// co_await that ends after the token is cancelled ends with the cancellation.
+    template <class Fn>
+    [[nodiscard]] static task<std::invoke_result_t<std::decay_t<Fn>&>> call_here(
+        Fn&& fn, cancellation_token stop) {
+        using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
+
+        if (!cancellation_detail::state_of(stop)) return call_here(std::forward<Fn>(fn));
+        if (stop.is_canceled()) return canceled<result_t>();
+
+        std::unique_ptr<async_op_t<result_t>> op(
+            new cancellation_detail::operation_under<async_op_f<std::decay_t<Fn>>>(std::move(stop),
+                                                                                std::forward<Fn>(fn)));
+
+        op->packaged_execute();
+
+        // Settled rather than delivered: a body that cancelled its own token while it ran
+        // has made the operation told, and settling answers that.
+        op->settle();
+
+        return task<result_t>(std::move(op));
+    }
+
+    /// What a form with a token returns under a token cancelled already: nothing is made
+    /// that does work, and the task answers the cancellation at once.
+    template <class R>
+    [[nodiscard]] static task<R> canceled() {
+        return call_here([]() -> R { throw operation_canceled_exception(); });
     }
 
     /// Takes one finished operation and gives control back to the coroutine that

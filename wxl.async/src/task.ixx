@@ -5,7 +5,6 @@ module;
 export module wxl.async:task;
 
 import :async_op;
-import :cancellation;
 import :coroutine_checks;
 import wxl.core;
 import std;
@@ -14,9 +13,6 @@ export namespace wxl::async {
 
 template <class R = void>
 class task;
-
-template <class R>
-class cancellable_task;
 
 namespace task_detail {
 
@@ -167,9 +163,6 @@ public:
         std::coroutine_handle<promise>::from_promise(*this).destroy();
     }
 
-    /// A coroutine is told nothing: it ends by the token it was given, if it was given one.
-    inline bool cancel() noexcept override { return false; }
-
 protected:
     /// Never called: a coroutine is not sent anywhere, its body runs where it is resumed.
     inline bool execute() override { return true; }
@@ -226,16 +219,6 @@ public:
     inline decltype(auto) await_resume(site where = site::current()) requires(coro_detail::strict) {
         return producer_->take_result(where);
     }
-
-    /// Asks what makes the result to end early (`cancellable_awaiter`): an operation still
-    /// out is cut short where it can be, and the co_await still ends when it comes back --
-    /// that is when nothing writes into the frame any more. A coroutine is told nothing:
-    /// it ends early by the token it was given, and a wait on it ends when it ends.
-    ///
-    /// \return whether anything was told: `false` for a coroutine, and for a result that
-    ///         is here already -- a wait under a token cancelled before it stood then does
-    ///         not stand at all.
-    inline bool cancel() noexcept { return producer_ && !producer_->ready() && producer_->cancel(); }
 
 protected:
     inline explicit awaiter(async_op_t<R>* producer) noexcept : producer_(producer) {}
@@ -425,7 +408,6 @@ public:
 
 private:
     friend promise_type;
-    friend class cancellable_task<R>;
 
     inline explicit task(async_op_t<R>* producer) noexcept : task_detail::awaiter<R>(producer) {}
 
@@ -439,60 +421,5 @@ template <class R>
 inline task<R> task_detail::promise<R>::get_return_object() noexcept {
     return task<R>(this);
 }
-
-/// An operation under a token: what the operations of this module that can be cut short
-/// return when they are given one -- `co_await async_file::read_all(path, stop)` -- and
-/// what a wait under a token does (`cancellation_detail::wait_under`), with the
-/// operation's task made in place and the token held, not borrowed.
-///
-/// So it is an ordinary object, as the task is: awaited at once, or kept and awaited
-/// later -- the token kept with it, whatever happens to the source -- or moved while it is
-/// not awaited. Under a token that is cancelled already nothing is started, and the
-/// co_await ends with the cancellation at once.
-template <class R>
-class [[nodiscard("an operation under a token is given up at once if nobody keeps it")]] cancellable_task
-    : public cancellation_detail::wait_under<cancellable_task<R>, true>
-{
-    using base = cancellation_detail::wait_under<cancellable_task, true>;
-
-    friend base;
-
-public:
-    /// \param start makes the operation's task -- called here, unless `stop` is
-    ///        cancelled already, and then the operation is never made.
-    template <class Start>
-    inline cancellable_task(cancellation_token stop, Start&& start)
-        : token_(std::move(stop)),
-          task_(token_.is_canceled() ? task<R>(static_cast<async_op_t<R>*>(nullptr)) : start()) {}
-
-    inline cancellable_task(cancellable_task&& other) noexcept
-        : base(std::move(other)), token_(std::move(other.token_)), task_(std::move(other.task_)) {
-        coro_check(!other.linked(), "cancellable_task: moved while it is awaited",
-                   coro_detail::site::current());
-    }
-
-    inline cancellable_task& operator=(cancellable_task&& other) noexcept {
-        coro_check(!this->linked() && !other.linked(), "cancellable_task: moved while it is awaited",
-                   coro_detail::site::current());
-
-        task_ = std::move(other.task_);
-        token_ = std::move(other.token_);
-        return *this;
-    }
-
-    /// A frame destroyed while it stands here takes the wait off the list first: the
-    /// token below may be what keeps the list.
-    inline ~cancellable_task() { this->leave(); }
-
-private:
-    inline task<R>& awaiter() noexcept { return task_; }
-
-    inline cancellation_detail::cancellation_state* state() const noexcept {
-        return cancellation_detail::state_of(token_);
-    }
-
-    cancellation_token token_;
-    task<R> task_;
-};
 
 }  // export namespace wxl::async

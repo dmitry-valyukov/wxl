@@ -17,6 +17,11 @@
 и `decltype`; свои корутины — `task<T>`. Проба собирается на обоих устройствах, и её
 таблицы сравниваются строка в строку.
 
+С тех пор как формы с токеном есть у самих операций `sta_loop` (`async_call(fn, stop)`,
+`async_call(orphanable, fn, stop)`, `call_here(fn, stop)`), а `cancellable()` убран (отмену
+чужого кода wxl не автоматизирует), проба собирается только на едином устройстве; имена
+строк прежние, и с замером «до» она сравнивается по ним.
+
 ## Запуск
 
 Сборка — Debug, цель `sandbox.unified-task-probe`; ничего включать не надо, песочница
@@ -43,7 +48,8 @@ build\x64\sandbox\UnifiedTaskProbe\Debug\sandbox.unified-task-probe.exe > before
 с ожидаемой: замер, который она не прошла, печатается как `WRONG` и считается провалом.
 
 **sizes** — `sizeof` того, что возвращает вызов, через `decltype`, без имени типа:
-`async_call`, `async_call orphanable`, `call_here`, `cancellable(async_call, stop)`,
+`async_call`, `async_call orphanable`, `call_here`, `cancellable(async_call, stop)` (имя строки
+прежнее, меряется форма с токеном `async_call(fn, stop)`),
 `async_file::read_all`, `read_all` и `exists` с токеном, `task<int>`, `task<>`.
 
 **task without the loop** — машинерия `task` без петли под ней; самая устойчивая таблица.
@@ -53,7 +59,7 @@ build\x64\sandbox\UnifiedTaskProbe\Debug\sandbox.unified-task-probe.exe > before
 | `task at once` | `co_await f(i)`, где `f` кончается, не приостанавливаясь |
 | `task at once +token` | то же, `f` принимает токен параметром (копия в кадр) |
 | `pause d=N` | цепочка из `N` корутин, нижняя приостанавливается на ожидании, которое возобновляют руками; при `N = 1` это `co_await f()`, где `f` приостанавливается один раз |
-| `pause d=N +token` | то же, токен идёт вниз параметром в каждый кадр, нижнее ожидание — `cancellable(..., stop)` |
+| `pause d=N +token` | то же, токен идёт вниз параметром в каждый кадр; нижнее ожидание — приложения, и после него корутина спрашивает токен сама (`throw_if_canceled`) |
 
 **operation, and chains of coroutines down to one** — операция и цепочки до неё, в трёх
 режимах (столбцах):
@@ -74,7 +80,7 @@ build\x64\sandbox\UnifiedTaskProbe\Debug\sandbox.unified-task-probe.exe > before
 | `op d=0` | `co_await` самой операции: `call_here` в `here`, `async_call` в остальных |
 | `op orphanable d=0` | `co_await sta_loop::async_call(orphanable, ...)`; в `here` — нет |
 | `chain d=N` | `co_await` цепочки из `N` корутин, нижняя ждёт операцию; `d=1` — «`f` приостанавливается на одной операции» |
-| `... +token` | то же под токеном: токен — параметром в каждый кадр, операция — `cancellable(op, stop)` (формы с токеном у `async_call` и `call_here` нет) |
+| `... +token` | то же под токеном: токен — параметром в каждый кадр, операция — её форма с токеном (`call_here(fn, stop)`, `async_call(fn, stop)`, `async_call(orphanable, fn, stop)`) |
 
 **file by name, one at a time** — `exists` и `read_all` файла в 4 КБ в каталоге `%TEMP%`,
 без токена и формой с токеном. Здесь в числе — вызовы системы, и разница форм теряется в

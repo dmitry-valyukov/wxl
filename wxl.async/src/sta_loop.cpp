@@ -8,7 +8,7 @@ import std;
 namespace wxl::async {
 
 void async_op::abandon(async_op* op) noexcept {
-    op->abandoned_ = true;
+    op->fate_ = fate::abandoned;
 
     // Left to finish alone, wherever it is; one that has not started will not.
     if (op->orphanable_) {

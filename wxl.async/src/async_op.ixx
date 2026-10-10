@@ -5,6 +5,7 @@ module;
 
 export module wxl.async:async_op;
 
+import :cancellation;
 import :coroutine_checks;
 import wxl.core;
 import std;
@@ -97,11 +98,11 @@ private:
 ///   thread to the coroutine waiting for it by symmetric transfer.
 ///
 /// Waiting -- is it there, park the waiter, take the result -- is the same plain code for
-/// both, over the fields here. Two things differ, and each is one call through the
-/// virtual table: what the owner letting go does (`release()`: an operation is deleted or
-/// given up, a coroutine's frame is destroyed), and what a request to end early reaches
-/// (`cancel()`: an operation is cut short, a coroutine hears nothing -- it ends by the
-/// token it was given).
+/// both, over the fields here. What differs is what the owner letting go does, one call
+/// through the virtual table (`release()`): an operation is deleted or given up, a
+/// coroutine's frame is destroyed. A request to end early reaches only an operation -- one
+/// made in the form with a token (`cancellation_detail::operation_under`); a coroutine
+/// ends by the token it was given, by its own code.
 ///
 /// The task owns it, while the channels carry a borrowed pointer. So a task cannot
 /// simply delete an operation that is still out: when it goes away first -- its frame
@@ -152,24 +153,17 @@ public:
             abandon(this);
     }
 
-    /// The STA thread's call, while the result is not here: asks the producer to end
-    /// early. An operation stops the way giving it up does, and is kept: it still comes
-    /// back, and whoever waits for it still waits, only not as long -- one not started
-    /// does not start, and one running is interrupted by on_cancel() if it can be. Asking
-    /// twice asks once. A coroutine overrides it and hears nothing: it ends by the token it
-    /// was given, and a wait on it ends when it ends.
-    ///
-    /// \return whether anything was told -- whether a wait under a token cancelled before
-    ///         it stood still has something out to wait for.
-    virtual bool cancel() noexcept {
-        if (!canceled_.load(std::memory_order_relaxed)) {
-            // Ordered against the worker's second look at the flag, which it takes after
-            // handing an operation to the kernel.
-            canceled_.store(true, std::memory_order_seq_cst);
-            on_cancel();
-        }
+    /// The STA thread's call, while the operation is out: asks it to stop, the way giving
+    /// it up does, and keeps it. It still comes back, and whoever waits for it still
+    /// waits, only not as long: one not started does not start, and one running is
+    /// interrupted by on_cancel() if it can be. Asking twice asks once.
+    inline void cancel() noexcept {
+        if (canceled_.load(std::memory_order_relaxed)) return;
 
-        return true;
+        // Ordered against the worker's second look at the flag, which it takes after
+        // handing an operation to the kernel.
+        canceled_.store(true, std::memory_order_seq_cst);
+        on_cancel();
     }
 
     /// The worker thread's call: runs the body and keeps whatever it threw, since
@@ -210,9 +204,13 @@ public:
     /// \warning The op may be gone by the time this returns: a resumed coroutine goes
     ///          on from its co_await, and the task holding the op dies with it.
     inline bool come_back() {
-        if (abandoned_) [[unlikely]] {
-            delete this;
-            return false;
+        if (fate_ != fate::plain) [[unlikely]] {
+            if (fate_ == fate::abandoned) {
+                delete this;
+                return false;
+            }
+
+            answer_canceled();
         }
 
         ready_ = true;
@@ -225,14 +223,19 @@ public:
         return true;
     }
 
-    /// The same, for a loop that is being stopped: nothing is resumed any more, so a
-    /// coroutine suspended here stays where it is, and the op waits for its task to
-    /// delete it along with the frame.
+    /// The same without resuming anybody: for a loop that is being stopped, where a
+    /// coroutine suspended here stays where it is and the op waits for its task to delete
+    /// it along with the frame -- and for an operation under a token answered inside the
+    /// call that made it, which may have been told meanwhile.
     inline void settle() noexcept {
-        if (abandoned_)
+        if (fate_ == fate::abandoned) {
             delete this;
-        else
-            ready_ = true;
+            return;
+        }
+
+        if (fate_ == fate::told) answer_canceled();
+
+        ready_ = true;
     }
 
     /// The STA thread's call for a result that is here as it stands: an operation over
@@ -279,9 +282,42 @@ protected:
     /// before there was anything to cancel.
     inline bool canceled() const noexcept { return canceled_.load(std::memory_order_seq_cst); }
 
+    /// The STA thread's call when the token the operation stands under is cancelled. One
+    /// still out is cut short (cancel()), and its answer, whatever the body made of it,
+    /// will be the cancellation; one that is back answers the cancellation from now on. So
+    /// a co_await that ends after the request ends with operation_canceled_exception, and
+    /// one that ended before has had its answer. Resumes nobody. One given up hears
+    /// nothing: nobody waits for it.
+    inline void told_by_token() noexcept {
+        if (fate_ == fate::abandoned) return;
+
+        if (ready_) {
+            answer_canceled();
+            return;
+        }
+
+        fate_ = fate::told;
+        cancel();
+    }
+
 private:
     template <class R>
     friend class async_op_t;
+
+    /// What has happened to the operation besides its own work.
+    enum class fate : std::uint8_t {
+        plain,
+        /// Its token was cancelled while it was out: it answers the cancellation.
+        told,
+        /// Given up by its task: whoever takes it out of the return channel deletes it.
+        abandoned,
+    };
+
+    /// The answer becomes the cancellation. The STA thread's, once the worker is done
+    /// with the operation: the value the body made, if any, stays unread.
+    inline void answer_canceled() noexcept {
+        error_ = std::make_exception_ptr(operation_canceled_exception());
+    }
 
     // The flags lie between the waiter's word and the exception. A constructor zeroes all
     // three, and a compiler may make the flags' few bytes with one word-wide store that
@@ -292,8 +328,7 @@ private:
     /// The result is here: taken out of the return channel, or the coroutine has ended.
     bool ready_ = false;
 
-    /// Given up by its task: whoever takes it out of the return channel deletes it.
-    bool abandoned_ = false;
+    fate fate_ = fate::plain;
 
     const bool orphanable_ = false;
 
@@ -314,6 +349,8 @@ template <class R>
 class async_op_t : public async_op
 {
 public:
+    using result_type = R;
+
     using async_op::async_op;
 
     /// The STA thread's call, at the end of a co_await, or from task::result().
@@ -352,6 +389,8 @@ template <>
 class async_op_t<void> : public async_op
 {
 public:
+    using result_type = void;
+
     using async_op::async_op;
 
     /// Nothing is moved out, so asking again is asking again: what the body threw is
@@ -370,7 +409,7 @@ protected:
 /// It is held by value rather than behind a core::function, because the op is
 /// allocated as itself anyway and a second allocation would buy nothing.
 template <class Fn, class R = std::invoke_result_t<Fn&>>
-class async_op_f final : public async_op_t<R>
+class async_op_f : public async_op_t<R>
 {
 public:
     /// Forwarding, so the callable is built here out of what the caller wrote
@@ -465,7 +504,7 @@ using orphan_result_t = orphan_result<Fn>::type;
 
 /// An orphanable operation whose body is a lambda.
 template <class Fn, class R = orphan_result_t<Fn>>
-class orphan_op_f final : public async_op_t<R>
+class orphan_op_f : public async_op_t<R>
 {
 public:
     template <class Fn2>
@@ -508,5 +547,51 @@ private:
     Fn fn_;
     orphan_stage stage_;
 };
+
+namespace cancellation_detail {
+
+/// An operation of this module in its form with a token: `Op` as it is, standing under the
+/// token from the moment it is made until it goes. Told, it is cut short, or, if it is back
+/// already, answers the cancellation from then on (`async_op::told_by_token`). Its place in
+/// the token's event is built into it, so standing allocates nothing, and the token is held,
+/// so the event outlives the stand. Made only under a token that has a source and is not
+/// cancelled yet: under one cancelled already the forms make nothing at all.
+template <class Op>
+class operation_under final : public Op
+{
+public:
+    template <class... Args>
+    inline explicit operation_under(cancellation_token stop, Args&&... args)
+        : Op(std::forward<Args>(args)...), stop_(std::move(stop)), node_(*this) {
+        state_of(stop_)->told().add(core::as_not_null<told_event::func_t>(&node_));
+    }
+
+    /// Out of the event before the token goes. Once the token has been cancelled the event
+    /// the node stood in has been fired and is gone, and remove() finds nothing.
+    inline ~operation_under() override {
+        state_of(stop_)->told().remove(core::cookie_t{static_cast<told_event::func_t*>(&node_)});
+    }
+
+private:
+    /// The operation's place in the token's event.
+    class node final : public told_event::func_t
+    {
+    public:
+        inline explicit node(operation_under& op) noexcept : op_(op) {}
+
+        inline void operator()() noexcept override { op_.told_by_token(); }
+
+        /// The operation owns its node.
+        inline void release() noexcept override {}
+
+    private:
+        operation_under& op_;
+    };
+
+    cancellation_token stop_;
+    node node_;
+};
+
+}  // namespace cancellation_detail
 
 }  // export namespace wxl::async
