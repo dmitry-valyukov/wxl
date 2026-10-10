@@ -433,11 +433,11 @@ TEST(OrphanTest, GivingUpAnOrphanCutsShortTheCallItStandsIn) {
     wait_until([&] { return deleted.load(); });
 }
 
-// Told by its token while it stands in a call to the system, an orphan has that call cut
+// Cancelled by its token while it stands in a call to the system, an orphan has that call cut
 // short the way giving it up would, and is kept: the call fails with ERROR_OPERATION_ABORTED,
 // and that failure is the cancellation -- the co_await ends with operation_canceled_exception,
 // not with the failure of the write.
-TEST(OrphanTest, TellingAnOrphanCutsShortTheCallItStandsInAndItAnswersTheCancellation) {
+TEST(OrphanTest, CancellingAnOrphanCutsShortTheCallItStandsInAndItAnswersTheCancellation) {
     narrow_pipe pipe;
 
     ASSERT_TRUE(pipe.made());

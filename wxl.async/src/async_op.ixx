@@ -265,8 +265,8 @@ protected:
 
     /// Called on the STA thread when the operation is asked to stop while it is still
     /// out -- given up by its task, or cancelled under a token -- after the flag
-    /// packaged_execute() reads has been set. Once, but for an orphanable operation told
-    /// by its token and then given up, which hears both, and abandoned() says which.
+    /// packaged_execute() reads has been set. Once, but for an orphanable operation
+    /// cancelled by its token and then given up, which hears both, and abandoned() says which.
     ///
     /// For an operation the worker has not reached, the flag is all it takes. One already
     /// running is interrupted here, if what it waits for can be interrupted -- the way
@@ -295,7 +295,7 @@ protected:
     /// which answers the cancellation. Called from inside a handler (async_op.cpp).
     void keep_failure() noexcept;
 
-    /// Whether it has been asked to stop: given up or told. For a body that hands the
+    /// Whether it has been asked to stop: given up or cancelled. For a body that hands the
     /// operation to the kernel: read after the handing over, it closes the race with a
     /// cancellation that came before there was anything to cancel.
     inline bool canceled() const noexcept { return canceled_.load(std::memory_order_seq_cst); }
@@ -303,16 +303,6 @@ protected:
     /// Whether its task has given it up. The STA thread's alone, like everything the
     /// worker does not read.
     inline bool abandoned() const noexcept { return abandoned_; }
-
-    /// The STA thread's call when the token the operation stands under is cancelled. One
-    /// still out is asked to stop (cancel()), and answers what then happens to it; one
-    /// back already keeps the answer it brought, for the co_await still to come. Resumes
-    /// nobody. One given up hears nothing: nobody waits for it.
-    inline void told_by_token() noexcept {
-        if (ready_ || abandoned_) return;
-
-        cancel();
-    }
 
 private:
     template <class R>
@@ -435,43 +425,43 @@ private:
 };
 
 /// Where an orphanable operation is, as the threads that may end it agree: the one
-/// carrying it out, and the STA thread telling it to stop or giving it up, meet on this
+/// carrying it out, and the STA thread cancelling it or giving it up, meet on this
 /// word.
 ///
-/// Telling an operation that is running to stop, or giving it up, also cuts short the
+/// Cancelling an operation that is running, or giving it up, also cuts short the
 /// call to the system it stands in -- an opening the system is taking its time over fails
 /// at once, as cancelled. That reaches a thread and not an operation, so it is only ever
 /// done to a thread known to be inside this operation's body: the body does not leave
 /// while it is being done.
 ///
-/// Told, the operation is still somebody's: what the body makes is its answer -- the
+/// Cancelled, the operation is still somebody's: what the body makes is its answer -- the
 /// cancellation if the body was cut short, its result if it finished first. Given up, what
 /// it makes is nobody's, and is destroyed on whichever thread has it.
 class orphan_stage
 {
 public:
     /// The carrying thread's call before the body.
-    /// \return `false` if the operation was told or given up before it started, and is
+    /// \return `false` if the operation was cancelled or given up before it started, and is
     ///         not to.
     [[nodiscard]] bool enter() noexcept;
 
     /// The carrying thread's call after the body, whichever way the body ended.
     /// \return `false` if the operation was given up while it ran: what it made is
-    ///         nobody's, and the caller destroys it. One told keeps it.
+    ///         nobody's, and the caller destroys it. One cancelled keeps it.
     [[nodiscard]] bool leave() noexcept;
 
-    /// The call of the thread giving the operation up, told before or not.
+    /// The call of the thread giving the operation up, cancelled before or not.
     /// \return `true` if the body had finished: what it made is there, and the caller
     ///         destroys it.
     [[nodiscard]] bool give_up() noexcept;
 
-    /// The call of the thread whose token told the operation to stop: one not started
+    /// The call of the thread whose token cancelled the operation: one not started
     /// does not start, one running has the call it stands in cut short, and one finished
     /// keeps what it made.
-    void tell() noexcept;
+    void cancel() noexcept;
 
     /// The body's question between two calls to the system, when it makes more than
-    /// one: cutting short reaches the call under way and no other, so a body told or
+    /// one: cutting short reaches the call under way and no other, so a body cancelled or
     /// given up between two of its calls would go on to the next unless it asks. A body
     /// that stops on it has not finished, and answers operation_canceled_exception.
     inline bool cut_short() const noexcept {
@@ -483,12 +473,12 @@ private:
         waiting,
         running,
         finished,
-        /// Told or given up while running, and the call the body stands in is being cut
+        /// Cancelled or given up while running, and the call the body stands in is being cut
         /// short this moment: the body waits for that to be over before it leaves.
         cutting_short,
-        /// Told while running, its call cut short: what the body makes is its answer.
-        told,
-        /// Given up, or told before it started: the body does not run, or what it makes
+        /// Cancelled while running, its call cut short: what the body makes is its answer.
+        canceled,
+        /// Given up, or cancelled before it started: the body does not run, or what it makes
         /// is nobody's.
         given_up,
     };
@@ -532,7 +522,8 @@ public:
 
 protected:
     bool execute() override {
-        // Told or given up before it started: it never runs, and answers the cancellation.
+        // Cancelled or given up before it started: it never runs, and answers the
+        // cancellation.
         if (!stage_.enter()) [[unlikely]] {
             this->answer_canceled();
             return true;
@@ -555,11 +546,11 @@ protected:
         return true;
     }
 
-    /// Told, the body is cut short and keeps its answer; given up -- told before or not --
-    /// it lets go of what it made.
+    /// Cancelled, the body is cut short and keeps its answer; given up -- cancelled before
+    /// or not -- it lets go of what it made.
     void on_cancel() noexcept override {
         if (!this->abandoned()) {
-            stage_.tell();
+            stage_.cancel();
             return;
         }
 
@@ -581,10 +572,11 @@ private:
 namespace cancellation_detail {
 
 /// An operation of this module in its form with a token: `Op` as it is, standing under the
-/// token from the moment it is made until it goes. Told while it is out, it is asked to
-/// stop, and answers what then happens to it; back already, it keeps its answer
-/// (`async_op::told_by_token`). Its place in the token's event is built into it, so
-/// standing allocates nothing, and the token is held, so the event outlives the stand.
+/// token from the moment it is made until it goes. Cancelled while it is out, it is asked to
+/// stop (`async_op::cancel()`), and answers what then happens to it; back already, it keeps
+/// its answer, and given up, it hears nothing: nobody waits for it. Its place in the token's
+/// event is built into it, so standing allocates nothing, and the token is held, so the
+/// event outlives the stand.
 /// Made only under a token that has a source and is not cancelled yet: under one cancelled
 /// already the forms make nothing at all.
 template <class Op>
@@ -594,23 +586,28 @@ public:
     template <class... Args>
     inline explicit operation_under(cancellation_token stop, Args&&... args)
         : Op(std::forward<Args>(args)...), stop_(std::move(stop)), node_(*this) {
-        state_of(stop_)->told().add(core::as_not_null<told_event::func_t>(&node_));
+        state_of(stop_)->event().add(core::as_not_null<cancellation_event::func_t>(&node_));
     }
 
     /// Out of the event before the token goes. Once the token has been cancelled the event
     /// the node stood in has been fired and is gone, and remove() finds nothing.
     inline ~operation_under() override {
-        state_of(stop_)->told().remove(core::cookie_t{static_cast<told_event::func_t*>(&node_)});
+        state_of(stop_)->event().remove(
+            core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
     }
 
 private:
     /// The operation's place in the token's event.
-    class node final : public told_event::func_t
+    class node final : public cancellation_event::func_t
     {
     public:
         inline explicit node(operation_under& op) noexcept : op_(op) {}
 
-        inline void operator()() noexcept override { op_.told_by_token(); }
+        /// The token was cancelled: an operation still out and still its task's is asked to
+        /// stop; one back already or given up is left as it is. Resumes nobody.
+        inline void operator()() noexcept override {
+            if (!op_.ready() && !op_.abandoned()) op_.cancel();
+        }
 
         /// The operation owns its node.
         inline void release() noexcept override {}

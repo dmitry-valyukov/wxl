@@ -62,7 +62,7 @@ struct probe {
     std::atomic<int> made{0};
     std::atomic<int> wrote{0};
     std::atomic<int> wrote_after_the_frame{0};
-    std::atomic<int> told{0};
+    std::atomic<int> canceled{0};
 
     /// Reads not yet deleted.
     std::atomic<int> alive{0};
@@ -149,7 +149,7 @@ protected:
     }
 
     void on_cancel() noexcept override {
-        ++p_.told;
+        ++p_.canceled;
         p_.gate.set();
     }
 
@@ -350,7 +350,7 @@ TEST(TaskDepthTest, ARequestFromTheTopReachesTheBottom) {
 
         stop.cancel();
 
-        EXPECT_EQ(c.p.told, 1);
+        EXPECT_EQ(c.p.canceled, 1);
         EXPECT_FALSE(chain.done()) << "cancel() resumed the chain itself";
 
         sta_loop::run_until([&] { return chain.done(); });
@@ -403,7 +403,7 @@ TEST(TaskDepthTest, AnOwnerInTheMiddleDropsWhatIsBelowIt) {
         ASSERT_TRUE(c.drop_slot);
         c.drop_slot.resume();
 
-        EXPECT_EQ(c.p.told, 1) << "giving the read up asks it to stop";
+        EXPECT_EQ(c.p.canceled, 1) << "giving the read up asks it to stop";
         EXPECT_EQ(c.p.wrote, 0);
         EXPECT_EQ(c.p.wrote_after_the_frame, 0);
 
@@ -432,7 +432,7 @@ TEST(TaskDepthTest, AnOwnerDroppingTheChainTakesItDownFromTheInsideOut) {
 
         chain.reset();
 
-        EXPECT_EQ(c.p.told, 1);
+        EXPECT_EQ(c.p.canceled, 1);
         EXPECT_EQ(c.p.wrote, 0);
         EXPECT_EQ(c.ended, 0);
         EXPECT_EQ(c.frames, 0);

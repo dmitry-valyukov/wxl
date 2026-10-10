@@ -5,8 +5,8 @@
 //
 // No window, no XAML, no dispatcher. The event is a fake one: a source with the pair of calls a
 // wait subscribes through, which keeps the handler and raises it on request with args of its
-// own. And the test is the queue: impl::post_told_waits() is defined below and counts the turns
-// asked for, and a turn is impl::resume_told_waits(), called when the test says.
+// own. And the test is the queue: impl::post_canceled_waits() is defined below and counts the
+// turns asked for, and a turn is impl::resume_canceled_waits(), called when the test says.
 #include <crtdbg.h>
 
 #include <gtest/gtest.h>
@@ -25,15 +25,15 @@
 
 namespace {
 
-/// Turns of the queue asked for by told waits since the fixture began.
+/// Turns of the queue asked for by cancelled waits since the fixture began.
 int turns_asked = 0;
 
 }  // namespace
 
 namespace wxl::impl {
 
-/// The queue, as far as told waits see it: it takes every turn asked for, and the test runs it.
-bool post_told_waits() noexcept {
+/// The queue, as cancelled waits see it: it takes every turn asked for, and the test runs it.
+bool post_canceled_waits() noexcept {
     ++turns_asked;
     return true;
 }
@@ -169,23 +169,23 @@ protected:
     void SetUp() override {
         turns_asked = 0;
         ASSERT_TRUE(wxl::impl::event_waits_drained());
-        ASSERT_FALSE(wxl::impl::told_waits_posted());
+        ASSERT_FALSE(wxl::impl::canceled_waits_posted());
     }
 
     void TearDown() override {
         EXPECT_TRUE(wxl::impl::event_waits_drained()) << "a wait was left in a list";
-        EXPECT_FALSE(wxl::impl::told_waits_posted()) << "a turn was left in the queue";
+        EXPECT_FALSE(wxl::impl::canceled_waits_posted()) << "a turn was left in the queue";
 
         wxl::impl::events_closing() = false;
-        wxl::impl::told_waits_posted() = false;
+        wxl::impl::canceled_waits_posted() = false;
     }
 };
 
 }  // namespace
 
-// Told while it waits: cancel() resumes nobody and asks the queue for one turn, and the turn
+// Cancelled while it waits: cancel() resumes nobody and asks the queue for one turn, and the turn
 // resumes the coroutine with the cancellation.
-TEST_F(EventCancelTest, AWaitToldWhileSuspendedEndsOnTheQueuesTurn) {
+TEST_F(EventCancelTest, AWaitCancelledWhileSuspendedEndsOnTheQueuesTurn) {
     event_state event;
     cancellation_source stop;
     int taken = 0;
@@ -201,9 +201,10 @@ TEST_F(EventCancelTest, AWaitToldWhileSuspendedEndsOnTheQueuesTurn) {
 
     EXPECT_FALSE(keys.done()) << "cancel() resumed the coroutine itself";
     EXPECT_EQ(turns_asked, 1);
-    EXPECT_FALSE(wxl::impl::event_waits_drained()) << "a told wait counts as drained before it ends";
+    EXPECT_FALSE(wxl::impl::event_waits_drained())
+        << "a cancelled wait counts as drained before it ends";
 
-    wxl::impl::resume_told_waits();
+    wxl::impl::resume_canceled_waits();
 
     ASSERT_TRUE(keys.done());
     EXPECT_EQ(ended, "cancelled");
@@ -211,9 +212,10 @@ TEST_F(EventCancelTest, AWaitToldWhileSuspendedEndsOnTheQueuesTurn) {
     EXPECT_EQ(event.unsubscribed, 1);
 }
 
-// The event that comes before the turn resumes the told wait itself -- into the cancellation, its
-// args unread and unanswered, so the event travels on -- and the turn then finds nobody.
-TEST_F(EventCancelTest, AnEventBeforeTheTurnEndsAToldWaitUnanswered) {
+// The event that comes before the turn resumes the cancelled wait itself -- into the
+// cancellation, its args unread and unanswered, so the event travels on -- and the turn then
+// finds nobody.
+TEST_F(EventCancelTest, AnEventBeforeTheTurnEndsACancelledWaitUnanswered) {
     event_state event;
     cancellation_source stop;
     int taken = 0;
@@ -225,14 +227,14 @@ TEST_F(EventCancelTest, AnEventBeforeTheTurnEndsAToldWaitUnanswered) {
     stop.cancel();
     EXPECT_FALSE(keys.done());
 
-    EXPECT_FALSE(raise(event)) << "a told wait answered the event";
+    EXPECT_FALSE(raise(event)) << "a cancelled wait answered the event";
 
     ASSERT_TRUE(keys.done());
     EXPECT_EQ(ended, "cancelled");
     EXPECT_EQ(taken, 1);
     EXPECT_TRUE(wxl::impl::event_waits_drained());
 
-    wxl::impl::resume_told_waits();
+    wxl::impl::resume_canceled_waits();
 }
 
 // Asked before the first wait: by level, the wait ends at once with the cancellation -- it does
@@ -270,7 +272,7 @@ TEST_F(EventCancelTest, AWaitBegunAfterTheRequestEndsAtOnce) {
 }
 
 // The answering form lets nothing escape under a token either: a cancelled wait answers with an
-// empty error, whether it was told while it waited or began under a cancelled token.
+// empty error, whether it was cancelled while it waited or began under a cancelled token.
 TEST_F(EventCancelTest, TheAnsweringFormAnswersTheCancellation) {
     {
         event_state event;
@@ -283,7 +285,7 @@ TEST_F(EventCancelTest, TheAnsweringFormAnswersTheCancellation) {
         stop.cancel();
         EXPECT_FALSE(keys.done());
 
-        wxl::impl::resume_told_waits();
+        wxl::impl::resume_canceled_waits();
 
         ASSERT_TRUE(keys.done());
         EXPECT_NO_THROW(keys.result());
@@ -302,8 +304,8 @@ TEST_F(EventCancelTest, TheAnsweringFormAnswersTheCancellation) {
 }
 
 // Events and requests interleaved over three waits: two under one token, one under none. One
-// request tells both of the first two with one turn; the event of one of them ends it before the
-// turn, the turn ends the other, and the third goes on taking its events throughout.
+// request cancels both of the first two with one turn; the event of one of them ends it before
+// the turn, the turn ends the other, and the third goes on taking its events throughout.
 TEST_F(EventCancelTest, EventsAndARequestInterleaved) {
     event_state first, second, third;
     cancellation_source stop;
@@ -319,14 +321,14 @@ TEST_F(EventCancelTest, EventsAndARequestInterleaved) {
     EXPECT_TRUE(raise(second));
 
     stop.cancel();
-    EXPECT_EQ(turns_asked, 1) << "one turn serves every wait told before it";
+    EXPECT_EQ(turns_asked, 1) << "one turn serves every wait cancelled before it";
 
     EXPECT_FALSE(raise(second));
     EXPECT_TRUE(b.done());
     EXPECT_FALSE(a.done());
     EXPECT_TRUE(raise(third));
 
-    wxl::impl::resume_told_waits();
+    wxl::impl::resume_canceled_waits();
 
     EXPECT_TRUE(a.done());
     EXPECT_FALSE(c.done());
@@ -339,7 +341,7 @@ TEST_F(EventCancelTest, EventsAndARequestInterleaved) {
     EXPECT_EQ(taken_third, 3);
 
     // A turn that finds nobody does nothing.
-    wxl::impl::resume_told_waits();
+    wxl::impl::resume_canceled_waits();
     EXPECT_FALSE(c.done());
 }
 
@@ -365,8 +367,8 @@ TEST_F(EventCancelTest, AFrameDestroyedWhileWaitingLeavesBothLists) {
     EXPECT_EQ(ended, "");
 }
 
-// And one destroyed after it was told, before the queue's turn: it leaves the list of told waits,
-// and the turn finds nobody.
+// And one destroyed after it was cancelled, before the queue's turn: it leaves the list of
+// cancelled waits, and the turn finds nobody.
 TEST_F(EventCancelTest, AFrameDestroyedBeforeTheTurnIsNotResumed) {
     event_state event;
     cancellation_source stop;
@@ -381,7 +383,7 @@ TEST_F(EventCancelTest, AFrameDestroyedBeforeTheTurnIsNotResumed) {
     keys.reset();
     EXPECT_TRUE(wxl::impl::event_waits_drained());
 
-    wxl::impl::resume_told_waits();
+    wxl::impl::resume_canceled_waits();
     EXPECT_EQ(ended, "");
 }
 
@@ -405,7 +407,7 @@ TEST_F(EventCancelTest, TheFormWithATokenAnswersLikeThePlainOne) {
     EXPECT_EQ(taken_plain, 3);
 
     stop.cancel();
-    wxl::impl::resume_told_waits();
+    wxl::impl::resume_canceled_waits();
 
     EXPECT_TRUE(a.done());
     EXPECT_FALSE(b.done());
@@ -413,15 +415,15 @@ TEST_F(EventCancelTest, TheFormWithATokenAnswersLikeThePlainOne) {
     EXPECT_EQ(taken_plain, 4);
 }
 
-// Going down with a told wait the queue has not resumed yet: phase one ends it with the rest,
-// since the queue will not.
-TEST_F(EventCancelTest, GoingDownEndsAToldWaitTheQueueHasNotResumed) {
-    event_state told, waiting;
+// Going down with a cancelled wait the queue has not resumed yet: phase one ends it with the
+// rest, since the queue will not.
+TEST_F(EventCancelTest, GoingDownEndsACancelledWaitTheQueueHasNotResumed) {
+    event_state canceled, waiting;
     cancellation_source stop;
-    int taken_told = 0, taken_waiting = 0;
-    std::string ended_told, ended_waiting;
+    int taken_canceled = 0, taken_waiting = 0;
+    std::string ended_canceled, ended_waiting;
 
-    task<> a = takes_keys(told, stop.token(), taken_told, ended_told);
+    task<> a = takes_keys(canceled, stop.token(), taken_canceled, ended_canceled);
     task<> b = takes_keys(waiting, cancellation_token{}, taken_waiting, ended_waiting);
 
     stop.cancel();
@@ -431,12 +433,12 @@ TEST_F(EventCancelTest, GoingDownEndsAToldWaitTheQueueHasNotResumed) {
 
     EXPECT_TRUE(a.done());
     EXPECT_TRUE(b.done());
-    EXPECT_EQ(ended_told, "cancelled");
+    EXPECT_EQ(ended_canceled, "cancelled");
     EXPECT_EQ(ended_waiting, "cancelled");
     EXPECT_TRUE(wxl::impl::event_waits_drained());
 
     // The turn asked for comes after all, and finds nobody.
-    wxl::impl::resume_told_waits();
+    wxl::impl::resume_canceled_waits();
 }
 
 // A wait made without a token pays nothing for the other: its awaiter is a pointer and two flags,

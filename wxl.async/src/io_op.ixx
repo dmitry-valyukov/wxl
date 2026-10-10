@@ -68,10 +68,10 @@ public:
 #endif
 
 protected:
-    /// Started on the worker, the operation may have been given up or told while it stood
-    /// in the queue, by a thread that found nothing to cancel yet. So the flag is read
-    /// again once the kernel has the operation: whichever of the two came second sees
-    /// the other.
+    /// Started on the worker, the operation may have been given up or cancelled while it
+    /// stood in the queue, by a thread that found nothing to cancel yet. So the flag is
+    /// read again once the kernel has the operation: whichever of the two came second
+    /// sees the other.
     bool execute() override;
 
     void on_cancel() noexcept override;

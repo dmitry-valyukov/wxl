@@ -45,7 +45,7 @@ bool io_op::start() noexcept {
 
         if (!advance(transferred)) return true;
 
-        // Between two calls of a chain, on the worker: an operation given up or told
+        // Between two calls of a chain, on the worker: an operation given up or cancelled
         // meanwhile is not carried on with.
         if (canceled()) [[unlikely]] {
             finish(ERROR_OPERATION_ABORTED);

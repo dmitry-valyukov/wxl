@@ -31,23 +31,23 @@ class cancellation_token;
 
 namespace cancellation_detail {
 
-/// What is told when a token is cancelled: an event of no arguments. Whoever stands under
+/// What fires when a token is cancelled: an event of no arguments. Whoever stands under
 /// a token -- an operation or a wait of wxl -- builds its node into itself (a member
-/// deriving from `told_event::func_t`, whose release() does nothing), so that standing
-/// allocates nothing; it adds the node while it stands and removes it when it is over. A
-/// child state, one per source, stands as a callback the event makes.
-using told_event = core::event<void() noexcept>;
+/// deriving from `cancellation_event::func_t`, whose release() does nothing), so that
+/// standing allocates nothing; it adds the node while it stands and removes it when it is
+/// over. A child state, one per source, stands as a callback the event makes.
+using cancellation_event = core::event<void() noexcept>;
 
 class cancellation_state;
 
 using cancellation_state_ptr = core::intrusive_ptr<cancellation_state>;
 
-/// What a source and its tokens share: the answer, and the event that tells it -- and, for
+/// What a source and its tokens share: the answer, and its event -- and, for
 /// a source made under a parent token, its own place in the parent's event. Whoever stands
 /// under the token subscribes and unsubscribes itself, through the event, and the state
 /// knows none of them: a parent knows nothing of its children either.
 ///
-/// One thread, the one the coroutines are on: an operation that is told sets its own
+/// One thread, the one the coroutines are on: an operation that is cancelled sets its own
 /// flag, the one the worker reads before the body anyway, so the answer is a plain field
 /// and the event an STA one.
 class cancellation_state : public core::sta_refcounted
@@ -72,47 +72,47 @@ public:
 
         // By a plain pointer: the node lives in the parent's event, and a count there would
         // keep this state alive as long as the parent, and the parent as long as this one.
-        subscription_ = parent->told().add([this]() noexcept { cancel(); }).get();
+        subscription_ = parent->event().add([this]() noexcept { cancel(); }).get();
         parent_ = std::move(parent);
     }
 
     /// Takes its callback out of the parent's event: here and nowhere else -- its own
-    /// cancel() keeps it standing, and the parent telling it again is cancelling it twice.
-    /// One thread makes, tells and destroys a state, and telling destroys nobody, so its end
-    /// never falls inside the parent's fire, and the destructor is all it takes to leave: no
-    /// second count of who may still call it.
+    /// cancel() keeps it standing, and the parent cancelling it again is cancelling it twice.
+    /// One thread makes, cancels and destroys a state, and cancelling destroys nobody, so its
+    /// end never falls inside the parent's fire, and the destructor is all it takes to leave:
+    /// no second count of who may still call it.
     ///
     /// A parent cancelled meanwhile has emptied its event into the one it fired and let go of
     /// the callback, so remove() finds nothing and answers false: the list compares the
     /// cookie's address and never reads through it, and since nobody subscribes under a
     /// cancelled parent, no later node there can have taken that address.
     inline ~cancellation_state() override {
-        if (parent_) parent_->told().remove(*subscription_);
+        if (parent_) parent_->event().remove(*subscription_);
     }
 
     inline bool canceled() const noexcept { return canceled_; }
 
     /// The event a subscriber adds itself to and removes itself from.
-    inline told_event& told() noexcept { return told_; }
+    inline cancellation_event& event() noexcept { return event_; }
 
-    /// Sets the answer and tells everyone standing, once: the event is emptied into a local
+    /// Sets the answer and cancels everyone standing, once: the event is emptied into a local
     /// one and fired there, so a subscriber that unsubscribes later -- or from inside its
-    /// call -- finds it gone, and remove() answers false. Telling resumes nobody (an
+    /// call -- finds it gone, and remove() answers false. Cancelling resumes nobody (an
     /// operation is cut short, a wait is handed to its thread's queue), so no subscriber
     /// goes away in the middle of the fire. One that begins standing afterwards finds the
-    /// answer and does not stand at all. A child state told here tells its own the same
-    /// way, from inside this fire, and goes nowhere either.
+    /// answer and does not stand at all. A child state cancelled here cancels its own the
+    /// same way, from inside this fire, and goes nowhere either.
     inline void cancel() noexcept {
         canceled_ = true;
 
-        told_event once;
-        once.swap(told_);
+        cancellation_event once;
+        once.swap(event_);
         once.fire();
     }
 
 private:
     bool canceled_ = false;
-    told_event told_;
+    cancellation_event event_;
 
     /// The parent's state and the cookie of the callback standing in its event, while this
     /// state stands there; both empty for a state of its own.
@@ -123,13 +123,13 @@ private:
 /// The state behind a token, for whoever stands on it; null for a token that has none.
 cancellation_state* state_of(const cancellation_token& token) noexcept;
 
-/// What a wait of wxl under a token asks of its awaiter: `cancel() noexcept`, which tells
-/// it to end its wait early. Told, it still ends the way it ends anyway -- the event ends,
-/// the thread's turn comes -- only sooner; and it is told on the coroutine's own thread,
-/// while the coroutine is suspended in it or just before it would be, and resumes nobody
-/// from inside the call. A told awaiter is then left without its await_resume(): whatever
-/// it would have handed over is not asked for. Told before it suspends, it does not
-/// suspend. A form that answers rather than throws says what a cancelled wait answers
+/// What a wait of wxl under a token asks of its awaiter: `cancel() noexcept`, which asks
+/// it to end its wait early. Cancelled, it still ends the way it ends anyway -- the event
+/// ends, the thread's turn comes -- only sooner; and it is cancelled on the coroutine's own
+/// thread, while the coroutine is suspended in it or just before it would be, and resumes
+/// nobody from inside the call. A cancelled awaiter is then left without its await_resume():
+/// whatever it would have handed over is not asked for. Cancelled before it suspends, it does
+/// not suspend. A form that answers rather than throws says what a cancelled wait answers
 /// through `await_canceled()`, which the wait then gives instead of the exception.
 template <class Awaiter>
 concept cancellable_awaiter = requires(Awaiter& awaiter) {
@@ -143,10 +143,10 @@ concept cancellable_awaiter = requires(Awaiter& awaiter) {
 /// Until the token is cancelled the wait is the awaiter's own, and stands under the token
 /// while the coroutine is suspended: its node -- built in, nothing is allocated -- is added
 /// to the token's event when it suspends and removed when it resumes. Once the token is
-/// cancelled the wait ends with operation_canceled_exception: one standing is told through
-/// the awaiter's cancel() and ends when the awaiter lets it; one that would begin later is
-/// told before it suspends, and does not. One that answers a cancellation rather than
-/// throwing it -- the answering form of an event wait -- gives its answer through
+/// cancelled the wait ends with operation_canceled_exception: one standing is cancelled
+/// through the awaiter's cancel() and ends when the awaiter lets it; one that would begin
+/// later is cancelled before it suspends, and does not. One that answers a cancellation
+/// rather than throwing it -- the answering form of an event wait -- gives its answer through
 /// await_canceled().
 ///
 /// Each hook takes the place of the co_await and hands it on to an awaiter that takes
@@ -168,7 +168,7 @@ public:
     inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
                                         [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
         if (cancellation_state* const state = self().state(); state && !state->canceled()) {
-            state->told().add(core::as_not_null<told_event::func_t>(&node_));
+            state->event().add(core::as_not_null<cancellation_event::func_t>(&node_));
             standing_ = true;
         }
 
@@ -203,19 +203,20 @@ protected:
     inline void leave() noexcept {
         if (standing_) {
             standing_ = false;
-            self().state()->told().remove(core::cookie_t{static_cast<told_event::func_t*>(&node_)});
+            self().state()->event().remove(
+                core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
         }
     }
 
 private:
     /// The wait's place in the token's event, built into it.
-    class node final : public told_event::func_t
+    class node final : public cancellation_event::func_t
     {
     public:
         inline explicit node(wait_under& wait) noexcept : wait_(wait) {}
 
         /// The token was cancelled: the event the node stood in is gone, and the awaiter is
-        /// told.
+        /// cancelled.
         inline void operator()() noexcept override {
             wait_.standing_ = false;
             wait_.self().awaiter().cancel();
@@ -304,7 +305,7 @@ inline cancellation_detail::cancellation_state* cancellation_detail::state_of(
 ///
 /// The state is shared and lives as long as the last holder, so a chain may outlive
 /// the source that asked it to end, and the source may outlive the chain. Asking is
-/// the first of two steps, as with event waits: told, the chains end by themselves,
+/// the first of two steps, as with event waits: cancelled, the chains end by themselves,
 /// and whatever has not ended when its owner can wait no longer is destroyed by the
 /// owner, which gives up its operations the usual way.
 ///
@@ -341,9 +342,9 @@ public:
 
     inline cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
 
-    /// Tells every operation and wait standing under a token of this source, and answers
-    /// every later one at once. Held across the telling: an operation told may let go of
-    /// something that holds this source. On the coroutines' own thread, like everything
+    /// Cancels every operation and wait standing under a token of this source, and answers
+    /// every later one at once. Held across the cancelling: an operation cancelled may let go
+    /// of something that holds this source. On the coroutines' own thread, like everything
     /// about them; a build that checks coroutines makes sure.
     inline void cancel([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) noexcept {
         coro_check(core::sta_memory_pool::is_safe(),

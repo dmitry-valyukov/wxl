@@ -23,10 +23,10 @@
 // A wait can also be asked to end, through a cancellation token it was put
 // under (`co_await onClick(button, stop)`). Asking resumes nobody -- whoever
 // cancels the token is not re-entered by the coroutines it asked -- so a wait
-// that is told moves to a second list, of waits told and not yet resumed, and
-// the thread's queue resumes them on its next turn: the road the event itself
-// comes by. An event that comes first resumes its told wait itself, as it
-// would have anyway; either way the coroutine ends as cancelled.
+// that is cancelled moves to a second list, of waits cancelled and not yet
+// resumed, and the thread's queue resumes them on its next turn: the road the
+// event itself comes by. An event that comes first resumes its cancelled wait
+// itself, as it would have anyway; either way the coroutine ends as cancelled.
 //
 // The node lives in the base below rather than in the proxy that derives from
 // it, so one list holds waits on every event of every element without knowing
@@ -51,25 +51,25 @@ inline core::intrusive_list<waiting_event>& waiting_events() noexcept {
     return all;
 }
 
-/// The waits that were told and are still suspended, until the queue's turn
-/// resumes them.
-inline core::intrusive_list<waiting_event>& told_waits() noexcept {
-    static core::intrusive_list<waiting_event> told;
-    return told;
+/// The waits that were cancelled and are still suspended, until the queue's
+/// turn resumes them.
+inline core::intrusive_list<waiting_event>& canceled_waits() noexcept {
+    static core::intrusive_list<waiting_event> canceled;
+    return canceled;
 }
 
-/// Whether a turn that resumes the told waits is in the queue already: one
-/// turn serves every wait told before it comes.
-inline bool& told_waits_posted() noexcept {
+/// Whether a turn that resumes the cancelled waits is in the queue already: one
+/// turn serves every wait cancelled before it comes.
+inline bool& canceled_waits_posted() noexcept {
     static bool posted = false;
     return posted;
 }
 
-/// Asks the thread's queue for a turn that calls resume_told_waits(), at the
-/// priority an event comes at. False: the queue takes nothing more -- the
-/// application is going down, and close_event_waits() ends the told waits with
-/// the rest. Defined beside the queue, in UiThread.cpp.
-bool post_told_waits() noexcept;
+/// Asks the thread's queue for a turn that calls resume_canceled_waits(), at
+/// the priority an event comes at. False: the queue takes nothing more -- the
+/// application is going down, and close_event_waits() ends the cancelled waits
+/// with the rest. Defined beside the queue, in UiThread.cpp.
+bool post_canceled_waits() noexcept;
 
 /// Set once the application has begun going down. After that a wait does not
 /// suspend at all -- it ends where it stands, which is what keeps a coroutine
@@ -120,7 +120,7 @@ protected:
         unlink();
     }
 
-    /// Whether a coroutine is suspended here -- told or not.
+    /// Whether a coroutine is suspended here -- cancelled or not.
     bool waiting() const noexcept { return static_cast<bool>(waiter_); }
 
     bool ended() const noexcept { return ended_; }
@@ -134,16 +134,16 @@ protected:
     }
 
     /// Hands the suspended wait to the queue's next turn, which resumes it as
-    /// plainly cancelled; whoever told it goes on undisturbed. Until then it is
-    /// still the event's: an event that comes first resumes it, and a wait
-    /// under a cancelled token ends as cancelled whatever resumed it -- its
-    /// args unread, the event unanswered and travelling on. A turn the queue
-    /// will not give is made up for on the way down, with the rest.
-    void tell() noexcept {
+    /// plainly cancelled; whoever cancelled it goes on undisturbed. Until then
+    /// it is still the event's: an event that comes first resumes it, and a
+    /// wait under a cancelled token ends as cancelled whatever resumed it --
+    /// its args unread, the event unanswered and travelling on. A turn the
+    /// queue will not give is made up for on the way down, with the rest.
+    void cancel() noexcept {
         unlink();
-        told_waits().push_back(core::as_not_null(this));
+        canceled_waits().push_back(core::as_not_null(this));
 
-        if (!told_waits_posted()) told_waits_posted() = post_told_waits();
+        if (!canceled_waits_posted()) canceled_waits_posted() = post_canceled_waits();
     }
 
     ~waiting_event() {
@@ -174,27 +174,27 @@ private:
     core::nullable<std::exception_ptr> error_;
 };
 
-/// The queue's turn: every wait told since the last one is resumed, each taken
-/// off the list first, and ends as cancelled. A coroutine resumed here may tell
-/// more; they are resumed in the same turn.
-inline void resume_told_waits() noexcept {
-    told_waits_posted() = false;
+/// The queue's turn: every wait cancelled since the last one is resumed, each
+/// taken off the list first, and ends as cancelled. A coroutine resumed here
+/// may cancel more; they are resumed in the same turn.
+inline void resume_canceled_waits() noexcept {
+    canceled_waits_posted() = false;
 
-    auto& told = told_waits();
-    while (waiting_event* const waiting = told.front()) {
+    auto& canceled = canceled_waits();
+    while (waiting_event* const waiting = canceled.front()) {
         waiting->end();
     }
 }
 
 /// Phase one of going down: no wait suspends from here on, and every wait
-/// suspended right now is told so -- the told ones that the queue has not
+/// suspended right now is told so -- the cancelled ones that the queue has not
 /// resumed yet among them, since it will not. What each coroutine does about
 /// it -- roll back, close, save -- runs from here, which is why this happens
 /// while the message loop is still turning.
 inline void close_event_waits() noexcept {
     events_closing() = true;
 
-    for (auto* const list : {&told_waits(), &waiting_events()}) {
+    for (auto* const list : {&canceled_waits(), &waiting_events()}) {
         while (waiting_event* const waiting = list->front()) {
             waiting->end();
         }
@@ -203,7 +203,9 @@ inline void close_event_waits() noexcept {
 
 /// Phase two: whether everything that was told has finished. The loop keeps
 /// turning until this is true or the caller runs out of patience.
-inline bool event_waits_drained() noexcept { return waiting_events().empty() && told_waits().empty(); }
+inline bool event_waits_drained() noexcept {
+    return waiting_events().empty() && canceled_waits().empty();
+}
 
 /// A wait of this thread under a cancellation token: the awaiter made in place,
 /// what async::cancellation_detail::wait_under does with it -- the wait stands in

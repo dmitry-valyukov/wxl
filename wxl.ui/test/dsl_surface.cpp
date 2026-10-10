@@ -1633,7 +1633,7 @@ static_assert(
 
 // Under a cancellation token, given last as wxl.async's operations take one.
 // The proxy is a type of its own, so a wait made without a token keeps every
-// byte it had: its awaiter is the pointer and two flags it can be told
+// byte it had: its awaiter is the pointer and two flags it can be cancelled
 // through, and the idle wait the size it was.
 using click_wait_under_t = decltype(on_event<EventKey::Click>(std::declval<Button const&>(),
                                                               std::declval<async::cancellation_token>()));

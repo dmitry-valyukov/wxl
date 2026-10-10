@@ -45,7 +45,7 @@ bool orphan_stage::leave() noexcept {
 
     for (;;) {
         switch (found) {
-        // Whoever told the operation to stop or gave it up may be cutting short the call
+        // Whoever cancelled the operation or gave it up may be cutting short the call
         // this thread stood in. Until that is over the thread stays here: the next call it
         // makes is somebody else's.
         case stage::cutting_short:
@@ -53,9 +53,9 @@ bool orphan_stage::leave() noexcept {
             found = stage_.load();
             break;
 
-        // Told, it keeps what it made -- unless it is given up meanwhile, which the
+        // Cancelled, it keeps what it made -- unless it is given up meanwhile, which the
         // exchange settles with the thread giving it up.
-        case stage::told:
+        case stage::canceled:
             if (stage_.compare_exchange_strong(found, stage::finished)) return true;
             break;
 
@@ -74,10 +74,10 @@ bool orphan_stage::give_up() noexcept {
             if (stage_.compare_exchange_strong(found, stage::given_up)) return false;
             break;
 
-        // Told before, its call has been cut short once; the body may have gone on to
+        // Cancelled before, its call has been cut short once; the body may have gone on to
         // another since, which is cut short the same way.
         case stage::running:
-        case stage::told:
+        case stage::canceled:
             if (!stage_.compare_exchange_strong(found, stage::cutting_short)) break;
 
             cut_the_call_short();
@@ -96,7 +96,7 @@ bool orphan_stage::give_up() noexcept {
     }
 }
 
-void orphan_stage::tell() noexcept {
+void orphan_stage::cancel() noexcept {
     stage found = stage_.load();
 
     for (;;) {
@@ -112,7 +112,7 @@ void orphan_stage::tell() noexcept {
 
             cut_the_call_short();
 
-            stage_.store(stage::told);
+            stage_.store(stage::canceled);
             stage_.notify_one();
             return;
 

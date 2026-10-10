@@ -216,8 +216,8 @@ public:
         // wait ends where it stands rather than joining a list that is being
         // emptied. Which is also what keeps a coroutine that catches
         // cancellation and waits again from being ended over and over. Nor
-        // does a wait told before it began.
-        bool await_ready() const noexcept { return told_ || impl::events_closing(); }
+        // does a wait cancelled before it began.
+        bool await_ready() const noexcept { return canceled_ || impl::events_closing(); }
 
         // Each hook that checks how it is used is declared twice, as task's
         // are: a strict build's takes the place of the co_await, any other
@@ -250,16 +250,16 @@ public:
             }
         }
 
-        // Told by the cancellation token of the form with one
+        // Cancelled by the token of the form with one
         // (async::cancellation_detail::cancellable_awaiter): a wait that is
         // suspended is resumed by the queue's next turn, or by the event if it
         // comes first -- never by cancel() itself; one that has not begun never
         // suspends. Either way the args are not asked for.
         void cancel() noexcept {
             if (armed_) {
-                event_->tell();
+                event_->cancel();
             } else {
-                told_ = true;
+                canceled_ = true;
             }
         }
 
@@ -274,10 +274,10 @@ public:
 
         event_awaitable* event_;
 
-        // Never both: armed while suspended in the proxy, told before it
+        // Never both: armed while suspended in the proxy, cancelled before it
         // suspended and so never to be.
         bool armed_ = false;
-        bool told_ = false;
+        bool canceled_ = false;
     };
 
     using awaiter = awaiter_t<true>;
