@@ -5,7 +5,13 @@
 // и с единым task<R> на обе роли. Поэтому тип того, что возвращают операции, здесь не
 // назван нигде: с результатом sta_loop::async_call, call_here и async_file делают только
 // co_await, auto и decltype, а своё -- корутины task<T>. Одна и та же проба собирается на
-// обоих устройствах, и её таблицы сравниваются строка в строку.
+// обоих устройствах, и её таблицы сравниваются строка в строку. Формы с токеном у sta_loop
+// нет: тело -- код приложения, и отвечать ли на отмену, решает оно само. Строки «+token»
+// берут внутренние формы, которыми пользуются операции самой wxl --
+// cancellation_detail::call_under(fn, stop) и call_under(orphanable, fn, stop); у ответа,
+// готового в вызове (call_here), такой формы нет, и токен спрашивают до вызова. Поэтому
+// строки «+token» собираются только на едином устройстве -- их имена прежние, чтобы
+// сравниваться с замером «до».
 //
 // Замеры -- наносекунды на итерацию, медиана и лучший из прогонов:
 //
@@ -22,9 +28,10 @@
 //
 // Проверки -- цепочки, где подпрограммы перемежаются операциями: результат доходит,
 // исключение со дна доходит до верха, отмена сверху кончает цепочку
-// operation_canceled_exception, отказ от среднего уровня не оставляет ни операций, ни
-// возобновлений, и петля после всего останавливается чисто. Код возврата -- число
-// провалившихся проверок.
+// operation_canceled_exception, если операция на дне не начата, а тело, которое воркер взял
+// раньше просьбы, договаривает, и до верха доходит его результат; отказ от среднего уровня
+// не оставляет ни операций, ни возобновлений, и петля после всего останавливается чисто.
+// Код возврата -- число провалившихся проверок.
 //
 // Запуск: sandbox.unified-task-probe [прогонов [множитель итераций]]; 0 прогонов -- только
 // проверки.
@@ -84,11 +91,6 @@ struct parked {
     void await_resume() const noexcept {}
 };
 
-/// То же, до которого дотягивается токен.
-struct parked_cancellable : parked {
-    void cancel() noexcept {}
-};
-
 // ---------------------------------------------------------------------------------------
 // Корутины замеров. Вызываемые -- noinline: кадр, вся жизнь которого видна вызывающему,
 // компилятор вправе держать на стеке, и замер такого кадра не мерит ничего.
@@ -108,7 +110,9 @@ __declspec(noinline) task<int> paused_under(int depth, std::coroutine_handle<>* 
                                             cancellation_token stop) {
     if (depth > 1) co_return co_await paused_under(depth - 1, slot, i, stop);
 
-    co_await cancellable(parked_cancellable{{slot}}, stop);
+    // Ожидание приложения, до которого wxl не дотягивается: токен корутина спрашивает сама.
+    co_await parked{slot};
+    stop.throw_if_canceled();
     co_return i;
 }
 
@@ -130,11 +134,19 @@ auto operation(int i) {
         return sta_loop::async_call(orphanable, [i] { return i; });
 }
 
-/// Операция под токеном. У async_call и call_here формы с токеном нет, и ожидание ставит
-/// под него cancellable(): оно занимает место в списке токена, пока корутина стоит.
+/// Операция под токеном -- внутренняя форма с токеном, как у операций самой wxl: операция
+/// стоит в событии токена, пока жива. У ответа, готового в вызове, такой формы нет: токен
+/// спрашивают до вызова, как его спрашивает код приложения.
 template <leaf kind>
 auto operation_under(int i, const cancellation_token& stop) {
-    return cancellable(operation<kind>(i), stop);
+    if constexpr (kind == leaf::here) {
+        stop.throw_if_canceled();
+        return sta_loop::call_here([i] { return i; });
+    } else if constexpr (kind == leaf::call) {
+        return cancellation_detail::call_under([i] { return i; }, stop);
+    } else {
+        return cancellation_detail::call_under(orphanable, [i] { return i; }, stop);
+    }
 }
 
 template <leaf kind>
@@ -437,8 +449,10 @@ void size_table(const path& file, const cancellation_token& stop) {
     std::printf("  %-38s %4zu\n", "async_call orphanable",
                 sizeof(decltype(sta_loop::async_call(orphanable, one))));
     std::printf("  %-38s %4zu\n", "call_here", sizeof(decltype(sta_loop::call_here(one))));
+    // Имя строки прежнее, чтобы сравниваться с замером «до»; меряется внутренняя форма с
+    // токеном, cancellation_detail::call_under(fn, stop).
     std::printf("  %-38s %4zu\n", "cancellable(async_call, stop)",
-                sizeof(decltype(cancellable(sta_loop::async_call(one), stop))));
+                sizeof(decltype(cancellation_detail::call_under(one, stop))));
     std::printf("  %-38s %4zu\n", "async_file::read_all",
                 sizeof(decltype(async_file::read_all(file))));
     std::printf("  %-38s %4zu\n", "async_file::read_all +token",
@@ -483,7 +497,7 @@ constexpr int mixed_answer(int depth, int value) {
 /// спрашивается и читается целиком.
 __declspec(noinline) task<std::string> files_under(int depth, path file, std::string text,
                                                    cancellation_token stop) {
-    co_await cancellable(sta_loop::async_call([] { return 0; }), stop);
+    co_await cancellation_detail::call_under([] { return 0; }, stop);
 
     if (depth > 1)
         co_return co_await files_under(depth - 1, std::move(file), std::move(text), stop);
@@ -513,21 +527,25 @@ __declspec(noinline) task<int> throws_at_bottom(int depth, bool from_worker, int
     throw std::runtime_error("bottom");
 }
 
-/// Цепочка, дно которой стоит под токеном на операции, ждущей ворот.
+/// Цепочка, дно которой стоит под токеном на операции у воркера: тело говорит, что вошло,
+/// и ждёт ворот. Оборвать его нечем -- взятое воркером, оно договаривает.
 __declspec(noinline) task<int> waits_at_gate(int depth, cancellation_token stop,
-                                             std::atomic<bool>* gate, int* passed) {
+                                             std::atomic<bool>* gate, std::atomic<bool>* entered,
+                                             int* passed) {
     if (depth > 1) {
-        const int below = co_await waits_at_gate(depth - 1, stop, gate, passed);
+        const int below = co_await waits_at_gate(depth - 1, stop, gate, entered, passed);
         ++*passed;
         co_return below;
     }
 
-    const auto blocked = [gate] {
+    const auto blocked = [gate, entered] {
+        entered->store(true);
+        entered->notify_one();
         gate->wait(false);
         return 1;
     };
 
-    const int got = co_await cancellable(sta_loop::async_call(blocked), stop);
+    const int got = co_await cancellation_detail::call_under(blocked, stop);
     ++*passed;
     co_return got;
 }
@@ -668,17 +686,29 @@ void checks(const path& chain_file) {
     }
 
     {
+        // Воркер занят, и дно цепочки стоит в его очереди: просьба застаёт операцию не
+        // начатой, и её ответ -- отмена.
+        std::atomic<bool> held{true}, holding{false};
+
+        auto holder = sta_loop::async_call([&held, &holding] {
+            holding.store(true);
+            holding.notify_one();
+            held.wait(true);
+        });
+
+        holding.wait(false);
+
         cancellation_source source;
-        std::atomic<bool> gate{false};
+        std::atomic<bool> gate{true}, entered{false};
         int passed = 0;
         bool canceled = false;
 
-        task<int> waiting = waits_at_gate(10, source.token(), &gate, &passed);
+        task<int> waiting = waits_at_gate(10, source.token(), &gate, &entered, &passed);
         const bool suspended = !waiting.done();
 
         source.cancel();
-        gate.store(true);
-        gate.notify_one();
+        held.store(false);
+        held.notify_one();
 
         try {
             run_to_end(std::move(waiting));
@@ -686,8 +716,38 @@ void checks(const path& chain_file) {
             canceled = true;
         }
 
-        check("d=10, token cancelled at the top: operation_canceled_exception, no level goes on",
-              suspended && canceled && passed == 0);
+        run_to_end(std::move(holder));
+
+        check("d=10, token cancelled at the top before the bottom started: "
+              "operation_canceled_exception, no level goes on",
+              suspended && canceled && passed == 0 && !entered.load());
+    }
+
+    {
+        // Тело на дне уже идёт: просьба его не обрывает, оно договаривает, и его результат --
+        // ответ, который доходит до верха.
+        cancellation_source source;
+        std::atomic<bool> gate{false}, entered{false};
+        int passed = 0;
+        int got = 0;
+        bool canceled = false;
+
+        task<int> waiting = waits_at_gate(10, source.token(), &gate, &entered, &passed);
+        entered.wait(false);
+
+        source.cancel();
+        gate.store(true);
+        gate.notify_one();
+
+        try {
+            got = run_to_end(std::move(waiting));
+        } catch (const operation_canceled_exception&) {
+            canceled = true;
+        }
+
+        check("d=10, token cancelled at the top while the bottom body runs: "
+              "its result reaches the top",
+              got == 1 && !canceled && passed == 10);
     }
 
     {

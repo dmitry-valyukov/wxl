@@ -458,4 +458,128 @@ TEST(EventTest, ACallbackRemovingItselfInAnInnerFireIsFreedByTheOuterOne) {
     EXPECT_FALSE(e.remove(*self));
 }
 
+// A node built into its subscriber: a member deriving from the event's callback type, whose
+// release() does nothing. The event links it, calls it and lets go of it, and never
+// destroys it -- the subscriber does, as an ordinary member. Here it counts what is done
+// to it.
+class built_in final : public event<void() noexcept>::func_t
+{
+public:
+    std::function<void()> body;
+    int calls = 0;
+    int released = 0;
+
+    void operator()() noexcept override {
+        ++calls;
+        if (body) body();
+    }
+
+    void release() noexcept override { ++released; }
+};
+
+TEST(EventTest, ANodeBuiltIntoItsSubscriberIsAddedFiredAndRemovedWithoutBeingDestroyed) {
+    event<void() noexcept> e;
+    built_in node;
+
+    const cookie_t cookie = e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
+    e.fire();
+    EXPECT_EQ(node.calls, 1);
+
+    EXPECT_TRUE(e.remove(cookie));
+    EXPECT_EQ(node.released, 1);
+    EXPECT_FALSE(static_cast<bool>(e));
+
+    e.fire();
+    EXPECT_EQ(node.calls, 1);
+
+    // Its link was cleared on the way out, so it may stand again.
+    e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
+    e.fire();
+    EXPECT_EQ(node.calls, 2);
+    EXPECT_TRUE(e.remove(cookie));
+    EXPECT_EQ(node.released, 2);
+}
+
+// Taking itself out from inside its own call: the walk goes on to the next callback, and
+// lets go of the node once its call has returned -- once.
+TEST(EventTest, ANodeBuiltIntoItsSubscriberMayLeaveFromItsOwnCall) {
+    event<void() noexcept> e;
+    built_in node;
+    int after = 0;
+
+    const cookie_t cookie = e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
+    e.add([&after]() noexcept { ++after; });
+
+    node.body = [&] {
+        EXPECT_TRUE(e.remove(cookie));
+        EXPECT_EQ(node.released, 0) << "let go of while its own call ran";
+    };
+
+    e.fire();
+    EXPECT_EQ(node.calls, 1);
+    EXPECT_EQ(node.released, 1);
+    EXPECT_EQ(after, 1);
+
+    e.fire();
+    EXPECT_EQ(node.calls, 1);
+    EXPECT_EQ(after, 2);
+}
+
+// clear() and the event's own end let go of a built-in node as they do of any other, and
+// the node, being its subscriber's, survives both.
+TEST(EventTest, ClearAndTheEventsEndLetGoOfABuiltInNodeWithoutDestroyingIt) {
+    built_in node;
+    int made_calls = 0;
+
+    {
+        event<void() noexcept> e;
+        e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
+        e.add([&made_calls]() noexcept { ++made_calls; });
+
+        e.clear();
+        EXPECT_EQ(node.released, 1);
+
+        e.fire();
+        EXPECT_EQ(node.calls, 0);
+        EXPECT_EQ(made_calls, 0);
+
+        e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
+    }
+
+    EXPECT_EQ(node.released, 2);
+    EXPECT_EQ(node.calls, 0);
+}
+
+// What happens once -- a cancellation -- fires through a local event: the callbacks are
+// swapped into it, fired there, and let go of with it. A subscriber that takes itself out
+// of the first event afterwards finds it gone, and remove() says so; the node may stand in
+// another event at once.
+TEST(EventTest, AOneTimeFireThroughALocalEventLetsGoOfBuiltInNodes) {
+    event<void() noexcept> state;
+    built_in first, second;
+
+    const cookie_t first_cookie =
+        state.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&first));
+    state.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&second));
+
+    {
+        event<void() noexcept> once;
+        once.swap(state);
+        once.fire();
+    }
+
+    EXPECT_EQ(first.calls, 1);
+    EXPECT_EQ(second.calls, 1);
+    EXPECT_EQ(first.released, 1);
+    EXPECT_EQ(second.released, 1);
+    EXPECT_FALSE(static_cast<bool>(state));
+    EXPECT_FALSE(state.remove(first_cookie));
+
+    state.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&first));
+    state.fire();
+    EXPECT_EQ(first.calls, 2);
+    EXPECT_EQ(second.calls, 1);
+    EXPECT_TRUE(state.remove(first_cookie));
+}
+
 }  // namespace

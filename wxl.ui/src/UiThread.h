@@ -105,14 +105,15 @@ public:
         }
     }
 
-    /// Told by a cancellation token (async::cancellable_awaiter): a wait that
-    /// is suspended leaves its idle turn -- which finds nobody when it comes --
-    /// and is resumed by the queue's next turn of any priority; one that has
-    /// not begun never suspends.
+    /// Cancelled by the token of onIdle(stop)
+    /// (async::cancellation_detail::cancellable_awaiter): a wait that is
+    /// suspended leaves its idle turn -- which finds nobody when it comes -- and
+    /// is resumed by the queue's next turn of any priority; one that has not
+    /// begun never suspends.
     void cancel() noexcept {
         if (waiting()) {
             *self_ = nullptr;
-            tell();
+            impl::waiting_event::cancel();
         } else {
             skipped_ = true;
         }
@@ -120,12 +121,12 @@ public:
 
 private:
     // The queued resumption finds the wait through this; a wait ended on the
-    // way down, or told, is gone by the time the queue gets to it, and leaves
-    // it empty.
+    // way down, or cancelled, is gone by the time the queue gets to it, and
+    // leaves it empty.
     std::shared_ptr<Idle*> self_;
 
     // Ended without suspending: the queue takes nothing more, or the wait was
-    // told before it began.
+    // cancelled before it began.
     bool skipped_ = false;
 };
 

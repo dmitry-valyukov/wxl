@@ -662,7 +662,7 @@ TEST_F(AsyncFileTest, ExistsUnderATokenAnswersLikeThePlainOne) {
     EXPECT_FALSE(is_nothing);
 }
 
-TEST_F(AsyncFileTest, ExistsTellsAFileFromADirectoryAndFromNothing) {
+TEST_F(AsyncFileTest, ExistsAnswersTrueForAFileAndFalseForADirectoryOrNothing) {
     given_a_file(L"here.bin", "x");
 
     bool is_file = false, is_directory = true, is_nothing = true;
