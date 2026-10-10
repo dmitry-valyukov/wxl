@@ -136,6 +136,11 @@ task<std::size_t> given_no_token(probe& p) {
     co_return co_await start_read(p, buf);
 }
 
+/// Joins a read that is already back, under a token.
+task<std::size_t> joins_under(task<std::size_t>& read, cancellation_token stop) {
+    co_return co_await cancellable(read, stop);
+}
+
 /// Puts the subroutine under a token it was not given.
 task<std::size_t> puts_a_coroutine_under(probe& p, cancellation_token stop) {
     co_return co_await cancellable(given_no_token(p), stop);
@@ -593,6 +598,27 @@ TEST(CancellationTest, UnderACancelledTokenTheFormWithATokenStartsNothing) {
     EXPECT_TRUE(chain.done());
     EXPECT_TRUE(ends_cancelled(chain));
     EXPECT_EQ(p.made, 0);
+}
+
+// A read the loop has already taken back has nothing out: under a cancelled token its
+// wait ends with the cancellation at once, and the read, whose answer is here, is not told.
+TEST(CancellationTest, AnOperationAlreadyBackIsNotTold) {
+    probe p;
+    p.gate.set();
+
+    std::byte buf[16]{};
+    task<std::size_t> read = start_read(p, buf);
+    sta_loop::run_until([&] { return read.done(); });
+
+    cancellation_source stop;
+    stop.cancel();
+
+    task<std::size_t> joined = joins_under(read, stop.token());
+
+    EXPECT_TRUE(joined.done());
+    EXPECT_TRUE(ends_cancelled(joined));
+    EXPECT_EQ(p.told, 0);
+    EXPECT_EQ(p.wrote, 1);
 }
 
 // What the form with a token returns is an object like the task: kept and awaited

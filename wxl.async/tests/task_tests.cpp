@@ -713,12 +713,12 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
 }
 
 // The promise of a task is a producer like an operation: the virtual table, the waiter's
-// handle, the exception, and the flags, then the value. The checks cost it nothing in any
-// build, strict or not: what they keep -- whether the body is on the stack, whether the
+// handle, a word of flags and the exception, then the value. The checks cost it nothing in
+// any build, strict or not: what they keep -- whether the body is on the stack, whether the
 // waiter joined -- is two bits of the waiter's handle, and whether the value has been
-// taken is a byte in the padding after the flags. A task stays one pointer wide, as does
-// the awaiter of a joined one.
-static_assert(sizeof(async_op) == 4 * sizeof(void*));
+// taken is a byte of the flags' word. A task stays one pointer wide, as does the awaiter
+// of a joined one. (The exception is two pointers wide on MSVC, one on g++ and clang.)
+static_assert(sizeof(async_op) == 3 * sizeof(void*) + sizeof(std::exception_ptr));
 static_assert(sizeof(task_detail::promise<void>) == sizeof(async_op));
 static_assert(sizeof(task_detail::promise<int>) == sizeof(async_op_t<int>));
 static_assert(sizeof(task<>) == sizeof(void*) && sizeof(task<int>) == sizeof(void*));
