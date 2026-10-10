@@ -204,7 +204,9 @@ private:
 /// - **The operations and waits of wxl** that can be cut short take it as their last
 ///   argument -- `co_await async_file::read_all(path, stop)`, `co_await onClick(button,
 ///   stop)` -- and stand under it while they are out: asked, the operation is cut short
-///   and the wait is ended, and the co_await ends with operation_canceled_exception. Under
+///   and the wait is ended, and the co_await ends with operation_canceled_exception. That
+///   is the answer of what was cut short or never started; what got there first -- an
+///   operation already done, an event already come -- answers with its own result. Under
 ///   a token cancelled already nothing is started, and the co_await ends with it at once.
 /// - **The application's own coroutine** asks it itself -- is_canceled(),
 ///   throw_if_canceled() -- where it has something to stop, and decides what to do about

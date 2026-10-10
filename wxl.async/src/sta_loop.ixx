@@ -624,11 +624,13 @@ inline void send_orphan(async_op& op) { sta_loop::shape_->send_orphan(op); }
 
 // The loop's calls in their form with a token, for the operations of wxl itself --
 // async_file, async_directory -- whose bodies are known to be safe to break off. The
-// operation stands under `stop` while it lives (`operation_under`): cancelled, the token cuts
-// it short at once -- one the worker has not reached never runs -- and the co_await ends with
-// operation_canceled_exception once nothing writes into the frame any more. Under a token
-// cancelled already nothing is made, and the task answers the cancellation at once; under one
-// with no source each is its form without a token.
+// operation stands under `stop` while it lives (`operation_under`): cancelled, the token asks
+// it to stop at once. The cancellation is the answer of one cut short or never started -- one
+// the worker has not reached never runs -- and one that got there first answers what it made:
+// a lambda on the worker cannot be cut short, and finishes. Either way the co_await ends once
+// nothing writes into the frame any more. Under a token cancelled already nothing is made, and
+// the task answers the cancellation at once; under one with no source each is its form
+// without a token.
 //
 // wxl puts no body of the application's under a token: some work must not be broken off
 // halfway, and only the code that wrote it knows which. The application's coroutine asks its
@@ -658,8 +660,9 @@ template <class Fn>
 
 /// The orphanable sta_loop::async_call() under a token: cancelled, the token cuts the body
 /// short as giving it up does -- one not started is not, one standing in a call to the system
-/// has that call cut short -- and the co_await ends with the cancellation as soon as the body
-/// has let go.
+/// has that call cut short -- but keeps it, and the co_await ends as soon as the body has let
+/// go: with the cancellation if it was cut short or never started, and with what it made if it
+/// finished first.
 template <class Fn>
 [[nodiscard]] task<orphan_result_t<std::decay_t<Fn>>> call_under(orphanable_t, Fn&& fn,
                                                                   cancellation_token stop) {

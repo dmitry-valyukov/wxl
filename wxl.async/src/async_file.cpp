@@ -35,17 +35,21 @@ auto reading_whole(const core::path& path) {
 
         std::string bytes(static_cast<std::size_t>(*length), '\0');
 
-        // In pieces, so that a body given up between two of them leaves: the
+        // In pieces, so that a body cut short between two of them leaves: the
         // call under way is not cut short, a file read whole is not a pipe, and
-        // a piece is as long as the body is uninterruptible. The end of the file
-        // is reached early only if the file shrank since it was measured, and
-        // reaching it is the one short read that is not a failure.
+        // a piece is as long as the body is uninterruptible. A body that leaves
+        // has read part of the file, which is no answer: it answers the
+        // cancellation. The end of the file is reached early only if the file
+        // shrank since it was measured, and reaching it is the one short read
+        // that is not a failure.
         constexpr std::size_t piece = 4 * 1024 * 1024;
         std::size_t done = 0;
 
         ::SetLastError(ERROR_SUCCESS);
 
-        while (done < bytes.size() && !stage.given_up()) {
+        while (done < bytes.size()) {
+            if (stage.cut_short()) throw operation_canceled_exception();
+
             const std::size_t got = source.read(std::as_writable_bytes(
                 std::span(bytes).subspan(done, std::min(piece, bytes.size() - done))));
 
@@ -55,8 +59,6 @@ auto reading_whole(const core::path& path) {
         }
 
         if (done < bytes.size()) {
-            if (stage.given_up()) return std::string();
-
             if (const DWORD why = ::GetLastError(); why != ERROR_SUCCESS && why != ERROR_HANDLE_EOF)
                 throw system_exception("ReadFile", static_cast<int>(why));
 
@@ -76,7 +78,17 @@ auto writing_whole(const core::path& path, std::string bytes) {
     return [target = path, temporary = core::path(std::wstring_view(temporary_name)),
             parent = core::path(path.parent_path()),
             bytes = std::move(bytes)](const orphan_stage& stage) mutable {
-        const auto wanted = [&stage] { return !stage.given_up(); };
+        // Asked before every step. A body that stops before the rename has not
+        // written the file, and answers the cancellation; one past it has, and
+        // answers that, whenever the request came.
+        //
+        // create_all() answers `false` for a no and for a failure alike, so the
+        // no is remembered to tell the two apart.
+        bool stopped = false;
+        const auto wanted = [&stage, &stopped] {
+            stopped = stage.cut_short();
+            return !stopped;
+        };
 
         core::file out = core::file::create(temporary.c_str());
 
@@ -84,17 +96,20 @@ auto writing_whole(const core::path& path, std::string bytes) {
         // save that finds them in place -- every save but the first -- pays
         // for none of them.
         if (!out.opened() && ::GetLastError() == ERROR_PATH_NOT_FOUND && !parent.empty()) {
-            if (!core::directory::create_all(parent, wanted))
-                throw system_exception("CreateDirectoryW");
+            if (!core::directory::create_all(parent, wanted)) {
+                if (stopped) throw operation_canceled_exception();
 
-            if (!wanted()) return;
+                throw system_exception("CreateDirectoryW");
+            }
+
+            if (!wanted()) throw operation_canceled_exception();
 
             out = core::file::create(temporary.c_str());
         }
 
         if (!out.opened()) throw system_exception("CreateFileW");
 
-        // A temporary left behind by a body given up or failed is deleted,
+        // A temporary left behind by a body cut short or failed is deleted,
         // best effort: the next save would overwrite it anyway, and nothing
         // reads it.
         const auto drop = [&] {
@@ -108,7 +123,10 @@ auto writing_whole(const core::path& path, std::string bytes) {
             throw failure;
         }
 
-        if (!wanted()) return drop();
+        if (!wanted()) {
+            drop();
+            throw operation_canceled_exception();
+        }
 
         // Pushed to the device before the rename: without that, a power cut
         // could leave the rename done and the content not, and the name
@@ -121,7 +139,10 @@ auto writing_whole(const core::path& path, std::string bytes) {
 
         out.close();
 
-        if (!wanted()) return (void)::DeleteFileW(temporary.c_str());
+        if (!wanted()) {
+            ::DeleteFileW(temporary.c_str());
+            throw operation_canceled_exception();
+        }
 
         // WRITE_THROUGH, so that the rename itself reaches the disk rather
         // than the cache before this returns.
@@ -135,7 +156,19 @@ auto writing_whole(const core::path& path, std::string bytes) {
 }
 
 auto asking_exists(const core::path& path) {
-    return [path] { return core::file::exists(path.c_str()); };
+    return [path] {
+        // `false` is the system's answer, or a call cut short, which answers the
+        // cancellation: the code tells them apart, cleared first, since a call
+        // that succeeds leaves the last one's.
+        ::SetLastError(ERROR_SUCCESS);
+
+        const bool there = core::file::exists(path.c_str());
+
+        if (!there && ::GetLastError() == ERROR_OPERATION_ABORTED)
+            throw operation_canceled_exception();
+
+        return there;
+    };
 }
 
 }  // namespace

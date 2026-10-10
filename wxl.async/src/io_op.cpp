@@ -45,8 +45,8 @@ bool io_op::start() noexcept {
 
         if (!advance(transferred)) return true;
 
-        // Between two calls of a chain, on the worker: an operation given up meanwhile is
-        // not carried on with.
+        // Between two calls of a chain, on the worker: an operation given up or told
+        // meanwhile is not carried on with.
         if (canceled()) [[unlikely]] {
             finish(ERROR_OPERATION_ABORTED);
             return true;
@@ -130,13 +130,20 @@ void io_op::finish(DWORD error) noexcept {
             set_value(std::size_t{done_});
             return;
         }
-
-        set_error(std::make_exception_ptr(system_exception("ReadFile", static_cast<int>(error))));
+    } else if (error == ERROR_SUCCESS && left_ == 0) [[likely]] {
+        set_value(std::size_t{done_});
         return;
     }
 
-    if (error == ERROR_SUCCESS && left_ == 0) [[likely]] {
-        set_value(std::size_t{done_});
+    // Cut short -- by CancelIoEx, or between two calls of a chain -- the operation answers
+    // the cancellation, whatever part of it went through first.
+    if (error == ERROR_OPERATION_ABORTED) {
+        answer_canceled();
+        return;
+    }
+
+    if (kind_ == kind::read) {
+        set_error(std::make_exception_ptr(system_exception("ReadFile", static_cast<int>(error))));
         return;
     }
 

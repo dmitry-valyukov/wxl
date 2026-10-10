@@ -22,9 +22,11 @@ export namespace wxl::async {
 /// and are orphanable; next() and close() borrow this object.
 ///
 /// And the same second form under a `cancellation_token`, its last argument, for all
-/// of them but close(): an operation not started is never started, one standing in the
-/// system is cut short where the system allows, and the co_await ends with
-/// operation_canceled_exception once nothing writes into the frame any more.
+/// of them but close(): asked, an operation not started is never started, and one standing
+/// in the system is cut short where the system allows. The cancellation is the answer of
+/// one cut short or never started -- a listing stopped halfway is no answer -- and one
+/// that got there first answers with what it made; the co_await ends once nothing writes
+/// into the frame any more.
 ///
 /// A listing is worth having asynchronous even more than a file is. A directory
 /// on a network share, or one with tens of thousands of names in it, keeps

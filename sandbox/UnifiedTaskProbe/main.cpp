@@ -28,9 +28,10 @@
 //
 // Проверки -- цепочки, где подпрограммы перемежаются операциями: результат доходит,
 // исключение со дна доходит до верха, отмена сверху кончает цепочку
-// operation_canceled_exception, отказ от среднего уровня не оставляет ни операций, ни
-// возобновлений, и петля после всего останавливается чисто. Код возврата -- число
-// провалившихся проверок.
+// operation_canceled_exception, если операция на дне не начата, а тело, которое воркер взял
+// раньше просьбы, договаривает, и до верха доходит его результат; отказ от среднего уровня
+// не оставляет ни операций, ни возобновлений, и петля после всего останавливается чисто.
+// Код возврата -- число провалившихся проверок.
 //
 // Запуск: sandbox.unified-task-probe [прогонов [множитель итераций]]; 0 прогонов -- только
 // проверки.
@@ -526,16 +527,20 @@ __declspec(noinline) task<int> throws_at_bottom(int depth, bool from_worker, int
     throw std::runtime_error("bottom");
 }
 
-/// Цепочка, дно которой стоит под токеном на операции, ждущей ворот.
+/// Цепочка, дно которой стоит под токеном на операции у воркера: тело говорит, что вошло,
+/// и ждёт ворот. Оборвать его нечем -- взятое воркером, оно договаривает.
 __declspec(noinline) task<int> waits_at_gate(int depth, cancellation_token stop,
-                                             std::atomic<bool>* gate, int* passed) {
+                                             std::atomic<bool>* gate, std::atomic<bool>* entered,
+                                             int* passed) {
     if (depth > 1) {
-        const int below = co_await waits_at_gate(depth - 1, stop, gate, passed);
+        const int below = co_await waits_at_gate(depth - 1, stop, gate, entered, passed);
         ++*passed;
         co_return below;
     }
 
-    const auto blocked = [gate] {
+    const auto blocked = [gate, entered] {
+        entered->store(true);
+        entered->notify_one();
         gate->wait(false);
         return 1;
     };
@@ -681,17 +686,29 @@ void checks(const path& chain_file) {
     }
 
     {
+        // Воркер занят, и дно цепочки стоит в его очереди: просьба застаёт операцию не
+        // начатой, и её ответ -- отмена.
+        std::atomic<bool> held{true}, holding{false};
+
+        auto holder = sta_loop::async_call([&held, &holding] {
+            holding.store(true);
+            holding.notify_one();
+            held.wait(true);
+        });
+
+        holding.wait(false);
+
         cancellation_source source;
-        std::atomic<bool> gate{false};
+        std::atomic<bool> gate{true}, entered{false};
         int passed = 0;
         bool canceled = false;
 
-        task<int> waiting = waits_at_gate(10, source.token(), &gate, &passed);
+        task<int> waiting = waits_at_gate(10, source.token(), &gate, &entered, &passed);
         const bool suspended = !waiting.done();
 
         source.cancel();
-        gate.store(true);
-        gate.notify_one();
+        held.store(false);
+        held.notify_one();
 
         try {
             run_to_end(std::move(waiting));
@@ -699,8 +716,38 @@ void checks(const path& chain_file) {
             canceled = true;
         }
 
-        check("d=10, token cancelled at the top: operation_canceled_exception, no level goes on",
-              suspended && canceled && passed == 0);
+        run_to_end(std::move(holder));
+
+        check("d=10, token cancelled at the top before the bottom started: "
+              "operation_canceled_exception, no level goes on",
+              suspended && canceled && passed == 0 && !entered.load());
+    }
+
+    {
+        // Тело на дне уже идёт: просьба его не обрывает, оно договаривает, и его результат --
+        // ответ, который доходит до верха.
+        cancellation_source source;
+        std::atomic<bool> gate{false}, entered{false};
+        int passed = 0;
+        int got = 0;
+        bool canceled = false;
+
+        task<int> waiting = waits_at_gate(10, source.token(), &gate, &entered, &passed);
+        entered.wait(false);
+
+        source.cancel();
+        gate.store(true);
+        gate.notify_one();
+
+        try {
+            got = run_to_end(std::move(waiting));
+        } catch (const operation_canceled_exception&) {
+            canceled = true;
+        }
+
+        check("d=10, token cancelled at the top while the bottom body runs: "
+              "its result reaches the top",
+              got == 1 && !canceled && passed == 10);
     }
 
     {

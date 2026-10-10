@@ -117,7 +117,8 @@ private:
 
 /// The read at the bottom: waits at the gate, then writes into the buffer in the frame --
 /// unless it was asked to stop meanwhile, and then it comes back cut short, with nothing
-/// written, as an overlapped read cancelled by CancelIoEx does.
+/// written and the cancellation for its answer, as an overlapped read cancelled by
+/// CancelIoEx does.
 class gated_read : public async_op_t<int>
 {
 public:
@@ -134,7 +135,7 @@ protected:
         p_.gate.wait();
 
         if (canceled()) {
-            set_error(std::make_exception_ptr(std::runtime_error("cut short")));
+            set_error(std::make_exception_ptr(operation_canceled_exception()));
             return true;
         }
 

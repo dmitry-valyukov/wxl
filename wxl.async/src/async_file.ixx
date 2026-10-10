@@ -47,13 +47,17 @@ export namespace wxl::async {
 ///
 /// **Asking an operation to end.** What can be cut short has a second form, with a
 /// `cancellation_token` as its last argument, and the operation stands under the token
-/// while it lives: under a cancelled token an operation not started is never started, a
-/// read or a write the kernel holds is let go by CancelIoEx, and an opening or a file by
-/// name standing in the system is cut short -- and the co_await ends with
-/// operation_canceled_exception, once nothing writes into the frame any more. Under a
-/// token cancelled already nothing is started at all. The form without a token is the
-/// same operation and costs what it always did. size(), flush() and close() have no such form: there is nothing in them to cut
-/// short, and a flush cut short is a file that does not survive a power cut.
+/// while it lives. Asked, an operation not started is never started, a read or a write the
+/// kernel holds is let go by CancelIoEx, and an opening or a file by name standing in the
+/// system has the call it stands in cut short. The cancellation is the answer of an
+/// operation cut short or never started; one that got there first answers with its own
+/// result or its own failure -- a file written whole and renamed is written, whenever the
+/// request came, and the co_await says so. Either way the co_await ends once nothing
+/// writes into the frame any more. Under a token cancelled already nothing is started at
+/// all, and the co_await ends with operation_canceled_exception at once. The form without
+/// a token is the same operation and costs what it always did. size(), flush() and close()
+/// have no such form: there is nothing in them to cut short, and a flush cut short is a
+/// file that does not survive a power cut.
 ///
 /// **Giving an operation up.** Opening and creating own everything they touch,
 /// so a task that goes away before them leaves them to finish alone

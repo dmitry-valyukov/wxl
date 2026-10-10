@@ -27,22 +27,52 @@ auto listing_all(const core::path& pattern) {
             throw system_exception("FindFirstFileExW");
         }
 
-        for (async_directory::entry next; listing.next(next) && !stage.given_up();)
+        // A listing that stops halfway is no answer: a body cut short between two names
+        // answers the cancellation, and so does one whose FindNextFileW was cut short,
+        // which ends the listing the way its end does and is told apart by its code.
+        for (async_directory::entry next; listing.next(next);) {
+            if (stage.cut_short()) throw operation_canceled_exception();
+
             found.push_back({std::wstring(next.name), next.is_directory, next.size});
+        }
+
+        if (::GetLastError() == ERROR_OPERATION_ABORTED) throw operation_canceled_exception();
 
         return found;
     };
 }
 
 auto asking_exists(const core::path& path) {
-    return [path] { return core::directory::exists(path.c_str()); };
+    return [path] {
+        // `false` is the system's answer, or a call cut short, which answers the
+        // cancellation: the code tells them apart, cleared first, since a call that
+        // succeeds leaves the last one's.
+        ::SetLastError(ERROR_SUCCESS);
+
+        const bool there = core::directory::exists(path.c_str());
+
+        if (!there && ::GetLastError() == ERROR_OPERATION_ABORTED)
+            throw operation_canceled_exception();
+
+        return there;
+    };
 }
 
 auto making_all(const core::path& p) {
     return [copy = p](const orphan_stage& stage) mutable {
-        const auto wanted = [&stage] { return !stage.given_up(); };
+        // create_all() answers `false` for a no and for a failure alike: the no is
+        // remembered to tell the two apart.
+        bool stopped = false;
+        const auto wanted = [&stage, &stopped] {
+            stopped = stage.cut_short();
+            return !stopped;
+        };
 
-        if (!core::directory::create_all(copy, wanted)) throw system_exception("CreateDirectoryW");
+        if (!core::directory::create_all(copy, wanted)) {
+            if (stopped) throw operation_canceled_exception();
+
+            throw system_exception("CreateDirectoryW");
+        }
     };
 }
 

@@ -8,9 +8,15 @@
 // The operations here are the module's own, on the loop: a read standing for one on a slow
 // device, held at a gate on the worker, which cancelling opens -- the way CancelIoEx
 // completes a read the kernel is holding.
+//
+// What a co_await ends with is what happened to the operation: the cancellation if it was
+// cut short or never started, and its own answer -- its value or its own failure -- if it
+// got there first, request or no request.
 #include <crtdbg.h>
 
 #include <gtest/gtest.h>
+
+#include "platform.h"
 
 #include "sta_pool.h"
 
@@ -43,7 +49,8 @@ struct probe {
 
 /// The read: waits at the gate, then writes into the caller's buffer -- in the frame --
 /// unless it was asked to stop meanwhile, in which case it comes back cut short, with
-/// nothing written, as an overlapped read cancelled by CancelIoEx does.
+/// nothing written and the cancellation for its answer, as an overlapped read cancelled by
+/// CancelIoEx does.
 class gated_read : public async_op_t<std::size_t>
 {
 public:
@@ -62,7 +69,7 @@ protected:
         ++p_.ran;
 
         if (canceled()) {
-            set_error(std::make_exception_ptr(std::runtime_error("cut short")));
+            set_error(std::make_exception_ptr(operation_canceled_exception()));
             return true;
         }
 
@@ -464,9 +471,9 @@ TEST(CancellationTest, UnderACancelledTokenTheFormWithATokenStartsNothing) {
 }
 
 // A read the loop has already taken back has nothing out to cut short: asked, it is not
-// told, and from then on it answers the cancellation -- by level: a co_await that ends
-// after the request ends with it, whatever the read brought.
-TEST(CancellationTest, AnOperationAlreadyBackIsNotToldAndAnswersTheCancellation) {
+// told, and the co_await that comes after the request still ends with what the read
+// brought -- the read was over before the request, and is not undone by it.
+TEST(CancellationTest, AnOperationBackBeforeItsCoAwaitKeepsItsAnswerAfterTheRequest) {
     probe p;
     p.gate.set();
 
@@ -483,7 +490,30 @@ TEST(CancellationTest, AnOperationAlreadyBackIsNotToldAndAnswersTheCancellation)
     task<std::size_t> joined = joins(read);
 
     EXPECT_TRUE(joined.done());
-    EXPECT_TRUE(ends_cancelled(joined));
+    EXPECT_EQ(joined.result(), 16u);
+}
+
+// One that has done its work and is on its way back when the request comes is told -- it is
+// still out -- and has nothing left to cut short: it answers what it brought.
+TEST(CancellationTest, AnOperationDoneOnTheWorkerKeepsItsAnswerWhenToldOnItsWayBack) {
+    probe p;
+    p.gate.set();
+
+    std::byte buf[16]{};
+    cancellation_source stop;
+    task<std::size_t> read = start_read(p, buf, stop.token());
+
+    // Written, so the body is over; the loop has not taken the read back.
+    while (p.wrote == 0) std::this_thread::yield();
+    EXPECT_FALSE(read.done());
+
+    stop.cancel();
+    EXPECT_EQ(p.told, 1);
+
+    sta_loop::run_until([&] { return read.done(); });
+
+    EXPECT_EQ(read.result(), 16u);
+    EXPECT_EQ(p.wrote, 1);
 }
 
 // What the form with a token returns is a task like any other: kept and awaited later, it
@@ -592,7 +622,8 @@ TEST(CancellationTest, AFrameDestroyedOnAKeptReadLeavesTheToken) {
 }
 
 // Many under one token, leaving in any order: the one in the middle of the event comes back
-// and goes first, and the request tells the two still out -- and only them.
+// and goes first, and the request reaches the two still standing under the token -- the
+// first, back and kept, keeps its answer, and only the last, still out, is told.
 TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreTold) {
     probe first, middle, last;
     middle.gate.set();
@@ -614,14 +645,15 @@ TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreTold) {
 
     stop.cancel();
 
+    EXPECT_EQ(first.told, 0);
     EXPECT_EQ(middle.told, 0);
     EXPECT_EQ(last.told, 1);
 
     sta_loop::run_until([&] { return one.done() && three.done(); });
 
-    // The first read came back before the request and is answered as the cancellation: by
-    // level, whatever it brought.
-    EXPECT_TRUE(ends_cancelled(one));
+    // The first read came back before the request and keeps what it brought; the last was
+    // cut short.
+    EXPECT_EQ(one.result(), 16u);
     EXPECT_TRUE(ends_cancelled(three));
     EXPECT_EQ(last.wrote, 0);
 }
@@ -702,36 +734,64 @@ TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
 
 namespace {
 
-/// An operation over when it is made, which no loop carries: the test takes it back by hand.
-class handed_back : public async_op_t<int>
+/// An operation no loop carries: the test does the worker's part by hand, and takes it back
+/// by hand. Its body answers the value it was made with.
+class carried_by_hand : public async_op_t<int>
 {
 public:
-    explicit handed_back(int value) { set_value(int(value)); }
+    explicit carried_by_hand(int value) : value_(value) {}
+
+    int runs = 0;
 
 protected:
-    bool execute() override { return true; }
+    bool execute() override {
+        ++runs;
+        set_value(int(value_));
+        return true;
+    }
+
+private:
+    int value_;
 };
 
 }  // namespace
 
-// A loop that is being stopped settles what comes back and resumes nobody: an operation told
-// while it was out answers the cancellation all the same, and one not told its value.
-TEST(CancellationTest, AnOperationToldWhileOutIsSettledAsTheCancellation) {
+// A loop that is being stopped settles what comes back and resumes nobody, and leaves the
+// answer as the operation made it: one told after its body ran answers its value, one told
+// before the worker reached it never runs and answers the cancellation the worker wrote for
+// it, and one never told its value.
+TEST(CancellationTest, AnOperationToldWhileOutIsSettledWithWhatHappenedToIt) {
+    using op = cancellation_detail::operation_under<carried_by_hand>;
+
     cancellation_source stop;
 
-    auto* const told = new cancellation_detail::operation_under<handed_back>(stop.token(), 3);
-    task<int> told_task(std::unique_ptr<async_op_t<int>>{told});
+    auto* const done_first = new op(stop.token(), 3);
+    task<int> done_first_task(std::unique_ptr<async_op_t<int>>{done_first});
+
+    auto* const not_reached = new op(stop.token(), 5);
+    task<int> not_reached_task(std::unique_ptr<async_op_t<int>>{not_reached});
+
+    EXPECT_TRUE(done_first->packaged_execute());
 
     stop.cancel();
-    told->settle();
 
-    EXPECT_TRUE(told_task.done());
-    EXPECT_TRUE(ends_cancelled(told_task));
+    EXPECT_TRUE(not_reached->packaged_execute());
+    EXPECT_EQ(not_reached->runs, 0) << "an operation told before the worker reached it ran";
+
+    done_first->settle();
+    not_reached->settle();
+
+    EXPECT_TRUE(done_first_task.done());
+    EXPECT_EQ(done_first_task.result(), 3);
+
+    EXPECT_TRUE(not_reached_task.done());
+    EXPECT_TRUE(ends_cancelled(not_reached_task));
 
     cancellation_source fresh;
-    auto* const plain = new cancellation_detail::operation_under<handed_back>(fresh.token(), 4);
+    auto* const plain = new op(fresh.token(), 4);
     task<int> plain_task(std::unique_ptr<async_op_t<int>>{plain});
 
+    EXPECT_TRUE(plain->packaged_execute());
     plain->settle();
 
     EXPECT_TRUE(plain_task.done());
@@ -784,6 +844,193 @@ TEST(CancellationTest, AnOrphanGivenUpAndThenAskedStillGoesWhenItComesBack) {
     }
 
     EXPECT_TRUE(finished);
+    EXPECT_EQ(alive, 0);
+}
+
+// ---- What happened, not when the request came ------------------------------------------
+
+namespace {
+
+/// What a task's co_await ended with, in a word: the value, the cancellation, or the code
+/// of a failed call to the system or the text of any other failure.
+template <class Task>
+std::string answer_of(Task& t) {
+    try {
+        return std::format("value {}", t.result());
+    } catch (const operation_canceled_exception&) {
+        return "cancelled";
+    } catch (const system_exception& failure) {
+        return std::format("system error {}", failure.err_code());
+    } catch (const std::exception& failure) {
+        return failure.what();
+    }
+}
+
+/// Counts the living copies of a result, on whichever thread one goes.
+class counted_result
+{
+public:
+    explicit counted_result(std::atomic<int>& alive) noexcept : alive_(&alive) { ++*alive_; }
+    counted_result(counted_result&& other) noexcept : alive_(other.alive_) { ++*alive_; }
+    counted_result& operator=(counted_result&&) = delete;
+    ~counted_result() { --*alive_; }
+
+private:
+    std::atomic<int>* alive_;
+};
+
+/// Takes back, without resuming anybody, everything sent before it: an operation given up
+/// and left to finish alone is deleted as it comes back, ahead of it.
+void take_back_what_was_sent() {
+    task<> fence = sta_loop::async_call([] {});
+    sta_loop::run_until([&] { return fence.done(); });
+}
+
+}  // namespace
+
+// A lambda on the worker cannot be cut short: told while it runs, it finishes, and the
+// co_await ends with what it made.
+TEST(CancellationTest, ABodyOnTheWorkerToldWhileItRunsAnswersWhatItMade) {
+    hevent started{true}, gate{true};
+    cancellation_source stop;
+
+    task<int> made = cancellation_detail::call_under(
+        [&started, &gate] {
+            started.set();
+            gate.wait();
+            return 7;
+        },
+        stop.token());
+
+    started.wait();
+    stop.cancel();
+    gate.set();
+
+    sta_loop::run_until([&] { return made.done(); });
+
+    EXPECT_EQ(answer_of(made), "value 7");
+}
+
+// An orphan told while it stands in a call has that call cut short, and answers what the
+// call did: cut short, it fails as a call to the system cut short does, and the co_await
+// ends with the cancellation; done first, its value is the answer.
+TEST(CancellationTest, AnOrphanToldWhileItRunsAnswersWhatHappenedToItsCall) {
+    for (const bool cut : {true, false}) {
+        SCOPED_TRACE(cut ? "its call cut short" : "its call done first");
+
+        hevent started{true}, gate{true};
+        bool saw_it_told = false;
+        cancellation_source stop;
+
+        task<int> reading = cancellation_detail::call_under(
+            orphanable,
+            [&started, &gate, &saw_it_told, cut](const orphan_stage& stage) -> int {
+                started.set();
+
+                // Stands for the call to the system the telling cuts short.
+                gate.wait();
+
+                saw_it_told = stage.cut_short();
+
+                if (cut) throw system_exception("ReadFile", ERROR_OPERATION_ABORTED);
+
+                return 1;
+            },
+            stop.token());
+
+        started.wait();
+        stop.cancel();
+        gate.set();
+
+        sta_loop::run_until([&] { return reading.done(); });
+
+        EXPECT_TRUE(saw_it_told);
+        EXPECT_EQ(answer_of(reading), cut ? "cancelled" : "value 1");
+    }
+}
+
+// A failure of the body's own stays its answer, request or no request: the lambda on the
+// worker and the orphan both end with what they threw.
+TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerAfterTheRequest) {
+    {
+        hevent started{true}, gate{true};
+        cancellation_source stop;
+
+        task<int> failing = cancellation_detail::call_under(
+            [&started, &gate]() -> int {
+                started.set();
+                gate.wait();
+                throw std::runtime_error("its own");
+            },
+            stop.token());
+
+        started.wait();
+        stop.cancel();
+        gate.set();
+
+        sta_loop::run_until([&] { return failing.done(); });
+
+        EXPECT_EQ(answer_of(failing), "its own");
+    }
+
+    hevent started{true}, gate{true};
+    cancellation_source stop;
+
+    task<int> refused = cancellation_detail::call_under(
+        orphanable,
+        [&started, &gate]() -> int {
+            started.set();
+            gate.wait();
+            throw system_exception("CreateFileW", ERROR_ACCESS_DENIED);
+        },
+        stop.token());
+
+    started.wait();
+    stop.cancel();
+    gate.set();
+
+    sta_loop::run_until([&] { return refused.done(); });
+
+    EXPECT_EQ(answer_of(refused), std::format("system error {}", int{ERROR_ACCESS_DENIED}));
+}
+
+// An orphan told keeps what it makes for its co_await; given up afterwards, it lets go of it
+// as any orphan given up does -- on the thread that makes it, as soon as it is made, and
+// not when the loop meets the operation in the return channel.
+TEST(CancellationTest, AnOrphanToldAndThenGivenUpLetsGoOfWhatItMakesAtOnce) {
+    hevent started{true}, gate{true};
+    std::atomic<int> alive{0};
+    std::atomic<bool> made{false};
+    cancellation_source stop;
+
+    {
+        auto making = cancellation_detail::call_under(
+            orphanable,
+            [&started, &gate, &alive, &made] {
+                started.set();
+                gate.wait();
+
+                counted_result result(alive);
+                made = true;
+                return result;
+            },
+            stop.token());
+
+        started.wait();
+        stop.cancel();
+    }
+
+    gate.set();
+
+    // Bounded rather than waited for: a result that stays would stay until the loop runs,
+    // and the loop is not run here.
+    for (int i = 0; i < 2000 && !(made && alive == 0); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    EXPECT_TRUE(made);
+    EXPECT_EQ(alive, 0) << "what an orphan given up made stays until it comes back";
+
+    take_back_what_was_sent();
     EXPECT_EQ(alive, 0);
 }
 

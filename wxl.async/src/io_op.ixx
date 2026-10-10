@@ -68,8 +68,8 @@ public:
 #endif
 
 protected:
-    /// Started on the worker, the operation may have been given up while it stood in
-    /// the queue, by a thread that found nothing to cancel yet. So the flag is read
+    /// Started on the worker, the operation may have been given up or told while it stood
+    /// in the queue, by a thread that found nothing to cancel yet. So the flag is read
     /// again once the kernel has the operation: whichever of the two came second sees
     /// the other.
     bool execute() override;
@@ -89,7 +89,8 @@ private:
     ///         the call brought all it was asked for; less is the end of the file.
     bool advance(DWORD transferred) noexcept;
 
-    /// Ends the operation: with what has been transferred, or with the error.
+    /// Ends the operation: with what has been transferred, or with the error -- and, cut
+    /// short, with the cancellation.
     void finish(DWORD error) noexcept;
 
     OVERLAPPED overlapped_{};
