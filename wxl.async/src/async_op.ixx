@@ -283,10 +283,11 @@ private:
     template <class R>
     friend class async_op_t;
 
-    std::exception_ptr error_;
-
-    // The flags of the STA thread, side by side, so that one store makes them; the one
-    // the worker reads comes last.
+    // The flags lie between the waiter's word and the exception. A constructor zeroes all
+    // three, and a compiler may make the flags' few bytes with one word-wide store that
+    // reaches into a neighbour; the exception, read at every co_await, is then not the
+    // one it reaches into. A read spanning two stores still in flight is not forwarded
+    // and waits for both: clang, the other way round, paid 3 ns a co_await for it.
 
     /// The result is here: taken out of the return channel, or the coroutine has ended.
     bool ready_ = false;
@@ -303,6 +304,8 @@ private:
     /// Written by the STA thread, read by the worker before the body: the one field
     /// of the operation both threads touch while it is out, hence atomic.
     std::atomic<bool> canceled_{false};
+
+    std::exception_ptr error_;
 };
 
 /// What a task of R waits for: a producer with a result of type R -- the value the body
