@@ -5,11 +5,12 @@ module;
 export module wxl.async:sta_loop;
 
 import :async_op;
-import :awaitable;
+import :cancellation;
 import :io_op;
 import :io_port;
 import :spsc_channel;
 import :thread_group;
+import :task;
 import :threaded_component;
 import wxl.core;
 import std;
@@ -26,7 +27,7 @@ export namespace wxl::async {
 /// so all the callback may do is arrange, by whatever its dispatcher offers,
 /// for run_pending() to be called back on the STA thread.
 ///
-/// And one moment when even a driven thread has to sleep here: an awaitable giving up
+/// And one moment when even a driven thread has to sleep here: a task giving up
 /// its operation waits, in a destructor, until the worker has let go of it. The thread
 /// cannot return to its dispatcher from there, so for the length of that wait hold()
 /// has every handover set the event as well, and the waiter sleeps on it in
@@ -107,6 +108,14 @@ private:
     std::atomic<bool> held_{false};
 };
 
+namespace cancellation_detail {
+
+/// Hands an orphanable operation to the loop the way async_call(orphanable, fn) does, for
+/// call_under(orphanable, fn, stop), which makes the operation itself. Defined after the loop.
+void send_orphan(async_op& op);
+
+}  // namespace cancellation_detail
+
 /// The two threads an asynchronous operation lives between, and the loop that
 /// drives them.
 ///
@@ -137,7 +146,7 @@ private:
 /// of its tests rather than once per test.
 ///
 /// **An operation given up while out is waited for, not resumed around.** When its
-/// awaitable goes away first (`async_op::abandon`), the STA thread waits in place --
+/// task goes away first (`async_op::abandon`), the STA thread waits in place --
 /// looking ahead in the return channel, never taking anything out of it, never
 /// resuming anybody, because it may be in the middle of unwinding and a coroutine
 /// resumed from there could throw into it. Giving up is the exception's path and pays
@@ -214,6 +223,7 @@ class sta_loop
     static inline std::optional<worker> worker_;
 
     friend class async_op;
+    friend void cancellation_detail::send_orphan(async_op& op);
 
     /// What async_op::abandon() asks of the loop, in sta_loop.cpp: the look into the
     /// return channel, the wait in place, and the tidying after it. wait_until_back()
@@ -388,10 +398,10 @@ public:
     /// file's overlapped operations are told to finish.
     inline static io_port& port() noexcept { return to_worker_.wakeup(); }
 
-    /// Starts an operation whose body is a lambda and returns what the coroutine
+    /// Starts an operation whose body is a lambda and returns the task the coroutine
     /// awaits.
     ///
-    /// The operation is sent before the awaitable exists -- and so, in principle,
+    /// The operation is sent before the task exists -- and so, in principle,
     /// before there is a coroutine to name. That is safe for one reason only: the
     /// thread that would resume the coroutine is the STA thread, and it is here,
     /// inside this call, and cannot be in run_one() at the same time.
@@ -403,8 +413,13 @@ public:
     /// an awaiter in the frame can only send once its address is final, and the
     /// variant that does so measured 20 ns more per operation on the floor, not
     /// less (sta_loop_benchmark.cpp, "in the frame"), against 2 ns for the block.
+    ///
+    /// The body is the application's code, and so is its answer to a cancellation: a
+    /// coroutine given a token asks it itself, before the call and after the co_await. The
+    /// body on the worker does not read the token -- its state is the STA thread's, and the
+    /// flag in it is not atomic.
     template <class Fn>
-    [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> async_call(Fn&& fn) {
+    [[nodiscard]] static task<std::invoke_result_t<std::decay_t<Fn>&>> async_call(Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
 
         // Held as the base on the way in: async_run() deduces its result type
@@ -424,8 +439,10 @@ public:
     /// Under start_dispatched() it runs on the system's thread pool and not on the
     /// worker: what is orphanable here is what goes by a name -- opening a file,
     /// making a directory -- and may take the system as long as it likes.
+    ///
+    /// A cancellation is the coroutine's to ask about, as with the form above.
     template <class Fn>
-    [[nodiscard]] static awaitable<orphan_result_t<std::decay_t<Fn>>> async_call(
+    [[nodiscard]] static task<orphan_result_t<std::decay_t<Fn>>> async_call(
         orphanable_t, Fn&& fn) {
         using result_t = orphan_result_t<std::decay_t<Fn>>;
 
@@ -434,7 +451,7 @@ public:
 
         shape_->send_orphan(*op);
 
-        return awaitable<result_t>(std::move(op));
+        return task<result_t>(std::move(op));
     }
 
     /// The same for an operation written out as a class of its own: whoever
@@ -443,12 +460,12 @@ public:
     /// derives from `async_op_t<R>` and starts it here.
     ///
     /// Ownership moves: from this call on, the operation belongs to the
-    /// awaitable, which lives in the frame of the coroutine that awaits it.
+    /// task, which lives in the frame of the coroutine that awaits it.
     template <class R>
-    [[nodiscard]] static awaitable<R> async_run(std::unique_ptr<async_op_t<R>> op) {
+    [[nodiscard]] static task<R> async_run(std::unique_ptr<async_op_t<R>> op) {
         enqueue(core::as_not_null<async_op>(op.get()));
 
-        return awaitable<R>(std::move(op));
+        return task<R>(std::move(op));
     }
 
     /// Starts an overlapped operation here, on the STA thread, without the trip to the
@@ -458,7 +475,7 @@ public:
     ///
     /// Only for what is known not to hold the calling thread. The rest goes through
     /// async_run(), and is started on the worker.
-    [[nodiscard]] inline static awaitable<std::size_t> async_start(std::unique_ptr<io_op> op) {
+    [[nodiscard]] inline static task<std::size_t> async_start(std::unique_ptr<io_op> op) {
         // A completion with no worker to take it would never arrive; enqueue() fails the
         // same way, through send().
         assert(running() && "sta_loop: the loop is not running");
@@ -468,14 +485,17 @@ public:
         else
             ++outstanding_;
 
-        return awaitable<std::size_t>(std::move(op));
+        return task<std::size_t>(std::move(op));
     }
 
     /// Runs the body here, on the STA thread, and returns it already delivered: for a
     /// call short enough not to be worth a trip, which still answers through a
     /// co_await and still fails there.
+    ///
+    /// The body is the application's code: a coroutine given a token asks it itself,
+    /// before the call and after the co_await.
     template <class Fn>
-    [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> call_here(Fn&& fn) {
+    [[nodiscard]] static task<std::invoke_result_t<std::decay_t<Fn>&>> call_here(Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
 
         std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
@@ -484,7 +504,7 @@ public:
         op->packaged_execute();
         op->deliver_here();
 
-        return awaitable<result_t>(std::move(op));
+        return task<result_t>(std::move(op));
     }
 
     /// Takes one finished operation and gives control back to the coroutine that
@@ -597,5 +617,84 @@ private:
         return true;
     }
 };
+
+namespace cancellation_detail {
+
+inline void send_orphan(async_op& op) { sta_loop::shape_->send_orphan(op); }
+
+// The loop's calls in their form with a token, for the operations of wxl itself --
+// async_file, async_directory -- whose bodies are known to be safe to break off. The
+// operation stands under `stop` while it lives (`operation_under`): cancelled, the token asks
+// it to stop at once. The cancellation is the answer of one cut short or never started -- one
+// the worker has not reached never runs -- and one that got there first answers what it made:
+// a lambda on the worker cannot be cut short, and finishes. Either way the co_await ends once
+// nothing writes into the frame any more. Under a token cancelled already nothing is made, and
+// the task answers the cancellation at once; under one with no source each is its form
+// without a token.
+//
+// wxl puts no body of the application's under a token: some work must not be broken off
+// halfway, and only the code that wrote it knows which. The application's coroutine asks its
+// token itself.
+
+/// What a form with a token returns under a token cancelled already: nothing is made that
+/// does work, and the task answers the cancellation at once.
+template <class R>
+[[nodiscard]] task<R> canceled() {
+    return sta_loop::call_here([]() -> R { throw operation_canceled_exception(); });
+}
+
+/// sta_loop::async_call() under a token.
+template <class Fn>
+[[nodiscard]] task<std::invoke_result_t<std::decay_t<Fn>&>> call_under(Fn&& fn,
+                                                                    cancellation_token stop) {
+    using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
+
+    if (!state_of(stop)) return sta_loop::async_call(std::forward<Fn>(fn));
+    if (stop.is_canceled()) return canceled<result_t>();
+
+    std::unique_ptr<async_op_t<result_t>> op(
+        new operation_under<async_op_f<std::decay_t<Fn>>>(std::move(stop), std::forward<Fn>(fn)));
+
+    return sta_loop::async_run(std::move(op));
+}
+
+/// The orphanable sta_loop::async_call() under a token: cancelled, the token cuts the body
+/// short as giving it up does -- one not started is not, one standing in a call to the system
+/// has that call cut short -- but keeps it, and the co_await ends as soon as the body has let
+/// go: with the cancellation if it was cut short or never started, and with what it made if it
+/// finished first.
+template <class Fn>
+[[nodiscard]] task<orphan_result_t<std::decay_t<Fn>>> call_under(orphanable_t, Fn&& fn,
+                                                                  cancellation_token stop) {
+    using result_t = orphan_result_t<std::decay_t<Fn>>;
+
+    if (!state_of(stop)) return sta_loop::async_call(orphanable, std::forward<Fn>(fn));
+    if (stop.is_canceled()) return canceled<result_t>();
+
+    std::unique_ptr<async_op_t<result_t>> op(
+        new operation_under<orphan_op_f<std::decay_t<Fn>>>(std::move(stop), std::forward<Fn>(fn)));
+
+    send_orphan(*op);
+
+    return task<result_t>(std::move(op));
+}
+
+/// sta_loop::async_run() under a token: `Op` is made here out of `args`, standing under `stop`
+/// while it lives. The token comes first, ahead of whatever the operation is made of.
+template <class Op, class... Args>
+[[nodiscard]] task<typename Op::result_type> run_under(cancellation_token stop, Args&&... args) {
+    using result_t = typename Op::result_type;
+
+    if (!state_of(stop))
+        return sta_loop::async_run(
+            std::unique_ptr<async_op_t<result_t>>(new Op(std::forward<Args>(args)...)));
+
+    if (stop.is_canceled()) return canceled<result_t>();
+
+    return sta_loop::async_run(std::unique_ptr<async_op_t<result_t>>(
+        new operation_under<Op>(std::move(stop), std::forward<Args>(args)...)));
+}
+
+}  // namespace cancellation_detail
 
 }  // export namespace wxl::async

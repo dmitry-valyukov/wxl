@@ -1,6 +1,6 @@
 // What a co_await of one task from another costs on the path with no error, and what
-// cancellation by request adds to it -- the token passed as an argument and named at
-// the wait.
+// cancellation by request adds to it -- the token passed as an argument, asked by the
+// coroutine itself or handed to an operation of this module in its form with a token.
 //
 // One thread, no loop: a wait that stands for an operation is resumed by hand, so what
 // is timed is the coroutines and nothing under them. Every row does n iterations of the
@@ -12,14 +12,14 @@
 //   three links       co_await of a task that co_awaits one that co_awaits the pause.
 //
 // Each shape is timed plain and under a token: the token is an argument copied into
-// every frame of the chain, and the pause is `co_await cancellable(...)`, a wait that
-// stands on the token's list while it is suspended. Nothing is cancelled: this is what
-// asking costs those that are never asked.
+// every frame of the chain, and the pause -- an awaiter of the application's own, which
+// wxl does not reach -- is followed by the coroutine asking the token itself. Nothing is
+// cancelled: this is what asking costs those that are never asked.
 //
-// And one operation of this module's kind -- an async_op behind an awaitable, which the
-// loop would resume and here a hand does (`come_back()`) -- awaited in its three forms:
-// plain; the form with a token, `co_await read(..., stop)`, which the operations that
-// can be cut short have; and `co_await cancellable(read(...), stop)`.
+// And one operation of this module's kind -- an async_op behind a task, which the
+// loop would resume and here a hand does (`come_back()`) -- awaited in its two forms:
+// plain, and the form with a token, `co_await read(..., stop)`, which the operations
+// that can be cut short have: the operation stands in the token's event while it lives.
 //
 // The callees are noinline: a frame whose whole life the caller can see is elided onto
 // the stack, and a benchmark of an elided frame measures nothing (see
@@ -41,11 +41,6 @@ struct parked {
     void await_resume() const noexcept {}
 };
 
-/// The same wait, one a token can reach -- as an operation of this module can be.
-struct parked_cancellable : parked {
-    void cancel() noexcept {}
-};
-
 __declspec(noinline) task<int> at_once(int i) {
     co_return i;
 }
@@ -55,13 +50,14 @@ __declspec(noinline) task<int> at_once_with(int i, cancellation_token) {
 }
 
 __declspec(noinline) task<int> after_a_pause(std::coroutine_handle<>* slot, int i) {
-    co_await parked_cancellable{{slot}};
+    co_await parked{slot};
     co_return i;
 }
 
 __declspec(noinline) task<int> after_a_pause_under(std::coroutine_handle<>* slot, int i,
                                                   cancellation_token stop) {
-    co_await cancellable(parked_cancellable{{slot}}, stop);
+    co_await parked{slot};
+    stop.throw_if_canceled();
     co_return i;
 }
 
@@ -132,15 +128,18 @@ protected:
     bool execute() override { return true; }
 };
 
-awaitable<int> handed(handed_op*& slot, int i) {
+task<int> handed(handed_op*& slot, int i) {
     auto* const op = new handed_op(i);
     slot = op;
-    return awaitable<int>(std::unique_ptr<async_op_t<int>>(op));
+    return task<int>(std::unique_ptr<async_op_t<int>>(op));
 }
 
-/// The form with a token, as the operations of async_file have it.
-cancellable_awaitable<int> handed(handed_op*& slot, int i, cancellation_token stop) {
-    return cancellable_awaitable<int>(std::move(stop), [&] { return handed(slot, i); });
+/// The form with a token, as the operations of async_file have it: the same operation,
+/// standing under the token while it lives.
+task<int> handed(handed_op*& slot, int i, cancellation_token stop) {
+    auto* const op = new cancellation_detail::operation_under<handed_op>(std::move(stop), i);
+    slot = op;
+    return task<int>(std::unique_ptr<async_op_t<int>>(op));
 }
 
 __declspec(noinline) task<long long> loop_op(handed_op** slot, int n) {
@@ -152,12 +151,6 @@ __declspec(noinline) task<long long> loop_op(handed_op** slot, int n) {
 __declspec(noinline) task<long long> loop_op_with(handed_op** slot, int n, cancellation_token stop) {
     long long sum = 0;
     for (int i = 0; i < n; ++i) sum += co_await handed(*slot, i, stop);
-    co_return sum;
-}
-
-__declspec(noinline) task<long long> loop_op_cancellable(handed_op** slot, int n, cancellation_token stop) {
-    long long sum = 0;
-    for (int i = 0; i < n; ++i) sum += co_await cancellable(handed(*slot, i), stop);
     co_return sum;
 }
 
@@ -233,6 +226,4 @@ int main() {
     const double plain = best_of_ops([](handed_op** slot) { return loop_op(slot, iterations); });
 
     row("its own form", plain, best_of_ops([&](handed_op** slot) { return loop_op_with(slot, iterations, token); }));
-    row("cancellable()", plain,
-        best_of_ops([&](handed_op** slot) { return loop_op_cancellable(slot, iterations, token); }));
 }

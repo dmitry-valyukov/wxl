@@ -2,9 +2,9 @@ module;
 
 export module wxl.async:async_directory;
 
-import :awaitable;
 import :cancellation;
 import :sta_loop;
+import :task;
 import wxl.core;
 import std;
 
@@ -22,9 +22,11 @@ export namespace wxl::async {
 /// and are orphanable; next() and close() borrow this object.
 ///
 /// And the same second form under a `cancellation_token`, its last argument, for all
-/// of them but close(): an operation not started is never started, one standing in the
-/// system is cut short where the system allows, and the co_await ends with
-/// operation_canceled_exception once nothing writes into the frame any more.
+/// of them but close(): asked, an operation not started is never started, and one standing
+/// in the system is cut short where the system allows. The cancellation is the answer of
+/// one cut short or never started -- a listing stopped halfway is no answer -- and one
+/// that got there first answers with what it made; the co_await ends once nothing writes
+/// into the frame any more.
 ///
 /// A listing is worth having asynchronous even more than a file is. A directory
 /// on a network share, or one with tens of thousands of names in it, keeps
@@ -56,7 +58,7 @@ public:
     ///        nothing once the statement that started the coroutine has ended,
     ///        and the worker is already holding it by then.
     /// \throw system_exception at the co_await if there is nothing to enumerate.
-    static awaitable<async_directory> open(const core::path& pattern);
+    static task<async_directory> open(const core::path& pattern);
 
     /// Everything the pattern matches, at once, in one operation that owns its
     /// result -- orphanable, one round trip, for the folder a reader adds to its
@@ -68,23 +70,23 @@ public:
     ///
     /// \throw system_exception at the co_await if there is no such directory,
     ///        or it could not be read.
-    [[nodiscard]] static awaitable<std::vector<listed_entry>> list(const core::path& pattern);
+    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern);
 
     /// The next name, or nothing when the listing is over.
     ///
     /// The name inside is a view into this object -- which lives in the
     /// coroutine frame -- and it is good until the next co_await of next(), the
     /// same rule the synchronous listing has.
-    [[nodiscard]] awaitable<std::optional<entry>> next();
+    [[nodiscard]] task<std::optional<entry>> next();
 
     /// Closes on the worker thread. Not required -- the object closes itself
     /// when it dies -- but that death happens on the STA thread.
-    [[nodiscard]] awaitable<void> close();
+    [[nodiscard]] task<> close();
 
     inline bool opened() const noexcept { return directory_.opened(); }
 
     /// \return whether there is a directory at this path.
-    [[nodiscard]] static awaitable<bool> exists(const core::path& path);
+    [[nodiscard]] static task<bool> exists(const core::path& path);
 
     /// Makes the whole chain of directories.
     ///
@@ -94,42 +96,35 @@ public:
     /// rather than anything the caller can see.
     ///
     /// \throw system_exception at the co_await if the chain could not be made.
-    [[nodiscard]] static awaitable<void> create_all(const core::path& p);
+    [[nodiscard]] static task<> create_all(const core::path& p);
 
     /// Removes an empty directory.
     /// \throw system_exception at the co_await if it could not be removed.
-    [[nodiscard]] static awaitable<void> remove(const core::path& path);
+    [[nodiscard]] static task<> remove(const core::path& path);
 
-    /// The operations above under a token, its last argument.
+    /// The operations above under a token, its last argument: the operation stands under
+    /// the token while it lives, and under a token cancelled already nothing is started.
+    /// Each returns the same task as its form without a token.
     ///@{
-    static cancellable_awaitable<async_directory> open(const core::path& pattern, cancellation_token stop) {
-        return cancellable_awaitable<async_directory>(std::move(stop), [&] { return open(pattern); });
-    }
+    static task<async_directory> open(const core::path& pattern, cancellation_token stop);
 
-    static cancellable_awaitable<std::vector<listed_entry>> list(const core::path& pattern,
-                                                                 cancellation_token stop) {
-        return cancellable_awaitable<std::vector<listed_entry>>(std::move(stop), [&] { return list(pattern); });
-    }
+    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern, cancellation_token stop);
 
-    cancellable_awaitable<std::optional<entry>> next(cancellation_token stop) {
-        return cancellable_awaitable<std::optional<entry>>(std::move(stop), [&] { return next(); });
-    }
+    [[nodiscard]] task<std::optional<entry>> next(cancellation_token stop);
 
-    static cancellable_awaitable<bool> exists(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<bool>(std::move(stop), [&] { return exists(path); });
-    }
+    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token stop);
 
-    static cancellable_awaitable<void> create_all(const core::path& p, cancellation_token stop) {
-        return cancellable_awaitable<void>(std::move(stop), [&] { return create_all(p); });
-    }
+    [[nodiscard]] static task<> create_all(const core::path& p, cancellation_token stop);
 
-    static cancellable_awaitable<void> remove(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<void>(std::move(stop), [&] { return remove(path); });
-    }
+    [[nodiscard]] static task<> remove(const core::path& path, cancellation_token stop);
     ///@}
 
 private:
     inline explicit async_directory(core::directory&& opened) : directory_(std::move(opened)) {}
+
+    /// The bodies the two forms of open() and next() share (async_directory.cpp).
+    static auto opening(const core::path& pattern);
+    auto next_entry();
 
     core::directory directory_;
 };

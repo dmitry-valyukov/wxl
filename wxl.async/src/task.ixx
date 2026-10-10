@@ -4,63 +4,19 @@ module;
 
 export module wxl.async:task;
 
+import :async_op;
 import :coroutine_checks;
 import wxl.core;
 import std;
 
 export namespace wxl::async {
 
-template <class T = void>
+template <class R = void>
 class task;
 
 namespace task_detail {
 
 using coro_detail::site;
-
-/// The coroutine awaiting a task, in one word. The handle's address is that of a frame,
-/// which starts with pointers, so its two lowest bits are free; where the checks are
-/// compiled in they say whether the waiter stands in a join_awaiter and whether the
-/// task's own body is on the stack. Without the checks the bits are never set, and the
-/// word is the handle and nothing else -- kept as a pointer, as the handle keeps it, so
-/// that the compiler treats it the same.
-class continuation_word
-{
-public:
-    /// Whom final_suspend hands the thread to: the waiter, or nobody.
-    inline std::coroutine_handle<> next() const noexcept {
-        const std::uintptr_t handle = bits() & ~flags;
-        return handle ? std::coroutine_handle<>::from_address(reinterpret_cast<void*>(handle))
-                      : std::noop_coroutine();
-    }
-
-    inline bool waited() const noexcept { return (bits() & ~flags) != 0; }
-    inline bool joined() const noexcept { return (bits() & joined_bit) != 0; }
-    inline bool running() const noexcept { return (bits() & running_bit) != 0; }
-
-    /// The waiter parks; the body's own bit stays as it is.
-    inline void park(std::coroutine_handle<> waiter, bool by_join) noexcept {
-        set((bits() & running_bit) | reinterpret_cast<std::uintptr_t>(waiter.address()) |
-            (by_join ? joined_bit : 0));
-    }
-
-    /// The waiter leaves; the body's own bit stays as it is.
-    inline void clear() noexcept { set(bits() & running_bit); }
-
-    inline void set_running(bool running) noexcept {
-        if constexpr (coro_detail::checked) set(running ? bits() | running_bit : bits() & ~running_bit);
-    }
-
-private:
-    static constexpr std::uintptr_t joined_bit = coro_detail::checked ? 1 : 0;
-    static constexpr std::uintptr_t running_bit = coro_detail::checked ? 2 : 0;
-    static constexpr std::uintptr_t flags = joined_bit | running_bit;
-
-    inline std::uintptr_t bits() const noexcept { return reinterpret_cast<std::uintptr_t>(word_); }
-    inline void set(std::uintptr_t bits) noexcept { word_ = reinterpret_cast<void*>(bits); }
-
-    /// Set at birth: initial_suspend does not suspend, so the body starts on the stack.
-    void* word_ = reinterpret_cast<void*>(running_bit);
-};
 
 /// The awaiter co_await would use for an awaitable: what a member operator
 /// co_await returns, else what a free one returns, else the awaitable itself,
@@ -133,34 +89,48 @@ private:
 
 /// What only a build that checks gives a task's promise: await_transform, through
 /// which every co_await of the body passes. It is a base, not a constrained member,
-/// because the compiler calls await_transform whenever the name is there at all.
-template <class Promise, bool = coro_detail::checked>
-struct body_tracking {};
+/// because the compiler calls await_transform whenever the name is there at all; and a
+/// link of the chain the promise derives through rather than a second base, so that it
+/// takes no room in any compiler's layout.
+template <class Base, bool = coro_detail::checked>
+struct body_tracking : Base {};
 
-template <class Promise>
-struct body_tracking<Promise, true> {
+template <class Base>
+struct body_tracking<Base, true> : Base {
     template <class Awaitable>
     inline auto await_transform(Awaitable&& awaitable) {
         return tracked_awaiter<decltype(awaiter_of(std::forward<Awaitable>(awaitable)))>(
-            static_cast<Promise&>(*this).continuation, std::forward<Awaitable>(awaitable));
+            this->continuation, std::forward<Awaitable>(awaitable));
     }
 };
 
-/// What every task's promise has in common: the frame from the pool, the
-/// start on the calling thread, the exception kept for whoever reads the
-/// task, and the way out -- which hands the thread to the coroutine awaiting
-/// this one, if there is one.
-struct promise_base : body_tracking<promise_base> {
-    /// The frame, from the pool. The sized form of the deallocation is the one
-    /// the compiler calls for a coroutine frame, so the pool gets back the very
-    /// size it handed out and never has to be asked to remember it.
-    inline static void* operator new(std::size_t size) {
-        return core::sta_memory_pool::alloc(size);
-    }
+/// How the coroutine of a task gives its result back: with a value, or without one.
+template <class R>
+struct promise_returns : async_op_t<R> {
+    /// By value rather than by forwarding reference: `co_return {}` and
+    /// `co_return name_of_a_local` both have to work, and the move this costs an
+    /// rvalue is nothing next to the operation the coroutine just awaited.
+    inline void return_value(R value) { this->set_value(std::move(value)); }
+};
 
-    inline static void operator delete(void* mem, std::size_t size) noexcept {
-        core::sta_memory_pool::free(mem, size);
-    }
+template <>
+struct promise_returns<void> : async_op_t<void> {
+    inline void return_void() const noexcept {}
+};
+
+/// The promise of a task's coroutine: the producer of a result that is not carried out
+/// elsewhere, so the co_await of a task reads it exactly as it reads an operation. The
+/// frame comes from the pool (the allocation functions are async_op's), the body starts on
+/// the calling thread, an exception is kept for whoever reads the task, and the end hands
+/// the thread to the coroutine awaiting this one, if there is one.
+template <class R>
+class promise : public body_tracking<promise_returns<R>>
+{
+public:
+    /// Set at birth: initial_suspend does not suspend, so the body starts on the stack.
+    inline promise() noexcept { this->continuation.set_running(true); }
+
+    task<R> get_return_object() noexcept;
 
     inline std::suspend_never initial_suspend() const noexcept { return {}; }
 
@@ -180,83 +150,48 @@ struct promise_base : body_tracking<promise_base> {
             inline void await_resume() const noexcept {}
         };
 
-        continuation.set_running(false);
-        return handover{continuation.next()};
+        this->deliver_here();
+        this->continuation.set_running(false);
+        return handover{this->continuation.next()};
     }
 
-    inline void unhandled_exception() noexcept { error = std::current_exception(); }
+    inline void unhandled_exception() noexcept { this->set_error(std::current_exception()); }
 
-    inline void rethrow() const {
-        if (error) std::rethrow_exception(error);
+    /// The owner lets go: the frame is destroyed, its locals and the awaiter it stands in
+    /// with it, and nothing else happens -- nobody is resumed, and no result is taken.
+    inline void release() override {
+        std::coroutine_handle<promise>::from_promise(*this).destroy();
     }
 
-    /// The coroutine awaiting this one, parked by the awaiter's await_suspend;
-    /// empty while nobody is. One at most: a task is awaited once at a time.
-    continuation_word continuation;
-    std::exception_ptr error;
+protected:
+    /// Never called: a coroutine is not sent anywhere, its body runs where it is resumed.
+    inline bool execute() override { return true; }
 };
 
-template <class T>
-struct value_promise : promise_base {
-    task<T> get_return_object();
-
-    /// By value rather than by forwarding reference: `co_return {}` and
-    /// `co_return name_of_a_local` both have to work, and the move this costs an
-    /// rvalue is nothing next to the operation the coroutine just awaited.
-    inline void return_value(T value) { result.emplace(std::move(value)); }
-
-    /// The value, moved out, or what left the coroutine. The value goes once:
-    /// a build that checks empties the optional behind it, so a second read fails
-    /// the check instead of handing over a moved-from value. The exception stays.
-    inline T take_result([[maybe_unused]] site where) {
-        rethrow();
-        coro_check(result.has_value(), "task: the value has already been taken", where);
-
-        if constexpr (coro_detail::checked) {
-            T taken = std::move(*result);
-            result.reset();
-            return taken;
-        } else {
-            return std::move(*result);
-        }
-    }
-
-    std::optional<T> result;
-};
-
-struct void_promise : promise_base {
-    task<void> get_return_object();
-
-    inline void return_void() const noexcept {}
-
-    /// Nothing is moved out, so asking again is asking again: what left the
-    /// coroutine is thrown each time.
-    inline void take_result(site) const { rethrow(); }
-};
-
-/// What a coroutine awaiting a task stands in: the task's handle. It parks
-/// the awaiting coroutine for final_suspend to hand the thread to, and reads
-/// the result once the thread comes back.
+/// What a coroutine awaiting a task stands in: the producer of the task's result. It
+/// parks the awaiting coroutine for whoever makes the result to wake -- the loop that
+/// takes an operation back, the end of a coroutine -- and reads the result once the
+/// thread comes back. The same few instructions whatever the producer is.
 ///
 /// For the task a call has just returned this is the task itself, its public
 /// base: the temporary lives in the awaiting frame and goes with it, so the
-/// handle it already holds is all the wait needs and nothing has to be taken
+/// producer it already holds is all the wait needs and nothing has to be taken
 /// back on the way out. A task kept elsewhere is awaited through a
 /// join_awaiter instead.
 ///
 /// The awaiting coroutine has to be on the task's own thread -- the thread of
-/// the pool its frame came from, the one thread there is. A build that checks
+/// the pool its producer came from, the one thread there is. A build that checks
 /// makes sure.
 ///
 /// Each hook is declared twice, and a build has one of the two: a strict build's
 /// takes the place of the co_await as a defaulted parameter, which the compiler,
 /// calling the hook, evaluates there; any other build's has no parameter, the
 /// signature the hook always had, so that nothing new reaches the frame.
-template <class Promise>
+template <class R>
 class awaiter
 {
 public:
-    /// A task that has already ended is awaited without suspending.
+    /// A task whose result is here already is awaited without suspending.
     inline bool await_ready() const noexcept requires(!coro_detail::strict) {
         return ready(site::current());
     }
@@ -265,8 +200,8 @@ public:
         return ready(where);
     }
 
-    /// Nothing else happens: the task is already running, or suspended on an
-    /// operation that will resume it on this same thread.
+    /// Nothing else happens: the producer is already at work, and wakes the waiter on
+    /// this same thread.
     inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!coro_detail::strict) {
         park(awaiting, false, site::current());
     }
@@ -278,50 +213,50 @@ public:
     }
 
     inline decltype(auto) await_resume() requires(!coro_detail::strict) {
-        return handle_.promise().take_result(site::current());
+        return producer_->take_result(site::current());
     }
 
     inline decltype(auto) await_resume(site where = site::current()) requires(coro_detail::strict) {
-        return handle_.promise().take_result(where);
+        return producer_->take_result(where);
     }
 
 protected:
-    inline explicit awaiter(std::coroutine_handle<Promise> handle) noexcept : handle_(handle) {}
+    inline explicit awaiter(async_op_t<R>* producer) noexcept : producer_(producer) {}
 
     inline bool ready([[maybe_unused]] site where) const noexcept {
+        coro_check(producer_, "task: moved-from", where);
         coro_check(core::sta_memory_pool::is_safe(), "task: awaited from a thread other than its own", where);
-        return handle_.done();
+        return producer_->ready();
     }
 
     inline void park(std::coroutine_handle<> awaiting, bool by_join, [[maybe_unused]] site where) noexcept {
-        coro_check(!handle_.promise().continuation.waited(),
+        coro_check(!producer_->continuation.waited(),
                    "task: awaited by a second coroutine while the first one still waits", where);
-        handle_.promise().continuation.park(awaiting, by_join);
+        producer_->continuation.park(awaiting, by_join);
     }
 
-    std::coroutine_handle<Promise> handle_;
+    async_op_t<R>* producer_;
 };
 
 /// The awaiter of a task that the awaiting coroutine does not own -- one kept
 /// in a container or a field and joined there. Either of the two may go first,
-/// so the awaiting frame takes its handle back out of the task on its way out,
-/// and a task that ends after its waiter is gone hands the thread to nobody.
+/// so the awaiting frame takes its handle back out of the producer on its way out,
+/// and a result made after its waiter is gone wakes nobody.
 ///
 /// The task has to outlive the wait, as anything waited on does: one
-/// destroyed while joined would leave this writing into its frame. A build
+/// destroyed while joined would leave this writing into its producer. A build
 /// that checks marks the parked handle as a join's and catches that where the
 /// task is destroyed.
-template <class Promise>
-class join_awaiter : public awaiter<Promise>
+template <class R>
+class join_awaiter : public awaiter<R>
 {
 public:
-    inline explicit join_awaiter(std::coroutine_handle<Promise> handle) noexcept
-        : awaiter<Promise>(handle) {}
+    inline explicit join_awaiter(async_op_t<R>* producer) noexcept : awaiter<R>(producer) {}
 
     join_awaiter(const join_awaiter&) = delete;
     join_awaiter& operator=(const join_awaiter&) = delete;
 
-    inline ~join_awaiter() { this->handle_.promise().continuation.clear(); }
+    inline ~join_awaiter() { this->producer_->continuation.clear(); }
 
     inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!coro_detail::strict) {
         this->park(awaiting, true, site::current());
@@ -334,61 +269,24 @@ public:
     }
 };
 
-/// The handle and what every task does with it: owns the frame, answers
-/// done(), and lets another coroutine await it.
-template <class Promise>
-class owner : public awaiter<Promise>
-{
-public:
-    inline owner(owner&& other) noexcept
-        : awaiter<Promise>(std::exchange(other.handle_, {})) {}
-
-    inline owner& operator=(owner&& other) noexcept {
-        std::swap(this->handle_, other.handle_);
-        return *this;
-    }
-
-    /// Where a destructor is called nothing gives the line, so a check here names
-    /// its own.
-    inline ~owner() {
-        if (this->handle_) {
-            coro_check(!promise().continuation.running(),
-                       "task: destroyed while its coroutine runs -- dropped from inside its own chain",
-                       site::current());
-            coro_check(!promise().continuation.joined(), "task: destroyed while a coroutine joins it",
-                       site::current());
-            this->handle_.destroy();
-        }
-    }
-
-    /// \return `true` once the coroutine has run to its end, whether by
-    ///         reaching it or by leaving through an exception.
-    inline bool done() const noexcept { return this->handle_.done(); }
-
-    /// A task awaited as an lvalue is joined: it belongs to somebody else, and
-    /// the wait gets an awaiter of its own in the awaiting frame. Nothing here
-    /// matches an rvalue, so co_await takes that one as it stands -- its own
-    /// awaiter, with not a word added to the frame. A const one is not awaited:
-    /// waiting writes into it. The last condition keeps out whatever else
-    /// argument-dependent lookup brings here, such as an optional of a task.
-    template <class Self>
-        requires(std::is_lvalue_reference_v<Self> && !std::is_const_v<std::remove_reference_t<Self>> &&
-                 std::derived_from<std::remove_reference_t<Self>, owner>)
-    inline friend join_awaiter<Promise> operator co_await(Self&& kept) noexcept {
-        return join_awaiter<Promise>(kept.handle_);
-    }
-
-protected:
-    inline explicit owner(std::coroutine_handle<Promise> handle) noexcept
-        : awaiter<Promise>(handle) {}
-
-    inline Promise& promise() const noexcept { return this->handle_.promise(); }
-};
-
 }  // namespace task_detail
 
-/// A coroutine somebody holds: it is handed back to its caller to be kept,
-/// swept and read -- or awaited by another coroutine, which reads it for them.
+/// What a coroutine awaits, and the one thing it ever sees of asynchronous work: a
+/// result in the making, handed back to its caller to be kept, swept and read -- or
+/// awaited by another coroutine, which reads it for them. `file f = co_await
+/// async_file::open_read(path);` and `co_await load(book)` are the same co_await.
+///
+/// Two kinds of producer stand behind it, and the awaiting coroutine cannot tell them
+/// apart: an operation of this module (`async_op_t`), carried out on the worker, on the
+/// system's thread pool or here, and woken back by the loop; and a coroutine returning a
+/// task, which runs on this thread and hands the thread over at its end. Either way the
+/// co_await asks whether the result is here, parks the waiter, and takes the result.
+///
+/// Who wakes the waiter is the producer's, and each says where: an operation's waiter is
+/// resumed from inside the loop's call that takes the operation back (run_one(),
+/// run_pending()); a coroutine's, from its own end -- the co_return, or the exception on
+/// its way out -- by symmetric transfer, before the call that resumed the coroutine
+/// returns. Nothing else resumes it, so the order is the program's own.
 ///
 /// That is the whole difference from `detached_task`, which owns itself and
 /// answers to nobody. Here the caller keeps what comes back -- the Reader's
@@ -399,108 +297,129 @@ protected:
 /// says so.
 ///
 /// `task<T>` ends with a value, `task<>` without one; both end the same way.
-/// `result()` gives the value or throws what left the coroutine, and gives the
+/// `result()` gives the value or throws what left the producer, and gives the
 /// value once, moved out. `co_await` inside another coroutine does the same
 /// thing with the thread handed over instead of asked: the awaiting coroutine
-/// suspends until this one ends and is resumed there, with the value or the
-/// exception, on the thread this one ended on -- which is the one thread both
-/// belong to. A task that has already ended is awaited without suspending.
+/// suspends until the result is here and is resumed there, with the value or the
+/// exception, on the one thread both belong to. A task whose result is here
+/// already is awaited without suspending.
 ///
 /// The usual co_await is of the task a call has just returned, which lives and
 /// dies with the awaiting frame. A task kept elsewhere is joined: `co_await`
 /// of an lvalue, from any coroutine of the thread, one at a time; the waiter
 /// that goes first takes itself off. The task has to outlive the wait.
 ///
-/// It starts running the moment it is called (initial_suspend is
-/// suspend_never), on the calling thread: an asynchronous operation is created
-/// where the caller stands, and everything between two co_awaits runs there and
-/// nowhere else. What each co_await does with the work in between -- send it to
-/// another thread, or merely give the thread back to its own event loop -- is
-/// the awaitable's business, not this one's. So what sets it apart from
-/// `detached_task` is ownership, not where the work goes.
+/// It starts the moment it is made, either kind, on the calling thread: an operation
+/// is sent inside the call that starts it, and a coroutine runs until its first
+/// suspension (initial_suspend is suspend_never), so `auto a = f.read(x); auto b =
+/// g.read(y); co_await a; co_await b;` has both under way before either is waited on.
+/// What each co_await does with the work in between -- send it to another thread, or
+/// merely give the thread back to its own event loop -- is the producer's business.
 ///
-/// At the end the coroutine does not disappear (final_suspend suspends): the
-/// frame is what the owner asks done() and takes the exception from, and the
-/// only thing that happens there is the handover to a coroutine awaiting it.
-/// The frame is destroyed by the task, and what that means while the coroutine
-/// is still suspended depends on what it is suspended on.
+/// **Dropping an unfinished one takes back whatever it waits for.** An operation
+/// still out is given up (`async_op::abandon`): it is asked to cancel, and the
+/// destruction waits, on this thread, until the worker has let go of it -- as long as
+/// the operation takes to finish or be cancelled -- unless it is orphanable and may
+/// finish alone. A coroutine's frame is destroyed, its locals and the awaiter it stands
+/// in with it, and nothing else happens: nobody is resumed, and no result is ever
+/// taken. A task it was awaiting lives among those locals and goes first, so a chain is
+/// taken down from the inside out. For a wait on an event of this thread -- wxl.ui's
+/// event proxy, whose awaiter unhooks in its destructor -- that is the ordinary way such
+/// a coroutine is stopped, and the only one: an endless loop over an event has no other
+/// end. It is dropped from outside the chain: a frame that is on the stack cannot be
+/// destroyed under it, and a Debug build catches the attempt -- any build does under
+/// STRICT_CORO.
 ///
-/// **Dropping an unfinished one takes back whatever it waits for.**
-/// Destroying the frame destroys its locals and the awaiter it stands in, and
-/// nothing else happens: nobody is resumed, and no result is ever taken. A
-/// task this one was awaiting lives among those locals and goes first, so a
-/// chain is taken down from the inside out. For an awaitable that is one end
-/// of a subscription on this same thread -- wxl.ui's event proxy, whose
-/// awaiter unhooks in its destructor -- that is the ordinary way such a
-/// coroutine is stopped, and the only one: an endless loop over an event has
-/// no other end. For the asynchronous operations in this module the awaitable
-/// gives its operation up (`async_op::abandon`), and the destruction waits, on
-/// this thread, until the worker has let go of the frame -- as long as the
-/// operation takes to finish or be cancelled. It is dropped from outside the
-/// chain: a frame that is on the stack cannot be destroyed under it, and a
-/// Debug build catches the attempt -- any build does under STRICT_CORO.
-///
-/// **The frame comes from sta_memory_pool.** It is exactly what that pool is
-/// for -- a small object, made and unmade on the one thread, over and over --
-/// and it means the thread this coroutine belongs to has to be the pool's
-/// thread, with the pool built before the first coroutine and outliving the
-/// last. That is not a restriction this type adds: everything else in this
-/// scheme is allocated there too, and a coroutine on any other thread would
-/// have nowhere to put its operations anyway.
-template <class T>
+/// **Its producer comes from sta_memory_pool**, an operation and a coroutine's frame
+/// alike. It is exactly what that pool is for -- a small object, made and unmade on the
+/// one thread, over and over -- and it means the thread a task belongs to has to be the
+/// pool's thread, with the pool built before the first and outliving the last.
+template <class R>
 class [[nodiscard("a task nobody keeps is destroyed at once, and its work with it")]] task
-    : public task_detail::owner<task_detail::value_promise<T>>
+    : public task_detail::awaiter<R>
 {
-    using base = task_detail::owner<task_detail::value_promise<T>>;
-
 public:
-    using promise_type = task_detail::value_promise<T>;
+    using promise_type = task_detail::promise<R>;
+
+    /// Takes over an operation already started: what the calls of sta_loop do with the
+    /// operations they start, and what an author of an operation of their own does in the
+    /// call that starts it.
+    inline explicit task(std::unique_ptr<async_op_t<R>> started) noexcept
+        : task_detail::awaiter<R>(started.release()) {}
+
+    inline task(task&& other) noexcept
+        : task_detail::awaiter<R>(std::exchange(other.producer_, nullptr)) {}
+
+    inline task& operator=(task&& other) noexcept {
+        std::swap(this->producer_, other.producer_);
+        return *this;
+    }
+
+    /// A coroutine's frame is destroyed, its locals with it -- a task it awaits among
+    /// them, so a chain is taken down from the inside out; an operation is deleted, or
+    /// given up if it is still out. Where a destructor is called nothing gives the line,
+    /// so a check here names its own.
+    inline ~task() {
+        if (this->producer_) {
+            coro_check(!this->producer_->continuation.running(),
+                       "task: destroyed while its coroutine runs -- dropped from inside its own chain",
+                       task_detail::site::current());
+            coro_check(!this->producer_->continuation.joined(), "task: destroyed while a coroutine joins it",
+                       task_detail::site::current());
+
+            this->producer_->release();
+        }
+    }
+
+    /// \return `true` once the result is here: the coroutine has run to its end, by
+    ///         reaching it or by leaving through an exception; the loop has taken the
+    ///         operation back.
+    inline bool done() const noexcept { return this->producer_->ready(); }
 
     /// \return the value, moved out: ask once, after done().
-    /// \throw whatever left the coroutine.
+    /// \throw whatever left the producer.
     /// \param where the caller's line, for a strict build's report; left to its default.
-    inline T result(task_detail::site where = task_detail::site::current()) {
-        coro_check(this->done(), "task: result() asked before the coroutine ended", where);
-        return this->promise().take_result(where);
+    inline R result(task_detail::site where = task_detail::site::current()) requires(!std::is_void_v<R>) {
+        check_ended(where);
+        return this->producer_->take_result(where);
+    }
+
+    /// \throw whatever left the producer. Ask after done(), as often as needed.
+    /// \param where the caller's line, for a strict build's report; left to its default.
+    inline void result(task_detail::site where = task_detail::site::current()) const
+        requires(std::is_void_v<R>)
+    {
+        check_ended(where);
+        this->producer_->take_result(where);
+    }
+
+    /// A task awaited as an lvalue is joined: it belongs to somebody else, and
+    /// the wait gets an awaiter of its own in the awaiting frame. Nothing here
+    /// matches an rvalue, so co_await takes that one as it stands -- its own
+    /// awaiter, with not a word added to the frame. A const one is not awaited:
+    /// waiting writes into it. The last condition keeps out whatever else
+    /// argument-dependent lookup brings here, such as an optional of a task.
+    template <class Self>
+        requires(std::is_lvalue_reference_v<Self> && !std::is_const_v<std::remove_reference_t<Self>> &&
+                 std::derived_from<std::remove_reference_t<Self>, task>)
+    inline friend task_detail::join_awaiter<R> operator co_await(Self&& kept) noexcept {
+        return task_detail::join_awaiter<R>(kept.producer_);
     }
 
 private:
     friend promise_type;
 
-    inline explicit task(std::coroutine_handle<promise_type> handle) noexcept
-        : base(handle) {}
-};
+    inline explicit task(async_op_t<R>* producer) noexcept : task_detail::awaiter<R>(producer) {}
 
-template <>
-class [[nodiscard("a task nobody keeps is destroyed at once, and its work with it")]] task<void>
-    : public task_detail::owner<task_detail::void_promise>
-{
-    using base = task_detail::owner<task_detail::void_promise>;
-
-public:
-    using promise_type = task_detail::void_promise;
-
-    /// \throw whatever left the coroutine. Ask after done(), as often as needed.
-    /// \param where the caller's line, for a strict build's report; left to its default.
-    inline void result(task_detail::site where = task_detail::site::current()) const {
-        coro_check(this->done(), "task: result() asked before the coroutine ended", where);
-        this->promise().take_result(where);
+    inline void check_ended([[maybe_unused]] task_detail::site where) const noexcept {
+        coro_check(this->producer_, "task: moved-from", where);
+        coro_check(this->producer_->ready(), "task: result() asked before it ended", where);
     }
-
-private:
-    friend promise_type;
-
-    inline explicit task(std::coroutine_handle<promise_type> handle) noexcept
-        : base(handle) {}
 };
 
-template <class T>
-inline task<T> task_detail::value_promise<T>::get_return_object() {
-    return task<T>(std::coroutine_handle<value_promise>::from_promise(*this));
-}
-
-inline task<void> task_detail::void_promise::get_return_object() {
-    return task<void>(std::coroutine_handle<void_promise>::from_promise(*this));
+template <class R>
+inline task<R> task_detail::promise<R>::get_return_object() noexcept {
+    return task<R>(this);
 }
 
 }  // export namespace wxl::async

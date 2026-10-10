@@ -89,7 +89,7 @@ TEST(bound_items_source, says_what_changed_and_where) {
     EXPECT_EQ(value_of(wxl::impl::bound_element(bound.vector.GetAt(0))), 7);
 }
 
-TEST(bound_items_source, a_run_is_told_an_item_at_a_time) {
+TEST(bound_items_source, a_short_run_is_a_change_per_item) {
     bound_list bound{{1, 2}};
 
     bound.list.insert_range(1, std::vector<int>{5, 6, 7});

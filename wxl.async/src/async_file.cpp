@@ -17,28 +17,14 @@ async_file::async_file(core::file&& opened) : file_(std::move(opened)) {
             (info.FileAttributes & (FILE_ATTRIBUTE_COMPRESSED | FILE_ATTRIBUTE_ENCRYPTED)) != 0;
 }
 
-awaitable<async_file> async_file::open_read(const core::path& path) {
-    return sta_loop::async_call(orphanable, [path] {
-        core::file opened = core::file::open_read_overlapped(path.c_str());
+namespace {
 
-        if (!opened.opened()) throw system_exception("CreateFileW");
+// The bodies of the operations by name, each made once and handed to the form without a
+// token and to the form with one: the two differ in nothing else. The two that make the
+// object itself are members: its constructor is private.
 
-        return async_file(std::move(opened));
-    });
-}
-
-awaitable<async_file> async_file::create(const core::path& path) {
-    return sta_loop::async_call(orphanable, [path] {
-        core::file created = core::file::create_overlapped(path.c_str());
-
-        if (!created.opened()) throw system_exception("CreateFileW");
-
-        return async_file(std::move(created));
-    });
-}
-
-awaitable<std::string> async_file::read_all(const core::path& path) {
-    return sta_loop::async_call(orphanable, [path](const orphan_stage& stage) {
+auto reading_whole(const core::path& path) {
+    return [path](const orphan_stage& stage) {
         core::file source = core::file::open_read(path.c_str());
 
         if (!source.opened()) throw system_exception("CreateFileW");
@@ -49,17 +35,21 @@ awaitable<std::string> async_file::read_all(const core::path& path) {
 
         std::string bytes(static_cast<std::size_t>(*length), '\0');
 
-        // In pieces, so that a body given up between two of them leaves: the
+        // In pieces, so that a body cut short between two of them leaves: the
         // call under way is not cut short, a file read whole is not a pipe, and
-        // a piece is as long as the body is uninterruptible. The end of the file
-        // is reached early only if the file shrank since it was measured, and
-        // reaching it is the one short read that is not a failure.
+        // a piece is as long as the body is uninterruptible. A body that leaves
+        // has read part of the file, which is no answer: it answers the
+        // cancellation. The end of the file is reached early only if the file
+        // shrank since it was measured, and reaching it is the one short read
+        // that is not a failure.
         constexpr std::size_t piece = 4 * 1024 * 1024;
         std::size_t done = 0;
 
         ::SetLastError(ERROR_SUCCESS);
 
-        while (done < bytes.size() && !stage.given_up()) {
+        while (done < bytes.size()) {
+            if (stage.cut_short()) throw operation_canceled_exception();
+
             const std::size_t got = source.read(std::as_writable_bytes(
                 std::span(bytes).subspan(done, std::min(piece, bytes.size() - done))));
 
@@ -69,8 +59,6 @@ awaitable<std::string> async_file::read_all(const core::path& path) {
         }
 
         if (done < bytes.size()) {
-            if (stage.given_up()) return std::string();
-
             if (const DWORD why = ::GetLastError(); why != ERROR_SUCCESS && why != ERROR_HANDLE_EOF)
                 throw system_exception("ReadFile", static_cast<int>(why));
 
@@ -78,83 +66,175 @@ awaitable<std::string> async_file::read_all(const core::path& path) {
         }
 
         return bytes;
-    });
+    };
 }
 
-awaitable<void> async_file::write_all(const core::path& path, std::string bytes) {
+auto writing_whole(const core::path& path, std::string bytes) {
     // All three names are made here, on the thread the pool belongs to: a path
     // built inside the body would be built on whatever thread carries it.
     std::wstring temporary_name(path.native());
     temporary_name += L".tmp";
 
-    return sta_loop::async_call(
-        orphanable,
-        [target = path, temporary = core::path(std::wstring_view(temporary_name)),
-         parent = core::path(path.parent_path()),
-         bytes = std::move(bytes)](const orphan_stage& stage) mutable {
-            const auto wanted = [&stage] { return !stage.given_up(); };
+    return [target = path, temporary = core::path(std::wstring_view(temporary_name)),
+            parent = core::path(path.parent_path()),
+            bytes = std::move(bytes)](const orphan_stage& stage) mutable {
+        // Asked before every step. A body that stops before the rename has not
+        // written the file, and answers the cancellation; one past it has, and
+        // answers that, whenever the request came.
+        //
+        // create_all() answers `false` for a no and for a failure alike, so the
+        // no is remembered to tell the two apart.
+        bool stopped = false;
+        const auto wanted = [&stage, &stopped] {
+            stopped = stage.cut_short();
+            return !stopped;
+        };
 
-            core::file out = core::file::create(temporary.c_str());
+        core::file out = core::file::create(temporary.c_str());
 
-            // The directories are made only when the file could not be, and the
-            // save that finds them in place -- every save but the first -- pays
-            // for none of them.
-            if (!out.opened() && ::GetLastError() == ERROR_PATH_NOT_FOUND && !parent.empty()) {
-                if (!core::directory::create_all(parent, wanted))
-                    throw system_exception("CreateDirectoryW");
+        // The directories are made only when the file could not be, and the
+        // save that finds them in place -- every save but the first -- pays
+        // for none of them.
+        if (!out.opened() && ::GetLastError() == ERROR_PATH_NOT_FOUND && !parent.empty()) {
+            if (!core::directory::create_all(parent, wanted)) {
+                if (stopped) throw operation_canceled_exception();
 
-                if (!wanted()) return;
-
-                out = core::file::create(temporary.c_str());
+                throw system_exception("CreateDirectoryW");
             }
 
-            if (!out.opened()) throw system_exception("CreateFileW");
+            if (!wanted()) throw operation_canceled_exception();
 
-            // A temporary left behind by a body given up or failed is deleted,
-            // best effort: the next save would overwrite it anyway, and nothing
-            // reads it.
-            const auto drop = [&] {
-                out.close();
-                ::DeleteFileW(temporary.c_str());
-            };
+            out = core::file::create(temporary.c_str());
+        }
 
-            if (out.write(std::as_bytes(std::span(bytes))) != bytes.size()) {
-                const system_exception failure("WriteFile");
-                drop();
-                throw failure;
-            }
+        if (!out.opened()) throw system_exception("CreateFileW");
 
-            if (!wanted()) return drop();
-
-            // Pushed to the device before the rename: without that, a power cut
-            // could leave the rename done and the content not, and the name
-            // would point at zeroes.
-            if (!out.flush()) {
-                const system_exception failure("FlushFileBuffers");
-                drop();
-                throw failure;
-            }
-
+        // A temporary left behind by a body cut short or failed is deleted,
+        // best effort: the next save would overwrite it anyway, and nothing
+        // reads it.
+        const auto drop = [&] {
             out.close();
+            ::DeleteFileW(temporary.c_str());
+        };
 
-            if (!wanted()) return (void)::DeleteFileW(temporary.c_str());
+        if (out.write(std::as_bytes(std::span(bytes))) != bytes.size()) {
+            const system_exception failure("WriteFile");
+            drop();
+            throw failure;
+        }
 
-            // WRITE_THROUGH, so that the rename itself reaches the disk rather
-            // than the cache before this returns.
-            if (!::MoveFileExW(temporary.c_str(), target.c_str(),
-                               MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-                const system_exception failure("MoveFileExW");
-                ::DeleteFileW(temporary.c_str());
-                throw failure;
-            }
-        });
+        if (!wanted()) {
+            drop();
+            throw operation_canceled_exception();
+        }
+
+        // Pushed to the device before the rename: without that, a power cut
+        // could leave the rename done and the content not, and the name
+        // would point at zeroes.
+        if (!out.flush()) {
+            const system_exception failure("FlushFileBuffers");
+            drop();
+            throw failure;
+        }
+
+        out.close();
+
+        if (!wanted()) {
+            ::DeleteFileW(temporary.c_str());
+            throw operation_canceled_exception();
+        }
+
+        // WRITE_THROUGH, so that the rename itself reaches the disk rather
+        // than the cache before this returns.
+        if (!::MoveFileExW(temporary.c_str(), target.c_str(),
+                           MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            const system_exception failure("MoveFileExW");
+            ::DeleteFileW(temporary.c_str());
+            throw failure;
+        }
+    };
 }
 
-awaitable<bool> async_file::exists(const core::path& path) {
-    return sta_loop::async_call(orphanable, [path] { return core::file::exists(path.c_str()); });
+auto asking_exists(const core::path& path) {
+    return [path] {
+        // `false` is the system's answer, or a call cut short, which answers the
+        // cancellation: the code tells them apart, cleared first, since a call
+        // that succeeds leaves the last one's.
+        ::SetLastError(ERROR_SUCCESS);
+
+        const bool there = core::file::exists(path.c_str());
+
+        if (!there && ::GetLastError() == ERROR_OPERATION_ABORTED)
+            throw operation_canceled_exception();
+
+        return there;
+    };
 }
 
-awaitable<std::size_t> async_file::read(std::span<std::byte> into) {
+}  // namespace
+
+auto async_file::opening(const core::path& path) {
+    return [path] {
+        core::file opened = core::file::open_read_overlapped(path.c_str());
+
+        if (!opened.opened()) throw system_exception("CreateFileW");
+
+        return async_file(std::move(opened));
+    };
+}
+
+auto async_file::creating(const core::path& path) {
+    return [path] {
+        core::file created = core::file::create_overlapped(path.c_str());
+
+        if (!created.opened()) throw system_exception("CreateFileW");
+
+        return async_file(std::move(created));
+    };
+}
+
+task<async_file> async_file::open_read(const core::path& path) {
+    return sta_loop::async_call(orphanable, opening(path));
+}
+
+task<async_file> async_file::open_read(const core::path& path, cancellation_token stop) {
+    return cancellation_detail::call_under(orphanable, opening(path), std::move(stop));
+}
+
+task<async_file> async_file::create(const core::path& path) {
+    return sta_loop::async_call(orphanable, creating(path));
+}
+
+task<async_file> async_file::create(const core::path& path, cancellation_token stop) {
+    return cancellation_detail::call_under(orphanable, creating(path), std::move(stop));
+}
+
+task<std::string> async_file::read_all(const core::path& path) {
+    return sta_loop::async_call(orphanable, reading_whole(path));
+}
+
+task<std::string> async_file::read_all(const core::path& path, cancellation_token stop) {
+    return cancellation_detail::call_under(orphanable, reading_whole(path), std::move(stop));
+}
+
+task<> async_file::write_all(const core::path& path, std::string bytes) {
+    return sta_loop::async_call(orphanable, writing_whole(path, std::move(bytes)));
+}
+
+task<> async_file::write_all(const core::path& path, std::string bytes, cancellation_token stop) {
+    return cancellation_detail::call_under(orphanable, writing_whole(path, std::move(bytes)),
+                                           std::move(stop));
+}
+
+task<bool> async_file::exists(const core::path& path) {
+    return sta_loop::async_call(orphanable, asking_exists(path));
+}
+
+task<bool> async_file::exists(const core::path& path, cancellation_token stop) {
+    return cancellation_detail::call_under(orphanable, asking_exists(path), std::move(stop));
+}
+
+task<std::size_t> async_file::read(std::span<std::byte> into) {
     ensure(file_.opened() && "async_file: no file was opened");
 
     std::unique_ptr<io_op> op(new io_op(io_op::kind::read, file_.native_handle(), into.data(),
@@ -168,7 +248,27 @@ awaitable<std::size_t> async_file::read(std::span<std::byte> into) {
     return sta_loop::async_start(std::move(op));
 }
 
-awaitable<std::size_t> async_file::write(std::span<const std::byte> from) {
+task<std::size_t> async_file::read(std::span<std::byte> into, cancellation_token stop) {
+    if (!cancellation_detail::state_of(stop)) return read(into);
+
+    ensure(file_.opened() && "async_file: no file was opened");
+
+    // Not made, and the position not moved on: nothing was read.
+    if (stop.is_canceled()) return cancellation_detail::canceled<std::size_t>();
+
+    std::unique_ptr<io_op> op(new cancellation_detail::operation_under<io_op>(
+        std::move(stop), io_op::kind::read, file_.native_handle(), into.data(), into.size(), position_,
+        skips_port_));
+
+    position_ += into.size();
+
+    if (reads_hold_the_caller_ || into.size() > direct_read_limit) [[unlikely]]
+        return sta_loop::async_run(std::unique_ptr<async_op_t<std::size_t>>(std::move(op)));
+
+    return sta_loop::async_start(std::move(op));
+}
+
+task<std::size_t> async_file::write(std::span<const std::byte> from) {
     ensure(file_.opened() && "async_file: no file was opened");
 
     std::unique_ptr<async_op_t<std::size_t>> op(
@@ -180,7 +280,23 @@ awaitable<std::size_t> async_file::write(std::span<const std::byte> from) {
     return sta_loop::async_run(std::move(op));
 }
 
-awaitable<std::uint64_t> async_file::size() {
+task<std::size_t> async_file::write(std::span<const std::byte> from, cancellation_token stop) {
+    if (!cancellation_detail::state_of(stop)) return write(from);
+
+    ensure(file_.opened() && "async_file: no file was opened");
+
+    if (stop.is_canceled()) return cancellation_detail::canceled<std::size_t>();
+
+    std::unique_ptr<async_op_t<std::size_t>> op(new cancellation_detail::operation_under<io_op>(
+        std::move(stop), io_op::kind::write, file_.native_handle(), const_cast<std::byte*>(from.data()),
+        from.size(), position_, skips_port_));
+
+    position_ += from.size();
+
+    return sta_loop::async_run(std::move(op));
+}
+
+task<std::uint64_t> async_file::size() {
     ensure(file_.opened() && "async_file: no file was opened");
 
     return sta_loop::call_here([this] {
@@ -192,7 +308,7 @@ awaitable<std::uint64_t> async_file::size() {
     });
 }
 
-awaitable<void> async_file::flush() {
+task<> async_file::flush() {
     ensure(file_.opened() && "async_file: no file was opened");
 
     return sta_loop::async_call([this] {
@@ -200,7 +316,7 @@ awaitable<void> async_file::flush() {
     });
 }
 
-awaitable<void> async_file::close() {
+task<> async_file::close() {
     ensure(file_.opened() && "async_file: no file was opened");
 
     return sta_loop::call_here([this] { file_.close(); });
