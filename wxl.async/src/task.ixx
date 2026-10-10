@@ -284,7 +284,8 @@ public:
 ///
 /// Who wakes the waiter is the producer's, and each says where: an operation's waiter is
 /// resumed from inside the loop's call that takes the operation back (run_one(),
-/// run_pending()); a coroutine's, from its own end -- the co_return, or the exception on
+/// run_pending()) -- or, for wxl.ui's operation of the platform, from the call the thread's
+/// dispatcher queue makes; a coroutine's, from its own end -- the co_return, or the exception on
 /// its way out -- by symmetric transfer, before the call that resumed the coroutine
 /// returns. Nothing else resumes it, so the order is the program's own.
 ///
