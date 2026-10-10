@@ -21,7 +21,7 @@ option(WXL_BUILD_BENCHMARKS "Build the wxl.async benchmark executables." OFF)
 
 # Off by default: the checks of how coroutines are used -- a task awaited twice at
 # once, a value read twice, a task dropped while it runs or while somebody joins it,
-# an awaitable used after a move -- are then assert's, a Debug build's alone, and a
+# a task used after a move -- are then assert's, a Debug build's alone, and a
 # Release build has neither a byte nor an instruction of them. On, they stay in every
 # build, Release included, and a broken one ends the process through wxl::core::abort,
 # naming the reason and the line of the code that broke the rule where the language

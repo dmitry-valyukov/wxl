@@ -4,9 +4,9 @@ module;
 
 export module wxl.async:async_file;
 
-import :awaitable;
 import :cancellation;
 import :sta_loop;
+import :task;
 import wxl.core;
 import std;
 
@@ -55,13 +55,13 @@ export namespace wxl::async {
 /// short, and a flush cut short is a file that does not survive a power cut.
 ///
 /// **Giving an operation up.** Opening and creating own everything they touch,
-/// so an awaitable that goes away before them leaves them to finish alone
+/// so a task that goes away before them leaves them to finish alone
 /// (`orphanable`), and the file is let go of at once: one already open is
-/// closed before the awaitable's destructor returns, one being opened has its
+/// closed before the task's destructor returns, one being opened has its
 /// opening cut short, and one not reached yet is never opened. So what handles
 /// the failure may ask for the same file straight away.
 /// Everything else borrows this object and the
-/// caller's buffer, and an awaitable giving one of those up waits until the
+/// caller's buffer, and a task giving one of those up waits until the
 /// operation has come back -- which a read or a write the kernel holds is told
 /// to do at once, by CancelIoEx. Borrowed means what it means for a reference:
 /// the file and the buffer outlive the operation, which a frame unwinding sees
@@ -91,11 +91,11 @@ public:
 
     /// Opens an existing file for reading.
     /// \throw system_exception at the co_await if it could not be opened.
-    static awaitable<async_file> open_read(const core::path& path);
+    static task<async_file> open_read(const core::path& path);
 
     /// Creates a file for writing, emptying one that is already there.
     /// \throw system_exception at the co_await if it could not be created.
-    static awaitable<async_file> create(const core::path& path);
+    static task<async_file> create(const core::path& path);
 
     /// The whole of a file, by name: opened, measured, read and closed inside one
     /// operation that owns its buffer. That makes it orphanable -- it runs where
@@ -112,7 +112,7 @@ public:
     ///        like any other failure to open: whoever treats absence as the
     ///        ordinary case -- settings on a first run -- asks the code, and
     ///        everything else (no right to read, a torn disk) keeps its name.
-    [[nodiscard]] static awaitable<std::string> read_all(const core::path& path);
+    [[nodiscard]] static task<std::string> read_all(const core::path& path);
 
     /// Replaces a file with these bytes, whole or not at all: written to
     /// `<path>.tmp` beside it, pushed to the device, then renamed over the
@@ -128,17 +128,17 @@ public:
     /// by luck.
     ///
     /// \throw system_exception at the co_await, naming the call that failed.
-    [[nodiscard]] static awaitable<void> write_all(const core::path& path, std::string bytes);
+    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes);
 
     /// \return whether there is a file at this path. A directory there is not a
     ///         file and answers `false`; the mirror of `async_directory::exists`.
-    [[nodiscard]] static awaitable<bool> exists(const core::path& path);
+    [[nodiscard]] static task<bool> exists(const core::path& path);
 
     /// Reads into the caller's buffer, which has to stay where it is until the
     /// read has been awaited or given up.
     /// \return how much was read; less than asked for at the end of the file,
     ///         and zero past it.
-    [[nodiscard]] awaitable<std::size_t> read(std::span<std::byte> into);
+    [[nodiscard]] task<std::size_t> read(std::span<std::byte> into);
 
     /// The same read into an array of byte-sized elements -- `char buffer[N]`
     /// as readily as `std::byte` -- so a caller whose buffer is text does not
@@ -146,62 +146,62 @@ public:
     /// copyable type but `bool`, which is a byte that must not hold 2.
     template <class T, std::size_t N>
         requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
-    [[nodiscard]] awaitable<std::size_t> read(T (&into)[N]) {
+    [[nodiscard]] task<std::size_t> read(T (&into)[N]) {
         return read(std::as_writable_bytes(std::span{into}));
     }
 
     /// \throw system_exception if less went out than was asked for.
-    [[nodiscard]] awaitable<std::size_t> write(std::span<const std::byte> from);
+    [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from);
 
     /// \throw system_exception if the file's length could not be had.
-    [[nodiscard]] awaitable<std::uint64_t> size();
+    [[nodiscard]] task<std::uint64_t> size();
 
     /// \throw system_exception if the flush failed -- and a failed flush is the
     ///        difference between a file that survives a power cut and one that
     ///        does not, so it is not a failure to pass over.
-    [[nodiscard]] awaitable<void> flush();
+    [[nodiscard]] task<> flush();
 
     /// Not required: an async_file left alone closes itself when it is
     /// destroyed.
-    [[nodiscard]] awaitable<void> close();
+    [[nodiscard]] task<> close();
 
     /// The operations above under a token, its last argument; see "Asking an operation
     /// to end" above.
     ///@{
-    static cancellable_awaitable<async_file> open_read(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<async_file>(std::move(stop), [&] { return open_read(path); });
+    static cancellable_task<async_file> open_read(const core::path& path, cancellation_token stop) {
+        return cancellable_task<async_file>(std::move(stop), [&] { return open_read(path); });
     }
 
-    static cancellable_awaitable<async_file> create(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<async_file>(std::move(stop), [&] { return create(path); });
+    static cancellable_task<async_file> create(const core::path& path, cancellation_token stop) {
+        return cancellable_task<async_file>(std::move(stop), [&] { return create(path); });
     }
 
-    static cancellable_awaitable<std::string> read_all(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<std::string>(std::move(stop), [&] { return read_all(path); });
+    static cancellable_task<std::string> read_all(const core::path& path, cancellation_token stop) {
+        return cancellable_task<std::string>(std::move(stop), [&] { return read_all(path); });
     }
 
-    static cancellable_awaitable<void> write_all(const core::path& path, std::string bytes,
+    static cancellable_task<void> write_all(const core::path& path, std::string bytes,
                                                  cancellation_token stop) {
-        return cancellable_awaitable<void>(std::move(stop),
+        return cancellable_task<void>(std::move(stop),
                                            [&] { return write_all(path, std::move(bytes)); });
     }
 
-    static cancellable_awaitable<bool> exists(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<bool>(std::move(stop), [&] { return exists(path); });
+    static cancellable_task<bool> exists(const core::path& path, cancellation_token stop) {
+        return cancellable_task<bool>(std::move(stop), [&] { return exists(path); });
     }
 
-    cancellable_awaitable<std::size_t> read(std::span<std::byte> into, cancellation_token stop) {
-        return cancellable_awaitable<std::size_t>(std::move(stop), [&] { return read(into); });
+    cancellable_task<std::size_t> read(std::span<std::byte> into, cancellation_token stop) {
+        return cancellable_task<std::size_t>(std::move(stop), [&] { return read(into); });
     }
 
     template <class T, std::size_t N>
         requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
-    cancellable_awaitable<std::size_t> read(T (&into)[N], cancellation_token stop) {
+    cancellable_task<std::size_t> read(T (&into)[N], cancellation_token stop) {
         return read(std::as_writable_bytes(std::span{into}), std::move(stop));
     }
 
-    cancellable_awaitable<std::size_t> write(std::span<const std::byte> from, cancellation_token stop) {
-        return cancellable_awaitable<std::size_t>(std::move(stop), [&] { return write(from); });
+    cancellable_task<std::size_t> write(std::span<const std::byte> from, cancellation_token stop) {
+        return cancellable_task<std::size_t>(std::move(stop), [&] { return write(from); });
     }
     ///@}
 

@@ -215,7 +215,7 @@ namespace {
 /// be watched from inside a test.
 struct orphan_left_out {
     std::atomic<bool> finished{false};
-    std::optional<awaitable<int>> pending;
+    std::optional<task<int>> pending;
 };
 
 orphan_left_out left_out;

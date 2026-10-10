@@ -135,7 +135,7 @@ private:
     std::span<std::byte> into_;
 };
 
-awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into) {
+task<std::size_t> start_read(probe& p, std::span<std::byte> into) {
     return sta_loop::async_run(std::unique_ptr<async_op_t<std::size_t>>(new gated_read(p, into)));
 }
 

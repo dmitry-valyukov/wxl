@@ -215,7 +215,7 @@ task<std::string> top_passes_it_on_too(chain_notes& notes) {
 /// An operation in flight, as much of one as a coroutine sees: it parks the coroutine
 /// like `parked`, and if it goes while the coroutine is still parked on it, it gives the
 /// wait up -- the slot is emptied, so that nothing can resume a frame that is gone. That
-/// is what an awaitable of this module does with its operation, and what wxl.ui's waits
+/// is what the task of an operation of this module does with it, and what wxl.ui's waits
 /// do with their subscriptions.
 class operation_in_flight
 {
@@ -712,13 +712,17 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
     EXPECT_EQ(kept.result(), 5);
 }
 
-// The checks cost the promise nothing in any build, strict or not: what they keep --
-// whether the body is on the stack, whether the waiter joined -- is two bits of the
-// waiter's handle. A task stays one handle wide, as does the awaiter of a joined one.
-static_assert(sizeof(task_detail::promise_base) ==
-              sizeof(std::coroutine_handle<>) + sizeof(std::exception_ptr));
+// The promise of a task is a producer like an operation: the virtual table, the waiter's
+// handle, a word of flags and the exception, then the value. The checks cost it nothing in
+// any build, strict or not: what they keep -- whether the body is on the stack, whether the
+// waiter joined -- is two bits of the waiter's handle, and whether the value has been
+// taken is a byte of the flags' word. A task stays one pointer wide, as does the awaiter
+// of a joined one. (The exception is two pointers wide on MSVC, one on g++ and clang.)
+static_assert(sizeof(async_op) == 3 * sizeof(void*) + sizeof(std::exception_ptr));
+static_assert(sizeof(task_detail::promise<void>) == sizeof(async_op));
+static_assert(sizeof(task_detail::promise<int>) == sizeof(async_op_t<int>));
 static_assert(sizeof(task<>) == sizeof(void*) && sizeof(task<int>) == sizeof(void*));
-static_assert(sizeof(task_detail::join_awaiter<task_detail::value_promise<int>>) == sizeof(void*));
+static_assert(sizeof(task_detail::join_awaiter<int>) == sizeof(void*));
 
 // What a build that checks does pay, in the frame of a task: the awaiter of each co_await
 // in its body is wrapped, one reference more.
@@ -906,6 +910,19 @@ void take_the_value_twice_by_co_await() {
     heap_task twice = awaits_twice_by_value(kept);
 }
 
+// A task that has been moved from has nothing to wait for: awaiting it fails at the
+// co_await, whatever made the result it no longer holds.
+constexpr std::uint_least32_t line_of_the_moved_from_await = std::source_location::current().line() + 1;
+heap_task awaits_what_is_left(task<int>& left) { (void)co_await left; }
+
+void await_a_moved_from_task() {
+    report_failures_to_stderr();
+
+    task<int> t = answers_at_once();
+    task<int> moved = std::move(t);
+    heap_task waiter = awaits_what_is_left(t);
+}
+
 /// Death tests of the checks: skipped where the build has none.
 class TaskDeathTest : public ::testing::Test
 {
@@ -936,7 +953,7 @@ TEST_F(TaskDeathTest, TheValueIsTakenOnce) {
 }
 
 TEST_F(TaskDeathTest, TheResultIsAskedAfterTheEnd) {
-    EXPECT_DEATH(ask_before_the_end(), "before the coroutine ended");
+    EXPECT_DEATH(ask_before_the_end(), "before it ended");
 }
 
 TEST_F(TaskDeathTest, ATaskIsAwaitedOnItsOwnThread) {
@@ -951,6 +968,10 @@ TEST_F(TaskDeathTest, AJoinedTaskOutlivesTheWait) {
     EXPECT_DEATH(drop_a_joined_task(), "while a coroutine joins it");
 }
 
+TEST_F(TaskDeathTest, AMovedFromTaskIsNotAwaited) {
+    EXPECT_DEATH(await_a_moved_from_task(), "task: moved-from");
+}
+
 TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTwice) {
     EXPECT_DEATH(take_the_value_twice_by_result(),
                  place_of("task_tests\\.cpp", line_of_the_second_take) + "task: the value has already been taken");
@@ -958,7 +979,7 @@ TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTwice) {
 
 TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTooEarly) {
     EXPECT_DEATH(ask_too_early(),
-                 place_of("task_tests\\.cpp", line_of_the_early_ask) + "task: result\\(\\) asked before the coroutine ended");
+                 place_of("task_tests\\.cpp", line_of_the_early_ask) + "task: result\\(\\) asked before it ended");
 }
 
 TEST_F(TaskStrictDeathTest, ATaskAwaitingNamesItsCoAwait) {
@@ -970,6 +991,11 @@ TEST_F(TaskStrictDeathTest, ATaskAwaitingNamesItsCoAwait) {
 TEST_F(TaskStrictDeathTest, AnyCoroutineAwaitingNamesItsCoAwait) {
     EXPECT_DEATH(take_the_value_twice_by_co_await(),
                  place_of("task_tests\\.cpp", line_of_the_second_await) + "task: the value has already been taken");
+}
+
+TEST_F(TaskStrictDeathTest, AMovedFromTaskNamesTheCoAwait) {
+    EXPECT_DEATH(await_a_moved_from_task(),
+                 place_of("task_tests\\.cpp", line_of_the_moved_from_await) + "task: moved-from");
 }
 
 TEST_F(TaskStrictDeathTest, ADestructorNamesTheReasonAndItsOwnPlace) {

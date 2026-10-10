@@ -127,7 +127,7 @@ task<> reads_what_is_already_there(path pipe_name, bool& opened, hevent& written
 
     auto read = in.read(buffer);
 
-    inline_done = read.ready();
+    inline_done = read.done();
     got.assign(buffer, co_await read);
 }
 

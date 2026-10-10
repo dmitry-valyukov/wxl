@@ -16,7 +16,7 @@
 // stands on the token's list while it is suspended. Nothing is cancelled: this is what
 // asking costs those that are never asked.
 //
-// And one operation of this module's kind -- an async_op behind an awaitable, which the
+// And one operation of this module's kind -- an async_op behind a task, which the
 // loop would resume and here a hand does (`come_back()`) -- awaited in its three forms:
 // plain; the form with a token, `co_await read(..., stop)`, which the operations that
 // can be cut short have; and `co_await cancellable(read(...), stop)`.
@@ -132,15 +132,15 @@ protected:
     bool execute() override { return true; }
 };
 
-awaitable<int> handed(handed_op*& slot, int i) {
+task<int> handed(handed_op*& slot, int i) {
     auto* const op = new handed_op(i);
     slot = op;
-    return awaitable<int>(std::unique_ptr<async_op_t<int>>(op));
+    return task<int>(std::unique_ptr<async_op_t<int>>(op));
 }
 
 /// The form with a token, as the operations of async_file have it.
-cancellable_awaitable<int> handed(handed_op*& slot, int i, cancellation_token stop) {
-    return cancellable_awaitable<int>(std::move(stop), [&] { return handed(slot, i); });
+cancellable_task<int> handed(handed_op*& slot, int i, cancellation_token stop) {
+    return cancellable_task<int>(std::move(stop), [&] { return handed(slot, i); });
 }
 
 __declspec(noinline) task<long long> loop_op(handed_op** slot, int n) {

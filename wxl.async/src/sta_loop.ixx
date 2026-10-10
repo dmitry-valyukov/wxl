@@ -5,11 +5,11 @@ module;
 export module wxl.async:sta_loop;
 
 import :async_op;
-import :awaitable;
 import :io_op;
 import :io_port;
 import :spsc_channel;
 import :thread_group;
+import :task;
 import :threaded_component;
 import wxl.core;
 import std;
@@ -26,7 +26,7 @@ export namespace wxl::async {
 /// so all the callback may do is arrange, by whatever its dispatcher offers,
 /// for run_pending() to be called back on the STA thread.
 ///
-/// And one moment when even a driven thread has to sleep here: an awaitable giving up
+/// And one moment when even a driven thread has to sleep here: a task giving up
 /// its operation waits, in a destructor, until the worker has let go of it. The thread
 /// cannot return to its dispatcher from there, so for the length of that wait hold()
 /// has every handover set the event as well, and the waiter sleeps on it in
@@ -137,7 +137,7 @@ private:
 /// of its tests rather than once per test.
 ///
 /// **An operation given up while out is waited for, not resumed around.** When its
-/// awaitable goes away first (`async_op::abandon`), the STA thread waits in place --
+/// task goes away first (`async_op::abandon`), the STA thread waits in place --
 /// looking ahead in the return channel, never taking anything out of it, never
 /// resuming anybody, because it may be in the middle of unwinding and a coroutine
 /// resumed from there could throw into it. Giving up is the exception's path and pays
@@ -388,10 +388,10 @@ public:
     /// file's overlapped operations are told to finish.
     inline static io_port& port() noexcept { return to_worker_.wakeup(); }
 
-    /// Starts an operation whose body is a lambda and returns what the coroutine
+    /// Starts an operation whose body is a lambda and returns the task the coroutine
     /// awaits.
     ///
-    /// The operation is sent before the awaitable exists -- and so, in principle,
+    /// The operation is sent before the task exists -- and so, in principle,
     /// before there is a coroutine to name. That is safe for one reason only: the
     /// thread that would resume the coroutine is the STA thread, and it is here,
     /// inside this call, and cannot be in run_one() at the same time.
@@ -404,7 +404,7 @@ public:
     /// variant that does so measured 20 ns more per operation on the floor, not
     /// less (sta_loop_benchmark.cpp, "in the frame"), against 2 ns for the block.
     template <class Fn>
-    [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> async_call(Fn&& fn) {
+    [[nodiscard]] static task<std::invoke_result_t<std::decay_t<Fn>&>> async_call(Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
 
         // Held as the base on the way in: async_run() deduces its result type
@@ -425,7 +425,7 @@ public:
     /// worker: what is orphanable here is what goes by a name -- opening a file,
     /// making a directory -- and may take the system as long as it likes.
     template <class Fn>
-    [[nodiscard]] static awaitable<orphan_result_t<std::decay_t<Fn>>> async_call(
+    [[nodiscard]] static task<orphan_result_t<std::decay_t<Fn>>> async_call(
         orphanable_t, Fn&& fn) {
         using result_t = orphan_result_t<std::decay_t<Fn>>;
 
@@ -434,7 +434,7 @@ public:
 
         shape_->send_orphan(*op);
 
-        return awaitable<result_t>(std::move(op));
+        return task<result_t>(std::move(op));
     }
 
     /// The same for an operation written out as a class of its own: whoever
@@ -443,12 +443,12 @@ public:
     /// derives from `async_op_t<R>` and starts it here.
     ///
     /// Ownership moves: from this call on, the operation belongs to the
-    /// awaitable, which lives in the frame of the coroutine that awaits it.
+    /// task, which lives in the frame of the coroutine that awaits it.
     template <class R>
-    [[nodiscard]] static awaitable<R> async_run(std::unique_ptr<async_op_t<R>> op) {
+    [[nodiscard]] static task<R> async_run(std::unique_ptr<async_op_t<R>> op) {
         enqueue(core::as_not_null<async_op>(op.get()));
 
-        return awaitable<R>(std::move(op));
+        return task<R>(std::move(op));
     }
 
     /// Starts an overlapped operation here, on the STA thread, without the trip to the
@@ -458,7 +458,7 @@ public:
     ///
     /// Only for what is known not to hold the calling thread. The rest goes through
     /// async_run(), and is started on the worker.
-    [[nodiscard]] inline static awaitable<std::size_t> async_start(std::unique_ptr<io_op> op) {
+    [[nodiscard]] inline static task<std::size_t> async_start(std::unique_ptr<io_op> op) {
         // A completion with no worker to take it would never arrive; enqueue() fails the
         // same way, through send().
         assert(running() && "sta_loop: the loop is not running");
@@ -468,14 +468,14 @@ public:
         else
             ++outstanding_;
 
-        return awaitable<std::size_t>(std::move(op));
+        return task<std::size_t>(std::move(op));
     }
 
     /// Runs the body here, on the STA thread, and returns it already delivered: for a
     /// call short enough not to be worth a trip, which still answers through a
     /// co_await and still fails there.
     template <class Fn>
-    [[nodiscard]] static awaitable<std::invoke_result_t<std::decay_t<Fn>&>> call_here(Fn&& fn) {
+    [[nodiscard]] static task<std::invoke_result_t<std::decay_t<Fn>&>> call_here(Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
 
         std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
@@ -484,7 +484,7 @@ public:
         op->packaged_execute();
         op->deliver_here();
 
-        return awaitable<result_t>(std::move(op));
+        return task<result_t>(std::move(op));
     }
 
     /// Takes one finished operation and gives control back to the coroutine that

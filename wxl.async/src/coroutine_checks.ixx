@@ -5,7 +5,7 @@ import std;
 
 /// What a build does about the checks of how coroutines are used -- a task awaited by
 /// two at once, a value read twice, a task dropped while it runs or while somebody
-/// joins it, an awaitable used after a move. Code that keeps state only the checks look
+/// joins it, a task used after a move. Code that keeps state only the checks look
 /// at asks here; the check itself is `coro_check` in coroutine_checks.h, a macro, since
 /// without STRICT_CORO it is assert.
 export namespace wxl::async::coro_detail {
