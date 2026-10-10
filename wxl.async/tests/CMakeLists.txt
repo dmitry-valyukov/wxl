@@ -83,10 +83,16 @@ wxl_set_target_folders(wxl.async.tests)
 
 include(GoogleTest)
 
+# The three test programs of this directory list their tests when ctest starts, one after
+# another, not after each link. Discovery after the link writes its listing to a file whose
+# name does not depend on the target, in the directory all three share: when ninja links
+# them at once, one program can be given another's listing, and its own suites are then
+# never registered. Listed at ctest's start, the three runs cannot overlap.
 gtest_discover_tests(
     wxl.async.tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    DISCOVERY_MODE PRE_TEST
 )
 
 # The loop on a dispatcher queue -- start_dispatched(), the shape an application with a
@@ -114,6 +120,7 @@ gtest_discover_tests(
     wxl.async.dispatched-tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    DISCOVERY_MODE PRE_TEST
 )
 
 # The driven shape of sta_loop -- start_driven(), a dispatcher callback, run_pending()
@@ -135,4 +142,5 @@ gtest_discover_tests(
     wxl.async.driven-tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    DISCOVERY_MODE PRE_TEST
 )
