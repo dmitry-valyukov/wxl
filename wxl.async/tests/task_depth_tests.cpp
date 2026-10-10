@@ -159,11 +159,11 @@ private:
 
 /// The read, in the form with a token the operations of this module have.
 task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return sta_loop::async_run<gated_read>(std::move(stop), p, into);
+    return cancellation_detail::run_under<gated_read>(std::move(stop), p, into);
 }
 
 /// The operation a level awaits besides its subroutine, answering the level's number, in
-/// its form with a token.
+/// the form with a token the operations of this module have -- where there is one.
 ///
 /// An odd level awaits it before it calls down, so it is over before anything below is
 /// sent, and it takes the three kinds by turns: inside the call, on the worker,
@@ -171,16 +171,19 @@ task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
 /// at the bottom may hold the one worker -- so it is answered inside the call or
 /// orphanable: one queued behind the read would be waited for by an owner dropping it
 /// before the read is given up, which is what opens the read's gate.
+///
+/// The one answered inside the call takes no token: it has nothing out to cut short.
 task<int> step(int depth, cancellation_token stop) {
     const int kind = depth % 2 == 1 ? depth % 3 : depth % 4 == 0 ? 0 : 2;
 
     switch (kind) {
         case 0:
-            return sta_loop::call_here([depth] { return depth; }, std::move(stop));
+            return sta_loop::call_here([depth] { return depth; });
         case 1:
-            return sta_loop::async_call([depth] { return depth; }, std::move(stop));
+            return cancellation_detail::call_under([depth] { return depth; }, std::move(stop));
         default:
-            return sta_loop::async_call(orphanable, [depth] { return depth; }, std::move(stop));
+            return cancellation_detail::call_under(orphanable, [depth] { return depth; },
+                                                   std::move(stop));
     }
 }
 
@@ -206,7 +209,7 @@ task<int> bottom(chain_state& c, cancellation_token stop) {
     if (c.bottom == bottom_kind::worker_failure)
         co_return co_await sta_loop::async_call([]() -> int { throw std::runtime_error("from the worker"); });
 
-    const int value = co_await sta_loop::async_call([] { return 1000; }, stop);
+    const int value = co_await cancellation_detail::call_under([] { return 1000; }, stop);
 
     if (c.bottom == bottom_kind::coroutine_failure) throw std::runtime_error("from the bottom coroutine");
 
@@ -265,6 +268,16 @@ std::string failure_of(task<int>& chain) {
     }
 
     return "no failure";
+}
+
+/// Waits until everything sent before it has come back and been taken. An orphanable step
+/// given up with the level that went -- dropped by its owner, or by a level that ended on the
+/// cancellation -- finishes alone, and one still out when the test ends would stand in the
+/// return channel ahead of the next test's operations. One worker, in turn: what was sent
+/// first comes back first.
+void take_back_the_given_up() {
+    task<> fence = sta_loop::async_call([] {});
+    sta_loop::run_until([&] { return fence.done(); });
 }
 
 }  // namespace
@@ -346,11 +359,13 @@ TEST(TaskDepthTest, ARequestFromTheTopReachesTheBottom) {
         EXPECT_EQ(c.ended, 0);
         EXPECT_EQ(c.frames, 0);
         EXPECT_EQ(c.p.alive, 0);
+
+        take_back_the_given_up();
     }
 }
 
 // Asked before it began: the chain ends with the cancellation at the first wait under the
-// token, and never reaches the bottom.
+// token, and the read at the bottom is never made.
 TEST(TaskDepthTest, ARequestBeforeTheStartEndsTheChainAtItsFirstWait) {
     for (int depth = shallowest; depth <= deepest; ++depth) {
         SCOPED_TRACE(std::format("depth {}", depth));
@@ -397,6 +412,8 @@ TEST(TaskDepthTest, AnOwnerInTheMiddleDropsWhatIsBelowIt) {
         EXPECT_EQ(chain.result(), levels_from(c.drops_at, depth));
         EXPECT_EQ(c.ended, depth - c.drops_at + 1) << "a level below the drop was resumed";
         EXPECT_EQ(c.frames, 0);
+
+        take_back_the_given_up();
     }
 }
 
@@ -420,6 +437,7 @@ TEST(TaskDepthTest, AnOwnerDroppingTheChainTakesItDownFromTheInsideOut) {
         EXPECT_EQ(c.frames, 0);
 
         sta_loop::run_until([&] { return c.p.alive == 0; });
+        take_back_the_given_up();
     }
 }
 

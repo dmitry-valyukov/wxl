@@ -90,7 +90,7 @@ task<std::size_t> start_read(probe& p, std::span<std::byte> into) {
 /// The same read under a token, in the form the operations of this module take one --
 /// `async_file::read_all(path, stop)` -- and the same task.
 task<std::size_t> start_read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return sta_loop::async_run<gated_read>(std::move(stop), p, into);
+    return cancellation_detail::run_under<gated_read>(std::move(stop), p, into);
 }
 
 /// Three links, the token passed down by hand; the bottom one reads into its frame.
@@ -609,7 +609,7 @@ TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreTold) {
     first.gate.set();
     sta_loop::run_until([&] { return two.done(); });
     EXPECT_EQ(two.result(), 16u);
-    two = task<std::size_t>(sta_loop::canceled<std::size_t>());
+    two = task<std::size_t>(cancellation_detail::canceled<std::size_t>());
     EXPECT_EQ(middle.alive, 0);
 
     stop.cancel();
@@ -626,11 +626,12 @@ TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreTold) {
     EXPECT_EQ(last.wrote, 0);
 }
 
-// ---- The forms of the loop's own calls -----------------------------------------------
+// ---- The loop's calls under a token, for the operations of this module -----------------
 
 /// A body on the worker, kept behind a read that holds the worker, counting its runs.
 task<int> counts_on_the_worker(int& runs, cancellation_token stop) {
-    co_return co_await sta_loop::async_call([&runs] { return ++runs; }, std::move(stop));
+    co_return co_await cancellation_detail::call_under([&runs] { return ++runs; },
+                                                       std::move(stop));
 }
 
 // The lambda forms take the token as the class form does: one not reached by the worker
@@ -665,53 +666,76 @@ TEST(CancellationTest, ALambdaOnTheWorkerToldBeforeItIsReachedNeverRuns) {
     EXPECT_EQ(runs, 1);
 }
 
-// An orphanable body under a token cancelled already is not made; under a live one it runs
-// and answers.
+// An orphanable body under a live token runs and answers; told while it waits for the
+// worker, it never runs, and the co_await ends with the cancellation once it is back; under a
+// token cancelled already it is not made.
 TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
     cancellation_source stop;
 
-    task<int> ran = sta_loop::async_call(orphanable, [] { return 5; }, stop.token());
+    task<int> ran = cancellation_detail::call_under(orphanable, [] { return 5; }, stop.token());
     sta_loop::run_until([&] { return ran.done(); });
     EXPECT_EQ(ran.result(), 5);
 
+    probe ahead;
+    std::byte ahead_buf[16]{};
+    auto holds_the_worker = start_read(ahead, ahead_buf);
+    ahead.started.wait();
+
+    std::atomic<int> runs{0};
+    task<int> told = cancellation_detail::call_under(
+        orphanable, [&runs] { return ++runs; }, stop.token());
+
     stop.cancel();
+    ahead.gate.set();
+    sta_loop::run_until([&] { return told.done() && holds_the_worker.done(); });
+
+    EXPECT_TRUE(ends_cancelled(told));
+    EXPECT_EQ(runs, 0);
 
     bool made = false;
-    task<int> not_made = sta_loop::async_call(orphanable, [&made] { return made = true, 6; }, stop.token());
+    task<int> not_made = cancellation_detail::call_under(
+        orphanable, [&made] { return made = true, 6; }, stop.token());
     EXPECT_TRUE(not_made.done());
     EXPECT_TRUE(ends_cancelled(not_made));
     EXPECT_FALSE(made);
 }
 
-// The form of call_here(): the body runs inside the call unless the token is cancelled
-// already, and the answer stands under the token while the task keeps it -- a co_await
-// that ends after the request ends with the cancellation. A body that cancels its own
-// token as it runs answers the cancellation as well.
-TEST(CancellationTest, AnAnswerMadeHereStandsUnderTheTokenWhileItIsKept) {
-    cancellation_source stop;
-    int runs = 0;
+namespace {
 
-    task<int> kept = sta_loop::call_here([&runs] { return ++runs; }, stop.token());
-    EXPECT_TRUE(kept.done());
-    EXPECT_EQ(runs, 1);
+/// An operation over when it is made, which no loop carries: the test takes it back by hand.
+class handed_back : public async_op_t<int>
+{
+public:
+    explicit handed_back(int value) { set_value(int(value)); }
+
+protected:
+    bool execute() override { return true; }
+};
+
+}  // namespace
+
+// A loop that is being stopped settles what comes back and resumes nobody: an operation told
+// while it was out answers the cancellation all the same, and one not told its value.
+TEST(CancellationTest, AnOperationToldWhileOutIsSettledAsTheCancellation) {
+    cancellation_source stop;
+
+    auto* const told = new cancellation_detail::operation_under<handed_back>(stop.token(), 3);
+    task<int> told_task(std::unique_ptr<async_op_t<int>>{told});
 
     stop.cancel();
+    told->settle();
 
-    task<int> joined = [](task<int>& t) -> task<int> { co_return co_await t; }(kept);
-    EXPECT_TRUE(ends_cancelled(joined));
+    EXPECT_TRUE(told_task.done());
+    EXPECT_TRUE(ends_cancelled(told_task));
 
-    task<int> refused = sta_loop::call_here([&runs] { return ++runs; }, stop.token());
-    EXPECT_TRUE(ends_cancelled(refused));
-    EXPECT_EQ(runs, 1);
+    cancellation_source fresh;
+    auto* const plain = new cancellation_detail::operation_under<handed_back>(fresh.token(), 4);
+    task<int> plain_task(std::unique_ptr<async_op_t<int>>{plain});
 
-    cancellation_source own;
-    task<int> self_cancelled = sta_loop::call_here(
-        [&own] {
-            own.cancel();
-            return 3;
-        },
-        own.token());
-    EXPECT_TRUE(ends_cancelled(self_cancelled));
+    plain->settle();
+
+    EXPECT_TRUE(plain_task.done());
+    EXPECT_EQ(plain_task.result(), 4);
 }
 
 /// Counts its living copies: what an operation's body captured lives as long as the
@@ -734,7 +758,7 @@ TEST(CancellationTest, AnOrphanGivenUpAndThenAskedStillGoesWhenItComesBack) {
     cancellation_source stop;
 
     {
-        task<int> dropped = sta_loop::async_call(
+        task<int> dropped = cancellation_detail::call_under(
             orphanable,
             [&started, &gate, &finished, keep = counted_capture(&alive)] {
                 started.set();
@@ -771,7 +795,7 @@ TEST(CancellationTest, UnderATokenOfNobodyTheFormIsThePlainOne) {
 
     std::byte buf[16]{};
     task<std::size_t> read = start_read(p, buf, cancellation_token{});
-    task<int> lambda = sta_loop::async_call([] { return 9; }, cancellation_token{});
+    task<int> lambda = cancellation_detail::call_under([] { return 9; }, cancellation_token{});
 
     sta_loop::run_until([&] { return read.done() && lambda.done(); });
 
@@ -838,8 +862,22 @@ static_assert(sizeof(cancellation_token) == sizeof(void*));
 static_assert(sizeof(task<std::size_t>) == sizeof(void*));
 static_assert(std::is_same_v<decltype(start_read(std::declval<probe&>(), {}, cancellation_token{})),
                              task<std::size_t>>);
-static_assert(std::is_same_v<decltype(sta_loop::async_call(std::declval<int (*)()>(), cancellation_token{})),
+static_assert(std::is_same_v<decltype(cancellation_detail::call_under(std::declval<int (*)()>(),
+                                                                    cancellation_token{})),
                              task<int>>);
 static_assert(sizeof(cancellation_detail::operation_under<gated_read>) ==
               sizeof(gated_read) + sizeof(cancellation_token) + 3 * sizeof(void*));
+
+// The loop's calls take no token: a body of the application's is its own code's to stop.
+namespace {
+
+template <class Fn>
+concept a_loop_call_takes_a_token =
+    requires(Fn fn, cancellation_token token) { sta_loop::async_call(fn, token); } ||
+    requires(Fn fn, cancellation_token token) { sta_loop::async_call(orphanable, fn, token); } ||
+    requires(Fn fn, cancellation_token token) { sta_loop::call_here(fn, token); };
+
+}  // namespace
+
+static_assert(!a_loop_call_takes_a_token<int (*)()>);
 

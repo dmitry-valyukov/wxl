@@ -209,7 +209,8 @@ private:
 /// - **The application's own coroutine** asks it itself -- is_canceled(),
 ///   throw_if_canceled() -- where it has something to stop, and decides what to do about
 ///   it. wxl asks nobody else's code to end: there is no wrapper that puts an awaiter of
-///   somebody else's under a token.
+///   somebody else's under a token, and no call of sta_loop that puts the application's
+///   body under one -- some work must not be broken off, and only its own code knows which.
 ///
 /// Asking does not end anything by itself: the chain unwinds by its own exceptions,
 /// through its own catch blocks, on the live thread -- and cleanup past a handler may

@@ -225,8 +225,7 @@ public:
 
     /// The same without resuming anybody: for a loop that is being stopped, where a
     /// coroutine suspended here stays where it is and the op waits for its task to delete
-    /// it along with the frame -- and for an operation under a token answered inside the
-    /// call that made it, which may have been told meanwhile.
+    /// it along with the frame.
     inline void settle() noexcept {
         if (fate_ == fate::abandoned) {
             delete this;

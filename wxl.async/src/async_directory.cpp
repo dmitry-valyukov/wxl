@@ -79,7 +79,7 @@ task<async_directory> async_directory::open(const core::path& pattern) {
 }
 
 task<async_directory> async_directory::open(const core::path& pattern, cancellation_token stop) {
-    return sta_loop::async_call(orphanable, opening(pattern), std::move(stop));
+    return cancellation_detail::call_under(orphanable, opening(pattern), std::move(stop));
 }
 
 task<std::vector<async_directory::listed_entry>> async_directory::list(const core::path& pattern) {
@@ -88,7 +88,7 @@ task<std::vector<async_directory::listed_entry>> async_directory::list(const cor
 
 task<std::vector<async_directory::listed_entry>> async_directory::list(const core::path& pattern,
                                                                        cancellation_token stop) {
-    return sta_loop::async_call(orphanable, listing_all(pattern), std::move(stop));
+    return cancellation_detail::call_under(orphanable, listing_all(pattern), std::move(stop));
 }
 
 task<std::optional<async_directory::entry>> async_directory::next() {
@@ -100,7 +100,7 @@ task<std::optional<async_directory::entry>> async_directory::next() {
 task<std::optional<async_directory::entry>> async_directory::next(cancellation_token stop) {
     ensure(directory_.opened() && "async_directory: no listing was opened");
 
-    return sta_loop::async_call(next_entry(), std::move(stop));
+    return cancellation_detail::call_under(next_entry(), std::move(stop));
 }
 
 task<> async_directory::close() {
@@ -114,7 +114,7 @@ task<bool> async_directory::exists(const core::path& path) {
 }
 
 task<bool> async_directory::exists(const core::path& path, cancellation_token stop) {
-    return sta_loop::async_call(orphanable, asking_exists(path), std::move(stop));
+    return cancellation_detail::call_under(orphanable, asking_exists(path), std::move(stop));
 }
 
 task<> async_directory::create_all(const core::path& p) {
@@ -122,7 +122,7 @@ task<> async_directory::create_all(const core::path& p) {
 }
 
 task<> async_directory::create_all(const core::path& p, cancellation_token stop) {
-    return sta_loop::async_call(orphanable, making_all(p), std::move(stop));
+    return cancellation_detail::call_under(orphanable, making_all(p), std::move(stop));
 }
 
 task<> async_directory::remove(const core::path& path) {
@@ -130,7 +130,7 @@ task<> async_directory::remove(const core::path& path) {
 }
 
 task<> async_directory::remove(const core::path& path, cancellation_token stop) {
-    return sta_loop::async_call(orphanable, removing(path), std::move(stop));
+    return cancellation_detail::call_under(orphanable, removing(path), std::move(stop));
 }
 
 }  // namespace wxl::async
