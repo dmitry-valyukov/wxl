@@ -657,6 +657,12 @@ TEST(CancellationTest, ALambdaOnTheWorkerToldBeforeItIsReachedNeverRuns) {
     task<int> again = counts_on_the_worker(runs, fresh.token());
     sta_loop::run_until([&] { return again.done(); });
     EXPECT_EQ(again.result(), 1);
+
+    // Under a token cancelled already nothing is made: the co_await ends at once.
+    task<int> refused = counts_on_the_worker(runs, stop.token());
+    EXPECT_TRUE(refused.done());
+    EXPECT_TRUE(ends_cancelled(refused));
+    EXPECT_EQ(runs, 1);
 }
 
 // An orphanable body under a token cancelled already is not made; under a live one it runs
@@ -706,6 +712,55 @@ TEST(CancellationTest, AnAnswerMadeHereStandsUnderTheTokenWhileItIsKept) {
         },
         own.token());
     EXPECT_TRUE(ends_cancelled(self_cancelled));
+}
+
+/// Counts its living copies: what an operation's body captured lives as long as the
+/// operation does.
+struct counted_capture {
+    int* alive;
+
+    explicit counted_capture(int* count) noexcept : alive(count) { ++*alive; }
+    counted_capture(const counted_capture& other) noexcept : alive(other.alive) { ++*alive; }
+    counted_capture& operator=(const counted_capture&) = delete;
+    ~counted_capture() { --*alive; }
+};
+
+// An orphan under the token that its task let go of finishes alone; a request that comes
+// meanwhile does not take it back: it is deleted when it comes back, as any orphan given up.
+TEST(CancellationTest, AnOrphanGivenUpAndThenAskedStillGoesWhenItComesBack) {
+    hevent started{true}, gate{true};
+    std::atomic<bool> finished{false};
+    int alive = 0;
+    cancellation_source stop;
+
+    {
+        task<int> dropped = sta_loop::async_call(
+            orphanable,
+            [&started, &gate, &finished, keep = counted_capture(&alive)] {
+                started.set();
+                gate.wait();
+                finished = true;
+                return 1;
+            },
+            stop.token());
+
+        started.wait();
+    }
+
+    stop.cancel();
+    EXPECT_EQ(alive, 1) << "an orphan given up is deleted only when it comes back";
+
+    gate.set();
+
+    // Bounded rather than run_until: an orphan that is never deleted would leave nothing
+    // more in the return channel to wait for.
+    for (int i = 0; i < 2000 && alive != 0; ++i) {
+        sta_loop::run_pending();
+        if (alive != 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    EXPECT_TRUE(finished);
+    EXPECT_EQ(alive, 0);
 }
 
 // A token that has no source is never cancelled: the form under it is the form without
