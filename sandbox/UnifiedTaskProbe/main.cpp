@@ -24,21 +24,37 @@
 // исключение со дна доходит до верха, отмена сверху кончает цепочку
 // operation_canceled_exception, отказ от среднего уровня не оставляет ни операций, ни
 // возобновлений, и петля после всего останавливается чисто. Код возврата -- число
-// провалившихся проверок; 1000 и больше -- stdout перестал принимать запись, и что не дошло,
-// названо в stderr.
+// провалившихся проверок. В stderr -- отметки выхода (см. mark()).
 //
 // Запуск: sandbox.unified-task-probe [прогонов [множитель итераций]]; 0 прогонов -- только
 // проверки.
 
-// Макросы stdout, stderr, errno и _doserrno через import std не приходят; заголовки C -- до
+// Для отметок выхода: прямая запись в stderr и указатели буфера stdout. Заголовки -- до
 // импорта, как gtest в тестах wxl.async.
-#include <errno.h>
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 import std;
 import wxl.core;
 import wxl.async;
+
+namespace {
+void mark(const char* where) noexcept;
+}
+
+// Последнее слово выхода: объект в сегменте библиотек строится раньше статических объектов
+// кода пользователя и wxl и разрушается после них, перед тем как CRT сбрасывает и закрывает
+// потоки. Его отметка показывает, дошёл ли выход до этого места и что тогда лежало в буфере.
+#pragma warning(disable : 4073)  // «инициализаторы в сегменте библиотек» -- того и нужно
+#pragma init_seg(lib)
+
+struct last_word {
+    ~last_word() { mark("after the static destructors"); }
+};
+
+last_word g_last_word;
 
 namespace {
 
@@ -65,20 +81,25 @@ constexpr const char* checks_kind = "assert";
 
 int g_failures = 0;
 
-/// Вывод в файл буферизуется: пропавший сброс не видно ни в файле, ни в коде возврата.
-/// После каждого раздела буфер сбрасывается явно, а неудача называется в stderr --
-/// так видно, после чего stdout перестал принимать запись.
-bool g_stdout_lost = false;
+/// Отметка выхода: строка в stderr прямой записью, мимо буфера CRT, и сколько байт stdout
+/// ждёт сброса (-1 -- буфера нет). В Release с /EHa вывод в файл иногда пропадал целиком или
+/// обрывался на границе буфера при коде 0: последний сброс при выходе не доходил до файла.
+/// Отметки ничего не сбрасывают, чтобы выход шёл как прежде, и показывают, докуда он доходит
+/// и цел ли буфер на каждом шаге.
+void mark(const char* where) noexcept {
+    char** base = nullptr;
+    char** at = nullptr;
+    int* left = nullptr;
+    long long pending = -1;
 
-void flush_stdout(const char* after) {
-    const bool flushed = std::fflush(stdout) == 0;
-    if (flushed && !std::ferror(stdout)) return;
+    if (_get_stream_buffer_pointers(stdout, &base, &at, &left) == 0 && base && at && *base && *at)
+        pending = *at - *base;
 
-    if (!g_stdout_lost)
-        std::fprintf(stderr, "probe: stdout lost after %s (fflush %s, ferror %d, errno %d, Win32 %lu)\n", after,
-                     flushed ? "ok" : "failed", std::ferror(stdout), errno, _doserrno);
-
-    g_stdout_lost = true;
+    char line[200];
+    const int length = std::snprintf(line, sizeof line, "probe: %s, stdout pending %lld\r\n", where, pending);
+    DWORD written = 0;
+    ::WriteFile(::GetStdHandle(STD_ERROR_HANDLE), line, length > 0 ? static_cast<DWORD>(length) : 0,
+                &written, nullptr);
 }
 
 void check(const char* what, bool ok) {
@@ -781,12 +802,10 @@ int main(int argc, char** argv) {
         how.file = scaled(how.file);
     }
 
-    // Отметка в stderr, без буфера: дошёл ли выход до exit(), который сбрасывает stdout.
-    std::atexit([] { std::fputs("probe: exit() reached\n", stderr); });
+    std::atexit([] { mark("atexit, registered first in main"); });
 
     std::printf("wxl.async unified task probe -- %s, coroutine checks: %s\n", build_kind,
                 checks_kind);
-    flush_stdout("the header");
 
     sta_loop::start("unified task probe worker");
 
@@ -803,15 +822,11 @@ int main(int argc, char** argv) {
         const cancellation_token stop = source.token();
 
         size_table(file, stop);
-        flush_stdout("the size table");
         checks(chain_file);
-        flush_stdout("the checks");
 
         if (how.rounds > 0) {
             task_table(how, stop);
-            flush_stdout("the task table");
             op_table(how, stop);
-            flush_stdout("the op table");
 
             const std::size_t size = 4 * 1024;
             bool prepared = false;
@@ -821,10 +836,9 @@ int main(int argc, char** argv) {
             } catch (const std::exception&) {
             }
 
-            if (prepared) {
+            if (prepared)
                 file_table(how, file, size, stop);
-                flush_stdout("the file table");
-            } else
+            else
                 check("the file for the file table was written", false);
         }
     }
@@ -834,14 +848,11 @@ int main(int argc, char** argv) {
     std::filesystem::remove(chain_file_name, ignored);
 
     sta_loop::stop();
-    flush_stdout("sta_loop::stop()");
 
     std::printf("\nafter the loop\n\n");
     check("sta_loop::stop() returned, every operation given up is gone", g_live == 0);
 
     std::printf("\nfailed: %d\n", g_failures);
-    flush_stdout("the last line");
-
-    // Код возврата не говорит «всё прошло», если таблиц и проверок никто не увидел.
-    return g_stdout_lost ? 1000 + g_failures : g_failures;
+    mark("main returns");
+    return g_failures;
 }
