@@ -52,7 +52,7 @@ public:
     /// callback removed before its turn -- by itself, by another, by clear() -- is not
     /// called, however far the walk has got; one added is not called by a fire already
     /// under way, only by the next. The callback that removes itself finishes its call
-    /// first: the walk destroys it once it returns. A callback may fire the event again;
+    /// first: the walk lets go of it once it returns. A callback may fire the event again;
     /// that inner fire calls what the list holds when it starts.
     ///
     /// Noexcept, because a callback is noexcept: with no result to report and no way to
@@ -71,7 +71,7 @@ public:
             (*fn)(args...);
             if (frame.doomed) {
                 frame.doomed = false;
-                delete fn;
+                let_go(fn);
             }
         }
         firing_ = frame.outer;
@@ -84,10 +84,12 @@ public:
         return add(func_t::create(std::forward<F>(fn)));
     }
 
-    /// Adds a callback that was made elsewhere -- by a subscribe() of someone who wraps
+    /// Adds a callback that was made elsewhere: by a subscribe() of someone who wraps
     /// this event and wants the callback built at its own caller's side, so that what the
     /// caller wrote goes into the node directly instead of through a std::function on the
-    /// way. The event takes it over, as it does any other.
+    /// way -- or a node built into the subscriber itself, which is then not allocated at
+    /// all. What happens to it once it is out of the list is its own release(): one made
+    /// by func_t::create() is destroyed, one built into its subscriber is left to it.
     cookie_t add(not_null<func_t> fn) {
         for (firing* f = firing_; f; f = f->outer) {
             if (!f->end) f->end = fn.get();
@@ -95,10 +97,10 @@ public:
         return callbacks_.push_back(fn);
     }
 
-    /// Removes and destroys the callback named by `cookie` -- at once, or, when it is the
-    /// one being called, as soon as it returns. Either way it is called no more.
-    /// \return false if this event has no such callback -- it was never added here, or it
-    ///         is gone already.
+    /// Removes the callback named by `cookie` and lets go of it -- at once, or, when it is
+    /// the one being called, as soon as it returns. Either way it is called no more.
+    /// \return false if this event has no such callback -- it was never added here, it
+    ///         is gone already, or it went with the callbacks swap() handed to another.
     bool remove(cookie_t cookie) {
         // Compared by address only: a node a fire is about to reach is in the list, so
         // a match is one, and only a match is read through.
@@ -108,7 +110,7 @@ public:
         return fn != nullptr;
     }
 
-    /// Removes and destroys every callback; one being called goes when it returns.
+    /// Removes every callback and lets go of each; one being called goes when it returns.
     void clear() {
         // Emptied first and walked afterwards, so that a callback whose destructor reaches
         // back into the event finds it empty rather than halfway through being freed.
@@ -168,8 +170,8 @@ private:
         }
     }
 
-    // Destroys a callback that has left the list, unless a walk is inside its call: then
-    // the outermost such walk destroys it on return, so the code of the call never runs
+    // Lets go of a callback that has left the list, unless a walk is inside its call: then
+    // the outermost such walk lets go of it on return, so the code of the call never runs
     // on freed memory.
     void release(func_t* fn) noexcept {
         firing* caller = nullptr;
@@ -179,8 +181,15 @@ private:
         if (caller) {
             caller->doomed = true;
         } else {
-            delete fn;
+            let_go(fn);
         }
+    }
+
+    // The link is cleared first: the list leaves it as it was when it unlinks, and a node
+    // that outlives the list -- built into its subscriber -- may be added again.
+    static void let_go(func_t* fn) noexcept {
+        fn->next_ = nullptr;
+        fn->release();
     }
 
     firing* firing_ = nullptr;
@@ -209,8 +218,13 @@ export namespace wxl::core {
  * Each callback lives in a node of its own, linked into an `intrusive_slist`, and `add`
  * returns the `cookie_t` naming that node. The cookie is the only way back to that one
  * callback -- `remove` is what it is for -- and it stays valid until that callback goes,
- * by `remove`, by `clear`, or with the event itself. The callbacks belong to the event: it
- * destroys them in all three cases.
+ * by `remove`, by `clear`, or with the event itself. In all three cases the event lets go
+ * of the node through its `release()`: one the event made out of what `add` was given --
+ * or one made by `func_t::create()` and handed over -- belongs to the event and is
+ * destroyed; a node built into its subscriber (a member deriving from `func_t`, whose
+ * `release()` does nothing) belongs to the subscriber. Such a subscriber allocates
+ * nothing to subscribe, and in return keeps two rules: it stays alive while its node is
+ * in a list, and it does not go away from inside a fire that reaches it.
  *
  * An `event` belongs to the STA thread: its nodes come from `sta_memory_pool`, so they are
  * added, fired and removed on that thread and inside the pool's life, the way a `function`'s
