@@ -128,7 +128,7 @@ struct promise_returns<void> : async_op_t<void> {
 /// the calling thread, an exception is kept for whoever reads the task, and the end hands
 /// the thread to the coroutine awaiting this one, if there is one.
 template <class R>
-class promise final : public body_tracking<promise_returns<R>>
+class promise : public body_tracking<promise_returns<R>>
 {
 public:
     /// Set at birth: initial_suspend does not suspend, so the body starts on the stack.
