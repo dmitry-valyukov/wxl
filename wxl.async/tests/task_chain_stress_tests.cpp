@@ -210,7 +210,7 @@ private:
     bool stops_when_given_up_;
 };
 
-awaitable<int> start_write(round_state& c, std::uint32_t frame, std::span<std::byte> into,
+task<int> start_write(round_state& c, std::uint32_t frame, std::span<std::byte> into,
                            random_stream& r) {
     const std::uint32_t work = r.one_in(4) ? 0 : r.below(64);
     const bool fails = r.one_in(12);
@@ -264,7 +264,7 @@ task<int> chain_link(round_state& c, std::uint32_t id, std::uint32_t depth) {
     const frame_witness witness(c, id);
     random_stream r(seed_of(c.seed, id));
     std::array<std::byte, 64> buffer{};
-    std::vector<awaitable<int>> later;
+    std::vector<task<int>> later;
     std::vector<task<int>> locals;
     int sum = 0;
 

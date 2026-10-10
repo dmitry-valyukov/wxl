@@ -82,14 +82,14 @@ private:
     std::span<std::byte> into_;
 };
 
-awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into) {
+task<std::size_t> start_read(probe& p, std::span<std::byte> into) {
     return sta_loop::async_run(std::unique_ptr<async_op_t<std::size_t>>(new gated_read(p, into)));
 }
 
 /// The same read under a token, in the form the operations of this module take one:
 /// `async_file::read_all(path, stop)`.
-cancellable_awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return cancellable_awaitable<std::size_t>(std::move(stop), [&] { return start_read(p, into); });
+cancellable_task<std::size_t> start_read(probe& p, std::span<std::byte> into, cancellation_token stop) {
+    return cancellable_task<std::size_t>(std::move(stop), [&] { return start_read(p, into); });
 }
 
 /// Three links, the token passed down by hand; the bottom one reads into its frame.
@@ -128,6 +128,17 @@ task<std::size_t> middle_that_rolls_back(probe& p, probe& undo, cancellation_tok
 
     co_await roll_back(undo, log);
     std::rethrow_exception(failure);
+}
+
+/// A subroutine given no token: what it awaits is not interrupted by anybody's.
+task<std::size_t> given_no_token(probe& p) {
+    std::byte buf[16]{};
+    co_return co_await start_read(p, buf);
+}
+
+/// Puts the subroutine under a token it was not given.
+task<std::size_t> puts_a_coroutine_under(probe& p, cancellation_token stop) {
+    co_return co_await cancellable(given_no_token(p), stop);
 }
 
 /// Was given the token and does not use it: its read cannot be interrupted.
@@ -220,7 +231,7 @@ task<std::size_t> overload_top(probe& p, cancellation_token stop) {
 /// then awaits the read.
 task<std::size_t> keeps_the_read(probe& p, cancellation_token stop, std::coroutine_handle<>& slot) {
     std::byte buf[16]{};
-    cancellable_awaitable<std::size_t> read = start_read(p, buf, std::move(stop));
+    cancellable_task<std::size_t> read = start_read(p, buf, std::move(stop));
 
     co_await parked{slot};
     co_return co_await read;
@@ -229,7 +240,7 @@ task<std::size_t> keeps_the_read(probe& p, cancellation_token stop, std::corouti
 /// Moves the read into a container before awaiting it there.
 task<std::size_t> moves_the_read(probe& p, cancellation_token stop) {
     std::byte buf[16]{};
-    std::vector<cancellable_awaitable<std::size_t>> reads;
+    std::vector<cancellable_task<std::size_t>> reads;
 
     reads.push_back(start_read(p, buf, std::move(stop)));
 
@@ -356,7 +367,7 @@ TEST(CancellationTest, ACancellationBeforeTheFirstWaitEndsTheChainThere) {
     EXPECT_FALSE(chain.done());
 
     ahead.gate.set();
-    sta_loop::run_until([&] { return chain.done() && holds_the_worker.ready(); });
+    sta_loop::run_until([&] { return chain.done() && holds_the_worker.done(); });
 
     EXPECT_TRUE(ends_cancelled(chain));
     EXPECT_EQ(p.ran, 0) << "a read told before the worker reached it was started";
@@ -455,6 +466,47 @@ TEST(CancellationTest, AWaitThatCannotBeToldEndsWhenItEndsAndThenWithTheCancella
     EXPECT_TRUE(ends_cancelled(late));
 }
 
+// The task of a coroutine has nobody to tell: a coroutine ends by the token it was given,
+// and this one was given none. Under cancellable() its wait is one on an awaiter that
+// cannot be told -- asked while it stands, it goes on until the coroutine ends, its read
+// not interrupted, and then ends with the cancellation.
+TEST(CancellationTest, ACoroutineUnderCancellableIsNotTold) {
+    probe p;
+    cancellation_source stop;
+    task<std::size_t> chain = puts_a_coroutine_under(p, stop.token());
+
+    p.started.wait();
+    stop.cancel();
+
+    EXPECT_EQ(p.told, 0);
+    EXPECT_FALSE(chain.done());
+
+    p.gate.set();
+    sta_loop::run_until([&] { return chain.done(); });
+
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.wrote, 1) << "the coroutine ran to its end";
+    EXPECT_EQ(p.alive, 0);
+}
+
+// Under a token cancelled already the wait on a coroutine does not begin: it ends with the
+// cancellation at once, and the coroutine goes with the expression that made it -- its read
+// given up the usual way, waited for, writing nothing into the frame being destroyed.
+TEST(CancellationTest, UnderACancelledTokenACoroutineIsNotWaitedFor) {
+    probe p;
+    cancellation_source stop;
+    stop.cancel();
+
+    task<std::size_t> chain = puts_a_coroutine_under(p, stop.token());
+
+    EXPECT_TRUE(chain.done());
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.told, 1) << "giving the read up asks it to stop";
+    EXPECT_EQ(p.wrote, 0);
+
+    sta_loop::run_until([&] { return p.alive == 0; });
+}
+
 // An awaiter that does not move is borrowed for the full expression it was made in -- the
 // co_await's -- and told like any other.
 TEST(CancellationTest, AnAwaiterThatDoesNotMoveIsBorrowedForItsCoAwait) {
@@ -543,7 +595,7 @@ TEST(CancellationTest, UnderACancelledTokenTheFormWithATokenStartsNothing) {
     EXPECT_EQ(p.made, 0);
 }
 
-// What the form with a token returns is an object like the awaitable: kept and awaited
+// What the form with a token returns is an object like the task: kept and awaited
 // later, it holds its token, so it does not matter what has become of the source by then.
 TEST(CancellationTest, AKeptOperationUnderATokenIsAwaitedLater) {
     std::coroutine_handle<> slot;
@@ -698,11 +750,13 @@ TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignCancel) {
 }
 
 static_assert(sizeof(cancellation_token) == sizeof(void*));
-static_assert(cancellable_awaiter<awaitable<std::size_t>>);
+static_assert(cancellable_awaiter<task<std::size_t>>);
 static_assert(!cancellable_awaiter<parked>);
 
-// The form with a token adds the token and the place in its list to the awaitable, and
-// nothing to the plain form.
-static_assert(sizeof(awaitable<std::size_t>) == sizeof(void*));
-static_assert(sizeof(cancellable_awaitable<std::size_t>) == 5 * sizeof(void*));
+// The form with a token adds the token and the place in its list to the task, and
+// nothing to the plain form. cancellable() over a task holds the task, borrows the token,
+// and takes a place in the list: the task stays an awaiter that can be told.
+static_assert(sizeof(task<std::size_t>) == sizeof(void*));
+static_assert(sizeof(cancellable_task<std::size_t>) == 5 * sizeof(void*));
+static_assert(sizeof(cancellable_wait<task<std::size_t>>) == 6 * sizeof(void*));
 

@@ -29,9 +29,9 @@
 // -- because the temporary lives to the end of the full expression, which is
 // past the suspension inside it.
 //
-// This is emphatically not async::awaitable, which owns one pending operation,
-// is consumed by the co_await that takes its result, and is resumed by a
-// worker thread through the loop. This one holds a subscription across any
+// This is emphatically not async::task, which owns one pending result, is
+// consumed by the co_await that takes it, and is resumed through the loop or by
+// the coroutine that makes the result. This one holds a subscription across any
 // number of waits and is resumed by the handler itself, inline, before that
 // handler has returned -- which is not a detail of how it is built but the
 // point of it: args.handled(true) means something only while the framework is

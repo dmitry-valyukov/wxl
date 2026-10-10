@@ -7,7 +7,7 @@ import std;
 
 namespace wxl::async {
 
-awaitable<async_directory> async_directory::open(const core::path& pattern) {
+task<async_directory> async_directory::open(const core::path& pattern) {
     return sta_loop::async_call(orphanable, [pattern] {
         core::directory opened = core::directory::open(pattern.c_str());
 
@@ -17,7 +17,7 @@ awaitable<async_directory> async_directory::open(const core::path& pattern) {
     });
 }
 
-awaitable<std::vector<async_directory::listed_entry>> async_directory::list(const core::path& pattern) {
+task<std::vector<async_directory::listed_entry>> async_directory::list(const core::path& pattern) {
     return sta_loop::async_call(orphanable, [pattern](const orphan_stage& stage) {
         std::vector<listed_entry> found;
 
@@ -38,7 +38,7 @@ awaitable<std::vector<async_directory::listed_entry>> async_directory::list(cons
     });
 }
 
-awaitable<std::optional<async_directory::entry>> async_directory::next() {
+task<std::optional<async_directory::entry>> async_directory::next() {
     ensure(directory_.opened() && "async_directory: no listing was opened");
 
     return sta_loop::async_call([this]() -> std::optional<entry> {
@@ -50,18 +50,18 @@ awaitable<std::optional<async_directory::entry>> async_directory::next() {
     });
 }
 
-awaitable<void> async_directory::close() {
+task<> async_directory::close() {
     ensure(directory_.opened() && "async_directory: no listing was opened");
 
     return sta_loop::async_call([this] { directory_.close(); });
 }
 
-awaitable<bool> async_directory::exists(const core::path& path) {
+task<bool> async_directory::exists(const core::path& path) {
     return sta_loop::async_call(
         orphanable, [path] { return core::directory::exists(path.c_str()); });
 }
 
-awaitable<void> async_directory::create_all(const core::path& p) {
+task<> async_directory::create_all(const core::path& p) {
     return sta_loop::async_call(orphanable, [copy = p](const orphan_stage& stage) mutable {
         const auto wanted = [&stage] { return !stage.given_up(); };
 
@@ -69,7 +69,7 @@ awaitable<void> async_directory::create_all(const core::path& p) {
     });
 }
 
-awaitable<void> async_directory::remove(const core::path& path) {
+task<> async_directory::remove(const core::path& path) {
     return sta_loop::async_call(orphanable, [path] {
         if (!core::directory::remove(path.c_str())) throw system_exception("RemoveDirectoryW");
     });

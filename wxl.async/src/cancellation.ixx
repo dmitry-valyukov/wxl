@@ -129,7 +129,10 @@ cancellation_state* state_of(const cancellation_token& token) noexcept;
 /// later does not stand at all -- unless its awaiter still has something out that
 /// borrows the frame, which it is told about and waited for, without holding the thread.
 /// An awaiter that cannot be told is not interrupted: a wait on it ends when it ends,
-/// and then with the cancellation. A told awaiter is left without its await_resume();
+/// and then with the cancellation. One whose cancel() answers says each time whether it
+/// could be told -- a task can be when an operation makes its result, and cannot when a
+/// coroutine does -- and one that could not is waited on as such. A told awaiter is left
+/// without its await_resume();
 /// one that answers a cancellation rather than throwing it -- the answering form of an
 /// event wait -- gives its answer through await_canceled().
 ///
@@ -187,11 +190,13 @@ protected:
 
     /// The token was cancelled before the wait stood.
     inline bool ready_when_told(coro_detail::site where) {
-        if constexpr (told) {
+        if constexpr (!told) {
+            return true;
+        } else if constexpr (std::same_as<decltype(self().awaiter().cancel()), bool>) {
+            return !self().awaiter().cancel() || ready(where);
+        } else {
             self().awaiter().cancel();
             return ready(where);
-        } else {
-            return true;
         }
     }
 
@@ -221,6 +226,8 @@ private:
 /// back -- and an event wait, which has nothing out, does not suspend at all. A form that
 /// answers rather than throws says what a cancelled wait answers through
 /// `await_canceled()`, which a wait under a token then gives instead of the exception.
+/// A cancel() that answers says whether there was anybody to tell: one that answers
+/// `false` is, for that wait, an awaiter that cannot be told.
 template <class Awaiter>
 concept cancellable_awaiter = requires(Awaiter& awaiter) {
     { awaiter.cancel() } noexcept;

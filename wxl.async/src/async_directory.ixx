@@ -2,9 +2,9 @@ module;
 
 export module wxl.async:async_directory;
 
-import :awaitable;
 import :cancellation;
 import :sta_loop;
+import :task;
 import wxl.core;
 import std;
 
@@ -56,7 +56,7 @@ public:
     ///        nothing once the statement that started the coroutine has ended,
     ///        and the worker is already holding it by then.
     /// \throw system_exception at the co_await if there is nothing to enumerate.
-    static awaitable<async_directory> open(const core::path& pattern);
+    static task<async_directory> open(const core::path& pattern);
 
     /// Everything the pattern matches, at once, in one operation that owns its
     /// result -- orphanable, one round trip, for the folder a reader adds to its
@@ -68,23 +68,23 @@ public:
     ///
     /// \throw system_exception at the co_await if there is no such directory,
     ///        or it could not be read.
-    [[nodiscard]] static awaitable<std::vector<listed_entry>> list(const core::path& pattern);
+    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern);
 
     /// The next name, or nothing when the listing is over.
     ///
     /// The name inside is a view into this object -- which lives in the
     /// coroutine frame -- and it is good until the next co_await of next(), the
     /// same rule the synchronous listing has.
-    [[nodiscard]] awaitable<std::optional<entry>> next();
+    [[nodiscard]] task<std::optional<entry>> next();
 
     /// Closes on the worker thread. Not required -- the object closes itself
     /// when it dies -- but that death happens on the STA thread.
-    [[nodiscard]] awaitable<void> close();
+    [[nodiscard]] task<> close();
 
     inline bool opened() const noexcept { return directory_.opened(); }
 
     /// \return whether there is a directory at this path.
-    [[nodiscard]] static awaitable<bool> exists(const core::path& path);
+    [[nodiscard]] static task<bool> exists(const core::path& path);
 
     /// Makes the whole chain of directories.
     ///
@@ -94,37 +94,37 @@ public:
     /// rather than anything the caller can see.
     ///
     /// \throw system_exception at the co_await if the chain could not be made.
-    [[nodiscard]] static awaitable<void> create_all(const core::path& p);
+    [[nodiscard]] static task<> create_all(const core::path& p);
 
     /// Removes an empty directory.
     /// \throw system_exception at the co_await if it could not be removed.
-    [[nodiscard]] static awaitable<void> remove(const core::path& path);
+    [[nodiscard]] static task<> remove(const core::path& path);
 
     /// The operations above under a token, its last argument.
     ///@{
-    static cancellable_awaitable<async_directory> open(const core::path& pattern, cancellation_token stop) {
-        return cancellable_awaitable<async_directory>(std::move(stop), [&] { return open(pattern); });
+    static cancellable_task<async_directory> open(const core::path& pattern, cancellation_token stop) {
+        return cancellable_task<async_directory>(std::move(stop), [&] { return open(pattern); });
     }
 
-    static cancellable_awaitable<std::vector<listed_entry>> list(const core::path& pattern,
+    static cancellable_task<std::vector<listed_entry>> list(const core::path& pattern,
                                                                  cancellation_token stop) {
-        return cancellable_awaitable<std::vector<listed_entry>>(std::move(stop), [&] { return list(pattern); });
+        return cancellable_task<std::vector<listed_entry>>(std::move(stop), [&] { return list(pattern); });
     }
 
-    cancellable_awaitable<std::optional<entry>> next(cancellation_token stop) {
-        return cancellable_awaitable<std::optional<entry>>(std::move(stop), [&] { return next(); });
+    cancellable_task<std::optional<entry>> next(cancellation_token stop) {
+        return cancellable_task<std::optional<entry>>(std::move(stop), [&] { return next(); });
     }
 
-    static cancellable_awaitable<bool> exists(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<bool>(std::move(stop), [&] { return exists(path); });
+    static cancellable_task<bool> exists(const core::path& path, cancellation_token stop) {
+        return cancellable_task<bool>(std::move(stop), [&] { return exists(path); });
     }
 
-    static cancellable_awaitable<void> create_all(const core::path& p, cancellation_token stop) {
-        return cancellable_awaitable<void>(std::move(stop), [&] { return create_all(p); });
+    static cancellable_task<void> create_all(const core::path& p, cancellation_token stop) {
+        return cancellable_task<void>(std::move(stop), [&] { return create_all(p); });
     }
 
-    static cancellable_awaitable<void> remove(const core::path& path, cancellation_token stop) {
-        return cancellable_awaitable<void>(std::move(stop), [&] { return remove(path); });
+    static cancellable_task<void> remove(const core::path& path, cancellation_token stop) {
+        return cancellable_task<void>(std::move(stop), [&] { return remove(path); });
     }
     ///@}
 

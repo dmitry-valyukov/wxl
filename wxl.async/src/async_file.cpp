@@ -17,7 +17,7 @@ async_file::async_file(core::file&& opened) : file_(std::move(opened)) {
             (info.FileAttributes & (FILE_ATTRIBUTE_COMPRESSED | FILE_ATTRIBUTE_ENCRYPTED)) != 0;
 }
 
-awaitable<async_file> async_file::open_read(const core::path& path) {
+task<async_file> async_file::open_read(const core::path& path) {
     return sta_loop::async_call(orphanable, [path] {
         core::file opened = core::file::open_read_overlapped(path.c_str());
 
@@ -27,7 +27,7 @@ awaitable<async_file> async_file::open_read(const core::path& path) {
     });
 }
 
-awaitable<async_file> async_file::create(const core::path& path) {
+task<async_file> async_file::create(const core::path& path) {
     return sta_loop::async_call(orphanable, [path] {
         core::file created = core::file::create_overlapped(path.c_str());
 
@@ -37,7 +37,7 @@ awaitable<async_file> async_file::create(const core::path& path) {
     });
 }
 
-awaitable<std::string> async_file::read_all(const core::path& path) {
+task<std::string> async_file::read_all(const core::path& path) {
     return sta_loop::async_call(orphanable, [path](const orphan_stage& stage) {
         core::file source = core::file::open_read(path.c_str());
 
@@ -81,7 +81,7 @@ awaitable<std::string> async_file::read_all(const core::path& path) {
     });
 }
 
-awaitable<void> async_file::write_all(const core::path& path, std::string bytes) {
+task<> async_file::write_all(const core::path& path, std::string bytes) {
     // All three names are made here, on the thread the pool belongs to: a path
     // built inside the body would be built on whatever thread carries it.
     std::wstring temporary_name(path.native());
@@ -150,11 +150,11 @@ awaitable<void> async_file::write_all(const core::path& path, std::string bytes)
         });
 }
 
-awaitable<bool> async_file::exists(const core::path& path) {
+task<bool> async_file::exists(const core::path& path) {
     return sta_loop::async_call(orphanable, [path] { return core::file::exists(path.c_str()); });
 }
 
-awaitable<std::size_t> async_file::read(std::span<std::byte> into) {
+task<std::size_t> async_file::read(std::span<std::byte> into) {
     ensure(file_.opened() && "async_file: no file was opened");
 
     std::unique_ptr<io_op> op(new io_op(io_op::kind::read, file_.native_handle(), into.data(),
@@ -168,7 +168,7 @@ awaitable<std::size_t> async_file::read(std::span<std::byte> into) {
     return sta_loop::async_start(std::move(op));
 }
 
-awaitable<std::size_t> async_file::write(std::span<const std::byte> from) {
+task<std::size_t> async_file::write(std::span<const std::byte> from) {
     ensure(file_.opened() && "async_file: no file was opened");
 
     std::unique_ptr<async_op_t<std::size_t>> op(
@@ -180,7 +180,7 @@ awaitable<std::size_t> async_file::write(std::span<const std::byte> from) {
     return sta_loop::async_run(std::move(op));
 }
 
-awaitable<std::uint64_t> async_file::size() {
+task<std::uint64_t> async_file::size() {
     ensure(file_.opened() && "async_file: no file was opened");
 
     return sta_loop::call_here([this] {
@@ -192,7 +192,7 @@ awaitable<std::uint64_t> async_file::size() {
     });
 }
 
-awaitable<void> async_file::flush() {
+task<> async_file::flush() {
     ensure(file_.opened() && "async_file: no file was opened");
 
     return sta_loop::async_call([this] {
@@ -200,7 +200,7 @@ awaitable<void> async_file::flush() {
     });
 }
 
-awaitable<void> async_file::close() {
+task<> async_file::close() {
     ensure(file_.opened() && "async_file: no file was opened");
 
     return sta_loop::call_here([this] { file_.close(); });

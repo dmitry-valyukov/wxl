@@ -5,7 +5,6 @@ export module wxl.async;
 export import :async_directory;
 export import :async_file;
 export import :async_op;
-export import :awaitable;
 export import :barrier;
 export import :bump_buffer;
 export import :cancellation;
