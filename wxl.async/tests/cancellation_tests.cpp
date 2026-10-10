@@ -803,8 +803,437 @@ TEST(CancellationTest, UnderATokenOfNobodyTheFormIsThePlainOne) {
     EXPECT_EQ(lambda.result(), 9);
 }
 
-// The token is one thread's: a build that checks coroutines stops a cancel() from any other
-// -- assert in a Debug build, core::abort with the caller's line under STRICT_CORO.
+// ---- A source under a parent token -----------------------------------------------------
+
+namespace {
+
+/// Whether anybody stands in the event of a token's state: an operation, a wait, a source
+/// made under the token.
+bool anybody_stands(const cancellation_token& token) {
+    return static_cast<bool>(cancellation_detail::state_of(token)->told());
+}
+
+/// Counts the states it was put into that are still alive: a callback of its own in the
+/// state's event, which the event lets go of -- and with it what the callback captured --
+/// when the state goes. Only for a state not cancelled meanwhile: a fire lets go of what it
+/// has called.
+void count_while_alive(const cancellation_token& token, int& alive) {
+    cancellation_detail::state_of(token)->told().add(
+        [keep = counted_capture(&alive)]() noexcept {});
+}
+
+/// The thread's queue, as a wait of wxl.ui sees it: a told wait hands its coroutine here
+/// rather than resuming it, and the test takes the turns.
+using turns = std::vector<std::coroutine_handle<>>;
+
+void take_turns(turns& queue) {
+    while (!queue.empty()) {
+        const std::coroutine_handle<> next = queue.back();
+        queue.pop_back();
+        next.resume();
+    }
+}
+
+/// The awaiter of such a wait: it ends when the test resumes it from `slot` -- its event
+/// came -- or, told, on the queue's turn.
+struct queued_awaiter {
+    turns* queue;
+    std::coroutine_handle<>* slot;
+    bool told = false;
+
+    bool await_ready() const noexcept { return told; }
+    void await_suspend(std::coroutine_handle<> here) noexcept { *slot = here; }
+    void await_resume() const noexcept {}
+
+    void cancel() noexcept {
+        told = true;
+        if (*slot) queue->push_back(std::exchange(*slot, {}));
+    }
+};
+
+/// A wait of wxl under a token over that awaiter: what the event waits of wxl.ui are made of.
+class queued_wait : public cancellation_detail::wait_under<queued_wait>
+{
+    friend cancellation_detail::wait_under<queued_wait>;
+
+public:
+    queued_wait(turns& queue, std::coroutine_handle<>& slot, cancellation_token stop) noexcept
+        : stop_(std::move(stop)), awaiter_{.queue = &queue, .slot = &slot} {}
+
+    queued_wait(const queued_wait&) = delete;
+    queued_wait& operator=(const queued_wait&) = delete;
+
+    ~queued_wait() { this->leave(); }
+
+private:
+    queued_awaiter& awaiter() noexcept { return awaiter_; }
+
+    cancellation_detail::cancellation_state* state() const noexcept {
+        return cancellation_detail::state_of(stop_);
+    }
+
+    cancellation_token stop_;
+    queued_awaiter awaiter_;
+};
+
+task<> waits_its_turn(turns& queue, std::coroutine_handle<>& slot, cancellation_token stop,
+                      std::string& ended) {
+    try {
+        co_await queued_wait{queue, slot, std::move(stop)};
+        ended = "came";
+    } catch (const operation_canceled_exception&) {
+        ended = "cancelled";
+    }
+}
+
+}  // namespace
+
+// Cancelling the parent cancels the child, and what stands under the child is cut short as
+// if the child had been cancelled itself: told inside the parent's cancel(), resumed by
+// nobody there, ended through the loop.
+TEST(CancellationTest, CancellingTheParentCancelsTheChild) {
+    probe p;
+    cancellation_source parent;
+    cancellation_source child(parent.token());
+    task<std::size_t> chain = top(p, child.token());
+
+    p.started.wait();
+    EXPECT_FALSE(child.is_canceled());
+
+    parent.cancel();
+
+    EXPECT_TRUE(child.is_canceled());
+    EXPECT_EQ(p.told, 1);
+    EXPECT_FALSE(chain.done()) << "cancel() resumed the chain itself";
+
+    sta_loop::run_until([&] { return chain.done(); });
+
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.wrote, 0);
+    EXPECT_EQ(p.alive, 0);
+}
+
+// Cancelling the child reaches its own and not the parent's. The child goes on standing in
+// the parent's event until it goes, and the parent's cancel() then cancels it a second time,
+// which tells nobody.
+TEST(CancellationTest, CancellingTheChildLeavesTheParentAlone) {
+    probe under_parent, under_child;
+    cancellation_source parent;
+    cancellation_source child(parent.token());
+
+    {
+        std::byte a[16]{}, b[16]{};
+        task<std::size_t> parents = start_read(under_parent, a, parent.token());
+        under_parent.started.wait();
+        task<std::size_t> childs = start_read(under_child, b, child.token());
+
+        child.cancel();
+
+        EXPECT_TRUE(child.is_canceled());
+        EXPECT_FALSE(parent.is_canceled());
+        EXPECT_EQ(under_child.told, 1);
+        EXPECT_EQ(under_parent.told, 0);
+
+        under_parent.gate.set();
+        sta_loop::run_until([&] { return parents.done() && childs.done(); });
+
+        EXPECT_EQ(parents.result(), 16u);
+        EXPECT_TRUE(ends_cancelled(childs));
+        EXPECT_EQ(under_child.ran, 0);
+    }
+
+    EXPECT_TRUE(anybody_stands(parent.token())) << "the child left the parent's event early";
+
+    parent.cancel();
+
+    EXPECT_TRUE(child.is_canceled());
+    EXPECT_EQ(under_child.told, 1);
+    EXPECT_FALSE(anybody_stands(child.token()));
+
+    probe late;
+    task<std::size_t> refused = top(late, child.token());
+    EXPECT_TRUE(ends_cancelled(refused));
+    EXPECT_EQ(late.made, 0);
+}
+
+// Under a parent cancelled already the child is born cancelled and stands nowhere; under a
+// token of nobody it is a source like any other.
+TEST(CancellationTest, UnderACancelledParentTheChildIsBornCancelled) {
+    cancellation_source parent;
+    parent.cancel();
+
+    cancellation_source child(parent.token());
+
+    EXPECT_TRUE(child.is_canceled());
+    EXPECT_FALSE(anybody_stands(parent.token())) << "the child stands in an event that has fired";
+
+    probe p;
+    task<std::size_t> chain = top(p, child.token());
+    EXPECT_TRUE(chain.done());
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.made, 0);
+
+    cancellation_source unowned(cancellation_token{});
+    EXPECT_FALSE(unowned.is_canceled());
+    unowned.cancel();
+    EXPECT_TRUE(unowned.is_canceled());
+}
+
+// A child that goes before the parent is cancelled takes its callback out of the parent's
+// event -- cancelled or not, and once its last token has gone, the source or not -- and the
+// parent's cancel() reaches nothing that is gone.
+TEST(CancellationTest, AChildGoneBeforeTheParentIsCancelledLeavesItsEvent) {
+    cancellation_source parent;
+
+    {
+        cancellation_source child(parent.token());
+        EXPECT_TRUE(anybody_stands(parent.token()));
+    }
+    EXPECT_FALSE(anybody_stands(parent.token()));
+
+    {
+        cancellation_source child(parent.token());
+        child.cancel();
+    }
+    EXPECT_FALSE(anybody_stands(parent.token()));
+
+    std::optional<cancellation_token> kept;
+    {
+        cancellation_source child(parent.token());
+        kept = child.token();
+    }
+    EXPECT_TRUE(anybody_stands(parent.token())) << "the child left while its token was held";
+    kept.reset();
+    EXPECT_FALSE(anybody_stands(parent.token()));
+
+    parent.cancel();
+    EXPECT_TRUE(parent.is_canceled());
+}
+
+// Three generations: cancelling the middle one cancels the youngest and not the eldest, and
+// cancelling the eldest reaches the youngest through the middle one -- told inside a fire
+// inside a fire, resuming nobody.
+TEST(CancellationTest, ThreeGenerations) {
+    {
+        cancellation_source eldest;
+        cancellation_source middle(eldest.token());
+        cancellation_source youngest(middle.token());
+
+        middle.cancel();
+
+        EXPECT_FALSE(eldest.is_canceled());
+        EXPECT_TRUE(youngest.is_canceled());
+    }
+
+    // A read under no token keeps the worker, so the three wait in its queue behind it.
+    probe ahead, e, m, y;
+    std::byte ahead_buf[16]{};
+    task<std::size_t> holds_the_worker = start_read(ahead, ahead_buf);
+    ahead.started.wait();
+
+    cancellation_source eldest;
+    cancellation_source middle(eldest.token());
+    cancellation_source youngest(middle.token());
+
+    task<std::size_t> under_eldest = top(e, eldest.token());
+    task<std::size_t> under_middle = top(m, middle.token());
+    task<std::size_t> under_youngest = top(y, youngest.token());
+
+    eldest.cancel();
+
+    EXPECT_TRUE(middle.is_canceled());
+    EXPECT_TRUE(youngest.is_canceled());
+    EXPECT_EQ(e.told + m.told + y.told, 3);
+    EXPECT_FALSE(under_eldest.done() || under_middle.done() || under_youngest.done())
+        << "cancel() resumed a chain itself";
+
+    ahead.gate.set();
+    sta_loop::run_until([&] {
+        return holds_the_worker.done() && under_eldest.done() && under_middle.done() &&
+               under_youngest.done();
+    });
+
+    EXPECT_TRUE(ends_cancelled(under_eldest));
+    EXPECT_TRUE(ends_cancelled(under_middle));
+    EXPECT_TRUE(ends_cancelled(under_youngest));
+    EXPECT_EQ(e.ran + m.ran + y.ran, 0);
+}
+
+// The parent's source and every token of it gone but the child's hold: the child goes on,
+// the parent's state lives as long as the child's, and both go when the child does -- the
+// parent holds nothing of the child, so there is no cycle to leak.
+TEST(CancellationTest, AChildHoldsItsParentAndNothingLeaks) {
+    int parents = 0, children = 0;
+
+    {
+        std::optional<cancellation_source> parent(std::in_place);
+        cancellation_source child(parent->token());
+        count_while_alive(parent->token(), parents);
+        count_while_alive(child.token(), children);
+
+        parent.reset();
+        EXPECT_EQ(parents, 1) << "the parent's state went while the child stood in its event";
+
+        probe p;
+        p.gate.set();
+        task<std::size_t> chain = top(p, child.token());
+        sta_loop::run_until([&] { return chain.done(); });
+        EXPECT_EQ(chain.result(), 16u);
+    }
+
+    EXPECT_EQ(children, 0);
+    EXPECT_EQ(parents, 0);
+
+    // And cancelled by itself, with nothing of the parent left but its hold.
+    {
+        std::optional<cancellation_source> parent(std::in_place);
+        cancellation_source child(parent->token());
+        count_while_alive(parent->token(), parents);
+        parent.reset();
+
+        probe p;
+        task<std::size_t> chain = top(p, child.token());
+        p.started.wait();
+        child.cancel();
+        EXPECT_EQ(p.told, 1);
+
+        sta_loop::run_until([&] { return chain.done(); });
+        EXPECT_TRUE(ends_cancelled(chain));
+        EXPECT_EQ(parents, 1);
+    }
+
+    EXPECT_EQ(parents, 0);
+}
+
+// Many children under one parent, going front to back and back to front: each takes its own
+// callback out of the parent's event and no other, and the parent's cancel() reaches those
+// still there -- one cancelled by itself already among them.
+TEST(CancellationTest, ManyChildrenUnderOneParentGoInEitherOrder) {
+    for (const bool backwards : {false, true}) {
+        SCOPED_TRACE(backwards ? "back to front" : "front to back");
+
+        cancellation_source parent;
+        std::vector<std::optional<cancellation_source>> children(8);
+
+        const std::size_t n = children.size();
+        const auto nth = [&](std::size_t k) -> auto& {
+            return children[backwards ? n - 1 - k : k];
+        };
+
+        for (auto& child : children) child.emplace(parent.token());
+        for (std::size_t k = 0; k < n; ++k) {
+            EXPECT_TRUE(anybody_stands(parent.token()));
+            nth(k).reset();
+        }
+        EXPECT_FALSE(anybody_stands(parent.token()));
+
+        for (auto& child : children) child.emplace(parent.token());
+        for (std::size_t k = 0; k < n; k += 2) nth(k).reset();
+        nth(1)->cancel();
+
+        parent.cancel();
+
+        for (const auto& child : children) {
+            if (child) {
+                EXPECT_TRUE(child->is_canceled());
+            }
+        }
+
+        for (std::size_t k = 0; k < n; ++k) nth(k).reset();
+    }
+}
+
+// A wait of wxl under the child's token: without a request it ends when its event comes; told
+// when the parent is cancelled, it is handed to the queue inside the parent's cancel() and
+// ends with the cancellation on the queue's turn; begun under the child cancelled, it ends at
+// once without suspending.
+TEST(CancellationTest, AWaitUnderTheChildIsToldWithTheParent) {
+    turns queue;
+    std::coroutine_handle<> slot;
+    cancellation_source parent;
+    cancellation_source child(parent.token());
+
+    std::string came;
+    task<> first = waits_its_turn(queue, slot, child.token(), came);
+    ASSERT_TRUE(slot);
+    std::exchange(slot, {}).resume();
+    EXPECT_EQ(came, "came");
+
+    std::string told;
+    task<> second = waits_its_turn(queue, slot, child.token(), told);
+    EXPECT_TRUE(anybody_stands(child.token()));
+
+    parent.cancel();
+
+    EXPECT_FALSE(second.done()) << "cancel() resumed the wait itself";
+    ASSERT_EQ(queue.size(), 1u);
+    take_turns(queue);
+    EXPECT_EQ(told, "cancelled");
+
+    std::string at_once;
+    task<> third = waits_its_turn(queue, slot, child.token(), at_once);
+    EXPECT_TRUE(third.done());
+    EXPECT_EQ(at_once, "cancelled");
+    EXPECT_TRUE(queue.empty());
+}
+
+// What the child stands on: told inside the parent's fire, it tells its own -- an operation,
+// a wait, a child of its own -- and destroys nobody, while its callback lies in the event the
+// parent fires. Its sources then go before what stands under them, and each state, going
+// last, finds its parent's event emptied by the fire and takes nothing out of it.
+TEST(CancellationTest, TheParentsFireTellsTheChildsOwnAndDestroysNobody) {
+    // A read under no token keeps the worker, so the reads under the tokens wait behind it.
+    probe ahead, before, under_child, under_grandchild, after;
+    std::byte ahead_buf[16]{};
+    task<std::size_t> holds_the_worker = start_read(ahead, ahead_buf);
+    ahead.started.wait();
+
+    turns queue;
+    std::coroutine_handle<> slot;
+    std::string ended;
+
+    cancellation_source parent;
+    std::byte buf[16]{};
+    task<std::size_t> first = start_read(before, buf, parent.token());
+
+    std::optional<cancellation_source> child(std::in_place, parent.token());
+    std::optional<cancellation_source> grandchild(std::in_place, child->token());
+
+    task<std::size_t> childs = top(under_child, child->token());
+    task<> waits = waits_its_turn(queue, slot, child->token(), ended);
+    task<std::size_t> grandchilds = top(under_grandchild, grandchild->token());
+    task<std::size_t> last = top(after, parent.token());
+
+    parent.cancel();
+
+    EXPECT_EQ(before.told + under_child.told + under_grandchild.told + after.told, 4);
+    EXPECT_EQ(queue.size(), 1u);
+    EXPECT_FALSE(first.done() || childs.done() || waits.done() || grandchilds.done() ||
+                 last.done())
+        << "cancel() resumed somebody";
+    EXPECT_FALSE(anybody_stands(parent.token()));
+
+    child.reset();
+    grandchild.reset();
+
+    take_turns(queue);
+    ahead.gate.set();
+    sta_loop::run_until([&] {
+        return holds_the_worker.done() && first.done() && childs.done() && grandchilds.done() &&
+               last.done();
+    });
+
+    EXPECT_TRUE(ends_cancelled(first));
+    EXPECT_TRUE(ends_cancelled(childs));
+    EXPECT_TRUE(ends_cancelled(grandchilds));
+    EXPECT_TRUE(ends_cancelled(last));
+    EXPECT_EQ(ended, "cancelled");
+    EXPECT_EQ(before.ran + under_child.ran + under_grandchild.ran + after.ran, 0);
+}
+
+// The token is one thread's: a build that checks coroutines stops a cancel() from any other,
+// and a source made under a token there, which would join the token's event -- assert in a
+// Debug build, core::abort with the caller's line under STRICT_CORO.
 
 namespace {
 
@@ -824,6 +1253,16 @@ void cancel_from_another_thread() {
 
     cancellation_source stop;
     std::thread([&stop] { cancel_there(stop); }).join();
+}
+
+constexpr std::uint_least32_t line_of_the_foreign_child = std::source_location::current().line() + 1;
+void make_a_child_there(cancellation_source& parent) { cancellation_source child(parent.token()); }
+
+void make_a_child_on_another_thread() {
+    report_failures_to_stderr();
+
+    cancellation_source parent;
+    std::thread([&parent] { make_a_child_there(parent); }).join();
 }
 
 class CancellationDeathTest : public ::testing::Test
@@ -855,7 +1294,22 @@ TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignCancel) {
                              line_of_the_foreign_cancel));
 }
 
+TEST_F(CancellationDeathTest, AChildIsMadeOnItsCoroutinesThread) {
+    EXPECT_DEATH(make_a_child_on_another_thread(),
+                 "made under a token on a thread other than its coroutines'");
+}
+
+TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignChild) {
+    EXPECT_DEATH(make_a_child_on_another_thread(),
+                 std::format("cancellation_tests\\.cpp\\({}\\): cancellation_source: made under a token",
+                             line_of_the_foreign_child));
+}
+
 static_assert(sizeof(cancellation_token) == sizeof(void*));
+
+// A token is not a source: a child is made by name, from its parent's token.
+static_assert(std::is_constructible_v<cancellation_source, cancellation_token>);
+static_assert(!std::is_convertible_v<cancellation_token, cancellation_source>);
 
 // The form with a token is the same task: the token and the place in its event live in the
 // operation, and the plain form has neither.

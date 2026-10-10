@@ -34,12 +34,18 @@ namespace cancellation_detail {
 /// What is told when a token is cancelled: an event of no arguments. Whoever stands under
 /// a token -- an operation or a wait of wxl -- builds its node into itself (a member
 /// deriving from `told_event::func_t`, whose release() does nothing), so that standing
-/// allocates nothing; it adds the node while it stands and removes it when it is over.
+/// allocates nothing; it adds the node while it stands and removes it when it is over. A
+/// child state, one per source, stands as a callback the event makes.
 using told_event = core::event<void() noexcept>;
 
-/// What a source and its tokens share: the answer, and the event that tells it. Nothing
-/// else -- whoever stands under the token subscribes and unsubscribes itself, through
-/// the event, and the state knows none of them.
+class cancellation_state;
+
+using cancellation_state_ptr = core::intrusive_ptr<cancellation_state>;
+
+/// What a source and its tokens share: the answer, and the event that tells it -- and, for
+/// a source made under a parent token, its own place in the parent's event. Whoever stands
+/// under the token subscribes and unsubscribes itself, through the event, and the state
+/// knows none of them: a parent knows nothing of its children either.
 ///
 /// One thread, the one the coroutines are on: an operation that is told sets its own
 /// flag, the one the worker reads before the body anyway, so the answer is a plain field
@@ -47,6 +53,43 @@ using told_event = core::event<void() noexcept>;
 class cancellation_state : public core::sta_refcounted
 {
 public:
+    /// A state of its own: cancelled by its source alone.
+    cancellation_state() noexcept = default;
+
+    /// A state under the state of a parent token, or under none (null): cancelled by its own
+    /// source, or by the parent's -- whichever comes first. Under a live parent it stands in
+    /// the parent's event as any subscriber does, a callback that cancels it, and holds the
+    /// parent, so that the event outlives the stand and a chain of generations holds
+    /// together; the parent holds nothing of it. Under a parent cancelled already it is born
+    /// cancelled and stands nowhere.
+    inline explicit cancellation_state(cancellation_state_ptr parent) {
+        if (!parent) return;
+
+        if (parent->canceled()) {
+            canceled_ = true;
+            return;
+        }
+
+        // By a plain pointer: the node lives in the parent's event, and a count there would
+        // keep this state alive as long as the parent, and the parent as long as this one.
+        subscription_ = parent->told().add([this]() noexcept { cancel(); }).get();
+        parent_ = std::move(parent);
+    }
+
+    /// Takes its callback out of the parent's event: here and nowhere else -- its own
+    /// cancel() keeps it standing, and the parent telling it again is cancelling it twice.
+    /// One thread makes, tells and destroys a state, and telling destroys nobody, so its end
+    /// never falls inside the parent's fire, and the destructor is all it takes to leave: no
+    /// second count of who may still call it.
+    ///
+    /// A parent cancelled meanwhile has emptied its event into the one it fired and let go of
+    /// the callback, so remove() finds nothing and answers false: the list compares the
+    /// cookie's address and never reads through it, and since nobody subscribes under a
+    /// cancelled parent, no later node there can have taken that address.
+    inline ~cancellation_state() override {
+        if (parent_) parent_->told().remove(*subscription_);
+    }
+
     inline bool canceled() const noexcept { return canceled_; }
 
     /// The event a subscriber adds itself to and removes itself from.
@@ -57,7 +100,8 @@ public:
     /// call -- finds it gone, and remove() answers false. Telling resumes nobody (an
     /// operation is cut short, a wait is handed to its thread's queue), so no subscriber
     /// goes away in the middle of the fire. One that begins standing afterwards finds the
-    /// answer and does not stand at all.
+    /// answer and does not stand at all. A child state told here tells its own the same
+    /// way, from inside this fire, and goes nowhere either.
     inline void cancel() noexcept {
         canceled_ = true;
 
@@ -69,9 +113,12 @@ public:
 private:
     bool canceled_ = false;
     told_event told_;
-};
 
-using cancellation_state_ptr = core::intrusive_ptr<cancellation_state>;
+    /// The parent's state and the cookie of the callback standing in its event, while this
+    /// state stands there; both empty for a state of its own.
+    cancellation_state_ptr parent_;
+    core::nullable<const void> subscription_;
+};
 
 /// The state behind a token, for whoever stands on it; null for a token that has none.
 cancellation_state* state_of(const cancellation_token& token) noexcept;
@@ -258,11 +305,37 @@ inline cancellation_detail::cancellation_state* cancellation_detail::state_of(
 /// the first of two steps, as with event waits: told, the chains end by themselves,
 /// and whatever has not ended when its owner can wait no longer is destroyed by the
 /// owner, which gives up its operations the usual way.
+///
+/// Only a source cancels, and a token only reads, so a part of some work that may be
+/// cancelled apart from the rest has a source of its own, made under the token of the
+/// whole: `cancellation_source child(parent);`. Its cancel() reaches its own tokens alone,
+/// and the parent's reaches them too. This is how work is divided: each piece of it -- a
+/// page being laid out, a download -- takes its own source under its owner's token, and
+/// its operations stand under that. A token's event is a singly linked list that leaving
+/// walks, and this keeps it a handful long: a token's own operations and waits, and the
+/// sources made under it.
 class cancellation_source
 {
 public:
     inline cancellation_source()
         : state_(core::make_refcounted<cancellation_detail::cancellation_state>()) {}
+
+    /// A source under `parent`, cancelled by its own cancel() or by the parent's, whichever
+    /// comes first. Its state stands in the parent's event, a callback that cancels it,
+    /// from now until the state goes, and holds the parent's state meanwhile; under a parent
+    /// cancelled already it is born cancelled, and under a token of nobody it is a source
+    /// like any other. Made on the coroutines' thread, whose event it joins; a build that
+    /// checks coroutines makes sure.
+    inline explicit cancellation_source(
+        cancellation_token parent,
+        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
+        coro_check(core::sta_memory_pool::is_safe(),
+                   "cancellation_source: made under a token on a thread other than its coroutines'",
+                   where);
+
+        state_ = core::make_refcounted<cancellation_detail::cancellation_state>(
+            std::move(parent.state_));
+    }
 
     inline cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
 
