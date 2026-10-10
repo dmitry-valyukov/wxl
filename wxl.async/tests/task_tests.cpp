@@ -215,7 +215,7 @@ task<std::string> top_passes_it_on_too(chain_notes& notes) {
 /// An operation in flight, as much of one as a coroutine sees: it parks the coroutine
 /// like `parked`, and if it goes while the coroutine is still parked on it, it gives the
 /// wait up -- the slot is emptied, so that nothing can resume a frame that is gone. That
-/// is what an awaitable of this module does with its operation, and what wxl.ui's waits
+/// is what the task of an operation of this module does with it, and what wxl.ui's waits
 /// do with their subscriptions.
 class operation_in_flight
 {
