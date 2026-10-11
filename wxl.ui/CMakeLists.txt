@@ -530,8 +530,12 @@ if(BUILD_TESTING)
     #
     # A wait on an event, asked to end through a cancellation token, is tested
     # over a fake event, with the test standing for the thread's queue: the
-    # coroutines are wxl.async's, and the turn a told wait asks for is a
+    # coroutines are wxl.async's, and the turn a cancelled wait asks for is a
     # function the test defines, so UiThread.cpp stays out.
+    #
+    # The task a WinRT asynchronous operation becomes is tested the same way:
+    # its producer is a template over the operation and the queue, given a
+    # fake of each, so no dispatcher is needed.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
@@ -539,6 +543,7 @@ if(BUILD_TESTING)
             test/list_mirror_test.cpp
             test/bound_items_source_test.cpp
             test/event_cancel_test.cpp
+            test/operation_test.cpp
             src/Object.cpp
             src/impl/bound_items_source.cpp
         DEPS

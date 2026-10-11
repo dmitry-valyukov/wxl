@@ -18,6 +18,7 @@
 #include <unordered_map>
 
 #include "TextureCache.h"
+#include "impl/operation.h"
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 
@@ -26,7 +27,6 @@ namespace wxl {
 namespace {
 
 namespace muc = winrt::Microsoft::UI::Composition;
-namespace mud = winrt::Microsoft::UI::Dispatching;
 namespace canvas = winrt::Microsoft::Graphics::Canvas;
 namespace canvasui = winrt::Microsoft::Graphics::Canvas::UI::Composition;
 namespace directx = winrt::Microsoft::Graphics::DirectX;
@@ -68,60 +68,6 @@ struct TextureCache::Impl {
     }
 };
 
-// Состояние одного запроса. Держит shared-ссылку на кэш: незавершённый запрос
-// переживает выброшенную кэш-обёртку.
-struct TextureRequest::Impl {
-    std::shared_ptr<TextureCache::Impl> cache;
-    std::wstring key;
-
-    muc::CompositionDrawingSurface cached{nullptr};   // не пусто -> уже в кэше
-    wf::IAsyncOperation<canvas::CanvasBitmap> op{nullptr};
-    mud::DispatcherQueue ui{nullptr};
-    canvas::CanvasBitmap loaded{nullptr};
-    std::exception_ptr error;
-};
-
-// ---- TextureRequest ------------------------------------------------------
-
-TextureRequest::TextureRequest(std::unique_ptr<Impl> impl) noexcept : impl_(std::move(impl)) {}
-TextureRequest::TextureRequest(TextureRequest&&) noexcept = default;
-TextureRequest& TextureRequest::operator=(TextureRequest&&) noexcept = default;
-TextureRequest::~TextureRequest() = default;
-
-bool TextureRequest::await_ready() const noexcept { return static_cast<bool>(impl_->cached); }
-
-void TextureRequest::await_suspend(std::coroutine_handle<> resume) {
-    // Загрузка уже идёт (запущена в getAsync), декод -- на потоках WinRT. Ждём
-    // её завершения; обработчик приходит на потоке пула, и всё, что он делает,
-    // -- перекладывает возобновление корутины на UI-поток нашим диспетчером.
-    // self валиден до конца co_await: awaiter живёт в кадре корутины, а тот --
-    // до самого возобновления.
-    Impl* const self = impl_.get();
-    mud::DispatcherQueue const ui = self->ui;
-    self->op.Completed([self, resume, ui](wf::IAsyncOperation<canvas::CanvasBitmap> const& op,
-                                          wf::AsyncStatus) {
-        try {
-            self->loaded = op.GetResults();
-        } catch (...) {
-            self->error = std::current_exception();
-        }
-        ui.TryEnqueue([resume]() { resume.resume(); });
-    });
-}
-
-CompositionDrawingSurface TextureRequest::await_resume() {
-    Impl* const self = impl_.get();
-
-    if (self->error) std::rethrow_exception(self->error);
-
-    // Из кэша -- отдаём как есть. Иначе рисуем поверхность из загруженного
-    // битмапа (мы уже на UI-потоке) и кэшируем.
-    muc::CompositionDrawingSurface const surface =
-        self->cached ? self->cached : self->cache->surfaceFor(self->key, self->loaded);
-
-    return Object::Impl::wrap<CompositionDrawingSurface>(surface);
-}
-
 // ---- TextureCache --------------------------------------------------------
 
 TextureCache::TextureCache(Compositor const& compositor) : impl_(std::make_shared<Impl>()) {
@@ -138,22 +84,23 @@ TextureCache::~TextureCache() = default;
 TextureCache::TextureCache(TextureCache&&) noexcept = default;
 TextureCache& TextureCache::operator=(TextureCache&&) noexcept = default;
 
-TextureRequest TextureCache::getAsync(std::filesystem::path const& image) {
-    auto request = std::make_unique<TextureRequest::Impl>();
-    request->cache = impl_;
-    request->key = image.wstring();
+async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::path const& image) {
+    std::wstring const key = image.wstring();
 
-    if (auto const it = impl_->surfaces.find(request->key); it != impl_->surfaces.end()) {
-        request->cached = it->second;   // готово без подвеса
-        return TextureRequest{std::move(request)};
+    // Уже в кэше -- задача готова сразу, и co_await её не приостанавливается.
+    if (auto const it = impl_->surfaces.find(key); it != impl_->surfaces.end()) {
+        return async::sta_loop::call_here(
+            [surface = Object::Impl::wrap<CompositionDrawingSurface>(it->second)] { return surface; });
     }
 
-    // Запускаем загрузку сразу -- декод пойдёт на потоках WinRT, -- и запоминаем
-    // диспетчер UI-потока (мы на нём), чтобы вернуться на него по завершении.
-    request->ui = mud::DispatcherQueue::GetForCurrentThread();
-    request->op = canvas::CanvasBitmap::LoadAsync(impl_->device, request->key);
-
-    return TextureRequest{std::move(request)};
+    // Загрузка запускается сразу -- декод пойдёт на потоках WinRT, -- а поверхность
+    // из битмапа делается по её завершении, уже на этом (UI-) потоке, и кэшируется.
+    // Загрузка держит кэш: устройство и карта переживают выброшенную обёртку.
+    return impl::start_operation<CompositionDrawingSurface>(
+        canvas::CanvasBitmap::LoadAsync(impl_->device, key),
+        [cache = impl_, key](canvas::CanvasBitmap const& bitmap) {
+            return Object::Impl::wrap<CompositionDrawingSurface>(cache->surfaceFor(key, bitmap));
+        });
 }
 
 void TextureCache::clear() { impl_->surfaces.clear(); }

@@ -79,7 +79,7 @@ struct type_use {
     // a wxl callable is a wrapper of its own that nothing needs yet.
     bool parameter_only = false;
 
-    // The opposite: an asynchronous operation (wxl::Operation) is what a call hands back and
+    // The opposite: an asynchronous operation (async::task) is what a call hands back and
     // awaits; there is nothing a caller could give in its place.
     bool result_only = false;
 
