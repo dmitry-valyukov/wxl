@@ -214,7 +214,13 @@ class sta_loop
     /// `thread_group::detached_thread_count()` and waited for by
     /// `join_detached_threads()`, and a loop that lives as long as the process
     /// would make both of those answer "never". Its own group answers instead.
-    static inline thread_group_ptr threads_;
+    ///
+    /// Held by a scope, whose end closes the group and joins its thread: the
+    /// component tells it has stopped from inside the thread, before the thread
+    /// has left -- its group's books and the runtime's own goodbye still run on
+    /// it. Joined, stop() returns with that thread gone, and a process that exits
+    /// next does not kill it halfway through whatever it holds.
+    static inline std::optional<thread_scope> threads_;
 
     /// Empty until start(), and empty again after stop(). It is the one piece
     /// that cannot simply sit here beside the channels: a component is named
@@ -286,8 +292,8 @@ public:
     inline static void start(std::string_view worker_name = "sta_loop worker") {
         ensure(!worker_ && "sta_loop: the loop is already running");
 
-        threads_ = thread_group::create();
-        worker_.emplace(worker_name, threads_.get());
+        threads_.emplace();
+        worker_.emplace(worker_name, threads_->get());
         worker_->start_async().get();
     }
 
@@ -319,8 +325,8 @@ public:
         // never sleeps.
         from_worker_.arm();
 
-        threads_ = thread_group::create();
-        worker_.emplace(worker_name, threads_.get());
+        threads_.emplace();
+        worker_.emplace(worker_name, threads_->get());
         worker_->start_async().get();
     }
 
