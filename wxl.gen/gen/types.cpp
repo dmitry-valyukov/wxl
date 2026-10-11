@@ -427,8 +427,9 @@ type_use iterable_of(type_use const& item, std::string_view winrt_name, std::str
     return use;
 }
 
-// wxl::Operation<R> -- the awaitable an asynchronous operation becomes. The result is converted
-// by the element's own expression, on the interface thread, once the operation has finished.
+// async::task<R> -- what an asynchronous operation becomes, the one type wxl awaits. The result is
+// converted by the element's own expression, on the thread that made the call, once the operation
+// has finished.
 type_use operation_of(type_use const& item) {
     if (!item.supported) {
         return unsupported(std::format("operation result: {}", item.reason));
@@ -440,7 +441,7 @@ type_use operation_of(type_use const& item) {
     type_use use;
     use.supported = true;
     use.result_only = true;
-    use.value_type = std::format("Operation<{}>", item.value_type);
+    use.value_type = std::format("async::task<{}>", item.value_type);
     use.param_type = use.value_type;
     use.winrt_type = "winrt::Windows::Foundation::IInspectable";
     use.from_winrt = std::format("impl::start_operation<{}>($, [](auto const& v) {{ return {}; }})",
@@ -457,7 +458,7 @@ type_use action_operation() {
     type_use use;
     use.supported = true;
     use.result_only = true;
-    use.value_type = "Operation<void>";
+    use.value_type = "async::task<>";
     use.param_type = use.value_type;
     use.winrt_type = "winrt::Windows::Foundation::IInspectable";
     use.from_winrt = "impl::start_action($)";
