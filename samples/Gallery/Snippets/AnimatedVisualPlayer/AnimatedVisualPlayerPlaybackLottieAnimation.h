@@ -5,12 +5,15 @@ struct Model {
     ToggleButton pause {column = 1, hAlign.stretch, automationName = u"Pause", toolTip = u"Pause", isThreeState = false,
                         content = SymbolIcon {symbol = Symbol::Pause}};
 
+    // The play under way. Kept, because a task let go of is given up, and giving up a play stops the animation at once.
+    std::optional<async::task<>> playing;
+
     // Plays the animation at the rate that is set, from the beginning, unless it is playing already or is paused -- then it resumes.
     void ensurePlaying() {
         if (pause.isChecked().value_or(false)) {
             pause.isChecked(false);
         } else if (!player.isPlaying()) {
-            player.playAsync(0, 1, false);
+            playing = player.playAsync(0, 1, false);
         }
     }
 };

@@ -92,7 +92,9 @@ private:
 ///   born on the STA thread inside that call, travels out and back as a plain pointer,
 ///   and dies on the STA thread; the worker in between neither creates nor destroys it --
 ///   which is why the memory comes from sta_memory_pool. The loop takes it out of the
-///   return channel and wakes the coroutine waiting for it (`come_back()`).
+///   return channel and wakes the coroutine waiting for it (`come_back()`). One the platform
+///   carries out -- wxl.ui's, for a WinRT asynchronous operation -- has no body to run: the
+///   call its thread's dispatcher queue makes answers it and calls `come_back()`.
 /// - **A coroutine**, whose promise is this object too (`task<R>::promise_type`): it runs
 ///   where it is resumed, on this thread, is never sent anywhere, and its end hands the
 ///   thread to the coroutine waiting for it by symmetric transfer.

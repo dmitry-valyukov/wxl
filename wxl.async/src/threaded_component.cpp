@@ -10,8 +10,9 @@ import std;
 namespace wxl::async {
 
 /// What a threaded component keeps: the group its thread belongs to (none, when the thread
-/// is detached) and the id of that thread while it runs. They live in the state, like every
-/// other field of a component -- see component::impl_t.
+/// is detached), the id of that thread while it runs, and the thread's handle until the
+/// component is disposed of. They live in the state, like every other field of a
+/// component -- see component::impl_t.
 class threaded_component::impl_t : public component::impl_t
 {
     using base = component::impl_t;
@@ -34,9 +35,21 @@ public:
 
     bool complete_start(task_tree_handle thread_starting_task);
 
+    /// The component's disposal, and then the wait for its thread to exit.
+    void dispose() override;
+
     const thread_group_ptr group_;
 
     std::atomic<core::thread_id> thread_id_{0};
+
+    /// The component's thread, opened by that thread as its first step and closed by
+    /// dispose(). Null while no thread has been started, and for good when none was.
+    ///
+    /// A plain field: the thread writes it before it reports anything, and dispose() reads
+    /// it after waiting for the stop ticket, which the thread's report is part of. A
+    /// component whose start was never accepted is not waited for there -- and has no
+    /// thread either.
+    HANDLE thread_ = nullptr;
 };
 
 inline core::not_null<threaded_component::impl_t> threaded_component::impl() {
@@ -139,6 +152,22 @@ void threaded_component::impl_t::thread_proc(task_tree_handle thread_starting_ta
 bool threaded_component::impl_t::complete_start(task_tree_handle thread_starting_task) {
     assert(thread_starting_task.valid());
 
+    // First, before any answer below: the thread exists whatever this start comes to, and
+    // dispose() waits for it through this handle. A thread that could not be waited for
+    // does not get to run -- its start fails instead.
+    HANDLE thread = nullptr;
+
+    if (!::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(), ::GetCurrentProcess(),
+                           &thread, SYNCHRONIZE | THREAD_QUERY_LIMITED_INFORMATION, FALSE, 0)) {
+        std::exception_ptr error =
+            std::make_exception_ptr(system_exception("Cannot open the component's thread"));
+        thread_starting_task.set_failed(error);
+        owner()->stop_async(error);
+        return false;
+    }
+
+    thread_ = thread;
+
     task_tree_root root_task = thread_starting_task.root();
     ticket cancellation_token = root_task.cancellation_token();
 
@@ -172,6 +201,32 @@ bool threaded_component::impl_t::complete_start(task_tree_handle thread_starting
     }
 
     return true;
+}
+
+void threaded_component::impl_t::dispose() {
+    base::dispose();
+
+    // Taken out, so that a second dispose() has nothing left to wait for.
+    const HANDLE thread = std::exchange(thread_, nullptr);
+
+    if (!thread) return;
+
+    // The component says it has stopped from inside its thread, and the thread still has
+    // its way out to go: the callbacks on the stop ticket that ran there, its at-exit
+    // callbacks, the callable it came in with the keeper in it, COM, the group's books, and
+    // the runtime's own goodbye -- thread_local data, DLL_THREAD_DETACH under the loader
+    // lock. A process that exits meanwhile kills the thread on that way, with whatever it
+    // holds. So the component is done with only once its thread has exited.
+    //
+    // Unless it is disposed of on that very thread -- deleted by a callback on its stop
+    // ticket, which runs where the stop finished: a thread cannot wait for its own end.
+    // That thread is past run() and past its report, and exits once the callback returns.
+    if (::GetThreadId(thread) != core::current_thread_id()) {
+        [[maybe_unused]] const DWORD waited = ::WaitForSingleObject(thread, INFINITE);
+        assert(waited == WAIT_OBJECT_0);
+    }
+
+    ::CloseHandle(thread);
 }
 
 }  // namespace wxl::async

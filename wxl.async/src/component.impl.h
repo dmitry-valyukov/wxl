@@ -37,7 +37,9 @@ public:
 
     bool is_disposed() const noexcept;
 
-    void dispose();
+    /// Virtual: a state that holds more than the lifecycle -- the thread of a threaded
+    /// component -- lets go of it here, on every way a component is disposed of.
+    virtual void dispose();
 
 protected:
     ~impl_t() override;

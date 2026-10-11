@@ -49,6 +49,7 @@ add_executable(wxl.async.tests
     system_exception_tests.cpp
     threaded_component_core_tests.cpp
     threaded_component_create_destroy_tests.cpp
+    threaded_component_dispose_tests.cpp
     threaded_component_error_from_barrier_tests.cpp
     threaded_component_exception_in_thread_tests.cpp
     threaded_component_full_exception_matrix_tests.cpp
