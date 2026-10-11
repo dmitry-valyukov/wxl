@@ -337,6 +337,9 @@ public:
     static void start_dispatched(std::string_view worker_name = "sta_loop worker");
 
     /// Waits for every operation that is out to come back, and stops the worker.
+    /// Returns once the worker's thread has exited -- its component waits for
+    /// that -- so a process that ends right after does not kill it on its way
+    /// out.
     ///
     /// The wait comes first because an operation the kernel holds comes back
     /// through the worker, which therefore has to outlive it. So an operation
