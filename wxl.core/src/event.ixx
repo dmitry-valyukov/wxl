@@ -25,7 +25,7 @@ class basic_event
 {
     static_assert(std::is_void_v<R>,
                   "an event calls every one of its callbacks, so there is no single result "
-                  "for fire() to return -- declare the signature with a void result");
+                  "for a call to return -- declare the signature with a void result");
 
 public:
     /// The callback object of this event: what add() makes out of what it is given, and
@@ -35,10 +35,10 @@ public:
     /// of the event itself was spelled -- the `noexcept` on the callback is not optional.
     using func_t = impl::func_body<R(Args...) noexcept, Base>;
 
-    /// An event is not destroyed from inside one of its own callbacks: the fire under way
+    /// An event is not destroyed from inside one of its own callbacks: the call under way
     /// would come back to a list that is gone.
     ~basic_event() {
-        assert(!firing_ && "wxl: an event is destroyed from inside its own fire()");
+        assert(!firing_ && "wxl: an event is destroyed from inside its own call");
         clear();
     }
 
@@ -50,16 +50,16 @@ public:
     ///
     /// The list may change while it is being walked, and the walk keeps to two rules. A
     /// callback removed before its turn -- by itself, by another, by clear() -- is not
-    /// called, however far the walk has got; one added is not called by a fire already
+    /// called, however far the walk has got; one added is not called by a call already
     /// under way, only by the next. The callback that removes itself finishes its call
-    /// first: the walk lets go of it once it returns. A callback may fire the event again;
-    /// that inner fire calls what the list holds when it starts.
+    /// first: the walk lets go of it once it returns. A callback may call the event again;
+    /// that inner call calls what the list holds when it starts.
     ///
     /// Noexcept, because a callback is noexcept: with no result to report and no way to
     /// tell one subscriber's failure to the next, an event that let an exception out would
     /// leave the rest of the list uncalled and hand the raiser to whoever happened to be
     /// firing.
-    void fire(Args... args) noexcept {
+    void operator()(Args... args) noexcept {
         if (callbacks_.empty()) return;
 
         firing frame{.next = callbacks_.front(), .outer = firing_};
@@ -102,7 +102,7 @@ public:
     /// \return false if this event has no such callback -- it was never added here, it
     ///         is gone already, or it went with the callbacks swap() handed to another.
     bool remove(cookie_t cookie) {
-        // Compared by address only: a node a fire is about to reach is in the list, so
+        // Compared by address only: a node a call is about to reach is in the list, so
         // a match is one, and only a match is read through.
         if (firing_) step_past(static_cast<func_t const*>(cookie.get()));
         func_t* const fn = callbacks_.remove(cookie);
@@ -131,7 +131,7 @@ public:
 
     /// Exchanges the callbacks of two events; a cookie follows its callback into the other
     /// one. This is how a notification that happens once is fired: empty the event into a
-    /// local one and fire that, so that a callback unsubscribing from inside the call finds
+    /// local one and call that, so that a callback unsubscribing from inside the call finds
     /// nothing left to unsubscribe from. Neither event may be firing.
     void swap(basic_event & other) noexcept {
         assert(!firing_ && !other.firing_ && "wxl: an event is swapped while it fires");
@@ -144,7 +144,7 @@ protected:
     intrusive_slist<func_t> callbacks_;
 
 private:
-    // A fire under way, kept on its own stack frame; the event knows the innermost, and
+    // A call under way, kept on its own stack frame; the event knows the innermost, and
     // each knows the one it interrupted. This is what lets the list change while it is
     // walked without a mark on every node: whatever takes a callback out moves every
     // walk past it, and only the callback being called has to wait for its walk.
@@ -206,7 +206,7 @@ export namespace wxl::core {
  * `event<void(widget&, std::string)>` -- so the event imposes nothing on the shape of
  * what it calls: a sender argument is there when the signature asks for one, and not
  * otherwise. The result has to be `void`. Every callback is called, so there is no single
- * result for `fire` to hand back, and picking one of them would be a rule that cannot be
+ * result for a call to hand back, and picking one of them would be a rule that cannot be
  * read off the declaration.
  *
  * The signature may carry `noexcept` -- `event<void(int) noexcept>` -- and this changes
@@ -224,7 +224,7 @@ export namespace wxl::core {
  * destroyed; a node built into its subscriber (a member deriving from `func_t`, whose
  * `release()` does nothing) belongs to the subscriber. Such a subscriber allocates
  * nothing to subscribe, and in return keeps two rules: it stays alive while its node is
- * in a list, and it does not go away from inside a fire that reaches it.
+ * in a list, and it does not go away from inside a call that reaches it.
  *
  * An `event` belongs to the STA thread: its nodes come from `sta_memory_pool`, so they are
  * added, fired and removed on that thread and inside the pool's life, the way a `function`'s

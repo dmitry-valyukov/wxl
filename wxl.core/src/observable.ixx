@@ -32,7 +32,7 @@ class observable;
 template <class T>
 class observable<T const> {
 public:
-    // Spelled noexcept: a watcher is called from inside fire(), which walks the
+    // Spelled noexcept: a watcher is called from inside the event's call, which walks the
     // whole list and has nobody to hand an exception to, so a throwing watcher
     // would break the chain and abandon the watchers after it. The event enforces
     // this on every callback regardless; spelling it here makes the contract read
@@ -158,8 +158,8 @@ public:
             if (this->value_ == value) return;
         }
         this->value_ = std::move(value);
-        this->bound_.fire(this->value_);
-        this->changed_.fire(this->value_);
+        this->bound_(this->value_);
+        this->changed_(this->value_);
     }
 
     /// Follows other fields: whenever any of the sources changes, `fn` -- the

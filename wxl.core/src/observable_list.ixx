@@ -58,7 +58,7 @@ class observable_list<T const>
 {
 public:
     // Spelled noexcept for the reason observable's is: a watcher is called from
-    // inside fire(), which has nobody to hand an exception to.
+    // inside the event's call, which has nobody to hand an exception to.
     using changed_event = event<void(list_change const&) noexcept>;
 
     // A field, not a handle, for observable's reason: a copy would be a second
@@ -119,9 +119,9 @@ protected:
     void notify(list_change const& change) noexcept {
         assert(!notifying_ && "wxl: an observable_list is changed by one of its own watchers");
         notifying_ = true;
-        bound_.fire(change);
+        bound_(change);
         count_.set(size());
-        changed_.fire(change);
+        changed_(change);
         notifying_ = false;
     }
 

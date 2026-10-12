@@ -264,7 +264,7 @@ void component::on_started() {
     // in it rather than the list it is being walked through.
     core::event_mt<void()> callbacks;
     callbacks.swap(impl()->on_started_);
-    callbacks.fire();
+    callbacks();
 }
 
 ticket component::stop_async(const stop_reason& reason) {
@@ -411,7 +411,7 @@ void component::on_stopped() {
 
     // The component can be deleted in here, which is why the state was taken above: nothing
     // below may go through `this` again.
-    callbacks.fire(reason);
+    callbacks(reason);
 }
 
 component::impl_t::impl_t(core::sync_root_holder sync_root_arg) : core::synchronized_(sync_root_arg) {}

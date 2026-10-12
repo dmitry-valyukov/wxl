@@ -107,7 +107,7 @@ public:
 
         cancellation_event once;
         once.swap(event_);
-        once.fire();
+        once();
     }
 
 private:
