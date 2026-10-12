@@ -102,16 +102,7 @@ private:
 class thread_info : public core::refcounted_mt
 {
 public:
-    explicit thread_info(core::thread_id id, thread_state state = thread_state::undefined)
-        : id_(id), thread_state_(state) {}
-
-    /// The id is written by the thread itself as it enters and read by join_all on whatever
-    /// thread calls it, to refuse a call from one of the group's own threads. The one reader
-    /// that can find a match is the thread itself, and it sees its own store; to any other
-    /// either value is a mismatch. So relaxed: the atomic only makes the concurrent read defined.
-    core::thread_id id() const { return id_.load(std::memory_order_relaxed); }
-
-    void set_id(core::thread_id id) { id_.store(id, std::memory_order_relaxed); }
+    explicit thread_info(thread_state state = thread_state::undefined) : thread_state_(state) {}
 
     /// The state is written by the thread itself and read by whoever reaps it, so the pair
     /// is release/acquire: seeing `finished` has to mean seeing everything the thread body
@@ -129,7 +120,6 @@ public:
     windows_handle& thread_handle() { return thread_handle_; }
 
 private:
-    std::atomic<core::thread_id> id_;
     std::atomic<thread_state> thread_state_;
     windows_handle thread_handle_;
 };
@@ -185,13 +175,6 @@ public:
                 return tmp;
             }
         }
-
-        return nullptr;
-    }
-
-    thread_info* find_by_id(core::thread_id id) const {
-        for (container::iterator it = container_.begin(), e = container_.end(); it != e; ++it)
-            if (((*it)->id() == id)) return (*it);
 
         return nullptr;
     }
@@ -283,6 +266,12 @@ private:
     std::atomic<bool> disposing_{false};
     std::atomic<uint64_t> progress_{0};
     core::recursive_mutex mutex_;
+
+    /// The group the calling thread was spawned by, from its entry to its exit; null on any
+    /// other thread. Only the thread itself reads and writes its own, so nothing is shared:
+    /// join_all asks it to refuse a call from one of the group's own threads, which would wait
+    /// for itself.
+    static inline thread_local const impl* current_ = nullptr;
 };
 
 /// Carries everything a new thread needs across the thread boundary, and the promise its body
@@ -296,7 +285,7 @@ public:
         : group_(group),
           thread_name_(thread_name),
           thread_proc_(thread_proc),
-          info_(group ? core::make_refcounted<thread_info>(0) : nullptr) {}
+          info_(group ? core::make_refcounted<thread_info>() : nullptr) {}
 
     thread_group* group() { return group_.get(); }
 
@@ -450,13 +439,15 @@ void thread_group::impl::notify_thread_enter(thread_info* thread_info) {
     }
 #endif
 
-    thread_info->set_id(core::current_thread_id());
+    current_ = this;
     thread_info->state(thread_state::running);
 }
 
 /// Called on thread procedure exit
 void thread_group::impl::notify_thread_exit(thread_info* thread_info) {
     assert(thread_info);
+
+    current_ = nullptr;
 
     join_finished_threads();
 
@@ -513,15 +504,11 @@ void thread_group::impl::join_thread(thread_info* thread_info) {
 }
 
 void thread_group::impl::join_all() {
-    {
-        core::lock_guard<core::recursive_mutex> guard(mutex_);
-
-        // check if we here by call to join_all() or close()
-        if (threads_.find_by_id(core::current_thread_id())) {
-            throw std::logic_error(
-                "Cannot call thread_group::join_all from a thread spawned by the same instance "
-                "of thread_group.");
-        }
+    // Called by join_all() or close() from one of this group's threads, it would wait for itself.
+    if (current_ == this) {
+        throw std::logic_error(
+            "Cannot call thread_group::join_all from a thread spawned by the same instance "
+            "of thread_group.");
     }
 
     while (true) {
