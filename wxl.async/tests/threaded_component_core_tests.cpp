@@ -1,3 +1,5 @@
+#include "process_handles.h"
+
 #include <gtest/gtest.h>
 
 import std;
@@ -102,4 +104,27 @@ TEST(ThreadedComponentTest, StartAfterStopRequestedNeverRuns) {
 
     EXPECT_THROW(c.start_async(), operation_canceled_exception);
     EXPECT_EQ(c.run_calls.load(), 0);
+}
+
+// Starting and stopping a component leaves nothing open behind it, on a detached thread as in
+// a group: its thread's handles are closed, and the states of its task trees go with it --
+// those waited on along the way with the event each of them holds for that.
+TEST(ThreadedComponentTest, StartStopCyclesLeaveNoHandleOpen) {
+    constexpr int cycles = 64;
+
+    const long gained = handles_gained(cycles, [] {
+        {
+            counting_component c;
+            c.start_async().get();
+            c.stop_async().get();
+        }
+        {
+            thread_scope manager;
+            counting_component c(manager);
+            c.start_async().get();
+            c.stop_async().get();
+        }
+    });
+
+    EXPECT_LT(gained, cycles / 4);
 }

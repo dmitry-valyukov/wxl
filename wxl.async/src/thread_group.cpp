@@ -127,6 +127,17 @@ using thread_info_ptr = core::intrusive_ptr<thread_info>;
 class thread_info_container : public core::noncopyable
 {
 public:
+    /// What is still here goes with the group: threads that finished and that nobody joined.
+    /// The group cannot go any earlier -- a thread holds a reference to it from its spawn
+    /// until it has reported its exit -- and letting go of an entry closes the thread's
+    /// handle without waiting for the thread, as for a detached one.
+    ~thread_info_container() {
+        for (thread_info* element : container_) {
+            assert(element->state() == thread_state::finished);
+            intrusive_ptr_release(element);
+        }
+    }
+
     size_t size() const noexcept { return container_.size(); }
 
     bool empty() const noexcept { return container_.empty(); }
@@ -271,7 +282,7 @@ public:
         : group_(group),
           thread_name_(thread_name),
           thread_proc_(thread_proc),
-          info_(group ? new thread_info(0) : nullptr) {}
+          info_(group ? core::make_refcounted<thread_info>(0) : nullptr) {}
 
     thread_group* group() { return group_.get(); }
 
@@ -369,12 +380,7 @@ thread_scope::~thread_scope() {
 
 thread_group::impl::impl() noexcept = default;
 
-thread_group::impl::~impl() {
-#ifdef WXL_CFG_DEBUG
-    core::lock_guard<core::recursive_mutex> guard(mutex_);
-    assert(threads_.empty() && "All spawned threads should be joined before destruction");
-#endif
-}
+thread_group::impl::~impl() = default;
 
 void thread_group::impl::spawn(thread_starter* starter) {
     assert(starter);

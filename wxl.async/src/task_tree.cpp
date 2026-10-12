@@ -6,18 +6,18 @@ import wxl.core;
 import std;
 
 namespace wxl::async {
-namespace task_tree_detail {
+namespace detail {
 
 /// Shared state of a task_tree.
-class state : public future_shared_state
+class task_tree_state : public future_shared_state
 {
     using base = future_shared_state;
 
 public:
     /// Constructor.
-    explicit state(state* parent);
+    explicit task_tree_state(task_tree_state* parent);
 
-    ~state() override;
+    ~task_tree_state() override;
 
     /// Returns a future for the successful completion of this task and *all* subtasks (if any),
     /// or for the failure of *any* task in the group.
@@ -45,7 +45,7 @@ public:
     /// Returns the root state.
     ///
     /// If this is a root task then returns itself.
-    state* root();
+    task_tree_state* root();
 
     /// Increments the number of task_tree_handle instances that refer to this shared state.
     void increment_task_handle_count() { base::increment_promise_count(); }
@@ -71,7 +71,7 @@ private:
     /// 'finished' flag. Both values should be changed atomically, so they are stored together.
     std::atomic<size_t> counter_;
 
-    core::intrusive_ptr<state> parent_;  ///< The parent shared state.
+    core::intrusive_ptr<task_tree_state> parent_;  ///< The parent shared state.
 
     /// Holds a shared state only when this task is a root.
     ///
@@ -83,10 +83,10 @@ private:
     std::exception_ptr group_result_;
 };
 
-}  // namespace task_tree_detail
+}  // namespace detail
 
 
-using namespace task_tree_detail;
+using detail::task_tree_state;
 
 task_tree::task_tree() noexcept : base(nullptr) {}
 
@@ -101,7 +101,9 @@ task_tree& task_tree::operator=(task_tree&& other) noexcept = default;
 // let's destroy intrusive_ptr in single place
 task_tree::~task_tree() = default;
 
-task_tree::task_tree(task_tree_detail::state* state) : base(state) {}
+task_tree::task_tree(detail::task_tree_state* state) : base(state) {}
+
+task_tree::task_tree(core::intrusive_ptr<detail::task_tree_state> state) : base(std::move(state)) {}
 
 future<void> task_tree::get_future() const { return future<void>(checked_state()); }
 
@@ -119,7 +121,7 @@ const std::exception_ptr& task_tree::get_exception_ptr() const {
 
 task_tree_root task_tree::root() const { return task_tree_root(checked_state()->root()); }
 
-task_tree_root::task_tree_root(task_tree_detail::state* st) : base(st) {
+task_tree_root::task_tree_root(detail::task_tree_state* st) : base(st) {
     assert(st);
     assert(st->root() == st);
 }
@@ -146,38 +148,39 @@ task_tree follow(task_tree_handle handle, const future<void>& f) {
 task_tree_handle task_tree::create_subtask() const {
     assert(valid());
 
-    task_tree_detail::state* st = checked_state();
+    detail::task_tree_state* st = checked_state();
     st->increment_subtask_counter();
 
-    return task_tree_handle(new task_tree_detail::state(st));
+    return task_tree_handle(core::make_refcounted<detail::task_tree_state>(st));
 }
 
 task_tree task_tree::create_subtask(const future<void>& f) const { return follow(create_subtask(), f); }
 
 task_tree_handle task_tree::create(const task_tree& parent) {
-    task_tree_detail::state* parent_state = parent.state();
+    detail::task_tree_state* parent_state = parent.state();
 
     if (parent_state) parent_state->increment_subtask_counter();
 
-    return task_tree_handle(new task_tree_detail::state(parent_state));
+    return task_tree_handle(core::make_refcounted<detail::task_tree_state>(parent_state));
 }
 
 task_tree task_tree::create(const future<void>& f) { return follow(create(), f); }
 
 task_tree_handle::task_tree_handle() noexcept : base(nullptr) {}
 
-task_tree_handle::task_tree_handle(task_tree_detail::state* st) : base(st) {
-    if (st) st->increment_task_handle_count();
+task_tree_handle::task_tree_handle(core::intrusive_ptr<detail::task_tree_state> st)
+    : base(std::move(st)) {
+    if (detail::task_tree_state* my_state = state()) my_state->increment_task_handle_count();
 }
 
 task_tree_handle::task_tree_handle(const task_tree_handle& other) : base(other.state()) {
-    if (task_tree_detail::state* st = other.state()) st->increment_task_handle_count();
+    if (detail::task_tree_state* st = other.state()) st->increment_task_handle_count();
 }
 
 task_tree_handle::task_tree_handle(task_tree_handle&& other) noexcept : base(std::move(other)) {}
 
 task_tree_handle::~task_tree_handle() {
-    if (task_tree_detail::state* st = task_tree::state()) st->decrement_task_handle_count();
+    if (detail::task_tree_state* st = task_tree::state()) st->decrement_task_handle_count();
 }
 
 void task_tree_handle::set_succeeded() { checked_state()->set_succeeded(); }
@@ -187,8 +190,8 @@ void task_tree_handle::set_failed(const std::exception_ptr& error) {
 }
 
 task_tree_handle& task_tree_handle::operator=(const task_tree_handle& other) {
-    task_tree_detail::state* const my_state = state();
-    task_tree_detail::state* const other_state = other.state();
+    detail::task_tree_state* const my_state = state();
+    detail::task_tree_state* const other_state = other.state();
 
     if (my_state != other_state) {
         if (other_state) other_state->increment_task_handle_count();
@@ -203,7 +206,7 @@ task_tree_handle& task_tree_handle::operator=(const task_tree_handle& other) {
 
 task_tree_handle& task_tree_handle::operator=(task_tree_handle&& other) {
     if (this != &other) {
-        if (task_tree_detail::state* my_state = state()) my_state->decrement_task_handle_count();
+        if (detail::task_tree_state* my_state = state()) my_state->decrement_task_handle_count();
 
         base::operator=(std::move(other));
     }
@@ -211,13 +214,13 @@ task_tree_handle& task_tree_handle::operator=(task_tree_handle&& other) {
     return *this;
 }
 
-state::state(state* parent)
+task_tree_state::task_tree_state(task_tree_state* parent)
     : counter_(1),
       parent_(parent),
       // Only a root carries the cancellation channel of the whole hierarchy.
       root_cancellation_promise_(parent ? make_empty_promise<void>() : promise<void>()) {}
 
-state::~state() = default;
+task_tree_state::~task_tree_state() = default;
 
 namespace {
 
@@ -290,23 +293,23 @@ core::nullable<size_t> finish_counter(std::atomic<size_t>& counter) {
 
 }  // namespace
 
-void state::increment_subtask_counter() {
+void task_tree_state::increment_subtask_counter() {
     if (!try_increment_counter(counter_))
         throw std::logic_error(
             "A subtask cannot be added to a task that has already reported its own work.");
 }
 
-bool state::accepts_subtasks() const noexcept {
+bool task_tree_state::accepts_subtasks() const noexcept {
     return !is_finished(counter_.load(std::memory_order_relaxed));
 }
 
-void state::decrement_subtask_counter() {
+void task_tree_state::decrement_subtask_counter() {
     assert(counter_value(counter_.load(std::memory_order_relaxed)) > 0);
 
     if (0 == decrement_counter(counter_)) on_finished();
 }
 
-void state::decrement_subtask_counter(const std::exception_ptr& result) {
+void task_tree_state::decrement_subtask_counter(const std::exception_ptr& result) {
     assert(counter_value(counter_.load(std::memory_order_relaxed)) > 0);
 
     if (error_in_group_.set()) group_result_ = result;
@@ -317,18 +320,18 @@ void state::decrement_subtask_counter(const std::exception_ptr& result) {
 // group_result_ is written before the counter is decremented, and this runs only for whoever
 // drove the counter to zero through that same acquire-release exchange -- which is what makes
 // the read here safe without a lock of its own.
-void state::on_finished() {
+void task_tree_state::on_finished() {
     if (error_in_group_.value()) {
         std::exception_ptr error = group_result_;
         assert(error);
 
         set_exception(error);
 
-        if (state* parent = parent_.get()) parent->decrement_subtask_counter(error);
+        if (task_tree_state* parent = parent_.get()) parent->decrement_subtask_counter(error);
     } else {
         set_value();
 
-        if (state* parent = parent_.get()) {
+        if (task_tree_state* parent = parent_.get()) {
             parent->decrement_subtask_counter();
         } else {  // this is a root task
             assert(root_cancellation_promise_.valid());
@@ -339,7 +342,7 @@ void state::on_finished() {
     }
 }
 
-void state::set_succeeded() {
+void task_tree_state::set_succeeded() {
     const core::nullable<size_t> unresolved = finish_counter(counter_);
 
     if (!unresolved)
@@ -347,19 +350,19 @@ void state::set_succeeded() {
             "task_tree_handle::set_succeeded() was called for the already finished task");
 
     if (*unresolved == 0) {
-        core::intrusive_ptr<state> keep_me(this);
+        core::intrusive_ptr<task_tree_state> keep_me(this);
         on_finished();
     }
 }
 
-void state::set_failed(const std::exception_ptr& result) {
+void task_tree_state::set_failed(const std::exception_ptr& result) {
     assert(result);
 
     if (is_finished(counter_.load(std::memory_order_relaxed)))
         throw std::logic_error(
             "task_tree_handle::set_failed() was called for the already finished task");
 
-    core::intrusive_ptr<state> keep_me(this);
+    core::intrusive_ptr<task_tree_state> keep_me(this);
 
     if (error_in_group_.set()) {
         group_result_ = result;
@@ -375,15 +378,15 @@ void state::set_failed(const std::exception_ptr& result) {
     if (*unresolved == 0) on_finished();
 }
 
-state* state::root() {
-    state* root_state = this;
+task_tree_state* task_tree_state::root() {
+    task_tree_state* root_state = this;
 
-    while (state* parent = root_state->parent_.get()) root_state = parent;
+    while (task_tree_state* parent = root_state->parent_.get()) root_state = parent;
 
     return root_state;
 }
 
-void state::decrement_task_handle_count() {
+void task_tree_state::decrement_task_handle_count() {
     if (0 == decrement_promise_count() &&
         !is_finished(counter_.load(std::memory_order_relaxed)))
         set_failed(std::make_exception_ptr(std::future_error(std::future_errc::broken_promise)));

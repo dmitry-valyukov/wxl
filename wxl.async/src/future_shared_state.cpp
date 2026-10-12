@@ -7,7 +7,7 @@ import std;
 
 using namespace wxl::async;
 
-void future_detail::throw_invalid_future() {
+void detail::throw_invalid_future() {
     throw std::logic_error("SharedStateHolder does not refer to a shared state.");
 }
 
@@ -42,8 +42,12 @@ std::ostream& operator<<(std::ostream& stream, future_status status) {
 
 }  // namespace wxl::async
 
-future_detail::resolved_state<void> future_shared_state::void_resolved_state_;
+detail::resolved_state<void> future_shared_state::void_resolved_state_;
 
+// The pointer takes a reference beside the one the state is born with, and nothing gives
+// that one back: the state outlives this pointer's own destruction, so make_ready_future()
+// stays safe to call from a static destructor that runs later, or from a detached thread
+// still going at exit.
 future_shared_state_ptr future_shared_state::void_ready_future_(
     new future_shared_state(&void_resolved_state_));
 

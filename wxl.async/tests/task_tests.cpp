@@ -719,14 +719,14 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
 // taken is a byte of the flags' word. A task stays one pointer wide, as does the awaiter
 // of a joined one. (The exception is two pointers wide on MSVC, one on g++ and clang.)
 static_assert(sizeof(async_op) == 3 * sizeof(void*) + sizeof(std::exception_ptr));
-static_assert(sizeof(task_detail::promise<void>) == sizeof(async_op));
-static_assert(sizeof(task_detail::promise<int>) == sizeof(async_op_t<int>));
+static_assert(sizeof(detail::task_promise<void>) == sizeof(async_op));
+static_assert(sizeof(detail::task_promise<int>) == sizeof(async_op_t<int>));
 static_assert(sizeof(task<>) == sizeof(void*) && sizeof(task<int>) == sizeof(void*));
-static_assert(sizeof(task_detail::join_awaiter<int>) == sizeof(void*));
+static_assert(sizeof(detail::join_awaiter<int>) == sizeof(void*));
 
 // What a build that checks does pay, in the frame of a task: the awaiter of each co_await
 // in its body is wrapped, one reference more.
-static_assert(sizeof(task_detail::tracked_awaiter<task<int>&>) == 2 * sizeof(void*));
+static_assert(sizeof(detail::tracked_awaiter<task<int>&>) == 2 * sizeof(void*));
 
 // The debug CRT heap is what the probe below reads, and it is only there in a
 // debug build.
@@ -928,7 +928,7 @@ class TaskDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+        if constexpr (!detail::checked) GTEST_SKIP() << "built without coroutine checks";
     }
 };
 
@@ -938,7 +938,7 @@ class TaskStrictDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+        if constexpr (!detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
     }
 };
 

@@ -108,13 +108,13 @@ private:
     std::atomic<bool> held_{false};
 };
 
-namespace cancellation_detail {
+namespace detail {
 
 /// Hands an orphanable operation to the loop the way async_call(orphanable, fn) does, for
 /// call_under(orphanable, fn, stop), which makes the operation itself. Defined after the loop.
 void send_orphan(async_op& op);
 
-}  // namespace cancellation_detail
+}  // namespace detail
 
 /// The two threads an asynchronous operation lives between, and the loop that
 /// drives them.
@@ -223,7 +223,7 @@ class sta_loop
     static inline std::optional<worker> worker_;
 
     friend class async_op;
-    friend void cancellation_detail::send_orphan(async_op& op);
+    friend void detail::send_orphan(async_op& op);
 
     /// What async_op::abandon() asks of the loop, in sta_loop.cpp: the look into the
     /// return channel, the wait in place, and the tidying after it. wait_until_back()
@@ -621,7 +621,7 @@ private:
     }
 };
 
-namespace cancellation_detail {
+namespace detail {
 
 inline void send_orphan(async_op& op) { sta_loop::shape_->send_orphan(op); }
 
@@ -698,6 +698,6 @@ template <class Op, class... Args>
         new operation_under<Op>(std::move(stop), std::forward<Args>(args)...)));
 }
 
-}  // namespace cancellation_detail
+}  // namespace detail
 
 }  // export namespace wxl::async

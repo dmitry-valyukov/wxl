@@ -454,7 +454,7 @@ STRESS_TEST_CASE(task_tree, next_completed_by_exception_async) {
 // argument type MSVC (19.51) ends up emitting intrusive_ptr<future_shared_state>'s
 // module-attached members into two COMDATs in this object file, and the linker rejects
 // that with LNK1179. Giving the type external linkage avoids the compiler bug.
-namespace task_tree_test_detail {
+namespace detail {
 class async_future_tester : public future_tester
 {
     typedef future_tester base;
@@ -493,9 +493,11 @@ public:
 private:
 };
 
-}  // namespace task_tree_test_detail
+}  // namespace detail
 
-using task_tree_test_detail::async_future_tester;
+// Spelled from the root: under `using namespace wxl::async` a bare `detail` names
+// wxl::async::detail as well, and the lookup is ambiguous.
+using ::detail::async_future_tester;
 
 namespace {
 

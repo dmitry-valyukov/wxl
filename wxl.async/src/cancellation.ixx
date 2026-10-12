@@ -29,7 +29,7 @@ public:
 
 class cancellation_token;
 
-namespace cancellation_detail {
+namespace detail {
 
 /// What fires when a token is cancelled: an event of no arguments. Whoever stands under
 /// a token -- an operation or a wait of wxl -- builds its node into itself (a member
@@ -157,7 +157,7 @@ template <class Wait>
 class wait_under
 {
 public:
-    inline bool await_ready(coro_detail::site where = coro_detail::site::current()) {
+    inline bool await_ready(detail::site where = detail::site::current()) {
         if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]]
             self().awaiter().cancel();
 
@@ -166,7 +166,7 @@ public:
 
     template <class Promise>
     inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
-                                        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
+                                        [[maybe_unused]] detail::site where = detail::site::current()) {
         if (cancellation_state* const state = self().state(); state && !state->canceled()) {
             state->event().add(core::as_not_null<cancellation_event::func_t>(&node_));
             standing_ = true;
@@ -178,7 +178,7 @@ public:
             return self().awaiter().await_suspend(awaiting);
     }
 
-    inline decltype(auto) await_resume([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
+    inline decltype(auto) await_resume([[maybe_unused]] detail::site where = detail::site::current()) {
         leave();
 
         if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]] {
@@ -231,7 +231,7 @@ private:
 
     inline Wait& self() noexcept { return static_cast<Wait&>(*this); }
 
-    inline bool ready([[maybe_unused]] coro_detail::site where) {
+    inline bool ready([[maybe_unused]] detail::site where) {
         if constexpr (requires { self().awaiter().await_ready(where); })
             return self().awaiter().await_ready(where);
         else
@@ -242,7 +242,7 @@ private:
     bool standing_ = false;
 };
 
-}  // namespace cancellation_detail
+}  // namespace detail
 
 /// The right to ask the coroutines that were given it to end.
 ///
@@ -287,17 +287,15 @@ public:
 
 private:
     friend class cancellation_source;
-    friend cancellation_detail::cancellation_state* cancellation_detail::state_of(
-        const cancellation_token&) noexcept;
+    friend detail::cancellation_state* detail::state_of(const cancellation_token&) noexcept;
 
-    inline explicit cancellation_token(cancellation_detail::cancellation_state* state) noexcept
+    inline explicit cancellation_token(detail::cancellation_state* state) noexcept
         : state_(state) {}
 
-    cancellation_detail::cancellation_state_ptr state_;
+    detail::cancellation_state_ptr state_;
 };
 
-inline cancellation_detail::cancellation_state* cancellation_detail::state_of(
-    const cancellation_token& token) noexcept {
+inline detail::cancellation_state* detail::state_of(const cancellation_token& token) noexcept {
     return token.state_.get();
 }
 
@@ -320,8 +318,7 @@ inline cancellation_detail::cancellation_state* cancellation_detail::state_of(
 class cancellation_source
 {
 public:
-    inline cancellation_source()
-        : state_(core::make_refcounted<cancellation_detail::cancellation_state>()) {}
+    inline cancellation_source() : state_(core::make_refcounted<detail::cancellation_state>()) {}
 
     /// A source under `parent`, cancelled by its own cancel() or by the parent's, whichever
     /// comes first. Its state stands in the parent's event, a callback that cancels it,
@@ -330,14 +327,12 @@ public:
     /// like any other. Made on the coroutines' thread, whose event it joins; a build that
     /// checks coroutines makes sure.
     inline explicit cancellation_source(
-        cancellation_token parent,
-        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) {
+        cancellation_token parent, [[maybe_unused]] detail::site where = detail::site::current()) {
         coro_check(core::sta_memory_pool::is_safe(),
                    "cancellation_source: made under a token on a thread other than its coroutines'",
                    where);
 
-        state_ = core::make_refcounted<cancellation_detail::cancellation_state>(
-            std::move(parent.state_));
+        state_ = core::make_refcounted<detail::cancellation_state>(std::move(parent.state_));
     }
 
     inline cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
@@ -346,18 +341,18 @@ public:
     /// every later one at once. Held across the cancelling: an operation cancelled may let go
     /// of something that holds this source. On the coroutines' own thread, like everything
     /// about them; a build that checks coroutines makes sure.
-    inline void cancel([[maybe_unused]] coro_detail::site where = coro_detail::site::current()) noexcept {
+    inline void cancel([[maybe_unused]] detail::site where = detail::site::current()) noexcept {
         coro_check(core::sta_memory_pool::is_safe(),
                    "cancellation_source: cancelled from a thread other than its coroutines'", where);
 
-        const cancellation_detail::cancellation_state_ptr held = state_;
+        const detail::cancellation_state_ptr held = state_;
         held->cancel();
     }
 
     inline bool is_canceled() const noexcept { return state_->canceled(); }
 
 private:
-    cancellation_detail::cancellation_state_ptr state_;
+    detail::cancellation_state_ptr state_;
 };
 
 }  // export namespace wxl::async
