@@ -445,8 +445,8 @@ TEST_F(EventCancelTest, GoingDownEndsACancelledWaitTheQueueHasNotResumed) {
 // as it was a pointer and one, and the proxy has no field it did not have.
 static_assert(sizeof(plain_keys::awaiter) == 2 * sizeof(void*));
 static_assert(sizeof(keys_under_token) == sizeof(plain_keys) + sizeof(cancellation_token));
-static_assert(wxl::async::cancellation_detail::cancellable_awaiter<plain_keys::awaiter>);
-static_assert(wxl::async::cancellation_detail::cancellable_awaiter<plain_keys::awaiter_t<false>>);
+static_assert(wxl::async::detail::cancellable_awaiter<plain_keys::awaiter>);
+static_assert(wxl::async::detail::cancellable_awaiter<plain_keys::awaiter_t<false>>);
 
 // ---- The checks of how a wait is used: assert in a Debug build, core::abort under STRICT_CORO --
 
@@ -488,7 +488,7 @@ class EventWaitDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!wxl::async::coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+        if constexpr (!wxl::async::detail::checked) GTEST_SKIP() << "built without coroutine checks";
     }
 };
 
@@ -496,7 +496,7 @@ class EventWaitStrictDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!wxl::async::coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+        if constexpr (!wxl::async::detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
     }
 };
 

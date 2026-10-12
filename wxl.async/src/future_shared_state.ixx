@@ -38,8 +38,7 @@ std::ostream& operator<<(std::ostream& stream, future_status status);
 class future_shared_state;
 using future_shared_state_ptr = core::intrusive_ptr<future_shared_state>;
 
-/// Future implementation namespace
-namespace future_detail {
+namespace detail {
 
 [[noreturn]] void throw_invalid_future();
 
@@ -303,7 +302,7 @@ struct set_value_func {
     future_shared_state_ptr result_;
 };
 
-}  // namespace future_detail
+}  // namespace detail
 
 /// Future's \e shared state (with reference counting).
 ///
@@ -311,8 +310,8 @@ struct set_value_func {
 /// evaluated to a value (possibly void) or evaluated to an exception.
 class future_shared_state : public core::refcounted_mt
 {
-    using state = future_detail::state;
-    using state_id = future_detail::state_id;
+    using state = detail::state;
+    using state_id = detail::state_id;
 
 public:
     enum init_promise_tag
@@ -320,7 +319,7 @@ public:
         init_promise
     };
 
-    inline explicit future_shared_state(future_detail::state* state = nullptr) noexcept
+    inline explicit future_shared_state(detail::state* state = nullptr) noexcept
         : state_(state), promise_count_() {}
 
     inline explicit future_shared_state(init_promise_tag) noexcept : state_(), promise_count_(1) {}
@@ -353,7 +352,7 @@ public:
             throw std::logic_error("Operation has NOT finished with an error.");
         }
 
-        return future_detail::failed_state::from(state)->exception_ptr_;
+        return detail::failed_state::from(state)->exception_ptr_;
     }
 
     /// Blocks until the shared state becomes ready. Nothing to report: this call cannot
@@ -390,7 +389,7 @@ public:
             // Owner may be deleted during subsequent calls, so wee need our own pointer.
             future_shared_state_ptr keep_me(this);
 
-            state* new_state = construct<future_detail::resolved_state<T>>(value);
+            state* new_state = construct<detail::resolved_state<T>>(value);
 
             if (resolve(new_state)) {
                 return true;
@@ -412,7 +411,7 @@ public:
             // Owner may be deleted during subsequent calls, so wee need our own pointer.
             future_shared_state_ptr keep_me(this);
 
-            state* new_state = construct<future_detail::failed_state>(exception);
+            state* new_state = construct<detail::failed_state>(exception);
 
             if (resolve(new_state)) return true;
 
@@ -422,8 +421,8 @@ public:
         return false;
     }
 
-    inline bool set_exception(const future_detail::state* failed_state) {
-        return set_exception(future_detail::failed_state::from(failed_state)->exception_ptr_);
+    inline bool set_exception(const detail::state* failed_state) {
+        return set_exception(detail::failed_state::from(failed_state)->exception_ptr_);
     }
 
     inline const state* get() const {
@@ -437,7 +436,7 @@ public:
         assert(state);
 
         if (state->id() == state_id::failed) {
-            std::rethrow_exception(future_detail::failed_state::from(state)->exception_ptr_);
+            std::rethrow_exception(detail::failed_state::from(state)->exception_ptr_);
         }
 
         return state;
@@ -536,7 +535,7 @@ protected:
 
 private:
     inline bool resolve(state* new_state) noexcept {
-        using namespace future_detail;
+        using namespace detail;
 
         state* const old_state = try_complete(new_state);
 
@@ -544,7 +543,7 @@ private:
             return false;  // somebody else has already completed the operation.
         }
 
-        assert(nullptr == old_state || future_detail::state_id::pending == old_state->id());
+        assert(nullptr == old_state || detail::state_id::pending == old_state->id());
 
         if (pending_state* to_resolve = pending_state::from(old_state)) {
             do {
@@ -588,13 +587,13 @@ private:
         promise_count_;  ///< Number of Promise instances that refer to this shared state instance.
     mutable allocator al_;
 
-    static future_detail::resolved_state<void> void_resolved_state_;
+    static detail::resolved_state<void> void_resolved_state_;
     static future_shared_state_ptr void_ready_future_;
 
     friend future<void> make_ready_future();
 };
 
-namespace future_detail {
+namespace detail {
 
 template <typename T, typename t_result, typename t_next_task>
 struct next_helper {
@@ -670,7 +669,7 @@ struct next_pending_state : pending_state {
     future_shared_state_ptr result_;
 };
 
-}  // namespace future_detail
+}  // namespace detail
 
 // The callback is a sink parameter throughout: it is moved into the pending state the first time
 // one is built, and every later use in the same call goes through that state's copy -- which is
@@ -679,7 +678,7 @@ struct next_pending_state : pending_state {
 
 template <typename T, class t_when_succeeded>
 void future_shared_state::when_succeeded(t_when_succeeded callback) const {
-    using WDPS = future_detail::when_succeeded_pending_state<T, t_when_succeeded>;
+    using WDPS = detail::when_succeeded_pending_state<T, t_when_succeeded>;
 
     WDPS* new_state = nullptr;
     state* state = state_.load();
@@ -689,7 +688,7 @@ void future_shared_state::when_succeeded(t_when_succeeded callback) const {
             switch (state->id()) {
                 case state_id::resolved:
                     std::invoke(new_state ? new_state->when_succeeded_ : callback,
-                                future_detail::resolved_state<T>::from(state)->value());
+                                detail::resolved_state<T>::from(state)->value());
 
                     destroy(new_state);
                     return;
@@ -711,7 +710,7 @@ void future_shared_state::when_succeeded(t_when_succeeded callback) const {
 template <class t_when_succeeded>
 void future_shared_state::when_succeeded_void(t_when_succeeded callback) const {
     using void_when_succeeded_pending_state =
-        future_detail::void_when_succeeded_pending_state<void, t_when_succeeded>;
+        detail::void_when_succeeded_pending_state<void, t_when_succeeded>;
 
     void_when_succeeded_pending_state* new_state = nullptr;
     state* state = state_.load();
@@ -741,7 +740,7 @@ void future_shared_state::when_succeeded_void(t_when_succeeded callback) const {
 
 template <class t_when_failed>
 void future_shared_state::when_failed(t_when_failed callback) const {
-    using when_failed_pending_state = future_detail::when_failed_pending_state<t_when_failed>;
+    using when_failed_pending_state = detail::when_failed_pending_state<t_when_failed>;
 
     when_failed_pending_state* new_state = nullptr;
     state* state = state_.load();
@@ -755,7 +754,7 @@ void future_shared_state::when_failed(t_when_failed callback) const {
 
                 case state_id::failed:
                     std::invoke(new_state ? new_state->when_failed_ : callback,
-                                future_detail::failed_state::from(state)->exception_ptr_);
+                                detail::failed_state::from(state)->exception_ptr_);
 
                     destroy(new_state);
                     return;
@@ -772,7 +771,7 @@ void future_shared_state::when_failed(t_when_failed callback) const {
 
 template <class t_when_ready>
 void future_shared_state::when_ready0(t_when_ready callback) const {
-    using when_ready_pending_state = future_detail::when_ready_pending_state<t_when_ready>;
+    using when_ready_pending_state = detail::when_ready_pending_state<t_when_ready>;
 
     when_ready_pending_state* new_state = nullptr;
     state* state = state_.load();
@@ -791,7 +790,7 @@ void future_shared_state::when_ready0(t_when_ready callback) const {
 
 template <class T, class t_when_ready>
 void future_shared_state::when_ready1(t_when_ready callback) const {
-    using when_ready_pending_state_ex = future_detail::when_ready_pending_state_ex<T, t_when_ready>;
+    using when_ready_pending_state_ex = detail::when_ready_pending_state_ex<T, t_when_ready>;
 
     when_ready_pending_state_ex* new_state = nullptr;
     state* state = state_.load();
@@ -810,7 +809,7 @@ void future_shared_state::when_ready1(t_when_ready callback) const {
 
 template <typename T, typename t_result, class t_next_task>
 void future_shared_state::next(t_next_task next_task, future_shared_state* result) const {
-    using next_pending_state = future_detail::next_pending_state<T, t_result, t_next_task>;
+    using next_pending_state = detail::next_pending_state<T, t_result, t_next_task>;
 
     next_pending_state* new_state = nullptr;
     state* state = state_.load();
@@ -835,7 +834,7 @@ template <class t_next_pending_state, class t_callback>
 inline bool future_shared_state::try_attach_continuation(t_next_pending_state*& new_state,
                                                          state*& state,
                                                          t_callback&& callback) const {
-    future_detail::pending_state* prev_state = future_detail::pending_state::from(state);
+    detail::pending_state* prev_state = detail::pending_state::from(state);
 
     if (new_state) {
         new_state->prev_ = prev_state;
@@ -856,7 +855,7 @@ template <class t_next_pending_state, class t_callback>
 inline bool future_shared_state::try_attach_continuation(t_next_pending_state*& new_state,
                                                          state*& state, t_callback&& callback,
                                                          future_shared_state* result) const {
-    future_detail::pending_state* prev_state = future_detail::pending_state::from(state);
+    detail::pending_state* prev_state = detail::pending_state::from(state);
 
     if (new_state)
         new_state->prev_ = prev_state;
@@ -871,7 +870,7 @@ inline bool future_shared_state::try_attach_continuation(t_next_pending_state*& 
     return false;
 }
 
-namespace future_detail {
+namespace detail {
 
 inline void set_exception_func::operator()(const std::exception_ptr& e) noexcept {
     result_->set_exception(e);
@@ -951,6 +950,6 @@ struct when_succeeded_helper<void> {
     }
 };
 
-}  // namespace future_detail
+}  // namespace detail
 
 }  // export namespace wxl::async

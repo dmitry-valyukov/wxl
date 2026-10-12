@@ -106,7 +106,7 @@ protected:
     /// \param where the co_await, which a build that checks coroutines names
     ///        when the wait breaks the rule.
     void arm(std::coroutine_handle<> waiter,
-             [[maybe_unused]] async::coro_detail::site where = async::coro_detail::site::current()) noexcept {
+             [[maybe_unused]] async::detail::site where = async::detail::site::current()) noexcept {
         coro_check(!waiter_, "wxl: two coroutines waiting on one event proxy", where);
 
         waiter_ = waiter;
@@ -153,7 +153,7 @@ protected:
         // frame of the coroutine awaiting it, whose awaiter is younger and so
         // disarms first.
         coro_check(!waiter_, "wxl: an event proxy outlived the coroutine waiting on it",
-                   async::coro_detail::site::current());
+                   async::detail::site::current());
     }
 
     /// What the throwing form of a wait does when the wait ended instead.
@@ -208,7 +208,7 @@ inline bool event_waits_drained() noexcept {
 }
 
 /// A wait of this thread under a cancellation token: the awaiter made in place,
-/// what async::cancellation_detail::wait_under does with it -- the wait stands in
+/// what async::detail::wait_under does with it -- the wait stands in
 /// the token's event while it is suspended, by a node built into it. `Stop` is how
 /// the token is had -- held (`async::cancellation_token`), for a wait made by a
 /// call that was handed the token, or borrowed as its state, for the wait of a
@@ -217,9 +217,9 @@ inline bool event_waits_drained() noexcept {
 /// Neither copied nor moved, like the awaiter: it is co_awaited where it is made.
 template <typename Awaiter, typename Stop>
 class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] event_wait_under
-    : public async::cancellation_detail::wait_under<event_wait_under<Awaiter, Stop>>
+    : public async::detail::wait_under<event_wait_under<Awaiter, Stop>>
 {
-    using base = async::cancellation_detail::wait_under<event_wait_under>;
+    using base = async::detail::wait_under<event_wait_under>;
 
     friend base;
 
@@ -238,9 +238,9 @@ public:
 private:
     Awaiter& awaiter() noexcept { return awaiter_; }
 
-    async::cancellation_detail::cancellation_state* state() const noexcept {
+    async::detail::cancellation_state* state() const noexcept {
         if constexpr (std::is_same_v<Stop, async::cancellation_token>)
-            return async::cancellation_detail::state_of(stop_);
+            return async::detail::state_of(stop_);
         else
             return stop_;
     }

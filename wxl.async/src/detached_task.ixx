@@ -40,7 +40,7 @@ inline detached_task_failure_handler& on_detached_task_failure() noexcept {
     return handler;
 }
 
-namespace detached_task_detail {
+namespace detail {
 
 /// One reference to an object that counts its own, with either counter, in
 /// one word.
@@ -83,7 +83,7 @@ private:
     std::uintptr_t word_ = 0;
 };
 
-}  // namespace detached_task_detail
+}  // namespace detail
 
 /// A coroutine that owns itself: nothing is returned to hold, and the frame
 /// is released the moment the body ends.
@@ -184,7 +184,7 @@ public:
         }
 
     private:
-        detached_task_detail::anchor anchor_;
+        detail::anchor anchor_;
     };
 };
 

@@ -172,7 +172,7 @@ class TaskOperationDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+        if constexpr (!detail::checked) GTEST_SKIP() << "built without coroutine checks";
         GTEST_FLAG_SET(death_test_style, "threadsafe");
     }
 };
@@ -182,7 +182,7 @@ class TaskOperationStrictDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+        if constexpr (!detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
         GTEST_FLAG_SET(death_test_style, "threadsafe");
     }
 };

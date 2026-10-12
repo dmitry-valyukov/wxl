@@ -97,7 +97,7 @@ task<std::size_t> start_read(probe& p, std::span<std::byte> into) {
 /// The same read under a token, in the form the operations of this module take one --
 /// `async_file::read_all(path, stop)` -- and the same task.
 task<std::size_t> start_read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return cancellation_detail::run_under<gated_read>(std::move(stop), p, into);
+    return detail::run_under<gated_read>(std::move(stop), p, into);
 }
 
 /// Three links, the token passed down by hand; the bottom one reads into its frame.
@@ -640,7 +640,7 @@ TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreCancelled) {
     first.gate.set();
     sta_loop::run_until([&] { return two.done(); });
     EXPECT_EQ(two.result(), 16u);
-    two = task<std::size_t>(cancellation_detail::canceled<std::size_t>());
+    two = task<std::size_t>(detail::canceled<std::size_t>());
     EXPECT_EQ(middle.alive, 0);
 
     stop.cancel();
@@ -662,8 +662,7 @@ TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreCancelled) {
 
 /// A body on the worker, kept behind a read that holds the worker, counting its runs.
 task<int> counts_on_the_worker(int& runs, cancellation_token stop) {
-    co_return co_await cancellation_detail::call_under([&runs] { return ++runs; },
-                                                       std::move(stop));
+    co_return co_await detail::call_under([&runs] { return ++runs; }, std::move(stop));
 }
 
 // The lambda forms take the token as the class form does: one not reached by the worker
@@ -704,7 +703,7 @@ TEST(CancellationTest, ALambdaOnTheWorkerCancelledBeforeItIsReachedNeverRuns) {
 TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
     cancellation_source stop;
 
-    task<int> ran = cancellation_detail::call_under(orphanable, [] { return 5; }, stop.token());
+    task<int> ran = detail::call_under(orphanable, [] { return 5; }, stop.token());
     sta_loop::run_until([&] { return ran.done(); });
     EXPECT_EQ(ran.result(), 5);
 
@@ -714,8 +713,7 @@ TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
     ahead.started.wait();
 
     std::atomic<int> runs{0};
-    task<int> canceled = cancellation_detail::call_under(
-        orphanable, [&runs] { return ++runs; }, stop.token());
+    task<int> canceled = detail::call_under(orphanable, [&runs] { return ++runs; }, stop.token());
 
     stop.cancel();
     ahead.gate.set();
@@ -725,8 +723,8 @@ TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
     EXPECT_EQ(runs, 0);
 
     bool made = false;
-    task<int> not_made = cancellation_detail::call_under(
-        orphanable, [&made] { return made = true, 6; }, stop.token());
+    task<int> not_made =
+        detail::call_under(orphanable, [&made] { return made = true, 6; }, stop.token());
     EXPECT_TRUE(not_made.done());
     EXPECT_TRUE(ends_cancelled(not_made));
     EXPECT_FALSE(made);
@@ -761,7 +759,7 @@ private:
 // cancelled before the worker reached it never runs and answers the cancellation the worker
 // wrote for it, and one never cancelled its value.
 TEST(CancellationTest, AnOperationCancelledWhileOutIsSettledWithWhatHappenedToIt) {
-    using op = cancellation_detail::operation_under<carried_by_hand>;
+    using op = detail::operation_under<carried_by_hand>;
 
     cancellation_source stop;
 
@@ -818,7 +816,7 @@ TEST(CancellationTest, AnOrphanGivenUpAndThenAskedStillGoesWhenItComesBack) {
     cancellation_source stop;
 
     {
-        task<int> dropped = cancellation_detail::call_under(
+        task<int> dropped = detail::call_under(
             orphanable,
             [&started, &gate, &finished, keep = counted_capture(&alive)] {
                 started.set();
@@ -894,7 +892,7 @@ TEST(CancellationTest, ABodyOnTheWorkerCancelledWhileItRunsAnswersWhatItMade) {
     hevent started{true}, gate{true};
     cancellation_source stop;
 
-    task<int> made = cancellation_detail::call_under(
+    task<int> made = detail::call_under(
         [&started, &gate] {
             started.set();
             gate.wait();
@@ -922,7 +920,7 @@ TEST(CancellationTest, AnOrphanCancelledWhileItRunsAnswersWhatHappenedToItsCall)
         bool saw_it_cut_short = false;
         cancellation_source stop;
 
-        task<int> reading = cancellation_detail::call_under(
+        task<int> reading = detail::call_under(
             orphanable,
             [&started, &gate, &saw_it_cut_short, cut](const orphan_stage& stage) -> int {
                 started.set();
@@ -956,7 +954,7 @@ TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerAfterTheRequest) {
         hevent started{true}, gate{true};
         cancellation_source stop;
 
-        task<int> failing = cancellation_detail::call_under(
+        task<int> failing = detail::call_under(
             [&started, &gate]() -> int {
                 started.set();
                 gate.wait();
@@ -976,7 +974,7 @@ TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerAfterTheRequest) {
     hevent started{true}, gate{true};
     cancellation_source stop;
 
-    task<int> refused = cancellation_detail::call_under(
+    task<int> refused = detail::call_under(
         orphanable,
         [&started, &gate]() -> int {
             started.set();
@@ -1004,7 +1002,7 @@ TEST(CancellationTest, AnOrphanCancelledAndThenGivenUpLetsGoOfWhatItMakesAtOnce)
     cancellation_source stop;
 
     {
-        auto making = cancellation_detail::call_under(
+        auto making = detail::call_under(
             orphanable,
             [&started, &gate, &alive, &made] {
                 started.set();
@@ -1042,7 +1040,7 @@ TEST(CancellationTest, UnderATokenOfNobodyTheFormIsThePlainOne) {
 
     std::byte buf[16]{};
     task<std::size_t> read = start_read(p, buf, cancellation_token{});
-    task<int> lambda = cancellation_detail::call_under([] { return 9; }, cancellation_token{});
+    task<int> lambda = detail::call_under([] { return 9; }, cancellation_token{});
 
     sta_loop::run_until([&] { return read.done() && lambda.done(); });
 
@@ -1057,7 +1055,7 @@ namespace {
 /// Whether anybody stands in the event of a token's state: an operation, a wait, a source
 /// made under the token.
 bool anybody_stands(const cancellation_token& token) {
-    return static_cast<bool>(cancellation_detail::state_of(token)->event());
+    return static_cast<bool>(detail::state_of(token)->event());
 }
 
 /// Counts the states it was put into that are still alive: a callback of its own in the
@@ -1065,8 +1063,7 @@ bool anybody_stands(const cancellation_token& token) {
 /// when the state goes. Only for a state not cancelled meanwhile: a fire lets go of what it
 /// has called.
 void count_while_alive(const cancellation_token& token, int& alive) {
-    cancellation_detail::state_of(token)->event().add(
-        [keep = counted_capture(&alive)]() noexcept {});
+    detail::state_of(token)->event().add([keep = counted_capture(&alive)]() noexcept {});
 }
 
 /// The thread's queue, as a wait of wxl.ui sees it: a cancelled wait hands its coroutine here
@@ -1099,9 +1096,9 @@ struct queued_awaiter {
 };
 
 /// A wait of wxl under a token over that awaiter: what the event waits of wxl.ui are made of.
-class queued_wait : public cancellation_detail::wait_under<queued_wait>
+class queued_wait : public detail::wait_under<queued_wait>
 {
-    friend cancellation_detail::wait_under<queued_wait>;
+    friend detail::wait_under<queued_wait>;
 
 public:
     queued_wait(turns& queue, std::coroutine_handle<>& slot, cancellation_token stop) noexcept
@@ -1115,9 +1112,7 @@ public:
 private:
     queued_awaiter& awaiter() noexcept { return awaiter_; }
 
-    cancellation_detail::cancellation_state* state() const noexcept {
-        return cancellation_detail::state_of(stop_);
-    }
+    detail::cancellation_state* state() const noexcept { return detail::state_of(stop_); }
 
     cancellation_token stop_;
     queued_awaiter awaiter_;
@@ -1518,7 +1513,7 @@ class CancellationDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+        if constexpr (!detail::checked) GTEST_SKIP() << "built without coroutine checks";
     }
 };
 
@@ -1527,7 +1522,7 @@ class CancellationStrictDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+        if constexpr (!detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
     }
 };
 
@@ -1565,10 +1560,10 @@ static_assert(!std::is_convertible_v<cancellation_token, cancellation_source>);
 static_assert(sizeof(task<std::size_t>) == sizeof(void*));
 static_assert(std::is_same_v<decltype(start_read(std::declval<probe&>(), {}, cancellation_token{})),
                              task<std::size_t>>);
-static_assert(std::is_same_v<decltype(cancellation_detail::call_under(std::declval<int (*)()>(),
-                                                                    cancellation_token{})),
-                             task<int>>);
-static_assert(sizeof(cancellation_detail::operation_under<gated_read>) ==
+static_assert(
+    std::is_same_v<decltype(detail::call_under(std::declval<int (*)()>(), cancellation_token{})),
+                   task<int>>);
+static_assert(sizeof(detail::operation_under<gated_read>) ==
               sizeof(gated_read) + sizeof(cancellation_token) + 3 * sizeof(void*));
 
 // The loop's calls take no token: a body of the application's is its own code's to stop.

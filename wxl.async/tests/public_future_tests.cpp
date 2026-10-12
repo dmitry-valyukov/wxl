@@ -248,7 +248,7 @@ inline void shared_future<void>::get() const {
 // File SomeHandler/src/SharedFuture.cpp
 namespace some_handler::threading::implementation {
 
-using future_detail::future_accessor;
+using detail::future_accessor;
 
 bool future_base::is_ready() const {
     return future_accessor::checked(state_)->ready();
@@ -345,14 +345,14 @@ void future_base::swap(future_base & other) WXL_SOMEAPI_NOEXCEPT {
 }
 
 const void * future_base::get_value_ptr() const {
-    const future_detail::state * state = future_accessor::checked(state_)->get();
+    const detail::state * state = future_accessor::checked(state_)->get();
 
-    assert(dynamic_cast<const future_detail::resolved_state_base*>(state));
-    return static_cast<const future_detail::resolved_state_base*>(state)->raw_data();
+    assert(dynamic_cast<const detail::resolved_state_base*>(state));
+    return static_cast<const detail::resolved_state_base*>(state)->raw_data();
 }
 
 void future_base::get_void() const {
-    const future_detail::state * state = future_accessor::checked(state_)->get();
+    const detail::state * state = future_accessor::checked(state_)->get();
     (void)state;
 }
 

@@ -451,7 +451,7 @@ TEST(OrphanTest, CancellingAnOrphanCutsShortTheCallItStandsInAndItAnswersTheCanc
 
     cancellation_source stop;
 
-    task<> writing = cancellation_detail::call_under(
+    task<> writing = detail::call_under(
         orphanable,
         [writer = pipe.writer()] {
             static const std::vector<char> much(1024 * 1024);

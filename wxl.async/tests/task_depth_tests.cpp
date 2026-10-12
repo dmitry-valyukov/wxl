@@ -160,7 +160,7 @@ private:
 
 /// The read, in the form with a token the operations of this module have.
 task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return cancellation_detail::run_under<gated_read>(std::move(stop), p, into);
+    return detail::run_under<gated_read>(std::move(stop), p, into);
 }
 
 /// The operation a level awaits besides its subroutine, answering the level's number, in
@@ -181,10 +181,9 @@ task<int> step(int depth, cancellation_token stop) {
         case 0:
             return sta_loop::call_here([depth] { return depth; });
         case 1:
-            return cancellation_detail::call_under([depth] { return depth; }, std::move(stop));
+            return detail::call_under([depth] { return depth; }, std::move(stop));
         default:
-            return cancellation_detail::call_under(orphanable, [depth] { return depth; },
-                                                   std::move(stop));
+            return detail::call_under(orphanable, [depth] { return depth; }, std::move(stop));
     }
 }
 
@@ -210,7 +209,7 @@ task<int> bottom(chain_state& c, cancellation_token stop) {
     if (c.bottom == bottom_kind::worker_failure)
         co_return co_await sta_loop::async_call([]() -> int { throw std::runtime_error("from the worker"); });
 
-    const int value = co_await cancellation_detail::call_under([] { return 1000; }, stop);
+    const int value = co_await detail::call_under([] { return 1000; }, stop);
 
     if (c.bottom == bottom_kind::coroutine_failure) throw std::runtime_error("from the bottom coroutine");
 
@@ -486,7 +485,7 @@ class TaskDepthDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+        if constexpr (!detail::checked) GTEST_SKIP() << "built without coroutine checks";
     }
 };
 
@@ -494,7 +493,7 @@ class TaskDepthStrictDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+        if constexpr (!detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
     }
 };
 

@@ -223,14 +223,14 @@ public:
         // are: a strict build's takes the place of the co_await, any other
         // build's has the signature it always had.
 
-        void await_suspend(std::coroutine_handle<> waiter) noexcept requires(!async::coro_detail::strict) {
+        void await_suspend(std::coroutine_handle<> waiter) noexcept requires(!async::detail::strict) {
             event_->arm(waiter);
             armed_ = true;
         }
 
         void await_suspend(std::coroutine_handle<> waiter,
-                           async::coro_detail::site where = async::coro_detail::site::current()) noexcept
-            requires(async::coro_detail::strict)
+                           async::detail::site where = async::detail::site::current()) noexcept
+            requires(async::detail::strict)
         {
             event_->arm(waiter, where);
             armed_ = true;
@@ -251,7 +251,7 @@ public:
         }
 
         // Cancelled by the token of the form with one
-        // (async::cancellation_detail::cancellable_awaiter): a wait that is
+        // (async::detail::cancellable_awaiter): a wait that is
         // suspended is resumed by the queue's next turn, or by the event if it
         // comes first -- never by cancel() itself; one that has not begun never
         // suspends. Either way the args are not asked for.
@@ -342,11 +342,11 @@ public:
 
     template <bool Throwing>
     using awaiter_t = impl::event_wait_under<typename event_t::template awaiter_t<Throwing>,
-                                             async::cancellation_detail::cancellation_state*>;
+                                             async::detail::cancellation_state*>;
 
     using awaiter = awaiter_t<true>;
 
-    awaiter operator co_await() noexcept { return awaiter{async::cancellation_detail::state_of(stop_), event_}; }
+    awaiter operator co_await() noexcept { return awaiter{async::detail::state_of(stop_), event_}; }
 
     // As on the plain proxy: waiting writes down who is waiting.
     awaiter operator co_await() const = delete;
@@ -354,7 +354,7 @@ public:
     /// The answering form under the token: a cancelled wait answers with an
     /// empty error rather than throwing.
     awaiter_t<false> next() noexcept {
-        return awaiter_t<false>{async::cancellation_detail::state_of(stop_), event_};
+        return awaiter_t<false>{async::detail::state_of(stop_), event_};
     }
 
 private:

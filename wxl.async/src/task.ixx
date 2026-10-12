@@ -14,9 +14,7 @@ export namespace wxl::async {
 template <class R = void>
 class task;
 
-namespace task_detail {
-
-using coro_detail::site;
+namespace detail {
 
 /// The awaiter co_await would use for an awaitable: what a member operator
 /// co_await returns, else what a free one returns, else the awaitable itself,
@@ -92,7 +90,7 @@ private:
 /// because the compiler calls await_transform whenever the name is there at all; and a
 /// link of the chain the promise derives through rather than a second base, so that it
 /// takes no room in any compiler's layout.
-template <class Base, bool = coro_detail::checked>
+template <class Base, bool = detail::checked>
 struct body_tracking : Base {};
 
 template <class Base>
@@ -124,11 +122,11 @@ struct promise_returns<void> : async_op_t<void> {
 /// the calling thread, an exception is kept for whoever reads the task, and the end hands
 /// the thread to the coroutine awaiting this one, if there is one.
 template <class R>
-class promise : public body_tracking<promise_returns<R>>
+class task_promise : public body_tracking<promise_returns<R>>
 {
 public:
     /// Set at birth: initial_suspend does not suspend, so the body starts on the stack.
-    inline promise() noexcept { this->continuation.set_running(true); }
+    inline task_promise() noexcept { this->continuation.set_running(true); }
 
     task<R> get_return_object() noexcept;
 
@@ -160,7 +158,7 @@ public:
     /// The owner lets go: the frame is destroyed, its locals and the awaiter it stands in
     /// with it, and nothing else happens -- nobody is resumed, and no result is taken.
     inline void release() override {
-        std::coroutine_handle<promise>::from_promise(*this).destroy();
+        std::coroutine_handle<task_promise>::from_promise(*this).destroy();
     }
 
 protected:
@@ -192,31 +190,31 @@ class awaiter
 {
 public:
     /// A task whose result is here already is awaited without suspending.
-    inline bool await_ready() const noexcept requires(!coro_detail::strict) {
+    inline bool await_ready() const noexcept requires(!detail::strict) {
         return ready(site::current());
     }
 
-    inline bool await_ready(site where = site::current()) const noexcept requires(coro_detail::strict) {
+    inline bool await_ready(site where = site::current()) const noexcept requires(detail::strict) {
         return ready(where);
     }
 
     /// Nothing else happens: the producer is already at work, and wakes the waiter on
     /// this same thread.
-    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!coro_detail::strict) {
+    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!detail::strict) {
         park(awaiting, false, site::current());
     }
 
     inline void await_suspend(std::coroutine_handle<> awaiting, site where = site::current()) noexcept
-        requires(coro_detail::strict)
+        requires(detail::strict)
     {
         park(awaiting, false, where);
     }
 
-    inline decltype(auto) await_resume() requires(!coro_detail::strict) {
+    inline decltype(auto) await_resume() requires(!detail::strict) {
         return producer_->take_result(site::current());
     }
 
-    inline decltype(auto) await_resume(site where = site::current()) requires(coro_detail::strict) {
+    inline decltype(auto) await_resume(site where = site::current()) requires(detail::strict) {
         return producer_->take_result(where);
     }
 
@@ -258,18 +256,18 @@ public:
 
     inline ~join_awaiter() { this->producer_->continuation.clear(); }
 
-    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!coro_detail::strict) {
+    inline void await_suspend(std::coroutine_handle<> awaiting) noexcept requires(!detail::strict) {
         this->park(awaiting, true, site::current());
     }
 
     inline void await_suspend(std::coroutine_handle<> awaiting, site where = site::current()) noexcept
-        requires(coro_detail::strict)
+        requires(detail::strict)
     {
         this->park(awaiting, true, where);
     }
 };
 
-}  // namespace task_detail
+}  // namespace detail
 
 /// What a coroutine awaits, and the one thing it ever sees of asynchronous work: a
 /// result in the making, handed back to its caller to be kept, swept and read -- or
@@ -337,19 +335,19 @@ public:
 /// pool's thread, with the pool built before the first and outliving the last.
 template <class R>
 class [[nodiscard("a task nobody keeps is destroyed at once, and its work with it")]] task
-    : public task_detail::awaiter<R>
+    : public detail::awaiter<R>
 {
 public:
-    using promise_type = task_detail::promise<R>;
+    using promise_type = detail::task_promise<R>;
 
     /// Takes over an operation already started: what the calls of sta_loop do with the
     /// operations they start, and what an author of an operation of their own does in the
     /// call that starts it.
     inline explicit task(std::unique_ptr<async_op_t<R>> started) noexcept
-        : task_detail::awaiter<R>(started.release()) {}
+        : detail::awaiter<R>(started.release()) {}
 
     inline task(task&& other) noexcept
-        : task_detail::awaiter<R>(std::exchange(other.producer_, nullptr)) {}
+        : detail::awaiter<R>(std::exchange(other.producer_, nullptr)) {}
 
     inline task& operator=(task&& other) noexcept {
         std::swap(this->producer_, other.producer_);
@@ -364,9 +362,9 @@ public:
         if (this->producer_) {
             coro_check(!this->producer_->continuation.running(),
                        "task: destroyed while its coroutine runs -- dropped from inside its own chain",
-                       task_detail::site::current());
+                       detail::site::current());
             coro_check(!this->producer_->continuation.joined(), "task: destroyed while a coroutine joins it",
-                       task_detail::site::current());
+                       detail::site::current());
 
             this->producer_->release();
         }
@@ -380,14 +378,14 @@ public:
     /// \return the value, moved out: ask once, after done().
     /// \throw whatever left the producer.
     /// \param where the caller's line, for a strict build's report; left to its default.
-    inline R result(task_detail::site where = task_detail::site::current()) requires(!std::is_void_v<R>) {
+    inline R result(detail::site where = detail::site::current()) requires(!std::is_void_v<R>) {
         check_ended(where);
         return this->producer_->take_result(where);
     }
 
     /// \throw whatever left the producer. Ask after done(), as often as needed.
     /// \param where the caller's line, for a strict build's report; left to its default.
-    inline void result(task_detail::site where = task_detail::site::current()) const
+    inline void result(detail::site where = detail::site::current()) const
         requires(std::is_void_v<R>)
     {
         check_ended(where);
@@ -403,23 +401,23 @@ public:
     template <class Self>
         requires(std::is_lvalue_reference_v<Self> && !std::is_const_v<std::remove_reference_t<Self>> &&
                  std::derived_from<std::remove_reference_t<Self>, task>)
-    inline friend task_detail::join_awaiter<R> operator co_await(Self&& kept) noexcept {
-        return task_detail::join_awaiter<R>(kept.producer_);
+    inline friend detail::join_awaiter<R> operator co_await(Self&& kept) noexcept {
+        return detail::join_awaiter<R>(kept.producer_);
     }
 
 private:
     friend promise_type;
 
-    inline explicit task(async_op_t<R>* producer) noexcept : task_detail::awaiter<R>(producer) {}
+    inline explicit task(async_op_t<R>* producer) noexcept : detail::awaiter<R>(producer) {}
 
-    inline void check_ended([[maybe_unused]] task_detail::site where) const noexcept {
+    inline void check_ended([[maybe_unused]] detail::site where) const noexcept {
         coro_check(this->producer_, "task: moved-from", where);
         coro_check(this->producer_->ready(), "task: result() asked before it ended", where);
     }
 };
 
 template <class R>
-inline task<R> task_detail::promise<R>::get_return_object() noexcept {
+inline task<R> detail::task_promise<R>::get_return_object() noexcept {
     return task<R>(this);
 }
 

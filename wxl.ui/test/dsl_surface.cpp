@@ -1655,8 +1655,8 @@ static_assert(std::is_same_v<decltype(std::declval<key_wait_under_t&>().next().a
 
 static_assert(sizeof(click_wait_t::awaiter) == 2 * sizeof(void*));
 static_assert(sizeof(click_wait_under_t) == sizeof(click_wait_t) + sizeof(async::cancellation_token));
-static_assert(async::cancellation_detail::cancellable_awaiter<click_wait_t::awaiter>);
-static_assert(async::cancellation_detail::cancellable_awaiter<UiThread::Idle>);
+static_assert(async::detail::cancellable_awaiter<click_wait_t::awaiter>);
+static_assert(async::detail::cancellable_awaiter<UiThread::Idle>);
 static_assert(sizeof(UiThread::Idle) ==
               sizeof(impl::waiting_event) + sizeof(std::shared_ptr<UiThread::Idle*>) + sizeof(void*));
 

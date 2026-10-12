@@ -137,7 +137,7 @@ task<int> handed(handed_op*& slot, int i) {
 /// The form with a token, as the operations of async_file have it: the same operation,
 /// standing under the token while it lives.
 task<int> handed(handed_op*& slot, int i, cancellation_token stop) {
-    auto* const op = new cancellation_detail::operation_under<handed_op>(std::move(stop), i);
+    auto* const op = new detail::operation_under<handed_op>(std::move(stop), i);
     slot = op;
     return task<int>(std::unique_ptr<async_op_t<int>>(op));
 }
