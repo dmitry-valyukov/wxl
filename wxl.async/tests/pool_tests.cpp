@@ -388,3 +388,56 @@ TEST(PoolTest, pool_get)
 
     EXPECT_EQ(static_item_map.size(), 2u);
 }
+
+namespace {
+
+/// How many allocators of the kind below exist. A safe_pool keeps one inside the state it
+/// shares with its elements, so the number falls back only once that state has gone.
+std::atomic<int> allocators_alive{0};
+
+template <class t_element>
+struct counted_allocator : default_allocator<t_element> {
+    counted_allocator() noexcept { ++allocators_alive; }
+
+    counted_allocator(const counted_allocator& other) noexcept
+        : default_allocator<t_element>(other) {
+        ++allocators_alive;
+    }
+
+    ~counted_allocator() { --allocators_alive; }
+};
+
+struct pooled_value {
+    int value = 0;
+};
+
+using counted_pool = safe_pool<pooled_value, counted_allocator>;
+
+}  // namespace
+
+// The state a safe_pool shares with its elements goes with the last of its holders: with the
+// pool itself when every element is back, with the last element when one outlives the pool.
+TEST(PoolTest, SafePoolStateGoesWithItsLastHolder)
+{
+    const int before = allocators_alive.load();
+
+    {
+        counted_pool pool;
+        pool.put(pool.get());
+    }
+
+    EXPECT_EQ(allocators_alive.load(), before);
+
+    counted_pool::element_type * survivor = nullptr;
+
+    {
+        counted_pool pool;
+        survivor = pool.get();
+    }
+
+    EXPECT_GT(allocators_alive.load(), before);
+
+    survivor->owner()->put(survivor);
+
+    EXPECT_EQ(allocators_alive.load(), before);
+}
