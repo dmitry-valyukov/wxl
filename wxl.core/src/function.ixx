@@ -123,7 +123,7 @@ public:
     /// Whether calling this may throw is the signature's own promise, checked where the
     /// callable is handed in rather than left to std::terminate. An event spells its
     /// signature `noexcept` and gets callbacks that cannot throw -- called out of a list,
-    /// from a fire() with no result and no business abandoning the rest halfway, they have
+    /// from an event's call with no result and no business abandoning the rest halfway, they have
     /// nobody to throw to. A callable whose work can fail -- a preset's setters walking
     /// into WinRT, say -- is held by the plain spelling, and its exceptions are the
     /// caller's to handle.
