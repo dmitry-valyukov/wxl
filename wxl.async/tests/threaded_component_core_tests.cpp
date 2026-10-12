@@ -26,13 +26,27 @@ public:
     std::atomic<int> run_calls{0};
     std::atomic<bool> saw_thread_id{false};
 
+    /// Returns once run() has looked at its thread and counted itself -- both, since the
+    /// release that wakes this comes after both stores.
+    void wait_until_running() { running_.acquire(); }
+
 protected:
     void run() override {
-        run_calls.fetch_add(1);
         saw_thread_id.store(get_thread_id() != 0);
-        while (!stop_requested())
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        run_calls.fetch_add(1);
+        running_.release();
+        stopped_.acquire();
     }
+
+    /// Lets run() return; a stop that comes before run() leaves the count for it to find.
+    void on_stopping() override {
+        threaded_component::on_stopping();
+        stopped_.release();
+    }
+
+private:
+    semaphore running_{0};
+    semaphore stopped_{0};
 };
 
 class failing_component : public threaded_component {
@@ -51,11 +65,6 @@ protected:
     }
 };
 
-void wait_until_running(const counting_component & c) {
-    for (int i = 0; i < 1000 && c.run_calls.load() == 0; ++i)
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-}
-
 }  // namespace
 
 TEST(ThreadedComponentTest, DetachedThreadRunsAndJoinsAfterStop) {
@@ -65,7 +74,7 @@ TEST(ThreadedComponentTest, DetachedThreadRunsAndJoinsAfterStop) {
     const ticket stop = c.stop_ticket();
     EXPECT_TRUE(c.was_started());
 
-    wait_until_running(c);
+    c.wait_until_running();
     EXPECT_EQ(c.run_calls.load(), 1);
     EXPECT_TRUE(c.saw_thread_id.load());
 
@@ -80,7 +89,7 @@ TEST(ThreadedComponentTest, ManagedThreadRunsUnderExplicitManager) {
     counting_component c(manager.get());
     c.start_async().get();
 
-    wait_until_running(c);
+    c.wait_until_running();
     EXPECT_EQ(c.run_calls.load(), 1);
 
     c.stop_async().get();
