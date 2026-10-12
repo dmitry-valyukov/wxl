@@ -41,7 +41,7 @@
 
 namespace wxl::impl {
 
-namespace operation_detail {
+namespace detail {
 
 using winrt::Windows::Foundation::AsyncStatus;
 
@@ -115,13 +115,13 @@ async::task<R> start(Op const& operation, Queue const& queue, Convert convert) {
     return async::task<R>(std::move(made));
 }
 
-}  // namespace operation_detail
+}  // namespace detail
 
 /// An asynchronous operation with a result: `convert` turns what it returns (a projection value)
 /// into `R`, on the calling thread.
 template <class R, class Op, class Convert>
 async::task<R> start_operation(Op const& operation, Convert convert) {
-    return operation_detail::start<R>(
+    return detail::start<R>(
         operation, winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
         std::move(convert));
 }
@@ -129,7 +129,7 @@ async::task<R> start_operation(Op const& operation, Convert convert) {
 /// An asynchronous operation without a result (IAsyncAction, with progress or without).
 template <class Op>
 async::task<> start_action(Op const& operation) {
-    return operation_detail::start<void>(
+    return detail::start<void>(
         operation, winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
         std::identity{});
 }

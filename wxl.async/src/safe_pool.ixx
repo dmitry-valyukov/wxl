@@ -79,7 +79,7 @@ public:
     /// Constructor.
     explicit safe_pool(size_t preferred_size = 256,
                        const base_allocator& alloc = base_allocator()) noexcept
-        : state_(new shared_pool_state(preferred_size, alloc)) {}
+        : state_(core::make_refcounted<shared_pool_state>(preferred_size, alloc)) {}
 
     ~safe_pool() {
         if (state_) state_->begin_dispose();

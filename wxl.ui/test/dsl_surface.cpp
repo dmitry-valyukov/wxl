@@ -595,7 +595,7 @@ struct BoundModel : core::sta_refcounted {
 }  // namespace
 
 [[maybe_unused]] void binding_by_property() {
-    core::intrusive_ptr<BoundModel> const model{new BoundModel{}};
+    auto const model = core::make_refcounted<BoundModel>();
 
     // Both ways: the control writes the property itself.
     TextBox{text = Bind{model->name}};
@@ -645,7 +645,7 @@ struct BoundModel : core::sta_refcounted {
 // was asked -- and never unnamed: a bool would otherwise mean focus to every
 // element.
 [[maybe_unused]] void binding_state_pairs() {
-    core::intrusive_ptr<BoundModel> const model{new BoundModel{}};
+    auto const model = core::make_refcounted<BoundModel>();
 
     TextBox{isFocused = Bind{model->busy}};
     Border{isFocused = Bind{model->busy}};       // a panel too: UIElement declares the focus
@@ -1655,8 +1655,8 @@ static_assert(std::is_same_v<decltype(std::declval<key_wait_under_t&>().next().a
 
 static_assert(sizeof(click_wait_t::awaiter) == 2 * sizeof(void*));
 static_assert(sizeof(click_wait_under_t) == sizeof(click_wait_t) + sizeof(async::cancellation_token));
-static_assert(async::cancellation_detail::cancellable_awaiter<click_wait_t::awaiter>);
-static_assert(async::cancellation_detail::cancellable_awaiter<UiThread::Idle>);
+static_assert(async::detail::cancellable_awaiter<click_wait_t::awaiter>);
+static_assert(async::detail::cancellable_awaiter<UiThread::Idle>);
 static_assert(sizeof(UiThread::Idle) ==
               sizeof(impl::waiting_event) + sizeof(std::shared_ptr<UiThread::Idle*>) + sizeof(void*));
 

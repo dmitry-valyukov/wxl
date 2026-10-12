@@ -31,7 +31,7 @@ namespace {
 using winrt::Windows::Foundation::AsyncStatus;
 using wxl::async::operation_canceled_exception;
 using wxl::async::task;
-using wxl::impl::operation_detail::start;
+using wxl::impl::detail::start;
 
 /// What the platform throws for an operation that failed: the code, as winrt::hresult_error
 /// carries it.

@@ -1,4 +1,4 @@
-#include "platform.h"
+#include "process_handles.h"
 
 #include <gtest/gtest.h>
 
@@ -12,14 +12,6 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 namespace {
-
-/// The handle of the calling thread, for waiting on it and asking its id.
-HANDLE open_current_thread() {
-    HANDLE self = nullptr;
-    ::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(), ::GetCurrentProcess(), &self,
-                      SYNCHRONIZE | THREAD_QUERY_LIMITED_INFORMATION, FALSE, 0);
-    return self;
-}
 
 /// A component whose thread is slow to leave: past run() and past its report that the
 /// component has stopped, it still sleeps in a thread-exit callback -- where a real thread

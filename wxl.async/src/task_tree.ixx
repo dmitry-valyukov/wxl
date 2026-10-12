@@ -7,12 +7,12 @@ import std;
 
 export namespace wxl::async {
 
-namespace task_tree_detail {
+namespace detail {
 
 /// Shared state of a task_tree; defined in task_tree.cpp, the only place that needs it.
-class state;
+class task_tree_state;
 
-}  // namespace task_tree_detail
+}  // namespace detail
 
 class task_tree;
 class task_tree_root;
@@ -31,9 +31,9 @@ class task_tree_handle;
 ///
 /// Nothing here is defined in place, down to the copy constructor: the state is only complete
 /// inside task_tree.cpp, and every one of these touches it.
-class task_tree : public future_detail::shared_state_holder<task_tree_detail::state>
+class task_tree : public detail::shared_state_holder<detail::task_tree_state>
 {
-    using base = future_detail::shared_state_holder<task_tree_detail::state>;
+    using base = detail::shared_state_holder<detail::task_tree_state>;
 
 public:
     task_tree() noexcept;
@@ -121,7 +121,11 @@ public:
     }
 
 protected:
-    explicit task_tree(task_tree_detail::state* state);
+    /// Takes a reference of its own to a state somebody already holds.
+    explicit task_tree(detail::task_tree_state* state);
+
+    /// Takes over the reference `state` carries.
+    explicit task_tree(core::intrusive_ptr<detail::task_tree_state> state);
 };
 
 /// The node at the top of a tree -- the one that has no parent above it.
@@ -138,7 +142,7 @@ public:
     future<void> cancellation_token() const;
 
 private:
-    explicit task_tree_root(task_tree_detail::state* state);
+    explicit task_tree_root(detail::task_tree_state* state);
 
     friend class task_tree;
 };
@@ -189,7 +193,8 @@ public:
     }
 
 private:
-    explicit task_tree_handle(task_tree_detail::state* state);
+    /// The first handle of a state just made: takes over the reference the state is born with.
+    explicit task_tree_handle(core::intrusive_ptr<detail::task_tree_state> state);
 
     friend class task_tree;
 };

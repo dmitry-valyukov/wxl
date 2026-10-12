@@ -106,7 +106,7 @@ public:
     }
 
     /// Cancelled by the token of onIdle(stop)
-    /// (async::cancellation_detail::cancellable_awaiter): a wait that is
+    /// (async::detail::cancellable_awaiter): a wait that is
     /// suspended leaves its idle turn -- which finds nobody when it comes -- and
     /// is resumed by the queue's next turn of any priority; one that has not
     /// begun never suspends.

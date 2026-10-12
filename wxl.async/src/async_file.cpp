@@ -198,7 +198,7 @@ task<async_file> async_file::open_read(const core::path& path) {
 }
 
 task<async_file> async_file::open_read(const core::path& path, cancellation_token stop) {
-    return cancellation_detail::call_under(orphanable, opening(path), std::move(stop));
+    return detail::call_under(orphanable, opening(path), std::move(stop));
 }
 
 task<async_file> async_file::create(const core::path& path) {
@@ -206,7 +206,7 @@ task<async_file> async_file::create(const core::path& path) {
 }
 
 task<async_file> async_file::create(const core::path& path, cancellation_token stop) {
-    return cancellation_detail::call_under(orphanable, creating(path), std::move(stop));
+    return detail::call_under(orphanable, creating(path), std::move(stop));
 }
 
 task<std::string> async_file::read_all(const core::path& path) {
@@ -214,7 +214,7 @@ task<std::string> async_file::read_all(const core::path& path) {
 }
 
 task<std::string> async_file::read_all(const core::path& path, cancellation_token stop) {
-    return cancellation_detail::call_under(orphanable, reading_whole(path), std::move(stop));
+    return detail::call_under(orphanable, reading_whole(path), std::move(stop));
 }
 
 task<> async_file::write_all(const core::path& path, std::string bytes) {
@@ -222,8 +222,7 @@ task<> async_file::write_all(const core::path& path, std::string bytes) {
 }
 
 task<> async_file::write_all(const core::path& path, std::string bytes, cancellation_token stop) {
-    return cancellation_detail::call_under(orphanable, writing_whole(path, std::move(bytes)),
-                                           std::move(stop));
+    return detail::call_under(orphanable, writing_whole(path, std::move(bytes)), std::move(stop));
 }
 
 task<bool> async_file::exists(const core::path& path) {
@@ -231,7 +230,7 @@ task<bool> async_file::exists(const core::path& path) {
 }
 
 task<bool> async_file::exists(const core::path& path, cancellation_token stop) {
-    return cancellation_detail::call_under(orphanable, asking_exists(path), std::move(stop));
+    return detail::call_under(orphanable, asking_exists(path), std::move(stop));
 }
 
 task<std::size_t> async_file::read(std::span<std::byte> into) {
@@ -249,14 +248,14 @@ task<std::size_t> async_file::read(std::span<std::byte> into) {
 }
 
 task<std::size_t> async_file::read(std::span<std::byte> into, cancellation_token stop) {
-    if (!cancellation_detail::state_of(stop)) return read(into);
+    if (!detail::state_of(stop)) return read(into);
 
     ensure(file_.opened() && "async_file: no file was opened");
 
     // Not made, and the position not moved on: nothing was read.
-    if (stop.is_canceled()) return cancellation_detail::canceled<std::size_t>();
+    if (stop.is_canceled()) return detail::canceled<std::size_t>();
 
-    std::unique_ptr<io_op> op(new cancellation_detail::operation_under<io_op>(
+    std::unique_ptr<io_op> op(new detail::operation_under<io_op>(
         std::move(stop), io_op::kind::read, file_.native_handle(), into.data(), into.size(), position_,
         skips_port_));
 
@@ -281,13 +280,13 @@ task<std::size_t> async_file::write(std::span<const std::byte> from) {
 }
 
 task<std::size_t> async_file::write(std::span<const std::byte> from, cancellation_token stop) {
-    if (!cancellation_detail::state_of(stop)) return write(from);
+    if (!detail::state_of(stop)) return write(from);
 
     ensure(file_.opened() && "async_file: no file was opened");
 
-    if (stop.is_canceled()) return cancellation_detail::canceled<std::size_t>();
+    if (stop.is_canceled()) return detail::canceled<std::size_t>();
 
-    std::unique_ptr<async_op_t<std::size_t>> op(new cancellation_detail::operation_under<io_op>(
+    std::unique_ptr<async_op_t<std::size_t>> op(new detail::operation_under<io_op>(
         std::move(stop), io_op::kind::write, file_.native_handle(), const_cast<std::byte*>(from.data()),
         from.size(), position_, skips_port_));
 

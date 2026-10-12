@@ -28,9 +28,7 @@ struct orphanable_t {
 
 inline constexpr orphanable_t orphanable{};
 
-namespace task_detail {
-
-using coro_detail::site;
+namespace detail {
 
 /// The coroutine awaiting a result, in one word. The handle's address is that of a frame,
 /// which starts with pointers, so its two lowest bits are free; where the checks are
@@ -67,12 +65,12 @@ public:
     inline void clear() noexcept { set(bits() & running_bit); }
 
     inline void set_running(bool running) noexcept {
-        if constexpr (coro_detail::checked) set(running ? bits() | running_bit : bits() & ~running_bit);
+        if constexpr (detail::checked) set(running ? bits() | running_bit : bits() & ~running_bit);
     }
 
 private:
-    static constexpr std::uintptr_t joined_bit = coro_detail::checked ? 1 : 0;
-    static constexpr std::uintptr_t running_bit = coro_detail::checked ? 2 : 0;
+    static constexpr std::uintptr_t joined_bit = detail::checked ? 1 : 0;
+    static constexpr std::uintptr_t running_bit = detail::checked ? 2 : 0;
     static constexpr std::uintptr_t flags = joined_bit | running_bit;
 
     inline std::uintptr_t bits() const noexcept { return reinterpret_cast<std::uintptr_t>(word_); }
@@ -81,7 +79,7 @@ private:
     void* word_ = nullptr;
 };
 
-}  // namespace task_detail
+}  // namespace detail
 
 /// One result in the making, which a `task` waits for: the value or the exception, the
 /// coroutine waiting, and whether the result is there yet. A task reads these the same
@@ -103,7 +101,7 @@ private:
 /// both, over the fields here. What differs is what the owner letting go does, one call
 /// through the virtual table (`release()`): an operation is deleted or given up, a
 /// coroutine's frame is destroyed. A request to end early reaches only an operation -- one
-/// made in the form with a token (`cancellation_detail::operation_under`); a coroutine
+/// made in the form with a token (`detail::operation_under`); a coroutine
 /// ends by the token it was given, by its own code.
 ///
 /// The answer is what happened to the operation, since nothing orders a request against
@@ -146,7 +144,7 @@ public:
 
     /// The coroutine waiting for the result: parked by the co_await of a task, woken by
     /// whoever makes the result. One at most, and on the STA thread alone.
-    task_detail::continuation_word continuation;
+    detail::continuation_word continuation;
 
     /// The owner lets go: the STA thread's call, from the task's destructor. An operation
     /// that is back goes; one still out is given up (`abandon`). A coroutine overrides it
@@ -351,10 +349,10 @@ public:
     ///         stops at a second take.
     /// \throw whatever the body threw, each time it is asked.
     /// \param where the place of the co_await, for a strict build's report.
-    R take_result([[maybe_unused]] task_detail::site where = task_detail::site::current()) {
+    R take_result([[maybe_unused]] detail::site where = detail::site::current()) {
         rethrow_if_failed();
 
-        if constexpr (coro_detail::checked) {
+        if constexpr (detail::checked) {
             coro_check(!taken_, "task: the value has already been taken", where);
             taken_ = true;
 
@@ -388,7 +386,7 @@ public:
 
     /// Nothing is moved out, so asking again is asking again: what the body threw is
     /// thrown each time.
-    inline void take_result([[maybe_unused]] task_detail::site where = task_detail::site::current()) {
+    inline void take_result([[maybe_unused]] detail::site where = detail::site::current()) {
         rethrow_if_failed();
     }
 
@@ -571,7 +569,7 @@ private:
     orphan_stage stage_;
 };
 
-namespace cancellation_detail {
+namespace detail {
 
 /// An operation of this module in its form with a token: `Op` as it is, standing under the
 /// token from the moment it is made until it goes. Cancelled while it is out, it is asked to
@@ -622,6 +620,6 @@ private:
     node node_;
 };
 
-}  // namespace cancellation_detail
+}  // namespace detail
 
 }  // export namespace wxl::async

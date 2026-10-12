@@ -23,7 +23,7 @@ public:
 
     /// thread_group can be created only on the heap and its lifetime should be managed by
     /// thread_group_ptr.
-    inline static thread_group_ptr create() { return new thread_group(); }
+    inline static thread_group_ptr create() { return {new thread_group(), /*add_ref=*/false}; }
 
     /// \return ID of the main thread.
     static core::thread_id main_thread_id();
