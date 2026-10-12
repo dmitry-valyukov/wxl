@@ -66,7 +66,13 @@ public:
     void swap(shared_state_holder<T>& other) noexcept { state_.swap(other.state_); }
 
 protected:
+    /// Takes a reference of its own to a state somebody already holds.
     explicit shared_state_holder(T* state) noexcept : state_(state) {}
+
+    /// Takes over the reference `state` carries instead of adding one: the form for a state
+    /// just made by core::make_refcounted, whose one reference is its first holder's.
+    explicit shared_state_holder(core::intrusive_ptr<T> state) noexcept
+        : state_(std::move(state)) {}
 
     /// Copy constructor.
     shared_state_holder(const shared_state_holder<T>& other) noexcept : state_(other.state_) {}

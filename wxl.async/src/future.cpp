@@ -59,7 +59,7 @@ struct first_of_func {
 
 }  // namespace
 
-countdown::countdown() : state_(new countdown_state()) {}
+countdown::countdown() : state_(core::make_refcounted<countdown_state>()) {}
 
 void countdown::add_ready(const future_shared_state* f) {
     as_countdown(state_)->increment();
@@ -80,7 +80,7 @@ future<void> countdown::get_future() {
     return future<void>(state_.get());
 }
 
-first_of::first_of() : state_(new future_shared_state()) {}
+first_of::first_of() : state_(core::make_refcounted<future_shared_state>()) {}
 
 void first_of::add(const future_shared_state* f) {
     f->when_succeeded_void(first_of_func{state_});

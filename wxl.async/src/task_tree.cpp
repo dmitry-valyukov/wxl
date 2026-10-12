@@ -103,6 +103,8 @@ task_tree::~task_tree() = default;
 
 task_tree::task_tree(task_tree_detail::state* state) : base(state) {}
 
+task_tree::task_tree(core::intrusive_ptr<task_tree_detail::state> state) : base(std::move(state)) {}
+
 future<void> task_tree::get_future() const { return future<void>(checked_state()); }
 
 bool task_tree::succeeded() const { return checked_state()->has_value(); }
@@ -149,7 +151,7 @@ task_tree_handle task_tree::create_subtask() const {
     task_tree_detail::state* st = checked_state();
     st->increment_subtask_counter();
 
-    return task_tree_handle(new task_tree_detail::state(st));
+    return task_tree_handle(core::make_refcounted<task_tree_detail::state>(st));
 }
 
 task_tree task_tree::create_subtask(const future<void>& f) const { return follow(create_subtask(), f); }
@@ -159,15 +161,16 @@ task_tree_handle task_tree::create(const task_tree& parent) {
 
     if (parent_state) parent_state->increment_subtask_counter();
 
-    return task_tree_handle(new task_tree_detail::state(parent_state));
+    return task_tree_handle(core::make_refcounted<task_tree_detail::state>(parent_state));
 }
 
 task_tree task_tree::create(const future<void>& f) { return follow(create(), f); }
 
 task_tree_handle::task_tree_handle() noexcept : base(nullptr) {}
 
-task_tree_handle::task_tree_handle(task_tree_detail::state* st) : base(st) {
-    if (st) st->increment_task_handle_count();
+task_tree_handle::task_tree_handle(core::intrusive_ptr<task_tree_detail::state> st)
+    : base(std::move(st)) {
+    if (task_tree_detail::state* my_state = state()) my_state->increment_task_handle_count();
 }
 
 task_tree_handle::task_tree_handle(const task_tree_handle& other) : base(other.state()) {

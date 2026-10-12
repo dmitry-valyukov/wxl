@@ -121,7 +121,11 @@ public:
     }
 
 protected:
+    /// Takes a reference of its own to a state somebody already holds.
     explicit task_tree(task_tree_detail::state* state);
+
+    /// Takes over the reference `state` carries.
+    explicit task_tree(core::intrusive_ptr<task_tree_detail::state> state);
 };
 
 /// The node at the top of a tree -- the one that has no parent above it.
@@ -189,7 +193,8 @@ public:
     }
 
 private:
-    explicit task_tree_handle(task_tree_detail::state* state);
+    /// The first handle of a state just made: takes over the reference the state is born with.
+    explicit task_tree_handle(core::intrusive_ptr<task_tree_detail::state> state);
 
     friend class task_tree;
 };

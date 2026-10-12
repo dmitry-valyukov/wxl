@@ -282,7 +282,7 @@ public:
         using t_task = std::remove_cvref_t<t_next_task>;
         using t_result = future_detail::result_of_t<T, t_task>;
 
-        future_shared_state_ptr ticket(new future_shared_state());
+        future_shared_state_ptr ticket = core::make_refcounted<future_shared_state>();
 
         checked_state()->template next<T, t_result>(std::forward<t_next_task>(task), ticket.get());
 
@@ -307,7 +307,7 @@ public:
     future<void> next_unwrap(t_next_async_task&& task) const {
         using t_task = std::remove_cvref_t<t_next_async_task>;
 
-        future_shared_state_ptr ticket(new future_shared_state());
+        future_shared_state_ptr ticket = core::make_refcounted<future_shared_state>();
 
         when_succeeded(future_detail::next_async_task<t_task, T>(
             std::forward<t_next_async_task>(task), ticket));
@@ -570,9 +570,11 @@ protected:
         if (state) state->increment_promise_count();
     }
 
-    inline promise_base(future_shared_state* state, future_shared_state::init_promise_tag)
-        : shared_state_holder<future_shared_state>(state) {
-        assert(state);
+    /// A state just made: the reference and the promise count it is born with are both this
+    /// promise's.
+    inline promise_base(future_shared_state_ptr state, future_shared_state::init_promise_tag)
+        : shared_state_holder<future_shared_state>(std::move(state)) {
+        assert(base::state());
     }
 
     inline ~promise_base() {
@@ -607,7 +609,8 @@ class promise : public future_detail::promise_base
 
 public:
     /// Constructor.
-    promise() noexcept : base(new future_shared_state(init_tag()), init_tag()) {}
+    promise() noexcept
+        : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
 
     /// Copy constructor.
     promise(const promise<T>& other) : base(other) {}
@@ -649,7 +652,8 @@ class promise<void> : public future_detail::promise_base
     using init_tag = future_shared_state::init_promise_tag;
 
 public:
-    inline promise() noexcept : base(new future_shared_state(init_tag()), init_tag()) {}
+    inline promise() noexcept
+        : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
 
     promise(const promise<void>&) = default;
 

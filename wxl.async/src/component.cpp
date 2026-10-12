@@ -478,6 +478,10 @@ private:
     std::exception_ptr abort_error_;
 };
 
+// The reference the cache is born with is this pointer's, and nothing gives it back: the cache
+// is never freed. A stop on another thread may pass its process_is_terminating() check in
+// try_to_win_stopping_race() just before cleanup() runs and take its reference just after, and
+// the cache has to be there for it.
 exception_ptr_cache* s_error_cache = new exception_ptr_cache();
 std::exception_ptr* s_empty_error = s_error_cache->empty_error();
 std::exception_ptr* s_abort_error = s_error_cache->abort_error();
