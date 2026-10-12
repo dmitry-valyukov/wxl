@@ -288,8 +288,8 @@ public:
 /// returns. Nothing else resumes it, so the order is the program's own.
 ///
 /// That is the whole difference from `detached_task`, which owns itself and
-/// answers to nobody. Here the caller keeps what comes back -- the Reader's
-/// `Io` keeps them in a vector and sweeps the finished ones -- because there
+/// answers to nobody. Here the caller keeps what comes back -- one that runs
+/// several keeps them in a vector and sweeps the finished ones -- because there
 /// is something to read at the end, and, while an operation of this module is
 /// in flight, because there is something the worker still points at. Not
 /// keeping it is dropping it, which takes its work down at once; the compiler
