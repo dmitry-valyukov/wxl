@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <crtdbg.h>
+
 import std;
 import wxl.core;
 
@@ -7,8 +9,10 @@ import wxl.core;
 
 namespace {
 
+using wxl::core::as_not_null;
 using wxl::core::cookie_t;
 using wxl::core::event;
+using wxl::core::event_mt;
 
 struct Widget {
     int value = 0;
@@ -238,6 +242,30 @@ TEST(EventTest, DestructorFreesCallbacksThatWereNeverExplicitlyRemoved) {
 using order_t = std::vector<int>;
 using slot_t = std::optional<cookie_t>;
 
+// Counts its own deaths, once per object: a moved-from one dies silently. Captured by a
+// callback, it tells when the event let go of that callback.
+struct death_probe {
+    int* deaths;
+    explicit death_probe(int& count) noexcept : deaths(&count) {}
+    death_probe(death_probe&& other) noexcept : deaths(std::exchange(other.deaths, nullptr)) {}
+    ~death_probe() {
+        if (deaths) ++*deaths;
+    }
+};
+
+// Runs a piece of code from its destructor, once: what a callback's destructor does when it
+// reaches back into the event.
+struct on_death {
+    std::function<void()>* body;
+    explicit on_death(std::function<void()>& fn) noexcept : body(&fn) {}
+    on_death(on_death&& other) noexcept : body(std::exchange(other.body, nullptr)) {}
+    ~on_death() {
+        if (body && *body) (*body)();
+    }
+};
+
+using noexcept_callback = event<void() noexcept>::func_t;
+
 // A callback takes itself off in the middle of the walk: it finishes its own call, the walk
 // goes on to the end, and the next fire no longer meets it.
 TEST(EventTest, ACallbackRemovingItselfDuringFireLetsTheWalkFinish) {
@@ -458,6 +486,199 @@ TEST(EventTest, ACallbackRemovingItselfInAnInnerFireIsFreedByTheOuterOne) {
     EXPECT_FALSE(e.remove(*self));
 }
 
+// The same callback is current in three walks and removes itself in the innermost: it is
+// freed once, by the outermost, when its outermost call returns -- not while any of the
+// three is still running.
+TEST(EventTest, ACallbackCurrentInThreeWalksIsFreedOnceByTheOutermost) {
+    event<void(int)> e;
+    order_t order;
+    slot_t self;
+    int deaths = 0;
+
+    self.emplace(e.add([&, p = death_probe{deaths}](int depth) noexcept {
+        order.push_back(depth);
+        if (depth < 2) {
+            e(depth + 1);
+            order.push_back(10 + depth);
+            EXPECT_EQ(deaths, 0) << "freed while its call at depth " << depth << " ran";
+        } else {
+            EXPECT_TRUE(e.remove(*self));
+        }
+    }));
+    e.add([&order](int depth) noexcept { order.push_back(100 + depth); });
+
+    e(0);
+    EXPECT_EQ(order, (order_t{0, 1, 2, 102, 11, 101, 10, 100}));
+    EXPECT_EQ(deaths, 1);
+    EXPECT_FALSE(e.remove(*self));
+}
+
+// A callback current in an outer and an inner walk is removed by a *third* one in the inner
+// walk: it is freed when its outer call returns, before the outer walk goes on.
+TEST(EventTest, ACallbackCurrentInTwoWalksRemovedByAThirdIsFreedAfterItsOuterCall) {
+    event<void(int)> e;
+    order_t order;
+    slot_t a;
+    int deaths = 0;
+
+    a.emplace(e.add([&, p = death_probe{deaths}](int depth) noexcept {
+        order.push_back(depth);
+        if (depth == 0) {
+            e(1);
+            order.push_back(10);
+            EXPECT_EQ(deaths, 0);
+        }
+    }));
+    e.add([&](int depth) noexcept {
+        order.push_back(100 + depth);
+        if (depth == 1)
+            EXPECT_TRUE(e.remove(*a));
+        else
+            EXPECT_EQ(deaths, 1) << "the outer call returned, so it is gone by now";
+    });
+
+    e(0);
+    EXPECT_EQ(order, (order_t{0, 1, 101, 10, 100}));
+    EXPECT_EQ(deaths, 1);
+}
+
+// The outer walk's end -- the first callback added while it ran -- is removed by an inner
+// walk: the end moves on (to nothing, here), and the next add sets it again. The removed one
+// is never called; the one added after it waits for the next fire.
+TEST(EventTest, TheEndOfAnOuterWalkRemovedByAnInnerOneMovesOn) {
+    event<void(int)> e;
+    order_t order;
+    slot_t x;
+
+    e.add([&](int depth) noexcept {
+        order.push_back(depth);
+        if (depth != 0) return;
+        x.emplace(e.add([&order](int d) noexcept { order.push_back(70 + d); }));
+        e(1);
+        e.add([&order](int d) noexcept { order.push_back(80 + d); });
+    });
+    e.add([&](int depth) noexcept {
+        order.push_back(100 + depth);
+        if (depth == 1) EXPECT_TRUE(e.remove(*x));
+    });
+
+    e(0);
+    EXPECT_EQ(order, (order_t{0, 1, 101, 100}));
+
+    order.clear();
+    e(5);
+    EXPECT_EQ(order, (order_t{5, 105, 85}));
+}
+
+// A callback added from an inner walk stops the outer walk too -- the end is set on every
+// walk under way, not only the innermost -- and waits for the next fire.
+TEST(EventTest, AnAddInAnInnerWalkStopsTheOuterWalkToo) {
+    event<void(int)> e;
+    order_t order;
+    bool added = false;
+
+    e.add([&](int depth) noexcept {
+        order.push_back(depth);
+        if (depth == 0) e(1);
+    });
+    e.add([&](int depth) noexcept {
+        order.push_back(100 + depth);
+        if (depth == 1 && !added) {
+            added = true;
+            e.add([&order](int d) noexcept { order.push_back(70 + d); });
+        }
+    });
+
+    e(0);
+    EXPECT_EQ(order, (order_t{0, 1, 101, 100}));
+
+    order.clear();
+    e(5);
+    EXPECT_EQ(order, (order_t{5, 105, 75}));
+}
+
+// clear() and then add() from one callback: the walk ends with the clear, and what was added
+// after it waits for the next fire.
+TEST(EventTest, ClearThenAddFromOneCallbackEndsTheWalkAndKeepsTheNewOne) {
+    event<void()> e;
+    order_t order;
+
+    e.add([&order]() noexcept { order.push_back(1); });
+    e.add([&]() noexcept {
+        order.push_back(2);
+        e.clear();
+        e.add([&order]() noexcept { order.push_back(4); });
+        order.push_back(20);
+    });
+    e.add([&order]() noexcept { order.push_back(3); });
+
+    e();
+    EXPECT_EQ(order, (order_t{1, 2, 20}));
+    EXPECT_TRUE(static_cast<bool>(e));
+
+    order.clear();
+    e();
+    EXPECT_EQ(order, (order_t{4}));
+}
+
+// clear() from an inner walk: the inner current goes when its call returns, the outer
+// current when *its* call returns -- neither while running, and each once.
+TEST(EventTest, ClearInAnInnerWalkFreesEachCurrentWhenItsOwnCallReturns) {
+    event<void(int)> e;
+    order_t order;
+    int deathsA = 0;
+    int deathsB = 0;
+
+    e.add([&, p = death_probe{deathsA}](int depth) noexcept {
+        order.push_back(depth);
+        if (depth != 0) return;
+        e(1);
+        order.push_back(10);
+        EXPECT_EQ(deathsA, 0);
+        EXPECT_EQ(deathsB, 1);
+    });
+    e.add([&, p = death_probe{deathsB}](int depth) noexcept {
+        order.push_back(100 + depth);
+        if (depth != 1) return;
+        e.clear();
+        EXPECT_EQ(deathsA, 0);
+        EXPECT_EQ(deathsB, 0);
+    });
+
+    e(0);
+    EXPECT_EQ(order, (order_t{0, 1, 101, 10}));
+    EXPECT_EQ(deathsA, 1);
+    EXPECT_EQ(deathsB, 1);
+    EXPECT_FALSE(static_cast<bool>(e));
+}
+
+// The node the walk would both reach next and stop at: added, so it is the end, then the
+// one before it removed, so it is next as well; then removed itself. Nothing is called
+// twice or skipped, and what is added after it waits.
+TEST(EventTest, RemovingTheNodeTheWalkWouldBothReachAndStopAt) {
+    event<void()> e;
+    order_t order;
+    slot_t b;
+    slot_t x;
+
+    e.add([&]() noexcept {
+        order.push_back(1);
+        if (x) return;
+        x.emplace(e.add([&order]() noexcept { order.push_back(9); }));
+        EXPECT_TRUE(e.remove(*b));
+        EXPECT_TRUE(e.remove(*x));
+        e.add([&order]() noexcept { order.push_back(4); });
+    });
+    b.emplace(e.add([&order]() noexcept { order.push_back(2); }));
+
+    e();
+    EXPECT_EQ(order, (order_t{1}));
+
+    order.clear();
+    e();
+    EXPECT_EQ(order, (order_t{1, 4}));
+}
+
 // A node built into its subscriber: a member deriving from the event's callback type, whose
 // release() does nothing. The event links it, calls it and lets go of it, and never
 // destroys it -- the subscriber does, as an ordinary member. Here it counts what is done
@@ -580,6 +801,135 @@ TEST(EventTest, AOneTimeFireThroughALocalEventLetsGoOfBuiltInNodes) {
     EXPECT_EQ(first.calls, 2);
     EXPECT_EQ(second.calls, 1);
     EXPECT_TRUE(state.remove(first_cookie));
+}
+
+// A built-in node takes itself out from inside its own call and stands again before the
+// call has returned. That is a mistake in the subscriber -- the event lets go of the node,
+// and clears its link, only once the call returns -- so it takes the process down in a
+// debug build, to stderr rather than to a dialog that would hang the run.
+void stand_again_from_inside_the_call() {
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+
+    event<void() noexcept> e;
+    built_in node;
+    const cookie_t cookie = e.add(as_not_null<noexcept_callback>(&node));
+
+    node.body = [&] {
+        EXPECT_TRUE(e.remove(cookie));
+        e.add(as_not_null<noexcept_callback>(&node));
+    };
+    e();
+}
+
+TEST(EventDeathTest, ABuiltInNodeMayNotStandAgainFromInsideTheCallThatRemovedIt) {
+    EXPECT_DEBUG_DEATH(stand_again_from_inside_the_call(), "");
+}
+
+// While clear() lets go of what it emptied, one callback's destructor asks the event to
+// remove another: the answer is false -- it is out of the list -- but the event has not let
+// go of that node yet, and does so afterwards. A subscriber with a built-in node therefore
+// lives until its release(), not just while remove() would find it.
+TEST(EventTest, DuringClearRemoveSaysGoneBeforeTheNodeIsLetGoOf) {
+    event<void() noexcept> e;
+    built_in second;
+    slot_t second_cookie;
+    int released_when_asked = -1;
+    bool answer = true;
+
+    std::function<void()> reach_back = [&] {
+        answer = e.remove(*second_cookie);
+        released_when_asked = second.released;
+    };
+    e.add([r = on_death{reach_back}]() noexcept {});
+    second_cookie.emplace(e.add(as_not_null<noexcept_callback>(&second)));
+
+    e.clear();
+    EXPECT_FALSE(answer);
+    EXPECT_EQ(released_when_asked, 0);
+    EXPECT_EQ(second.released, 1);
+}
+
+// A callback's destructor, run while the event itself is being destroyed, subscribes to it:
+// the event ends only once it has let go of that one too.
+TEST(EventTest, ANodeAddedFromADestructorWhileTheEventEndsIsLetGoOf) {
+    built_in late;
+    std::function<void()> add_late;
+    {
+        event<void() noexcept> e;
+        add_late = [&] { e.add(as_not_null<noexcept_callback>(&late)); };
+        e.add([r = on_death{add_late}]() noexcept {});
+    }
+    EXPECT_EQ(late.released, 1);
+    EXPECT_EQ(late.calls, 0);
+}
+
+// A built-in node whose release() puts it back and takes it out again -- from inside the
+// release() the walk gives it once its call has returned. The walk no longer names it as
+// the callback being called by then, so the second removal lets go of it at once, and the
+// walk goes on to the next callback without mistaking it for a removed one.
+class standing_again final : public noexcept_callback
+{
+public:
+    event<void() noexcept>* owner = nullptr;
+    int calls = 0;
+    int released = 0;
+
+    void operator()() noexcept override {
+        ++calls;
+        if (calls == 1) (void)owner->remove(cookie_t{static_cast<noexcept_callback*>(this)});
+    }
+
+    void release() noexcept override {
+        if (++released != 1) return;
+        owner->add(as_not_null<noexcept_callback>(this));
+        (void)owner->remove(cookie_t{static_cast<noexcept_callback*>(this)});
+    }
+};
+
+TEST(EventTest, ANodeTakingItselfOutAgainFromItsReleaseDoesNotCostTheNextCallbackItsLife) {
+    event<void() noexcept> e;
+    standing_again first;
+    built_in second;
+    first.owner = &e;
+
+    e.add(as_not_null<noexcept_callback>(&first));
+    e.add(as_not_null<noexcept_callback>(&second));
+
+    e();
+    EXPECT_EQ(first.calls, 1);
+    EXPECT_EQ(first.released, 2);
+    EXPECT_EQ(second.calls, 1);
+    EXPECT_EQ(second.released, 0) << "let go of while still in the list";
+    EXPECT_TRUE(static_cast<bool>(e));
+
+    e();
+    EXPECT_EQ(second.calls, 2);
+}
+
+// The heap-allocated spelling walks the same way: a callback removing itself from inside its
+// call, one added meanwhile waiting, and a swap into a local event for a one-time fire.
+TEST(EventTest, EventMtWalksLikeEvent) {
+    event_mt<void(int)> e;
+    order_t order;
+    slot_t self;
+
+    self.emplace(e.add([&](int n) noexcept {
+        order.push_back(n);
+        EXPECT_TRUE(e.remove(*self));
+        e.add([&order](int m) noexcept { order.push_back(m * 10); });
+    }));
+    e.add([&order](int n) noexcept { order.push_back(n + 1); });
+
+    e(1);
+    EXPECT_EQ(order, (order_t{1, 2}));
+
+    event_mt<void(int)> once;
+    once.swap(e);
+    EXPECT_FALSE(static_cast<bool>(e));
+    once(3);
+    EXPECT_EQ(order, (order_t{1, 2, 4, 30}));
 }
 
 }  // namespace

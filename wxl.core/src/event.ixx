@@ -36,10 +36,13 @@ public:
     using func_t = impl::func_body<R(Args...) noexcept, Base>;
 
     /// An event is not destroyed from inside one of its own callbacks: the invocation under
-    /// way would come back to a list that is gone.
+    /// way would come back to a list that is gone. What has to end inside its own call is
+    /// fired through a local event, the way swap() describes. A callback's destructor may
+    /// still subscribe to the event that is ending; what it adds is let go of as well.
     ~basic_event() {
         assert(!invocation_ && "wxl: an event is destroyed from inside its own invocation");
-        clear();
+        do clear();
+        while (!callbacks_.empty());
     }
 
     /// Calls every callback, in the order they were added.
@@ -51,7 +54,8 @@ public:
     /// The list may change while it is being walked, and the walk keeps to two rules. A
     /// callback removed before its turn -- by itself, by another, by clear() -- is not
     /// called, however far the walk has got; one added is not called by an invocation
-    /// already under way, only by the next. The callback that removes itself finishes its
+    /// already under way, only by one that starts afterwards, nested or not. The callback
+    /// that removes itself finishes its
     /// call first: the walk lets go of it once it returns. A callback may invoke the event
     /// again; that inner invocation calls what the list holds when it starts.
     ///
@@ -68,6 +72,9 @@ public:
             frame.current = fn;
             frame.next = fn->next_;
             (*fn)(args...);
+            // Named only while its call runs: the release() below may reach back into the
+            // event, and a removal made there is not deferred to a walk that has passed it.
+            frame.current = nullptr;
             if (std::exchange(frame.current_removed, false)) release_now(fn);
         }
     }
@@ -85,8 +92,17 @@ public:
     /// way -- or a node built into the subscriber itself, which is then not allocated at
     /// all. What happens to it once it is out of the list is its own release(): one made
     /// by func_t::create() is destroyed, one built into its subscriber is left to it.
-    cookie_t add(not_null<func_t> fn) {
+    ///
+    /// The node must not stand in a list already, this event's or another's, and one that
+    /// took itself out from inside its own call stands again only once that call has
+    /// returned and the event has let go of it. The cookie names the node by the address of
+    /// its `func_t` subobject, and that is what remove() has to be handed back.
+    cookie_t add(not_null<func_t> fn) noexcept {
         for (invocation* i = invocation_; i; i = i->outer) {
+            // Removed from inside its call, which is still running: the walk lets go of it,
+            // and clears its link, only when the call returns.
+            assert(!(i->current == fn.get() && i->current_removed) &&
+                   "wxl: a callback removed from inside its call stands again before it returned");
             if (!i->end) i->end = fn.get();
         }
         return callbacks_.push_back(fn);
@@ -95,20 +111,28 @@ public:
     /// Removes the callback named by `cookie` and lets go of it -- at once, or, when it is
     /// the one being called, as soon as it returns. Either way it is called no more.
     /// \return false if this event has no such callback -- it was never added here, it
-    ///         is gone already, or it went with the callbacks swap() handed to another.
-    bool remove(cookie_t cookie) {
-        // Compared by address only: a node a call is about to reach is in the list, so
-        // a match is one, and only a match is read through.
-        if (invocation_) step_past(static_cast<func_t const*>(cookie.get()));
+    ///         went with the callbacks swap() handed to another, or it is gone already.
+    ///         Gone from the list, that is, not necessarily let go of: during clear() a
+    ///         callback still to be released answers false as well. And a cookie kept past
+    ///         its callback is compared by address only: once a new callback of this event
+    ///         takes the same address -- the STA pool hands a freed node out first -- the
+    ///         cookie names that one. Whoever keeps a cookie longer than its callback rules
+    ///         that out, as a cancellation does by taking no subscriber once cancelled.
+    bool remove(cookie_t cookie) noexcept {
         func_t* const fn = callbacks_.remove(cookie);
-        if (fn) release(fn);
-        return fn != nullptr;
+        if (!fn) return false;
+        step_past(fn);
+        release(fn);
+        return true;
     }
 
-    /// Removes every callback and lets go of each; one being called goes when it returns.
-    void clear() {
+    /// Removes every callback and lets go of each, in the order they were added; one being
+    /// called goes when it returns.
+    void clear() noexcept {
         // Emptied first and walked afterwards, so that a callback whose destructor reaches
-        // back into the event finds it empty rather than halfway through being freed.
+        // back into the event finds it empty rather than halfway through being freed. A
+        // remove() from there of one not let go of yet answers false: it is out of the
+        // list, and is released a moment later all the same.
         intrusive_slist<func_t> orphans;
         orphans.swap(callbacks_);
         for (invocation* i = invocation_; i; i = i->outer) {
@@ -148,7 +172,8 @@ private:
         }
         ~invocation() { owner_.invocation_ = outer; }
 
-        // The callback being called.
+        // The callback being called; null between calls, so that release() meets it only
+        // while its call runs.
         func_t* current = nullptr;
         // What the walk calls next; null when nothing is left.
         func_t* next;
@@ -165,8 +190,9 @@ private:
         basic_event& owner_;
     };
 
-    // `fn` is about to leave the list: a walk that would call it next calls what follows
-    // instead, and a walk that would stop at it stops where it would have gone on to.
+    // `fn` has just left the list, its link still what it was: a walk that would call it
+    // next calls what follows instead, and a walk that would stop at it stops where it
+    // would have gone on to.
     void step_past(func_t const* fn) noexcept {
         for (invocation* i = invocation_; i; i = i->outer) {
             if (i->next == fn) i->next = fn->next_;
@@ -231,13 +257,19 @@ export namespace wxl::core {
  * or one made by `func_t::create()` and handed over -- belongs to the event and is
  * destroyed; a node built into its subscriber (a member deriving from `func_t`, whose
  * `release()` does nothing) belongs to the subscriber. Such a subscriber allocates
- * nothing to subscribe, and in return keeps two rules: it stays alive while its node is
- * in a list, and it does not go away from inside a call that reaches it.
+ * nothing to subscribe, and in return keeps three rules. It stays alive until its
+ * `release()` comes, not only while `remove` would still find the node: `clear` and the
+ * event's end let go of what they emptied one by one, and a `remove` answered false in the
+ * meantime is not a `release()`. It does not go away from inside a call that reaches it.
+ * And a node that took itself out from inside its own call stands again only once that
+ * call has returned.
  *
  * An `event` belongs to the STA thread: its nodes come from `sta_memory_pool`, so they are
  * added, fired and removed on that thread and inside the pool's life, the way a `function`'s
  * body is. A list that another thread swaps out and fires -- a component's stop callbacks --
- * is an `event_mt`, whose nodes stay on the ordinary heap. The two are otherwise the same.
+ * is an `event_mt`, whose nodes stay on the ordinary heap. The two are otherwise the same,
+ * and neither synchronises anything: with `event_mt`, adding, removing, swapping and the
+ * call itself all go under one lock of the holder's, the way `component` keeps them.
  */
 template <class Signature>
 class event;
