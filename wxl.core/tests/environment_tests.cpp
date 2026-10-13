@@ -18,3 +18,14 @@ TEST(EnvironmentTest, ApplicationFolderIsWhereTheBinaryLives) {
     EXPECT_TRUE(std::filesystem::is_directory(folder));
     EXPECT_TRUE(std::filesystem::exists(folder / L"wxl.core.tests.exe"));
 }
+
+// The command line split the way the shell splits it: the program comes first, and it is
+// this very binary -- however ctest or a hand launched it, with whatever arguments.
+TEST(EnvironmentTest, CommandLineStartsWithTheProgram) {
+    const auto arguments = environment::command_line();
+
+    ASSERT_FALSE(arguments.empty());
+    const std::filesystem::path program{std::wstring_view{arguments.front()}};
+    EXPECT_EQ(program.filename(), L"wxl.core.tests.exe") << program;
+    EXPECT_EQ(program.parent_path(), environment::application_folder()) << program;
+}
