@@ -30,7 +30,12 @@ void set_current_thread_name(const core::u16_view name) {
     ::SetThreadDescription(::GetCurrentThread(), core::u16_text(name).c_str());
 }
 
-/// Global counter of detached threads.
+/// Global counter of detached threads. A thread's procedure takes the thread off it as its
+/// last step, with release, and the count is read with acquire: a reader that sees zero sees
+/// everything every detached thread did before that -- its body, its promise, the destruction
+/// of its callable -- since every decrement and increment is a read-modify-write and carries
+/// on the release sequences of those before it. So what the threads were given may go once
+/// the wait returns.
 std::atomic<size_t> s_detached_thread_counter{0};
 
 core::thread_id s_main_thread_id = core::current_thread_id();
@@ -97,12 +102,7 @@ private:
 class thread_info : public core::refcounted_mt
 {
 public:
-    explicit thread_info(core::thread_id id, thread_state state = thread_state::undefined)
-        : id_(id), thread_state_(state) {}
-
-    core::thread_id id() const { return id_; }
-
-    void set_id(core::thread_id id) { id_ = id; }
+    explicit thread_info(thread_state state = thread_state::undefined) : thread_state_(state) {}
 
     /// The state is written by the thread itself and read by whoever reaps it, so the pair
     /// is release/acquire: seeing `finished` has to mean seeing everything the thread body
@@ -113,10 +113,13 @@ public:
         thread_state_.store(thread_state, std::memory_order_release);
     }
 
+    /// Stored by the spawning thread while the thread is still suspended, and not changed until
+    /// thread_info goes. The thread's start orders the store before everything the thread
+    /// does, `finished` included, so whoever has seen `finished` reads the handle with no lock
+    /// of its own.
     windows_handle& thread_handle() { return thread_handle_; }
 
 private:
-    core::thread_id id_;
     std::atomic<thread_state> thread_state_;
     windows_handle thread_handle_;
 };
@@ -163,7 +166,8 @@ public:
     thread_info_ptr find_and_remove_first_finished() {
         for (auto it = container_.begin(), e = container_.end(); it != e; ++it) {
             if (((*it)->state() == thread_state::finished)) {
-                if (!(*it)->thread_handle().valid()) continue;
+                // A thread runs only once its handle is stored, so a finished one has it.
+                assert((*it)->thread_handle().valid());
 
                 const bool add_ref_param = false;
                 thread_info_ptr tmp(*it, add_ref_param);
@@ -171,13 +175,6 @@ public:
                 return tmp;
             }
         }
-
-        return nullptr;
-    }
-
-    thread_info* find_by_id(core::thread_id id) const {
-        for (container::iterator it = container_.begin(), e = container_.end(); it != e; ++it)
-            if (((*it)->id() == id)) return (*it);
 
         return nullptr;
     }
@@ -227,7 +224,7 @@ public:
                 if (group_.get())
                     group_.get()->impl_->notify_thread_exit(thread_info_);
                 else
-                    s_detached_thread_counter.fetch_sub(1, std::memory_order_relaxed);
+                    s_detached_thread_counter.fetch_sub(1, std::memory_order_release);
             } catch (...) {
                 assert(!"Unexpected exception");
             }
@@ -255,10 +252,10 @@ private:
     thread_info_ptr get_next_thread_for_join();
 
     /// Publishes a change that can bring join_all closer to an empty registry -- a thread
-    /// reaching `finished`, a thread handle becoming available, an entry leaving threads_ --
-    /// and wakes the waiter. The counter itself carries no meaning beyond "something moved";
-    /// join_all reads it before looking at the registry and waits on that exact value, so a
-    /// change racing with the check cannot be missed.
+    /// reaching `finished`, an entry leaving threads_ -- and wakes the waiter. The counter
+    /// itself carries no meaning beyond "something moved"; join_all reads it before looking at
+    /// the registry and waits on that exact value, so a change racing with the check cannot be
+    /// missed.
     void notify_progress() noexcept {
         progress_.fetch_add(1, std::memory_order_release);
         progress_.notify_all();
@@ -269,6 +266,12 @@ private:
     std::atomic<bool> disposing_{false};
     std::atomic<uint64_t> progress_{0};
     core::recursive_mutex mutex_;
+
+    /// The group the calling thread was spawned by, from its entry to its exit; null on any
+    /// other thread. Only the thread itself reads and writes its own, so nothing is shared:
+    /// join_all asks it to refuse a call from one of the group's own threads, which would wait
+    /// for itself.
+    static inline thread_local const impl* current_ = nullptr;
 };
 
 /// Carries everything a new thread needs across the thread boundary, and the promise its body
@@ -282,7 +285,7 @@ public:
         : group_(group),
           thread_name_(thread_name),
           thread_proc_(thread_proc),
-          info_(group ? core::make_refcounted<thread_info>(0) : nullptr) {}
+          info_(group ? core::make_refcounted<thread_info>() : nullptr) {}
 
     thread_group* group() { return group_.get(); }
 
@@ -333,7 +336,7 @@ future<void> thread_group::spawn_detached_named(const core::u8_view thread_name,
 }
 
 size_t thread_group::detached_thread_count() noexcept {
-    return s_detached_thread_counter.load(std::memory_order_relaxed);
+    return s_detached_thread_counter.load(std::memory_order_acquire);
 }
 
 void thread_group::join_detached_threads() {
@@ -395,12 +398,6 @@ void thread_group::impl::spawn(thread_starter* starter) {
         unregister_thread(starter->info());
         throw;
     }
-
-    // The thread handle is stored by start_thread(), and a thread whose handle is not there
-    // yet cannot be reaped even once it has finished -- so this is a transition join_all
-    // waits for as much as it waits for the exits themselves. Note `starter` may already be
-    // deleted by the thread it started; nothing here touches it.
-    notify_progress();
 }
 
 void thread_group::impl::register_thread(thread_info* thread_info) {
@@ -442,13 +439,15 @@ void thread_group::impl::notify_thread_enter(thread_info* thread_info) {
     }
 #endif
 
-    thread_info->set_id(core::current_thread_id());
+    current_ = this;
     thread_info->state(thread_state::running);
 }
 
 /// Called on thread procedure exit
 void thread_group::impl::notify_thread_exit(thread_info* thread_info) {
     assert(thread_info);
+
+    current_ = nullptr;
 
     join_finished_threads();
 
@@ -505,15 +504,11 @@ void thread_group::impl::join_thread(thread_info* thread_info) {
 }
 
 void thread_group::impl::join_all() {
-    {
-        core::lock_guard<core::recursive_mutex> guard(mutex_);
-
-        // check if we here by call to join_all() or close()
-        if (threads_.find_by_id(core::current_thread_id())) {
-            throw std::logic_error(
-                "Cannot call thread_group::join_all from a thread spawned by the same instance "
-                "of thread_group.");
-        }
+    // Called by join_all() or close() from one of this group's threads, it would wait for itself.
+    if (current_ == this) {
+        throw std::logic_error(
+            "Cannot call thread_group::join_all from a thread spawned by the same instance "
+            "of thread_group.");
     }
 
     while (true) {
@@ -544,7 +539,8 @@ void thread_group::impl::close() {
 }
 
 void thread_starter::start_thread() {
-    thread_info_ptr thread_info_ptr = info_;
+    // Read while the starter is certainly alive: a running thread deletes it.
+    thread_info* const info = info_.get();
     core::thread_id id = 0;
 
     struct detached_thread_error_guard {
@@ -554,27 +550,39 @@ void thread_starter::start_thread() {
         }
     } detached_thread_error_guard = {false};
 
-    if (!thread_info_ptr)  // if thread is detached
+    if (!info)  // if thread is detached
         s_detached_thread_counter.fetch_add(1, std::memory_order_relaxed);
     else
         detached_thread_error_guard.ok = true;  // do not decrement in any case
 
     // We should use _beginthreadex instead of ::CreateThread, related link:
     // http://support2.microsoft.com/kb/104641/ru _beginthreadex is safe even if the new thread
-    // exits before this call returns (unlike _beginthread), so no additional handshake with the new
-    // thread is needed here.
-    const uintptr_t thread_handle =
-        ::_beginthreadex(nullptr, 0, thread_starter::thread_proc, this, 0, &id);
+    // exits before this call returns (unlike _beginthread).
+    //
+    // A thread of a group starts suspended and is let go only once its handle is in its
+    // thread_info. Whoever reaps the thread does it on seeing `finished`, and the thread's start
+    // orders the handle before that -- so the handle needs neither the group's lock nor a flag
+    // of its own, and a finished thread is never one that cannot be reaped yet. A detached
+    // thread has no thread_info and runs at once.
+    const uintptr_t thread_handle = ::_beginthreadex(nullptr, 0, thread_starter::thread_proc, this,
+                                                     info ? CREATE_SUSPENDED : 0u, &id);
 
-    // WARNING: at this point 'this' object could be already deleted by the newborn thread above.
+    // WARNING: a detached thread is running already, and 'this' could be deleted by it.
 
     if (!thread_handle || thread_handle == static_cast<uintptr_t>(-1)) {
         throw std::runtime_error("Cannot start thread, threadHandle=" +
                                  std::to_string(thread_handle));
     }
 
-    if (thread_info* info = thread_info_ptr.get()) {
+    if (info) {
         info->thread_handle().reset(HANDLE(thread_handle));
+
+        // A thread that never ran has not taken the starter over: the caller still owns it,
+        // and the thread, left suspended, never touches it.
+        if (::ResumeThread(HANDLE(thread_handle)) == static_cast<DWORD>(-1))
+            throw system_exception("ResumeThread");
+
+        // WARNING: from here on 'this' could be already deleted by the thread.
     } else {
         ::CloseHandle(HANDLE(thread_handle));
     }
