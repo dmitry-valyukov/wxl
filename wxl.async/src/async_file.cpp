@@ -236,8 +236,9 @@ task<bool> async_file::exists(const core::path& path, cancellation_token stop) {
 task<std::size_t> async_file::read(std::span<std::byte> into) {
     ensure(file_.opened() && "async_file: no file was opened");
 
-    std::unique_ptr<io_op> op(new io_op(io_op::kind::read, file_.native_handle(), into.data(),
-                                        into.size(), position_, skips_port_));
+    std::unique_ptr<overlapped_op> op(new overlapped_op(overlapped_op::kind::read,
+                                                        file_.native_handle(), into.data(),
+                                                        into.size(), position_, skips_port_));
 
     position_ += into.size();
 
@@ -255,9 +256,9 @@ task<std::size_t> async_file::read(std::span<std::byte> into, cancellation_token
     // Not made, and the position not moved on: nothing was read.
     if (stop.is_canceled()) return detail::canceled<std::size_t>();
 
-    std::unique_ptr<io_op> op(new detail::operation_under<io_op>(
-        std::move(stop), io_op::kind::read, file_.native_handle(), into.data(), into.size(), position_,
-        skips_port_));
+    std::unique_ptr<overlapped_op> op(new detail::operation_under<overlapped_op>(
+        std::move(stop), overlapped_op::kind::read, file_.native_handle(), into.data(), into.size(),
+        position_, skips_port_));
 
     position_ += into.size();
 
@@ -270,9 +271,9 @@ task<std::size_t> async_file::read(std::span<std::byte> into, cancellation_token
 task<std::size_t> async_file::write(std::span<const std::byte> from) {
     ensure(file_.opened() && "async_file: no file was opened");
 
-    std::unique_ptr<async_op_t<std::size_t>> op(
-        new io_op(io_op::kind::write, file_.native_handle(), const_cast<std::byte*>(from.data()),
-                  from.size(), position_, skips_port_));
+    std::unique_ptr<async_op_t<std::size_t>> op(new overlapped_op(
+        overlapped_op::kind::write, file_.native_handle(), const_cast<std::byte*>(from.data()),
+        from.size(), position_, skips_port_));
 
     position_ += from.size();
 
@@ -286,9 +287,9 @@ task<std::size_t> async_file::write(std::span<const std::byte> from, cancellatio
 
     if (stop.is_canceled()) return detail::canceled<std::size_t>();
 
-    std::unique_ptr<async_op_t<std::size_t>> op(new detail::operation_under<io_op>(
-        std::move(stop), io_op::kind::write, file_.native_handle(), const_cast<std::byte*>(from.data()),
-        from.size(), position_, skips_port_));
+    std::unique_ptr<async_op_t<std::size_t>> op(new detail::operation_under<overlapped_op>(
+        std::move(stop), overlapped_op::kind::write, file_.native_handle(),
+        const_cast<std::byte*>(from.data()), from.size(), position_, skips_port_));
 
     position_ += from.size();
 

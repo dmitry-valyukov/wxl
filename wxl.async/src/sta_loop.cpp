@@ -167,7 +167,7 @@ void sta_loop::worker::run() {
             // The queue's wake-up is a packet with no operation behind it.
             if (!entry.lpOverlapped) continue;
 
-            io_op* const op = io_op::from(entry.lpOverlapped);
+            overlapped_op* const op = overlapped_op::from(entry.lpOverlapped);
 
             if (op->completed()) from_worker_.send(op);
         }
