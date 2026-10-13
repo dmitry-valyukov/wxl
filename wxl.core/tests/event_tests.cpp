@@ -932,4 +932,61 @@ TEST(EventTest, EventMtWalksLikeEvent) {
     EXPECT_EQ(order, (order_t{1, 2, 4, 30}));
 }
 
+// A callback destroys the event that is calling it -- a handler taking down the element
+// that owns the event. The callback finishes, nothing after it is called, the others are
+// let go of with the event and this one when it returns.
+TEST(EventTest, AnEventMayEndFromInsideItsOwnCallback) {
+    std::optional<event<void()>> holder;
+    order_t order;
+    int deaths = 0;
+
+    holder.emplace();
+    holder->add([&, p = death_probe{deaths}]() noexcept { order.push_back(1); });
+    holder->add([&, p = death_probe{deaths}]() noexcept {
+        order.push_back(2);
+        holder.reset();
+        EXPECT_EQ(deaths, 2) << "the other two went with the event; this one still runs";
+        order.push_back(20);
+    });
+    holder->add([&, p = death_probe{deaths}]() noexcept { order.push_back(3); });
+
+    (*holder)();
+    EXPECT_EQ(order, (order_t{1, 2, 20}));
+    EXPECT_EQ(deaths, 3);
+    EXPECT_FALSE(holder.has_value());
+}
+
+// The same from an inner walk: both walks end, the inner current goes when its call
+// returns, the outer current when its own does -- and neither walk touches the event
+// on its way out.
+TEST(EventTest, AnEventMayEndFromInsideAnInnerWalkOfItsOwn) {
+    std::optional<event<void(int)>> holder;
+    order_t order;
+    int deathsA = 0;
+    int deathsB = 0;
+
+    holder.emplace();
+    holder->add([&, p = death_probe{deathsA}](int depth) noexcept {
+        order.push_back(depth);
+        if (depth != 0) return;
+        (*holder)(1);
+        order.push_back(10);
+        EXPECT_EQ(deathsA, 0);
+        EXPECT_EQ(deathsB, 1);
+        EXPECT_FALSE(holder.has_value());
+    });
+    holder->add([&, p = death_probe{deathsB}](int depth) noexcept {
+        order.push_back(100 + depth);
+        if (depth != 1) return;
+        holder.reset();
+        EXPECT_EQ(deathsA, 0);
+        EXPECT_EQ(deathsB, 0);
+    });
+
+    (*holder)(0);
+    EXPECT_EQ(order, (order_t{0, 1, 101, 10}));
+    EXPECT_EQ(deathsA, 1);
+    EXPECT_EQ(deathsB, 1);
+}
+
 }  // namespace

@@ -6,6 +6,7 @@ export module wxl.core:event;
 
 import :function;
 import :intrusive_slist;
+import :noncopyable;
 import :not_null;
 import std;
 
@@ -19,9 +20,12 @@ namespace wxl::core {
  * this is where the one implementation of both lives. `Base` is the node the callback is
  * linked into the list by, and with it where the node is allocated: the STA pool for an
  * `event`, the ordinary heap for an `event_mt`.
+ *
+ * Neither copied nor moved: a cookie names a node of this list, and an invocation under
+ * way names this object. Callbacks change hands through swap() alone.
  */
 template <template <class> class Base, class R, class... Args>
-class basic_event
+class basic_event : noncopyable
 {
     static_assert(std::is_void_v<R>,
                   "an event calls every one of its callbacks, so there is no single result "
@@ -35,14 +39,17 @@ public:
     /// of the event itself was spelled -- the `noexcept` on the callback is not optional.
     using func_t = impl::func_body<R(Args...) noexcept, Base>;
 
-    /// An event is not destroyed from inside one of its own callbacks: the invocation under
-    /// way would come back to a list that is gone. What has to end inside its own call is
-    /// fired through a local event, the way swap() describes. A callback's destructor may
-    /// still subscribe to the event that is ending; what it adds is let go of as well.
+    /// An event may end from inside one of its own callbacks -- a click handler taking down
+    /// the element that owns the event is the ordinary case -- and the invocations under
+    /// way learn it: the callback being called finishes, nothing after it is called, every
+    /// callback is let go of, and the walks leave the event alone on their way out. A
+    /// callback's destructor may still subscribe to the event that is ending; what it adds
+    /// is let go of as well.
     ~basic_event() {
-        assert(!invocation_ && "wxl: an event is destroyed from inside its own invocation");
         do clear();
         while (!callbacks_.empty());
+
+        for (invocation* i = invocation_; i; i = i->outer) i->owner_ = nullptr;
     }
 
     /// Calls every callback, in the order they were added.
@@ -166,11 +173,16 @@ private:
     // callback out moves every walk past it, and only the callback being called has to
     // wait for its walk.
     struct invocation {
-        explicit invocation(basic_event& owner)
-            : next(owner.callbacks_.front()), outer(owner.invocation_), owner_(owner) {
-            owner_.invocation_ = this;
+        explicit invocation(basic_event& owner) noexcept
+            : next(owner.callbacks_.front()), outer(owner.invocation_), owner_(&owner) {
+            owner.invocation_ = this;
         }
-        ~invocation() { owner_.invocation_ = outer; }
+
+        // The owner is null when the event was destroyed from inside this invocation: it
+        // has nothing to give the outer one back to, and does not reach for it.
+        ~invocation() {
+            if (owner_) owner_->invocation_ = outer;
+        }
 
         // The callback being called; null between calls, so that release() meets it only
         // while its call runs.
@@ -186,8 +198,8 @@ private:
         // that call -- lets go of it once the call returns.
         bool current_removed = false;
 
-    private:
-        basic_event& owner_;
+        // The event walked, until it is destroyed from inside the walk.
+        basic_event* owner_;
     };
 
     // `fn` has just left the list, its link still what it was: a walk that would call it
