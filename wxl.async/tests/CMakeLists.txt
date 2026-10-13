@@ -46,7 +46,7 @@ add_executable(wxl.async.tests
     exception_matrix_helper.cpp
     shared_data_tests.cpp
     sync_component_tests.cpp
-    system_exception_tests.cpp
+    last_error_tests.cpp
     threaded_component_core_tests.cpp
     threaded_component_create_destroy_tests.cpp
     threaded_component_dispose_tests.cpp

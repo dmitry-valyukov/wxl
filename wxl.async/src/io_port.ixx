@@ -19,7 +19,7 @@ export namespace wxl::async {
 class io_port : public core::noncopyable
 {
 public:
-    /// \throw system_exception if the system has no port to give.
+    /// \throw last_error if the system has no port to give.
     io_port();
     ~io_port();
 
@@ -32,7 +32,7 @@ public:
     ///         out of the port. Where the system refuses that, every operation comes
     ///         through the port, finished at once or not, and whoever starts one has to
     ///         know which it is.
-    /// \throw system_exception if the file could not be attached.
+    /// \throw last_error if the file could not be attached.
     [[nodiscard]] bool attach(HANDLE file);
 
     /// Takes what has arrived, a batch at a time.

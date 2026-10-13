@@ -48,7 +48,7 @@ task<> open_and_catch(path file_path, std::string& message) {
     try {
         co_await async_file::open_read(file_path);
         message = "no exception";
-    } catch (const system_exception& e) {
+    } catch (const last_error& e) {
         message = e.what();
     }
 }
@@ -505,8 +505,8 @@ task<> reads_whole_and_catches(path file_path, int& code) {
     try {
         co_await async_file::read_all(file_path);
         code = 0;
-    } catch (const system_exception& failure) {
-        code = failure.err_code();
+    } catch (const last_error& failure) {
+        code = failure.code().value();
     }
 }
 

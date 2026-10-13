@@ -87,14 +87,14 @@ IDispatcherQueue* queue_of_this_thread() {
 
     const HRESULT made = ::CreateDispatcherQueueController(options, &own_controller);
 
-    if (FAILED(made)) throw system_exception("CreateDispatcherQueueController", made);
+    if (FAILED(made)) throw last_error("CreateDispatcherQueueController", made);
 
     const HRESULT got = own_controller->get_DispatcherQueue(&queue);
 
     if (FAILED(got)) {
         own_controller->Release();
         own_controller = nullptr;
-        throw system_exception("IDispatcherQueueController::get_DispatcherQueue", got);
+        throw last_error("IDispatcherQueueController::get_DispatcherQueue", got);
     }
 
     return queue;
@@ -301,7 +301,7 @@ void sta_loop::send_to_pool(async_op& op) {
     ++outstanding_;
 
     if (!::TrySubmitThreadpoolCallback(run_on_pool, handler, nullptr)) {
-        const system_exception refused("TrySubmitThreadpoolCallback");
+        const last_error refused("TrySubmitThreadpoolCallback");
 
         --outstanding_;
         handler->Release();

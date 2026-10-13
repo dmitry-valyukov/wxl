@@ -42,7 +42,7 @@ task<> open_and_catch(path pattern, std::string& message) {
     try {
         co_await async_directory::open(pattern);
         message = "no exception";
-    } catch (const system_exception& e) {
+    } catch (const last_error& e) {
         message = e.what();
     }
 }
@@ -51,7 +51,7 @@ task<> remove_and_catch(path directory, std::string& message) {
     try {
         co_await async_directory::remove(directory);
         message = "no exception";
-    } catch (const system_exception& e) {
+    } catch (const last_error& e) {
         message = e.what();
     }
 }
@@ -203,8 +203,8 @@ task<> lists_and_catches(path pattern, int& code) {
     try {
         co_await async_directory::list(pattern);
         code = 0;
-    } catch (const system_exception& failure) {
-        code = failure.err_code();
+    } catch (const last_error& failure) {
+        code = failure.code().value();
     }
 }
 
