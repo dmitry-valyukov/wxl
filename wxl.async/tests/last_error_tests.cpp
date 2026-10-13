@@ -54,6 +54,29 @@ TEST(LastErrorTest, TakesTheLastErrorWhenNoneIsGiven)
     EXPECT_EQ(static_cast<int>(ERROR_ACCESS_DENIED), ex.code().value());
 }
 
+// Объяснение для человека: слова системы на языке потока, фраза без перевода строки в
+// конце и без наших добавок -- ни имени вызова, ни кода.
+TEST(LastErrorTest, TheExplanationIsTheSystemsWordsAlone)
+{
+    const last_error ex("Opening the door", ERROR_FILE_NOT_FOUND);
+
+    const std::wstring words = ex.explanation();
+
+    EXPECT_FALSE(words.empty());
+    EXPECT_FALSE(words.ends_with(L'\n') || words.ends_with(L'\r') || words.ends_with(L' ')) << "[" << words.size() << "]";
+    EXPECT_EQ(words.find(L"Opening the door"), std::wstring::npos);
+    EXPECT_EQ(words.find(L"system error code"), std::wstring::npos);
+}
+
+// Код, которого система не знает, объяснения не имеет -- и это пустая строка, а не
+// выдуманная фраза: что показать вместо неё, решает тот, кто показывает.
+TEST(LastErrorTest, AnUnknownCodeHasNoExplanation)
+{
+    const last_error ex("Doing the impossible", 0x1FFFFFFF);
+
+    EXPECT_TRUE(ex.explanation().empty());
+}
+
 // Это std::system_error: ловится как он, и код сравним с std::errc -- категория
 // переводит коды Windows в условия POSIX.
 TEST(LastErrorTest, IsASystemErrorToWhoeverCatchesOne)
