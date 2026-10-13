@@ -40,51 +40,6 @@ inline detached_task_failure_handler& on_detached_task_failure() noexcept {
     return handler;
 }
 
-namespace detail {
-
-/// One reference to an object that counts its own, with either counter, in
-/// one word.
-///
-/// The two counters share no base, but letting go needs only the counting
-/// base, not the derived type -- the destructor is virtual in both. So the
-/// word is a pointer to that base, and its lowest bit says which of the two it
-/// is: the bit is always clear in the pointer itself, since an object with a
-/// vtable is aligned at least to a pointer.
-class anchor
-{
-public:
-    anchor() noexcept = default;
-
-    inline explicit anchor(const core::refcounted* object) noexcept
-        : word_(reinterpret_cast<std::uintptr_t>(object)) {
-        if (object) intrusive_ptr_add_ref(object);
-    }
-
-    inline explicit anchor(const core::refcounted_mt* object) noexcept
-        : word_(object ? reinterpret_cast<std::uintptr_t>(object) | mt_bit : 0) {
-        if (object) intrusive_ptr_add_ref(object);
-    }
-
-    anchor(const anchor&) = delete;
-    anchor& operator=(const anchor&) = delete;
-
-    inline ~anchor() {
-        if (word_ == 0) return;
-
-        if (word_ & mt_bit)
-            intrusive_ptr_release(reinterpret_cast<const core::refcounted_mt*>(word_ & ~mt_bit));
-        else
-            intrusive_ptr_release(reinterpret_cast<const core::refcounted*>(word_));
-    }
-
-private:
-    static constexpr std::uintptr_t mt_bit = 1;
-
-    std::uintptr_t word_ = 0;
-};
-
-}  // namespace detail
-
 /// A coroutine that owns itself: nothing is returned to hold, and the frame
 /// is released the moment the body ends.
 ///
@@ -111,13 +66,16 @@ private:
 /// **A first argument that counts its own references is held by the frame.**
 /// For a member function that argument is the object, so a member coroutine
 /// cannot outlive its `this`: when the first argument derives from
-/// `core::refcounted` or `core::refcounted_mt`, by reference or by pointer,
-/// the promise takes a reference to it and gives it back as the frame goes --
-/// which may be what destroys the object. An object nobody holds by count yet,
-/// one still in its constructor or one on the stack, goes from one to two and
-/// back, and stays its owner's. Only here: a `task` is held by somebody, and
-/// an object keeping its own task in a field would then keep itself. It
-/// follows that the object's destructor cannot be what ends such a coroutine.
+/// `core::refcounted` -- the STA counter, `sta_refcounted` included -- by
+/// reference or by pointer, the promise takes a reference to it and gives it
+/// back as the frame goes -- which may be what destroys the object. An object
+/// nobody holds by count yet, one still in its constructor or one on the
+/// stack, goes from one to two and back, and stays its owner's. Only here: a
+/// `task` is held by somebody, and an object keeping its own task in a field
+/// would then keep itself. It follows that the object's destructor cannot be
+/// what ends such a coroutine. An object counted for several threads
+/// (`core::refcounted_mt`) is not held: the frame lives in the STA pool, so a
+/// detached coroutine is a thing of that thread, and so is what owns one.
 class detached_task
 {
 public:
@@ -127,24 +85,20 @@ public:
         promise_type() noexcept = default;
 
         /// A coroutine whose first argument -- for a member function, the
-        /// object -- counts its references holds one of them until the frame
-        /// goes. The counting base is chosen by the ordinary conversion from
-        /// the derived type, by reference or by pointer; a null pointer holds
-        /// nothing. The promise is destroyed before the parameter copies are,
-        /// so a parameter whose destructor reaches the object may find it gone.
+        /// object -- counts its references with the STA counter holds one of
+        /// them until the frame goes. The counting base is reached by the
+        /// ordinary conversion from the derived type, by reference or by
+        /// pointer; a null pointer holds nothing. The reference is taken, not
+        /// adopted: the object is alive and somebody's already, and its birth
+        /// reference stays with its owner. The promise is destroyed before the
+        /// parameter copies are, so a parameter whose destructor reaches the
+        /// object may find it gone.
         template <class... Args>
         inline promise_type(const core::refcounted& self, Args&...) noexcept
-            : anchor_(std::addressof(self)) {}
+            : self_(std::addressof(self)) {}
 
         template <class... Args>
-        inline promise_type(const core::refcounted_mt& self, Args&...) noexcept
-            : anchor_(std::addressof(self)) {}
-
-        template <class... Args>
-        inline promise_type(const core::refcounted* self, Args&...) noexcept : anchor_(self) {}
-
-        template <class... Args>
-        inline promise_type(const core::refcounted_mt* self, Args&...) noexcept : anchor_(self) {}
+        inline promise_type(const core::refcounted* self, Args&...) noexcept : self_(self) {}
 
         /// The frame, from the pool -- the same reasoning as `task`: a small
         /// object made and unmade on the one thread, over and over.
@@ -184,7 +138,7 @@ public:
         }
 
     private:
-        detail::anchor anchor_;
+        core::intrusive_ptr<const core::refcounted> self_;
     };
 };
 
