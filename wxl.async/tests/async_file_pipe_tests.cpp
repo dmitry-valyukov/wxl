@@ -569,12 +569,12 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingBetweenTwoCallsOfAChainCancelsTheSecond
     // The read asks for more than one call carries. The first call is answered in full
     // by one write of exactly that much, the chain goes on to a second call, and that one
     // waits in the kernel for data that never comes -- until the task is dropped.
-    std::vector<std::byte> buffer(io_op::call_size + 1024 * 1024);
-    const std::vector<std::byte> first_call(io_op::call_size, std::byte{5});
+    std::vector<std::byte> buffer(overlapped_op::call_size + 1024 * 1024);
+    const std::vector<std::byte> first_call(overlapped_op::call_size, std::byte{5});
     bool reading = false;
 
 #ifndef NDEBUG
-    const std::size_t chained_before = io_op::debug.chained.load();
+    const std::size_t chained_before = overlapped_op::debug.chained.load();
 #endif
 
     std::binary_semaphore done{0};
@@ -607,13 +607,13 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingBetweenTwoCallsOfAChainCancelsTheSecond
         ::Sleep(50);
 
 #ifndef NDEBUG
-        EXPECT_EQ(io_op::debug.chained.load() - chained_before, 1u);
+        EXPECT_EQ(overlapped_op::debug.chained.load() - chained_before, 1u);
 #endif
     }
 
     done.release();
 
-    EXPECT_TRUE(std::all_of(buffer.begin(), buffer.begin() + io_op::call_size,
+    EXPECT_TRUE(std::all_of(buffer.begin(), buffer.begin() + overlapped_op::call_size,
                             [](std::byte b) { return b == std::byte{5}; }));
     EXPECT_EQ(sta_loop::run_pending(), 0u) << "a given-up operation resumed somebody";
 }

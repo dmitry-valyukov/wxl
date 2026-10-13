@@ -341,7 +341,7 @@ TEST_F(AsyncFileTest, ALargeReadGoesThroughTheWorkerAndBringsTheSame) {
 
 TEST_F(AsyncFileTest, AReadOrAWriteLargerThanOneCallGoesInAChainOfThem) {
     // A megabyte over what one call takes: two calls each way.
-    const std::size_t size = io_op::call_size + 1024 * 1024;
+    const std::size_t size = overlapped_op::call_size + 1024 * 1024;
 
     std::vector<std::byte> content(size);
 
@@ -355,7 +355,7 @@ TEST_F(AsyncFileTest, AReadOrAWriteLargerThanOneCallGoesInAChainOfThem) {
     std::size_t brought = 0;
 
 #ifndef NDEBUG
-    const std::size_t chained_before = io_op::debug.chained.load();
+    const std::size_t chained_before = overlapped_op::debug.chained.load();
 #endif
 
     run(writes_and_reads_in_one_go(root_ / L"chain.bin", content, got, brought));
@@ -365,7 +365,7 @@ TEST_F(AsyncFileTest, AReadOrAWriteLargerThanOneCallGoesInAChainOfThem) {
 
 #ifndef NDEBUG
     // One call beyond the first for the write and one for the read.
-    EXPECT_EQ(io_op::debug.chained.load() - chained_before, 2u);
+    EXPECT_EQ(overlapped_op::debug.chained.load() - chained_before, 2u);
 #endif
 }
 
@@ -417,7 +417,7 @@ TEST_F(AsyncFileTest, AReadOfACompressedFileIsStartedOnTheWorker) {
     }
 
 #ifndef NDEBUG
-    const std::size_t on_worker_before = io_op::debug.started_on_worker.load();
+    const std::size_t on_worker_before = overlapped_op::debug.started_on_worker.load();
 #endif
 
     std::vector<std::byte> got(content.size() + 16);
@@ -431,7 +431,7 @@ TEST_F(AsyncFileTest, AReadOfACompressedFileIsStartedOnTheWorker) {
     EXPECT_EQ(std::memcmp(content.data(), got.data(), brought), 0);
 
 #ifndef NDEBUG
-    EXPECT_EQ(io_op::debug.started_on_worker.load() - on_worker_before, 1u);
+    EXPECT_EQ(overlapped_op::debug.started_on_worker.load() - on_worker_before, 1u);
 #endif
 }
 

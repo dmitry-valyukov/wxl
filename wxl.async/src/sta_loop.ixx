@@ -6,7 +6,7 @@ export module wxl.async:sta_loop;
 
 import :async_op;
 import :cancellation;
-import :io_op;
+import :overlapped_op;
 import :io_port;
 import :spsc_channel;
 import :thread_group;
@@ -478,7 +478,7 @@ public:
     ///
     /// Only for what is known not to hold the calling thread. The rest goes through
     /// async_run(), and is started on the worker.
-    [[nodiscard]] inline static task<std::size_t> async_start(std::unique_ptr<io_op> op) {
+    [[nodiscard]] inline static task<std::size_t> async_start(std::unique_ptr<overlapped_op> op) {
         // A completion with no worker to take it would never arrive; enqueue() fails the
         // same way, through send().
         assert(running() && "sta_loop: the loop is not running");

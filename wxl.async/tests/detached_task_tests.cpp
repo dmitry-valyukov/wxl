@@ -8,7 +8,6 @@ import wxl.async;
 
 using namespace wxl::async;
 using wxl::core::intrusive_ptr;
-using wxl::core::refcounted_mt;
 using wxl::core::sta_refcounted;
 
 namespace {
@@ -201,18 +200,17 @@ struct Notes {
     int resumed = 0;
 };
 
-// An object that counts its own references, with either counter. Its member
+// An object that counts its own references with the STA counter. Its member
 // coroutines use `this` after the wait, which is what the frame holds the
 // object for.
-template <class Counter>
-class Counted : public Counter
+class Counted : public sta_refcounted
 {
 public:
     explicit Counted(Notes& notes) noexcept : notes_(notes) {}
 
     ~Counted() override { ++notes_.deaths; }
 
-    using Counter::ref_count;
+    using sta_refcounted::ref_count;
 
     void touch() const noexcept { ++notes_.resumed; }
 
@@ -232,13 +230,10 @@ private:
 
 // One that starts waiting in its constructor, before anybody has adopted the
 // reference it was born with.
-template <class Counter>
-class StartsWaiting : public Counted<Counter>
+class StartsWaiting : public Counted
 {
 public:
-    StartsWaiting(Notes& notes, std::coroutine_handle<>& out) : Counted<Counter>(notes) {
-        this->waits(out);
-    }
+    StartsWaiting(Notes& notes, std::coroutine_handle<>& out) : Counted(notes) { waits(out); }
 };
 
 // An object that does not count its references. Its member coroutine has the
@@ -266,8 +261,7 @@ detached_task holds_by_pointer(Object* object, std::coroutine_handle<>& out) {
 // The counting base alone, the way a helper takes the object it lives by
 // without knowing its type: the base is enough to let go of it, since the
 // destructor is virtual.
-template <class Counter>
-detached_task holds_by_base(const Counter&, std::coroutine_handle<>& out) {
+detached_task holds_by_base(const wxl::core::refcounted&, std::coroutine_handle<>& out) {
     co_await ThrowingCapture{&out};
 }
 
@@ -280,36 +274,34 @@ detached_task holds_the_second(int, Object& object, std::coroutine_handle<>& out
 using detached_promise = detached_task::promise_type;
 
 // Which coroutines hold: the first argument and only the first, counted with
-// either counter, by reference, const or not, or by pointer; the counting
-// base itself counts too.
-static_assert(std::is_constructible_v<detached_promise, Counted<sta_refcounted>&>);
-static_assert(std::is_constructible_v<detached_promise, const Counted<refcounted_mt>&, int&>);
-static_assert(std::is_constructible_v<detached_promise, Counted<sta_refcounted>*&>);
+// the STA counter, by reference, const or not, or by pointer; the counting
+// base itself counts too. An object counted for several threads is not held:
+// a detached frame is a thing of the STA thread.
+static_assert(std::is_constructible_v<detached_promise, Counted&>);
+static_assert(std::is_constructible_v<detached_promise, const Counted&, int&>);
+static_assert(std::is_constructible_v<detached_promise, Counted*&>);
 static_assert(std::is_constructible_v<detached_promise, wxl::core::refcounted&>);
 static_assert(!std::is_constructible_v<detached_promise, Plain&>);
-static_assert(!std::is_constructible_v<detached_promise, Plain&, Counted<sta_refcounted>&>);
-static_assert(!std::is_constructible_v<detached_promise, int&, Counted<refcounted_mt>&>);
+static_assert(!std::is_constructible_v<detached_promise, Plain&, Counted&>);
+static_assert(!std::is_constructible_v<detached_promise, int&, Counted&>);
+static_assert(!std::is_constructible_v<detached_promise, wxl::core::refcounted_mt&>);
 
-// The lowest bit of a pointer to either counting base is free to say which
-// one it is, and that word is all the promise adds to a frame.
-static_assert(alignof(wxl::core::refcounted) > 1 && alignof(refcounted_mt) > 1);
+// The reference is all the promise adds to a frame: one word.
 static_assert(sizeof(detached_promise) == sizeof(void*));
 
 // A counted object made on the heap and held from outside by the one
 // reference it was born with, which a test can drop; and the handle of the
 // coroutine waiting on it.
-template <class Object>
 struct Scene {
     Notes notes;
     std::coroutine_handle<> waiter;
-    intrusive_ptr<Object> object{new Object(notes), false};
+    intrusive_ptr<Counted> object{new Counted(notes), false};
 };
 
 // What every holding case comes to: the last reference from outside goes
 // while the coroutine waits, the object is still there, and once the wait is
 // over it goes with the frame -- once.
-template <class Object>
-void let_go_then_wake(Scene<Object>& scene) {
+void let_go_then_wake(Scene& scene) {
     ASSERT_TRUE(scene.waiter);
     EXPECT_EQ(scene.object->ref_count(), 2u);
 
@@ -320,29 +312,8 @@ void let_go_then_wake(Scene<Object>& scene) {
     EXPECT_EQ(scene.notes.deaths, 1);
 }
 
-template <class Counter>
-class DetachedTaskHoldsTest : public DetachedTaskTest
-{
-};
-
-class counter_name
-{
-public:
-    template <class Counter>
-    static std::string GetName(int) {
-        if constexpr (std::is_same_v<Counter, refcounted_mt>)
-            return "refcounted_mt";
-        else
-            return "sta_refcounted";
-    }
-};
-
-using counters = ::testing::Types<sta_refcounted, refcounted_mt>;
-
-TYPED_TEST_SUITE(DetachedTaskHoldsTest, counters, counter_name);
-
-TYPED_TEST(DetachedTaskHoldsTest, AMemberCoroutineKeepsItsObjectWhileItWaits) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, AMemberCoroutineKeepsItsObjectWhileItWaits) {
+    Scene scene;
 
     scene.object->waits(scene.waiter);
     let_go_then_wake(scene);
@@ -351,8 +322,8 @@ TYPED_TEST(DetachedTaskHoldsTest, AMemberCoroutineKeepsItsObjectWhileItWaits) {
     EXPECT_FALSE(reported);
 }
 
-TYPED_TEST(DetachedTaskHoldsTest, AConstMemberCoroutineKeepsItsObjectToo) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, AConstMemberCoroutineKeepsItsObjectToo) {
+    Scene scene;
 
     scene.object->waits_const(scene.waiter);
     let_go_then_wake(scene);
@@ -362,11 +333,10 @@ TYPED_TEST(DetachedTaskHoldsTest, AConstMemberCoroutineKeepsItsObjectToo) {
 
 // Started in the constructor, the frame takes a second reference beside the
 // one the object was born with, and whoever adopts that one later finds two.
-TYPED_TEST(DetachedTaskHoldsTest, AMemberCoroutineStartedInTheConstructorTakesASecondReference) {
+TEST_F(DetachedTaskTest, AMemberCoroutineStartedInTheConstructorTakesASecondReference) {
     Notes notes;
     std::coroutine_handle<> waiter;
-    intrusive_ptr<StartsWaiting<TypeParam>> object(new StartsWaiting<TypeParam>(notes, waiter),
-                                                   false);
+    intrusive_ptr<StartsWaiting> object(new StartsWaiting(notes, waiter), false);
 
     ASSERT_TRUE(waiter);
     EXPECT_EQ(object->ref_count(), 2u);
@@ -381,12 +351,12 @@ TYPED_TEST(DetachedTaskHoldsTest, AMemberCoroutineStartedInTheConstructorTakesAS
 
 // An object nobody holds by count goes from one to two and back to one, and
 // is not deleted by the frame: it stays its owner's.
-TYPED_TEST(DetachedTaskHoldsTest, AnObjectOnTheStackIsLeftToItsOwner) {
+TEST_F(DetachedTaskTest, AnObjectOnTheStackIsLeftToItsOwner) {
     Notes notes;
     std::coroutine_handle<> waiter;
 
     {
-        Counted<TypeParam> object(notes);
+        Counted object(notes);
 
         object.waits(waiter);
         ASSERT_TRUE(waiter);
@@ -400,8 +370,8 @@ TYPED_TEST(DetachedTaskHoldsTest, AnObjectOnTheStackIsLeftToItsOwner) {
     EXPECT_EQ(notes.deaths, 1);
 }
 
-TYPED_TEST(DetachedTaskHoldsTest, AFreeCoroutineKeepsAFirstArgumentByReference) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, AFreeCoroutineKeepsAFirstArgumentByReference) {
+    Scene scene;
 
     holds_by_reference(*scene.object, scene.waiter);
     let_go_then_wake(scene);
@@ -409,8 +379,8 @@ TYPED_TEST(DetachedTaskHoldsTest, AFreeCoroutineKeepsAFirstArgumentByReference) 
     EXPECT_EQ(scene.notes.resumed, 1);
 }
 
-TYPED_TEST(DetachedTaskHoldsTest, AFreeCoroutineKeepsAFirstArgumentByPointer) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, AFreeCoroutineKeepsAFirstArgumentByPointer) {
+    Scene scene;
 
     holds_by_pointer(scene.object.get(), scene.waiter);
     let_go_then_wake(scene);
@@ -418,17 +388,17 @@ TYPED_TEST(DetachedTaskHoldsTest, AFreeCoroutineKeepsAFirstArgumentByPointer) {
     EXPECT_EQ(scene.notes.resumed, 1);
 }
 
-TYPED_TEST(DetachedTaskHoldsTest, AFreeCoroutineKeepsAFirstArgumentSeenAsItsCountingBase) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, AFreeCoroutineKeepsAFirstArgumentSeenAsItsCountingBase) {
+    Scene scene;
 
-    holds_by_base<TypeParam>(*scene.object, scene.waiter);
+    holds_by_base(*scene.object, scene.waiter);
     let_go_then_wake(scene);
 }
 
-TYPED_TEST(DetachedTaskHoldsTest, ANullFirstPointerHoldsNothing) {
+TEST_F(DetachedTaskTest, ANullFirstPointerHoldsNothing) {
     std::coroutine_handle<> waiter;
 
-    holds_by_pointer<Counted<TypeParam>>(nullptr, waiter);
+    holds_by_pointer<Counted>(nullptr, waiter);
     ASSERT_TRUE(waiter);
 
     waiter.resume();
@@ -438,8 +408,8 @@ TYPED_TEST(DetachedTaskHoldsTest, ANullFirstPointerHoldsNothing) {
 // A counted object in the second place keeps the one reference it had, both
 // after an int and after an object that does not count -- which, for a member
 // coroutine, is the first argument. Such coroutines run as they always did.
-TYPED_TEST(DetachedTaskHoldsTest, OnlyTheFirstArgumentIsHeld) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, OnlyTheFirstArgumentIsHeld) {
+    Scene scene;
     std::coroutine_handle<> second;
     Plain plain;
 
@@ -460,8 +430,8 @@ TYPED_TEST(DetachedTaskHoldsTest, OnlyTheFirstArgumentIsHeld) {
 
 // However the body ends, the promise goes with the frame, and the reference
 // with it: through an exception for the handler...
-TYPED_TEST(DetachedTaskHoldsTest, AFailureAfterTheWaitStillLetsGoOfTheObject) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, AFailureAfterTheWaitStillLetsGoOfTheObject) {
+    Scene scene;
 
     scene.object->waits(scene.waiter,
                         std::make_exception_ptr(std::runtime_error("after the wait")));
@@ -472,8 +442,8 @@ TYPED_TEST(DetachedTaskHoldsTest, AFailureAfterTheWaitStillLetsGoOfTheObject) {
 }
 
 // ...through a cancellation, the ordinary end...
-TYPED_TEST(DetachedTaskHoldsTest, ACancelledWaitLetsGoOfTheObject) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, ACancelledWaitLetsGoOfTheObject) {
+    Scene scene;
 
     scene.object->waits(scene.waiter, std::make_exception_ptr(operation_canceled_exception{}));
     let_go_then_wake(scene);
@@ -483,8 +453,8 @@ TYPED_TEST(DetachedTaskHoldsTest, ACancelledWaitLetsGoOfTheObject) {
 }
 
 // ...and with the frame taken apart instead of resumed.
-TYPED_TEST(DetachedTaskHoldsTest, ADestroyedFrameLetsGoOfTheObject) {
-    Scene<Counted<TypeParam>> scene;
+TEST_F(DetachedTaskTest, ADestroyedFrameLetsGoOfTheObject) {
+    Scene scene;
 
     scene.object->waits(scene.waiter);
     ASSERT_TRUE(scene.waiter);
