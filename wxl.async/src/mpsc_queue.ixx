@@ -11,6 +11,12 @@ export namespace wxl::async {
 /// wants -- the warmest element is the one released last.
 enum class drain_order { fifo, lifo };
 
+// The alignas members below are meant to cost padding: that is what keeps the lines
+// apart. C4324 reports the padding at level 4, and for a template it fires where the
+// class is laid out -- in a consumer built with /W4 -- so it is silenced here, at the
+// declaration, which is the one place that knows the padding is the point.
+#pragma warning(push)
+#pragma warning(disable : 4324)  // structure was padded due to alignment specifier
 /// Queue of intrusive nodes for many writing threads and exactly one reading thread. A
 /// write is a single push onto the underlying stack; a read claims the whole accumulated
 /// chain at once and then hands it out from a reader-owned list, without atomics. So the
@@ -56,6 +62,7 @@ private:
         pops_since_claim_;  // prevent false sharing
     Node* reader_node_;
 };
+#pragma warning(pop)
 
 /// The same structure handing its batches back newest first -- what a pool of free objects
 /// wants, and the reason `order` exists at all.

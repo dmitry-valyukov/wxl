@@ -1,4 +1,5 @@
 #include "headered_content_control.h"
+#include "blank_content.h"
 
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 
@@ -35,8 +36,9 @@ void HeaderedContentControlCore::OnApplyTemplate() {
 void HeaderedContentControlCore::header(winrt::Windows::Foundation::IInspectable const& value) {
     header_ = value;
     if (headerPart_) {
-        headerPart_.Content(value);
-        headerPart_.Visibility(value ? xaml::Visibility::Visible : xaml::Visibility::Collapsed);
+        bool const blank = is_blank(value);
+        headerPart_.Content(blank ? winrt::Windows::Foundation::IInspectable{nullptr} : value);
+        headerPart_.Visibility(blank ? xaml::Visibility::Collapsed : xaml::Visibility::Visible);
     }
 }
 

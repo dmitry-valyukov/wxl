@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "platform.h"
+
 #include "loop_environment.h"
 #include "test_directory.h"
 
@@ -178,4 +180,64 @@ TEST_F(AsyncDirectoryTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
     run(std::move(work));
 
     EXPECT_EQ(found, (std::vector<std::wstring>{L"one.fb3"}));
+}
+
+// ---- The listing at once: list ----------------------------------------------
+
+namespace {
+
+task lists_at_once(path pattern, std::vector<async_directory::listed_entry>& out) {
+    out = co_await async_directory::list(pattern);
+
+    std::ranges::sort(out, {}, &async_directory::listed_entry::name);
+}
+
+task lists_and_catches(path pattern, int& code) {
+    try {
+        co_await async_directory::list(pattern);
+        code = 0;
+    } catch (const system_exception& failure) {
+        code = failure.err_code();
+    }
+}
+
+}  // namespace
+
+TEST_F(AsyncDirectoryTest, ListBringsEveryMatchAtOnce) {
+    given_a_file(L"one.fb3");
+    given_a_file(L"two.fb3");
+    given_a_file(L"notes.txt");
+
+    // A directory whose name matches comes out too, and says what it is.
+    ASSERT_TRUE(directory::create((root_ / L"inner.fb3").c_str()));
+
+    std::vector<async_directory::listed_entry> found;
+
+    run(lists_at_once(root_ / L"*.fb3", found));
+
+    ASSERT_EQ(found.size(), 3u);
+    EXPECT_EQ(found[0].name, L"inner.fb3");
+    EXPECT_TRUE(found[0].is_directory);
+    EXPECT_EQ(found[1].name, L"one.fb3");
+    EXPECT_FALSE(found[1].is_directory);
+    EXPECT_EQ(found[1].size, 0u);
+    EXPECT_EQ(found[2].name, L"two.fb3");
+}
+
+TEST_F(AsyncDirectoryTest, ListOfNoMatchIsEmptyAndNotAFailure) {
+    given_a_file(L"notes.txt");
+
+    std::vector<async_directory::listed_entry> found{{L"stale"}};
+
+    run(lists_at_once(root_ / L"*.fb3", found));
+
+    EXPECT_TRUE(found.empty());
+}
+
+TEST_F(AsyncDirectoryTest, ListOfAMissingDirectoryNamesTheSystemsCode) {
+    int code = -1;
+
+    run(lists_and_catches(root_ / L"nowhere" / L"*", code));
+
+    EXPECT_EQ(code, ERROR_PATH_NOT_FOUND);
 }
