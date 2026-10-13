@@ -3,7 +3,7 @@ module;
 #include "platform.h"
 #include "abi.h"
 
-export module wxl.async:io_op;
+export module wxl.async:overlapped_op;
 
 import :async_op;
 import wxl.core;
@@ -23,7 +23,7 @@ export namespace wxl::async {
 /// The buffer may be of any size. A call to the system takes at most `call_size`, so a
 /// larger buffer goes in a chain of calls, the next issued where the previous one
 /// completed, and the coroutine sees one operation and one answer.
-class io_op : public async_op_t<std::size_t>
+class overlapped_op : public async_op_t<std::size_t>
 {
 public:
     enum class kind : std::uint8_t { read, write };
@@ -35,7 +35,7 @@ public:
 
     /// \param at where in the file; an overlapped handle keeps no position of its own.
     /// \param skips_port what io_port::attach() answered for this file.
-    io_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
+    overlapped_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
           bool skips_port) noexcept;
 
     /// Starts the operation on the calling thread.
@@ -50,7 +50,7 @@ public:
     [[nodiscard]] bool completed() noexcept;
 
     /// The operation a port entry belongs to.
-    static io_op* from(OVERLAPPED* overlapped) noexcept;
+    static overlapped_op* from(OVERLAPPED* overlapped) noexcept;
 
 #ifndef NDEBUG
     /// Debug tallies for the tests, which cannot otherwise tell where an operation ran
@@ -68,10 +68,10 @@ public:
 #endif
 
 protected:
-    /// Started on the worker, the operation may have been given up while it stood in
-    /// the queue, by a thread that found nothing to cancel yet. So the flag is read
-    /// again once the kernel has the operation: whichever of the two came second sees
-    /// the other.
+    /// Started on the worker, the operation may have been given up or cancelled while it
+    /// stood in the queue, by a thread that found nothing to cancel yet. So the flag is
+    /// read again once the kernel has the operation: whichever of the two came second
+    /// sees the other.
     bool execute() override;
 
     void on_cancel() noexcept override;
@@ -89,7 +89,8 @@ private:
     ///         the call brought all it was asked for; less is the end of the file.
     bool advance(DWORD transferred) noexcept;
 
-    /// Ends the operation: with what has been transferred, or with the error.
+    /// Ends the operation: with what has been transferred, or with the error -- and, cut
+    /// short, with the cancellation.
     void finish(DWORD error) noexcept;
 
     OVERLAPPED overlapped_{};

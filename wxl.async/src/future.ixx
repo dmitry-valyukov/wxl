@@ -10,7 +10,7 @@ import std;
 
 export namespace wxl::async {
 
-namespace future_detail {
+namespace detail {
 
 /// Base untyped future.
 class future_base : public shared_state_holder<const future_shared_state>
@@ -139,7 +139,7 @@ template <typename T, class t_task>
 using result_of_t = typename std::conditional_t<std::is_void_v<T>, std::invoke_result<t_task>,
                                                 std::invoke_result<t_task, T>>::type;
 
-}  // namespace future_detail
+}  // namespace detail
 
 /// Represents a future result of an asynchronous operation - a result that will eventually appear
 /// in the future after the processing is complete.
@@ -166,7 +166,7 @@ using result_of_t = typename std::conditional_t<std::is_void_v<T>, std::invoke_r
 ///
 /// \see http://en.cppreference.com/w/cpp/thread/shared_future .
 template <typename T>
-class future : public future_detail::future_base
+class future : public detail::future_base
 {
 public:
     /// Copy constructor.
@@ -201,9 +201,9 @@ public:
     ///
     /// \exception If an exception was stored in the shared state referenced by this future (e.g.
     /// via a call to promise::set_exception()) then that exception will be thrown.
-    typename future_detail::future_get_return<T>::type get() const {
-        const future_detail::state* state = checked_state()->get();
-        return future_detail::resolved_state<T>::from(state)->value();
+    typename detail::future_get_return<T>::type get() const {
+        const detail::state* state = checked_state()->get();
+        return detail::resolved_state<T>::from(state)->value();
     }
 
     /// Subscribes to the successful finish of the asynchronous operation (a value is stored in the
@@ -217,9 +217,9 @@ public:
     ///
     /// \note The callback must be noexcept: a subscription has nowhere to report an exception.
     template <class t_when_succeeded>
-        requires future_detail::nothrow_success_callback<std::remove_cvref_t<t_when_succeeded>, T>
+        requires detail::nothrow_success_callback<std::remove_cvref_t<t_when_succeeded>, T>
     const future<T>& when_succeeded(t_when_succeeded&& when_succeeded_callback) const {
-        future_detail::when_succeeded_helper<T>::when_succeeded(
+        detail::when_succeeded_helper<T>::when_succeeded(
             checked_state(), std::forward<t_when_succeeded>(when_succeeded_callback));
         return *this;
     }
@@ -233,7 +233,7 @@ public:
     ///
     /// \note The callback must be noexcept: a subscription has nowhere to report an exception.
     template <class t_when_failed>
-        requires future_detail::nothrow_callback<std::remove_cvref_t<t_when_failed>, const std::exception_ptr&>
+        requires detail::nothrow_callback<std::remove_cvref_t<t_when_failed>, const std::exception_ptr&>
     const future<T>& when_failed(t_when_failed&& when_failed_callback) const {
         checked_state()->when_failed(std::forward<t_when_failed>(when_failed_callback));
         return *this;
@@ -249,14 +249,14 @@ public:
     /// \note The callback must be noexcept: a subscription has nowhere to report an exception.
     ///@{
     template <class t_when_ready>
-        requires future_detail::nothrow_callback<std::remove_cvref_t<t_when_ready>, future<T>>
+        requires detail::nothrow_callback<std::remove_cvref_t<t_when_ready>, future<T>>
     const future<T>& when_ready(t_when_ready&& when_ready_callback) const {
         checked_state()->template when_ready1<T>(std::forward<t_when_ready>(when_ready_callback));
         return *this;
     }
 
     template <class t_when_ready>
-        requires future_detail::nothrow_callback<std::remove_cvref_t<t_when_ready>> &&
+        requires detail::nothrow_callback<std::remove_cvref_t<t_when_ready>> &&
                  (!std::invocable<std::remove_cvref_t<t_when_ready>&, future<T>>)
     const future<T>& when_ready(t_when_ready&& when_ready_callback) const {
         checked_state()->when_ready0(std::forward<t_when_ready>(when_ready_callback));
@@ -277,12 +277,12 @@ public:
     ///
     /// \return The future the continuation's own result will appear in.
     template <class t_next_task>
-    future<future_detail::result_of_t<T, std::remove_cvref_t<t_next_task>>> next(
+    future<detail::result_of_t<T, std::remove_cvref_t<t_next_task>>> next(
         t_next_task&& task) const {
         using t_task = std::remove_cvref_t<t_next_task>;
-        using t_result = future_detail::result_of_t<T, t_task>;
+        using t_result = detail::result_of_t<T, t_task>;
 
-        future_shared_state_ptr ticket(new future_shared_state());
+        future_shared_state_ptr ticket = core::make_refcounted<future_shared_state>();
 
         checked_state()->template next<T, t_result>(std::forward<t_next_task>(task), ticket.get());
 
@@ -307,17 +307,17 @@ public:
     future<void> next_unwrap(t_next_async_task&& task) const {
         using t_task = std::remove_cvref_t<t_next_async_task>;
 
-        future_shared_state_ptr ticket(new future_shared_state());
+        future_shared_state_ptr ticket = core::make_refcounted<future_shared_state>();
 
-        when_succeeded(future_detail::next_async_task<t_task, T>(
+        when_succeeded(detail::next_async_task<t_task, T>(
             std::forward<t_next_async_task>(task), ticket));
-        when_failed(future_detail::set_exception_func(ticket));
+        when_failed(detail::set_exception_func(ticket));
 
         return future<void>(ticket.get());
     }
 
 protected:
-    using base = future_detail::future_base;
+    using base = detail::future_base;
 };
 
 template <>
@@ -325,7 +325,7 @@ inline void future<void>::get() const {
     checked_state()->get();
 }
 
-namespace future_detail {
+namespace detail {
 
 /// The shared state of a when_all_* combination, and the subscriptions that feed it. Nothing
 /// about it depends on what the futures carry -- a combinator only ever asks whether they
@@ -373,11 +373,11 @@ private:
 };
 
 /// Shorthand for the combinators below: every one of them starts by demanding a live state.
-inline const future_shared_state* state_of(const future_base& f) {
+inline const future_shared_state* checked_state_of(const future_base& f) {
     return future_accessor::checked_state_of(f);
 }
 
-}  // namespace future_detail
+}  // namespace detail
 
 ///@{
 /// Creates a combined operation that succeeds once all of the given operations have succeeded,
@@ -388,9 +388,9 @@ inline const future_shared_state* state_of(const future_base& f) {
 /// The pack form accepts futures of differing result types and copies none of them.
 template <std::input_iterator t_iterator, std::sentinel_for<t_iterator> t_sentinel>
 inline future<void> when_all_succeeded_or_any_failed(t_iterator begin, t_sentinel end) {
-    future_detail::countdown all;
+    detail::countdown all;
 
-    for (; begin != end; ++begin) all.add_succeeded_or_failed(future_detail::state_of(*begin));
+    for (; begin != end; ++begin) all.add_succeeded_or_failed(detail::checked_state_of(*begin));
 
     return all.get_future();
 }
@@ -400,11 +400,11 @@ inline future<void> when_all_succeeded_or_any_failed(t_range&& futures) {
     return when_all_succeeded_or_any_failed(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
-template <future_detail::future_like... t_futures>
+template <detail::future_like... t_futures>
 inline future<void> when_all_succeeded_or_any_failed(const t_futures&... futures) {
-    future_detail::countdown all;
+    detail::countdown all;
 
-    (all.add_succeeded_or_failed(future_detail::state_of(futures)), ...);
+    (all.add_succeeded_or_failed(detail::checked_state_of(futures)), ...);
 
     return all.get_future();
 }
@@ -415,9 +415,9 @@ inline future<void> when_all_succeeded_or_any_failed(const t_futures&... futures
 /// succeeded or failed.
 template <std::input_iterator t_iterator, std::sentinel_for<t_iterator> t_sentinel>
 inline future<void> when_all_ready(t_iterator begin, t_sentinel end) {
-    future_detail::countdown all;
+    detail::countdown all;
 
-    for (; begin != end; ++begin) all.add_ready(future_detail::state_of(*begin));
+    for (; begin != end; ++begin) all.add_ready(detail::checked_state_of(*begin));
 
     return all.get_future();
 }
@@ -427,11 +427,11 @@ inline future<void> when_all_ready(t_range&& futures) {
     return when_all_ready(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
-template <future_detail::future_like... t_futures>
+template <detail::future_like... t_futures>
 inline future<void> when_all_ready(const t_futures&... futures) {
-    future_detail::countdown all;
+    detail::countdown all;
 
-    (all.add_ready(future_detail::state_of(futures)), ...);
+    (all.add_ready(detail::checked_state_of(futures)), ...);
 
     return all.get_future();
 }
@@ -449,7 +449,7 @@ inline future<void> when_all_ready(const t_futures&... futures) {
 /// valid. With nothing to wait for, the result is ready at once and holds an empty tuple or an
 /// empty vector.
 template <std::input_iterator t_iterator, std::sentinel_for<t_iterator> t_sentinel>
-    requires future_detail::future_like<std::iter_value_t<t_iterator>>
+    requires detail::future_like<std::iter_value_t<t_iterator>>
 inline future<std::vector<std::iter_value_t<t_iterator>>> when_all(t_iterator begin,
                                                                    t_sentinel end) {
     // Collected before subscribing rather than in the continuation: an input iterator is
@@ -461,12 +461,12 @@ inline future<std::vector<std::iter_value_t<t_iterator>>> when_all(t_iterator be
 }
 
 template <std::ranges::input_range t_range>
-    requires future_detail::future_like<std::ranges::range_value_t<t_range>>
+    requires detail::future_like<std::ranges::range_value_t<t_range>>
 inline future<std::vector<std::ranges::range_value_t<t_range>>> when_all(t_range&& futures) {
     return when_all(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
-template <future_detail::future_like... t_futures>
+template <detail::future_like... t_futures>
 inline future<std::tuple<t_futures...>> when_all(const t_futures&... futures) {
     return when_all_ready(futures...).next(
         [futures...]() { return std::tuple<t_futures...>(futures...); });
@@ -481,9 +481,9 @@ template <std::input_iterator t_iterator, std::sentinel_for<t_iterator> t_sentin
 inline future<void> when_any(t_iterator begin, t_sentinel end) {
     if (begin == end) return make_ready_future();
 
-    future_detail::first_of first;
+    detail::first_of first;
 
-    for (; begin != end; ++begin) first.add(future_detail::state_of(*begin));
+    for (; begin != end; ++begin) first.add(detail::checked_state_of(*begin));
 
     return first.get_future();
 }
@@ -493,21 +493,21 @@ inline future<void> when_any(t_range&& futures) {
     return when_any(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
-template <future_detail::future_like... t_futures>
+template <detail::future_like... t_futures>
 inline future<void> when_any(const t_futures&... futures) {
     if constexpr (sizeof...(futures) == 0) {
         return make_ready_future();
     } else {
-        future_detail::first_of first;
+        detail::first_of first;
 
-        (first.add(future_detail::state_of(futures)), ...);
+        (first.add(detail::checked_state_of(futures)), ...);
 
         return first.get_future();
     }
 }
 ///@}
 
-namespace future_detail {
+namespace detail {
 
 /// Base untyped promise.
 class promise_base : public shared_state_holder<future_shared_state>
@@ -570,9 +570,11 @@ protected:
         if (state) state->increment_promise_count();
     }
 
-    inline promise_base(future_shared_state* state, future_shared_state::init_promise_tag)
-        : shared_state_holder<future_shared_state>(state) {
-        assert(state);
+    /// A state just made: the reference and the promise count it is born with are both this
+    /// promise's.
+    inline promise_base(future_shared_state_ptr state, future_shared_state::init_promise_tag)
+        : shared_state_holder<future_shared_state>(std::move(state)) {
+        assert(base::state());
     }
 
     inline ~promise_base() {
@@ -582,7 +584,7 @@ protected:
     }
 };
 
-}  // namespace future_detail
+}  // namespace detail
 
 /// The class template promise provides a facility to store a value or an exception that is later
 /// acquired asynchronously via a future object created by the promise object.
@@ -600,14 +602,15 @@ protected:
 ///
 /// @see http://en.cppreference.com/w/cpp/thread/promise.
 template <typename T>
-class promise : public future_detail::promise_base
+class promise : public detail::promise_base
 {
-    using base = future_detail::promise_base;
+    using base = detail::promise_base;
     using init_tag = future_shared_state::init_promise_tag;
 
 public:
     /// Constructor.
-    promise() noexcept : base(new future_shared_state(init_tag()), init_tag()) {}
+    promise() noexcept
+        : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
 
     /// Copy constructor.
     promise(const promise<T>& other) : base(other) {}
@@ -643,13 +646,14 @@ private:
 
 /// promise void specialization, used to communicate stateless events.
 template <>
-class promise<void> : public future_detail::promise_base
+class promise<void> : public detail::promise_base
 {
-    using base = future_detail::promise_base;
+    using base = detail::promise_base;
     using init_tag = future_shared_state::init_promise_tag;
 
 public:
-    inline promise() noexcept : base(new future_shared_state(init_tag()), init_tag()) {}
+    inline promise() noexcept
+        : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
 
     promise(const promise<void>&) = default;
 

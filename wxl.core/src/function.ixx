@@ -111,8 +111,8 @@ class func_body;
 // inside the node. It is spelled out here rather than hidden because the two
 // things built on it need different halves: `function` next door needs a
 // value with a reference count, an `event` needs a node it can link into a
-// list and delete by cookie. `Base` is where they differ and all they differ
-// in.
+// list and let go of by cookie. `Base` is where they differ and all they
+// differ in.
 template <typename R, typename... T, bool NX, template <class> class Base>
 class func_body<R(T...) noexcept(NX), Base>
     : public Base<func_body<sig_t<NX, R, T...>, Base>>
@@ -123,12 +123,19 @@ public:
     /// Whether calling this may throw is the signature's own promise, checked where the
     /// callable is handed in rather than left to std::terminate. An event spells its
     /// signature `noexcept` and gets callbacks that cannot throw -- called out of a list,
-    /// from a fire() with no result and no business abandoning the rest halfway, they have
+    /// from an event's call with no result and no business abandoning the rest halfway, they have
     /// nobody to throw to. A callable whose work can fail -- a preset's setters walking
     /// into WinRT, say -- is held by the plain spelling, and its exceptions are the
     /// caller's to handle.
     virtual R operator()(T... args) noexcept(NX) = 0;
     virtual ~func_body() = default;
+
+    /// How a list that held this callback lets go of it, once it is out of the list: one
+    /// made by create() belongs to whoever holds it and is destroyed. A node built into
+    /// its subscriber -- a member, so that subscribing allocates nothing -- overrides this
+    /// to do nothing: the subscriber owns it, keeps it alive while it is in a list, and
+    /// takes it out itself. `function` holds its body by a reference count and never asks.
+    virtual void release() noexcept { delete this; }
 
     /// Makes a callback out of `fn` and hands it over: the caller owns it and deletes it,
     /// or gives it to something that does -- an event, for one, and `function` for

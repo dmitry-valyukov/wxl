@@ -1,4 +1,4 @@
-// What happens to an asynchronous operation whose awaitable goes away while the operation
+// What happens to an asynchronous operation whose task goes away while the operation
 // is still out: its frame unwinds on an exception, its task is dropped, or it was never
 // awaited at all. Every test here checks the rule ordinary code keeps on a plain stack --
 // by the time a frame is gone, nobody writes into it -- together with the one a thread in
@@ -94,12 +94,12 @@ private:
     hevent* opens_;
 };
 
-awaitable<std::size_t> start_read(probe& p, std::span<std::byte> into, hevent* opens = nullptr) {
+task<std::size_t> start_read(probe& p, std::span<std::byte> into, hevent* opens = nullptr) {
     return sta_loop::async_run(
         std::unique_ptr<async_op_t<std::size_t>>(new gated_read(p, into, opens)));
 }
 
-awaitable<void> start_failure() {
+task<> start_failure() {
     return sta_loop::async_call([] { throw std::runtime_error("the first read failed"); });
 }
 
@@ -162,12 +162,12 @@ task<> returns_seven(int& out) {
 task<> watches_readiness(bool& before, bool& after, bool& here) {
     auto first = sta_loop::async_call([] { return 3; });
 
-    before = first.ready();
+    before = first.done();
 
     co_await sta_loop::async_call([] {});
 
-    after = first.ready();
-    here = sta_loop::call_here([] { return 1; }).ready();
+    after = first.done();
+    here = sta_loop::call_here([] { return 1; }).done();
 
     co_await first;
 }
@@ -253,7 +253,7 @@ task<> first_task_fails_second_in_flight(probe& p) {
 task<> fails_with_many_reads_out(probe& p, std::size_t count) {
     frame_witness witness(p);
     std::vector<std::array<std::byte, 16>> buffers(count);
-    std::vector<awaitable<std::size_t>> reads;
+    std::vector<task<std::size_t>> reads;
 
     reads.reserve(count);
 

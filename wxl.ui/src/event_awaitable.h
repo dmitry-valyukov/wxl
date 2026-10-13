@@ -29,9 +29,9 @@
 // -- because the temporary lives to the end of the full expression, which is
 // past the suspension inside it.
 //
-// This is emphatically not async::awaitable, which owns one pending operation,
-// is consumed by the co_await that takes its result, and is resumed by a
-// worker thread through the loop. This one holds a subscription across any
+// This is emphatically not async::task, which owns one pending result, is
+// consumed by the co_await that takes it, and is resumed through the loop or by
+// the coroutine that makes the result. This one holds a subscription across any
 // number of waits and is resumed by the handler itself, inline, before that
 // handler has returned -- which is not a detail of how it is built but the
 // point of it: args.handled(true) means something only while the framework is
@@ -216,21 +216,21 @@ public:
         // wait ends where it stands rather than joining a list that is being
         // emptied. Which is also what keeps a coroutine that catches
         // cancellation and waits again from being ended over and over. Nor
-        // does a wait told before it began.
-        bool await_ready() const noexcept { return told_ || impl::events_closing(); }
+        // does a wait cancelled before it began.
+        bool await_ready() const noexcept { return canceled_ || impl::events_closing(); }
 
         // Each hook that checks how it is used is declared twice, as task's
         // are: a strict build's takes the place of the co_await, any other
         // build's has the signature it always had.
 
-        void await_suspend(std::coroutine_handle<> waiter) noexcept requires(!async::coro_detail::strict) {
+        void await_suspend(std::coroutine_handle<> waiter) noexcept requires(!async::detail::strict) {
             event_->arm(waiter);
             armed_ = true;
         }
 
         void await_suspend(std::coroutine_handle<> waiter,
-                           async::coro_detail::site where = async::coro_detail::site::current()) noexcept
-            requires(async::coro_detail::strict)
+                           async::detail::site where = async::detail::site::current()) noexcept
+            requires(async::detail::strict)
         {
             event_->arm(waiter, where);
             armed_ = true;
@@ -250,15 +250,16 @@ public:
             }
         }
 
-        // Told by a cancellation token (async::cancellable_awaiter): a wait
-        // that is suspended is resumed by the queue's next turn, or by the
-        // event if it comes first -- never by cancel() itself; one that has not
-        // begun never suspends. Either way the args are not asked for.
+        // Cancelled by the token of the form with one
+        // (async::detail::cancellable_awaiter): a wait that is
+        // suspended is resumed by the queue's next turn, or by the event if it
+        // comes first -- never by cancel() itself; one that has not begun never
+        // suspends. Either way the args are not asked for.
         void cancel() noexcept {
             if (armed_) {
-                event_->tell();
+                event_->cancel();
             } else {
-                told_ = true;
+                canceled_ = true;
             }
         }
 
@@ -273,10 +274,10 @@ public:
 
         event_awaitable* event_;
 
-        // Never both: armed while suspended in the proxy, told before it
+        // Never both: armed while suspended in the proxy, cancelled before it
         // suspended and so never to be.
         bool armed_ = false;
-        bool told_ = false;
+        bool canceled_ = false;
     };
 
     using awaiter = awaiter_t<true>;
@@ -341,11 +342,11 @@ public:
 
     template <bool Throwing>
     using awaiter_t = impl::event_wait_under<typename event_t::template awaiter_t<Throwing>,
-                                             async::cancellation_detail::cancellation_state*>;
+                                             async::detail::cancellation_state*>;
 
     using awaiter = awaiter_t<true>;
 
-    awaiter operator co_await() noexcept { return awaiter{async::cancellation_detail::state_of(stop_), event_}; }
+    awaiter operator co_await() noexcept { return awaiter{async::detail::state_of(stop_), event_}; }
 
     // As on the plain proxy: waiting writes down who is waiting.
     awaiter operator co_await() const = delete;
@@ -353,7 +354,7 @@ public:
     /// The answering form under the token: a cancelled wait answers with an
     /// empty error rather than throwing.
     awaiter_t<false> next() noexcept {
-        return awaiter_t<false>{async::cancellation_detail::state_of(stop_), event_};
+        return awaiter_t<false>{async::detail::state_of(stop_), event_};
     }
 
 private:

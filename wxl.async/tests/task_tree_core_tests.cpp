@@ -1,3 +1,5 @@
+#include "process_handles.h"
+
 #include <gtest/gtest.h>
 
 import std;
@@ -167,4 +169,27 @@ TEST(TaskTreeTest, SubtaskFromFailedFutureFailsTheWholeSet) {
     ASSERT_TRUE(root_future.is_ready());
     EXPECT_TRUE(root_future.has_exception());
     EXPECT_TRUE(sub.failed());
+}
+
+// A node's state goes with the last of its holders. A state that somebody waited on holds an
+// event, which is what the count of the process's handles sees: every node below is waited on
+// once, and by the end of the cycle every one of those events has to be closed again.
+TEST(TaskTreeTest, StatesGoWithTheirLastHolder) {
+    constexpr int cycles = 64;
+
+    const long gained = handles_gained(cycles, [] {
+        task_tree_handle root = task_tree::create();
+        task_tree_handle subtask = root.create_subtask();
+        task_tree_handle child = task_tree::create(subtask);
+
+        for (const task_tree* node : {&root, &subtask, &child})
+            EXPECT_EQ(node->get_future().wait_for(duration::zero()), future_status::timeout);
+
+        child.set_succeeded();
+        subtask.set_succeeded();
+        root.set_succeeded();
+        EXPECT_TRUE(root.succeeded());
+    });
+
+    EXPECT_LT(gained, cycles / 4);
 }

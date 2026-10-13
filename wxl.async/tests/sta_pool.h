@@ -21,14 +21,20 @@ namespace impl {
 /// tests wait in is `sta_loop::run_until`. The shape a real application uses --
 /// a callback into its dispatcher -- is `start_driven()`, and it is `sta_signal`
 /// that carries the difference.
+///
+/// Stopping it is checked on the way out: stop() is to return with the worker's thread
+/// gone, so that a process exiting next does not kill that thread halfway through its way
+/// out. Both halves are in sta_loop_tests.cpp, which has the system headers for it.
 class sta_environment : public ::testing::Environment
 {
 public:
-    void SetUp() override {
-        sta_loop::start("wxl tests: I/O");
-    }
+    void SetUp() override;
 
-    void TearDown() override { sta_loop::stop(); }
+    void TearDown() override;
+
+private:
+    /// The worker's thread, opened from inside it.
+    void* worker_ = nullptr;
 };
 
 /// Registered before main(), where a global environment is registered.

@@ -5,7 +5,6 @@ wxl_add_module_library(wxl.async STATIC
         async_directory.ixx
         async_file.ixx
         async_op.ixx
-        awaitable.ixx
         barrier.ixx
         bump_buffer.ixx
         cancellation.ixx
@@ -16,7 +15,7 @@ wxl_add_module_library(wxl.async STATIC
         drain_stack.ixx
         future.ixx
         future_shared_state.ixx
-        io_op.ixx
+        overlapped_op.ixx
         io_port.ixx
         mpsc_channel.ixx
         mpsc_queue.ixx
@@ -55,7 +54,7 @@ wxl_add_module_library(wxl.async STATIC
         detached_task.cpp
         future.cpp
         future_shared_state.cpp
-        io_op.cpp
+        overlapped_op.cpp
         io_port.cpp
         one_shot_event.cpp
         sta_loop.cpp

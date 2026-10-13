@@ -1,5 +1,7 @@
 
 
+#include "process_handles.h"
+
 #include <gtest/gtest.h>
 
 
@@ -1487,4 +1489,37 @@ TEST(FutureTest, AbandonLeavesAResolvedStateAlone) {
 
     EXPECT_FALSE(f.has_exception());
     EXPECT_NO_THROW(f.get());
+}
+
+// Every shared state goes with the last of its holders: a promise's, a continuation's, a
+// combination's. A state that somebody waited on holds an event, which is what the count of
+// the process's handles sees: every future below is waited on once while pending, and by the
+// end of the cycle every one of those events has to be closed again.
+TEST(FutureTest, SharedStatesGoWithTheirLastHolder) {
+    constexpr int cycles = 64;
+
+    const long gained = handles_gained(cycles, [] {
+        promise<void> first;
+        promise<int> second;
+
+        const std::vector<future<void>> results = {
+            first.get_future(),
+            second.get_future().next([](int) {}),
+            first.get_future().next_unwrap([] { return make_ready_future(); }),
+            when_all_ready(first.get_future(), second.get_future()),
+            when_any(first.get_future(), second.get_future()),
+        };
+
+        EXPECT_EQ(second.get_future().wait_for(duration::zero()), future_status::timeout);
+
+        for (const future<void>& result : results)
+            EXPECT_EQ(result.wait_for(duration::zero()), future_status::timeout);
+
+        first.set_value();
+        second.set_value(1);
+
+        for (const future<void>& result : results) EXPECT_TRUE(result.has_value());
+    });
+
+    EXPECT_LT(gained, cycles / 4);
 }

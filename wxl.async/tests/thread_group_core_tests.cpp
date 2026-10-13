@@ -1,3 +1,5 @@
+#include "process_handles.h"
+
 #include <gtest/gtest.h>
 
 import std;
@@ -129,4 +131,40 @@ TEST(ThreadGroupTest, ConcurrentNestedManagersHandleEveryTask) {
 
     for (auto & t : outers) t.join();
     EXPECT_EQ(total.load(), outer_threads * inner_spawns);
+}
+
+// A thread's handle is the group's to close, and joining the thread is what closes it: the
+// group lives on, and every thread it has joined is gone from it with its handle.
+TEST(ThreadGroupTest, JoinClosesTheHandlesOfJoinedThreads) {
+    thread_scope manager;
+    constexpr int cycles = 64;
+
+    const long gained = handles_gained(cycles, [&] {
+        manager->spawn([] {});
+        manager->join_all();
+    });
+
+    EXPECT_LT(gained, cycles / 4);
+}
+
+// A group let go of without a join goes with its last reference, and closes the handles of
+// the threads still on its books. That reference may be the thread's own, given back on its
+// way out -- so the body opens its thread for the test to wait on, and the group has gone by
+// the time the wait returns.
+TEST(ThreadGroupTest, ReleasedGroupClosesTheHandlesOfThreadsNobodyJoined) {
+    constexpr int cycles = 64;
+
+    const long gained = handles_gained(cycles, [] {
+        HANDLE thread = nullptr;
+        thread_group_ptr group = thread_group::create();
+
+        group->spawn([&thread] { thread = open_current_thread(); }).get();
+        group.reset();
+
+        ASSERT_NE(thread, nullptr);
+        EXPECT_EQ(::WaitForSingleObject(thread, INFINITE), WAIT_OBJECT_0);
+        ::CloseHandle(thread);
+    });
+
+    EXPECT_LT(gained, cycles / 4);
 }

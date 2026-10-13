@@ -13,6 +13,32 @@ import wxl.async;
 using namespace wxl::core;
 using namespace wxl::async;
 
+void wxl::async::impl::sta_environment::SetUp() {
+    sta_loop::start("wxl tests: I/O");
+
+    task<HANDLE> opened = sta_loop::async_call([] {
+        HANDLE self = nullptr;
+        ::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(), ::GetCurrentProcess(), &self,
+                          SYNCHRONIZE, FALSE, 0);
+        return self;
+    });
+
+    sta_loop::run_until([&] { return opened.done(); });
+    worker_ = opened.result();
+}
+
+void wxl::async::impl::sta_environment::TearDown() {
+    sta_loop::stop();
+
+    if (!worker_) return;
+
+    // Not waited for: stop() has to have done that already.
+    EXPECT_EQ(::WaitForSingleObject(static_cast<HANDLE>(worker_), 0), WAIT_OBJECT_0)
+        << "sta_loop::stop() returned with the worker's thread still running";
+
+    ::CloseHandle(static_cast<HANDLE>(worker_));
+}
+
 namespace {
 
 task<> add_up(int count, int& sum) {

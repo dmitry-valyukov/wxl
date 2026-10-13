@@ -8,9 +8,9 @@ import std;
 namespace wxl::async {
 
 // let's destroy intrusive_ptr in the single place
-future_detail::future_base::~future_base() = default;
+detail::future_base::~future_base() = default;
 
-namespace future_detail {
+namespace detail {
 namespace {
 
 /// Shared state of a when_all_* combination: ready once the last operation counted into it is.
@@ -59,7 +59,7 @@ struct first_of_func {
 
 }  // namespace
 
-countdown::countdown() : state_(new countdown_state()) {}
+countdown::countdown() : state_(core::make_refcounted<countdown_state>()) {}
 
 void countdown::add_ready(const future_shared_state* f) {
     as_countdown(state_)->increment();
@@ -80,7 +80,7 @@ future<void> countdown::get_future() {
     return future<void>(state_.get());
 }
 
-first_of::first_of() : state_(new future_shared_state()) {}
+first_of::first_of() : state_(core::make_refcounted<future_shared_state>()) {}
 
 void first_of::add(const future_shared_state* f) {
     f->when_succeeded_void(first_of_func{state_});
@@ -89,6 +89,6 @@ void first_of::add(const future_shared_state* f) {
 
 future<void> first_of::get_future() const { return future<void>(state_.get()); }
 
-}  // namespace future_detail
+}  // namespace detail
 
 }  // namespace wxl::async

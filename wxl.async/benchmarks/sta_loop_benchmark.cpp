@@ -152,7 +152,7 @@ public:
     bool await_ready() const noexcept { return false; }
 
     void await_suspend(std::coroutine_handle<> coro) noexcept {
-        op_.suspend(coro);
+        op_.continuation.park(coro, false);
         loop_->enqueue(&op_);
     }
 
@@ -208,10 +208,10 @@ public:
         sent_.fetch_add(1, std::memory_order_relaxed);
     }
 
-    /// The production shape: the op from the pool, the awaitable owning it by pointer,
-    /// and the send made before the awaitable exists.
+    /// The production shape: the op from the pool, the task owning it by pointer,
+    /// and the send made before the task exists.
     template <class Fn>
-    [[nodiscard]] awaitable<std::invoke_result_t<std::decay_t<Fn>&>> async_call(Fn&& fn) {
+    [[nodiscard]] task<std::invoke_result_t<std::decay_t<Fn>&>> async_call(Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
 
         std::unique_ptr<async_op_t<result_t>> op(
@@ -219,7 +219,7 @@ public:
 
         enqueue(op.get());
 
-        return awaitable<result_t>(std::move(op));
+        return task<result_t>(std::move(op));
     }
 
     /// The other shape: the op in the frame, sent when the coroutine suspends on it.

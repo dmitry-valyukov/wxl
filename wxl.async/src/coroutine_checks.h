@@ -4,7 +4,7 @@
 // interface unit: a macro does not travel through import. What the build does with it
 // is asked of the partition wxl.async:coroutine_checks, which the unit imports as well.
 //
-// coro_check(cond, why, where): `why` is a string literal, `where` a coro_detail::site.
+// coro_check(cond, why, where): `why` is a string literal, `where` a detail::site.
 // Without STRICT_CORO it is assert: a Debug build stops there, naming the condition with
 // the reason, and a Release build has nothing of it -- neither the condition nor the
 // place is evaluated. With STRICT_CORO the condition is checked in every build, and a
@@ -14,9 +14,9 @@
 
 #define coro_check(cond, why, where)                                  \
     do {                                                              \
-        if constexpr (::wxl::async::coro_detail::strict) {            \
+        if constexpr (::wxl::async::detail::strict) {                 \
             if (!(cond)) [[unlikely]]                                 \
-                ::wxl::async::coro_detail::broken(why, where);        \
+                ::wxl::async::detail::broken(why, where);             \
         } else {                                                      \
             assert((cond) && why);                                    \
         }                                                             \

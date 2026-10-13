@@ -3,12 +3,12 @@ export module wxl.async:coroutine_checks;
 import wxl.core;
 import std;
 
-/// What a build does about the checks of how coroutines are used -- a task awaited by
-/// two at once, a value read twice, a task dropped while it runs or while somebody
-/// joins it, an awaitable used after a move. Code that keeps state only the checks look
-/// at asks here; the check itself is `coro_check` in coroutine_checks.h, a macro, since
-/// without STRICT_CORO it is assert.
-export namespace wxl::async::coro_detail {
+// What a build does about the checks of how coroutines are used -- a task awaited by
+// two at once, a value read twice, a task dropped while it runs or while somebody
+// joins it, a task used after a move. Code that keeps state only the checks look
+// at asks here; the check itself is `coro_check` in coroutine_checks.h, a macro, since
+// without STRICT_CORO it is assert.
+export namespace wxl::async::detail {
 
 /// Built with STRICT_CORO (CMake: WXL_STRICT_CORO): the checks stay in every build,
 /// Release included, and a broken one ends the process through core::abort, naming the
@@ -53,4 +53,4 @@ using site = std::conditional_t<strict, std::source_location, no_site>;
     core::abort(why);
 }
 
-}  // export namespace wxl::async::coro_detail
+}  // export namespace wxl::async::detail

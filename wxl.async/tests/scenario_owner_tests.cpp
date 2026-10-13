@@ -186,14 +186,10 @@ detached_task owner_second(int, Owner&, std::coroutine_handle<>& out) {
 using detached_promise = detached_task::promise_type;
 
 // The owner counts by the type of the first parameter, chosen over the counting base
-// it derives from; a promise stays one word.
+// it derives from.
 static_assert(std::is_constructible_v<detached_promise, Owner&, int&>);
 static_assert(std::is_constructible_v<detached_promise, Owner*&>);
 static_assert(std::is_constructible_v<detached_promise, const scenario_owner&>);
-static_assert(sizeof(detached_promise) == sizeof(void*));
-
-// Two bits of the word: the pointer to an owner keeps them clear.
-static_assert(alignof(scenario_owner) >= 4);
 
 TEST_F(ScenarioOwnerTest, AnOwnerWithNoScenariosIsAwaitedWithoutSuspending) {
     Scene scene;
@@ -542,9 +538,11 @@ public:
 
     using scenario_owner::ref_count;
 
-    /// Ends with the cancellation once the token is cancelled, as any wait under it.
+    /// Ends with the cancellation once the token is cancelled: the application's own
+    /// coroutine asks its token after the wait.
     detached_task reads(std::coroutine_handle<>& out) {
-        co_await cancellable(ThrowingCapture{&out}, stop_.token());
+        co_await ThrowingCapture{&out};
+        stop_.token().throw_if_canceled();
         log_.push_back("read");
     }
 
@@ -705,7 +703,7 @@ class ScenarioOwnerDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::checked) GTEST_SKIP() << "built without coroutine checks";
+        if constexpr (!detail::checked) GTEST_SKIP() << "built without coroutine checks";
     }
 };
 
@@ -713,7 +711,7 @@ class ScenarioOwnerStrictDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!coro_detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
+        if constexpr (!detail::strict) GTEST_SKIP() << "built without STRICT_CORO";
     }
 };
 

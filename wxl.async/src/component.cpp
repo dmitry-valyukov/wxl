@@ -264,7 +264,7 @@ void component::on_started() {
     // in it rather than the list it is being walked through.
     core::event_mt<void()> callbacks;
     callbacks.swap(impl()->on_started_);
-    callbacks.fire();
+    callbacks();
 }
 
 ticket component::stop_async(const stop_reason& reason) {
@@ -411,7 +411,7 @@ void component::on_stopped() {
 
     // The component can be deleted in here, which is why the state was taken above: nothing
     // below may go through `this` again.
-    callbacks.fire(reason);
+    callbacks(reason);
 }
 
 component::impl_t::impl_t(core::sync_root_holder sync_root_arg) : core::synchronized_(sync_root_arg) {}
@@ -478,6 +478,10 @@ private:
     std::exception_ptr abort_error_;
 };
 
+// The reference the cache is born with is this pointer's, and nothing gives it back: the cache
+// is never freed. A stop on another thread may pass its process_is_terminating() check in
+// try_to_win_stopping_race() just before cleanup() runs and take its reference just after, and
+// the cache has to be there for it.
 exception_ptr_cache* s_error_cache = new exception_ptr_cache();
 std::exception_ptr* s_empty_error = s_error_cache->empty_error();
 std::exception_ptr* s_abort_error = s_error_cache->abort_error();

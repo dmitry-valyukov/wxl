@@ -617,7 +617,7 @@ struct BoundModel : core::sta_refcounted {
 }  // namespace
 
 [[maybe_unused]] void binding_by_property() {
-    core::intrusive_ptr<BoundModel> const model{new BoundModel{}};
+    auto const model = core::make_refcounted<BoundModel>();
 
     // Both ways: the control writes the property itself.
     TextBox{text = Bind{model->name}};
@@ -667,7 +667,7 @@ struct BoundModel : core::sta_refcounted {
 // was asked -- and never unnamed: a bool would otherwise mean focus to every
 // element.
 [[maybe_unused]] void binding_state_pairs() {
-    core::intrusive_ptr<BoundModel> const model{new BoundModel{}};
+    auto const model = core::make_refcounted<BoundModel>();
 
     TextBox{isFocused = Bind{model->busy}};
     Border{isFocused = Bind{model->busy}};       // a panel too: UIElement declares the focus
@@ -1655,8 +1655,8 @@ static_assert(
 
 // Under a cancellation token, given last as wxl.async's operations take one.
 // The proxy is a type of its own, so a wait made without a token keeps every
-// byte it had: its awaiter is the pointer and two flags it can be told
-// through -- by cancellable() as well -- and the idle wait the size it was.
+// byte it had: its awaiter is the pointer and two flags it can be cancelled
+// through, and the idle wait the size it was.
 using click_wait_under_t = decltype(on_event<EventKey::Click>(std::declval<Button const&>(),
                                                               std::declval<async::cancellation_token>()));
 using key_wait_under_t = decltype(on_event<EventKey::KeyDown>(std::declval<Button const&>(),
@@ -1677,8 +1677,8 @@ static_assert(std::is_same_v<decltype(std::declval<key_wait_under_t&>().next().a
 
 static_assert(sizeof(click_wait_t::awaiter) == 2 * sizeof(void*));
 static_assert(sizeof(click_wait_under_t) == sizeof(click_wait_t) + sizeof(async::cancellation_token));
-static_assert(async::cancellable_awaiter<click_wait_t::awaiter>);
-static_assert(async::cancellable_awaiter<UiThread::Idle>);
+static_assert(async::detail::cancellable_awaiter<click_wait_t::awaiter>);
+static_assert(async::detail::cancellable_awaiter<UiThread::Idle>);
 static_assert(sizeof(UiThread::Idle) ==
               sizeof(impl::waiting_event) + sizeof(std::shared_ptr<UiThread::Idle*>) + sizeof(void*));
 
@@ -1763,13 +1763,8 @@ struct probe_task {
         got->get().handled(true);
     }
 
-    // A plain wait put under a token where it is awaited.
-    RoutedEventArgs& wrapped = co_await async::cancellable(onClick(button), stop);
-    static_cast<void>(wrapped);
-
     co_await UiThread::onIdle(stop);
     co_await UiThread::onIdle();
-    co_await async::cancellable(UiThread::onIdle(), stop);
 }
 
 // HaloEffect and GaussianBlurEffect -- written by hand, so their schema

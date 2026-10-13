@@ -7,7 +7,7 @@ import std;
 
 namespace wxl::async {
 
-io_op::io_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
+overlapped_op::overlapped_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
              bool skips_port) noexcept
     : file_(file),
       data_(static_cast<std::byte*>(data)),
@@ -18,7 +18,7 @@ io_op::io_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t
     overlapped_.OffsetHigh = static_cast<DWORD>(at >> 32);
 }
 
-bool io_op::start() noexcept {
+bool overlapped_op::start() noexcept {
     for (;;) {
         const DWORD asked = asking();
 
@@ -45,8 +45,8 @@ bool io_op::start() noexcept {
 
         if (!advance(transferred)) return true;
 
-        // Between two calls of a chain, on the worker: an operation given up meanwhile is
-        // not carried on with.
+        // Between two calls of a chain, on the worker: an operation given up or cancelled
+        // meanwhile is not carried on with.
         if (canceled()) [[unlikely]] {
             finish(ERROR_OPERATION_ABORTED);
             return true;
@@ -58,7 +58,7 @@ bool io_op::start() noexcept {
     }
 }
 
-bool io_op::completed() noexcept {
+bool overlapped_op::completed() noexcept {
     DWORD transferred = 0;
 
     if (!::GetOverlappedResult(file_, &overlapped_, &transferred, FALSE)) {
@@ -80,11 +80,11 @@ bool io_op::completed() noexcept {
     return start_on_worker();
 }
 
-io_op* io_op::from(OVERLAPPED* overlapped) noexcept {
-    return core::object_from_field(&io_op::overlapped_, overlapped);
+overlapped_op* overlapped_op::from(OVERLAPPED* overlapped) noexcept {
+    return core::object_from_field(&overlapped_op::overlapped_, overlapped);
 }
 
-bool io_op::execute() {
+bool overlapped_op::execute() {
 #ifndef NDEBUG
     debug.started_on_worker.fetch_add(1, std::memory_order_relaxed);
 #endif
@@ -92,7 +92,7 @@ bool io_op::execute() {
     return start_on_worker();
 }
 
-bool io_op::start_on_worker() noexcept {
+bool overlapped_op::start_on_worker() noexcept {
     if (start()) return true;
 
     if (canceled()) [[unlikely]]
@@ -101,9 +101,9 @@ bool io_op::start_on_worker() noexcept {
     return false;
 }
 
-void io_op::on_cancel() noexcept { ::CancelIoEx(file_, &overlapped_); }
+void overlapped_op::on_cancel() noexcept { ::CancelIoEx(file_, &overlapped_); }
 
-bool io_op::advance(DWORD transferred) noexcept {
+bool overlapped_op::advance(DWORD transferred) noexcept {
     const bool whole = transferred == asking();
 
     done_ += transferred;
@@ -123,20 +123,27 @@ bool io_op::advance(DWORD transferred) noexcept {
     return false;
 }
 
-void io_op::finish(DWORD error) noexcept {
+void overlapped_op::finish(DWORD error) noexcept {
     if (kind_ == kind::read) {
         // The end of the file is an answer, not a failure: what was read before it.
         if (error == ERROR_SUCCESS || error == ERROR_HANDLE_EOF) [[likely]] {
             set_value(std::size_t{done_});
             return;
         }
-
-        set_error(std::make_exception_ptr(system_exception("ReadFile", static_cast<int>(error))));
+    } else if (error == ERROR_SUCCESS && left_ == 0) [[likely]] {
+        set_value(std::size_t{done_});
         return;
     }
 
-    if (error == ERROR_SUCCESS && left_ == 0) [[likely]] {
-        set_value(std::size_t{done_});
+    // Cut short -- by CancelIoEx, or between two calls of a chain -- the operation answers
+    // the cancellation, whatever part of it went through first.
+    if (error == ERROR_OPERATION_ABORTED) {
+        answer_canceled();
+        return;
+    }
+
+    if (kind_ == kind::read) {
+        set_error(std::make_exception_ptr(system_exception("ReadFile", static_cast<int>(error))));
         return;
     }
 
@@ -148,6 +155,6 @@ void io_op::finish(DWORD error) noexcept {
 
 // At the edge of the pool's 128-byte class: one more field, and every operation costs a
 // 256-byte block and a second cache line.
-static_assert(sizeof(io_op) <= 128);
+static_assert(sizeof(overlapped_op) <= 128);
 
 }  // namespace wxl::async

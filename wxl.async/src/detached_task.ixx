@@ -46,86 +46,10 @@ inline detached_task_failure_handler& on_detached_task_failure() noexcept {
 }
 
 class detached_task;
-class scenario_owner;
 
-namespace detached_task_detail {
+namespace detail {
 
 class scenarios_end;
-
-/// One reference to an object that counts its own, with either counter, in
-/// one word -- and, for a scenario, the scenario's place in its owner's count.
-///
-/// The two counters share no base, but letting go needs only the counting
-/// base, not the derived type -- the destructor is virtual in both. So the
-/// word is a pointer to that base, and its two lowest bits say what it is:
-/// bit 0 a `refcounted_mt`, bit 1 a `scenario_owner` this frame is still
-/// counted by. Both are always clear in the pointer itself, since an object
-/// with a vtable is aligned at least to a pointer.
-class anchor
-{
-public:
-    anchor() noexcept = default;
-
-    inline explicit anchor(const core::refcounted* object) noexcept
-        : word_(reinterpret_cast<std::uintptr_t>(object)) {
-        if (object) intrusive_ptr_add_ref(object);
-    }
-
-    inline explicit anchor(const core::refcounted_mt* object) noexcept
-        : word_(object ? reinterpret_cast<std::uintptr_t>(object) | mt_bit : 0) {
-        if (object) intrusive_ptr_add_ref(object);
-    }
-
-    /// A scenario: the reference, and one more scenario of the owner running.
-    inline explicit anchor(const scenario_owner* owner) noexcept;
-
-    anchor(const anchor&) = delete;
-    anchor& operator=(const anchor&) = delete;
-
-    /// A word with no tag lets go as it always did. What a scenario does on the
-    /// way out is out of line (detached_task.cpp), in this and the two members
-    /// below: a frame that is no scenario keeps a test, not a copy of the path.
-    inline ~anchor() {
-        if (word_ == 0) return;
-
-        if (word_ & tag_bits) {
-            if (word_ & mt_bit)
-                intrusive_ptr_release(
-                    reinterpret_cast<const core::refcounted_mt*>(word_ & ~mt_bit));
-            else
-                leave_destroyed();
-        } else {
-            intrusive_ptr_release(reinterpret_cast<const core::refcounted*>(word_));
-        }
-    }
-
-    /// At the final point: whether the frame goes by itself, as every detached
-    /// frame does -- or stays for a moment, being the last running scenario of an
-    /// owner somebody waits for.
-    inline bool ends_alone() noexcept { return (word_ & scenario_bit) == 0 || leave_at_end(); }
-
-    /// The thread goes to the waiter, and the frame, stopped at its final point,
-    /// with it: the waiter destroys the frame before its co_await returns.
-    std::coroutine_handle<> hand_over(std::coroutine_handle<> self) noexcept;
-
-    /// Whether this is a running scenario of `owner`.
-    inline bool scenario_of(const scenario_owner& owner) const noexcept;
-
-private:
-    static constexpr std::uintptr_t mt_bit = 1;
-    static constexpr std::uintptr_t scenario_bit = 2;
-    static constexpr std::uintptr_t tag_bits = mt_bit | scenario_bit;
-
-    inline const scenario_owner& held() const noexcept;
-
-    /// The scenario leaves at its final point; the frame keeps the reference alone.
-    bool leave_at_end() noexcept;
-
-    /// A scenario whose frame is destroyed before its final point leaves here.
-    void leave_destroyed() noexcept;
-
-    std::uintptr_t word_ = 0;
-};
 
 /// The final point of a detached frame: no suspension at all, unless the frame
 /// is the last scenario of an owner somebody waits for -- then it stops there,
@@ -145,7 +69,7 @@ struct final_handover {
     inline void await_resume() const noexcept {}
 };
 
-}  // namespace detached_task_detail
+}  // namespace detail
 
 /// An object that waits for its own detached coroutines -- its scenarios.
 ///
@@ -202,7 +126,7 @@ public:
     /// \return what a coroutine awaits, where it is made -- `co_await
     ///         scenarios_ended();` -- to be resumed once no scenario of this owner
     ///         runs; it does not suspend if none does.
-    [[nodiscard]] inline detached_task_detail::scenarios_end scenarios_ended() noexcept;
+    [[nodiscard]] inline detail::scenarios_end scenarios_ended() noexcept;
 
 protected:
     scenario_owner() noexcept = default;
@@ -211,17 +135,18 @@ protected:
     /// a destructor is called nothing gives the line: the check names its own.
     inline ~scenario_owner() override {
         coro_check(running_ == 0, "scenario_owner: destroyed while a scenario of it runs",
-                   coro_detail::site::current());
+                   detail::site::current());
     }
 
 private:
-    friend class detached_task_detail::anchor;
-    friend class detached_task_detail::scenarios_end;
+    /// The promise of a scenario counts itself in and out.
+    friend class detached_task;
+    friend class detail::scenarios_end;
 
     /// Mutable like the reference count beside it: a scenario of a const member
     /// is counted all the same.
     mutable std::size_t running_ = 0;
-    mutable detached_task_detail::scenarios_end* wait_ = nullptr;
+    mutable detail::scenarios_end* wait_ = nullptr;
 };
 
 /// A coroutine that owns itself: nothing is returned to hold, and the frame
@@ -250,13 +175,16 @@ private:
 /// **A first argument that counts its own references is held by the frame.**
 /// For a member function that argument is the object, so a member coroutine
 /// cannot outlive its `this`: when the first argument derives from
-/// `core::refcounted` or `core::refcounted_mt`, by reference or by pointer,
-/// the promise takes a reference to it and gives it back as the frame goes --
-/// which may be what destroys the object. An object nobody holds by count yet,
-/// one still in its constructor or one on the stack, goes from one to two and
-/// back, and stays its owner's. Only here: a `task` is held by somebody, and
-/// an object keeping its own task in a field would then keep itself. It
-/// follows that the object's destructor cannot be what ends such a coroutine.
+/// `core::refcounted` -- the STA counter, `sta_refcounted` included -- by
+/// reference or by pointer, the promise takes a reference to it and gives it
+/// back as the frame goes -- which may be what destroys the object. An object
+/// nobody holds by count yet, one still in its constructor or one on the
+/// stack, goes from one to two and back, and stays its owner's. Only here: a
+/// `task` is held by somebody, and an object keeping its own task in a field
+/// would then keep itself. It follows that the object's destructor cannot be
+/// what ends such a coroutine. An object counted for several threads
+/// (`core::refcounted_mt`) is not held: the frame lives in the STA pool, so a
+/// detached coroutine is a thing of that thread, and so is what owns one.
 ///
 /// **A first argument that is a `scenario_owner` makes it a scenario of that
 /// owner**: held the same way, and counted until its frame is gone, so that the
@@ -270,34 +198,44 @@ public:
         promise_type() noexcept = default;
 
         /// A coroutine whose first argument -- for a member function, the
-        /// object -- counts its references holds one of them until the frame
-        /// goes. The counting base is chosen by the ordinary conversion from
-        /// the derived type, by reference or by pointer; a null pointer holds
-        /// nothing. The promise is destroyed before the parameter copies are,
-        /// so a parameter whose destructor reaches the object may find it gone.
+        /// object -- counts its references with the STA counter holds one of
+        /// them until the frame goes. The counting base is reached by the
+        /// ordinary conversion from the derived type, by reference or by
+        /// pointer; a null pointer holds nothing. The reference is taken, not
+        /// adopted: the object is alive and somebody's already, and its birth
+        /// reference stays with its owner. The promise is destroyed before the
+        /// parameter copies are, so a parameter whose destructor reaches the
+        /// object may find it gone.
         template <class... Args>
         inline promise_type(const core::refcounted& self, Args&...) noexcept
-            : anchor_(std::addressof(self)) {}
+            : self_(std::addressof(self)) {}
 
         template <class... Args>
-        inline promise_type(const core::refcounted_mt& self, Args&...) noexcept
-            : anchor_(std::addressof(self)) {}
-
-        template <class... Args>
-        inline promise_type(const core::refcounted* self, Args&...) noexcept : anchor_(self) {}
-
-        template <class... Args>
-        inline promise_type(const core::refcounted_mt* self, Args&...) noexcept : anchor_(self) {}
+        inline promise_type(const core::refcounted* self, Args&...) noexcept : self_(self) {}
 
         /// A coroutine whose first argument is a scenario_owner is one of its
         /// scenarios: held as above, and counted. Chosen over the counting base
         /// by the same conversion, since the owner derives from it.
         template <class... Args>
         inline promise_type(const scenario_owner& owner, Args&...) noexcept
-            : anchor_(std::addressof(owner)) {}
+            : self_(std::addressof(owner)), scenario_(true) {
+            ++owner.running_;
+        }
 
         template <class... Args>
-        inline promise_type(const scenario_owner* owner, Args&...) noexcept : anchor_(owner) {}
+        inline promise_type(const scenario_owner* owner, Args&...) noexcept
+            : self_(owner), scenario_(owner != nullptr) {
+            if (owner) ++owner->running_;
+        }
+
+        /// A frame that is no scenario lets go of what it holds, and nothing
+        /// else. A scenario still counted here was destroyed before its final
+        /// point and leaves now. What a scenario does on the way out is out of
+        /// line (detached_task.cpp), here and at the final point: a frame that
+        /// is no scenario keeps a test, not a copy of the path.
+        inline ~promise_type() {
+            if (scenario_) leave_destroyed();
+        }
 
         /// The frame, from the pool -- the same reasoning as `task`: a small
         /// object made and unmade on the one thread, over and over.
@@ -320,15 +258,14 @@ public:
         /// `task`, whose frame stays for its owner to read. The one frame that
         /// stops at its final point is the last running scenario of an owner
         /// somebody waits for: the thread goes to the waiter, which destroys it.
-        inline detached_task_detail::final_handover final_suspend() noexcept {
-            return {anchor_.ends_alone()};
+        inline detail::final_handover final_suspend() noexcept {
+            return {!scenario_ || leave_at_end()};
         }
 
         /// The last scenario of an owner, stopped at its final point, hands the
-        /// thread to the coroutine waiting for the owner's scenarios.
-        inline std::coroutine_handle<> hand_over(std::coroutine_handle<> self) noexcept {
-            return anchor_.hand_over(self);
-        }
+        /// thread to the coroutine waiting for the owner's scenarios; the frame
+        /// goes with it, and the waiter destroys it before its co_await returns.
+        std::coroutine_handle<> hand_over(std::coroutine_handle<> self) noexcept;
 
         inline void return_void() const noexcept {}
 
@@ -349,15 +286,35 @@ public:
         /// Whether this coroutine is a running scenario of `owner`: the wait for
         /// the owner's scenarios asks it of the coroutine that awaits it.
         inline bool scenario_of(const scenario_owner& owner) const noexcept {
-            return anchor_.scenario_of(owner);
+            return scenario_ && self_.get() == std::addressof(owner);
         }
 
     private:
-        detached_task_detail::anchor anchor_;
+        /// What the reference is to, while the frame is a scenario: the owner
+        /// derives from the counting base without a virtual step.
+        inline const scenario_owner& held() const noexcept {
+            return static_cast<const scenario_owner&>(*self_);
+        }
+
+        /// At the final point the scenario leaves its owner's count, and the frame
+        /// keeps the reference alone. \return whether the frame goes by itself, as
+        /// every detached frame does -- or stays for a moment, being the last
+        /// running scenario of an owner somebody waits for.
+        bool leave_at_end() noexcept;
+
+        /// A scenario whose frame is destroyed before its final point leaves here.
+        void leave_destroyed() noexcept;
+
+        core::intrusive_ptr<const core::refcounted> self_;
+
+        /// Set by the constructors that take a scenario_owner, while the frame is
+        /// counted by it: from the call to the final point, or to the promise's
+        /// destructor if the frame never gets there.
+        bool scenario_ = false;
     };
 };
 
-namespace detached_task_detail {
+namespace detail {
 
 /// What `co_await owner.scenarios_ended()` stands in: the owner's one waiter.
 ///
@@ -382,7 +339,7 @@ public:
     }
 
     inline bool await_ready(
-        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) const noexcept {
+        [[maybe_unused]] detail::site where = detail::site::current()) const noexcept {
         coro_check(core::sta_memory_pool::is_safe(),
                    "scenario_owner: awaited from a thread other than its scenarios'", where);
         return owner_.running_ == 0;
@@ -393,7 +350,7 @@ public:
     template <class Promise>
     inline bool await_suspend(
         std::coroutine_handle<Promise> waiter,
-        [[maybe_unused]] coro_detail::site where = coro_detail::site::current()) noexcept {
+        [[maybe_unused]] detail::site where = detail::site::current()) noexcept {
         coro_check(owner_.wait_ == nullptr,
                    "scenario_owner: awaited by a second coroutine while the first one still waits",
                    where);
@@ -420,7 +377,7 @@ public:
     }
 
 private:
-    friend class anchor;
+    friend struct detached_task::promise_type;
 
     /// The last scenario has ended: the waiter counts again if it is a scenario,
     /// and is handed the ended frame, if it stopped, to destroy.
@@ -438,31 +395,10 @@ private:
     bool counted_ = false;
 };
 
-inline anchor::anchor(const scenario_owner* owner) noexcept
-    : word_(owner ? reinterpret_cast<std::uintptr_t>(static_cast<const core::refcounted*>(owner)) |
-                        scenario_bit
-                  : 0) {
-    if (owner) {
-        intrusive_ptr_add_ref(static_cast<const core::refcounted*>(owner));
-        ++owner->running_;
-    }
-}
+}  // namespace detail
 
-inline const scenario_owner& anchor::held() const noexcept {
-    return static_cast<const scenario_owner&>(
-        *reinterpret_cast<const core::refcounted*>(word_ & ~tag_bits));
-}
-
-inline bool anchor::scenario_of(const scenario_owner& owner) const noexcept {
-    return word_ ==
-           (reinterpret_cast<std::uintptr_t>(static_cast<const core::refcounted*>(&owner)) |
-            scenario_bit);
-}
-
-}  // namespace detached_task_detail
-
-inline detached_task_detail::scenarios_end scenario_owner::scenarios_ended() noexcept {
-    return detached_task_detail::scenarios_end(*this);
+inline detail::scenarios_end scenario_owner::scenarios_ended() noexcept {
+    return detail::scenarios_end(*this);
 }
 
 }  // export namespace wxl::async

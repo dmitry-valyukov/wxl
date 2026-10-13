@@ -10,9 +10,12 @@ namespace wxl::async {
 void async_op::abandon(async_op* op) noexcept {
     op->abandoned_ = true;
 
-    // Left to finish alone, wherever it is; one that has not started will not.
+    // Left to finish alone, wherever it is; one that has not started will not. Asked even
+    // when its token has asked already: cancelled, it kept what it made, and given up, it
+    // lets go of that too.
     if (op->orphanable_) {
-        op->cancel();
+        op->canceled_.store(true, std::memory_order_seq_cst);
+        op->on_cancel();
         return;
     }
 
@@ -164,7 +167,7 @@ void sta_loop::worker::run() {
             // The queue's wake-up is a packet with no operation behind it.
             if (!entry.lpOverlapped) continue;
 
-            io_op* const op = io_op::from(entry.lpOverlapped);
+            overlapped_op* const op = overlapped_op::from(entry.lpOverlapped);
 
             if (op->completed()) from_worker_.send(op);
         }
