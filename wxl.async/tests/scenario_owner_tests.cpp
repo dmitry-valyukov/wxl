@@ -179,6 +179,13 @@ detached_task held_as_counted(const wxl::core::refcounted&, std::coroutine_handl
     co_await ThrowingCapture{&out};
 }
 
+/// Holds the owner as the counting base, the way a helper takes the object it lives by,
+/// and waits for the owner's scenarios.
+detached_task held_and_waits(const wxl::core::refcounted&, Owner& owner, Log& log) {
+    co_await owner.scenarios_ended();
+    log.push_back("H: woke with " + std::to_string(owner.scenarios()));
+}
+
 detached_task owner_second(int, Owner&, std::coroutine_handle<>& out) {
     co_await ThrowingCapture{&out};
 }
@@ -246,6 +253,36 @@ TEST_F(ScenarioOwnerTest, OnlyAFirstParameterOfTheOwnersTypeCounts) {
     held.resume();
     second.resume();
     EXPECT_EQ(scene.owner->ref_count(), 1u);
+}
+
+// Holding the owner is not being its scenario: a coroutine that holds it as the counting
+// base and awaits the end waits for every scenario, itself counted by none.
+TEST_F(ScenarioOwnerTest, ACoroutineHoldingTheOwnerAsTheCountingBaseWaitsForEveryScenario) {
+    Scene scene;
+    std::coroutine_handle<> out;
+
+    scenario(*scene.owner, out, scene.log, "S1");
+    held_and_waits(*scene.owner, *scene.owner, scene.log);
+
+    EXPECT_TRUE(scene.log.empty());
+    EXPECT_EQ(scene.owner->scenarios(), 1u);
+    EXPECT_EQ(scene.owner->ref_count(), 3u);
+
+    out.resume();
+
+    EXPECT_EQ(scene.log, (Log{"S1: ends", "S1: local", "H: woke with 0"}));
+    EXPECT_EQ(scene.owner->ref_count(), 1u);
+}
+
+// A null owner: nothing held, nothing counted, and the frame ends as any other.
+TEST_F(ScenarioOwnerTest, ANullOwnerIsNoScenario) {
+    std::coroutine_handle<> out;
+
+    scenario_by_pointer(nullptr, out);
+    ASSERT_TRUE(out);
+
+    out.resume();
+    EXPECT_TRUE(reported.empty());
 }
 
 TEST_F(ScenarioOwnerTest, AnOwnerNobodyAwaitsLetsEachFrameGoAsItEnds) {
@@ -523,6 +560,33 @@ TEST_F(ScenarioOwnerTest, TheLastFrameMayTakeTheOwnerWithIt) {
     EXPECT_EQ(deaths, 1);
     EXPECT_TRUE(t->done());
     EXPECT_EQ(log, (Log{"S: ends", "S: local", "T: woke"}));
+}
+
+task<> waits_counting_deaths(Owner& owner, Log& log, const int& deaths) {
+    co_await owner.scenarios_ended();
+    log.push_back("T: woke after " + std::to_string(deaths) + " death");
+}
+
+// Destroyed from outside, the last frame lets go of the owner before the waiter wakes
+// inside its destruction: an owner held by its scenarios alone is gone by then, and the
+// parameter copies go after.
+TEST_F(ScenarioOwnerTest, ALastFrameDestroyedFromOutsideLetsGoOfTheOwnerBeforeTheWaiterWakes) {
+    int deaths = 0;
+    Log log;
+    std::coroutine_handle<> out;
+    std::optional<task<>> t;
+    {
+        intrusive_ptr<Owner> owner{new Owner(deaths), false};
+        scenario_with_a_parameter(*owner, Witness(log, "S: parameter"), out, log);
+        t.emplace(waits_counting_deaths(*owner, log, deaths));
+    }
+
+    EXPECT_EQ(deaths, 0);
+    out.destroy();
+
+    EXPECT_EQ(deaths, 1);
+    EXPECT_TRUE(t->done());
+    EXPECT_EQ(log, (Log{"S: local", "T: woke after 1 death", "S: parameter"}));
 }
 
 // Member coroutines: the object is the first argument. GCC 13 does not pass it to the
