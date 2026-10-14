@@ -52,12 +52,19 @@ struct Description {
     bool operator==(Description const&) const = default;
 };
 
+// Вид строки. Заголовок раздела — две строки на своём фоне в рамке: Heading —
+// имя полужирным с меткой вида, Subheading — под ним мелким серым пояснение,
+// вровень с именем. Высота строк от этого не меняется.
+enum class RowStyle : uint8_t { Item, Heading, Subheading };
+
 // Строка, как её показывает дерево. Текст — UTF-8 модели; дерево читает его
 // сразу, до следующего обращения к модели.
 struct TreeRow {
     std::string_view text;
     std::string_view detail;  // серым после текста: тип, сигнатура, счёт
+    std::string_view badge;   // у заголовка — метка вида рядом с именем: class, enum
     uint16_t depth = 0;
+    RowStyle style = RowStyle::Item;
 
     RowIcon const* icon = nullptr;
 
@@ -124,13 +131,16 @@ private:
     VirtualTree();
 
     struct Row {
-        wxl::StackPanel panel;
+        wxl::Border frame;  // фон и рамка заголовка раздела
+        wxl::StackPanel panel;  // поверх — выбор и указатель
         wxl::Border marker;  // черта выбранной строки, когда дерево в фокусе
         wxl::Border indent;
         wxl::TextBlock glyph;
         wxl::TextBlock check;
         wxl::TextBlock icon;
         wxl::TextBlock text;
+        wxl::Border badge;
+        wxl::TextBlock badgeText;
         wxl::TextBlock detail;
         bool selected = false;  // выбрана ли строка модели, показанная в ячейке
         bool expandable = false;
@@ -170,6 +180,7 @@ private:
     std::u16string text_;
     std::u16string glyph_;
     std::u16string detail_;
+    std::u16string badge_;
 
     wxl::core::intrusive_ptr<TreeModel> model_;
     uint32_t top_ = 0;

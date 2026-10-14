@@ -1584,20 +1584,20 @@ std::wstring TypesModel::typeInfo(md::TypeDef const& def, RowIcon const* icon) c
 }
 
 // Правое дерево: члены выбранного типа, а за ними — члены его баз, класс за
-// классом. Отметка члена базы пишется при базе: генератор выпускает член там,
-// где его объявляют метаданные.
+// классом. У каждого типа — заголовок раздела: имя, вид и пространство имён
+// (у базы оно бывает другим); раздел не сворачивается. Отметка члена базы
+// пишется при базе: генератор выпускает член там, где его объявляют метаданные.
 class MembersModel final : public TreeModel {
 public:
     MembersModel(Editor& editor, TypeEntry const& entry) : editor_(editor) {
-        addPart(entry.def, entry.predefined, true);
+        addPart(entry.def, entry.predefined);
         // Базы — до System.Object; на предопределённой цепочка обрывается: её
         // члены пишет wxl, и генератор не относит к ней членов, названных у
         // наследников.
         for (md::TypeDef base = base_of(entry.def); base && !is_predefined(base, editor_.data_->typeMap);
              base = base_of(base)) {
-            addPart(base, false, false);
+            addPart(base, false);
         }
-        headed_ = parts_.size() > 1;
         refilter();
     }
 
@@ -1653,21 +1653,24 @@ public:
     TreeRow row(uint32_t index) const override {
         auto const [part, group, at] = locate(index);
         if (!group) {
-            count_ = std::format("{} of {}", chosen(*part), shown(*part));
-            return {.text = part->def.TypeName(),
-                    .detail = count_,
-                    .icon = &classIcon,
-                    .expander = part->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .check = partCheck(*part),
-                    .selected = part == selected_.part && !selected_.group};
+            bool const selected = part == selected_.part && !selected_.group;
+            if (at == 0) {
+                count_ = std::format("{} of {}", chosen(*part), shown(*part));
+                return {.text = part->def.TypeName(),
+                        .detail = count_,
+                        .badge = part->kind,
+                        .style = RowStyle::Heading,
+                        .icon = part->icon,
+                        .check = partCheck(*part),
+                        .selected = selected};
+            }
+            return {.text = part->def.TypeNamespace(), .style = RowStyle::Subheading, .selected = selected};
         }
 
-        uint16_t const depth = headed_ ? 1 : 0;
         if (at == npos) {
             count_ = std::format("{} of {}", chosen(*part, *group), group->shown.size());
             return {.text = group->title,
                     .detail = count_,
-                    .depth = depth,
                     .icon = group->icon,
                     .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
                     .check = groupCheck(*part, *group),
@@ -1677,27 +1680,25 @@ public:
         Member const& member = *group->shown[at];
         return {.text = member.name,
                 .detail = member.brief,
-                .depth = static_cast<uint16_t>(depth + 1),
+                .depth = 1,
                 .icon = member.icon,
                 .check = memberCheck(*part, *group, member),
                 .selected = &member == selected_.member};
     }
 
+    // Сворачиваются группы; раздел типа развёрнут всегда.
     void toggleExpanded(uint32_t index) override {
-        auto const [part, group, at] = locate(index);
-        if (!group) {
-            part->expanded = !part->expanded;
-        } else if (at == npos) {
+        if (auto const [part, group, at] = locate(index); group && at == npos) {
             group->expanded = !group->expanded;
         }
     }
 
-    // Отметка класса или группы — только их показанных членов: скрытые
+    // Отметка типа или группы — только их показанных членов: скрытые
     // остаются, как были. У предопределённого типа отмечать нечего: его члены
-    // пишет wxl.
+    // пишет wxl. Строка пространства имён отметки не несёт.
     void toggleChecked(uint32_t index) override {
         auto const [part, group, at] = locate(index);
-        if (part->predefined || (group && group->locked)) {
+        if (part->predefined || (group && group->locked) || (!group && at != 0)) {
             return;
         }
         profile& prof = editor_.data_->prof;
@@ -1748,18 +1749,10 @@ public:
                 index += rows(part);
                 continue;
             }
-            if (rows(part) == 0) {
-                return {};
+            if (!group) {
+                return index;
             }
-            if (headed_) {
-                if (!group) {
-                    return index;
-                }
-                if (!part.expanded) {
-                    return {};
-                }
-                ++index;
-            }
+            index += headingRows;
             for (Group const& each : part.groups) {
                 if (&each == group) {
                     if (each.shown.empty()) {
@@ -1781,8 +1774,8 @@ public:
         return {};
     }
 
-    // Двойной щелчок по члену — его отметка; класс и группу он не трогает: их
-    // первый щелчок уже свернул или раскрыл.
+    // Двойной щелчок по члену — его отметка; тип и группу он не трогает:
+    // первый щелчок группу уже свернул или раскрыл.
     void activate(uint32_t index) override {
         if (auto const [part, group, at] = locate(index); group && at != npos) {
             toggleChecked(index);
@@ -1795,7 +1788,7 @@ public:
             return {};
         }
         if (!group) {
-            return {&classIcon, editor_.types_->typeInfo(part->def, &classIcon)};
+            return {part->icon, editor_.types_->typeInfo(part->def, part->icon)};
         }
         if (!member) {
             std::wstring html;
@@ -1893,20 +1886,24 @@ private:
         }
     };
 
-    // Класс цепочки — выбранный тип или его база — со своими группами; его
-    // строка есть, только когда у типа есть базы.
+    // Раздел типа — выбранного или его базы — со своими группами.
     struct Part {
         md::TypeDef def;
         std::string name;
+        std::string_view kind;  // вид в заголовке: class, interface, enum, struct
+        RowIcon const* icon = nullptr;
         bool enumeration = false;
         // Предопределён вне проекции: его члены пишет wxl, отмечать нечего.
         bool predefined = false;
-        bool expanded = true;
         std::vector<Group> groups;  // адреса членов постоянны: группы не растут после разбора
     };
 
-    // Строка дерева: класс, а под ним — группа и номер члена среди её
-    // показанных; группы нет — строка класса, номер npos — строка группы.
+    // Заголовок раздела — две строки: имя и пространство имён.
+    static constexpr uint32_t headingRows = 2;
+
+    // Строка дерева: раздел, а в нём — группа и номер члена среди её
+    // показанных; группы нет — строка заголовка, номер — какая из двух; номер
+    // npos — строка группы.
     struct Location {
         Part* part;
         Group* group;
@@ -1915,18 +1912,24 @@ private:
 
     struct Selected {
         Part const* part = nullptr;
-        Group const* group = nullptr;    // пусто — выбран класс
+        Group const* group = nullptr;    // пусто — выбран тип
         Member const* member = nullptr;  // пусто — выбрана группа
     };
 
     // Свои члены — тремя группами; под ними по группе на каждый
     // самостоятельный интерфейс, который тип реализует или требует.
-    void addPart(md::TypeDef const& def, bool predefined, bool expanded) {
+    void addPart(md::TypeDef const& def, bool predefined) {
+        auto const category = md::get_category(def);
+        auto const [kind, icon] = category == md::category::interface_type ? std::pair {"interface", &interfaceIcon}
+                                  : category == md::category::enum_type    ? std::pair {"enum", &enumIcon}
+                                  : category == md::category::struct_type  ? std::pair {"struct", &structIcon}
+                                                                           : std::pair {"class", &classIcon};
         Part& part = parts_.emplace_back(Part {.def = def,
                                                .name = full_name(def),
-                                               .enumeration = md::get_category(def) == md::category::enum_type,
-                                               .predefined = predefined,
-                                               .expanded = expanded});
+                                               .kind = kind,
+                                               .icon = icon,
+                                               .enumeration = category == md::category::enum_type,
+                                               .predefined = predefined});
         auto const sources = member_sources_of(def);
         if (part.enumeration) {
             addGroup(part, "Values", member_kind::Constant, &constantIcon, sources.own.constants);
@@ -2045,17 +2048,14 @@ private:
         return count;
     }
 
-    // Строки класса: его собственная, если классы озаглавлены, и строки его
-    // групп; класс, где не показано ничего, не показывается и сам.
-    uint32_t rows(Part const& part) const {
-        uint32_t inner = 0;
+    // Строки раздела: заголовок есть всегда, даже когда не показано ни одного
+    // члена, — за ним строки групп.
+    static uint32_t rows(Part const& part) {
+        uint32_t rows = headingRows;
         for (Group const& group : part.groups) {
-            inner += group.rows();
+            rows += group.rows();
         }
-        if (!headed_) {
-            return inner;
-        }
-        return inner == 0 ? 0 : 1 + (part.expanded ? inner : 0);
+        return rows;
     }
 
     // Предопределённому типу отмечать нечего; член IClosable есть всегда.
@@ -2083,20 +2083,27 @@ private:
         return triple(chosen(part, group), group.shown.size());
     }
 
-    // Отметка класса — по показанным членам групп, которые можно отмечать.
+    // Отметка типа — по показанным членам групп, которые можно отмечать; не
+    // показано таких — отмечать нечего, или член IClosable есть всегда.
     Check partCheck(Part const& part) const {
         if (part.predefined) {
             return Check::Disabled;
         }
         size_t count = 0;
         size_t total = 0;
+        bool locked = false;
         for (Group const& group : part.groups) {
-            if (!group.locked) {
+            if (group.locked) {
+                locked = locked || !group.shown.empty();
+            } else {
                 count += chosen(part, group);
                 total += group.shown.size();
             }
         }
-        return total == 0 ? Check::Locked : triple(count, total);
+        if (total == 0) {
+            return locked ? Check::Locked : Check::Disabled;
+        }
+        return triple(count, total);
     }
 
     Location locate(uint32_t index) const {
@@ -2107,12 +2114,10 @@ private:
                 continue;
             }
             Part* const at = const_cast<Part*>(&part);
-            if (headed_) {
-                if (index == 0) {
-                    return {at, nullptr, npos};
-                }
-                --index;
+            if (index < headingRows) {
+                return {at, nullptr, index};
             }
+            index -= headingRows;
             for (Group const& group : part.groups) {
                 uint32_t const groupRows = group.rows();
                 if (index < groupRows) {
@@ -2121,14 +2126,13 @@ private:
                 index -= groupRows;
             }
         }
-        return {const_cast<Part*>(&parts_.back()), nullptr, npos};
+        return {const_cast<Part*>(&parts_.back()), nullptr, 0};
     }
 
     Editor& editor_;
     std::vector<Part> parts_;  // выбранный тип, за ним — его базы
-    bool headed_ = false;      // у классов свои строки: баз больше нуля
     Selected selected_;
-    mutable std::string count_;  // «N of M» строки класса или группы, пока дерево её читает
+    mutable std::string count_;  // «N of M» строки типа или группы, пока дерево её читает
 };
 
 

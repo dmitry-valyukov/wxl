@@ -163,9 +163,12 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
     };
 
     // Знаки размера 16 и кегль 16: знак ложится на свою сетку без масштаба.
+    // Ширина постоянная: пояснение заголовка без значка встаёт вровень с его
+    // именем.
     Apply {row.icon,
         fontFamily = FontFamily {iconFont},
         fontSize = 16.0,
+        width = 16.0,
         vAlign.center,
         Margin {2, 0, 0, 0},
     };
@@ -173,6 +176,20 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
     Apply {row.text,
         vAlign.center,
         Margin {4, 0, 0, 0},
+    };
+
+    Apply {row.badgeText,
+        fontSize = 11.0,
+        foreground = brushes.Text.FillColor.Secondary,
+    };
+
+    Apply {row.badge,
+        vAlign.center,
+        CornerRadius {3},
+        Margin {8, 0, 0, 0},
+        padding = Thickness {6, 0, 6, 1},
+        background = brushes.SubtleFillColor.Secondary,
+        child = row.badgeText,
     };
 
     Apply {row.detail,
@@ -192,7 +209,6 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
 
     Apply {row.panel,
         orientation.horizontal,
-        height = rowHeight_,
         background = brushes.SubtleFillColor.Transparent,
         // Второй щелчок двойного приходит как DoubleTapped, а не Tapped:
         // узел переключается один раз.
@@ -231,7 +247,14 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         row.check,
         row.icon,
         row.text,
+        row.badge,
         row.detail,
+    };
+
+    Apply {row.frame,
+        height = rowHeight_,
+        borderBrush = brushes.Card.StrokeColorDefault,
+        child = row.panel,
     };
 
     return row;
@@ -314,7 +337,7 @@ void VirtualTree::resize(double height) {
     auto const needed = static_cast<uint32_t>(std::ceil(height / rowHeight_)) + 2 * reserve_;
     while (pool_.size() < needed) {
         pool_.push_back(makeRow(static_cast<uint32_t>(pool_.size())));
-        rows_.children().append(pool_.back().panel);
+        rows_.children().append(pool_.back().frame);
     }
 
     updateBar();
@@ -474,7 +497,7 @@ void VirtualTree::scrollTo(uint32_t top) {
 // хотят ноль.
 void VirtualTree::measureWidth() {
     for (Row const& row : pool_) {
-        widest_ = std::max(widest_, static_cast<double>(row.panel.desiredSize().width));
+        widest_ = std::max(widest_, static_cast<double>(row.frame.desiredSize().width));
     }
     double const bar = bar_.visibility() == Visibility::Visible ? bar_.actualWidth() : 0.0;
     wantedWidth.set(widest_ + bar);
@@ -501,12 +524,12 @@ void VirtualTree::render() {
         Row& row = pool_[slot];
         uint32_t const index = base + slot;
         if (index >= count) {
-            row.panel.visibility(Visibility::Collapsed);
+            row.frame.visibility(Visibility::Collapsed);
             continue;
         }
 
         TreeRow const data = model_->row(index);
-        row.panel.visibility(Visibility::Visible);
+        row.frame.visibility(Visibility::Visible);
         row.selected = data.selected;
         row.expandable = data.expander != Expander::None;
         paint(slot);
@@ -514,8 +537,36 @@ void VirtualTree::render() {
         row.glyph.text(data.expander == Expander::Collapsed ? collapsedGlyph
                        : data.expander == Expander::Expanded ? expandedGlyph
                                                              : zstring_view{});
-        row.check.visibility(data.check == Check::None ? Visibility::Collapsed : Visibility::Visible);
-        row.check.text(data.check == Check::Checked || data.check == Check::Locked ? checkedGlyph
+
+        // Заголовок раздела: имя полужирным ближе к низу своей строки, пояснение
+        // мелким серым ближе к верху своей — вместе они читаются одним блоком.
+        // Пояснение держит место отметки и значка пустым, чтобы встать под имя.
+        bool const heading = data.style == RowStyle::Heading;
+        bool const subheading = data.style == RowStyle::Subheading;
+        row.frame.background(heading || subheading
+                                 ? static_cast<Brush const&>(brushes.SolidBackgroundFillColor.Base)
+                                 : static_cast<Brush const&>(brushes.SubtleFillColor.Transparent));
+        row.frame.borderThickness(heading ? Thickness {0, 1, 0, 0} : subheading ? Thickness {0, 0, 0, 1} : Thickness {});
+        row.panel.padding(heading ? Thickness {0, 5, 0, 0} : subheading ? Thickness {0, 0, 0, 6} : Thickness {});
+        // Черта выбранного заголовка — одна на обе его строки.
+        row.marker.verticalAlignment(heading      ? VerticalAlignment::Bottom
+                                     : subheading ? VerticalAlignment::Top
+                                                  : VerticalAlignment::Center);
+        row.text.fontWeight(FontWeight {static_cast<uint16_t>(heading ? 600 : 400)});
+        row.text.fontSize(subheading ? 12.0 : 14.0);
+        row.text.foreground(subheading ? static_cast<Brush const&>(brushes.Text.FillColor.Secondary)
+                                       : static_cast<Brush const&>(brushes.Text.FillColor.Primary));
+
+        badge_.clear();
+        if (auto const utf8 = core::unicode::checked(data.badge)) {
+            core::unicode::append_utf16(badge_, *utf8);
+        }
+        row.badgeText.text(badge_);
+        row.badge.visibility(badge_.empty() ? Visibility::Collapsed : Visibility::Visible);
+
+        row.check.visibility(data.check == Check::None && !subheading ? Visibility::Collapsed : Visibility::Visible);
+        row.check.text(data.check == Check::None                                  ? zstring_view {}
+                       : data.check == Check::Checked || data.check == Check::Locked ? checkedGlyph
                        : data.check == Check::Indeterminate                       ? indeterminateGlyph
                                                                                   : uncheckedGlyph);
         bool const fixed = data.check == Check::Disabled || data.check == Check::Locked;
