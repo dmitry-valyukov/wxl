@@ -564,8 +564,8 @@ void write_constructor_declarations(std::ostream& out, class_info const& info) {
                                ctor.method.params[0].type.param_type == "hstring_param const&";
                     }))
                        ? ""
-                       : " &&\n                 !(sizeof...(Setters) == 1 && ((std::same_as<std::remove_cvref_t<Setters>, hstring_param> || "
-                         "std::convertible_to<Setters, hstring_param>) && ...))");
+                       : " &&\n                 (!(sizeof...(Setters) == 1 && ((std::same_as<std::remove_cvref_t<Setters>, hstring_param> || "
+                         "std::convertible_to<Setters, hstring_param>) && ...)))");
     }
 
     // The constructors that take arguments, which is what WinRT means
