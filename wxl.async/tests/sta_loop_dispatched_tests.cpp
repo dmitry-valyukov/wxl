@@ -2,6 +2,8 @@
 // comes back, and what happens to one that was given up on the way.
 #include "dispatched_environment.h"
 
+#include <crtdbg.h>
+
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -242,6 +244,31 @@ public:
 ::testing::Environment* const watch = ::testing::AddGlobalTestEnvironment(new stop_watch);
 
 }  // namespace
+
+// stop() turns the message loop for what the loop still owes, and that loop is the
+// thread's only one by then: a WM_QUIT reaching it is somebody asking the thread to leave
+// before it is done -- a broken rule, which stops the process rather than being carried
+// past the wait. The operation takes long enough for stop() to have to wait; the quit is
+// in the queue before it does.
+void quit_while_the_loop_waits() {
+    // The broken rule is reported to stderr in every build, not to a dialog that would
+    // hang the run.
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+
+    const auto pending = sta_loop::async_call(orphanable, [] {
+        ::Sleep(100);
+        return 0;
+    });
+
+    ::PostQuitMessage(0);
+    sta_loop::stop();
+}
+
+TEST(StaLoopDispatchedDeathTest, AQuitPostedWhileStopWaitsIsABrokenRule) {
+    EXPECT_DEATH(quit_while_the_loop_waits(), "WM_QUIT");
+}
 
 TEST(StaLoopDispatchedTest, StopWaitsForAnOrphanOutOnThePool) {
     left_out.pending = sta_loop::async_call(orphanable, [] {
