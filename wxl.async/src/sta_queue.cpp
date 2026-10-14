@@ -284,6 +284,10 @@ void sta_loop::take_back_dispatched() noexcept {
     from_worker_.disarm();
 }
 
+void sta_loop::pump_messages_until(bool (*done)(void*), void* condition) noexcept {
+    pump_until([done, condition] { return done(condition); });
+}
+
 void sta_loop::let_go_of_queue() noexcept {
     if (idle_hook) {
         ::UnhookWindowsHookEx(idle_hook);

@@ -245,6 +245,27 @@ public:
 
 }  // namespace
 
+// run_until() under the queue turns the thread's message loop: an answer from the pool
+// reaches the detached frame waiting for it there, and the wait ends with that frame.
+detached_task awaits_the_pool(bool& answered) {
+    answered = co_await sta_loop::async_call(orphanable, [] {
+        ::Sleep(50);
+        return true;
+    });
+}
+
+TEST(StaLoopDispatchedTest, RunUntilTurnsTheMessageLoopUntilTheConditionHolds) {
+    const std::size_t before = detached_task::live_frames();
+    bool answered = false;
+
+    awaits_the_pool(answered);
+    EXPECT_EQ(detached_task::live_frames(), before + 1);
+
+    sta_loop::run_until([before] { return detached_task::live_frames() == before; });
+
+    EXPECT_TRUE(answered);
+}
+
 // stop() turns the message loop for what the loop still owes, and that loop is the
 // thread's only one by then: a WM_QUIT reaching it is somebody asking the thread to leave
 // before it is done -- a broken rule, which stops the process rather than being carried
