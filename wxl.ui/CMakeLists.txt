@@ -270,6 +270,9 @@ add_library(wxl.ui STATIC
     src/TextureCache.cpp
     src/UiThread.h
     src/UiThread.cpp
+    src/impl/waitable_timer.h
+    src/WaitableTimer.h
+    src/WaitableTimer.cpp
     src/FormattedBlock.h
     src/FormattedBlock.impl.h
     src/FormattedBlock.cpp
@@ -536,6 +539,9 @@ if(BUILD_TESTING)
     # The task a WinRT asynchronous operation becomes is tested the same way:
     # its producer is a template over the operation and the queue, given a
     # fake of each, so no dispatcher is needed.
+    #
+    # The wait on a timer is a template over the timer, given a fake one the
+    # test ticks; the queue is the one event_cancel_test stands for.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
@@ -543,6 +549,7 @@ if(BUILD_TESTING)
             test/list_mirror_test.cpp
             test/bound_items_source_test.cpp
             test/event_cancel_test.cpp
+            test/waitable_timer_test.cpp
             test/operation_test.cpp
             src/Object.cpp
             src/impl/bound_items_source.cpp
