@@ -374,9 +374,7 @@ TEST(StaLoopAbandonTest, AFrameUnwindingPastAnOperationWaitsForTheWorkerToLetGo)
     // unwinding below finds it running rather than queued.
     p.started.wait();
 
-    sta_loop::run_until([&] { return work.done(); });
-
-    EXPECT_THROW(work.result(), std::runtime_error);
+    EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
     EXPECT_EQ(p.canceled.load(), 1) << "the operation was never told it had been given up";
     EXPECT_EQ(p.ran.load(), 1);
     EXPECT_EQ(p.ran_with_frame_alive.load(), 1) << "the worker wrote into a frame that was gone";
@@ -391,8 +389,7 @@ TEST(StaLoopAbandonTest, AnOperationBackBeforeItsCoAwaitIsTakenThereWithoutAResu
     int second = 0;
     task<> work = awaits_in_the_opposite_order(first, second);
 
-    sta_loop::run_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(first, 1);
     EXPECT_EQ(second, 2);
@@ -404,8 +401,7 @@ TEST(StaLoopAbandonTest, AnAwaitableIsReadyOnceTheLoopHasTakenItsOperationOut) {
     bool here = false;
     task<> work = watches_readiness(before, after, here);
 
-    sta_loop::run_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_FALSE(before);
     EXPECT_TRUE(after);
@@ -437,9 +433,7 @@ TEST(StaLoopAbandonTest, AnOperationGivenUpBeforeItStartsNeverRuns) {
     // The worker is inside `k`, so `b` is behind it and cannot have started.
     running.started.wait();
 
-    sta_loop::run_until([&] { return work.done(); });
-
-    EXPECT_THROW(work.result(), std::runtime_error);
+    EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
     EXPECT_EQ(queued.canceled.load(), 1);
     EXPECT_EQ(queued.ran.load(), 0) << "a cancelled operation was started all the same";
     EXPECT_EQ(running.ran.load(), 1);
@@ -462,9 +456,7 @@ TEST(StaLoopAbandonTest, NobodyElseIsResumedWhileAFrameUnwinds) {
                                                           other_out_while_unwinding);
     running.started.wait();
 
-    sta_loop::run_until([&] { return work.done(); });
-
-    EXPECT_THROW(work.result(), std::runtime_error);
+    EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
     EXPECT_EQ(other_out_while_unwinding, 0)
         << "another coroutine was resumed from inside an unwinding frame";
 
@@ -511,9 +503,7 @@ TEST(StaLoopAbandonTest, ATaskInFlightPastWhichAFrameUnwindsWaitsForTheWorkerToL
     // failure is on its way back, and the second task is found running, not queued.
     p.started.wait();
 
-    sta_loop::run_until([&] { return work.done(); });
-
-    EXPECT_THROW(work.result(), std::runtime_error);
+    EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
     EXPECT_EQ(p.canceled.load(), 1) << "the second task's read was never given up";
     EXPECT_EQ(p.ran.load(), 1);
     EXPECT_EQ(p.ran_with_frame_alive.load(), 1) << "the worker wrote into a frame that was gone";
@@ -530,9 +520,7 @@ TEST(StaLoopAbandonTest, ManyOperationsGivenUpInOneUnwindingAllWaitForTheWorker)
     probe p;
     task<> work = fails_with_many_reads_out(p, count);
 
-    sta_loop::run_until([&] { return work.done(); });
-
-    EXPECT_THROW(work.result(), std::runtime_error);
+    EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
     EXPECT_EQ(p.ran.load(), p.ran_with_frame_alive.load()) << "the worker wrote into a frame that was gone";
 
     take_what_was_given_up();

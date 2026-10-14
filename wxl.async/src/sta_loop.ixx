@@ -6,6 +6,7 @@ export module wxl.async:sta_loop;
 
 import :async_op;
 import :cancellation;
+import :coroutine_checks;
 import :overlapped_op;
 import :io_port;
 import :spsc_channel;
@@ -547,15 +548,16 @@ public:
         return true;
     }
 
-    /// Runs until the caller's own condition says the work is done -- a task having
-    /// finished, usually; at the end of a process, no detached frame being alive.
+    /// Runs until the caller's own condition says the work is done: at the end of a
+    /// process, no detached frame being alive; a flag a coroutine sets on its way. A task
+    /// having ended is the overload below.
     ///
     /// The wait is the shape's. The sleeping loop sleeps in run_one(); the loop under a
     /// dispatcher queue turns the thread's message loop, so that what reaches the
     /// thread through the queue -- the thread pool's answers, the queue's timers -- is
     /// delivered on the way as well. A loop driven by a callback has no wait of its own
     /// and refuses: its host's loop is where it is waited in.
-    inline static void run_until(auto done) {
+    inline static void run_until(std::predicate auto done) {
         using condition_t = std::remove_reference_t<decltype(done)>;
 
         shape_->wait_until(
@@ -563,6 +565,25 @@ public:
                 return static_cast<bool>((*static_cast<condition_t*>(condition))());
             },
             std::addressof(done));
+    }
+
+    /// Runs until the task ends, and gives what it ended with: the value, moved out, or
+    /// the exception that left it, thrown here. The synchronous way through a coroutine,
+    /// for code with no coroutine of its own to await it in -- a destructor with a last
+    /// write to see through, a test. The task is the caller's and has to last the call;
+    /// a temporary does, for the length of its statement.
+    ///
+    /// \param where the caller's line, for a strict build's report; left to its default.
+    template <class R>
+    inline static R run_until(task<R>& work, detail::site where = detail::site::current()) {
+        run_until([&work] { return work.done(); });
+
+        return work.result(where);
+    }
+
+    template <class R>
+    inline static R run_until(task<R>&& work, detail::site where = detail::site::current()) {
+        return run_until(work, where);
     }
 
     /// Resumes every coroutine whose operation has come back, and returns

@@ -35,15 +35,4 @@ inline ::testing::Environment* const dispatched_env =
 
 }  // namespace impl
 
-/// Turns the message loop until the condition holds. What the queue is posted arrives
-/// as a message, so every handover and every operation coming back wakes it.
-inline void wait_until(auto done) {
-    MSG message{};
-
-    while (!done() && ::GetMessageW(&message, nullptr, 0, 0) > 0) {
-        ::TranslateMessage(&message);
-        ::DispatchMessageW(&message);
-    }
-}
-
 }  // namespace wxl::async

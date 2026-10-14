@@ -90,8 +90,7 @@ TEST(StaLoopDispatchedTest, AnOrphanableOperationRunsOnThePoolAndNotOnTheWorker)
 
     task<> work = asks_where(worker, orphan);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_NE(worker, std::thread::id{});
     EXPECT_NE(orphan, std::thread::id{});
@@ -183,8 +182,7 @@ TEST(StaLoopDispatchedTest, AnOrphanComingBackIsTakenByTheCoAwaitThatFollows) {
 
     task<> work = answers(value);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(value, 7);
 }
@@ -204,8 +202,7 @@ TEST(StaLoopDispatchedTest, AnExceptionFromThePoolArrivesAtTheCoAwait) {
 
     task<> work = fails(message);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(message, "from the pool");
 }
@@ -264,6 +261,21 @@ TEST(StaLoopDispatchedTest, RunUntilTurnsTheMessageLoopUntilTheConditionHolds) {
     sta_loop::run_until([before] { return detached_task::live_frames() == before; });
 
     EXPECT_TRUE(answered);
+}
+
+// run_until(task) under the queue: the task's answer comes from the pool through the
+// message loop, and the value comes back from the call.
+task<int> asks_the_pool(int value) {
+    co_return co_await sta_loop::async_call(orphanable, [value] {
+        ::Sleep(50);
+        return value;
+    });
+}
+
+TEST(StaLoopDispatchedTest, RunUntilGivesTheValueATaskAnsweredFromThePoolEndsWith) {
+    task<int> work = asks_the_pool(7);
+
+    EXPECT_EQ(sta_loop::run_until(work), 7);
 }
 
 // stop() turns the message loop for what the loop still owes, and that loop is the

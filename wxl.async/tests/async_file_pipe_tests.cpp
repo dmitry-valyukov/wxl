@@ -313,8 +313,7 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHeldArrivesThroughThePort) {
     EXPECT_FALSE(work.done());
     ASSERT_TRUE(pipe_.write("hello"));
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(got, "hello");
 }
@@ -324,16 +323,14 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingPastAReadInTheKernelCancelsIt) {
 
     task<> work = first_read_fails_second_is_with_the_kernel(root_ / L"refusing.bin", pipe_.name());
 
-    wait_until([&] { return work.done(); });
-
-    EXPECT_FALSE(watchdog.was_needed()) << "the read was waited for instead of cancelled";
-
     try {
-        work.result();
+        sta_loop::run_until(work);
         ADD_FAILURE() << "reading a file made for writing did not fail";
     } catch (const system_exception& e) {
         EXPECT_TRUE(std::string_view(e.what()).starts_with("ReadFile")) << e.what();
     }
+
+    EXPECT_FALSE(watchdog.was_needed()) << "the read was waited for instead of cancelled";
 
     EXPECT_EQ(sta_loop::run_pending(), 0u) << "a given-up operation resumed somebody";
 }
@@ -361,10 +358,9 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHoldsEndsWithTheCancellationWhenAsked) {
         stop.cancel();
         EXPECT_FALSE(work.done()) << "the read was answered in place";
 
-        wait_until([&] { return work.done(); });
+        EXPECT_NO_THROW(sta_loop::run_until(work));
 
         EXPECT_FALSE(watchdog.was_needed()) << "the read was not interrupted";
-        EXPECT_NO_THROW(work.result());
         EXPECT_EQ(outcome, "cancelled") << (kept ? "kept, then awaited" : "awaited as returned");
     }
 }
@@ -494,8 +490,7 @@ TEST_F(AsyncFilePipeTest, GivingAnOrphanUpNeverCutsShortACallOfAnotherOperation)
 
     task<> work = reads_among_orphans_given_up(target, rounds, cut_short, read);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(cut_short, 0);
     EXPECT_EQ(read, rounds);
@@ -554,8 +549,7 @@ TEST_F(AsyncFilePipeTest, AReadOfDataAlreadyInThePipeNeedNotSuspend) {
     ASSERT_TRUE(pipe_.write("there"));
     written.set();
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(got, "there");
 

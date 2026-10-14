@@ -201,10 +201,10 @@ TEST(TaskOperationTest, AJoinThatOutlivesItsWaiterResumesNobody) {
     }
 
     gate.set();
-    sta_loop::run_until([&] { return kept.done(); });
+    const int value = sta_loop::run_until(kept);
 
     EXPECT_EQ(got, 0);
-    EXPECT_EQ(kept.result(), 42);
+    EXPECT_EQ(value, 42);
 }
 
 TEST(TaskOperationTest, TheNextWaiterJoinsOnceTheFirstHasLeft) {
@@ -217,7 +217,7 @@ TEST(TaskOperationTest, TheNextWaiterJoinsOnceTheFirstHasLeft) {
     task<> stays = joins(kept, second);
 
     gate.set();
-    sta_loop::run_until([&] { return stays.done(); });
+    sta_loop::run_until(stays);
 
     EXPECT_EQ(first, 0);
     EXPECT_EQ(second, 42);
@@ -227,9 +227,8 @@ TEST(TaskOperationTest, TheNextWaiterJoinsOnceTheFirstHasLeft) {
 // coroutine's is.
 TEST(TaskOperationTest, AFailureIsThrownEachTimeItIsAsked) {
     task<> failed = sta_loop::async_call([] { throw std::runtime_error("on the worker"); });
-    sta_loop::run_until([&] { return failed.done(); });
 
-    EXPECT_THROW(failed.result(), std::runtime_error);
+    EXPECT_THROW(sta_loop::run_until(failed), std::runtime_error);
     EXPECT_THROW(failed.result(), std::runtime_error);
 }
 
