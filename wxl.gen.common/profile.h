@@ -277,6 +277,12 @@ struct profile_set {
 // design -- a member named in both would be a straight contradiction).
 profile load_profile(std::filesystem::path const& path);
 
+// Where a profile named in `extends` lives. A reference is either a path (has
+// a directory part or a .json suffix), relative to the referring profile's
+// directory, or a bare profile name sitting next to the profile that named it.
+std::filesystem::path resolve_reference(std::string_view reference,
+                                        std::filesystem::path const& referrer);
+
 // Loads every named profile plus, transitively, the profiles they
 // `extends`, and merges them. A profile reference is either a path or a
 // bare name resolved as `<dir of the referencing profile>/<name>.json`.

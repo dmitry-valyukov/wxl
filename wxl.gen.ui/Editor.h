@@ -80,8 +80,20 @@ public:
     void hideEventArgs(bool hide);
     void hidePredefined(bool hide);
 
+    // Панель инструментов: какие строки деревьев типов и членов показывать —
+    // выбранные профилем, включённые замыканием как зависимости выбранного и
+    // прочие. Выбранная строка видна всегда.
+    wxl::core::observable<bool> showChosen {true};
+    wxl::core::observable<bool> showDependencies {true};
+    wxl::core::observable<bool> showNotChosen {true};
+
 private:
     Editor();
+
+    // Отметка изменила профиль: замыкание устарело, а скрытые фильтром
+    // строки отбираются заново.
+    void marksChanged();
+    void refilterTrees();
 
     struct Data;
     friend class TypesModel;

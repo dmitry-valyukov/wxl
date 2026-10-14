@@ -462,19 +462,19 @@ wxl::Teardown wxl_launched() {
                         },
                         ToggleButton {
                             toolToggle,
-                            isChecked = true,
+                            isChecked = Bind {document->showChosen},
                             toolTip = u"Показывать выбранные",
                             content = FontIcon {toolGlyph, glyph = glyphs::chosen},
                         },
                         ToggleButton {
                             toolToggle,
-                            isChecked = true,
+                            isChecked = Bind {document->showDependencies},
                             toolTip = u"Показывать автоматически включённые зависимости",
                             content = FontIcon {toolGlyph, glyph = glyphs::dependencies},
                         },
                         ToggleButton {
                             toolToggle,
-                            isChecked = true,
+                            isChecked = Bind {document->showNotChosen},
                             toolTip = u"Показывать невыбранные",
                             content = FontIcon {toolGlyph, glyph = glyphs::notChosen},
                         },

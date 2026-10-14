@@ -414,8 +414,8 @@ std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path 
     return files;
 }
 
-// A reference is either a path (has a directory part or a .json suffix)
-// or a bare profile name sitting next to the profile that named it.
+}  // namespace
+
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer) {
     std::filesystem::path path{reference};
@@ -424,8 +424,6 @@ std::filesystem::path resolve_reference(std::string_view reference,
     }
     return referrer.parent_path() / (std::string(reference) + ".json");
 }
-
-}  // namespace
 
 bool member_filter::allows(std::string_view name) const {
     switch (kind) {

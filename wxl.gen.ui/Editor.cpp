@@ -354,12 +354,41 @@ private:
 }  // namespace
 
 struct Editor::Data {
-    Data(profile own, std::vector<std::string> const& files, wxl::core::function<void()> opened)
-        : prof(std::move(own)), db(files), documentation(std::move(opened)) {}
+    Data(profile own, profile_set all, std::vector<std::string> const& files, wxl::core::function<void()> opened)
+        : prof(std::move(own)), resolved(std::move(all)), db(files), documentation(std::move(opened)) {}
 
     // Отметки — то, что говорит сам файл, без профилей, которые он продолжает.
     profile prof;
+
+    // Профиль со всеми, которые он продолжает, каким открыт; типы и стили тех,
+    // что он продолжает, — отдельно: поверх них ложатся отметки самого файла.
+    profile_set resolved;
+    std::map<std::string, member_filter> inheritedTypes;
+    std::map<std::string, member_filter> inheritedStyles;
+
     md::cache db;
+
+    // Замыкание профиля с отметками, какие они сейчас: что генератор выпустит
+    // зависимостями выбранного. Считается заново, только когда отметки менялись.
+    closure const& walk() {
+        if (walkStale) {
+            profile_set input = resolved;
+            input.types = inheritedTypes;
+            input.styles = inheritedStyles;
+            for (auto&& [own, inherited] : {std::pair {&prof.types, &input.types}, std::pair {&prof.styles, &input.styles}}) {
+                for (auto&& [name, filter] : *own) {
+                    if (auto [at, added] = inherited->try_emplace(name, filter); !added) {
+                        at->second.merge(filter);
+                    }
+                }
+            }
+            walked = crawl(input, typeMap, db);
+            walkStale = false;
+        }
+        return walked;
+    }
+    closure walked;
+    bool walkStale = true;
 
     // Ресурсы словарей XAML с ключами, как их объявил документ; модель ресурсов
     // смотрит в их строки.
@@ -521,11 +550,27 @@ public:
         refilter();
     }
 
-    // Показываемое — заново, по настройкам; счёт — среди тех, что можно
-    // отметить. Скрытый выбранный тип больше не выбран.
+    // Показываемое — заново, по настройкам и панели инструментов; счёт — среди
+    // тех, что можно отметить. Скрытый выбранный тип больше не выбран; фильтр
+    // панели его не скрывает.
     void refilter() {
         bool const hideArgs = editor_.data_->hideEventArgs;
         bool const hidePredefined = editor_.data_->hidePredefined;
+        bool const chosen = editor_.showChosen.get();
+        bool const pulled = editor_.showDependencies.get();
+        bool const other = editor_.showNotChosen.get();
+        // Замыкание нужно, только когда зависимости и прочие показываются по-разному.
+        closure const* const walked = pulled != other ? &editor_.data_->walk() : nullptr;
+        // Предопределённый тип не выбирается и не выпускается: его показ — настройка.
+        auto const passes = [&](TypeEntry const& entry) {
+            if (entry.predefined || &entry == selected_.type) {
+                return true;
+            }
+            if (entry.listed) {
+                return chosen;
+            }
+            return walked && walked->surface.contains(entry.def) ? pulled : other;
+        };
         shown_.clear();
         for (Library& library : libraries_) {
             library.shown.clear();
@@ -536,7 +581,8 @@ public:
                 space.total = 0;
                 space.listed = 0;
                 for (TypeEntry& entry : space.types) {
-                    entry.shown = !(hideArgs && entry.eventArgs) && !(hidePredefined && entry.predefined);
+                    entry.shown =
+                        !(hideArgs && entry.eventArgs) && !(hidePredefined && entry.predefined) && passes(entry);
                     if (entry.shown) {
                         space.shown.push_back(&entry);
                     }
@@ -643,7 +689,7 @@ public:
                 }
             }
         }
-        editor_.revision.set(editor_.revision.get() + 1);
+        editor_.marksChanged();
     }
 
     void invoke(uint32_t index) override;
@@ -1415,14 +1461,35 @@ public:
         refilter();
     }
 
-    // Показываемые члены — заново, по настройке редактора: скрытые остаются
-    // в группе и показываются снова, как только настройка снята.
+    // Показываемые члены — заново, по настройке редактора и панели
+    // инструментов: скрытые остаются в группе и показываются снова, как только
+    // их перестают прятать. Выбранный член фильтр панели не скрывает.
     void refilter() {
         bool const hide = editor_.data_->hideDependencyProperties;
+        bool const chosen = editor_.showChosen.get();
+        bool const pulled = editor_.showDependencies.get();
+        bool const other = editor_.showNotChosen.get();
+        closure const* const walked = pulled != other ? &editor_.data_->walk() : nullptr;
+        // Член в замыкании — у какого-нибудь из типов, что его объявляют.
+        auto const generated = [&](Group const& group, Member const& member) {
+            return std::ranges::any_of(declarationsOf(group, member), [&](member_declaration const& declaration) {
+                auto const found = walked->members.find(declaration.source);
+                return found != walked->members.end() && found->second.contains(std::string {member.name});
+            });
+        };
+        auto const passes = [&](Group const& group, Member const& member) {
+            if (entry_.predefined || &member == selected_.second) {
+                return true;
+            }
+            if (group.locked || allows(member.name)) {
+                return chosen;
+            }
+            return walked && generated(group, member) ? pulled : other;
+        };
         for (Group& group : groups_) {
             group.shown.clear();
             for (Member const& member : group.all) {
-                if (!(hide && member.dependency)) {
+                if (!(hide && member.dependency) && passes(group, member)) {
                     group.shown.push_back(&member);
                 }
             }
@@ -1494,7 +1561,7 @@ public:
             mark_member(prof, name_, name, !allows(name), enum_, styled);
         }
         editor_.types_->relist(name_);
-        editor_.revision.set(editor_.revision.get() + 1);
+        editor_.marksChanged();
     }
 
     void invoke(uint32_t index) override {
@@ -1557,7 +1624,9 @@ public:
             } else {
                 html += std::format(L"<p>Profile: {} of {} generated", chosen(*group), group->shown.size());
             }
-            if (size_t const hidden = group->all.size() - group->shown.size()) {
+            if (size_t const hidden = editor_.data_->hideDependencyProperties
+                                          ? static_cast<size_t>(std::ranges::count_if(group->all, &Member::dependency))
+                                          : 0) {
                 html += std::format(L"<br>{} dependency properties hidden", hidden);
             }
             html += L"</p>";
@@ -1994,7 +2063,7 @@ public:
                 types_.relist(group.type);
             }
         }
-        editor_.revision.set(editor_.revision.get() + 1);
+        editor_.marksChanged();
     }
 
     void invoke(uint32_t index) override {
@@ -2212,6 +2281,21 @@ void Editor::hidePredefined(bool hide) {
     }
 }
 
+void Editor::refilterTrees() {
+    types_->refilter();
+    if (auto const& shown = members.get()) {
+        static_cast<MembersModel&>(*shown).refilter();
+    }
+}
+
+void Editor::marksChanged() {
+    data_->walkStale = true;
+    if (!showChosen.get() || !showDependencies.get() || !showNotChosen.get()) {
+        refilterTrees();
+    }
+    revision.set(revision.get() + 1);
+}
+
 void Editor::englishDocumentation(bool english) {
     data_->documentation.english(english);
     revision.set(revision.get() + 1);
@@ -2244,16 +2328,30 @@ Editor::~Editor() = default;
 intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     intrusive_ptr<Editor> editor {new Editor {}, /*add_ref=*/false};
 
-    auto const resolved = resolve_profiles({prof}, default_nuget_root());
+    auto resolved = resolve_profiles({prof}, default_nuget_root());
     std::vector<std::string> files;
     files.reserve(resolved.metadata.size());
     for (auto&& file : resolved.metadata) {
         files.push_back(file.string());
     }
+    auto const resources = resolved.resources;
 
-    editor->data_ = std::make_unique<Data>(load_profile(prof), files,
+    // Отметки замыкания ложатся поверх профилей, которые этот продолжает: их
+    // типы и стили — отдельно от его собственных.
+    profile own = load_profile(prof);
+    std::vector<std::filesystem::path> parents;
+    for (auto&& reference : own.extends) {
+        parents.push_back(resolve_reference(reference, own.source));
+    }
+
+    editor->data_ = std::make_unique<Data>(std::move(own), std::move(resolved), files,
                                          [raw = editor.get()] { raw->documentationPending.set(true); });
-    for (auto&& dictionary : resolved.resources) {
+    if (!parents.empty()) {
+        auto inherited = resolve_profiles(parents, default_nuget_root());
+        editor->data_->inheritedTypes = std::move(inherited.types);
+        editor->data_->inheritedStyles = std::move(inherited.styles);
+    }
+    for (auto&& dictionary : resources) {
         auto declared = dictionary_resources(dictionary);
         editor->data_->resources.insert(editor->data_->resources.end(), std::move_iterator {declared.begin()},
                                         std::move_iterator {declared.end()});
@@ -2267,6 +2365,12 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     editor->info.follow(editor->selection, editor->revision, [](Selection const& chosen, uint32_t) {
         return chosen.model ? chosen.model->describe() : Description {};
     });
+    for (auto* show : {&editor->showChosen, &editor->showDependencies, &editor->showNotChosen}) {
+        show->on_change([raw = editor.get()](bool) noexcept {
+            raw->refilterTrees();
+            raw->revision.set(raw->revision.get() + 1);
+        });
+    }
     auto const file = prof.filename().wstring();
     editor->title.set(std::u16string {file.begin(), file.end()} + u" — wxl.gen.ui");
     editor->path.set(std::filesystem::path {prof}.make_preferred().u16string());
