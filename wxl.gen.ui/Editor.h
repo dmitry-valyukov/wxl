@@ -80,12 +80,10 @@ public:
     void hideEventArgs(bool hide);
     void hidePredefined(bool hide);
 
-    // Панель инструментов: какие строки деревьев типов и членов показывать —
-    // выбранные профилем, включённые замыканием как зависимости выбранного и
-    // прочие. Выбранная строка видна всегда.
-    wxl::core::observable<bool> showChosen {true};
-    wxl::core::observable<bool> showDependencies {true};
-    wxl::core::observable<bool> showNotChosen {true};
+    // Панель инструментов: показывать в деревьях типов и членов только
+    // выбранное — отмеченное в профиле и всё, что замыкание тянет за ним. Строка,
+    // выбранная в дереве, видна всегда.
+    wxl::core::observable<bool> onlyChosen {false};
 
 private:
     Editor();

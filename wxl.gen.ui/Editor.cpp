@@ -573,6 +573,8 @@ struct TypeEntry {
     // Нужен замыканию и без своей отметки (Editor::Data::needs): отмечен и не
     // снимается. Помечается при каждом отборе.
     bool needed = false;
+    // Не скрыт настройками; показан ли, решает ещё отбор панели инструментов.
+    bool offered = true;
     bool shown = true;
     // Класс аргументов события: имя на EventArgs у него самого или у одной из
     // его баз. Помечается при разборе; показывать ли — настройка.
@@ -581,8 +583,9 @@ struct TypeEntry {
     // Показанный — без выбора.
     bool predefined = false;
 
-    // Отметку можно ставить и считать: показан и не предопределён.
-    bool selectable() const { return shown && !predefined; }
+    // Отметку можно ставить и считать: не скрыт настройками и не
+    // предопределён. Отбор панели счёта не меняет.
+    bool selectable() const { return offered && !predefined; }
 
     // Отметка стоит: явная или замыкания.
     bool chosen() const { return listed || needed; }
@@ -700,23 +703,16 @@ public:
     }
 
     // Показываемое и нужное замыканию — заново, по отметкам, настройкам и
-    // панели инструментов; счёт — среди тех, что можно отметить. Скрытый
-    // выбранный тип больше не выбран; фильтр панели его не скрывает.
+    // панели инструментов; счёт — среди тех, что не скрыты настройками, так что
+    // «только выбранные» его не меняет. Скрытый выбранный тип больше не выбран;
+    // отбор панели его не скрывает.
     void refilter() {
         bool const hideArgs = editor_.data_->hideEventArgs;
         bool const hidePredefined = editor_.data_->hidePredefined;
-        bool const chosen = editor_.showChosen.get();
-        bool const pulled = editor_.showDependencies.get();
-        bool const other = editor_.showNotChosen.get();
+        bool const onlyChosen = editor_.onlyChosen.get();
         // Предопределённый тип не выбирается и не выпускается: его показ — настройка.
         auto const passes = [&](TypeEntry const& entry) {
-            if (entry.predefined || &entry == selected_.type) {
-                return true;
-            }
-            if (entry.listed) {
-                return chosen;
-            }
-            return entry.needed ? pulled : other;
+            return !onlyChosen || entry.chosen() || entry.predefined || &entry == selected_.type;
         };
         shown_.clear();
         for (Library& library : libraries_) {
@@ -729,8 +725,8 @@ public:
                 space.chosen = 0;
                 for (TypeEntry& entry : space.types) {
                     entry.needed = editor_.data_->needs(entry.def);
-                    entry.shown =
-                        !(hideArgs && entry.eventArgs) && !(hidePredefined && entry.predefined) && passes(entry);
+                    entry.offered = !(hideArgs && entry.eventArgs) && !(hidePredefined && entry.predefined);
+                    entry.shown = entry.offered && passes(entry);
                     if (entry.shown) {
                         space.shown.push_back(&entry);
                     }
@@ -741,9 +737,9 @@ public:
                 }
                 if (!space.shown.empty()) {
                     library.shown.push_back(&space);
-                    library.total += space.total;
-                    library.chosen += space.chosen;
                 }
+                library.total += space.total;
+                library.chosen += space.chosen;
             }
             if (!library.shown.empty()) {
                 shown_.push_back(&library);
@@ -821,8 +817,9 @@ public:
         recount();
     }
 
-    // Отметка файла или пространства — всех его показанных типов: отмеченное
-    // целиком снимается, иначе отмечается целиком. Скрытые остаются, как были;
+    // Отметка файла или пространства — всех его типов, которые она считает,
+    // показанных или скрытых отбором панели: отмеченное целиком снимается,
+    // иначе отмечается целиком. Скрытые настройками остаются, как были;
     // нужные замыканию — тоже: их отметку не снять.
     void toggleChecked(uint32_t index) override {
         auto const [library, space, entry] = locate(index);
@@ -833,14 +830,18 @@ public:
             list(*entry, !entry->listed);
         } else if (space) {
             bool const on = space->chosen != space->total;
-            for (TypeEntry* each : space->shown) {
-                list(*each, on);
+            for (TypeEntry& each : space->types) {
+                if (each.selectable()) {
+                    list(each, on);
+                }
             }
         } else {
             bool const on = library->chosen != library->total;
-            for (Namespace* each : library->shown) {
-                for (TypeEntry* type : each->shown) {
-                    list(*type, on);
+            for (Namespace& each : library->namespaces) {
+                for (TypeEntry& type : each.types) {
+                    if (type.selectable()) {
+                        list(type, on);
+                    }
                 }
             }
         }
@@ -1606,10 +1607,8 @@ public:
     // их перестают прятать. Выбранный член фильтр панели не скрывает.
     void refilter() {
         bool const hide = editor_.data_->hideDependencyProperties;
-        bool const chosen = editor_.showChosen.get();
-        bool const pulled = editor_.showDependencies.get();
-        bool const other = editor_.showNotChosen.get();
-        closure const* const walked = pulled != other ? &editor_.data_->walk() : nullptr;
+        bool const onlyChosen = editor_.onlyChosen.get();
+        closure const* const walked = onlyChosen ? &editor_.data_->walk() : nullptr;
         // Член в замыкании — у какого-нибудь из типов, что его объявляют.
         auto const generated = [&](Part const& part, Group const& group, Member const& member) {
             return std::ranges::any_of(declarationsOf(part, group, member), [&](member_declaration const& declaration) {
@@ -1617,20 +1616,21 @@ public:
                 return found != walked->members.end() && found->second.contains(std::string {member.name});
             });
         };
+        // Только выбранные — отмеченные и те, что выпустит замыкание.
         auto const passes = [&](Part const& part, Group const& group, Member const& member) {
-            if (part.predefined || &member == selected_.member) {
-                return true;
-            }
-            if (group.locked || allows(part, member.name)) {
-                return chosen;
-            }
-            return walked && generated(part, group, member) ? pulled : other;
+            return !onlyChosen || part.predefined || &member == selected_.member || group.locked ||
+                   allows(part, member.name) || generated(part, group, member);
         };
         for (Part& part : parts_) {
             for (Group& group : part.groups) {
+                group.offered.clear();
                 group.shown.clear();
                 for (Member const& member : group.all) {
-                    if (!(hide && member.dependency) && passes(part, group, member)) {
+                    if (hide && member.dependency) {
+                        continue;
+                    }
+                    group.offered.push_back(&member);
+                    if (passes(part, group, member)) {
                         group.shown.push_back(&member);
                     }
                 }
@@ -1655,7 +1655,7 @@ public:
         if (!group) {
             bool const selected = part == selected_.part && !selected_.group;
             if (at == 0) {
-                count_ = std::format("{} of {}", chosen(*part), shown(*part));
+                count_ = std::format("{} of {}", chosen(*part), offered(*part));
                 return {.text = part->def.TypeName(),
                         .detail = count_,
                         .badge = part->kind,
@@ -1667,10 +1667,12 @@ public:
             return {.text = part->def.TypeNamespace(), .style = RowStyle::Subheading, .selected = selected};
         }
 
+        // Группы — под заголовком типа, члены — под группами.
         if (at == npos) {
-            count_ = std::format("{} of {}", chosen(*part, *group), group->shown.size());
+            count_ = std::format("{} of {}", chosen(*part, *group), group->offered.size());
             return {.text = group->title,
                     .detail = count_,
+                    .depth = 1,
                     .icon = group->icon,
                     .expander = group->expanded ? Expander::Expanded : Expander::Collapsed,
                     .check = groupCheck(*part, *group),
@@ -1680,7 +1682,7 @@ public:
         Member const& member = *group->shown[at];
         return {.text = member.name,
                 .detail = member.brief,
-                .depth = 1,
+                .depth = 2,
                 .icon = member.icon,
                 .check = memberCheck(*part, *group, member),
                 .selected = &member == selected_.member};
@@ -1693,9 +1695,10 @@ public:
         }
     }
 
-    // Отметка типа или группы — только их показанных членов: скрытые
-    // остаются, как были. У предопределённого типа отмечать нечего: его члены
-    // пишет wxl. Строка пространства имён отметки не несёт.
+    // Отметка типа или группы — всех членов, которые она считает, показанных
+    // или скрытых отбором панели; скрытые настройкой остаются, как были. У
+    // предопределённого типа отмечать нечего: его члены пишет wxl. Строка
+    // пространства имён отметки не несёт.
     void toggleChecked(uint32_t index) override {
         auto const [part, group, at] = locate(index);
         if (part->predefined || (group && group->locked) || (!group && at != 0)) {
@@ -1713,14 +1716,14 @@ public:
             bool const on = partCheck(*part) != Check::Checked;
             for (Group const& each : part->groups) {
                 if (!each.locked) {
-                    for (Member const* member : each.shown) {
+                    for (Member const* member : each.offered) {
                         mark(member->name, on);
                     }
                 }
             }
         } else if (at == npos) {
             bool const on = groupCheck(*part, *group) != Check::Checked;
-            for (Member const* member : group->shown) {
+            for (Member const* member : group->offered) {
                 mark(member->name, on);
             }
         } else {
@@ -1805,7 +1808,7 @@ public:
             if (group->locked) {
                 html += L"<p>Profile: always generated: a closable type is a wxl::Closable";
             } else {
-                html += std::format(L"<p>Profile: {} of {} generated", chosen(*part, *group), group->shown.size());
+                html += std::format(L"<p>Profile: {} of {} generated", chosen(*part, *group), group->offered.size());
             }
             if (size_t const hidden = editor_.data_->hideDependencyProperties
                                           ? static_cast<size_t>(std::ranges::count_if(group->all, &Member::dependency))
@@ -1877,7 +1880,8 @@ private:
         // отмечать нечего.
         bool locked = false;
         std::vector<Member> all;
-        std::vector<Member const*> shown;  // показываемые из all
+        std::vector<Member const*> offered;  // из all — не скрытые настройкой; их считают и отмечают
+        std::vector<Member const*> shown;    // из offered — прошедшие отбор панели
         bool expanded = true;
 
         // Группа, где не показано ничего, не показывается и сама.
@@ -2026,10 +2030,10 @@ private:
 
     size_t chosen(Part const& part, Group const& group) const {
         if (group.locked) {
-            return group.shown.size();
+            return group.offered.size();
         }
         return static_cast<size_t>(std::ranges::count_if(
-            group.shown, [&](Member const* member) { return allows(part, member->name); }));
+            group.offered, [&](Member const* member) { return allows(part, member->name); }));
     }
 
     size_t chosen(Part const& part) const {
@@ -2040,10 +2044,10 @@ private:
         return count;
     }
 
-    static size_t shown(Part const& part) {
+    static size_t offered(Part const& part) {
         size_t count = 0;
         for (Group const& group : part.groups) {
-            count += group.shown.size();
+            count += group.offered.size();
         }
         return count;
     }
@@ -2080,7 +2084,7 @@ private:
         if (group.locked) {
             return Check::Locked;
         }
-        return triple(chosen(part, group), group.shown.size());
+        return triple(chosen(part, group), group.offered.size());
     }
 
     // Отметка типа — по показанным членам групп, которые можно отмечать; не
@@ -2094,10 +2098,10 @@ private:
         bool locked = false;
         for (Group const& group : part.groups) {
             if (group.locked) {
-                locked = locked || !group.shown.empty();
+                locked = locked || !group.offered.empty();
             } else {
                 count += chosen(part, group);
-                total += group.shown.size();
+                total += group.offered.size();
             }
         }
         if (total == 0) {
@@ -2664,12 +2668,10 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     editor->info.follow(editor->selection, editor->revision, [](Selection const& chosen, uint32_t) {
         return chosen.model ? chosen.model->describe() : Description {};
     });
-    for (auto* show : {&editor->showChosen, &editor->showDependencies, &editor->showNotChosen}) {
-        show->on_change([raw = editor.get()](bool) noexcept {
-            raw->refilterTrees();
-            raw->revision.set(raw->revision.get() + 1);
-        });
-    }
+    editor->onlyChosen.on_change([raw = editor.get()](bool) noexcept {
+        raw->refilterTrees();
+        raw->revision.set(raw->revision.get() + 1);
+    });
     auto const file = prof.filename().wstring();
     editor->title.set(std::u16string {file.begin(), file.end()} + u" — wxl.gen.ui");
     editor->path.set(std::filesystem::path {prof}.make_preferred().u16string());

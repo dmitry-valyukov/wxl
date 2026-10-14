@@ -547,6 +547,9 @@ void VirtualTree::render() {
                                  ? static_cast<Brush const&>(brushes.SolidBackgroundFillColor.Base)
                                  : static_cast<Brush const&>(brushes.SubtleFillColor.Transparent));
         row.frame.borderThickness(heading ? Thickness {0, 1, 0, 0} : subheading ? Thickness {0, 0, 0, 1} : Thickness {});
+        // Заголовок не сворачивается: места под шеврон у него нет, и отметка
+        // встаёт к самому краю — его строки под ним выглядят вложенными.
+        row.glyph.width(heading || subheading ? 0.0 : indentStep_);
         row.panel.padding(heading ? Thickness {0, 5, 0, 0} : subheading ? Thickness {0, 0, 0, 6} : Thickness {});
         // Черта выбранного заголовка — одна на обе его строки.
         row.marker.verticalAlignment(heading      ? VerticalAlignment::Bottom

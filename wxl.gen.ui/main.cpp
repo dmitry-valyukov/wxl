@@ -53,9 +53,6 @@ namespace glyphs {
     constexpr char16_t newProfile[] {0xE4DB, 0};         // document_add
     constexpr char16_t open[] {0xF432, 0};               // folder_open, Filled
     constexpr char16_t save[] {0xF689, 0};               // save, Filled
-    constexpr char16_t chosen[] {0xF28D, 0};             // checkbox_checked
-    constexpr char16_t dependencies[] {0xE2FC, 0};       // checkbox_checked_sync
-    constexpr char16_t notChosen[] {0xF291, 0};          // checkbox_unchecked
     constexpr char16_t undo[] {0xF199, 0};               // arrow_undo
     constexpr char16_t redo[] {0xF16E, 0};               // arrow_redo
     constexpr char16_t zoomOut[] {0xF8C6, 0};            // zoom_out
@@ -269,26 +266,6 @@ wxl::Teardown wxl_launched() {
         pop,
     };
 
-    // Переключатель показа — в тон кнопкам командной панели: без рамки, в
-    // обычном состоянии прозрачный, нажатый — сдержанной подложкой, а не
-    // акцентом шаблона ToggleButton; знак нажатого — цветом текста.
-    auto const toolToggle = Preset {
-        pop,
-        width = 44.0,
-        height = 40.0,
-        Padding {0},
-        BorderThickness {0},
-        ThemeBrush {u"ToggleButtonBackground", brushes.SubtleFillColor.Transparent},
-        ThemeBrush {u"ToggleButtonBackgroundPointerOver", brushes.SubtleFillColor.Secondary},
-        ThemeBrush {u"ToggleButtonBackgroundPressed", brushes.SubtleFillColor.Tertiary},
-        ThemeBrush {u"ToggleButtonBackgroundChecked", brushes.SubtleFillColor.Secondary},
-        ThemeBrush {u"ToggleButtonBackgroundCheckedPointerOver", brushes.SubtleFillColor.Secondary},
-        ThemeBrush {u"ToggleButtonBackgroundCheckedPressed", brushes.SubtleFillColor.Tertiary},
-        ThemeBrush {u"ToggleButtonForegroundChecked", brushes.Text.FillColor.Primary},
-        ThemeBrush {u"ToggleButtonForegroundCheckedPointerOver", brushes.Text.FillColor.Primary},
-        ThemeBrush {u"ToggleButtonForegroundCheckedPressed", brushes.Text.FillColor.Secondary},
-    };
-
     // Шрифт — по ms-appx:///, как велит FontFamily.h: относительный путь в знаке
     // на заголовке окна шрифт не находил, и знаки пустели во всём окне.
     auto const toolGlyph = Preset {
@@ -430,8 +407,8 @@ wxl::Teardown wxl_launched() {
             rowDefinitions = u"40,*,auto",
             Card {
                 topPanel,
-                // Панель профиля пока макет: действий на кнопках нет; переключатели
-                // показа — знаки тех же отметок, что в дереве.
+                // Панель профиля пока макет: действий на кнопках нет; работает
+                // только отбор показанного.
                 Grid {
                     columnDefinitions = u"auto,*",
                     StackPanel {
@@ -460,23 +437,12 @@ wxl::Teardown wxl_launched() {
                                 foreground = iconFill(rgb(10, 14, 28), rgb(41, 121, 255)),
                             },
                         },
-                        ToggleButton {
-                            toolToggle,
-                            isChecked = Bind {document->showChosen},
-                            toolTip = u"Показывать выбранные",
-                            content = FontIcon {toolGlyph, glyph = glyphs::chosen},
-                        },
-                        ToggleButton {
-                            toolToggle,
-                            isChecked = Bind {document->showDependencies},
-                            toolTip = u"Показывать автоматически включённые зависимости",
-                            content = FontIcon {toolGlyph, glyph = glyphs::dependencies},
-                        },
-                        ToggleButton {
-                            toolToggle,
-                            isChecked = Bind {document->showNotChosen},
-                            toolTip = u"Показывать невыбранные",
-                            content = FontIcon {toolGlyph, glyph = glyphs::notChosen},
+                        CheckBox {
+                            vAlign.center,
+                            Margin {8, 0, 8, 0},
+                            isChecked = Bind {document->onlyChosen},
+                            toolTip = u"Выбранные в профиле и всё, что они тянут за собой",
+                            content = u"Показать только выбранные",
                         },
                         Button {
                             toolButton,
