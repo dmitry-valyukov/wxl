@@ -101,12 +101,17 @@ public:
         inline promise_type(const core::refcounted* self, Args&...) noexcept : self_(self) {}
 
         /// The frame, from the pool -- the same reasoning as `task`: a small
-        /// object made and unmade on the one thread, over and over.
+        /// object made and unmade on the one thread, over and over. The pool
+        /// asserts the thread in debug builds, so a frame made anywhere else is
+        /// caught here. Counted: a frame is alive from here to operator delete.
         inline static void* operator new(std::size_t size) {
-            return core::sta_memory_pool::alloc(size);
+            void* const frame = core::sta_memory_pool::alloc(size);
+            ++live_;
+            return frame;
         }
 
         inline static void operator delete(void* mem, std::size_t size) noexcept {
+            --live_;
             core::sta_memory_pool::free(mem, size);
         }
 
@@ -140,6 +145,15 @@ public:
     private:
         core::intrusive_ptr<const core::refcounted> self_;
     };
+
+    /// How many frames of this kind exist -- made and not yet unmade, suspended or
+    /// running. Nobody holds such a frame, so nobody but the frame itself can end it,
+    /// and a process has no business ending while one is alive: this is the count an
+    /// exit waits on. A plain number, since the frames live on the one STA thread.
+    static std::size_t live_frames() noexcept { return live_; }
+
+private:
+    static inline std::size_t live_ = 0;
 };
 
 }  // export namespace wxl::async

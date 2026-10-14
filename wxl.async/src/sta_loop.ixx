@@ -249,6 +249,11 @@ class sta_loop
 
         /// stop()'s last word, once the worker is gone.
         void (*let_go)() noexcept;
+
+        /// run_until()'s wait: turns what this shape turns until the condition holds. The
+        /// condition comes erased, a function and its object, so that the shape under a
+        /// queue can live in sta_queue.cpp with the system headers.
+        void (*wait_until)(bool (*done)(void*), void* condition);
     };
 
     inline static void send_to_worker(async_op& op) { enqueue(core::as_not_null<async_op>(&op)); }
@@ -258,7 +263,13 @@ class sta_loop
 
     inline static void keep_nothing() noexcept {}
 
-    static constexpr shape on_worker{&send_to_worker, &take_back_outstanding, &keep_nothing};
+    /// The sleeping shape's wait: in run_one() until the condition holds.
+    inline static void sleep_until(bool (*done)(void*), void* condition) {
+        while (!done(condition)) run_one();
+    }
+
+    static constexpr shape on_worker{&send_to_worker, &take_back_outstanding, &keep_nothing,
+                                     &sleep_until};
 
     /// In sta_queue.cpp.
     ///@{
@@ -266,10 +277,15 @@ class sta_loop
     static void take_back_dispatched() noexcept;
     static void let_go_of_queue() noexcept;
 
+    /// The wait under a queue: turns the thread's message loop, which is what delivers
+    /// the worker's handovers, the thread pool's answers and the queue's timers alike.
+    static void pump_messages_until(bool (*done)(void*), void* condition) noexcept;
+
     /// The idle hook's call: arms the trigger a drain standing in a modal loop holds, and
     /// posts for what is waiting, so that the modal loop is called back into.
     static void post_if_pending() noexcept;
-    static constexpr shape on_queue{&send_to_pool, &take_back_dispatched, &let_go_of_queue};
+    static constexpr shape on_queue{&send_to_pool, &take_back_dispatched, &let_go_of_queue,
+                                    &pump_messages_until};
     ///@}
 
     static inline const shape* shape_ = &on_worker;
@@ -531,10 +547,22 @@ public:
         return true;
     }
 
-    /// Runs until the caller's own condition says the work is done -- a task
-    /// having finished, usually.
+    /// Runs until the caller's own condition says the work is done -- a task having
+    /// finished, usually; at the end of a process, no detached frame being alive.
+    ///
+    /// The wait is the shape's. The sleeping loop sleeps in run_one(); the loop under a
+    /// dispatcher queue turns the thread's message loop, so that what reaches the
+    /// thread through the queue -- the thread pool's answers, the queue's timers -- is
+    /// delivered on the way as well. A loop driven by a callback has no wait of its own
+    /// and refuses: its host's loop is where it is waited in.
     inline static void run_until(auto done) {
-        while (!done()) run_one();
+        using condition_t = std::remove_reference_t<decltype(done)>;
+
+        shape_->wait_until(
+            [](void* condition) {
+                return static_cast<bool>((*static_cast<condition_t*>(condition))());
+            },
+            std::addressof(done));
     }
 
     /// Resumes every coroutine whose operation has come back, and returns

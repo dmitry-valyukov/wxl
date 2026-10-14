@@ -205,6 +205,15 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // them yet.
     wxl::impl::close_event_waits();
 
+    // A detached coroutine is nobody's to end but its own, and a process has no
+    // business ending while one is alive: the thread's loop turns on -- the
+    // worker's answers, the thread pool's, the queue's timers -- until the last
+    // such frame is gone. One that waits for what never comes keeps the process
+    // here, the way a thread nobody joins would, rather than being torn down
+    // underneath. Before the teardown handler, so that the application is asked
+    // what to save when nothing of its own still runs.
+    wxl::async::sta_loop::run_until([] { return wxl::async::detached_task::live_frames() == 0; });
+
     // The exit code is the handler's to name; an application with nothing to
     // say, or with no handler at all, exits with zero.
     int exitCode = 0;
