@@ -86,6 +86,12 @@ struct closure {
     // and a cycle is broken at whichever member closes it.
     std::vector<winmd::reader::TypeDef> ordered;
 
+    // Per discovered type: the types the walk reached from it -- its base,
+    // the interfaces it implements, the types its kept members' signatures
+    // name. The edges `ordered` is sorted by; a viewer reads from them what
+    // pulled a type in.
+    std::map<winmd::reader::TypeDef, std::set<winmd::reader::TypeDef, by_full_name>> dependencies;
+
     // Effective member surface per discovered type, after merging every
     // profile that reached it.
     std::map<winmd::reader::TypeDef, member_filter> surface;

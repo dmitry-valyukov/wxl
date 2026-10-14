@@ -227,7 +227,6 @@ struct crawler {
     closure result;
 
     std::deque<TypeDef> queue;
-    std::map<TypeDef, std::set<TypeDef, by_full_name>> dependencies;
     // Per class (and listed interface): every interface it implements
     // directly, in declaration order. Split once the walk is done into the
     // held ones and the dropped ones (split_interfaces).
@@ -257,7 +256,7 @@ struct crawler {
 
     void depend(TypeDef const& from, TypeDef const& on) {
         if (from && on && from != on) {
-            dependencies[from].insert(on);
+            result.dependencies[from].insert(on);
         }
     }
 
@@ -656,7 +655,7 @@ struct crawler {
             if (done.count(type) || !visiting.insert(type).second) {
                 return;
             }
-            if (auto const it = dependencies.find(type); it != dependencies.end()) {
+            if (auto const it = result.dependencies.find(type); it != result.dependencies.end()) {
                 for (auto&& dependency : it->second) {
                     if (result.surface.count(dependency)) {
                         visit(dependency);

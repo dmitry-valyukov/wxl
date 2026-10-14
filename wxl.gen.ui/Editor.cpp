@@ -351,6 +351,101 @@ private:
     std::vector<documentation_file*> unfinished_;  // в порядке открытия
 };
 
+// Корни обхода из `own`, которых в замыкании нет без них самих: никакой другой
+// корень до них не доходит. Корень, до которого доходят, лежит в компоненте
+// сильной связности рёбер обхода вместе с другим корнем или получает ребро
+// извне своей компоненты: всё замыкание достижимо из корней, и ребро извне
+// идёт от вершины, до которой доходит другой корень, — иначе она лежала бы в
+// той же компоненте. Компоненты — Тарьяном, без рекурсии: цепочки рёбер
+// длинные.
+std::set<md::TypeDef> unpulled_roots(closure const& walked, std::set<md::TypeDef> const& roots,
+                                     std::set<md::TypeDef> const& own) {
+    std::map<md::TypeDef, uint32_t> number;
+    std::vector<md::TypeDef> nodes;
+    nodes.reserve(walked.surface.size());
+    for (auto&& [type, filter] : walked.surface) {
+        number.emplace(type, static_cast<uint32_t>(nodes.size()));
+        nodes.push_back(type);
+    }
+    auto const count = static_cast<uint32_t>(nodes.size());
+    std::vector<std::vector<uint32_t>> edges(count);
+    for (auto&& [from, targets] : walked.dependencies) {
+        if (auto const source = number.find(from); source != number.end()) {
+            for (auto&& on : targets) {
+                if (auto const target = number.find(on); target != number.end()) {
+                    edges[source->second].push_back(target->second);
+                }
+            }
+        }
+    }
+
+    constexpr uint32_t unvisited = UINT32_MAX;
+    std::vector<uint32_t> order(count, unvisited);
+    std::vector<uint32_t> low(count);
+    std::vector<uint32_t> component(count, unvisited);
+    std::vector<uint32_t> stack;
+    std::vector<std::pair<uint32_t, size_t>> calls;  // вершина и её следующее ребро
+    uint32_t visited = 0;
+    uint32_t components = 0;
+    auto const enter = [&](uint32_t node) {
+        order[node] = low[node] = visited++;
+        stack.push_back(node);
+        calls.emplace_back(node, 0);
+    };
+    for (uint32_t start = 0; start < count; ++start) {
+        if (order[start] != unvisited) {
+            continue;
+        }
+        enter(start);
+        while (!calls.empty()) {
+            uint32_t const node = calls.back().first;
+            if (size_t const next = calls.back().second++; next < edges[node].size()) {
+                uint32_t const to = edges[node][next];
+                if (order[to] == unvisited) {
+                    enter(to);
+                } else if (component[to] == unvisited) {
+                    low[node] = std::min(low[node], order[to]);
+                }
+                continue;
+            }
+            calls.pop_back();
+            if (!calls.empty()) {
+                low[calls.back().first] = std::min(low[calls.back().first], low[node]);
+            }
+            if (low[node] == order[node]) {
+                uint32_t member = unvisited;
+                do {
+                    member = stack.back();
+                    stack.pop_back();
+                    component[member] = components;
+                } while (member != node);
+                ++components;
+            }
+        }
+    }
+
+    std::vector<uint32_t> rootsIn(components);
+    std::vector<bool> entered(components);
+    for (uint32_t node = 0; node < count; ++node) {
+        rootsIn[component[node]] += roots.contains(nodes[node]) ? 1 : 0;
+        for (uint32_t const to : edges[node]) {
+            if (component[to] != component[node]) {
+                entered[component[to]] = true;
+            }
+        }
+    }
+    std::set<md::TypeDef> unpulled;
+    for (md::TypeDef const& root : own) {
+        if (auto const at = number.find(root); at != number.end()) {
+            uint32_t const part = component[at->second];
+            if (!entered[part] && rootsIn[part] == 1) {
+                unpulled.insert(root);
+            }
+        }
+    }
+    return unpulled;
+}
+
 }  // namespace
 
 struct Editor::Data {
@@ -384,11 +479,46 @@ struct Editor::Data {
             }
             walked = crawl(input, typeMap, db);
             walkStale = false;
+
+            std::set<md::TypeDef> roots;
+            std::set<md::TypeDef> own;
+            for (auto&& [name, filter] : input.types) {
+                if (md::TypeDef const type = db.find(name)) {
+                    roots.insert(type);
+                    if (!inheritedTypes.contains(name)) {
+                        own.insert(type);
+                    }
+                }
+            }
+            for (auto&& name : typeMap.implicit_roots) {
+                if (md::TypeDef const type = db.find(name)) {
+                    roots.insert(type);
+                    own.erase(type);
+                }
+            }
+            auto const unpulled = unpulled_roots(walked, roots, own);
+            required.clear();
+            for (auto&& [type, filter] : walked.surface) {
+                if (!unpulled.contains(type)) {
+                    required.insert(type);
+                }
+            }
         }
         return walked;
     }
     closure walked;
     bool walkStale = true;
+
+    // Типы, которые генератор выпустит, что бы ни говорили отметки самого
+    // файла: их тянет другой тип замыкания, их называет профиль, который этот
+    // продолжает, или карта типов. Отметка у них стоит и не снимается; что
+    // записано в файле, остаётся в нём и вернётся в отметку, как только тип
+    // тянуть перестанут.
+    bool needs(md::TypeDef const& type) {
+        walk();
+        return required.contains(type);
+    }
+    std::set<md::TypeDef> required;
 
     // Ресурсы словарей XAML с ключами, как их объявил документ; модель ресурсов
     // смотрит в их строки.
@@ -439,7 +569,10 @@ md::TypeDef find_type(md::cache const& db, std::string_view full) {
 struct TypeEntry {
     md::TypeDef def;
     RowIcon const* icon = nullptr;
-    bool listed = false;
+    bool listed = false;  // выбран явно: в профиле самого файла
+    // Нужен замыканию и без своей отметки (Editor::Data::needs): отмечен и не
+    // снимается. Помечается при каждом отборе.
+    bool needed = false;
     bool shown = true;
     // Класс аргументов события: имя на EventArgs у него самого или у одной из
     // его баз. Помечается при разборе; показывать ли — настройка.
@@ -450,6 +583,9 @@ struct TypeEntry {
 
     // Отметку можно ставить и считать: показан и не предопределён.
     bool selectable() const { return shown && !predefined; }
+
+    // Отметка стоит: явная или замыкания.
+    bool chosen() const { return listed || needed; }
 };
 
 namespace {
@@ -563,17 +699,15 @@ public:
         refilter();
     }
 
-    // Показываемое — заново, по настройкам и панели инструментов; счёт — среди
-    // тех, что можно отметить. Скрытый выбранный тип больше не выбран; фильтр
-    // панели его не скрывает.
+    // Показываемое и нужное замыканию — заново, по отметкам, настройкам и
+    // панели инструментов; счёт — среди тех, что можно отметить. Скрытый
+    // выбранный тип больше не выбран; фильтр панели его не скрывает.
     void refilter() {
         bool const hideArgs = editor_.data_->hideEventArgs;
         bool const hidePredefined = editor_.data_->hidePredefined;
         bool const chosen = editor_.showChosen.get();
         bool const pulled = editor_.showDependencies.get();
         bool const other = editor_.showNotChosen.get();
-        // Замыкание нужно, только когда зависимости и прочие показываются по-разному.
-        closure const* const walked = pulled != other ? &editor_.data_->walk() : nullptr;
         // Предопределённый тип не выбирается и не выпускается: его показ — настройка.
         auto const passes = [&](TypeEntry const& entry) {
             if (entry.predefined || &entry == selected_.type) {
@@ -582,18 +716,19 @@ public:
             if (entry.listed) {
                 return chosen;
             }
-            return walked && walked->surface.contains(entry.def) ? pulled : other;
+            return entry.needed ? pulled : other;
         };
         shown_.clear();
         for (Library& library : libraries_) {
             library.shown.clear();
             library.total = 0;
-            library.listed = 0;
+            library.chosen = 0;
             for (Namespace& space : library.namespaces) {
                 space.shown.clear();
                 space.total = 0;
-                space.listed = 0;
+                space.chosen = 0;
                 for (TypeEntry& entry : space.types) {
+                    entry.needed = editor_.data_->needs(entry.def);
                     entry.shown =
                         !(hideArgs && entry.eventArgs) && !(hidePredefined && entry.predefined) && passes(entry);
                     if (entry.shown) {
@@ -601,13 +736,13 @@ public:
                     }
                     if (entry.selectable()) {
                         ++space.total;
-                        space.listed += entry.listed ? 1 : 0;
+                        space.chosen += entry.chosen() ? 1 : 0;
                     }
                 }
                 if (!space.shown.empty()) {
                     library.shown.push_back(&space);
                     library.total += space.total;
-                    library.listed += space.listed;
+                    library.chosen += space.chosen;
                 }
             }
             if (!library.shown.empty()) {
@@ -629,24 +764,24 @@ public:
 
     TreeRow row(uint32_t index) const override {
         auto const [library, space, type] = locate(index);
-        // У файла и пространства серым — сколько их типов в профиле.
+        // У файла и пространства серым — сколько их типов отмечено: явно или замыканием.
         if (!space) {
-            detail_ = std::format("{} of {}", library->listed, library->total);
+            detail_ = std::format("{} of {}", library->chosen, library->total);
             return {.text = library->name,
                     .detail = detail_,
                     .icon = &libraryIcon,
                     .expander = library->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .check = triple(library->listed, library->total),
+                    .check = triple(library->chosen, library->total),
                     .selected = library == selected_.library && !selected_.space};
         }
         if (!type) {
-            detail_ = std::format("{} of {}", space->listed, space->total);
+            detail_ = std::format("{} of {}", space->chosen, space->total);
             return {.text = space->name,
                     .detail = detail_,
                     .depth = 1,
                     .icon = &namespaceIcon,
                     .expander = space->expanded ? Expander::Expanded : Expander::Collapsed,
-                    .check = triple(space->listed, space->total),
+                    .check = triple(space->chosen, space->total),
                     .selected = space == selected_.space && !selected_.type};
         }
 
@@ -667,7 +802,10 @@ public:
                 .detail = detail_,
                 .depth = 2,
                 .icon = type->icon,
-                .check = type->predefined ? Check::Disabled : type->listed ? Check::Checked : Check::Unchecked,
+                .check = type->predefined ? Check::Disabled
+                         : type->needed   ? Check::Locked
+                         : type->listed   ? Check::Checked
+                                          : Check::Unchecked,
                 .selected = type == selected_.type};
     }
 
@@ -684,21 +822,25 @@ public:
     }
 
     // Отметка файла или пространства — всех его показанных типов: отмеченное
-    // целиком снимается, иначе отмечается целиком. Скрытые остаются, как были.
+    // целиком снимается, иначе отмечается целиком. Скрытые остаются, как были;
+    // нужные замыканию — тоже: их отметку не снять.
     void toggleChecked(uint32_t index) override {
         auto const [library, space, entry] = locate(index);
         if (entry) {
-            list(*library, *space, *entry, !entry->listed);
+            if (entry->needed || entry->predefined) {
+                return;
+            }
+            list(*entry, !entry->listed);
         } else if (space) {
-            bool const on = space->listed != space->total;
+            bool const on = space->chosen != space->total;
             for (TypeEntry* each : space->shown) {
-                list(*library, *space, *each, on);
+                list(*each, on);
             }
         } else {
-            bool const on = library->listed != library->total;
+            bool const on = library->chosen != library->total;
             for (Namespace* each : library->shown) {
                 for (TypeEntry* type : each->shown) {
-                    list(*library, *each, *type, on);
+                    list(*type, on);
                 }
             }
         }
@@ -721,11 +863,10 @@ public:
     }
 
     // Тип внесли в профиль или вынесли из него не отсюда — отметкой члена или
-    // стиля.
+    // стиля; счёт отмеченных пересчитает отбор.
     void relist(std::string_view full) {
         if (TypeEntry* entry = find(full)) {
-            Location const at = place(entry);
-            count(*at.library, *at.space, *entry, editor_.data_->prof.types.contains(std::string {full}));
+            entry->listed = editor_.data_->prof.types.contains(std::string {full});
         }
     }
 
@@ -771,7 +912,7 @@ private:
         bool expanded = false;
         uint32_t start = 0;   // номер строки самого пространства среди видимых
         uint32_t total = 0;   // типов, которые можно отметить
-        uint32_t listed = 0;  // из них в профиле
+        uint32_t chosen = 0;  // из них отмечено: явно или замыканием
     };
 
     struct Library {
@@ -782,7 +923,7 @@ private:
         bool expanded = false;
         uint32_t start = 0;   // номер строки самого файла среди видимых
         uint32_t total = 0;   // типов, которые можно отметить, во всех пространствах
-        uint32_t listed = 0;  // из них в профиле
+        uint32_t chosen = 0;  // из них отмечено: явно или замыканием
     };
 
     // Строка дерева: файл, а под ним — пространство и тип, если строка их.
@@ -794,10 +935,10 @@ private:
 
     // Отметка родителя: все дети, часть или ни одного; отмечать нечего — без
     // выбора.
-    static Check triple(uint32_t listed, uint32_t total) {
+    static Check triple(uint32_t chosen, uint32_t total) {
         return total == 0 ? Check::Disabled
-               : listed == 0 ? Check::Unchecked
-               : listed == total ? Check::Checked
+               : chosen == 0 ? Check::Unchecked
+               : chosen == total ? Check::Checked
                                  : Check::Indeterminate;
     }
 
@@ -813,28 +954,11 @@ private:
         return {};
     }
 
-    // Счёт отмеченных у пространства и файла идёт за отметкой показанного типа.
-    static void count(Library& library, Namespace& space, TypeEntry& entry, bool listed) {
-        if (entry.listed == listed) {
-            return;
-        }
-        entry.listed = listed;
-        if (!entry.selectable()) {
-            return;
-        }
-        if (listed) {
-            ++library.listed;
-            ++space.listed;
-        } else {
-            --library.listed;
-            --space.listed;
-        }
-    }
-
     // Тип входит в профиль со всеми членами или уходит из него вместе со
-    // списками членов и стилей.
-    void list(Library& library, Namespace& space, TypeEntry& entry, bool on) {
-        if (entry.listed == on || entry.predefined) {
+    // списками членов и стилей. Нужный замыканию остаётся, каким выбран явно:
+    // его отметку не снять и не поставить. Счёт отмеченных пересчитает отбор.
+    void list(TypeEntry& entry, bool on) {
+        if (entry.listed == on || entry.predefined || entry.needed) {
             return;
         }
         profile& prof = editor_.data_->prof;
@@ -845,7 +969,7 @@ private:
             prof.types.erase(name);
             prof.styles.erase(name);
         }
-        count(library, space, entry, on);
+        entry.listed = on;
     }
 
     // Номера строк у свёрнутого не пересчитываются: к ним не спускаются.
@@ -1444,6 +1568,15 @@ std::wstring TypesModel::typeInfo(md::TypeDef const& def, RowIcon const* icon) c
     auto const& types = editor_.data_->prof.types;
     auto const found = types.find(full_name(def));
     append_filter(html, found == types.end() ? nullptr : &found->second);
+    // Нужный замыканию отмечен, что бы ни говорил файл; что говорит файл,
+    // вернётся в отметку, когда тип тянуть перестанут.
+    if (editor_.data_->needs(def)) {
+        html += found == types.end()
+                    ? L"<p>Pulled in: generated while another type, an extended profile or the type map needs it; "
+                      L"this file does not list it.</p>"
+                    : L"<p>Pulled in as well: the check stays while another type, an extended profile or the type "
+                      L"map needs it; this file lists it, and keeps it when nothing does.</p>";
+    }
     if (auto const documentation = editor_.data_->documentation.find(def, DocumentationId::of(def))) {
         append_documentation(html, **documentation);
     }
@@ -2454,9 +2587,7 @@ void Editor::refilterTrees() {
 
 void Editor::marksChanged() {
     data_->walkStale = true;
-    if (!showChosen.get() || !showDependencies.get() || !showNotChosen.get()) {
-        refilterTrees();
-    }
+    refilterTrees();
     revision.set(revision.get() + 1);
 }
 
