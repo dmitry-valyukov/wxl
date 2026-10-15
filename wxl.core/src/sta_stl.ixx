@@ -10,6 +10,7 @@
 export module wxl.core:sta_stl;
 
 import :sta_allocator;
+import :unicode;
 import std;
 
 export namespace wxl::core {
@@ -28,6 +29,12 @@ using sta_u16string =
 using sta_u32string =
     std::basic_string<char32_t, std::char_traits<char32_t>, sta_allocator<char32_t>>;
 ///@}
+
+// Spelled here and not beside u16_text, so that :unicode imports nothing thread-bound.
+/// Checked UTF-16 text whose units live in the STA pool: u16_text, for text
+/// assembled and kept on that thread. It answers as a u16_view, so whatever
+/// takes text takes it.
+using sta_u16_text = basic_text<sta_u16string>;
 
 /// A vector whose buffer lives in the STA pool.
 template <typename T>

@@ -5,6 +5,7 @@ import wxl.core;
 
 namespace {
 
+using namespace std::string_view_literals;
 using namespace wxl::core;
 
 template <typename Key, typename T>
@@ -187,6 +188,33 @@ TEST(StaStlTest, AdaptorsKeepTheirOrderOfRemoval) {
     EXPECT_EQ(stack.top(), 1);
     EXPECT_EQ(queue.front(), 2);
     EXPECT_EQ(heap.top(), 3);
+}
+
+TEST(StaStlTest, U16TextGrowsByCodePointsAndIsCutBetweenThem) {
+    // Room for far more than it will hold, so that shrink_to_fit has something
+    // to give back.
+    sta_u16_text text;
+    text.reserve(64);
+    EXPECT_GE(text.plain().capacity(), 64u);
+
+    for (const char32_t code_point : {U'ё', U'ж', U'😀'})
+        text.push_back(code_point);
+
+    EXPECT_EQ(text.size(), 4u);  // 1 + 1 + a pair
+    EXPECT_EQ(text.wchars(), L"ёж😀"sv);
+
+    // A part is cut from the view the text answers as, and borrows its units.
+    const u16_view whole = text;
+    static_assert(std::same_as<decltype(whole.substr(2)), u16_view>);
+    EXPECT_EQ(whole.substr(2).wchars().data(), text.wchars().data() + 2);
+    EXPECT_EQ(whole.substr(2).wchars(), L"😀"sv);
+
+    text.erase(2);
+    EXPECT_EQ(text.size(), 2u);
+    EXPECT_EQ(text.wchars(), L"ёж"sv);
+
+    text.shrink_to_fit();
+    EXPECT_EQ(text.wchars(), L"ёж"sv);
 }
 
 }  // namespace
