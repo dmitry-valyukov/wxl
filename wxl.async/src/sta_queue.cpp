@@ -33,17 +33,17 @@ IDispatcherQueueController* own_controller = nullptr;
 /// start_dispatched(), removed by stop().
 HHOOK idle_hook = nullptr;
 
-/// What the two handlers do with what arrives: deliver it while the loop runs, settle
-/// it while the loop is being stopped.
-void (*on_drain)() noexcept = nullptr;
+/// What the handler bringing an operation back from the thread pool does with it: takes it
+/// out of the loop's count and delivers it. Set by start_dispatched(), which is the loop's
+/// own and may touch the count; the handler is not.
 void (*on_return)(async_op&) noexcept = nullptr;
 
 /// Turns the message loop until the condition holds: what the queue is posted arrives
-/// as a message. This is the thread's only loop while it turns -- stop() runs after the
-/// application's own has ended -- so nothing but messages is expected: a failed
-/// GetMessageW, and a WM_QUIT asking the thread to leave while it still waits for what
-/// it owes, are broken rules, not cases, and the process stops on them rather than
-/// going on as if the wait were over.
+/// as a message. This is the thread's only loop while it turns -- at the end of a process
+/// the wait for the last frames and stop() both come after the application's own loop has
+/// ended -- so nothing but messages is expected: a failed GetMessageW, and a WM_QUIT
+/// asking the thread to leave while it still waits for what it owes, are broken rules, not
+/// cases, and the process stops on them rather than going on as if the wait were over.
 void pump_until(auto done) noexcept {
     MSG message{};
 
@@ -135,7 +135,7 @@ public:
     ULONG __stdcall Release() noexcept override { return 1; }
 
     HRESULT __stdcall Invoke() noexcept override {
-        on_drain();
+        sta_loop::run_pending();
         return S_OK;
     }
 };
@@ -185,7 +185,7 @@ void __stdcall run_on_pool(PTP_CALLBACK_INSTANCE, void* context) noexcept {
     handler.op().packaged_execute();
 
     // Refused only by a queue that is shutting down, which is a thread on its way out:
-    // nobody is left to take the operation, and it stays where it is.
+    // nobody is left to take the operation, and it stays out, for stop() to find.
     post(handler);
 
     handler.Release();
@@ -196,7 +196,6 @@ void __stdcall run_on_pool(PTP_CALLBACK_INSTANCE, void* context) noexcept {
 void sta_loop::start_dispatched(std::string_view worker_name) {
     ensure(!worker_ && "sta_loop: the loop is already running");
 
-    on_drain = []() noexcept { run_pending(); };
     on_return = [](async_op& op) noexcept {
         --outstanding_;
         op.come_back();
@@ -263,25 +262,6 @@ void sta_loop::send_to_pool(async_op& op) {
         handler->Release();
         throw refused;
     }
-}
-
-void sta_loop::take_back_dispatched() noexcept {
-    on_drain = &settle_pending;
-    on_return = [](async_op& op) noexcept {
-        --outstanding_;
-        op.settle();
-    };
-
-    // What is in the channel already may have been posted about before this began, or
-    // not at all: taken here, so that the wait below only ever waits for a message
-    // still to come.
-    settle_pending();
-
-    pump_until([] { return outstanding_ == 0; });
-
-    // Left armed by the last drain, and nothing is coming any more: cleared, so that
-    // the next start finds it the way the first did.
-    from_worker_.disarm();
 }
 
 void sta_loop::pump_messages_until(bool (*done)(void*), void* condition) noexcept {

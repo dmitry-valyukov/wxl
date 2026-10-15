@@ -203,7 +203,7 @@ class sta_loop
 
     /// Operations out and not taken back yet, counted by the STA thread alone: up
     /// where one is sent or handed to the kernel, down where one is taken out of the
-    /// return channel. stop() waits for it to reach zero.
+    /// return channel. stop() checks that it is back at zero.
     static inline std::size_t outstanding_ = 0;
 
     /// The STA side of the return channel. Its owner is the STA thread, and
@@ -245,9 +245,6 @@ class sta_loop
         /// thread pool, so that the worker never stands in a call that goes by a name.
         void (*send_orphan)(async_op&);
 
-        /// stop()'s wait: takes back everything that is out, resuming nobody.
-        void (*take_back_outstanding)() noexcept;
-
         /// stop()'s last word, once the worker is gone.
         void (*let_go)() noexcept;
 
@@ -259,9 +256,6 @@ class sta_loop
 
     inline static void send_to_worker(async_op& op) { enqueue(core::as_not_null<async_op>(&op)); }
 
-    /// In sta_loop.cpp: sleeps in place while there is nothing to take.
-    static void take_back_outstanding() noexcept;
-
     inline static void keep_nothing() noexcept {}
 
     /// The sleeping shape's wait: in run_one() until the condition holds.
@@ -269,13 +263,11 @@ class sta_loop
         while (!done(condition)) run_one();
     }
 
-    static constexpr shape on_worker{&send_to_worker, &take_back_outstanding, &keep_nothing,
-                                     &sleep_until};
+    static constexpr shape on_worker{&send_to_worker, &keep_nothing, &sleep_until};
 
     /// In sta_queue.cpp.
     ///@{
     static void send_to_pool(async_op& op);
-    static void take_back_dispatched() noexcept;
     static void let_go_of_queue() noexcept;
 
     /// The wait under a queue: turns the thread's message loop, which is what delivers
@@ -285,8 +277,7 @@ class sta_loop
     /// The idle hook's call: arms the trigger a drain standing in a modal loop holds, and
     /// posts for what is waiting, so that the modal loop is called back into.
     static void post_if_pending() noexcept;
-    static constexpr shape on_queue{&send_to_pool, &take_back_dispatched, &let_go_of_queue,
-                                    &pump_messages_until};
+    static constexpr shape on_queue{&send_to_pool, &let_go_of_queue, &pump_messages_until};
     ///@}
 
     static inline const shape* shape_ = &on_worker;
@@ -347,45 +338,37 @@ public:
     /// every orphanable operation on its way back from the thread pool.
     ///
     /// The queue has to outlive stop(): a post it refuses is an operation that never
-    /// comes back, and stop() waits for every one of them. One made here is shut
-    /// down by stop() itself; one the thread already had is its owner's to keep.
+    /// comes back, which stop() then finds still out. One made here is shut down by
+    /// stop() itself; one the thread already had is its owner's to keep.
     ///
     /// In sta_queue.cpp.
     static void start_dispatched(std::string_view worker_name = "sta_loop worker");
 
-    /// Waits for every operation that is out to come back, and stops the worker.
-    /// Returns once the worker's thread has exited -- its component waits for
-    /// that -- so a process that ends right after does not kill it on its way
-    /// out.
+    /// Stops the worker. Returns once the worker's thread has exited -- its component
+    /// waits for that -- so a process that ends right after does not kill it on its
+    /// way out. Under start_dispatched() the queue this made is shut down at the end,
+    /// the way the thread would have to before it exits.
     ///
-    /// The wait comes first because an operation the kernel holds comes back
-    /// through the worker, which therefore has to outlive it. So an operation
-    /// that would never finish by itself -- a read from a pipe nobody writes to
-    /// -- has to be given up before this is called, or this does not return.
-    /// Under start_dispatched() the wait turns the thread's message loop, since
-    /// that is how the queue delivers, and the queue this made is shut down at
-    /// the end, the way the thread would have to before it exits.
-    ///
-    /// What it does not do is finish the coroutines. What comes back is taken
-    /// out here without resuming anybody: a given-up operation is deleted, and
-    /// a coroutine waiting for one of the others never resumes; its frame is
-    /// destroyed by its `task`, suspended where it stood, and the operation
-    /// goes with it. That is the honest end for a loop that is being shut down
-    /// -- there is nothing left to resume it *onto* -- but a caller that wants
-    /// its coroutines finished runs them to their end before stopping.
+    /// Nothing may be out by then, and that is checked rather than waited for: the loop is
+    /// stopped once its work is over -- an application turns it with run_until() until its
+    /// last detached frame is gone -- so an operation still out here is one nobody is going
+    /// to see back. Taken back here, it would answer nobody, and a coroutine waiting for it
+    /// would be destroyed where it stood rather than finished; so it is an error of the
+    /// program, and the process stops on it. An operation that never finishes by itself --
+    /// a read from a pipe nobody writes to -- is given up by its owner, which waits until
+    /// the worker has let go of it; an orphanable one given up is left to finish alone, and
+    /// has to have come back before this as well.
     ///
     /// Doing nothing when there is no run is the point rather than an
     /// indulgence: a teardown path has no business knowing how far a startup
     /// path got before it threw.
     inline static void stop() {
-        // TODO: здесь надо продолжать разгребать корутины, которые завершаются.
-        // Это ошибка логики.
         if (!worker_) return;
 
-        if (worker_->was_started()) {
-            shape_->take_back_outstanding();
-            worker_->stop_async().get();
-        }
+        ensure(outstanding_ == 0 &&
+               "sta_loop: an operation is still out at stop() -- it was to be back first");
+
+        if (worker_->was_started()) worker_->stop_async().get();
 
         worker_.reset();
         threads_.reset();
@@ -619,21 +602,6 @@ public:
     ///
     /// \return how many coroutines were resumed.
     inline static std::size_t run_pending() {
-        return drain_pending([](async_op* op) { return op->come_back(); });
-    }
-
-    /// The same for a loop that is being stopped: what comes back is settled, and
-    /// nobody is resumed.
-    inline static void settle_pending() noexcept {
-        drain_pending([](async_op* op) noexcept {
-            op->settle();
-            return false;
-        });
-    }
-
-private:
-    template <class Deliver>
-    inline static std::size_t drain_pending(Deliver deliver) {
         std::size_t resumed = 0;
         const bool driven = from_worker_.wakeup().driven();
 
@@ -643,7 +611,7 @@ private:
         }
 
         for (;;) {
-            for (async_op* op = nullptr; take(op);) resumed += deliver(op);
+            for (async_op* op = nullptr; take(op);) resumed += op->come_back();
 
             if (!driven) return resumed;
 
@@ -657,10 +625,11 @@ private:
             if (!take(op)) return resumed;
 
             from_worker_.disarm();
-            resumed += deliver(op);
+            resumed += op->come_back();
         }
     }
 
+private:
     /// Takes the next operation out of the return channel, if there is one.
     inline static bool take(async_op*& op) noexcept {
         if (!from_worker_reader_.read(op)) return false;

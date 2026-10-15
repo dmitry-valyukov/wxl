@@ -754,11 +754,11 @@ private:
 
 }  // namespace
 
-// A loop that is being stopped settles what comes back and resumes nobody, and leaves the
-// answer as the operation made it: one cancelled after its body ran answers its value, one
-// cancelled before the worker reached it never runs and answers the cancellation the worker
-// wrote for it, and one never cancelled its value.
-TEST(CancellationTest, AnOperationCancelledWhileOutIsSettledWithWhatHappenedToIt) {
+// What comes back is the answer as the operation made it, whenever the request came: one
+// cancelled after its body ran answers its value, one cancelled before the worker reached it
+// never runs and answers the cancellation the worker wrote for it, and one never cancelled its
+// value. Taken back with nobody waiting, each is there for the co_await still to come.
+TEST(CancellationTest, AnOperationCancelledWhileOutComesBackWithWhatHappenedToIt) {
     using op = detail::operation_under<carried_by_hand>;
 
     cancellation_source stop;
@@ -776,8 +776,8 @@ TEST(CancellationTest, AnOperationCancelledWhileOutIsSettledWithWhatHappenedToIt
     EXPECT_TRUE(not_reached->packaged_execute());
     EXPECT_EQ(not_reached->runs, 0) << "an operation cancelled before the worker reached it ran";
 
-    done_first->settle();
-    not_reached->settle();
+    done_first->come_back();
+    not_reached->come_back();
 
     EXPECT_TRUE(done_first_task.done());
     EXPECT_EQ(done_first_task.result(), 3);
@@ -790,7 +790,7 @@ TEST(CancellationTest, AnOperationCancelledWhileOutIsSettledWithWhatHappenedToIt
     task<int> plain_task(std::unique_ptr<async_op_t<int>>{plain});
 
     EXPECT_TRUE(plain->packaged_execute());
-    plain->settle();
+    plain->come_back();
 
     EXPECT_TRUE(plain_task.done());
     EXPECT_EQ(plain_task.result(), 4);

@@ -232,18 +232,6 @@ public:
         return true;
     }
 
-    /// The same without resuming anybody: for a loop that is being stopped, where a
-    /// coroutine suspended here stays where it is and the op waits for its task to delete
-    /// it along with the frame.
-    inline void settle() noexcept {
-        if (abandoned_) {
-            delete this;
-            return;
-        }
-
-        ready_ = true;
-    }
-
     /// The STA thread's call for a result that is here as it stands: an operation over
     /// inside the call that started it, on this thread, which never travels -- or a
     /// coroutine at its end.
