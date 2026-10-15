@@ -17,6 +17,7 @@ namespace {
 using ABI::Windows::Foundation::AsyncStatus;
 using ABI::Windows::Foundation::IAsyncAction;
 using ABI::Windows::Foundation::IAsyncActionCompletedHandler;
+using ABI::Windows::Foundation::IAsyncInfo;
 using ABI::Windows::System::IDispatcherQueue;
 using ABI::Windows::System::IDispatcherQueueController;
 using ABI::Windows::System::IDispatcherQueueHandler;
@@ -33,32 +34,29 @@ IDispatcherQueueController* own_controller = nullptr;
 /// start_dispatched(), removed by stop().
 HHOOK idle_hook = nullptr;
 
-/// What the two handlers do with what arrives: deliver it while the loop runs, settle
-/// it while the loop is being stopped.
-void (*on_drain)() noexcept = nullptr;
+/// What the handler bringing an operation back from the thread pool does with it: takes it
+/// out of the loop's count and delivers it. Set by start_dispatched(), which is the loop's
+/// own and may touch the count; the handler is not.
 void (*on_return)(async_op&) noexcept = nullptr;
 
 /// Turns the message loop until the condition holds: what the queue is posted arrives
-/// as a message. A WM_QUIT met on the way is put back for whoever was meant to see it.
+/// as a message. This is the thread's only loop while it turns -- at the end of a process
+/// the wait for the last frames and stop() both come after the application's own loop has
+/// ended -- so nothing but messages is expected: a failed GetMessageW, and a WM_QUIT
+/// asking the thread to leave while it still waits for what it owes, are broken rules, not
+/// cases, and the process stops on them rather than going on as if the wait were over.
 void pump_until(auto done) noexcept {
-    std::optional<WPARAM> quit;
     MSG message{};
 
     while (!done()) {
         const BOOL got = ::GetMessageW(&message, nullptr, 0, 0);
 
-        if (got == -1) break;
-
-        if (got == 0) {
-            quit = message.wParam;
-            continue;
-        }
+        ensure(got != -1 && "sta_loop: GetMessageW failed while the loop waits");
+        ensure(got != 0 && "sta_loop: WM_QUIT reached the loop while it waits for what it owes");
 
         ::TranslateMessage(&message);
         ::DispatchMessageW(&message);
     }
-
-    if (quit) ::PostQuitMessage(static_cast<int>(*quit));
 }
 
 IDispatcherQueue* queue_of_this_thread() {
@@ -122,6 +120,52 @@ protected:
     ~queue_handler() = default;
 };
 
+/// What the queue's shutdown action is given as its Completed handler: a wake-up for the
+/// thread's message loop, and nothing else. The loop that waits for the shutdown sleeps in
+/// GetMessageW, and the action completing is not a message to it -- so this posts one, with
+/// nothing in it (WM_NULL), to the thread that waits. Whether the wait is over is read off
+/// the action's own status, not off this call: a handler that set a flag would be a second
+/// copy of what the action already keeps. Agile and counted with interlocked increments,
+/// since the action may complete, and let go of it, from another thread.
+class shutdown_wake final : public IAsyncActionCompletedHandler
+{
+public:
+    explicit shutdown_wake(DWORD thread) noexcept : thread_(thread) {}
+
+    HRESULT __stdcall QueryInterface(const IID& iid, void** out) noexcept override {
+        if (iid == __uuidof(IAsyncActionCompletedHandler) || iid == __uuidof(IUnknown) ||
+            iid == __uuidof(IAgileObject)) {
+            *out = static_cast<IAsyncActionCompletedHandler*>(this);
+            AddRef();
+            return S_OK;
+        }
+
+        *out = nullptr;
+        return E_NOINTERFACE;
+    }
+
+    ULONG __stdcall AddRef() noexcept override {
+        return refs_.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+
+    ULONG __stdcall Release() noexcept override {
+        const ULONG left = refs_.fetch_sub(1, std::memory_order_acq_rel) - 1;
+        if (left == 0) delete this;
+        return left;
+    }
+
+    HRESULT __stdcall Invoke(IAsyncAction*, AsyncStatus) noexcept override {
+        ::PostThreadMessageW(thread_, WM_NULL, 0, 0);
+        return S_OK;
+    }
+
+private:
+    ~shutdown_wake() = default;
+
+    std::atomic<ULONG> refs_{1};
+    const DWORD thread_;
+};
+
 /// \return whether the queue took it; it refuses once it is shutting down.
 bool post(queue_handler& handler) noexcept {
     boolean taken = false;
@@ -138,53 +182,12 @@ public:
     ULONG __stdcall Release() noexcept override { return 1; }
 
     HRESULT __stdcall Invoke() noexcept override {
-        on_drain();
+        sta_loop::run_pending();
         return S_OK;
     }
 };
 
 draining_handler drain;
-
-/// Told when the queue this module made has shut down. One for the process, like the
-/// drain: the action may keep the pointer for as long as it lives.
-class shutdown_watch final : public IAsyncActionCompletedHandler
-{
-public:
-    HRESULT __stdcall QueryInterface(const IID& iid, void** out) noexcept override {
-        if (iid == __uuidof(IAsyncActionCompletedHandler) || iid == __uuidof(IUnknown) ||
-            iid == __uuidof(IAgileObject)) {
-            *out = static_cast<IAsyncActionCompletedHandler*>(this);
-            AddRef();
-            return S_OK;
-        }
-
-        *out = nullptr;
-        return E_NOINTERFACE;
-    }
-
-    ULONG __stdcall AddRef() noexcept override { return 2; }
-    ULONG __stdcall Release() noexcept override { return 1; }
-
-    /// On whichever thread the action chooses; the message wakes the one pumping.
-    HRESULT __stdcall Invoke(IAsyncAction*, AsyncStatus) noexcept override {
-        done_.store(true, std::memory_order_release);
-        ::PostThreadMessageW(thread_, WM_NULL, 0, 0);
-        return S_OK;
-    }
-
-    inline void arm() noexcept {
-        thread_ = ::GetCurrentThreadId();
-        done_.store(false, std::memory_order_relaxed);
-    }
-
-    inline bool done() const noexcept { return done_.load(std::memory_order_acquire); }
-
-private:
-    std::atomic<bool> done_{false};
-    DWORD thread_ = 0;
-};
-
-shutdown_watch shut_down;
 
 /// Brings one operation back from the thread pool. The queue keeps it past Invoke(),
 /// by which time the operation may be gone, so it is an object of its own -- and on
@@ -229,7 +232,7 @@ void __stdcall run_on_pool(PTP_CALLBACK_INSTANCE, void* context) noexcept {
     handler.op().packaged_execute();
 
     // Refused only by a queue that is shutting down, which is a thread on its way out:
-    // nobody is left to take the operation, and it stays where it is.
+    // nobody is left to take the operation, and it stays out, for stop() to find.
     post(handler);
 
     handler.Release();
@@ -240,7 +243,6 @@ void __stdcall run_on_pool(PTP_CALLBACK_INSTANCE, void* context) noexcept {
 void sta_loop::start_dispatched(std::string_view worker_name) {
     ensure(!worker_ && "sta_loop: the loop is already running");
 
-    on_drain = []() noexcept { run_pending(); };
     on_return = [](async_op& op) noexcept {
         --outstanding_;
         op.come_back();
@@ -309,23 +311,8 @@ void sta_loop::send_to_pool(async_op& op) {
     }
 }
 
-void sta_loop::take_back_dispatched() noexcept {
-    on_drain = &settle_pending;
-    on_return = [](async_op& op) noexcept {
-        --outstanding_;
-        op.settle();
-    };
-
-    // What is in the channel already may have been posted about before this began, or
-    // not at all: taken here, so that the wait below only ever waits for a message
-    // still to come.
-    settle_pending();
-
-    pump_until([] { return outstanding_ == 0; });
-
-    // Left armed by the last drain, and nothing is coming any more: cleared, so that
-    // the next start finds it the way the first did.
-    from_worker_.disarm();
+void sta_loop::pump_messages_until(bool (*done)(void*), void* condition) noexcept {
+    pump_until([done, condition] { return done(condition); });
 }
 
 void sta_loop::let_go_of_queue() noexcept {
@@ -338,16 +325,44 @@ void sta_loop::let_go_of_queue() noexcept {
     sta_queue = nullptr;
 
     if (own_controller) {
+        // A queue made on this thread is shut down by this thread: it drains what it still
+        // holds through the message loop. The wait is the loop turning until the action's
+        // own status says it is over, read between messages -- the action keeps that state
+        // itself. What the loop cannot do is wake for the completion by itself: it sleeps
+        // in GetMessageW, and the action completing is not a message to it -- a loop that
+        // only read the status stood in GetMessageW for good once the last message had
+        // gone by. So the action's Completed handler posts an empty message to this thread,
+        // and the status, not the handler, says when the wait is over.
         IAsyncAction* action = nullptr;
+        const HRESULT started = own_controller->ShutdownQueueAsync(&action);
+        ensure(SUCCEEDED(started) && "sta_loop: ShutdownQueueAsync refused");
 
-        shut_down.arm();
+        IAsyncInfo* info = nullptr;
+        const HRESULT asked =
+            action->QueryInterface(__uuidof(IAsyncInfo), reinterpret_cast<void**>(&info));
+        ensure(SUCCEEDED(asked) && "sta_loop: the shutdown action has no IAsyncInfo");
 
-        if (SUCCEEDED(own_controller->ShutdownQueueAsync(&action))) {
-            if (SUCCEEDED(action->put_Completed(&shut_down)))
-                pump_until([] { return shut_down.done(); });
+        const auto status = [info] {
+            AsyncStatus value{};
+            const HRESULT read = info->get_Status(&value);
+            ensure(SUCCEEDED(read) && "sta_loop: IAsyncInfo::get_Status failed");
+            return value;
+        };
 
-            action->Release();
-        }
+        // Given before the wait, so that a completion that comes first still posts; an
+        // action already complete calls the handler from inside put_Completed, and the
+        // wait below then finds the status and never sleeps.
+        auto* const wake = new shutdown_wake(::GetCurrentThreadId());
+        const HRESULT hooked = action->put_Completed(wake);
+        ensure(SUCCEEDED(hooked) && "sta_loop: the shutdown action takes no Completed handler");
+
+        pump_until([&status] { return status() != AsyncStatus::Started; });
+        ensure(status() == AsyncStatus::Completed &&
+               "sta_loop: the dispatcher queue did not shut down");
+
+        info->Release();
+        action->Release();
+        wake->Release();
 
         own_controller->Release();
         own_controller = nullptr;

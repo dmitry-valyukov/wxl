@@ -97,35 +97,6 @@ void sta_loop::pay_owed_callback() noexcept {
     if (from_worker_reader_.peek(at) && from_worker_.disarm()) from_worker_.wakeup().set();
 }
 
-void sta_loop::take_back_outstanding() noexcept {
-    sta_signal& signal = from_worker_.wakeup();
-
-    // Nobody is called back from here on: what the dispatcher was owed is taken below.
-    if (signal.driven()) from_worker_.disarm();
-
-    signal.hold();
-
-    while (outstanding_ != 0) {
-        async_op* op = nullptr;
-
-        if (take(op)) {
-            op->settle();
-            continue;
-        }
-
-        from_worker_.arm();
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-
-        auto at = from_worker_reader_.look_ahead();
-
-        if (!from_worker_reader_.peek(at)) signal.wait_held();
-
-        from_worker_.disarm();
-    }
-
-    signal.release();
-}
-
 void sta_loop::worker::run() {
     // Built here rather than beside the channels: the reader belongs to the thread
     // that reads, and this is it.

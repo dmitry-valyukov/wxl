@@ -2,6 +2,8 @@
 
 #include "sta_pool.h"
 
+#include <crtdbg.h>
+
 import std;
 import wxl.core;
 import wxl.async;
@@ -160,6 +162,66 @@ detached_task waits_then_finishes_throwing(std::coroutine_handle<>& out, bool* r
     const Trace trace{released};
 
     co_await ThrowingCapture{&out};
+}
+
+// The count of live frames: up as a frame is made, down as it is unmade -- by the body
+// ending, by the frame being taken apart, by a failure or a cancellation on the way.
+TEST_F(DetachedTaskTest, ALiveFrameIsCountedUntilItIsUnmade) {
+    const std::size_t before = detached_task::live_frames();
+    std::coroutine_handle<> waiter;
+    bool released = false;
+
+    waits_then_finishes(waiter, &released);
+    EXPECT_EQ(detached_task::live_frames(), before + 1);
+
+    waiter.resume();
+    EXPECT_EQ(detached_task::live_frames(), before);
+}
+
+TEST_F(DetachedTaskTest, AFrameTakenApartLeavesTheCount) {
+    const std::size_t before = detached_task::live_frames();
+    std::coroutine_handle<> waiter;
+    bool released = false;
+
+    waits_then_finishes(waiter, &released);
+    EXPECT_EQ(detached_task::live_frames(), before + 1);
+
+    waiter.destroy();
+    EXPECT_EQ(detached_task::live_frames(), before);
+}
+
+TEST_F(DetachedTaskTest, AFrameThatEndsAtOnceLeavesTheCountEitherWay) {
+    const std::size_t before = detached_task::live_frames();
+    int sink = 0;
+
+    runs_through(sink);
+    EXPECT_EQ(detached_task::live_frames(), before);
+
+    cancelled_at_once();
+    EXPECT_EQ(detached_task::live_frames(), before);
+
+    fails_at_once("counted out");
+    EXPECT_EQ(detached_task::live_frames(), before);
+}
+
+// A detached frame comes from the STA pool, and the pool asserts the thread in debug
+// builds: a coroutine of this kind started anywhere else is a broken rule, reported to
+// stderr rather than to a dialog that would hang the run.
+void start_a_detached_task_on_another_thread() {
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+
+    int sink = 0;
+    std::thread([&sink] { runs_through(sink); }).join();
+}
+
+TEST_F(DetachedTaskTest, AFrameMadeOffTheStaThreadIsABrokenRule) {
+#ifdef NDEBUG
+    GTEST_SKIP() << "the pool asserts its thread in debug builds only";
+#else
+    EXPECT_DEATH(start_a_detached_task_on_another_thread(), "thread_guard: thread mismatch");
+#endif
 }
 
 TEST_F(DetachedTaskTest, ReleasesItselfWhenTheBodyEndsThroughAThrowingAwaiter) {

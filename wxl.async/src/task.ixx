@@ -222,7 +222,7 @@ protected:
     inline explicit awaiter(async_op_t<R>* producer) noexcept : producer_(producer) {}
 
     inline bool ready([[maybe_unused]] site where) const noexcept {
-        coro_check(producer_, "task: moved-from", where);
+        coro_check(producer_, "task: empty -- default-constructed or moved-from", where);
         coro_check(core::sta_memory_pool::is_safe(), "task: awaited from a thread other than its own", where);
         return producer_->ready();
     }
@@ -329,6 +329,15 @@ public:
 /// destroyed under it, and a Debug build catches the attempt -- any build does under
 /// STRICT_CORO.
 ///
+/// **An empty task holds nothing**: one made by the default constructor, and one moved
+/// from -- `std::exchange(field, {})` takes the task out of a field and leaves it empty. It
+/// waits for nothing and gives nothing: `bool(t)` says whether there is a task in it,
+/// destroying it or assigning over it does nothing more, and anything else asked of it --
+/// co_await, done(), result() -- is a broken rule, which a build that checks stops at. That
+/// is the state of a field that holds a task at one time and not at another, a load under
+/// way or none: the field is a task, and an optional around it would be a second empty
+/// state over the one the task has.
+///
 /// **Its producer comes from sta_memory_pool**, an operation and a coroutine's frame
 /// alike. It is exactly what that pool is for -- a small object, made and unmade on the
 /// one thread, over and over -- and it means the thread a task belongs to has to be the
@@ -340,6 +349,9 @@ class [[nodiscard("a task nobody keeps is destroyed at once, and its work with i
 public:
     using promise_type = detail::task_promise<R>;
 
+    /// An empty task: nothing to wait for, nothing to give.
+    inline task() noexcept : detail::awaiter<R>(nullptr) {}
+
     /// Takes over an operation already started: what the calls of sta_loop do with the
     /// operations they start, and what an author of an operation of their own does in the
     /// call that starts it.
@@ -349,8 +361,14 @@ public:
     inline task(task&& other) noexcept
         : detail::awaiter<R>(std::exchange(other.producer_, nullptr)) {}
 
+    /// Takes over what `other` holds, and leaves it empty. The task this one held is dropped
+    /// here, the way its destructor drops it -- an operation still out given up, a
+    /// coroutine's frame destroyed -- rather than handed to `other` to go whenever that one
+    /// does: a task moved from is empty, whichever way it was moved. Through a local, so
+    /// that a task moved onto itself stays as it is.
     inline task& operator=(task&& other) noexcept {
-        std::swap(this->producer_, other.producer_);
+        task taken(std::move(other));
+        std::swap(this->producer_, taken.producer_);
         return *this;
     }
 
@@ -370,10 +388,17 @@ public:
         }
     }
 
+    /// Whether there is a task in it: `false` for an empty one.
+    inline explicit operator bool() const noexcept { return this->producer_ != nullptr; }
+
     /// \return `true` once the result is here: the coroutine has run to its end, by
     ///         reaching it or by leaving through an exception; the loop has taken the
-    ///         operation back.
-    inline bool done() const noexcept { return this->producer_->ready(); }
+    ///         operation back. Not to be asked of an empty task.
+    inline bool done() const noexcept {
+        coro_check(this->producer_, "task: empty -- default-constructed or moved-from",
+                   detail::site::current());
+        return this->producer_->ready();
+    }
 
     /// \return the value, moved out: ask once, after done().
     /// \throw whatever left the producer.
@@ -411,7 +436,7 @@ private:
     inline explicit task(async_op_t<R>* producer) noexcept : detail::awaiter<R>(producer) {}
 
     inline void check_ended([[maybe_unused]] detail::site where) const noexcept {
-        coro_check(this->producer_, "task: moved-from", where);
+        coro_check(this->producer_, "task: empty -- default-constructed or moved-from", where);
         coro_check(this->producer_->ready(), "task: result() asked before it ended", where);
     }
 };

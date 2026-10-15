@@ -1,6 +1,8 @@
 // The loop on a dispatcher queue: where an orphanable operation is carried out, how it
 // comes back, and what happens to one that was given up on the way.
-#include "dispatched_environment.h"
+#include "loop_environment.h"
+
+#include <crtdbg.h>
 
 using namespace wxl::core;
 using namespace wxl::async;
@@ -88,8 +90,7 @@ TEST(StaLoopDispatchedTest, AnOrphanableOperationRunsOnThePoolAndNotOnTheWorker)
 
     task<> work = asks_where(worker, orphan);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_NE(worker, std::thread::id{});
     EXPECT_NE(orphan, std::thread::id{});
@@ -181,8 +182,7 @@ TEST(StaLoopDispatchedTest, AnOrphanComingBackIsTakenByTheCoAwaitThatFollows) {
 
     task<> work = answers(value);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(value, 7);
 }
@@ -202,57 +202,112 @@ TEST(StaLoopDispatchedTest, AnExceptionFromThePoolArrivesAtTheCoAwait) {
 
     task<> work = fails(message);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(message, "from the pool");
 }
 
-namespace {
+// run_until() under the queue turns the thread's message loop: an answer from the pool
+// reaches the detached frame waiting for it there, and the wait ends with that frame.
+detached_task awaits_the_pool(bool& answered) {
+    answered = co_await sta_loop::async_call(orphanable, [] {
+        ::Sleep(50);
+        return true;
+    });
+}
 
-/// An orphan left out on purpose when the binary ends, for the environment below to
-/// find stop() waiting for. The loop starts once per process, so the stop itself cannot
-/// be watched from inside a test.
-struct orphan_left_out {
-    std::atomic<bool> finished{false};
-    std::optional<task<int>> pending;
-};
+TEST(StaLoopDispatchedTest, RunUntilTurnsTheMessageLoopUntilTheConditionHolds) {
+    const std::size_t before = detached_task::live_frames();
+    bool answered = false;
 
-orphan_left_out left_out;
+    awaits_the_pool(answered);
+    EXPECT_EQ(detached_task::live_frames(), before + 1);
 
-/// Registered from this file, so its TearDown() may run before or after the loop
-/// environment stops the loop; both stop it the same way, and the second call finds
-/// nothing to do.
-class stop_watch : public ::testing::Environment
-{
-public:
-    void TearDown() override {
-        if (!left_out.pending) return;
+    sta_loop::run_until([before] { return detached_task::live_frames() == before; });
 
-        loop_stopping.set();
-        sta_loop::stop();
+    EXPECT_TRUE(answered);
+}
 
-        EXPECT_TRUE(left_out.finished.load());
-        EXPECT_TRUE(left_out.pending->await_ready());
+// run_until(task) under the queue: the task's answer comes from the pool through the
+// message loop, and the value comes back from the call.
+task<int> asks_the_pool(int value) {
+    co_return co_await sta_loop::async_call(orphanable, [value] {
+        ::Sleep(50);
+        return value;
+    });
+}
 
-        left_out.pending.reset();
+TEST(StaLoopDispatchedTest, RunUntilGivesTheValueATaskAnsweredFromThePoolEndsWith) {
+    task<int> work = asks_the_pool(7);
+
+    EXPECT_EQ(sta_loop::run_until(work), 7);
+}
+
+// An orphan whose task went at once is left to finish alone on the pool, and is counted while
+// it does: run_until() on outstanding() -- what the end of a process waits for -- ends once
+// it has come back through the queue and been deleted.
+TEST(StaLoopDispatchedTest, AnOrphanLeftToFinishAloneIsWaitedForByRunUntil) {
+    std::atomic<bool> deleted{false};
+
+    {
+        auto let_go = sta_loop::async_call(orphanable, [mark = deletion_mark(deleted)] {
+            ::Sleep(50);
+            return 0;
+        });
     }
-};
 
-::testing::Environment* const watch = ::testing::AddGlobalTestEnvironment(new stop_watch);
+    EXPECT_NE(sta_loop::outstanding(), 0u) << "an orphan left to finish alone is not counted";
+    EXPECT_FALSE(deleted.load());
 
-}  // namespace
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
 
-TEST(StaLoopDispatchedTest, StopWaitsForAnOrphanOutOnThePool) {
-    left_out.pending = sta_loop::async_call(orphanable, [] {
-        // Still going when stop() is called, and for a while after: the wait is a
-        // real one.
-        loop_stopping.wait();
+    EXPECT_TRUE(deleted.load()) << "the wait ended before the orphan was back";
+}
+
+// A broken rule is reported to stderr in every build, not to a dialog that would hang the
+// run.
+void report_broken_rules_to_stderr() {
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+}
+
+// run_until() under the queue turns the thread's message loop, the thread's only one while it
+// turns, in a test as at the end of a process. A WM_QUIT reaching it is somebody asking the
+// thread to leave before what it waits for is done -- a broken rule, which stops the process
+// rather than being carried past the wait. The operation takes long enough for the wait to be
+// a real one; the quit is in the queue before it begins.
+void quit_while_the_loop_waits() {
+    report_broken_rules_to_stderr();
+
+    task<int> pending = sta_loop::async_call(orphanable, [] {
         ::Sleep(100);
-        left_out.finished = true;
-        return 7;
+        return 0;
     });
 
-    // The rest is the environment's, once the tests are over.
-    EXPECT_FALSE(left_out.pending->await_ready());
+    ::PostQuitMessage(0);
+    sta_loop::run_until(pending);
+}
+
+TEST(StaLoopDispatchedDeathTest, AQuitPostedWhileTheLoopWaitsIsABrokenRule) {
+    EXPECT_DEATH(quit_while_the_loop_waits(), "WM_QUIT");
+}
+
+// stop() checks that nothing is out rather than waiting for it: the loop is stopped once its
+// work is over, and an operation still out then is one nobody is going to see back. Here its
+// task is still there and nobody has waited -- the orphan is asleep on the pool as stop() is
+// called.
+void stop_with_an_operation_out() {
+    report_broken_rules_to_stderr();
+
+    task<int> pending = sta_loop::async_call(orphanable, [] {
+        ::Sleep(100);
+        return 0;
+    });
+
+    sta_loop::stop();
+}
+
+TEST(StaLoopDispatchedDeathTest, AnOperationOutAtStopIsABrokenRule) {
+    EXPECT_DEATH(stop_with_an_operation_out(), "still out");
 }

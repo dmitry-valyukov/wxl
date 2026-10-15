@@ -324,6 +324,7 @@ using namespace wxl::dsl;
         extendsContentIntoTitleBar = true,
         titleBar = {leftHeader = TextBlock{L"App"}, rightHeader = Button{L"Sign in"}},
         zoomFactor = 1.25,
+        onClosing = [](Object const&, WindowClosingEventArgs& args) { args.cancel(!args.cancel()); },
         onClosed = [] {},
         onGeometryChanged = [] {},
         onClientSizeChanged = [](Object const&, ClientSize const& client) { (void)client.scale; },
@@ -349,7 +350,28 @@ using namespace wxl::dsl;
     window.appWindow().title(legacy.title());
     auto sizes = wxl::on_event<EventKey::ClientSizeChanged>(window);
     (void)sizes;
+
+    // A request to close, refusable, awaited the same way: its args arrive by
+    // reference, to be answered before the coroutine next suspends.
+    auto closings = wxl::on_event<EventKey::Closing>(window);
+    static_assert(std::is_same_v<decltype(closings)::args_ref_t, WindowClosingEventArgs&>);
+    (void)closings;
 }
+
+// An application that refuses to close until its own exit is over: the handler is
+// a member, and it answers through the args.
+struct RefusesUntilDone {
+    bool finished = false;
+
+    void closing(Object const&, WindowClosingEventArgs& args) const {
+        if (!finished) args.cancel(true);
+    }
+
+    void build() const {
+        CompositionWindow window{onClosing = method(this, &RefusesUntilDone::closing)};
+        window.add_onClosing(method(this, &RefusesUntilDone::closing));
+    }
+};
 
 // The even stack: children claim a star row (column) apiece instead of
 // being numbered by hand, and everything of Grid's -- spacing here -- still

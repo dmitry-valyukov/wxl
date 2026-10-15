@@ -375,12 +375,12 @@ TEST_F(EventCancelTest, AFrameDestroyedBeforeTheTurnIsNotResumed) {
     int taken = 0;
     std::string ended;
 
-    std::optional<task<>> keys(std::in_place, takes_keys(event, stop.token(), taken, ended));
+    task<> keys = takes_keys(event, stop.token(), taken, ended);
 
     stop.cancel();
     EXPECT_EQ(turns_asked, 1);
 
-    keys.reset();
+    keys = {};
     EXPECT_TRUE(wxl::impl::event_waits_drained());
 
     wxl::impl::resume_canceled_waits();

@@ -23,8 +23,7 @@ void wxl::async::impl::sta_environment::SetUp() {
         return self;
     });
 
-    sta_loop::run_until([&] { return opened.done(); });
-    worker_ = opened.result();
+    worker_ = sta_loop::run_until(opened);
 }
 
 void wxl::async::impl::sta_environment::TearDown() {
@@ -43,6 +42,12 @@ namespace {
 
 task<> add_up(int count, int& sum) {
     for (int i = 1; i <= count; ++i) sum += co_await sta_loop::async_call([i] { return i; });
+}
+
+task<int> sums_on_the_worker(int count) {
+    int sum = 0;
+    for (int i = 1; i <= count; ++i) sum += co_await sta_loop::async_call([i] { return i; });
+    co_return sum;
 }
 
 task<> throws_from_the_worker(std::string& message) {
@@ -139,8 +144,7 @@ TEST(StaLoopTest, RunsACoroutineToItsEnd) {
     int sum = 0;
     task<> work = add_up(10, sum);
 
-    sta_loop::run_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(sum, 55);
 }
@@ -149,10 +153,27 @@ TEST(StaLoopTest, CarriesAnExceptionBackToTheCoAwait) {
     std::string message;
     task<> work = throws_from_the_worker(message);
 
-    sta_loop::run_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(message, "from the worker");
+}
+
+// run_until(task) is the synchronous way through a coroutine: the loop sleeps until the
+// task has ended, and the call gives what it ended with.
+TEST(StaLoopTest, RunUntilGivesTheValueATaskEndsWith) {
+    task<int> work = sums_on_the_worker(10);
+
+    EXPECT_EQ(sta_loop::run_until(work), 55);
+}
+
+TEST(StaLoopTest, RunUntilThrowsWhatLeftTheTask) {
+    task<> work = sta_loop::async_call([] { throw std::runtime_error("from the worker"); });
+
+    EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
+}
+
+TEST(StaLoopTest, RunUntilTakesATemporaryTaskAsItStands) {
+    EXPECT_EQ(sta_loop::run_until(sums_on_the_worker(4)), 10);
 }
 
 TEST(StaLoopTest, TheWorkerThreadIsAComMtaApartment) {
@@ -162,8 +183,7 @@ TEST(StaLoopTest, TheWorkerThreadIsAComMtaApartment) {
     APTTYPE type = APTTYPE_CURRENT;
     task<> work = worker_apartment(type);
 
-    sta_loop::run_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(type, APTTYPE_MTA);
 }
@@ -205,8 +225,7 @@ TEST(StaLoopTest, RunsAnOperationWrittenAsAClass) {
 
     task<> work = run_sum_op(sum, ran_on);
 
-    sta_loop::run_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(sum, 42);
     EXPECT_NE(ran_on, std::thread::id{});
