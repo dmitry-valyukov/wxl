@@ -77,13 +77,6 @@ protected:
         ASSERT_TRUE(out.opened());
     }
 
-    /// Runs a coroutine to its end on the loop and lets whatever left it out.
-    void run(task<> work) {
-        wait_until([&] { return work.done(); });
-
-        work.result();
-    }
-
     path root_;
 };
 
@@ -96,7 +89,7 @@ TEST_F(AsyncDirectoryTest, ListsADirectoryInACoroutine) {
 
     std::vector<std::wstring> found;
 
-    run(list_all(root_ / L"*", found));
+    sta_loop::run_until(list_all(root_ / L"*", found));
 
     EXPECT_EQ(found, (std::vector<std::wstring>{L"notes.txt", L"one.fb3", L"two.fb3"}));
 }
@@ -108,7 +101,7 @@ TEST_F(AsyncDirectoryTest, TheMaskGoesToTheSystem) {
 
     std::vector<std::wstring> found;
 
-    run(list_all(root_ / L"*.fb3", found));
+    sta_loop::run_until(list_all(root_ / L"*.fb3", found));
 
     EXPECT_EQ(found, (std::vector<std::wstring>{L"one.fb3", L"two.fb3"}));
 }
@@ -116,7 +109,7 @@ TEST_F(AsyncDirectoryTest, TheMaskGoesToTheSystem) {
 TEST_F(AsyncDirectoryTest, AnEmptyDirectoryEndsTheLoopAtOnce) {
     std::vector<std::wstring> found;
 
-    run(list_all(root_ / L"*", found));
+    sta_loop::run_until(list_all(root_ / L"*", found));
 
     EXPECT_TRUE(found.empty());
 }
@@ -130,7 +123,7 @@ TEST_F(AsyncDirectoryTest, ListsMoreNamesThanOneTripCanCarry) {
 
     std::vector<std::wstring> found;
 
-    run(list_all(root_ / L"*", found));
+    sta_loop::run_until(list_all(root_ / L"*", found));
 
     EXPECT_EQ(found.size(), 200u);
     EXPECT_EQ(found.front(), L"book-0.fb3");
@@ -140,8 +133,8 @@ TEST_F(AsyncDirectoryTest, MakesAChainChecksItAndRemovesIt) {
     bool existed_after = false;
     bool exists_at_the_end = true;
 
-    run(make_check_remove(root_ / L"one" / L"two" / L"three", existed_after,
-                          exists_at_the_end));
+    sta_loop::run_until(
+        make_check_remove(root_ / L"one" / L"two" / L"three", existed_after, exists_at_the_end));
 
     EXPECT_TRUE(existed_after);
     EXPECT_FALSE(exists_at_the_end);
@@ -153,7 +146,7 @@ TEST_F(AsyncDirectoryTest, MakesAChainChecksItAndRemovesIt) {
 TEST_F(AsyncDirectoryTest, OpeningWhatIsNotThereThrowsAtTheCoAwait) {
     std::string message;
 
-    run(open_and_catch(root_ / L"no_such_directory" / L"*", message));
+    sta_loop::run_until(open_and_catch(root_ / L"no_such_directory" / L"*", message));
 
     EXPECT_TRUE(message.starts_with("FindFirstFileExW")) << message;
 }
@@ -161,7 +154,7 @@ TEST_F(AsyncDirectoryTest, OpeningWhatIsNotThereThrowsAtTheCoAwait) {
 TEST_F(AsyncDirectoryTest, RemovingWhatIsNotThereThrowsAtTheCoAwait) {
     std::string message;
 
-    run(remove_and_catch(root_ / L"no_such_directory", message));
+    sta_loop::run_until(remove_and_catch(root_ / L"no_such_directory", message));
 
     EXPECT_TRUE(message.starts_with("RemoveDirectoryW")) << message;
 }
@@ -177,7 +170,7 @@ TEST_F(AsyncDirectoryTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
 
     task<> work = list_all(path(root_.native()) / L"*", found);
 
-    run(std::move(work));
+    sta_loop::run_until(work);
 
     EXPECT_EQ(found, (std::vector<std::wstring>{L"one.fb3"}));
 }
@@ -220,7 +213,7 @@ TEST_F(AsyncDirectoryTest, ListBringsEveryMatchAtOnce) {
 
     std::vector<async_directory::listed_entry> found;
 
-    run(lists_at_once(root_ / L"*.fb3", found));
+    sta_loop::run_until(lists_at_once(root_ / L"*.fb3", found));
 
     ASSERT_EQ(found.size(), 3u);
     EXPECT_EQ(found[0].name, L"inner.fb3");
@@ -238,7 +231,7 @@ TEST_F(AsyncDirectoryTest, ListUnderATokenBringsWhatThePlainOneDoesUntilAsked) {
     cancellation_source stop;
     std::vector<async_directory::listed_entry> found;
 
-    run(lists_at_once_under(root_ / L"*.fb3", stop.token(), found));
+    sta_loop::run_until(lists_at_once_under(root_ / L"*.fb3", stop.token(), found));
 
     ASSERT_EQ(found.size(), 2u);
     EXPECT_EQ(found[0].name, L"one.fb3");
@@ -259,7 +252,7 @@ TEST_F(AsyncDirectoryTest, ListOfNoMatchIsEmptyAndNotAFailure) {
 
     std::vector<async_directory::listed_entry> found{{L"stale"}};
 
-    run(lists_at_once(root_ / L"*.fb3", found));
+    sta_loop::run_until(lists_at_once(root_ / L"*.fb3", found));
 
     EXPECT_TRUE(found.empty());
 }
@@ -267,7 +260,7 @@ TEST_F(AsyncDirectoryTest, ListOfNoMatchIsEmptyAndNotAFailure) {
 TEST_F(AsyncDirectoryTest, ListOfAMissingDirectoryNamesTheSystemsCode) {
     int code = -1;
 
-    run(lists_and_catches(root_ / L"nowhere" / L"*", code));
+    sta_loop::run_until(lists_and_catches(root_ / L"nowhere" / L"*", code));
 
     EXPECT_EQ(code, ERROR_PATH_NOT_FOUND);
 }

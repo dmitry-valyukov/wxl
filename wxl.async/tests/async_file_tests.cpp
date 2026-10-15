@@ -114,12 +114,6 @@ protected:
                   content.size());
     }
 
-    void run(task<> work) {
-        wait_until([&] { return work.done(); });
-
-        work.result();
-    }
-
     path root_;
 };
 
@@ -133,7 +127,7 @@ TEST_F(AsyncFileTest, ReadsAFileInACoroutine) {
     std::string got;
     std::thread::id worker_thread;
 
-    run(read_all(root_ / L"book.bin", got, worker_thread));
+    sta_loop::run_until(read_all(root_ / L"book.bin", got, worker_thread));
 
     EXPECT_EQ(got, content);
     EXPECT_NE(worker_thread, std::thread::id{});
@@ -147,7 +141,7 @@ TEST_F(AsyncFileTest, ReadsIntoACharacterBuffer) {
 
     std::string got;
 
-    run(read_all_as_text(root_ / L"text.bin", got));
+    sta_loop::run_until(read_all_as_text(root_ / L"text.bin", got));
 
     EXPECT_EQ(got, content);
 }
@@ -158,7 +152,7 @@ TEST_F(AsyncFileTest, ReadsAnEmptyFileAsNothingAtAll) {
     std::string got;
     std::thread::id worker_thread;
 
-    run(read_all(root_ / L"empty.bin", got, worker_thread));
+    sta_loop::run_until(read_all(root_ / L"empty.bin", got, worker_thread));
 
     EXPECT_TRUE(got.empty());
 }
@@ -166,7 +160,7 @@ TEST_F(AsyncFileTest, ReadsAnEmptyFileAsNothingAtAll) {
 TEST_F(AsyncFileTest, ExceptionFromTheWorkerArrivesAtTheCoAwait) {
     std::string message;
 
-    run(open_and_catch(root_ / L"no_such_file", message));
+    sta_loop::run_until(open_and_catch(root_ / L"no_such_file", message));
 
     EXPECT_TRUE(message.starts_with("CreateFileW")) << message;
 }
@@ -177,7 +171,7 @@ TEST_F(AsyncFileTest, WritesAFileAndReadsItBack) {
     std::string got;
     std::uint64_t reported_size = 0;
 
-    run(write_then_read_back(root_ / L"written.bin", content, got, reported_size));
+    sta_loop::run_until(write_then_read_back(root_ / L"written.bin", content, got, reported_size));
 
     EXPECT_EQ(reported_size, content.size());
     EXPECT_EQ(got, content);
@@ -196,7 +190,7 @@ TEST_F(AsyncFileTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
 
     task<> work = read_all(path(root_.native()) / L"brief.bin", got, worker_thread);
 
-    run(std::move(work));
+    sta_loop::run_until(work);
 
     EXPECT_EQ(got, content);
 }
@@ -321,7 +315,7 @@ TEST_F(AsyncFileTest, ReadsStartedTogetherAskForDifferentPlaces) {
     std::string first;
     std::string second;
 
-    run(reads_two_parts(root_ / L"parts.bin", first, second));
+    sta_loop::run_until(reads_two_parts(root_ / L"parts.bin", first, second));
 
     EXPECT_EQ(first, content.substr(0, 1000));
     EXPECT_EQ(second, content.substr(1000, 1000));
@@ -334,7 +328,7 @@ TEST_F(AsyncFileTest, ALargeReadGoesThroughTheWorkerAndBringsTheSame) {
 
     std::string got;
 
-    run(reads_in_large_pieces(root_ / L"large.bin", got));
+    sta_loop::run_until(reads_in_large_pieces(root_ / L"large.bin", got));
 
     EXPECT_EQ(got, content);
 }
@@ -358,7 +352,7 @@ TEST_F(AsyncFileTest, AReadOrAWriteLargerThanOneCallGoesInAChainOfThem) {
     const std::size_t chained_before = overlapped_op::debug.chained.load();
 #endif
 
-    run(writes_and_reads_in_one_go(root_ / L"chain.bin", content, got, brought));
+    sta_loop::run_until(writes_and_reads_in_one_go(root_ / L"chain.bin", content, got, brought));
 
     ASSERT_EQ(brought, size);
     EXPECT_EQ(std::memcmp(content.data(), got.data(), size), 0);
@@ -373,7 +367,7 @@ TEST_F(AsyncFileTest, AnEmptyBufferReadsAndWritesNothing) {
     std::size_t written = 1;
     std::size_t read = 1;
 
-    run(reads_and_writes_nothing(root_ / L"nothing.bin", written, read));
+    sta_loop::run_until(reads_and_writes_nothing(root_ / L"nothing.bin", written, read));
 
     EXPECT_EQ(written, 0u);
     EXPECT_EQ(read, 0u);
@@ -423,7 +417,7 @@ TEST_F(AsyncFileTest, AReadOfACompressedFileIsStartedOnTheWorker) {
     std::vector<std::byte> got(content.size() + 16);
     std::size_t brought = 0;
 
-    run(reads_once_into(packed, got, brought));
+    sta_loop::run_until(reads_once_into(packed, got, brought));
 
     if (!fallback.empty()) std::filesystem::remove_all(fallback.native());
 
@@ -574,7 +568,7 @@ TEST_F(AsyncFileTest, TheLoopRunsUntilADetachedFrameStillReadingAndWritingIsGone
     EXPECT_EQ(got, content);
 
     std::string copy;
-    run(reads_whole(root_ / L"copy.bin", copy));
+    sta_loop::run_until(reads_whole(root_ / L"copy.bin", copy));
     EXPECT_EQ(copy, content);
 }
 
@@ -585,7 +579,7 @@ TEST_F(AsyncFileTest, ReadAllBringsTheWholeFileInOneOperation) {
 
     std::string got;
 
-    run(reads_whole(root_ / L"book.bin", got));
+    sta_loop::run_until(reads_whole(root_ / L"book.bin", got));
 
     EXPECT_EQ(got, content);
 }
@@ -595,7 +589,7 @@ TEST_F(AsyncFileTest, ReadAllOfAnEmptyFileIsEmpty) {
 
     std::string got = "not empty";
 
-    run(reads_whole(root_ / L"empty.bin", got));
+    sta_loop::run_until(reads_whole(root_ / L"empty.bin", got));
 
     EXPECT_TRUE(got.empty());
 }
@@ -603,7 +597,7 @@ TEST_F(AsyncFileTest, ReadAllOfAnEmptyFileIsEmpty) {
 TEST_F(AsyncFileTest, ReadAllOfAMissingFileNamesTheSystemsCode) {
     int code = -1;
 
-    run(reads_whole_and_catches(root_ / L"missing.bin", code));
+    sta_loop::run_until(reads_whole_and_catches(root_ / L"missing.bin", code));
 
     EXPECT_EQ(code, ERROR_FILE_NOT_FOUND);
 }
@@ -611,7 +605,7 @@ TEST_F(AsyncFileTest, ReadAllOfAMissingFileNamesTheSystemsCode) {
 TEST_F(AsyncFileTest, WriteAllReplacesTheFileWholeAndLeavesNoTemporary) {
     given_a_file(L"state.txt", "the old state, longer than the new one");
 
-    run(writes_whole(root_ / L"state.txt", "new"));
+    sta_loop::run_until(writes_whole(root_ / L"state.txt", "new"));
 
     EXPECT_EQ(on_disk(root_ / L"state.txt"), "new");
     EXPECT_FALSE(file::exists((root_ / L"state.txt.tmp").c_str()));
@@ -620,7 +614,7 @@ TEST_F(AsyncFileTest, WriteAllReplacesTheFileWholeAndLeavesNoTemporary) {
 TEST_F(AsyncFileTest, WriteAllMakesTheDirectoriesOnTheWay) {
     const path target = root_ / L"deep" / L"er" / L"state.txt";
 
-    run(writes_whole(target, "saved"));
+    sta_loop::run_until(writes_whole(target, "saved"));
 
     EXPECT_EQ(on_disk(target), "saved");
 }
@@ -628,7 +622,7 @@ TEST_F(AsyncFileTest, WriteAllMakesTheDirectoriesOnTheWay) {
 TEST_F(AsyncFileTest, WriteAllOfNothingLeavesAnEmptyFile) {
     given_a_file(L"state.txt", "something");
 
-    run(writes_whole(root_ / L"state.txt", std::string()));
+    sta_loop::run_until(writes_whole(root_ / L"state.txt", std::string()));
 
     EXPECT_TRUE(file::exists((root_ / L"state.txt").c_str()));
     EXPECT_TRUE(on_disk(root_ / L"state.txt").empty());
@@ -645,7 +639,7 @@ TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
     std::string got;
     bool cancelled = false;
 
-    run(reads_whole_under(root_ / L"book.bin", stop.token(), got, cancelled));
+    sta_loop::run_until(reads_whole_under(root_ / L"book.bin", stop.token(), got, cancelled));
 
     EXPECT_EQ(got, content);
     EXPECT_FALSE(cancelled);
@@ -656,7 +650,7 @@ TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
     task<> asked = reads_whole_under(root_ / L"book.bin", stop.token(), again, cancelled);
 
     EXPECT_TRUE(asked.done()) << "an operation was started under a cancelled token";
-    run(std::move(asked));
+    sta_loop::run_until(asked);
 
     EXPECT_TRUE(cancelled);
     EXPECT_TRUE(again.empty());
@@ -670,7 +664,7 @@ TEST_F(AsyncFileTest, WriteAllUnderACancelledTokenLeavesTheFileAsItWas) {
 
     bool cancelled = false;
 
-    run(writes_whole_under(root_ / L"state.txt", "new", stop.token(), cancelled));
+    sta_loop::run_until(writes_whole_under(root_ / L"state.txt", "new", stop.token(), cancelled));
 
     EXPECT_TRUE(cancelled);
     EXPECT_EQ(on_disk(root_ / L"state.txt"), "the old state");
@@ -683,8 +677,9 @@ TEST_F(AsyncFileTest, ExistsUnderATokenAnswersLikeThePlainOne) {
     cancellation_source stop;
     bool is_file = false, is_nothing = true;
 
-    run(asks_whether_exists_under(root_ / L"here.bin", stop.token(), is_file));
-    run(asks_whether_exists_under(root_ / L"nowhere.bin", stop.token(), is_nothing));
+    sta_loop::run_until(asks_whether_exists_under(root_ / L"here.bin", stop.token(), is_file));
+    sta_loop::run_until(
+        asks_whether_exists_under(root_ / L"nowhere.bin", stop.token(), is_nothing));
 
     EXPECT_TRUE(is_file);
     EXPECT_FALSE(is_nothing);
@@ -695,9 +690,9 @@ TEST_F(AsyncFileTest, ExistsAnswersTrueForAFileAndFalseForADirectoryOrNothing) {
 
     bool is_file = false, is_directory = true, is_nothing = true;
 
-    run(asks_whether_exists(root_ / L"here.bin", is_file));
-    run(asks_whether_exists(root_, is_directory));
-    run(asks_whether_exists(root_ / L"nowhere.bin", is_nothing));
+    sta_loop::run_until(asks_whether_exists(root_ / L"here.bin", is_file));
+    sta_loop::run_until(asks_whether_exists(root_, is_directory));
+    sta_loop::run_until(asks_whether_exists(root_ / L"nowhere.bin", is_nothing));
 
     EXPECT_TRUE(is_file);
     EXPECT_FALSE(is_directory);

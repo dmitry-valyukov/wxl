@@ -254,12 +254,38 @@ private:
     std::atomic<bool>* deleted_;
 };
 
+/// The same for a test that gives many up: counts them as they are deleted.
+class deletion_counter
+{
+public:
+    explicit deletion_counter(std::atomic<int>& deleted) : deleted_(&deleted) {}
+
+    deletion_counter(deletion_counter&& other) noexcept
+        : deleted_(std::exchange(other.deleted_, nullptr)) {}
+
+    deletion_counter& operator=(deletion_counter&&) = delete;
+
+    ~deletion_counter() {
+        if (deleted_) ++*deleted_;
+    }
+
+private:
+    std::atomic<int>* deleted_;
+};
+
 /// Gives an orphan up the moment it is started, over and over, and between the orphans
 /// awaits a blocking read carried out where they are -- which has to come through every
-/// time: cutting short is for the call of the operation given up, and no other.
-task<> reads_among_orphans_given_up(path file_path, int rounds, int& cut_short, int& read) {
+/// time: cutting short is for the call of the operation given up, and no other. The orphan
+/// given up asks what async_directory::exists() asks, and counts itself as it is deleted.
+task<> reads_among_orphans_given_up(path file_path, int rounds, int& cut_short, int& read,
+                                    std::atomic<int>& given_up_deleted) {
     for (int round = 0; round < rounds; ++round) {
-        { auto given_up = async_directory::exists(file_path); }
+        {
+            auto given_up = sta_loop::async_call(
+                orphanable, [file_path, mark = deletion_counter(given_up_deleted)] {
+                    return directory::exists(file_path.c_str());
+                });
+        }
 
         const DWORD outcome = co_await sta_loop::async_call(orphanable, [file_path] {
             file f = file::open_read(file_path.c_str());
@@ -313,8 +339,7 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHeldArrivesThroughThePort) {
     EXPECT_FALSE(work.done());
     ASSERT_TRUE(pipe_.write("hello"));
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(got, "hello");
 }
@@ -324,16 +349,14 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingPastAReadInTheKernelCancelsIt) {
 
     task<> work = first_read_fails_second_is_with_the_kernel(root_ / L"refusing.bin", pipe_.name());
 
-    wait_until([&] { return work.done(); });
-
-    EXPECT_FALSE(watchdog.was_needed()) << "the read was waited for instead of cancelled";
-
     try {
-        work.result();
+        sta_loop::run_until(work);
         ADD_FAILURE() << "reading a file made for writing did not fail";
     } catch (const system_exception& e) {
         EXPECT_TRUE(std::string_view(e.what()).starts_with("ReadFile")) << e.what();
     }
+
+    EXPECT_FALSE(watchdog.was_needed()) << "the read was waited for instead of cancelled";
 
     EXPECT_EQ(sta_loop::run_pending(), 0u) << "a given-up operation resumed somebody";
 }
@@ -361,10 +384,9 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHoldsEndsWithTheCancellationWhenAsked) {
         stop.cancel();
         EXPECT_FALSE(work.done()) << "the read was answered in place";
 
-        wait_until([&] { return work.done(); });
+        EXPECT_NO_THROW(sta_loop::run_until(work));
 
         EXPECT_FALSE(watchdog.was_needed()) << "the read was not interrupted";
-        EXPECT_NO_THROW(work.result());
         EXPECT_EQ(outcome, "cancelled") << (kept ? "kept, then awaited" : "awaited as returned");
     }
 }
@@ -491,14 +513,18 @@ TEST_F(AsyncFilePipeTest, GivingAnOrphanUpNeverCutsShortACallOfAnotherOperation)
 
     int cut_short = 0;
     int read = 0;
+    std::atomic<int> given_up_deleted{0};
 
-    task<> work = reads_among_orphans_given_up(target, rounds, cut_short, read);
+    task<> work = reads_among_orphans_given_up(target, rounds, cut_short, read, given_up_deleted);
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(cut_short, 0);
     EXPECT_EQ(read, rounds);
+
+    // Left to finish alone, the orphans given up come back in their own time -- under the
+    // queue, from the pool and in no order -- and the loop is not stopped while one is out.
+    wait_until([&] { return given_up_deleted.load() == rounds; });
 }
 
 TEST(OrphanTest, ABodyOfSeveralCallsStopsAtTheOneCutShort) {
@@ -507,6 +533,7 @@ TEST(OrphanTest, ABodyOfSeveralCallsStopsAtTheOneCutShort) {
     ASSERT_TRUE(pipe.made());
 
     std::atomic<int> calls{0};
+    std::atomic<bool> deleted{false};
     hevent left{true};
 
     std::binary_semaphore done{0};
@@ -516,7 +543,8 @@ TEST(OrphanTest, ABodyOfSeveralCallsStopsAtTheOneCutShort) {
 
     {
         auto writing = sta_loop::async_call(
-            orphanable, [writer = pipe.writer(), &calls, &left](const orphan_stage& stage) {
+            orphanable, [writer = pipe.writer(), &calls, &left,
+                         mark = deletion_mark(deleted)](const orphan_stage& stage) {
                 static const std::vector<char> much(1024 * 1024);
 
                 // Three writes, each of more than the pipe holds; the body asks between
@@ -539,6 +567,8 @@ TEST(OrphanTest, ABodyOfSeveralCallsStopsAtTheOneCutShort) {
     done.release();
 
     EXPECT_EQ(calls.load(), 1);
+
+    wait_until([&] { return deleted.load(); });
 }
 
 TEST_F(AsyncFilePipeTest, AReadOfDataAlreadyInThePipeNeedNotSuspend) {
@@ -554,8 +584,7 @@ TEST_F(AsyncFilePipeTest, AReadOfDataAlreadyInThePipeNeedNotSuspend) {
     ASSERT_TRUE(pipe_.write("there"));
     written.set();
 
-    wait_until([&] { return work.done(); });
-    work.result();
+    sta_loop::run_until(work);
 
     EXPECT_EQ(got, "there");
 
