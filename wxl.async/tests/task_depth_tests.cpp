@@ -226,11 +226,10 @@ task<int> level(chain_state& c, int depth, cancellation_token stop) {
     } else if (depth == c.drops_at) {
         // Owns its subroutine, and lets it go while it stands on the read at the bottom:
         // from outside its chain, as an owner does.
-        std::optional<task<int>> below;
-        below.emplace(level(c, depth - 1, stop));
+        task<int> below = level(c, depth - 1, stop);
 
         co_await drop_wait{c};
-        below.reset();
+        below = {};
 
         sum = depth;
     } else if (depth % 2 == 1) {
@@ -424,12 +423,11 @@ TEST(TaskDepthTest, AnOwnerDroppingTheChainTakesItDownFromTheInsideOut) {
         chain_state c;
         c.bottom = bottom_kind::read;
 
-        std::optional<task<int>> chain;
-        chain.emplace(level(c, depth, {}));
+        task<int> chain = level(c, depth, {});
         sta_loop::run_until([&] { return c.p.made == 1; });
         c.p.started.wait();
 
-        chain.reset();
+        chain = {};
 
         EXPECT_EQ(c.p.canceled, 1);
         EXPECT_EQ(c.p.wrote, 0);
