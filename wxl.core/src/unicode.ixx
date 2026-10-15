@@ -606,6 +606,11 @@ public:
     /// grows its buffer once.
     void reserve(const std::size_t units) { text_.reserve(units); }
 
+    /// Gives back the room the text does not use, once it is whole -- after a
+    /// reserve() that guessed high. The units may move but none of them
+    /// changes, so the text is as well-formed as it was.
+    void shrink_to_fit() { text_.shrink_to_fit(); }
+
     /// Appends one code point, in as many units as the encoding spells it
     /// with. One that is not a scalar value stops the program, the way a cut
     /// through a code point does in substr(): it came from the caller's own
