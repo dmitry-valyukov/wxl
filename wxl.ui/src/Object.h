@@ -1,6 +1,6 @@
 #pragma once
 
-// wxl::Object / wxl::DependencyObject -- the two levels "given from above"
+// wxl::Object / wxl::DependencyObject -- the two pre-defined levels:
 // hand-written, never generated, and the root every
 // generated wrapper's inheritance chain ends at.
 //
@@ -229,7 +229,7 @@ private:
     core::intrusive_ptr<Impl> impl_;
 };
 
-// The second given-from-above level. Every generated wrapper that wraps a
+// The second pre-defined level. Every generated wrapper that wraps a
 // real DependencyObject-derived WinUI3 class inherits (directly or not)
 // from this one.
 class DependencyObject : public Object {

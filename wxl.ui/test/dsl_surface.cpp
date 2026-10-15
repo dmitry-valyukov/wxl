@@ -31,6 +31,7 @@
 #include "CompositionWindow.h"
 #include "CustomLayout.h"
 #include "DrawingSurface.h"
+#include "FocusEffect.h"
 #include "FormattedBlock.h"
 #include "HtmlBlock.h"
 #include "RsdnBlock.h"
@@ -115,6 +116,21 @@ using namespace wxl::dsl;
     block.clear();
 }
 
+// FocusEffect: attached to the window like ZoomEffect, the look as the bare
+// argument, an element that shows its own focus left out.
+[[maybe_unused]] void focus_effect(UIElement const& tree) {
+    auto const focus = FocusEffect {FocusLook::Lift};
+    CompositionWindow const window {focus};
+    focus.look(FocusLook::Glow);
+    FocusEffect::exclude(tree);
+}
+
+// CompositionWindow takes the window's material under the island, as Window does.
+[[maybe_unused]] void composition_window_backdrop() {
+    CompositionWindow const window {systemBackdrop = MicaBackdrop {}};
+    window.systemBackdrop(MicaBackdrop {});
+}
+
 // HtmlBlock: markup as the positional string, styles registered by name --
 // and none of it needing a winrt header, the parser being a module behind
 // the library's own wall.
@@ -122,6 +138,8 @@ using namespace wxl::dsl;
     HtmlBlock markup{
         L"Привет, <b>мир</b>! <a href='faq'>Подробности</a>.",
         isTextSelectionEnabled = true,
+        lineHeight = 22.0,
+        lineStackingStrategy = LineStackingStrategy::BlockLineHeight,
     };
 
     markup.registerStyle(L"quote", {.text = {.italic = true},
@@ -1913,6 +1931,15 @@ struct probe_task {
 }
 [[maybe_unused]] void MagnifyEffect_delayTime_assigned(::wxl::MagnifyEffect const& object, ::wxl::core::duration value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::delayTime = value);
+}
+// What grows is positional, among the scale and the tags.
+[[maybe_unused]] void MagnifyEffect_target_positional() {
+    using namespace ::wxl::dsl;
+    ::wxl::MagnifyEffect const content{1.2, ::wxl::MagnifyTarget::Content, maximum = 1.35};
+    ::wxl::MagnifyEffect const alone{::wxl::MagnifyTarget::Content};
+    ::wxl::Button const button{u"Play", content};
+    (void)alone;
+    (void)button;
 }
 
 // RevealEffect and its two lights -- written by hand, so their schema lines are too.

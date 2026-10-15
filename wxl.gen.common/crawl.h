@@ -26,10 +26,10 @@
 // its parameter/return types in). Knows nothing about C++ output; that's
 // the generator's generate.h.
 
-// Types "given from above": already written by hand in wxl.ui, so the
+// Pre-defined types: already written by hand in wxl.ui, so the
 // walk records them as a boundary and never expands their members. Which
 // ones those are comes from the type map (profiles/types.json).
-bool is_given_from_above(winmd::reader::TypeDef const& type, type_map const& types);
+bool is_predefined(winmd::reader::TypeDef const& type, type_map const& types);
 
 // Namespace, then name: the order for any container of types whose order
 // reaches the output. winmd's own operator< compares the addresses of the
@@ -85,6 +85,12 @@ struct closure {
     // (a class implements an interface whose members mention the class),
     // and a cycle is broken at whichever member closes it.
     std::vector<winmd::reader::TypeDef> ordered;
+
+    // Per discovered type: the types the walk reached from it -- its base,
+    // the interfaces it implements, the types its kept members' signatures
+    // name. The edges `ordered` is sorted by; a viewer reads from them what
+    // pulled a type in.
+    std::map<winmd::reader::TypeDef, std::set<winmd::reader::TypeDef, by_full_name>> dependencies;
 
     // Effective member surface per discovered type, after merging every
     // profile that reached it.
@@ -166,7 +172,7 @@ struct closure {
     // a profile naming one is told rather than left wondering.
     std::set<std::string> deprecated;
 
-    // Given-from-above types the walk stopped at; recorded, never emitted.
+    // Pre-defined types the walk stopped at; recorded, never emitted.
     std::set<winmd::reader::TypeDef, by_full_name> boundary;
 
     // Diagnostics: profile entries the metadata doesn't back up. Both are
@@ -187,6 +193,8 @@ enum class member_kind : uint8_t { Property, Method, Event, Constant };
 // directly declare, and for an enum its enumerators -- the names the walk
 // filters by. Properties, methods and events sorted, each name once;
 // enumerators in declaration order. The views point into the metadata.
+// Properties include the dependency-property identifiers (ContentProperty),
+// which a viewer shows and the walk never generates.
 struct declared_members {
     std::vector<std::string_view> properties;
     std::vector<std::string_view> methods;
@@ -195,6 +203,25 @@ struct declared_members {
 };
 
 declared_members declared_members_of(winmd::reader::TypeDef const& type);
+
+// An interface private to one class (ExclusiveToAttribute): the class's
+// default, static, factory and overridable interfaces.
+bool is_exclusive_interface(winmd::reader::TypeDef const& type);
+
+// A type's members by where they come from. `own` -- what the type declares
+// and, for a class, what the interfaces exclusive to it declare, without the
+// names a standalone interface declares (a class declares again what it
+// implements). `implemented`
+// -- each standalone interface the class implements or the interface requires,
+// in metadata order, with what it declares itself; the metadata lists the
+// required interfaces in full, not only the direct ones. Generic
+// instantiations are left out: the type map projects them.
+struct member_sources {
+    declared_members own;
+    std::vector<std::pair<winmd::reader::TypeDef, declared_members>> implemented;
+};
+
+member_sources member_sources_of(winmd::reader::TypeDef const& type);
 
 // One declaration of a member: the type that declares it -- the type itself or
 // an interface it implements -- and its definition there.
