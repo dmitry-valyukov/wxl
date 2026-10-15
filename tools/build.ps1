@@ -17,6 +17,7 @@
 #   tools\build.ps1 -Configure      # force a re-configure first
 #   tools\build.ps1 -Target winui-srcgen
 #   tools\build.ps1 -Configure -Define WXL_BUILD_BENCHMARKS=ON
+#   tools\build.ps1 -Toolset 14.52  # another installed MSVC toolset; the default is pinned below
 
 [CmdletBinding()]
 param(
@@ -25,6 +26,12 @@ param(
     [string]$Preset = 'x64',
     [string]$Target,
     [switch]$Configure,
+
+    # The MSVC toolset vcvars64.bat is asked for (-vcvars_ver). Pinned here rather
+    # than left to the machine's default: the tree names what it builds with, and
+    # switching is one value, not three files under Program Files. Ignored when
+    # the script runs inside a developer prompt already -- that prompt chose.
+    [string]$Toolset = '14.53',
 
     # Cache entries passed on to the configure step, without the -D. They stick
     # in CMakeCache.txt, so a later run without them keeps whatever was set.
@@ -50,7 +57,7 @@ function Import-VisualStudioEnvironment {
     $vcvars = Join-Path $install 'VC\Auxiliary\Build\vcvars64.bat'
     if (-not (Test-Path $vcvars)) { throw "vcvars64.bat not found: $vcvars" }
 
-    & "$env:ComSpec" /c "`"$vcvars`" >nul 2>nul && set" | ForEach-Object {
+    & "$env:ComSpec" /c "`"$vcvars`" -vcvars_ver=$Toolset >nul 2>nul && set" | ForEach-Object {
         if ($_ -match '^([^=]+)=(.*)$') {
             Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
         }

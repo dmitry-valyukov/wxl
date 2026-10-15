@@ -10,6 +10,10 @@
       "name": "base",
       "hidden": true,
       "generator": "Ninja Multi-Config",
+      "toolset": {
+        "value": "version=14.53",
+        "strategy": "external"
+      },
       "binaryDir": "${sourceDir}/build/${presetName}",
       "warnings": {
         "dev": false
