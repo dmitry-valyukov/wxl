@@ -69,10 +69,27 @@
 // drawing at 1. The resampling is all at the start of each motion, where the
 // eye does not dwell; where it ends, nothing is resampled.
 //
-// The effect owns the element's RenderTransform and RenderTransformOrigin, so
-// it cannot be attached to an element that needs a render transform of its
-// own. (Reading RenderTransform does not tell whether one was set -- an unset
-// one comes back as a fresh object on every read.)
+// The effect owns the RenderTransform and RenderTransformOrigin of what grows,
+// so it cannot be attached where that needs a render transform of its own.
+// (Reading RenderTransform does not tell whether one was set -- an unset one
+// comes back as a fresh object on every read.)
+//
+// **The element or its content.** The pointer is followed on the element the
+// effect is written on; what grows is that element, or with
+// `MagnifyTarget::Content` among the arguments only its content -- the glyph
+// of a toolbar button, while the button reacts over its whole face:
+//
+//     Button {
+//         toolTip = u"Open",
+//         MagnifyEffect {1.2, MagnifyTarget::Content},
+//         content = FontIcon {glyph = ...},
+//     }
+//
+// The content is a ContentControl's Content, otherwise the element's one
+// child in the visual tree; found once the element is loaded, it is the same
+// for the rest of the element's life. It is also what keeps a tooltip: XAML
+// closes the tooltip of an element whose own visual grows moments after
+// showing it, and leaves it open while only the content inside grows.
 
 #include "core.h"
 #include "geometry.h"
@@ -80,6 +97,10 @@
 #include "impl/member.h"
 
 namespace wxl {
+
+/// What MagnifyEffect grows: the element it is written on, or only that
+/// element's content while the element follows the pointer.
+enum class MagnifyTarget : uint8_t { Element, Content };
 
 class MagnifyEffect {
 public:
@@ -122,6 +143,11 @@ public:
 
     /// How long the pointer has to stay before the element starts growing.
     void delayTime(core::duration value) const;
+
+    /// What grows; the element unless told otherwise. Positional:
+    /// `MagnifyEffect {1.2, MagnifyTarget::Content}`.
+    void target(MagnifyTarget value) const;
+    void setPositional(MagnifyTarget value) const { target(value); }
 
     /// Hung on the element when its braces are applied.
     void operator()(UIElement const& element) const;

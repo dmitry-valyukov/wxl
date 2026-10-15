@@ -414,8 +414,8 @@ std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path 
     return files;
 }
 
-// A reference is either a path (has a directory part or a .json suffix)
-// or a bare profile name sitting next to the profile that named it.
+}  // namespace
+
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer) {
     std::filesystem::path path{reference};
@@ -424,8 +424,6 @@ std::filesystem::path resolve_reference(std::string_view reference,
     }
     return referrer.parent_path() / (std::string(reference) + ".json");
 }
-
-}  // namespace
 
 bool member_filter::allows(std::string_view name) const {
     switch (kind) {
@@ -817,8 +815,8 @@ type_map load_type_map(std::filesystem::path const& path) {
     auto const& document = read_json(file, path, "a type map must be a JSON object");
 
     type_map map;
-    if (value const* const given = document.find("givenFromAbove")) {
-        map.given_from_above = read_string_set(*given, path, "givenFromAbove");
+    if (value const* const listed = document.find("predefined")) {
+        map.predefined = read_string_set(*listed, path, "predefined");
     }
     if (value const* const roots = document.find("implicitRoots")) {
         map.implicit_roots = read_string_set(*roots, path, "implicitRoots");

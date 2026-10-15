@@ -2,7 +2,7 @@
 
 #include "core.h"
 
-// wxl::Color -- given from above, projected onto Windows.UI.Color rather
+// wxl::Color -- pre-defined, projected onto Windows.UI.Color rather
 // than generated from it (see wxl.gen/gen/projection.cpp).
 //
 // The metadata type is a bare four-byte aggregate, and so is this one: no

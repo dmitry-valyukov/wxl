@@ -81,7 +81,7 @@ void report(profile_set const& profiles, closure const& cl) {
     }
 
     if (!cl.boundary.empty()) {
-        std::print("\nstopped at given-from-above types ({}):\n", cl.boundary.size());
+        std::print("\nstopped at pre-defined types ({}):\n", cl.boundary.size());
         for (auto&& type : cl.boundary) {
             std::print("  {}.{}\n", type.TypeNamespace(), type.TypeName());
         }

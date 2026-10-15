@@ -163,7 +163,7 @@ struct class_info {
     std::string metadata_name;  // "Microsoft.UI.Xaml.Controls.Button"
     std::string winrt_name;     // "winrt::Microsoft::UI::Xaml::Controls::Button"
     std::string base_name;
-    std::string base_namespace;  // empty when the base is given from above
+    std::string base_namespace;  // empty when the base is pre-defined
     construction_t construction = construction_t::None;
     // The factory interface a composable class is created through, in
     // metadata form; empty for every other class.

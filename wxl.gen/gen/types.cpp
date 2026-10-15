@@ -620,7 +620,7 @@ type_use map_type_def(TypeDef const& type, type_index const& index) {
         return interface_parameter(winrt_name, winrt_header);
     }
 
-    // DependencyObject is given from above: it is written by hand (Object.h)
+    // DependencyObject is pre-defined: it is written by hand (Object.h)
     // and has no entry among the generated names, but a member handing one over
     // or taking one in -- FrameworkElement.Parent, FlyoutBase.ShowAt -- is as
     // wrappable as any class.
