@@ -919,17 +919,28 @@ u8_text to_utf8(const std::filesystem::path& path);
 
 // ---- Walking ------------------------------------------------------------------------
 
-/// The code points of a UTF-8 text, one at a time and decoding nothing the
-/// caller does not ask for.
+/// The code points of checked text, one at a time and decoding nothing the
+/// caller does not ask for: `for (char32_t c : code_points(text))` over a
+/// u8_view or a u16_view alike.
 ///
 /// The view holds the text rather than copying it, so the text has to outlive
 /// it. Besides the code point itself, an iterator hands out where it sits
-/// (position()) and the bytes it was spelled with (sequence()) -- the two
+/// (position()) and the units it was spelled with (sequence()) -- the two
 /// things a caller counting characters or slicing text would otherwise have to
 /// work out a second time.
+///
+/// One template for both encodings, as basic_text is one. The walk is the same
+/// in each, and the encoding answers only two questions about the unit the
+/// iterator stands on -- how many units the code point takes, and what they
+/// decode to -- at compile time, where a second class would repeat the walk
+/// around them.
+template <typename View>
+    requires(std::same_as<View, u8_view> || std::same_as<View, u16_view>)
 class code_points {
 public:
-    inline explicit code_points(u8_view utf8) noexcept : text_(utf8.chars()) {}
+    using plain_type = typename View::plain_type;
+
+    constexpr explicit code_points(const View text) noexcept : text_(text.plain()) {}
 
     class iterator {
     public:
@@ -942,39 +953,48 @@ public:
 
         constexpr iterator() noexcept = default;
 
-        constexpr iterator(std::string_view text, std::size_t at) noexcept
-            : text_(text), at_(at) {}
+        constexpr iterator(plain_type text, std::size_t at) noexcept : text_(text), at_(at) {}
 
         constexpr char32_t operator*() const noexcept {
-            const auto lead = static_cast<unsigned char>(text_[at_]);
+            if constexpr (View::is_utf8) {
+                const auto lead = static_cast<unsigned char>(text_[at_]);
 
-            if (lead < 0x80) return lead;
+                if (lead < 0x80) return lead;
 
-            const int size = utf8_sequence_size(text_[at_]);
-            const unsigned lead_bits = 0xFFu >> (size + 1);
+                const int size = utf8_sequence_size(static_cast<char>(lead));
+                const unsigned lead_bits = 0xFFu >> (size + 1);
 
-            char32_t code_point = lead & lead_bits;
-            for (int index = 1; index < size; ++index)
-                code_point =
-                    (code_point << 6) | (static_cast<unsigned char>(text_[at_ + index]) & 0x3Fu);
+                char32_t code_point = lead & lead_bits;
+                for (int index = 1; index < size; ++index)
+                    code_point = (code_point << 6) |
+                                 (static_cast<unsigned char>(text_[at_ + index]) & 0x3Fu);
 
-            return code_point;
+                return code_point;
+            } else {
+                const char32_t unit = text_[at_];
+
+                if (!is_high_surrogate(unit)) return unit;
+
+                const char32_t low = text_[at_ + 1];
+
+                return 0x10000u + ((unit - 0xD800u) << 10) + (low - 0xDC00u);
+            }
         }
 
-        /// The byte offset of the code point the iterator stands on.
+        /// The offset of the code point the iterator stands on, in units of
+        /// the encoding: bytes of UTF-8, 16-bit units of UTF-16.
         constexpr std::size_t position() const noexcept { return at_; }
 
-        /// The bytes the code point is spelled with, as a view into the text.
+        /// The units the code point is spelled with, as a view into the text.
         /// Well-formed in its own right: a whole sequence is a whole sequence
         /// wherever it is cut out of, which is why the guarantee travels with
         /// it instead of stopping here.
-        inline u8_view sequence() const noexcept {
-            return assume_valid(
-                text_.substr(at_, static_cast<std::size_t>(utf8_sequence_size(text_[at_]))));
+        constexpr View sequence() const noexcept {
+            return assume_valid(text_.substr(at_, units()));
         }
 
         constexpr iterator& operator++() noexcept {
-            at_ += static_cast<std::size_t>(utf8_sequence_size(text_[at_]));
+            at_ += units();
             return *this;
         }
 
@@ -989,18 +1009,34 @@ public:
         }
 
     private:
-        std::string_view text_;
+        /// How many units the code point the iterator stands on takes. Its
+        /// first unit is enough to say: in checked text a UTF-8 lead byte
+        /// counts its sequence, and a high surrogate always has its low half
+        /// after it.
+        constexpr std::size_t units() const noexcept {
+            if constexpr (View::is_utf8)
+                return static_cast<std::size_t>(utf8_sequence_size(static_cast<char>(text_[at_])));
+            else
+                return is_high_surrogate(text_[at_]) ? 2u : 1u;
+        }
+
+        plain_type text_;
         std::size_t at_ = 0;
     };
 
     constexpr iterator begin() const noexcept { return iterator(text_, 0); }
     constexpr iterator end() const noexcept { return iterator(text_, text_.size()); }
 
-    inline u8_view text() const noexcept { return assume_valid(text_); }
+    constexpr View text() const noexcept { return assume_valid(text_); }
 
 private:
-    std::string_view text_;
+    plain_type text_;
 };
+
+/// The walk takes its encoding from the text: a u8_text or a u16_text walks as
+/// the view it answers as, and a literal as the view it converts to.
+code_points(u8_view) -> code_points<u8_view>;
+code_points(u16_view) -> code_points<u16_view>;
 
 }  // namespace unicode
 
