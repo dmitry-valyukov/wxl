@@ -50,8 +50,9 @@ task<> overlapped(const wchar_t* path, std::span<std::byte> buffer, outcome& out
     const bool skips_port = sta_loop::port().attach(f.native_handle());
 
     for (std::uint64_t at = 0;; at += buffer.size()) {
-        std::unique_ptr<io_op> op(new io_op(io_op::kind::read, f.native_handle(), buffer.data(),
-                                            buffer.size(), at, skips_port));
+        std::unique_ptr<overlapped_op> op(new overlapped_op(overlapped_op::kind::read,
+                                                            f.native_handle(), buffer.data(),
+                                                            buffer.size(), at, skips_port));
 
         auto reading = started_here
                            ? sta_loop::async_start(std::move(op))

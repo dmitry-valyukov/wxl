@@ -3,7 +3,7 @@ module;
 #include "platform.h"
 #include "abi.h"
 
-export module wxl.async:io_op;
+export module wxl.async:overlapped_op;
 
 import :async_op;
 import wxl.core;
@@ -23,7 +23,7 @@ export namespace wxl::async {
 /// The buffer may be of any size. A call to the system takes at most `call_size`, so a
 /// larger buffer goes in a chain of calls, the next issued where the previous one
 /// completed, and the coroutine sees one operation and one answer.
-class io_op : public async_op_t<std::size_t>
+class overlapped_op : public async_op_t<std::size_t>
 {
 public:
     enum class kind : std::uint8_t { read, write };
@@ -35,7 +35,7 @@ public:
 
     /// \param at where in the file; an overlapped handle keeps no position of its own.
     /// \param skips_port what io_port::attach() answered for this file.
-    io_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
+    overlapped_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
           bool skips_port) noexcept;
 
     /// Starts the operation on the calling thread.
@@ -50,7 +50,7 @@ public:
     [[nodiscard]] bool completed() noexcept;
 
     /// The operation a port entry belongs to.
-    static io_op* from(OVERLAPPED* overlapped) noexcept;
+    static overlapped_op* from(OVERLAPPED* overlapped) noexcept;
 
 #ifndef NDEBUG
     /// Debug tallies for the tests, which cannot otherwise tell where an operation ran
