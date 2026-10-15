@@ -87,6 +87,7 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
     // «Output:» на фоне окна, параметры — на карточке, отделённые чертой.
     auto strip = Grid {
         columnDefinitions = u"*,auto,auto",
+        rowDefinitions = u"auto,auto",
         Border {
             column = 0,
             Padding {12},
@@ -116,13 +117,18 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
         for (auto const& element : parts.options) {
             options.children().append(element);
         }
+        // PhoneLayout оригинала: ниже 740 параметры уходят под пример на всю ширину, черта — сверху, а не слева.
+        auto& beside = gallery::pageSize().optionsBeside;
         strip.children().append(Border {
-            column = 2,
+            column = BindOutput {beside, [](bool side) { return side ? 2 : 0; }},
+            row = BindOutput {beside, [](bool side) { return side ? 0 : 1; }},
+            columnSpan = BindOutput {beside, [](bool side) { return side ? 1 : 3; }},
+            margin = BindOutput {beside, [](bool side) { return side ? Thickness {0} : Thickness {0, 24, 0, 0}; }},
+            borderThickness = BindOutput {beside, [](bool side) { return side ? Thickness {1, 0, 0, 0} : Thickness {0, 1, 0, 0}; }},
             Padding {16},
             CornerRadius {0, 8, 0, 0},
             background = brushes.Card.BackgroundFillColor.Default,
             borderBrush = brushes.DividerStrokeColorDefault,
-            BorderThickness {1, 0, 0, 0},
             options,
         });
     }

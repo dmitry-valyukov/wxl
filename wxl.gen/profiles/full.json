@@ -93,7 +93,7 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationView": {
-            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over.",
+            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over. FooterMenuItems hold an application's own settings item where the built-in one stands -- the built-in one is labelled in the system's language, not the application's; OpenPaneLength lets the open pane be as wide as its longest item rather than 320.",
             "members": [
                 "DisplayMode",
                 "DisplayModeChanged",
@@ -107,7 +107,8 @@
                 "FooterMenuItems",
                 "PaneFooter",
                 "PaneCustomContent",
-                "MenuItemTemplate"
+                "MenuItemTemplate",
+                "OpenPaneLength"
             ],
             "syntheticMembers": {
                 "AutoSuggestBox": {
@@ -1457,6 +1458,13 @@
                 "Header"
             ],
             "syntheticMembers": {
+                "ItemContainerStyle": {
+                    "comment": "What an ItemContainerStyle says, as a preset every container wears once, as the control makes it: itemContainerStyle = Preset {margin = Thickness {5}, horizontalContentAlignment = HorizontalAlignment::Stretch}. The style of wxl is a preset, and a container the control makes is dressed the way a control written by hand is.",
+                    "cppType": "ItemContainerPreset",
+                    "cppInclude": "../ItemContainerPreset.h",
+                    "function": "impl::set_item_container_style",
+                    "include": "../impl/item_template.h"
+                },
                 "ItemMargin": {
                     "comment": "The margin of every item container, as an ItemContainerStyle with a Setter for Margin would give it: itemMargin = Thickness {5}.",
                     "type": "Microsoft.UI.Xaml.Thickness",

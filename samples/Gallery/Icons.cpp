@@ -31,14 +31,18 @@ std::vector<Icon> load() {
             Icon icon;
             icon.name = utf16(node["Name"]);
             icon.code = utf16(node["Code"]);
-            char32_t const point = static_cast<char32_t>(std::stoul(std::string {icon.code.begin(), icon.code.end()}, nullptr, 16));
-            if (point < 0x10000) {
-                icon.glyph.push_back(static_cast<char16_t>(point));
-            } else {
-                char32_t const rest = point - 0x10000;
-                icon.glyph.push_back(static_cast<char16_t>(0xD800 + (rest >> 10)));
-                icon.glyph.push_back(static_cast<char16_t>(0xDC00 + (rest & 0x3FF)));
+            // Код знака читается из байтов файла как есть: он ASCII и
+            // шестнадцатеричный, переводить его в UTF-16 и обратно незачем, а
+            // поэлементная копия в std::string резала бы char16_t до char.
+            // Строка, которая не код скалярного значения, — значок без знака:
+            // показать его нечем, и он пропускается, а не роняет весь список.
+            std::string_view const hex = node["Code"].as_string().chars();
+            std::uint32_t point = 0;
+            auto const [stop, error] = std::from_chars(hex.data(), hex.data() + hex.size(), point, 16);
+            if (error != std::errc {} || stop != hex.data() + hex.size() || !wxl::core::unicode::is_scalar_value(point)) {
+                continue;
             }
+            wxl::core::unicode::append_utf16(icon.glyph, point);
             for (auto const& tag : node["Tags"].elements()) {
                 icon.tags.push_back(utf16(tag));
             }

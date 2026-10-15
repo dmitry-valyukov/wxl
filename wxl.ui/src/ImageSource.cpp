@@ -3,7 +3,6 @@
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 
 #include "Object.impl.h"
-#include "impl/application_folder.h"
 
 // Crossing into WinRT is where an image source stops being text: the
 // framework wants an ImageSource object, and the one that loads from a URI
@@ -15,7 +14,7 @@ namespace {
 // The application folder as the base URI a path carrying no scheme is
 // resolved against.
 std::wstring application_folder_uri() {
-    return L"file:///" + (application_folder() / L"").generic_wstring();
+    return L"file:///" + (core::environment::application_folder() / L"").generic_wstring();
 }
 
 }  // namespace

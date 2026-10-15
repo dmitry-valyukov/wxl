@@ -976,18 +976,25 @@ public:
 // A preset is worn, never assigned: the object a property asks for is what a
 // Template builds. Refused here by name rather than left to fail inside the
 // property's setter, where the message would be about a conversion nobody
-// wrote.
+// wrote. The one kind of property that takes a preset as its value is the
+// exception: what every container of a list wears (itemContainerStyle), whose
+// setter accepts the preset itself.
 template <PropertyKey key, typename Owner, typename... Setters>
 struct SetterOp<key, Preset<Setters...>, Owner> {
     Preset<Setters...> value_;
 
     template <typename Obj>
-    void operator()(Obj const&) const {
-        static_assert(sizeof...(Setters) < 0,
-                      "wxl: a preset is worn, not assigned -- written unnamed inside the braces "
-                      "it dresses the object being built. The object a property asks for is "
-                      "built by a template: write `property = Template<T>{...}`, with the "
-                      "preset inside if it is the look.");
+    void operator()(Obj const& object) const {
+        if constexpr (requires { impl::PropertySetter<key>::set(object, value_); }) {
+            impl::check_owner<Owner, Obj>();
+            impl::PropertySetter<key>::set(object, value_);
+        } else {
+            static_assert(sizeof...(Setters) < 0,
+                          "wxl: a preset is worn, not assigned -- written unnamed inside the braces "
+                          "it dresses the object being built. The object a property asks for is "
+                          "built by a template: write `property = Template<T>{...}`, with the "
+                          "preset inside if it is the look.");
+        }
     }
 };
 

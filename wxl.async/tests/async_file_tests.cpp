@@ -492,3 +492,110 @@ TEST_F(AsyncFileTest, AFileGivenUpOnceOpenCanBeAskedForAgainAtOnce) {
 }
 
 #endif
+
+// ---- Files whole, by name: read_all, write_all, exists ----------------------
+
+namespace {
+
+task reads_whole(path file_path, std::string& out) {
+    out = co_await async_file::read_all(file_path);
+}
+
+task reads_whole_and_catches(path file_path, int& code) {
+    try {
+        co_await async_file::read_all(file_path);
+        code = 0;
+    } catch (const system_exception& failure) {
+        code = failure.err_code();
+    }
+}
+
+task writes_whole(path file_path, std::string bytes) {
+    co_await async_file::write_all(file_path, std::move(bytes));
+}
+
+task asks_whether_exists(path file_path, bool& out) {
+    out = co_await async_file::exists(file_path);
+}
+
+/// What is on the disk under this name, read the plain way: the check of a write.
+std::string on_disk(const path& file_path) {
+    file in = file::open_read(file_path.c_str());
+    std::string bytes(static_cast<std::size_t>(in.size().value_or(0)), '\0');
+
+    bytes.resize(in.read(std::as_writable_bytes(std::span(bytes))));
+
+    return bytes;
+}
+
+}  // namespace
+
+TEST_F(AsyncFileTest, ReadAllBringsTheWholeFileInOneOperation) {
+    const std::string content = test_content();
+
+    given_a_file(L"book.bin", content);
+
+    std::string got;
+
+    run(reads_whole(root_ / L"book.bin", got));
+
+    EXPECT_EQ(got, content);
+}
+
+TEST_F(AsyncFileTest, ReadAllOfAnEmptyFileIsEmpty) {
+    given_a_file(L"empty.bin", "");
+
+    std::string got = "not empty";
+
+    run(reads_whole(root_ / L"empty.bin", got));
+
+    EXPECT_TRUE(got.empty());
+}
+
+TEST_F(AsyncFileTest, ReadAllOfAMissingFileNamesTheSystemsCode) {
+    int code = -1;
+
+    run(reads_whole_and_catches(root_ / L"missing.bin", code));
+
+    EXPECT_EQ(code, ERROR_FILE_NOT_FOUND);
+}
+
+TEST_F(AsyncFileTest, WriteAllReplacesTheFileWholeAndLeavesNoTemporary) {
+    given_a_file(L"state.txt", "the old state, longer than the new one");
+
+    run(writes_whole(root_ / L"state.txt", "new"));
+
+    EXPECT_EQ(on_disk(root_ / L"state.txt"), "new");
+    EXPECT_FALSE(file::exists((root_ / L"state.txt.tmp").c_str()));
+}
+
+TEST_F(AsyncFileTest, WriteAllMakesTheDirectoriesOnTheWay) {
+    const path target = root_ / L"deep" / L"er" / L"state.txt";
+
+    run(writes_whole(target, "saved"));
+
+    EXPECT_EQ(on_disk(target), "saved");
+}
+
+TEST_F(AsyncFileTest, WriteAllOfNothingLeavesAnEmptyFile) {
+    given_a_file(L"state.txt", "something");
+
+    run(writes_whole(root_ / L"state.txt", std::string()));
+
+    EXPECT_TRUE(file::exists((root_ / L"state.txt").c_str()));
+    EXPECT_TRUE(on_disk(root_ / L"state.txt").empty());
+}
+
+TEST_F(AsyncFileTest, ExistsTellsAFileFromADirectoryAndFromNothing) {
+    given_a_file(L"here.bin", "x");
+
+    bool is_file = false, is_directory = true, is_nothing = true;
+
+    run(asks_whether_exists(root_ / L"here.bin", is_file));
+    run(asks_whether_exists(root_, is_directory));
+    run(asks_whether_exists(root_ / L"nowhere.bin", is_nothing));
+
+    EXPECT_TRUE(is_file);
+    EXPECT_FALSE(is_directory);
+    EXPECT_FALSE(is_nothing);
+}

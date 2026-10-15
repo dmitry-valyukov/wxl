@@ -1,4 +1,4 @@
-# wxl.ui -- the WinUI3 backend of wxl: the hand-written, given-from-above
+# wxl.ui -- the WinUI3 backend of wxl: the hand-written, pre-defined
 # levels (wxl::Object / wxl::DependencyObject and the impl:: plumbing they
 # rest on) plus everything winui-srcgen generates from the profiles.
 #
@@ -103,7 +103,7 @@ set(WXL_WEBVIEW2_DIR
     CACHE INTERNAL "Microsoft.Web.WebView2 NuGet package (the loader DLL of the WebView2 control)")
 
 add_library(wxl.ui STATIC
-    # Given from above -- never generated.
+    # Pre-defined -- never generated.
     src/core.h
     src/Object.h
     src/DateTime.h
@@ -129,6 +129,8 @@ add_library(wxl.ui STATIC
     src/impl/pointer_lamp.h
     src/MagnifyEffect.h
     src/MagnifyEffect.cpp
+    src/FocusEffect.h
+    src/FocusEffect.cpp
     src/RevealEffect.h
     src/RevealEffect.cpp
     src/schema.h
@@ -205,6 +207,8 @@ add_library(wxl.ui STATIC
     src/Panels.cpp
     src/SplitPanel.h
     src/SplitPanel.cpp
+    src/AvailableSizeLayout.h
+    src/AvailableSizeLayout.cpp
     src/CustomLayout.h
     src/CustomLayout.cpp
     src/CustomVirtualizingLayout.h
@@ -303,6 +307,7 @@ add_library(wxl.ui STATIC
     src/impl/item_template.h
     src/impl/item_template.cpp
     src/ItemBuilder.h
+    src/ItemContainerPreset.h
     src/Box.h
     src/Box.cpp
     src/impl/element_items.h

@@ -19,6 +19,9 @@
 #include <wxl/Microsoft.Windows.AppNotifications.h>
 #include <wxl/Microsoft.UI.Windowing.h>
 
+import wxl.async;
+import wxl.core;
+
 using namespace wxl;
 using namespace wxl::dsl;
 
@@ -72,22 +75,36 @@ void loadState() {
     }
 }
 
-void saveState() {
+// Файл пишется целиком с заменой операцией wxl и не в потоке окна: прежде
+// ofstream писал его прямо из обработчиков. Два сохранения подряд не
+// обгоняют друг друга по смыслу — каждое несёт полное состояние, а за
+// одним переходом второй следует не раньше, чем через человеческую паузу.
+// Сохранение, которое не удалось, молчит: без этого файла Gallery всего
+// лишь забудет недавние, а окно с ошибкой при каждом переходе было бы хуже.
+async::detached_task saveState() {
     auto const file = stateFile();
     if (file.empty()) {
-        return;
+        co_return;
     }
-    std::error_code ignored;
-    std::filesystem::create_directories(file.parent_path(), ignored);
-    std::ofstream output{file, std::ios::trunc};
-    auto const narrow = [](std::wstring const& text) { return std::string{text.begin(), text.end()}; };
+    std::string text;
+    // Имена контролов — ASCII из каталога, а прочитанные из файла расширены из
+    // байтов по одному (loadState), так что суррогатов в них нет и проверять
+    // нечего. Сужение — через UTF-8, а не поэлементным копированием: то молча
+    // обрезает wchar_t до char.
+    auto const narrow = [](std::wstring const& id) {
+        return std::string{core::unicode::assume_valid(std::wstring_view{id}).to_utf8().chars()};
+    };
     for (auto const& id : recent) {
-        output << "recent " << narrow(id) << '\n';
+        text += "recent " + narrow(id) + '\n';
     }
     for (auto const& id : favorite) {
-        output << "favorite " << narrow(id) << '\n';
+        text += "favorite " + narrow(id) + '\n';
     }
-    output << "size " << savedSize.width << ' ' << savedSize.height << '\n';
+    text += std::format("size {} {}\n", savedSize.width, savedSize.height);
+    try {
+        co_await async::async_file::write_all(core::path(std::wstring_view(file.native())), std::move(text));
+    } catch (async::system_exception const&) {
+    }
 }
 
 // ---- Имена пунктов панели --------------------------------------------------
@@ -270,6 +287,8 @@ struct Shell {
     std::vector<TrackedComposition> compositionWindows;
     // Главное окно: владелец модальных окон примеров (см. mainWindow).
     std::shared_ptr<Window> main;
+    // Место показанной страницы (см. pageSize).
+    std::shared_ptr<PageSize> size;
     // Модели показанной страницы (см. holdModel).
     std::vector<std::shared_ptr<void>> models;
     Destination current;
@@ -367,7 +386,12 @@ void show(Destination destination, bool record) {
     // Модели прежней страницы отпускаются, когда новая уже на месте.
     auto const previous = std::move(s.models);
     s.models.clear();
-    s.host.child(buildPage(destination));
+    // Место заводится до страницы: её свойства привязываются к его полям, пока она строится.
+    s.size = hold<PageSize>();
+    s.host.child(LayoutPanel {
+        layout = AvailableSizeLayout {availableWidth = BindInput {s.size->width}},
+        buildPage(destination),
+    });
     s.titleBar.isBackButtonVisible(!s.back.empty());
     select(destination);
 }
@@ -569,6 +593,15 @@ void clearFavorites() {
 
 // ---- Окно и переходы -------------------------------------------------------
 
+PageSize::PageSize() {
+    wide.follow(width, [](double room) { return room >= 641; });
+    optionsBeside.follow(width, [](double room) { return room >= 740; });
+}
+
+PageSize& pageSize() {
+    return *shell->size;
+}
+
 void navigate(Destination destination) {
     show(std::move(destination), true);
 }
@@ -641,7 +674,8 @@ Window createMainWindow() {
         setNavigationOnTop(true);
     }
     if (wchar_t const* const page = _wgetenv(L"GALLERY_PAGE"); page && *page) {
-        show({std::wstring_view{page} == L"Settings" ? Place::Settings : Place::Item, page}, true);
+        std::wstring_view const name {page};
+        show({name == L"Settings" ? Place::Settings : name == L"AllControls" ? Place::AllControls : Place::Item, page}, true);
     }
     return window;
 }
