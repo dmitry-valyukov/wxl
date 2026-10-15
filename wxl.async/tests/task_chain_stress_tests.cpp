@@ -65,7 +65,7 @@ struct frame_record {
 
 /// A task kept where a field would keep it: it outlives whoever awaits it.
 struct stored_slot {
-    std::optional<task<int>> held;
+    task<int> held;
     std::uint32_t id = 0;
     bool joined = false;
 };
@@ -307,7 +307,7 @@ task<int> chain_link(round_state& c, std::uint32_t id, std::uint32_t depth) {
                 c.resumed(id);
                 locals.erase(locals.begin() + k);
             } else if (what == 8 && !locals.empty() && c.can_spawn(depth)) {
-                // Assigned over one never awaited: that frame goes with the temporary.
+                // Assigned over one never awaited: that frame goes in the assignment.
                 const std::uint32_t k = r.below(locals.size());
                 locals[k] = chain_link(c, c.new_id(), depth + 1);
             } else if (what == 9 && c.can_spawn(depth)) {
@@ -315,12 +315,12 @@ task<int> chain_link(round_state& c, std::uint32_t id, std::uint32_t depth) {
                 slot->id = c.new_id();
                 stored_slot& kept = *slot;
                 c.stored.push_back(std::move(slot));
-                kept.held.emplace(chain_link(c, kept.id, depth + 1));
+                kept.held = chain_link(c, kept.id, depth + 1);
             } else if (what == 10 && c.joins_by_tasks) {
                 if (stored_slot* const slot = c.joinable(id, r)) {
                     slot->joined = true;
                     c.suspending(id, waits_on::task);
-                    sum += co_await *slot->held;
+                    sum += co_await slot->held;
                     c.resumed(id);
                 }
             } else if (what == 11 && r.one_in(3)) {
@@ -396,7 +396,7 @@ detached_task scenario(round_state& c, std::uint32_t id, std::uint32_t depth) {
             if (stored_slot* const slot = c.joinable(id, r)) {
                 slot->joined = true;
                 c.suspending(id, waits_on::task);
-                co_await *slot->held;
+                co_await slot->held;
                 c.resumed(id);
             }
         } else if (what == 1 && c.can_spawn(depth)) {
@@ -460,10 +460,10 @@ void drive(round_state& c, random_stream& r) {
         if (!slot.held || slot.joined) return;
 
         if (what == 2) {
-            slot.held.reset();
+            slot.held = {};
         } else if (c.can_spawn(1)) {
             slot.id = c.new_id();
-            *slot.held = chain_link(c, slot.id, 1);
+            slot.held = chain_link(c, slot.id, 1);
         }
     }
 }
@@ -542,7 +542,7 @@ protected:
 
             sweep(*c);
             c->io.clear();
-            for (auto& slot : c->stored) slot->held.reset();
+            for (auto& slot : c->stored) slot->held = {};
             c->stored.clear();
 
             // Given-up operations wait in the return channel for the loop to delete them.

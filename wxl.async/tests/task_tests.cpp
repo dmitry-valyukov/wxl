@@ -336,17 +336,16 @@ task<> awaits_what_names_a_task(int& got) {
 
 /// Drops a suspended task and sweeps an ended one while running: neither is
 /// on the stack, so both may go.
-task<> drops_others(std::coroutine_handle<>& slot, std::optional<task<>>& suspended,
-                    std::vector<task<>>& ended) {
+task<> drops_others(std::coroutine_handle<>& slot, task<>& suspended, std::vector<task<>>& ended) {
     co_await parked{slot};
-    suspended.reset();
+    suspended = {};
     ended.clear();
 }
 
 /// Drops the coroutine that joins it, while running: that one is suspended.
-task<int> drops_its_joiner(std::coroutine_handle<>& slot, std::optional<task<>>& joiner) {
+task<int> drops_its_joiner(std::coroutine_handle<>& slot, task<>& joiner) {
     co_await parked{slot};
-    joiner.reset();
+    joiner = {};
     co_return 5;
 }
 
@@ -670,6 +669,39 @@ TEST(TaskTest, WhatLeftTheCoroutineIsThrownEachTimeItIsAsked) {
     EXPECT_THROW((void)failed_with_a_value.result(), std::runtime_error);
 }
 
+// An empty task holds nothing -- made empty, or moved from -- and one with work holds it.
+TEST(TaskTest, OnlyATaskWithWorkInItHoldsSomething) {
+    task<int> empty;
+    EXPECT_FALSE(empty);
+
+    task<int> t = answers_at_once();
+    EXPECT_TRUE(t);
+
+    task<int> moved = std::move(t);
+    EXPECT_FALSE(t);
+    EXPECT_TRUE(moved);
+    EXPECT_EQ(moved.result(), 7);
+}
+
+// Assigned over, a task drops the one it held there and then, as its destructor would, and the
+// one it took its task from is left empty rather than holding the old one.
+TEST(TaskTest, AssigningOverATaskDropsTheOneItHeld) {
+    std::coroutine_handle<> slot;
+    int deaths = 0;
+    task<int> field = answers_after_a_pause(slot, deaths);
+    task<int> next = answers_at_once();
+
+    field = std::move(next);
+
+    EXPECT_EQ(deaths, 1) << "the task assigned over lives on";
+    EXPECT_FALSE(next);
+    EXPECT_EQ(field.result(), 7);
+
+    // Assigned an empty one, it is empty too, and drops what it held the same way.
+    field = {};
+    EXPECT_FALSE(field);
+}
+
 TEST(TaskTest, AnAwaitableThatMerelyNamesATaskKeepsItsOwnCoAwait) {
     int got = 0;
     task<> t = awaits_what_names_a_task(got);
@@ -681,8 +713,7 @@ TEST(TaskTest, AnAwaitableThatMerelyNamesATaskKeepsItsOwnCoAwait) {
 TEST(TaskTest, ARunningTaskMayDropTasksThatAreNotOnTheStack) {
     std::coroutine_handle<> own_slot, suspended_slot;
     int sink = 0;
-    std::optional<task<>> suspended;
-    suspended.emplace(suspends_once(sink));
+    task<> suspended = suspends_once(sink);
     std::vector<task<>> ended;
     ended.push_back(returns_at_once(sink));
 
@@ -691,21 +722,21 @@ TEST(TaskTest, ARunningTaskMayDropTasksThatAreNotOnTheStack) {
     own_slot.resume();
 
     EXPECT_TRUE(dropper.done());
-    EXPECT_FALSE(suspended.has_value());
+    EXPECT_FALSE(suspended);
     EXPECT_TRUE(ended.empty());
 }
 
 TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
     std::coroutine_handle<> slot;
-    std::optional<task<>> joiner;
+    task<> joiner;
     int got = 0, joiner_deaths = 0;
     task<int> kept = drops_its_joiner(slot, joiner);
-    joiner.emplace(joins(kept, got, joiner_deaths));
+    joiner = joins(kept, got, joiner_deaths);
 
     ASSERT_TRUE(slot);
     slot.resume();
 
-    EXPECT_FALSE(joiner.has_value());
+    EXPECT_FALSE(joiner);
     EXPECT_EQ(joiner_deaths, 1);
     EXPECT_TRUE(kept.done());
     EXPECT_EQ(got, 0);
@@ -782,12 +813,12 @@ heap_task joins_from_anywhere(task<int>& kept) {
     (void)co_await kept;
 }
 
-task<> drops_the_chain(std::coroutine_handle<>& slot, std::optional<task<>>& chain) {
+task<> drops_the_chain(std::coroutine_handle<>& slot, task<>& chain) {
     co_await parked{slot};
-    chain.reset();
+    chain = {};
 }
 
-task<> starts_a_chain(std::coroutine_handle<>& slot, std::optional<task<>>& chain) {
+task<> starts_a_chain(std::coroutine_handle<>& slot, task<>& chain) {
     co_await drops_the_chain(slot, chain);
 }
 
@@ -831,8 +862,8 @@ void drop_the_chain_from_inside() {
     report_failures_to_stderr();
 
     std::coroutine_handle<> slot;
-    std::optional<task<>> chain;
-    chain.emplace(starts_a_chain(slot, chain));
+    task<> chain;
+    chain = starts_a_chain(slot, chain);
     slot.resume();
 }
 
@@ -841,10 +872,9 @@ void drop_a_joined_task() {
 
     std::coroutine_handle<> slot;
     int got = 0, deaths = 0;
-    std::optional<task<int>> kept;
-    kept.emplace(answers_after_a_pause(slot, deaths));
-    task<> joiner = joins(*kept, got, deaths);
-    kept.reset();
+    task<int> kept = answers_after_a_pause(slot, deaths);
+    task<> joiner = joins(kept, got, deaths);
+    kept = {};
 }
 
 /// The place a strict build's report names: the file's own name and the line, in the
@@ -969,7 +999,7 @@ TEST_F(TaskDeathTest, AJoinedTaskOutlivesTheWait) {
 }
 
 TEST_F(TaskDeathTest, AMovedFromTaskIsNotAwaited) {
-    EXPECT_DEATH(await_a_moved_from_task(), "task: moved-from");
+    EXPECT_DEATH(await_a_moved_from_task(), "task: empty -- default-constructed or moved-from");
 }
 
 TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTwice) {
@@ -995,7 +1025,8 @@ TEST_F(TaskStrictDeathTest, AnyCoroutineAwaitingNamesItsCoAwait) {
 
 TEST_F(TaskStrictDeathTest, AMovedFromTaskNamesTheCoAwait) {
     EXPECT_DEATH(await_a_moved_from_task(),
-                 place_of("task_tests\\.cpp", line_of_the_moved_from_await) + "task: moved-from");
+                 place_of("task_tests\\.cpp", line_of_the_moved_from_await) +
+                     "task: empty -- default-constructed or moved-from");
 }
 
 TEST_F(TaskStrictDeathTest, ADestructorNamesTheReasonAndItsOwnPlace) {

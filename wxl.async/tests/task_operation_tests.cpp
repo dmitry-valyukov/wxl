@@ -146,10 +146,9 @@ void drop_a_joined_operation() {
 
     hevent gate{true};
     int got = 0;
-    std::optional<task<int>> op;
-    op.emplace(ask_the_worker(&gate));
-    task<> joiner = joins(*op, got);
-    op.reset();
+    task<int> op = ask_the_worker(&gate);
+    task<> joiner = joins(op, got);
+    op = {};
 }
 
 void await_from_another_thread() {
@@ -223,6 +222,23 @@ TEST(TaskOperationTest, TheNextWaiterJoinsOnceTheFirstHasLeft) {
     EXPECT_EQ(second, 42);
 }
 
+// A field that holds a task at one time and not at another: taken out with std::exchange, the
+// task leaves the field empty and goes on where it was taken to, out on the worker until the
+// loop brings it back.
+TEST(TaskOperationTest, ATaskTakenOutOfAFieldLeavesItEmptyAndGoesOn) {
+    hevent gate{true};
+    task<int> field = ask_the_worker(&gate);
+
+    task<int> taken = std::exchange(field, {});
+
+    EXPECT_FALSE(field);
+    EXPECT_TRUE(taken);
+    EXPECT_FALSE(taken.done());
+
+    gate.set();
+    EXPECT_EQ(sta_loop::run_until(taken), 42);
+}
+
 // The value goes once; a failure stays, and is thrown each time it is asked, as a
 // coroutine's is.
 TEST(TaskOperationTest, AFailureIsThrownEachTimeItIsAsked) {
@@ -233,7 +249,7 @@ TEST(TaskOperationTest, AFailureIsThrownEachTimeItIsAsked) {
 }
 
 TEST_F(TaskOperationDeathTest, AMovedFromOneIsNotAwaited) {
-    EXPECT_DEATH(await_a_moved_from_one(), "task: moved-from");
+    EXPECT_DEATH(await_a_moved_from_one(), "task: empty -- default-constructed or moved-from");
 }
 
 // The value went with the first co_await; the second finds it taken.
@@ -258,7 +274,8 @@ TEST_F(TaskOperationDeathTest, AnOperationIsAwaitedOnItsOwnThread) {
 }
 
 TEST_F(TaskOperationStrictDeathTest, AMovedFromOneNamesTheCoAwait) {
-    EXPECT_DEATH(await_a_moved_from_one(), place_of(line_of_the_await) + "task: moved-from");
+    EXPECT_DEATH(await_a_moved_from_one(),
+                 place_of(line_of_the_await) + "task: empty -- default-constructed or moved-from");
 }
 
 TEST_F(TaskOperationStrictDeathTest, TheSecondTakeNamesItsCoAwait) {
