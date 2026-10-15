@@ -537,7 +537,10 @@ wxl::Teardown wxl_launched() {
         systemBackdrop = MicaBackdrop {},
         titleBar = {
             title = BindOutput {document->title},
-            isBackButtonVisible = BindOutput {history->canGoBack},
+            // Стрелка на месте всегда, как в Gallery; возвращаться некуда — она
+            // неактивна.
+            isBackButtonVisible = true,
+            isBackButtonEnabled = BindOutput {history->canGoBack},
             onBackRequested = [goBack] { goBack(); },
             isPaneToggleButtonVisible = true,
             onPaneToggleRequested = [navigation] { navigation.isPaneOpen(!navigation.isPaneOpen()); },
