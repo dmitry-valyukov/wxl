@@ -8,7 +8,7 @@ import std;
 namespace wxl::async {
 
 io_port::io_port() : port_(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 1)) {
-    if (!port_) throw system_exception("CreateIoCompletionPort");
+    if (!port_) throw last_error("CreateIoCompletionPort");
 }
 
 io_port::~io_port() { ::CloseHandle(port_); }
@@ -20,7 +20,7 @@ void io_port::set() noexcept {
 }
 
 bool io_port::attach(HANDLE file) {
-    if (!::CreateIoCompletionPort(file, port_, 0, 0)) throw system_exception("CreateIoCompletionPort");
+    if (!::CreateIoCompletionPort(file, port_, 0, 0)) throw last_error("CreateIoCompletionPort");
 
     return ::SetFileCompletionNotificationModes(
                file, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS | FILE_SKIP_SET_EVENT_ON_HANDLE) != 0;

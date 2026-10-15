@@ -857,8 +857,8 @@ std::string answer_of(Task& t) {
         return std::format("value {}", t.result());
     } catch (const operation_canceled_exception&) {
         return "cancelled";
-    } catch (const system_exception& failure) {
-        return std::format("system error {}", failure.err_code());
+    } catch (const last_error& failure) {
+        return std::format("system error {}", failure.code().value());
     } catch (const std::exception& failure) {
         return failure.what();
     }
@@ -930,7 +930,7 @@ TEST(CancellationTest, AnOrphanCancelledWhileItRunsAnswersWhatHappenedToItsCall)
 
                 saw_it_cut_short = stage.cut_short();
 
-                if (cut) throw system_exception("ReadFile", ERROR_OPERATION_ABORTED);
+                if (cut) throw last_error("ReadFile", ERROR_OPERATION_ABORTED);
 
                 return 1;
             },
@@ -979,7 +979,7 @@ TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerAfterTheRequest) {
         [&started, &gate]() -> int {
             started.set();
             gate.wait();
-            throw system_exception("CreateFileW", ERROR_ACCESS_DENIED);
+            throw last_error("CreateFileW", ERROR_ACCESS_DENIED);
         },
         stop.token());
 

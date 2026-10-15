@@ -580,7 +580,7 @@ void thread_starter::start_thread() {
         // A thread that never ran has not taken the starter over: the caller still owns it,
         // and the thread, left suspended, never touches it.
         if (::ResumeThread(HANDLE(thread_handle)) == static_cast<DWORD>(-1))
-            throw system_exception("ResumeThread");
+            throw last_error("ResumeThread");
 
         // WARNING: from here on 'this' could be already deleted by the thread.
     } else {
