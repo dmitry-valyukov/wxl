@@ -608,3 +608,24 @@ TEST(StaLoopAbandonTest, AnOrphanGivenUpBeforeItStartsIsNeverRunAndStillDeleted)
     EXPECT_EQ(orphan_deleted.load(), 1);
     EXPECT_EQ(running.alive.load(), 0);
 }
+
+// An orphan whose task went at once is left to finish alone on the worker, and is counted while
+// it does: run_until() on outstanding() -- what the end of a process waits for -- ends once
+// the loop has taken it back and deleted it.
+TEST(StaLoopAbandonTest, AnOrphanLeftToFinishAloneIsWaitedForByRunUntil) {
+    std::atomic<int> deleted{0};
+
+    {
+        auto let_go = sta_loop::async_call(orphanable, [counter = deletion_counter(deleted)] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            return 0;
+        });
+    }
+
+    EXPECT_NE(sta_loop::outstanding(), 0u) << "an orphan left to finish alone is not counted";
+    EXPECT_EQ(deleted.load(), 0);
+
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
+
+    EXPECT_EQ(deleted.load(), 1) << "the wait ended before the orphan was back";
+}

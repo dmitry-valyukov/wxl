@@ -243,6 +243,27 @@ TEST(StaLoopDispatchedTest, RunUntilGivesTheValueATaskAnsweredFromThePoolEndsWit
     EXPECT_EQ(sta_loop::run_until(work), 7);
 }
 
+// An orphan whose task went at once is left to finish alone on the pool, and is counted while
+// it does: run_until() on outstanding() -- what the end of a process waits for -- ends once
+// it has come back through the queue and been deleted.
+TEST(StaLoopDispatchedTest, AnOrphanLeftToFinishAloneIsWaitedForByRunUntil) {
+    std::atomic<bool> deleted{false};
+
+    {
+        auto let_go = sta_loop::async_call(orphanable, [mark = deletion_mark(deleted)] {
+            ::Sleep(50);
+            return 0;
+        });
+    }
+
+    EXPECT_NE(sta_loop::outstanding(), 0u) << "an orphan left to finish alone is not counted";
+    EXPECT_FALSE(deleted.load());
+
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
+
+    EXPECT_TRUE(deleted.load()) << "the wait ended before the orphan was back";
+}
+
 // A broken rule is reported to stderr in every build, not to a dialog that would hang the
 // run.
 void report_broken_rules_to_stderr() {

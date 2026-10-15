@@ -351,13 +351,13 @@ public:
     ///
     /// Nothing may be out by then, and that is checked rather than waited for: the loop is
     /// stopped once its work is over -- an application turns it with run_until() until its
-    /// last detached frame is gone -- so an operation still out here is one nobody is going
-    /// to see back. Taken back here, it would answer nobody, and a coroutine waiting for it
-    /// would be destroyed where it stood rather than finished; so it is an error of the
-    /// program, and the process stops on it. An operation that never finishes by itself --
-    /// a read from a pipe nobody writes to -- is given up by its owner, which waits until
-    /// the worker has let go of it; an orphanable one given up is left to finish alone, and
-    /// has to have come back before this as well.
+    /// last detached frame is gone and nothing is outstanding() -- so an operation still out
+    /// here is one nobody is going to see back. Taken back here, it would answer nobody, and
+    /// a coroutine waiting for it would be destroyed where it stood rather than finished; so
+    /// it is an error of the program, and the process stops on it. An operation that never
+    /// finishes by itself -- a read from a pipe nobody writes to -- is given up by its owner,
+    /// which waits until the worker has let go of it; an orphanable one given up is left to
+    /// finish alone, and is waited for with the rest.
     ///
     /// Doing nothing when there is no run is the point rather than an
     /// indulgence: a teardown path has no business knowing how far a startup
@@ -384,6 +384,12 @@ public:
     /// Whether there is a run in progress -- for the infrastructure that starts
     /// and stops it.
     inline static bool running() noexcept { return worker_.has_value(); }
+
+    /// How many operations are out and not back yet: handed to the worker, to the pool or to
+    /// the kernel, and not taken out of the return channel -- an orphan a frame let go of to
+    /// finish alone counts, and so does one lying in the channel already. What the end of a
+    /// process waits for, beside the detached frames, and what stop() checks is zero.
+    inline static std::size_t outstanding() noexcept { return outstanding_; }
 
     /// Hands an operation to the worker. The STA thread's call.
     ///

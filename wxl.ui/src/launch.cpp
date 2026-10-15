@@ -95,20 +95,27 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
     winrt::Microsoft::UI::Xaml::XamlTypeInfo::XamlControlsXamlMetaDataProvider provider_;
 };
 
+// What the process waits for before it ends: no detached frame alive and no operation out.
+bool nothingLeftToWaitFor() noexcept {
+    return wxl::async::detached_task::live_frames() == 0 &&
+           wxl::async::sta_loop::outstanding() == 0;
+}
+
 #ifndef NDEBUG
 // The watch over the wait at exit, in a Debug build (see wWinMain): called once, when the
 // thread timer comes due, and the timer goes with the call.
-void CALLBACK reportFramesStillAlive(HWND, UINT, UINT_PTR id, DWORD) {
+void CALLBACK reportWhatIsStillAlive(HWND, UINT, UINT_PTR id, DWORD) {
     ::KillTimer(nullptr, id);
 
     const std::size_t frames = wxl::async::detached_task::live_frames();
+    const std::size_t operations = wxl::async::sta_loop::outstanding();
 
-    if (frames == 0) return;
+    if (frames == 0 && operations == 0) return;
 
-    _RPTF1(_CRT_ASSERT,
-           "wxl: %zu detached coroutine frames are still alive ten seconds into the wait at "
-           "exit; the process goes on waiting for them",
-           frames);
+    _RPTF2(_CRT_ASSERT,
+           "wxl: ten seconds into the wait at exit, %zu detached coroutine frames are still "
+           "alive and %zu operations still out; the process goes on waiting for them",
+           frames, operations);
 }
 #endif
 
@@ -230,22 +237,27 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // underneath. Before the teardown handler, so that the application is asked
     // what to save when nothing of its own still runs.
     //
+    // The operations are the process's as well: an orphan a frame let go of to finish
+    // alone, and one on its way back, are waited for with the frames -- which is why
+    // sta_loop::stop() below finds none out.
+    //
     // In a Debug build the wait is watched: a stop for a debugger is a developer's tool, and
-    // a user's process has nobody to stop for. Ten seconds is far longer than a frame that
-    // is only finishing its work -- a last write, a last answer from the pool -- takes, so
-    // one still alive by then is most likely waiting for what never comes, and the watch
-    // reports it the way a failed check does: a place for a debugger to stop at, with the
-    // number of frames in the text. It is not a timeout and not a way out: past the report
-    // the process goes on waiting, as it does in Release, where nothing watches. The watch
-    // is a timer of the thread's own, with a procedure and no window: the message loop
-    // turning here dispatches its WM_TIMER by calling the procedure, so the timer itself
-    // wakes the wait when it comes due, and nothing looks at a clock in between.
+    // a user's process has nobody to stop for. Ten seconds is far longer than a frame or an
+    // operation that is only finishing its work -- a last write, a last answer from the pool
+    // -- takes, so one still there by then is most likely waiting for what never comes, and
+    // the watch reports it the way a failed check does: a place for a debugger to stop at,
+    // with the frames and the operations counted in the text. It is not a timeout and not a
+    // way out: past the report the process goes on waiting, as it does in Release, where
+    // nothing watches. The watch is a timer of the thread's own, with a procedure and no
+    // window: the message loop turning here dispatches its WM_TIMER by calling the
+    // procedure, so the timer itself wakes the wait when it comes due, and nothing looks at
+    // a clock in between.
 #ifndef NDEBUG
-    const UINT_PTR exitWatch = ::SetTimer(nullptr, 0, 10'000, &reportFramesStillAlive);
+    const UINT_PTR exitWatch = ::SetTimer(nullptr, 0, 10'000, &reportWhatIsStillAlive);
     assert(exitWatch != 0 && "wxl: SetTimer refused the watch over the wait at exit");
 #endif
 
-    wxl::async::sta_loop::run_until([] { return wxl::async::detached_task::live_frames() == 0; });
+    wxl::async::sta_loop::run_until(&nothingLeftToWaitFor);
 
 #ifndef NDEBUG
     // Not wanted once the wait is over; one that has come due is gone already, and the call
@@ -262,7 +274,12 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
 
     // After the handler, which may still let go of coroutines that are waiting for
-    // a file: giving an operation up needs the worker.
+    // a file: giving an operation up needs the worker. What such a coroutine had out
+    // on the pool finishes as an orphan, and is waited for the same way as before
+    // the handler, under the same condition -- frames included, since asking costs
+    // nothing.
+    wxl::async::sta_loop::run_until(&nothingLeftToWaitFor);
+
     wxl::async::sta_loop::stop();
 
     // The one place wxl runs what it registered through module_cleanup: after
