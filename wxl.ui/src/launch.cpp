@@ -95,6 +95,23 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
     winrt::Microsoft::UI::Xaml::XamlTypeInfo::XamlControlsXamlMetaDataProvider provider_;
 };
 
+#ifndef NDEBUG
+// The watch over the wait at exit, in a Debug build (see wWinMain): called once, when the
+// thread timer comes due, and the timer goes with the call.
+void CALLBACK reportFramesStillAlive(HWND, UINT, UINT_PTR id, DWORD) {
+    ::KillTimer(nullptr, id);
+
+    const std::size_t frames = wxl::async::detached_task::live_frames();
+
+    if (frames == 0) return;
+
+    _RPTF1(_CRT_ASSERT,
+           "wxl: %zu detached coroutine frames are still alive ten seconds into the wait at "
+           "exit; the process goes on waiting for them",
+           frames);
+}
+#endif
+
 }  // namespace
 
 // Version 6 of the common controls, asked for the only way it can be asked
@@ -212,7 +229,29 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // here, the way a thread nobody joins would, rather than being torn down
     // underneath. Before the teardown handler, so that the application is asked
     // what to save when nothing of its own still runs.
+    //
+    // In a Debug build the wait is watched: a stop for a debugger is a developer's tool, and
+    // a user's process has nobody to stop for. Ten seconds is far longer than a frame that
+    // is only finishing its work -- a last write, a last answer from the pool -- takes, so
+    // one still alive by then is most likely waiting for what never comes, and the watch
+    // reports it the way a failed check does: a place for a debugger to stop at, with the
+    // number of frames in the text. It is not a timeout and not a way out: past the report
+    // the process goes on waiting, as it does in Release, where nothing watches. The watch
+    // is a timer of the thread's own, with a procedure and no window: the message loop
+    // turning here dispatches its WM_TIMER by calling the procedure, so the timer itself
+    // wakes the wait when it comes due, and nothing looks at a clock in between.
+#ifndef NDEBUG
+    const UINT_PTR exitWatch = ::SetTimer(nullptr, 0, 10'000, &reportFramesStillAlive);
+    assert(exitWatch != 0 && "wxl: SetTimer refused the watch over the wait at exit");
+#endif
+
     wxl::async::sta_loop::run_until([] { return wxl::async::detached_task::live_frames() == 0; });
+
+#ifndef NDEBUG
+    // Not wanted once the wait is over; one that has come due is gone already, and the call
+    // finds nothing.
+    ::KillTimer(nullptr, exitWatch);
+#endif
 
     // The exit code is the handler's to name; an application with nothing to
     // say, or with no handler at all, exits with zero.
