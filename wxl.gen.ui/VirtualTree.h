@@ -10,6 +10,7 @@
 // Это управляющий класс, а не контрол: он владеет своими элементами и пулом, а
 // приложение ставит его корень в разметку и подменяет ему модель.
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -22,11 +23,14 @@
 namespace editor {
 
 enum class Expander : uint8_t { None, Collapsed, Expanded };
-// Indeterminate — у родителя, когда отмечены не все дети.
-enum class Check : uint8_t { None, Unchecked, Checked, Indeterminate };
+// Indeterminate — у родителя, когда отмечены не все дети; Disabled — отметку
+// поставить нельзя: пустой квадрат блёклым цветом, щелчок ничего не меняет;
+// Locked — отмечено всегда: галочка блёклым цветом, щелчок ничего не меняет.
+enum class Check : uint8_t { None, Unchecked, Checked, Indeterminate, Disabled, Locked };
 
 // Значок строки: знак шрифта Fluent UI System Icons (Assets) и его радиальная
-// заливка — светлая середина, тёмный край. Модели держат значки постоянными,
+// заливка — светлая середина, тёмный край; один цвет на обоих — сплошная
+// заливка этим цветом. Модели держат значки постоянными,
 // дерево строит по кисти на значок и узнаёт его по адресу.
 struct RowIcon {
     char32_t glyph;
@@ -37,11 +41,30 @@ struct RowIcon {
 // Радиальная заливка значка — та же у строк дерева и у кнопок панели.
 wxl::Template<wxl::RadialGradientBrush> iconFill(wxl::Color outer, wxl::Color inner);
 
+// Знак значка с его заливкой — для сведений, где значок стоит перед текстом.
+wxl::TextBlock iconText(RowIcon const& icon, double size);
+
+// Сведения о строке дерева: значок строки и разметка HtmlBlock.
+struct Description {
+    RowIcon const* icon = nullptr;
+    std::wstring html;
+
+    bool operator==(Description const&) const = default;
+};
+
+// Вид строки. Заголовок раздела — две строки на своём фоне в рамке: Heading —
+// имя полужирным с меткой вида, Subheading — под ним мелким серым пояснение,
+// вровень с именем. Высота строк от этого не меняется.
+enum class RowStyle : uint8_t { Item, Heading, Subheading };
+
 // Строка, как её показывает дерево. Текст — UTF-8 модели; дерево читает его
 // сразу, до следующего обращения к модели.
 struct TreeRow {
     std::string_view text;
+    std::string_view detail;  // серым после текста: тип, сигнатура, счёт
+    std::string_view badge;   // у заголовка — метка вида рядом с именем: class, enum
     uint16_t depth = 0;
+    RowStyle style = RowStyle::Item;
 
     RowIcon const* icon = nullptr;
 
@@ -67,8 +90,15 @@ public:
     // затем раскрывает или сворачивает.
     virtual void invoke(uint32_t index) = 0;
 
-    // Сведения о строке, выбранной в этой модели, — разметка HtmlBlock.
-    virtual std::wstring describe() const { return {}; }
+    // Двойной щелчок по строке или Enter; первый щелчок уже пришёл в invoke().
+    virtual void activate(uint32_t) {}
+
+    // Номер выбранной строки среди видимых; пусто, если выбранного нет или оно
+    // внутри свёрнутого. От него ходят клавиши.
+    virtual wxl::core::nullable<uint32_t> selectedRow() const = 0;
+
+    // Сведения о строке, выбранной в этой модели.
+    virtual Description describe() const { return {}; }
 };
 
 class VirtualTree : public wxl::core::sta_refcounted {
@@ -88,16 +118,30 @@ public:
     // Модель изменилась сама: перечитать видимые строки.
     void refresh();
 
+    // Показывать ли пояснение серым после текста строки.
+    void details(bool show);
+
+    // Ширина, которой дереву хватает без прокрутки вбок: самая широкая из
+    // построенных строк с тех пор, как дерево раскрывали, сворачивали или меняли
+    // ему модель, и полоса прокрутки. Листание её только растит — панель под
+    // деревом не прыгает от строки к строке.
+    wxl::core::observable<double> wantedWidth;
+
 private:
     VirtualTree();
 
     struct Row {
-        wxl::StackPanel panel;
+        wxl::Border frame;  // фон и рамка заголовка раздела
+        wxl::StackPanel panel;  // поверх — выбор и указатель
+        wxl::Border marker;  // черта выбранной строки, когда дерево в фокусе
         wxl::Border indent;
         wxl::TextBlock glyph;
         wxl::TextBlock check;
         wxl::TextBlock icon;
         wxl::TextBlock text;
+        wxl::Border badge;
+        wxl::TextBlock badgeText;
+        wxl::TextBlock detail;
         bool selected = false;  // выбрана ли строка модели, показанная в ячейке
         bool expandable = false;
     };
@@ -105,6 +149,15 @@ private:
     Row makeRow(uint32_t slot);
     void paint(uint32_t slot);
     void resize(double height);
+    void wheel(wxl::UIElement const& source, wxl::PointerRoutedEventArgs& args);
+    void measureWidth();
+    void key(wxl::KeyRoutedEventArgs& args);
+    bool typeAhead(char16_t character);
+    void expandAll(uint32_t index);
+    void select(uint32_t index);
+    void scrollIntoView(uint32_t index);
+    void takeFocus();
+    void focus(bool focused);
     void scrollBy(int64_t lines);
     void scrollTo(uint32_t top);
     void render();
@@ -126,6 +179,8 @@ private:
     std::vector<std::pair<RowIcon const*, wxl::Brush>> fills_;
     std::u16string text_;
     std::u16string glyph_;
+    std::u16string detail_;
+    std::u16string badge_;
 
     wxl::core::intrusive_ptr<TreeModel> model_;
     uint32_t top_ = 0;
@@ -135,6 +190,12 @@ private:
     // Ячейка пула под указателем. Ячейка, а не строка модели: при листании
     // под неподвижным указателем остаётся та же ячейка с другой строкой.
     wxl::core::nullable<uint32_t> hovered_;
+
+    bool focused_ = false;
+    bool details_ = true;
+    double widest_ = 0;  // самая широкая строка с последнего раскрытия или смены модели
+    std::u16string typed_;  // набранное поиском по первым буквам
+    std::chrono::steady_clock::time_point typedAt_;
 };
 
 }  // namespace editor

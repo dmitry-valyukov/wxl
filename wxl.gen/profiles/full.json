@@ -93,7 +93,7 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.NavigationView": {
-            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over.",
+            "comment": "What the Gallery's main window asks of its navigation view beyond base and extended: whether the pane is an overlay or expanded, and the toggle the title bar takes over. FooterMenuItems hold an application's own settings item where the built-in one stands -- the built-in one is labelled in the system's language, not the application's; OpenPaneLength lets the open pane be as wide as its longest item rather than 320.",
             "members": [
                 "DisplayMode",
                 "DisplayModeChanged",
@@ -107,7 +107,8 @@
                 "FooterMenuItems",
                 "PaneFooter",
                 "PaneCustomContent",
-                "MenuItemTemplate"
+                "MenuItemTemplate",
+                "OpenPaneLength"
             ],
             "syntheticMembers": {
                 "AutoSuggestBox": {

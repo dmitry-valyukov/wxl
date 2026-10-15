@@ -6,6 +6,8 @@ wxl_add_executable(wxl.gen.ui
     main.cpp
     Editor.h
     Editor.cpp
+    Settings.h
+    Settings.cpp
     VirtualTree.h
     VirtualTree.cpp
 )

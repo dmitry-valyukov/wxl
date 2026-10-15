@@ -31,8 +31,9 @@ public:
     wxl::core::intrusive_ptr<TreeModel> resources() const;
 
     // Переход по ссылке из сведений: раскрывает тип в дереве Types и выбирает
-    // его; номер его строки среди видимых, если такой тип там есть.
-    wxl::core::nullable<uint32_t> reveal(std::wstring_view type) const;
+    // его; номер его строки среди видимых, если такой тип там есть. Типа, которого
+    // в дереве нет (интерфейс, делегат), — его карточка в сведениях.
+    wxl::core::nullable<uint32_t> reveal(std::wstring_view type);
 
     // Правое дерево: члены выбранного типа; пусто, пока тип не выбран.
     wxl::core::observable<wxl::core::intrusive_ptr<TreeModel>> members;
@@ -50,9 +51,9 @@ public:
     };
     wxl::core::observable<Selection> selection;
 
-    // Справа внизу: сведения о выбранной строке — разметка HtmlBlock. Следует
+    // Справа внизу: сведения о выбранной строке — значок и разметка. Следует
     // за выбором и за профилем.
-    wxl::core::observable<std::wstring> info;
+    wxl::core::observable<Description> info;
 
     // Строка состояния: полный путь открытого профиля.
     wxl::core::observable<std::u16string> path;
@@ -67,13 +68,36 @@ public:
     // Один шаг фонового разбора, в несколько миллисекунд; остался ли ещё.
     bool prepareDocumentation();
 
+    // Настройки: скрывать ли в членах идентификаторы свойств зависимостей
+    // (статические свойства только для чтения с именем на Property) и брать ли
+    // справочник Windows SDK на английском.
+    void hideDependencyProperties(bool hide);
+    void englishDocumentation(bool english);
+
+    // Скрывать ли в дереве типов классы аргументов событий (имя на EventArgs у
+    // самого класса или у его базы) и типы, предопределённые вне проекции, — те,
+    // что wxl пишет сам (predefined в types.json); показанные не отмечаются.
+    void hideEventArgs(bool hide);
+    void hidePredefined(bool hide);
+
+    // Панель инструментов: показывать в деревьях типов и членов только
+    // выбранное — отмеченное в профиле и всё, что замыкание тянет за ним. Строка,
+    // выбранная в дереве, видна всегда.
+    wxl::core::observable<bool> onlyChosen {false};
+
 private:
     Editor();
+
+    // Отметка изменила профиль: замыкание устарело, а скрытые фильтром
+    // строки отбираются заново.
+    void marksChanged();
+    void refilterTrees();
 
     struct Data;
     friend class TypesModel;
     friend class MembersModel;
     friend class ResourcesModel;
+    friend class TypeCard;
 
     std::unique_ptr<Data> data_;
     wxl::core::intrusive_ptr<TypesModel> types_;
