@@ -10,6 +10,7 @@
 // the wxl headers below carry the wxl.core import, and a standard header after
 // that import is one MSVC has already seen through the std module.
 #include <winrt/Microsoft.UI.Composition.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Hosting.h>
 #include <winrt/Microsoft.UI.Xaml.Input.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
@@ -68,6 +69,7 @@ struct MagnifyEffect::State : core::sta_refcounted {
     std::optional<double> minimum;
     std::optional<core::duration> duration;
     core::duration delay{};
+    MagnifyTarget target = MagnifyTarget::Element;  // read when an element is attached
 
     // ---- What every attached element shares, made on the first one ----
     //
@@ -206,49 +208,112 @@ void MagnifyEffect::delayTime(core::duration value) const {
     state_->changed();
 }
 
-void MagnifyEffect::operator()(UIElement const& wrapper) const {
-    auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
-    auto const visual = xaml::Hosting::ElementCompositionPreview::GetElementVisual(element);
-    state_->prepare(visual.Compositor());
+void MagnifyEffect::target(MagnifyTarget value) const {
+    state_->target = value;
+}
 
-    // The base scale XAML draws the element at, about the element's centre.
-    xaml::Media::ScaleTransform const base;
-    element.RenderTransformOrigin({0.5f, 0.5f});
-    element.RenderTransform(base);
+namespace {
+// One attached element: the progress on its own visual's property set, and
+// the transform XAML draws what grows at -- that element or its content.
+struct Attached : core::sta_refcounted {
+    composition::CompositionPropertySet own{nullptr};
+    xaml::Media::ScaleTransform base{nullptr};
 
-    auto const own = visual.Properties();
-    own.InsertScalar(L"MagnifyProgress", 0.0f);
-    own.InsertScalar(L"MagnifyBaseX", 1.0f);
-    own.InsertScalar(L"MagnifyBaseY", 1.0f);
-    own.InsertScalar(L"FocusScale", 1.0f);
-
-    visual.StartAnimation(L"CenterPoint", state_->centre);
-    state_->shown.SetReferenceParameter(L"p", own);
-    visual.StartAnimation(L"Scale", state_->shown);
+    // What grows takes the base scale XAML draws it at, about its centre, and
+    // the expression that shows the rest; the progress it reads stays on the
+    // element, where FocusEffect finds it and multiplies its rise in through
+    // FocusScale.
+    void fit(xaml::UIElement const& grows, composition::ExpressionAnimation const& centre,
+             composition::ExpressionAnimation const& shown) {
+        base = xaml::Media::ScaleTransform{};
+        grows.RenderTransformOrigin({0.5f, 0.5f});
+        grows.RenderTransform(base);
+        auto const visual = xaml::Hosting::ElementCompositionPreview::GetElementVisual(grows);
+        visual.StartAnimation(L"CenterPoint", centre);
+        shown.SetReferenceParameter(L"p", own);
+        visual.StartAnimation(L"Scale", shown);
+    }
 
     // The base moves in one step, together with the divisor the visual reads,
     // so the size on screen does not jump; both are set from the same handler
     // and reach the screen in the same frame. It is set to where the motion
     // ends, which is why what the eye finally sees is XAML's own drawing at
     // that scale and nothing resampled.
-    auto const rebase = [own, base](float x, float y) {
+    void rebase(float x, float y) const {
         base.ScaleX(x);
         base.ScaleY(y);
         own.InsertScalar(L"MagnifyBaseX", x);
         own.InsertScalar(L"MagnifyBaseY", y);
-    };
+    }
+};
+
+// The content of an element: a ContentControl's Content when it is an
+// element, otherwise the one child in the visual tree -- what a Border, a
+// Viewbox or a templated control without content show. Empty when there is
+// none or there are several.
+xaml::UIElement content_of(xaml::UIElement const& element) {
+    if (auto const control = element.try_as<xaml::Controls::ContentControl>()) {
+        if (auto const content = control.Content().try_as<xaml::UIElement>()) {
+            return content;
+        }
+    }
+    if (xaml::Media::VisualTreeHelper::GetChildrenCount(element) == 1) {
+        return xaml::Media::VisualTreeHelper::GetChild(element, 0).try_as<xaml::UIElement>();
+    }
+    return nullptr;
+}
+} // namespace
+
+void MagnifyEffect::operator()(UIElement const& wrapper) const {
+    auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
+    auto const visual = xaml::Hosting::ElementCompositionPreview::GetElementVisual(element);
+    state_->prepare(visual.Compositor());
+
+    core::intrusive_ptr<Attached> const attached{new Attached, /*add_ref=*/false};
+    attached->own = visual.Properties();
+    attached->own.InsertScalar(L"MagnifyProgress", 0.0f);
+    attached->own.InsertScalar(L"MagnifyBaseX", 1.0f);
+    attached->own.InsertScalar(L"MagnifyBaseY", 1.0f);
+    attached->own.InsertScalar(L"FocusScale", 1.0f);
+
+    // The content is there once the element is loaded -- the template applied,
+    // the content placed -- and is found from the event's sender: the handlers
+    // hold no element. The first PointerEntered finds it too, should it come
+    // first; until then the element has nothing to grow.
+    bool const content = state_->target == MagnifyTarget::Content;
+    if (!content) {
+        attached->fit(element, state_->centre, state_->shown);
+    } else if (auto const framework = element.try_as<xaml::FrameworkElement>()) {
+        framework.Loaded([state = state_, attached](auto&& sender, auto&&) {
+            if (!attached->base) {
+                if (auto const grows = content_of(sender.template as<xaml::UIElement>())) {
+                    attached->fit(grows, state->centre, state->shown);
+                }
+            }
+        });
+    }
 
     // The state is held by the handlers, not the element: it owns no element,
     // so nothing here is a cycle.
-    element.PointerEntered([state = state_, own, rebase](auto&&, auto&&) {
+    element.PointerEntered([state = state_, attached](auto&& sender, auto&&) {
+        if (!attached->base) {
+            auto const grows = content_of(sender.template as<xaml::UIElement>());
+            if (!grows) {
+                return;
+            }
+            attached->fit(grows, state->centre, state->shown);
+        }
         state->prepare(state->compositor);
-        rebase(state->scale.width, state->scale.height);
-        own.StartAnimation(L"MagnifyProgress", state->grow);
+        attached->rebase(state->scale.width, state->scale.height);
+        attached->own.StartAnimation(L"MagnifyProgress", state->grow);
     });
-    element.PointerExited([state = state_, own, rebase](auto&&, auto&&) {
+    element.PointerExited([state = state_, attached](auto&&, auto&&) {
+        if (!attached->base) {
+            return;
+        }
         state->prepare(state->compositor);
-        rebase(1.0f, 1.0f);
-        own.StartAnimation(L"MagnifyProgress", state->shrink);
+        attached->rebase(1.0f, 1.0f);
+        attached->own.StartAnimation(L"MagnifyProgress", state->shrink);
     });
 }
 
