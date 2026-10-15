@@ -204,6 +204,75 @@ TEST(unicode, walking_works_in_a_range_for) {
     EXPECT_EQ(count, wxl::core::unicode::code_point_count(assume_valid(russian)));
 }
 
+// The same walk over UTF-16. A pair is one code point two units long, so the
+// positions count units, and each sequence is the code point's own units.
+TEST(unicode, walking_utf16_hands_out_position_and_units) {
+    const std::u16string text = u"a\U0001F600б";
+
+    std::vector<char32_t> seen;
+    std::vector<std::size_t> positions;
+    std::vector<std::wstring_view> sequences;
+
+    const wxl::core::unicode::code_points walk(assume_valid(text));
+
+    for (auto it = walk.begin(); it != walk.end(); ++it) {
+        seen.push_back(*it);
+        positions.push_back(it.position());
+        sequences.push_back(it.sequence().wchars());
+    }
+
+    EXPECT_EQ(seen, (std::vector<char32_t>{U'a', U'\U0001F600', U'б'}));
+    EXPECT_EQ(positions, (std::vector<std::size_t>{0, 1, 3}));
+    ASSERT_EQ(sequences.size(), 3u);
+    EXPECT_EQ(sequences[0], L"a"sv);
+    EXPECT_EQ(sequences[1], L"\U0001F600"sv);
+    EXPECT_EQ(sequences[2], L"б"sv);
+}
+
+// In the basic plane every code point is a single unit, and the walk over the
+// UTF-16 text meets the same code points as the walk over its UTF-8 original.
+// The owning text walks as the view it answers as.
+TEST(unicode, walking_utf16_in_the_basic_plane) {
+    const wxl::core::u16_text wide = assume_valid(russian).to_utf16();
+
+    std::vector<char32_t> from_utf16;
+    std::size_t expected_position = 0;
+
+    const wxl::core::unicode::code_points walk(wide);
+
+    for (auto it = walk.begin(); it != walk.end(); ++it) {
+        EXPECT_EQ(it.position(), expected_position);
+        EXPECT_EQ(it.sequence().size(), 1u);
+        from_utf16.push_back(*it);
+        ++expected_position;
+    }
+
+    std::vector<char32_t> from_utf8;
+    for (const char32_t code_point : wxl::core::unicode::code_points(assume_valid(russian)))
+        from_utf8.push_back(code_point);
+
+    EXPECT_EQ(expected_position, wide.size());
+    EXPECT_EQ(from_utf16, from_utf8);
+}
+
+// A literal walks as the view it converts to, checked where it is written.
+TEST(unicode, walking_a_literal) {
+    std::vector<char32_t> seen;
+
+    for (const char32_t code_point : wxl::core::unicode::code_points(u"\U0001F4D6!"))
+        seen.push_back(code_point);
+
+    EXPECT_EQ(seen, (std::vector<char32_t>{U'\U0001F4D6', U'!'}));
+}
+
+TEST(unicode, walking_empty_text_finds_nothing) {
+    const wxl::core::unicode::code_points utf8(wxl::core::u8_view{});
+    const wxl::core::unicode::code_points utf16(wxl::core::u16_view{});
+
+    EXPECT_TRUE(utf8.begin() == utf8.end());
+    EXPECT_TRUE(utf16.begin() == utf16.end());
+}
+
 TEST(unicode, appending_grows_what_is_already_there) {
     std::wstring wide = L"<<";
     wxl::core::unicode::append_utf16(wide, assume_valid(russian));
