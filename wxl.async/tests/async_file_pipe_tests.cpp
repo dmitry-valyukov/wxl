@@ -352,7 +352,7 @@ TEST_F(AsyncFilePipeTest, AFrameUnwindingPastAReadInTheKernelCancelsIt) {
     try {
         sta_loop::run_until(work);
         ADD_FAILURE() << "reading a file made for writing did not fail";
-    } catch (const system_exception& e) {
+    } catch (const last_error& e) {
         EXPECT_TRUE(std::string_view(e.what()).starts_with("ReadFile")) << e.what();
     }
 
@@ -482,7 +482,7 @@ TEST(OrphanTest, CancellingAnOrphanCutsShortTheCallItStandsInAndItAnswersTheCanc
 
             if (!::WriteFile(writer, much.data(), static_cast<DWORD>(much.size()), &written,
                              nullptr))
-                throw system_exception("WriteFile");
+                throw last_error("WriteFile");
         },
         stop.token());
 

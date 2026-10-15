@@ -103,7 +103,7 @@ async::detached_task saveState() {
     text += std::format("size {} {}\n", savedSize.width, savedSize.height);
     try {
         co_await async::async_file::write_all(core::path(std::wstring_view(file.native())), std::move(text));
-    } catch (async::system_exception const&) {
+    } catch (async::last_error const&) {
     }
 }
 

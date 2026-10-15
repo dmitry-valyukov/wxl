@@ -19,8 +19,8 @@ void async_op::answer_canceled() noexcept {
 void async_op::keep_failure() noexcept {
     try {
         throw;
-    } catch (const system_exception& failure) {
-        if (failure.err_code() == ERROR_OPERATION_ABORTED)
+    } catch (const last_error& failure) {
+        if (failure.code().value() == ERROR_OPERATION_ABORTED)
             answer_canceled();
         else
             error_ = std::current_exception();

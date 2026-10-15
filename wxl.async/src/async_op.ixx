@@ -279,7 +279,7 @@ protected:
     void answer_canceled() noexcept;
 
     /// Keeps the exception being handled as the answer -- unless it is a call to the
-    /// system that the cutting short ended, `system_exception` with ERROR_OPERATION_ABORTED,
+    /// system that the cutting short ended, `last_error` with ERROR_OPERATION_ABORTED,
     /// which answers the cancellation. Called from inside a handler (async_op.cpp).
     void keep_failure() noexcept;
 

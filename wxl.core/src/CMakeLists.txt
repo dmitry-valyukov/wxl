@@ -79,6 +79,11 @@ wxl_add_module_library(wxl.core STATIC
 # has to know which of the two it got.
 add_library(wxl::core ALIAS wxl.core)
 
+# The one system library beyond the defaults: the shell, for the command line
+# split into arguments (CommandLineToArgvW in environment.cpp). PUBLIC because
+# wxl.core is static, so the consumer's link is where the symbol is resolved.
+target_link_libraries(wxl.core PUBLIC shell32.lib)
+
 # `import std;` support (CMake's std module target). Requires C++23 and a
 # toolchain that ships the std module sources (MSVC 17.10+).
 set_target_properties(wxl.core PROPERTIES

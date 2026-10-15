@@ -57,7 +57,7 @@ public:
     ///        reason `async_file` gives at length -- a borrowed path outlives
     ///        nothing once the statement that started the coroutine has ended,
     ///        and the worker is already holding it by then.
-    /// \throw system_exception at the co_await if there is nothing to enumerate.
+    /// \throw last_error at the co_await if there is nothing to enumerate.
     static task<async_directory> open(const core::path& pattern);
 
     /// Everything the pattern matches, at once, in one operation that owns its
@@ -68,7 +68,7 @@ public:
     /// A pattern that matches nothing is an empty answer, not a failure: the
     /// directory is there and holds none of what was asked for.
     ///
-    /// \throw system_exception at the co_await if there is no such directory,
+    /// \throw last_error at the co_await if there is no such directory,
     ///        or it could not be read.
     [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern);
 
@@ -95,11 +95,11 @@ public:
     /// at each separator in turn, and what it cuts is the operation's own copy
     /// rather than anything the caller can see.
     ///
-    /// \throw system_exception at the co_await if the chain could not be made.
+    /// \throw last_error at the co_await if the chain could not be made.
     [[nodiscard]] static task<> create_all(const core::path& p);
 
     /// Removes an empty directory.
-    /// \throw system_exception at the co_await if it could not be removed.
+    /// \throw last_error at the co_await if it could not be removed.
     [[nodiscard]] static task<> remove(const core::path& path);
 
     /// The operations above under a token, its last argument: the operation stands under

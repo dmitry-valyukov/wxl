@@ -24,7 +24,7 @@ auto listing_all(const core::path& pattern) {
             // calls that a file not found, and for a listing it is an empty one.
             if (::GetLastError() == ERROR_FILE_NOT_FOUND) return found;
 
-            throw system_exception("FindFirstFileExW");
+            throw last_error("FindFirstFileExW");
         }
 
         // A listing that stops halfway is no answer: a body cut short between two names
@@ -71,14 +71,14 @@ auto making_all(const core::path& p) {
         if (!core::directory::create_all(copy, wanted)) {
             if (stopped) throw operation_canceled_exception();
 
-            throw system_exception("CreateDirectoryW");
+            throw last_error("CreateDirectoryW");
         }
     };
 }
 
 auto removing(const core::path& path) {
     return [path] {
-        if (!core::directory::remove(path.c_str())) throw system_exception("RemoveDirectoryW");
+        if (!core::directory::remove(path.c_str())) throw last_error("RemoveDirectoryW");
     };
 }
 
@@ -88,7 +88,7 @@ auto async_directory::opening(const core::path& pattern) {
     return [pattern] {
         core::directory opened = core::directory::open(pattern.c_str());
 
-        if (!opened.opened()) throw system_exception("FindFirstFileExW");
+        if (!opened.opened()) throw last_error("FindFirstFileExW");
 
         return async_directory(std::move(opened));
     };

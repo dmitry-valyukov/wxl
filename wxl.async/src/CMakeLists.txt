@@ -36,10 +36,10 @@ wxl_add_module_library(wxl.async STATIC
         # What is left of the component model: the base, and threaded_component, the one
         # derivative with callers of its own. The containers, the hosted half and the
         # apartments are kept outside this tree.
-        # system_exception stays because async_file and async_directory throw it.
+        # last_error stays because async_file and async_directory throw it.
         component.ixx
+        last_error.ixx
         stop_reason.ixx
-        system_exception.ixx
         threaded_component.ixx
     HEADERS
         # The check itself, a macro -- it is assert when the checks are Debug's -- for
@@ -68,8 +68,8 @@ wxl_add_module_library(wxl.async STATIC
         component.impl.h
 
         component.cpp
+        last_error.cpp
         stop_reason.cpp
-        system_exception.cpp
         threaded_component.cpp
 )
 
