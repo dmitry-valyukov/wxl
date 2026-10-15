@@ -160,7 +160,7 @@ bool threaded_component::impl_t::complete_start(task_tree_handle thread_starting
     if (!::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(), ::GetCurrentProcess(),
                            &thread, SYNCHRONIZE | THREAD_QUERY_LIMITED_INFORMATION, FALSE, 0)) {
         std::exception_ptr error =
-            std::make_exception_ptr(system_exception("Cannot open the component's thread"));
+            std::make_exception_ptr(last_error("Cannot open the component's thread"));
         thread_starting_task.set_failed(error);
         owner()->stop_async(error);
         return false;

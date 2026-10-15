@@ -27,11 +27,11 @@ auto reading_whole(const core::path& path) {
     return [path](const orphan_stage& stage) {
         core::file source = core::file::open_read(path.c_str());
 
-        if (!source.opened()) throw system_exception("CreateFileW");
+        if (!source.opened()) throw last_error("CreateFileW");
 
         const core::nullable<std::uint64_t> length = source.size();
 
-        if (!length) throw system_exception("GetFileSizeEx");
+        if (!length) throw last_error("GetFileSizeEx");
 
         std::string bytes(static_cast<std::size_t>(*length), '\0');
 
@@ -60,7 +60,7 @@ auto reading_whole(const core::path& path) {
 
         if (done < bytes.size()) {
             if (const DWORD why = ::GetLastError(); why != ERROR_SUCCESS && why != ERROR_HANDLE_EOF)
-                throw system_exception("ReadFile", static_cast<int>(why));
+                throw last_error("ReadFile", static_cast<int>(why));
 
             bytes.resize(done);
         }
@@ -99,7 +99,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
             if (!core::directory::create_all(parent, wanted)) {
                 if (stopped) throw operation_canceled_exception();
 
-                throw system_exception("CreateDirectoryW");
+                throw last_error("CreateDirectoryW");
             }
 
             if (!wanted()) throw operation_canceled_exception();
@@ -107,7 +107,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
             out = core::file::create(temporary.c_str());
         }
 
-        if (!out.opened()) throw system_exception("CreateFileW");
+        if (!out.opened()) throw last_error("CreateFileW");
 
         // A temporary left behind by a body cut short or failed is deleted,
         // best effort: the next save would overwrite it anyway, and nothing
@@ -118,7 +118,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
         };
 
         if (out.write(std::as_bytes(std::span(bytes))) != bytes.size()) {
-            const system_exception failure("WriteFile");
+            const last_error failure("WriteFile");
             drop();
             throw failure;
         }
@@ -132,7 +132,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
         // could leave the rename done and the content not, and the name
         // would point at zeroes.
         if (!out.flush()) {
-            const system_exception failure("FlushFileBuffers");
+            const last_error failure("FlushFileBuffers");
             drop();
             throw failure;
         }
@@ -148,7 +148,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
         // than the cache before this returns.
         if (!::MoveFileExW(temporary.c_str(), target.c_str(),
                            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-            const system_exception failure("MoveFileExW");
+            const last_error failure("MoveFileExW");
             ::DeleteFileW(temporary.c_str());
             throw failure;
         }
@@ -177,7 +177,7 @@ auto async_file::opening(const core::path& path) {
     return [path] {
         core::file opened = core::file::open_read_overlapped(path.c_str());
 
-        if (!opened.opened()) throw system_exception("CreateFileW");
+        if (!opened.opened()) throw last_error("CreateFileW");
 
         return async_file(std::move(opened));
     };
@@ -187,7 +187,7 @@ auto async_file::creating(const core::path& path) {
     return [path] {
         core::file created = core::file::create_overlapped(path.c_str());
 
-        if (!created.opened()) throw system_exception("CreateFileW");
+        if (!created.opened()) throw last_error("CreateFileW");
 
         return async_file(std::move(created));
     };
@@ -302,7 +302,7 @@ task<std::uint64_t> async_file::size() {
     return sta_loop::call_here([this] {
         const core::nullable<std::uint64_t> length = file_.size();
 
-        if (!length) throw system_exception("GetFileSizeEx");
+        if (!length) throw last_error("GetFileSizeEx");
 
         return *length;
     });
@@ -312,7 +312,7 @@ task<> async_file::flush() {
     ensure(file_.opened() && "async_file: no file was opened");
 
     return sta_loop::async_call([this] {
-        if (!file_.flush()) throw system_exception("FlushFileBuffers");
+        if (!file_.flush()) throw last_error("FlushFileBuffers");
     });
 }
 

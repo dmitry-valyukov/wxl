@@ -43,5 +43,5 @@ export import :turnstile;
 // was written for.
 export import :component;
 export import :stop_reason;
-export import :system_exception;
+export import :last_error;
 export import :threaded_component;

@@ -143,13 +143,13 @@ void overlapped_op::finish(DWORD error) noexcept {
     }
 
     if (kind_ == kind::read) {
-        set_error(std::make_exception_ptr(system_exception("ReadFile", static_cast<int>(error))));
+        set_error(std::make_exception_ptr(last_error("ReadFile", static_cast<int>(error))));
         return;
     }
 
     // A write can succeed and take less than it was given, which is what a full disk
     // looks like from here.
-    set_error(std::make_exception_ptr(system_exception(
+    set_error(std::make_exception_ptr(last_error(
         "WriteFile", static_cast<int>(error == ERROR_SUCCESS ? ERROR_DISK_FULL : error))));
 }
 

@@ -39,7 +39,7 @@ export namespace wxl::async {
 /// reached the end of the file.
 ///
 /// **Failures become exceptions here**, carried back inside the operation and
-/// rethrown by the co_await. `system_exception` keeps the code the failed call
+/// rethrown by the co_await. `last_error` keeps the code the failed call
 /// left behind.
 ///
 /// **Which loop is not asked and cannot be told**: there is one, it is the STA
@@ -95,11 +95,11 @@ public:
     async_file& operator=(async_file&&) noexcept = default;
 
     /// Opens an existing file for reading.
-    /// \throw system_exception at the co_await if it could not be opened.
+    /// \throw last_error at the co_await if it could not be opened.
     static task<async_file> open_read(const core::path& path);
 
     /// Creates a file for writing, emptying one that is already there.
-    /// \throw system_exception at the co_await if it could not be created.
+    /// \throw last_error at the co_await if it could not be created.
     static task<async_file> create(const core::path& path);
 
     /// The whole of a file, by name: opened, measured, read and closed inside one
@@ -112,7 +112,7 @@ public:
     ///
     /// The bytes are bytes: text in them is checked by whoever reads it as text.
     ///
-    /// \throw system_exception at the co_await for whatever failed, with the
+    /// \throw last_error at the co_await for whatever failed, with the
     ///        system's code. A file that is not there is `ERROR_FILE_NOT_FOUND`
     ///        like any other failure to open: whoever treats absence as the
     ///        ordinary case -- settings on a first run -- asks the code, and
@@ -132,7 +132,7 @@ public:
     /// bursts coalesces them, and the last state wins by construction instead of
     /// by luck.
     ///
-    /// \throw system_exception at the co_await, naming the call that failed.
+    /// \throw last_error at the co_await, naming the call that failed.
     [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes);
 
     /// \return whether there is a file at this path. A directory there is not a
@@ -155,13 +155,13 @@ public:
         return read(std::as_writable_bytes(std::span{into}));
     }
 
-    /// \throw system_exception if less went out than was asked for.
+    /// \throw last_error if less went out than was asked for.
     [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from);
 
-    /// \throw system_exception if the file's length could not be had.
+    /// \throw last_error if the file's length could not be had.
     [[nodiscard]] task<std::uint64_t> size();
 
-    /// \throw system_exception if the flush failed -- and a failed flush is the
+    /// \throw last_error if the flush failed -- and a failed flush is the
     ///        difference between a file that survives a power cut and one that
     ///        does not, so it is not a failure to pass over.
     [[nodiscard]] task<> flush();
