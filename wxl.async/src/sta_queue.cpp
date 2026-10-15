@@ -16,6 +16,7 @@ namespace {
 
 using ABI::Windows::Foundation::AsyncStatus;
 using ABI::Windows::Foundation::IAsyncAction;
+using ABI::Windows::Foundation::IAsyncActionCompletedHandler;
 using ABI::Windows::Foundation::IAsyncInfo;
 using ABI::Windows::System::IDispatcherQueue;
 using ABI::Windows::System::IDispatcherQueueController;
@@ -117,6 +118,52 @@ public:
 
 protected:
     ~queue_handler() = default;
+};
+
+/// What the queue's shutdown action is given as its Completed handler: a wake-up for the
+/// thread's message loop, and nothing else. The loop that waits for the shutdown sleeps in
+/// GetMessageW, and the action completing is not a message to it -- so this posts one, with
+/// nothing in it (WM_NULL), to the thread that waits. Whether the wait is over is read off
+/// the action's own status, not off this call: a handler that set a flag would be a second
+/// copy of what the action already keeps. Agile and counted with interlocked increments,
+/// since the action may complete, and let go of it, from another thread.
+class shutdown_wake final : public IAsyncActionCompletedHandler
+{
+public:
+    explicit shutdown_wake(DWORD thread) noexcept : thread_(thread) {}
+
+    HRESULT __stdcall QueryInterface(const IID& iid, void** out) noexcept override {
+        if (iid == __uuidof(IAsyncActionCompletedHandler) || iid == __uuidof(IUnknown) ||
+            iid == __uuidof(IAgileObject)) {
+            *out = static_cast<IAsyncActionCompletedHandler*>(this);
+            AddRef();
+            return S_OK;
+        }
+
+        *out = nullptr;
+        return E_NOINTERFACE;
+    }
+
+    ULONG __stdcall AddRef() noexcept override {
+        return refs_.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+
+    ULONG __stdcall Release() noexcept override {
+        const ULONG left = refs_.fetch_sub(1, std::memory_order_acq_rel) - 1;
+        if (left == 0) delete this;
+        return left;
+    }
+
+    HRESULT __stdcall Invoke(IAsyncAction*, AsyncStatus) noexcept override {
+        ::PostThreadMessageW(thread_, WM_NULL, 0, 0);
+        return S_OK;
+    }
+
+private:
+    ~shutdown_wake() = default;
+
+    std::atomic<ULONG> refs_{1};
+    const DWORD thread_;
 };
 
 /// \return whether the queue took it; it refuses once it is shutting down.
@@ -279,9 +326,13 @@ void sta_loop::let_go_of_queue() noexcept {
 
     if (own_controller) {
         // A queue made on this thread is shut down by this thread: it drains what it still
-        // holds through the message loop, and the action completes from inside it. So the
-        // wait is the loop turning until the action's own status says it is over, read
-        // between messages -- the action keeps that state itself, and nobody is told.
+        // holds through the message loop. The wait is the loop turning until the action's
+        // own status says it is over, read between messages -- the action keeps that state
+        // itself. What the loop cannot do is wake for the completion by itself: it sleeps
+        // in GetMessageW, and the action completing is not a message to it -- a loop that
+        // only read the status stood in GetMessageW for good once the last message had
+        // gone by. So the action's Completed handler posts an empty message to this thread,
+        // and the status, not the handler, says when the wait is over.
         IAsyncAction* action = nullptr;
         const HRESULT started = own_controller->ShutdownQueueAsync(&action);
         ensure(SUCCEEDED(started) && "sta_loop: ShutdownQueueAsync refused");
@@ -298,12 +349,20 @@ void sta_loop::let_go_of_queue() noexcept {
             return value;
         };
 
+        // Given before the wait, so that a completion that comes first still posts; an
+        // action already complete calls the handler from inside put_Completed, and the
+        // wait below then finds the status and never sleeps.
+        auto* const wake = new shutdown_wake(::GetCurrentThreadId());
+        const HRESULT hooked = action->put_Completed(wake);
+        ensure(SUCCEEDED(hooked) && "sta_loop: the shutdown action takes no Completed handler");
+
         pump_until([&status] { return status() != AsyncStatus::Started; });
         ensure(status() == AsyncStatus::Completed &&
                "sta_loop: the dispatcher queue did not shut down");
 
         info->Release();
         action->Release();
+        wake->Release();
 
         own_controller->Release();
         own_controller = nullptr;
