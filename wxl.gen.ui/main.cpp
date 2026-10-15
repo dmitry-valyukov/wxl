@@ -258,21 +258,24 @@ wxl::Teardown wxl_launched() {
     };
 
     // Один эффект на все кнопки, как в образце Effects: копии — это тот же
-    // эффект, и анимации у всех кнопок общие.
+    // эффект, и анимации у всех кнопок общие. Растёт знак, а не кнопка: у
+    // кнопки, которая растёт сама, XAML закрывает подсказку через миг после
+    // того, как показал.
     auto const pop = MagnifyEffect {1.2, maximum = 1.35, minimum = 0.95};
 
     auto const toolButton = Preset {
         styles.Button.CommandBarFlyoutEllipsis,
-        pop,
     };
 
     // Шрифт — по ms-appx:///, как велит FontFamily.h: относительный путь в знаке
     // на заголовке окна шрифт не находил, и знаки пустели во всём окне.
     auto const toolGlyph = Preset {
+        pop,
         fontFamily = FontFamily {u"ms-appx:///Assets/FluentSystemIcons-Regular.ttf#FluentSystemIcons-Regular"},
         fontSize = 20.0,
     };
     auto const toolFilledGlyph = Preset {
+        pop,
         fontFamily = FontFamily {u"ms-appx:///Assets/FluentSystemIcons-Filled.ttf#FluentSystemIcons-Filled"},
         fontSize = 20.0,
     };
@@ -556,7 +559,7 @@ wxl::Teardown wxl_launched() {
                     width = 64.0,
                     toolTip = u"Масштаб 100 %",
                     onClick = [zoom] { zoom.model().resetZoom(); },
-                    content = TextBlock {text = BindOutput {label->text}},
+                    content = TextBlock {pop, text = BindOutput {label->text}},
                 },
                 Button {
                     toolButton,
