@@ -3,8 +3,8 @@ module;
 // ensure() is a macro, and its release form names wxl::core::fail -- so the
 // header has to be here, in the global fragment, and :checks imported below.
 // A translation unit that gets abi.h from a precompiled header would compile
-// without this; Bukvitsa builds these sources without one, and that is the
-// check that catches it.
+// without this; a build of these sources without one is the check that
+// catches it.
 #include "abi.h"
 
 export module wxl.core:path;

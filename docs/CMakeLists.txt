@@ -10,9 +10,9 @@
 # page, dozens of them in a single article -- and that link is what a
 # separate site generator for the prose would cost.
 #
-# The site says nothing about Bukvitsa, deliberately: inside the code this is
-# one job, but wxl is presented as a library that stands on its own. The
-# traffic goes the other way, through the tag file Bukvitsa reads.
+# The site says nothing about the applications built on wxl, deliberately: wxl
+# is presented as a library that stands on its own. The traffic goes the other
+# way, through the tag file an application's own site reads.
 
 wxl_add_doxygen_site(docs
     PROJECT_NAME "wxl"
@@ -42,8 +42,8 @@ wxl_add_doxygen_site(docs
         "${PROJECT_SOURCE_DIR}/wxl.highlight/src"
         # The generated WinUI3 projection is part of the surface, not an
         # implementation detail: wxl::Button and wxl::UIElement are what a
-        # consumer writes, and without them Bukvitsa's tag file resolves
-        # nothing.
+        # consumer writes, and without them the tag file an application's
+        # site reads resolves nothing.
         "${PROJECT_SOURCE_DIR}/wxl.ui/src"
     EXCLUDE
         "*/tests/*"

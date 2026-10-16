@@ -23,9 +23,10 @@ export namespace wxl::async {
 ///
 /// Sleeping is the whole reason to reach for a channel rather than the mpsc_queue it is
 /// built on: the queue answers "nothing there" and leaves the reader to decide what to do
-/// about it. The writers pay for the wakeup only when the reader is actually asleep --
-/// see ../doc/arm-disarm.md for the exchange that lets them find that out
-/// without a lock.
+/// about it. The writers pay for the wakeup only when the reader is actually asleep, and
+/// find that out without a lock: the reader arms a trigger before it waits, and the writer
+/// that disarms it first after its push is the one that wakes it -- signal(), arm() and
+/// disarm() below. The channel is taken apart in https://habr.com/ru/articles/1088334/.
 ///
 /// Waiting follows the condition-variable contract: receive() may return empty-handed
 /// before its timeout elapses, so the caller loops on a predicate of its own rather than
@@ -138,8 +139,6 @@ public:
     /// and leave it asleep on the element it pushes a moment later. The push must also be
     /// the seq_cst one -- reading the trigger here is the load half of that exchange, and
     /// send() supplies the store half.
-    ///
-    /// \see ../doc/arm-disarm.md
     void signal(bool force = false) {
         const bool reader_is_waiting = disarm();
 
@@ -147,8 +146,6 @@ public:
     }
 
     /// Arms the wake-up: lets the writers know that the reader is waiting for new data.
-    ///
-    /// \see ../doc/arm-disarm.md
     void arm() {
         // Nobody can have set the trigger before us: a channel has one reader, and this
         // is a step of its own receive().
@@ -160,8 +157,6 @@ public:
     /// Disarms the wake-up.
     /// \return \c false if someone has disarmed it first -- that is, took the right to
     ///         wake the reader.
-    ///
-    /// \see ../doc/arm-disarm.md
     bool disarm() { return wait_trigger_.reset(); }
 
 private:

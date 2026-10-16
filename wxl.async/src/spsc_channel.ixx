@@ -26,8 +26,7 @@ export namespace wxl::async {
 /// consumer with nothing to read has to be woken by something its owner owns.
 /// Here that something is a member, and the writer touches it only when the
 /// reader is actually asleep: the arm/disarm protocol, the same
-/// one `mpsc_channel` uses, written up in
-/// wxl.async/doc/arm-disarm.md.
+/// one `mpsc_channel` uses and the article named there introduces.
 ///
 /// The primitive is a template parameter because owners differ in what they
 /// sleep on -- an event, a semaphore, something with a message queue behind it
