@@ -1,7 +1,10 @@
 export module wxl.core:observable;
 
 import :binding_scope;
+import :checks;
 import :event;
+import :function;
+import :not_null;
 import std;
 
 export namespace wxl::core {
@@ -51,8 +54,10 @@ public:
     /// is `event`'s, so it has to be noexcept -- add() below says so.
     ///
     /// The cookie is the caller's: an application watching the model to react
-    /// removes the watch when it likes, or lets it go with the model. A
-    /// binding's own watch is a different thing -- see watch_for_binding.
+    /// removes the watch when it likes, or lets it go with the model. A watch
+    /// that a member keeps for its owner, and that comes off with it, is a
+    /// change_watch and needs no cookie. A binding's own watch is a different
+    /// thing -- see watch_for_binding.
     template <class F>
     cookie_t on_change(F&& callback) {
         return changed_.add(std::forward<F>(callback));
@@ -217,5 +222,127 @@ template <impl::unbindable... Models>
 void unsubscribe_all(Models&... models) {
     (models.unbind(), ...);
 }
+
+namespace impl {
+
+// The class a pointer to member names: the owner whose member a change_watch calls.
+template <class Member>
+struct member_owner {};
+
+template <class Fn, class Owner>
+struct member_owner<Fn Owner::*> {
+    using type = Owner;
+};
+
+// What a change event hands each of its watchers -- the value of an observable, the
+// list_change of an observable_list -- read off the event's callback node, as
+// linked_watch reads it, whichever way the event's signature was spelled.
+template <class Body>
+struct change_argument {};
+
+template <class A, template <class> class Base>
+struct change_argument<func_body<void(A) noexcept, Base>> {
+    using type = A;
+};
+
+// A member a change_watch can call: it takes the change, returns nothing, and neither it
+// nor handing it the change throws -- the event's call has nobody to hand an exception to.
+template <auto Listener, class Owner, class Argument>
+concept change_listener = requires(Owner& owner, Argument change) {
+    { (owner.*Listener)(change) } noexcept -> std::same_as<void>;
+};
+
+}  // namespace impl
+
+/**
+ * An application's watch on a field -- an observable or an observable_list -- kept by
+ * a member of its owner and taken off with it. Every change calls `Listener`, a
+ * noexcept member of the owner named in the type, so a class declares its watches
+ * the way it declares its other members:
+ *
+ *     class Panel {
+ *         void fontSizeChanged(double size) noexcept;
+ *         ...
+ *         change_watch<observable<double const>, &Panel::fontSizeChanged> fontSizeWatch_;
+ *     };
+ *
+ *     Panel::Panel(Settings& settings) : fontSizeWatch_{settings.fontSize, *this} {}
+ *
+ * The watch is itself the node in the field's event, so standing there allocates
+ * nothing and leaves no cookie to keep: the destructor takes the node off by its own
+ * address. One made empty stands nowhere until attach() puts it on a field, once.
+ *
+ * The rules are those of any node built into its subscriber, and each one broken
+ * stops the process rather than leave the event holding freed memory: the field
+ * outlives the watch -- declared after what it watches, the watch goes first -- and
+ * the watch is not destroyed from inside its own call. Neither copied nor moved: the
+ * node stands in the field's list by its address. Nor declared `const`: the field's
+ * list writes the node's link.
+ */
+template <class Observed, auto Listener>
+class change_watch final : public Observed::changed_event::func_t
+{
+    using event_t = typename Observed::changed_event;
+    using func_t = typename event_t::func_t;
+    using argument_t = typename impl::change_argument<func_t>::type;
+    using owner_t = typename impl::member_owner<decltype(Listener)>::type;
+
+public:
+    /// A watch on no field yet: see attach().
+    change_watch() noexcept = default;
+
+    /// A watch on `field` from the start, calling `owner`.
+    change_watch(Observed& field, owner_t& owner) noexcept { attach(field, owner); }
+
+    /// Takes the watch off its field, if it is on one.
+    ~change_watch() override {
+        Observed* const field = std::exchange(field_, nullptr);
+        if (!field) return;
+
+        if (!field->remove_change(cookie_t{static_cast<func_t*>(this)}))
+            abort("wxl: a change_watch is no longer on its field");
+        // The event lets go of a removed node at once, unless that node's call is under
+        // way: then only once the call returns -- into a watch that is gone by then.
+        if (owner_) abort("wxl: a change_watch is destroyed from inside its own call");
+    }
+
+    /// Puts the watch on `field`: from now on each change calls the listener on
+    /// `owner`. Once -- a watch names one field for its life, and a second attach
+    /// stops the process rather than leave the first field calling the owner or
+    /// move the watch behind the back of whoever put it there.
+    void attach(Observed& field, owner_t& owner) noexcept {
+        // Checked here and not in the class: the watch is declared inside its owner,
+        // which is not complete there, and a member cannot be called on it yet.
+        static_assert(impl::change_listener<Listener, owner_t, argument_t>,
+                      "wxl: a change_watch calls a member of its owner with the change, from "
+                      "inside the field's event, which has nobody to hand an exception to -- name "
+                      "a noexcept member that takes the change and returns nothing");
+
+        if (field_) abort("wxl: a change_watch is attached twice");
+        field_ = &field;
+        owner_ = &owner;
+        static_cast<void>(field.on_change(as_not_null<func_t>(this)));
+    }
+
+    /// Whether the watch is on a field.
+    bool attached() const noexcept { return field_ != nullptr; }
+
+private:
+    void operator()(argument_t change) noexcept override { (owner_->*Listener)(change); }
+
+    /// The field lets go of the node. Only the destructor takes it off, and clears
+    /// field_ first: let go of while still on its field, the watch has outlived the
+    /// field, or somebody else took it off.
+    void release() noexcept override {
+        if (field_)
+            abort("wxl: a change_watch outlived its field, or was taken off it by someone else");
+        owner_ = nullptr;
+    }
+
+    Observed* field_ = nullptr;
+    // Cleared when the field lets go of the node: still set after the destructor has
+    // taken the node off, it says the release was put off for a call under way.
+    owner_t* owner_ = nullptr;
+};
 
 }  // export namespace wxl::core
