@@ -1,5 +1,8 @@
 @echo off
-rem Собирает примеры wxl в Release и запускает выбранный из списка.
+rem Собирает примеры wxl в Debug и запускает выбранный из списка.
+rem Debug, а не Release: под нынешним MSVC (x64, /O1 и /O2, /EHsc) кадр
+rem корутины без бросков в теле в Release не освобождается, и пример может
+rem не закрыться — подробнее в README.md.
 rem Цель samples/all — только примеры и то, на чём они держатся: ни тесты,
 rem ни документация, ни песочница не собираются.
 setlocal EnableExtensions EnableDelayedExpansion
@@ -13,6 +16,7 @@ chcp 65001 >nul
 set "ROOT=%~dp0"
 set "SAMPLES=%ROOT%build\x64\samples"
 set "blank=0"
+set "exitcode=0"
 
 rem Чем занят каждый пример — по имени его папки. Папка без строки здесь
 rem попадёт в список с именем исполняемого файла вместо пояснения.
@@ -22,21 +26,23 @@ set "about.Quadratic=квадратное уравнение на observable-п�
 set "about.Trayed=консоль чужой программы в своём окне, из трея"
 set "about.HtmlView=показ разметки HTML, BB и RSDN без тяжеловесного WebView2"
 set "about.CustomTitleBar=свой заголовок окна и масштаб всего острова"
+set "about.Gallery=WinUI 3 Gallery без XAML: страница на каждый перенесённый контрол"
 
-echo Сборка примеров, Release...
+echo Сборка примеров, Debug...
 call :build
 if errorlevel 1 (
     rem Ninja спотыкается на dyndep, когда в каталоге сборки остался выхлоп
-    rem от другого набора целей; лечится очисткой конфигурации.
-    echo.
-    echo Сборка не задалась; чищу Release и повторяю.
-    pwsh -NoLogo -NoProfile -File "%ROOT%tools\build.ps1" -Config Release -Target clean
-    call :build
-)
-if errorlevel 1 (
+    rem от другого набора целей; это лечит очистка конфигурации. Сам скрипт
+    rem её не делает: в build\x64 лежит рабочая Debug-сборка всего дерева, а
+    rem ошибку в коде или клон без обёрток пересборка с нуля не исправит.
     echo.
     echo Собрать примеры не удалось.
+    echo Если ninja жалуется на dyndep, почистите сборку и повторите:
+    echo     pwsh -File "%ROOT%tools\build.ps1" -Target clean
+    echo На клоне без сгенерированных обёрток сначала пройдите шаги
+    echo README.md, раздел «От клона до окна».
     pause
+    set "exitcode=1"
     goto :quit
 )
 
@@ -45,7 +51,7 @@ rem примера, уехавшего в песочницу, остаётся �
 :menu
 set "count=0"
 for /d %%d in ("%ROOT%samples\*") do (
-    for %%f in ("%SAMPLES%\%%~nxd\Release\*.exe") do (
+    for %%f in ("%SAMPLES%\%%~nxd\Debug\*.exe") do (
         set /a count+=1
         set "exe[!count!]=%%~ff"
         set "what=!about.%%~nxd!"
@@ -63,7 +69,7 @@ if %count%==0 (
 )
 
 echo.
-echo   Примеры wxl, Release
+echo   Примеры wxl, Debug
 echo.
 for /l %%i in (1,1,%count%) do echo     %%i. !name[%%i]!
 echo     0. Выход
@@ -96,10 +102,12 @@ start "" /wait /d "!workdir!" "!target!"
 goto menu
 
 :build
-pwsh -NoLogo -NoProfile -File "%ROOT%tools\build.ps1" -Config Release -Target samples/all
+pwsh -NoLogo -NoProfile -File "%ROOT%tools\build.ps1" -Config Debug -Target samples/all
 exit /b %errorlevel%
 
+rem Неудача сборки видна тому, кто запустил скрипт: код выхода 1, а выход
+rem из меню — 0. exitcode раскрывается при разборе строки, то есть до
+rem endlocal, который эту переменную стирает.
 :quit
 chcp %OLDCP% >nul
-endlocal
-exit /b 0
+endlocal & exit /b %exitcode%

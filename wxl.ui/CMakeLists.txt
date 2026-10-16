@@ -25,6 +25,25 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
 
+# ---- The generated wrappers: no library without them ----
+# What winui-srcgen writes into src/wxl -- the wrappers, the property tags, the
+# schema and the CMakeLists.txt that adds them to the targets below -- is not in
+# the repository (.gitignore), and the hand-written half of the library includes
+# it. Without it there is no library to configure, so the configure stops here,
+# at the cause, rather than at the first target that links wxl::ui somewhere
+# else. A fresh clone of wxl itself does not get this far: its top-level
+# CMakeLists.txt checks the same file before adding this directory and configures
+# the generator without it.
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/wxl/CMakeLists.txt")
+    get_filename_component(_wxl_tree "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+    message(FATAL_ERROR
+        "No generated wrappers in ${CMAKE_CURRENT_SOURCE_DIR}/src/wxl. Generate them in the "
+        "wxl tree: build its target winui-srcgen (tools\\build.ps1 -Target winui-srcgen), run "
+        "`winui-srcgen --profile ${_wxl_tree}/wxl.gen/profiles/full.json --out "
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/wxl`, then configure again "
+        "(tools\\build.ps1 -Configure in the wxl tree).")
+endif()
+
 # ---- wxl.core: refcounted, intrusive_ptr, the STA allocator ----
 # A top-level project of its own, consumed either as an installed package
 # (point CMAKE_PREFIX_PATH at the install prefix) or as a target a larger
@@ -36,23 +55,24 @@ endif()
 # ---- cppwinrt: the WinUI3 projection headers ----
 # vcpkg's cppwinrt package covers the OS namespaces (winrt/base.h,
 # winrt/Windows.*.h) only; the Microsoft.UI.Xaml.* projection is generated
-# from the WindowsAppSDK metadata and lives in the repo.
+# from the WindowsAppSDK metadata by tools/projection.ps1 into the tree's
+# generated/, which git ignores -- it is not in the repository.
 find_package(cppwinrt CONFIG REQUIRED)
 
 # Where the NuGet packages are, and at which versions: cmake/wxl_packages.cmake.
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/wxl_packages.cmake")
 
 # Relative to this directory, not CMAKE_SOURCE_DIR: wxl.ui builds both
-# standalone and as a subdirectory, and the projection lives in the repo
-# next to both.
+# standalone and as a subdirectory, and the projection sits in the tree next
+# to both.
 set(WXL_CPPWINRT_PROJECTION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../generated"
     CACHE PATH "Directory holding the generated WinUI3 cppwinrt projection (winrt/Microsoft.UI.Xaml.h, ...)")
 
 if(NOT EXISTS "${WXL_CPPWINRT_PROJECTION_DIR}/winrt/Microsoft.UI.Xaml.h")
     message(FATAL_ERROR
         "No WinUI3 cppwinrt projection at ${WXL_CPPWINRT_PROJECTION_DIR}. "
-        "Point WXL_CPPWINRT_PROJECTION_DIR at the directory produced by "
-        "cppwinrt.exe for the WindowsAppSDK metadata.")
+        "Run tools/projection.ps1, or point WXL_CPPWINRT_PROJECTION_DIR at the "
+        "directory produced by cppwinrt.exe for the WindowsAppSDK metadata.")
 endif()
 
 # The Windows App Runtime bootstrapper -- wxl owns its own runtime
@@ -497,7 +517,8 @@ add_library(wxl.ui.surface-test OBJECT
 )
 target_link_libraries(wxl.ui.surface-test PRIVATE wxl.ui)
 
-# Last: the generated sources add themselves to the two targets above.
+# Last: the generated sources add themselves to the two targets above. The
+# directory is there -- the check at the top of this file stopped otherwise.
 add_subdirectory(src/wxl)
 
 # After that subdirectory and not before it: this reads the targets' SOURCES to
