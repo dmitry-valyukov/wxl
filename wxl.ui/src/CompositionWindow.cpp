@@ -49,6 +49,7 @@
 #include "impl/window_placement.h"
 #include "impl/application_folder.h"
 #include "Object.impl.h"
+#include "impl/handler_list.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 #include <wxl/Microsoft.UI.Dispatching.impl.h>
 #include <wxl/Microsoft.UI.Input.impl.h>
@@ -92,53 +93,14 @@ bool sameRect(graphics::RectInt32 const& a, graphics::RectInt32 const& b) noexce
 // поверхности перенаправления нет, белому взяться неоткуда.
 constexpr wchar_t kClassName[] = L"wxl.CompositionWindow";
 
-// Подписчики одного события окна. Обработчик снимают и изнутри вызова -- так
-// уходит ожидание корутины, дождавшейся события, -- поэтому вызов идёт по
-// индексу с копией обработчика в руках, а снятые места вычищаются, когда
-// никто не вызывается.
-template <typename Args>
-class handler_list {
-public:
-    EventToken add(EventHandler<Args> handler) {
-        entries_.push_back({++last_, std::move(handler)});
-        return {last_};
-    }
+// Токены подписок на события окон -- одним счётчиком на процесс: токен одного
+// события или окна в списке другого ничего не называет. Окна живут на одном
+// STA-потоке, поэтому счётчик простой, без interlocked.
+std::int64_t lastToken = 0;
 
-    void remove(EventToken token) {
-        for (entry& each : entries_) {
-            if (each.token == token.value) {
-                each.token = 0;
-                each.handler = nullptr;
-            }
-        }
-        if (firing_ == 0) compact();
-    }
-
-    void fire(EventArgsRef<Args> args) {
-        ++firing_;
-        Object const sender = Object::Impl::empty<Object>();
-        for (std::size_t at = 0; at < entries_.size(); ++at) {
-            if (!entries_[at].handler) continue;
-            EventHandler<Args> const handler = entries_[at].handler;
-            handler(sender, args);
-        }
-        if (--firing_ == 0) compact();
-    }
-
-private:
-    struct entry {
-        std::int64_t token;
-        EventHandler<Args> handler;
-    };
-
-    void compact() {
-        std::erase_if(entries_, [](entry const& each) { return !each.handler; });
-    }
-
-    std::vector<entry> entries_;
-    std::int64_t last_ = 0;
-    int firing_ = 0;
-};
+EventToken nextToken() noexcept {
+    return {++lastToken};
+}
 
 // Строка системного меню окна -- «&Свернуть», «&Закрыть\tAlt+F4» -- без
 // ускорителя и клавиш: ею кнопки окна называют себя для UI Automation на языке
@@ -202,15 +164,16 @@ struct WindowState : core::refcounted {
     content::ContentIsland sceneIsland{nullptr};
     input::InputPointerSource pointerInput{nullptr};   // указатель сцены; клавиатура -- через WndProc
 
-    handler_list<WindowClosingEventArgs> closing;
-    handler_list<Object> closed;
-    handler_list<Object> geometryChanged;
-    handler_list<ClientSize> clientSizeChanged;
-    handler_list<VirtualKey> keyDown;
-    handler_list<PointerPoint> pointerPressed;
-    handler_list<PointerPoint> pointerMoved;
-    handler_list<PointerPoint> pointerReleased;
-    handler_list<PointerPoint> pointerWheelChanged;
+    // Подписчики событий окна; токены им даёт nextToken.
+    impl::handler_list<WindowClosingEventArgs> closing;
+    impl::handler_list<Object> closed;
+    impl::handler_list<Object> geometryChanged;
+    impl::handler_list<ClientSize> clientSizeChanged;
+    impl::handler_list<VirtualKey> keyDown;
+    impl::handler_list<PointerPoint> pointerPressed;
+    impl::handler_list<PointerPoint> pointerMoved;
+    impl::handler_list<PointerPoint> pointerReleased;
+    impl::handler_list<PointerPoint> pointerWheelChanged;
 
     // Увеличение острова и то, как его понимает OverrideScale моста:
     // документация называет его и масштабом вместо масштаба окна, и множителем к
@@ -1536,23 +1499,25 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     // острова, и его берём через InputPointerSource острова. InputKeyboardSource
     // не заводим: его GetForIsland на attached-острове падал AV, а клавиатуре он
     // и не нужен. Подписки простые, без auto_revoke: источник живёт в состоянии
-    // столько же, сколько оно само.
+    // столько же, сколько оно само. Обработчики noexcept: исключение подписчика
+    // делегат cppwinrt превратил бы в HRESULT и потерял, а список события так и
+    // остался бы посреди вызова, -- так что сбой внутри -- std::terminate.
     WindowState* const st = state_.get();
     st->pointerInput = input::InputPointerSource::GetForIsland(st->sceneIsland);
     st->pointerInput.PointerPressed(
-        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
+        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) noexcept {
             st->pointerPressed.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
     st->pointerInput.PointerMoved(
-        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
+        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) noexcept {
             st->pointerMoved.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
     st->pointerInput.PointerReleased(
-        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
+        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) noexcept {
             st->pointerReleased.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
     st->pointerInput.PointerWheelChanged(
-        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) {
+        [st](input::InputPointerSource const&, input::PointerEventArgs const& args) noexcept {
             st->pointerWheelChanged.fire(Object::Impl::wrap<PointerPoint>(args.CurrentPoint()));
         });
 
@@ -1863,60 +1828,66 @@ void CompositionWindow::acceptFileDrops(std::function<void(std::filesystem::path
 // ---- События ----------------------------------------------------------------
 
 EventToken CompositionWindow::add_onClosing(EventHandler<WindowClosingEventArgs> const& handler) const {
-    return state_->closing.add(handler);
+    return state_->closing.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onClosing(EventToken token) const { state_->closing.remove(token); }
+bool CompositionWindow::remove_onClosing(EventToken token) const {
+    return state_->closing.remove(token);
+}
 
 EventToken CompositionWindow::add_onClosed(EventHandler<Object> const& handler) const {
-    return state_->closed.add(handler);
+    return state_->closed.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onClosed(EventToken token) const { state_->closed.remove(token); }
+bool CompositionWindow::remove_onClosed(EventToken token) const {
+    return state_->closed.remove(token);
+}
 
 EventToken CompositionWindow::add_onGeometryChanged(EventHandler<Object> const& handler) const {
-    return state_->geometryChanged.add(handler);
+    return state_->geometryChanged.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onGeometryChanged(EventToken token) const {
-    state_->geometryChanged.remove(token);
+bool CompositionWindow::remove_onGeometryChanged(EventToken token) const {
+    return state_->geometryChanged.remove(token);
 }
 
 EventToken CompositionWindow::add_onClientSizeChanged(EventHandler<ClientSize> const& handler) const {
-    return state_->clientSizeChanged.add(handler);
+    return state_->clientSizeChanged.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onClientSizeChanged(EventToken token) const {
-    state_->clientSizeChanged.remove(token);
+bool CompositionWindow::remove_onClientSizeChanged(EventToken token) const {
+    return state_->clientSizeChanged.remove(token);
 }
 
 EventToken CompositionWindow::add_onKeyDown(EventHandler<VirtualKey> const& handler) const {
-    return state_->keyDown.add(handler);
+    return state_->keyDown.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onKeyDown(EventToken token) const { state_->keyDown.remove(token); }
+bool CompositionWindow::remove_onKeyDown(EventToken token) const {
+    return state_->keyDown.remove(token);
+}
 
 EventToken CompositionWindow::add_onPointerPressed(EventHandler<PointerPoint> const& handler) const {
-    return state_->pointerPressed.add(handler);
+    return state_->pointerPressed.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onPointerPressed(EventToken token) const {
-    state_->pointerPressed.remove(token);
+bool CompositionWindow::remove_onPointerPressed(EventToken token) const {
+    return state_->pointerPressed.remove(token);
 }
 
 EventToken CompositionWindow::add_onPointerMoved(EventHandler<PointerPoint> const& handler) const {
-    return state_->pointerMoved.add(handler);
+    return state_->pointerMoved.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onPointerMoved(EventToken token) const {
-    state_->pointerMoved.remove(token);
+bool CompositionWindow::remove_onPointerMoved(EventToken token) const {
+    return state_->pointerMoved.remove(token);
 }
 
 EventToken CompositionWindow::add_onPointerReleased(EventHandler<PointerPoint> const& handler) const {
-    return state_->pointerReleased.add(handler);
+    return state_->pointerReleased.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onPointerReleased(EventToken token) const {
-    state_->pointerReleased.remove(token);
+bool CompositionWindow::remove_onPointerReleased(EventToken token) const {
+    return state_->pointerReleased.remove(token);
 }
 
 EventToken CompositionWindow::add_onPointerWheelChanged(EventHandler<PointerPoint> const& handler) const {
-    return state_->pointerWheelChanged.add(handler);
+    return state_->pointerWheelChanged.add(nextToken(), handler);
 }
-void CompositionWindow::remove_onPointerWheelChanged(EventToken token) const {
-    state_->pointerWheelChanged.remove(token);
+bool CompositionWindow::remove_onPointerWheelChanged(EventToken token) const {
+    return state_->pointerWheelChanged.remove(token);
 }
 
 void CompositionWindow::onClosed(std::function<void()> handler) const {

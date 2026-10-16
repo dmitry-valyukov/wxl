@@ -292,7 +292,7 @@ struct RemoveEventOp {
     template <typename Obj>
     void operator()(Obj const& object) const {
         impl::check_owner<Owner, Obj>();
-        impl::EventAdder<key>::remove(object, token_);
+        impl::checked_remove([&] { return impl::EventAdder<key>::remove(object, token_); });
     }
 };
 

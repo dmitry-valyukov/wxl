@@ -379,7 +379,9 @@ struct keyed_event {
         return EventAdder<key>::add(object, handler);
     }
 
-    void remove(EventToken token) const { EventAdder<key>::remove(object, token); }
+    void remove(EventToken token) const {
+        checked_remove([&] { return EventAdder<key>::remove(object, token); });
+    }
 };
 
 // Named by its own members, on an object:
@@ -396,7 +398,9 @@ struct member_event {
         return (object.*adder)(handler);
     }
 
-    void remove(EventToken token) const { (object.*remover)(token); }
+    void remove(EventToken token) const {
+        checked_remove([&] { return (object.*remover)(token); });
+    }
 };
 
 // Named by its own members, on the type -- an event with no object to

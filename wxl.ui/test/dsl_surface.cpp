@@ -391,6 +391,37 @@ struct RefusesUntilDone {
     }
 };
 
+// An owner that keeps its watches on the window's events as members: each calls a noexcept
+// member of its own, with the event's args or with nothing, and comes off with the owner. One
+// is put on the window later, and the window answers whether a token was there.
+struct WatchesTheWindow {
+    explicit WatchesTheWindow(CompositionWindow const& window)
+        : sizeWatch{window, *this}, closingWatch{window, *this}, keyWatch{window, *this} {}
+
+    void moved() noexcept {}
+    void sized(ClientSize const& client) noexcept { (void)client.scale; }
+    void closing(WindowClosingEventArgs& args) noexcept { args.cancel(true); }
+    void keyPressed(VirtualKey const& key) noexcept { (void)key; }
+
+    void placed(CompositionWindow const& window) {
+        geometryWatch.attach(window, *this);
+        bool const attached = geometryWatch.attached();
+        bool const removed = window.remove_onGeometryChanged(EventToken{});
+        (void)attached;
+        (void)removed;
+    }
+
+    WindowWatch<EventKey::GeometryChanged, &WatchesTheWindow::moved> geometryWatch;
+    WindowWatch<EventKey::ClientSizeChanged, &WatchesTheWindow::sized> sizeWatch;
+    WindowWatch<EventKey::Closing, &WatchesTheWindow::closing> closingWatch;
+    WindowWatch<EventKey::KeyDown, &WatchesTheWindow::keyPressed> keyWatch;
+};
+
+[[maybe_unused]] void window_watches(CompositionWindow const& window) {
+    WatchesTheWindow watching{window};
+    watching.placed(window);
+}
+
 // The even stack: children claim a star row (column) apiece instead of
 // being numbered by hand, and everything of Grid's -- spacing here -- still
 // applies, because a Rows is a Grid.
