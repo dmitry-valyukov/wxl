@@ -120,6 +120,36 @@ TEST_F(DirectoryTest, TellsADirectoryFromAFileAndKnowsItsSize) {
     EXPECT_TRUE(seen_directory);
 }
 
+TEST_F(DirectoryTest, KnowsWhenAFileWasLastWrittenToTheTick) {
+    given_a_file(L"book.fb3", "0123456789");
+    given_a_directory(L"nested");
+
+    const std::filesystem::file_time_type written =
+        std::filesystem::last_write_time((root_ / L"book.fb3").native());
+
+    directory listing = directory::open((root_ / L"*").c_str());
+
+    directory::entry entry;
+    bool seen_file = false;
+    bool seen_directory = false;
+
+    // To the tick: std::filesystem::last_write_time puts the file system's FILETIME count
+    // into the same clock unchanged. Compared as counts, so that a miss says by how many.
+    while (listing.next(entry)) {
+        if (entry.name == L"book.fb3") {
+            seen_file = true;
+            EXPECT_EQ(entry.last_write.time_since_epoch().count(),
+                      written.time_since_epoch().count());
+        } else if (entry.name == L"nested") {
+            seen_directory = true;
+            EXPECT_NE(entry.last_write.time_since_epoch().count(), 0);
+        }
+    }
+
+    EXPECT_TRUE(seen_file);
+    EXPECT_TRUE(seen_directory);
+}
+
 TEST_F(DirectoryTest, TheMaskIsTheSystemsToApply) {
     given_a_file(L"one.fb3");
     given_a_file(L"two.fb3");

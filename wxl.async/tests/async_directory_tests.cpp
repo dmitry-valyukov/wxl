@@ -224,6 +224,20 @@ TEST_F(AsyncDirectoryTest, ListBringsEveryMatchAtOnce) {
     EXPECT_EQ(found[2].name, L"two.fb3");
 }
 
+TEST_F(AsyncDirectoryTest, ListBringsWhenEachWasLastWritten) {
+    given_a_file(L"one.fb3");
+
+    const std::filesystem::file_time_type written =
+        std::filesystem::last_write_time((root_ / L"one.fb3").native());
+
+    std::vector<async_directory::listed_entry> found;
+
+    sta_loop::run_until(lists_at_once(root_ / L"*.fb3", found));
+
+    ASSERT_EQ(found.size(), 1u);
+    EXPECT_EQ(found[0].last_write.time_since_epoch().count(), written.time_since_epoch().count());
+}
+
 TEST_F(AsyncDirectoryTest, ListUnderATokenBringsWhatThePlainOneDoesUntilAsked) {
     given_a_file(L"one.fb3");
     given_a_file(L"two.fb3");

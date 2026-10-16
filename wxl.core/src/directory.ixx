@@ -35,6 +35,12 @@ public:
         std::wstring_view name;
         bool is_directory = false;
         std::uint64_t size = 0;
+
+        /// When the file was last written, from the same `WIN32_FIND_DATAW` as
+        /// the size -- no call per file. The two together are the cheap way to
+        /// tell the file read last time from one that has changed since; the
+        /// clock is the one `std::filesystem::last_write_time` answers in.
+        std::chrono::file_clock::time_point last_write{};
     };
 
     directory() = default;
@@ -97,6 +103,20 @@ public:
             out.name = name;
             out.is_directory = (found_.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
             out.size = (static_cast<std::uint64_t>(found_.nFileSizeHigh) << 32) | found_.nFileSizeLow;
+
+            using std::chrono::file_clock;
+
+            // MSVC's file_clock is FILETIME itself -- 100 ns ticks from 1601 -- and
+            // std::filesystem::last_write_time puts the count in as it is; so does this.
+            static_assert(file_clock::duration(1) == std::chrono::nanoseconds(100),
+                          "wxl: a FILETIME count goes into file_clock as it is, which takes "
+                          "file_clock ticking in FILETIME's 100 ns");
+
+            const FILETIME& written = found_.ftLastWriteTime;
+            const auto ticks = static_cast<file_clock::rep>(
+                (static_cast<std::uint64_t>(written.dwHighDateTime) << 32) | written.dwLowDateTime);
+
+            out.last_write = file_clock::time_point(file_clock::duration(ticks));
 
             return true;
         }
