@@ -9,8 +9,8 @@
 #   wxl_doxygen_bootstrap()   -- resolve the tool and the theme, once per tree
 #   wxl_add_doxygen_site(...) -- one target per site
 #
-# Both are meant to be used from outside this tree as well: Bukvitsa includes
-# this file the same way it already includes vcpkg_bootstrap.cmake and
+# Both are meant to be used from outside this tree as well: an application
+# includes this file the same way it already includes vcpkg_bootstrap.cmake and
 # wxl_helpers.cmake, and builds its own site plus wxl's tag file with it.
 
 include_guard(GLOBAL)

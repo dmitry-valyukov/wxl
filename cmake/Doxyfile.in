@@ -68,10 +68,10 @@ MERMAID_JS_URL         = @DOXY_MERMAID_JS_URL@
 
 # ---- Cross-site links ----
 #
-# A tag file is the whole mechanism behind "Буквица links to wxl, wxl knows
-# nothing of Буквица": the producer writes one, the consumer names it with the
-# URL its pages live at, and every mention of wxl::xml::node in the consumer's
-# text turns into a link into the other site.
+# A tag file is the whole mechanism behind "an application's site links to
+# wxl, wxl knows nothing of the application": the producer writes one, the
+# consumer names it with the URL its pages live at, and every mention of
+# wxl::xml::node in the consumer's text turns into a link into the other site.
 GENERATE_TAGFILE       = @DOXY_GENERATE_TAGFILE@
 TAGFILES               = @DOXY_TAGFILES@
 EXTERNAL_GROUPS        = NO

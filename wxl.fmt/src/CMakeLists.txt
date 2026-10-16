@@ -24,8 +24,8 @@ set_target_properties(wxl.fmt PROPERTIES
 # global module fragment holds C headers alone.
 #
 # Fetched here and not only at the root of the tree: this directory is added
-# on its own by consumers outside it -- Bukvitsa and Besedka add wxl.fmt/src
-# straight into their builds. SOURCE_SUBDIR names a directory fmt does not
+# on its own by consumers outside it -- an application adds wxl.fmt/src
+# straight into its build. SOURCE_SUBDIR names a directory fmt does not
 # have, so its own CMakeLists.txt stays out of the build: fmt makes its
 # module target for the plain Ninja generator only, with flags of its own.
 if(NOT TARGET fmt::module)
