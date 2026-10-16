@@ -33,7 +33,8 @@ auto listing_all(const core::path& pattern) {
         for (async_directory::entry next; listing.next(next);) {
             if (stage.cut_short()) throw operation_canceled_exception();
 
-            found.push_back({std::wstring(next.name), next.is_directory, next.size});
+            found.push_back(
+                {std::wstring(next.name), next.is_directory, next.size, next.last_write});
         }
 
         if (::GetLastError() == ERROR_OPERATION_ABORTED) throw operation_canceled_exception();
