@@ -140,17 +140,38 @@ add_subdirectory(wxl.rsdn)
 # Профили и обход метаданных -- общее у генератора и редактора профилей.
 add_subdirectory(wxl.gen.common)
 add_subdirectory(wxl.gen)
-add_subdirectory(wxl.ui)
 
-# Визуальный редактор профилей wxl.gen -- приложение на wxl.ui.
-add_subdirectory(wxl.gen.ui)
+# Обёртки, которые генератор пишет в wxl.ui/src/wxl, в репозиторий не входят
+# (.gitignore), а сам генератор собирается этим же деревом. Поэтому без них
+# настройка доходит до конца без wxl.ui и всего, что её линкует или берёт
+# выведенные ею пути, -- редактора профилей, примеров, песочницы, -- и
+# предупреждает, как их получить: собрать генератор, запустить, настроить заново.
+# Проверка здесь, а не внутри wxl.ui: там отсутствие обёрток -- ошибка
+# настройки, и потребитель вне этого дерева получает её у причины.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wxl.ui/src/wxl/CMakeLists.txt")
+    add_subdirectory(wxl.ui)
 
-add_subdirectory(samples)
+    # Визуальный редактор профилей wxl.gen -- приложение на wxl.ui.
+    add_subdirectory(wxl.gen.ui)
 
-# Песочница: пробы механизмов WinUI, каждая -- отдельное приложение. Собирается
-# вместе со всем: рецепт, который никто не компилирует, тихо отстаёт от дерева
-# -- эта папка так и простояла закомментированной, пока её цели не рассыпались.
-add_subdirectory(sandbox)
+    add_subdirectory(samples)
+
+    # Песочница: пробы механизмов WinUI, каждая -- отдельное приложение.
+    # Собирается вместе со всем: рецепт, который никто не компилирует, тихо
+    # отстаёт от дерева -- эта папка так и простояла закомментированной, пока её
+    # цели не рассыпались.
+    add_subdirectory(sandbox)
+else()
+    message(WARNING
+        "No generated wrappers in ${CMAKE_CURRENT_SOURCE_DIR}/wxl.ui/src/wxl: wxl.ui, wxl.gen.ui, "
+        "the samples and the sandbox are left out of this configure. Generate the wrappers, "
+        "then configure again:\n"
+        "  tools\\build.ps1 -Target winui-srcgen\n"
+        "  ${CMAKE_BINARY_DIR}/wxl.gen/Debug/winui-srcgen.exe "
+        "--profile ${CMAKE_CURRENT_SOURCE_DIR}/wxl.gen/profiles/full.json "
+        "--out ${CMAKE_CURRENT_SOURCE_DIR}/wxl.ui/src/wxl\n"
+        "  tools\\build.ps1 -Configure")
+endif()
 
 # The documentation site. An option because configuring it reaches the network
 # once per build tree -- for the theme, and for Doxygen itself when the host has
