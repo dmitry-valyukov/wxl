@@ -43,6 +43,7 @@ public:
         std::wstring name;
         bool is_directory = false;
         std::uint64_t size = 0;
+        std::chrono::file_clock::time_point last_write{};
     };
 
     async_directory() = default;
