@@ -252,10 +252,13 @@ void sta_loop::start_dispatched(std::string_view worker_name) {
 
     // Nothing is drained from inside the hook: the idle callback must not run code that
     // pumps or calls COM, which a continuation would. It only sees to it that the drain
-    // is posted, and the post arrives as a message into whatever loop is running.
+    // is posted, and the post arrives as a message into whatever loop is running. noexcept:
+    // an exception must not cross a Win32 callback -- unwinding through the frames of user32
+    // is not supported, and on x64 a call from the kernel may swallow it -- so a failure
+    // inside is std::terminate.
     idle_hook = ::SetWindowsHookExW(
         WH_FOREGROUNDIDLE,
-        [](int code, WPARAM wparam, LPARAM lparam) -> LRESULT {
+        [](int code, WPARAM wparam, LPARAM lparam) noexcept -> LRESULT {
             if (code == HC_ACTION) post_if_pending();
 
             return ::CallNextHookEx(nullptr, code, wparam, lparam);

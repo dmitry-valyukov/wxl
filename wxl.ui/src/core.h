@@ -35,6 +35,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <exception>
 #include <expected>
 #include <filesystem>
 #include <format>
