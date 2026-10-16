@@ -28,4 +28,22 @@ inline bool operator!=(EventToken const& left, EventToken const& right) noexcept
     return !(left == right);
 }
 
+namespace impl {
+
+// A handler taken off by the token its subscription gave. A generated wrapper's remove
+// answers nothing -- its WinRT event does not say -- and CompositionWindow's answers whether
+// the token named a handler of the event: one that names none was taken off already or
+// was given by another event or window -- a broken rule, and it stops the process rather
+// than pass unnoticed.
+template <typename Remove>
+void checked_remove(Remove const& remove) {
+    if constexpr (std::is_void_v<std::invoke_result_t<Remove const&>>) {
+        remove();
+    } else if (!remove()) {
+        core::abort("wxl: a handler taken off by its token was not there");
+    }
+}
+
+}  // namespace impl
+
 } // namespace wxl

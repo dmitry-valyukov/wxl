@@ -287,6 +287,8 @@ add_library(wxl.ui STATIC
     src/impl/composition_interop.h
     src/DrawingSurface.cpp
     src/CompositionWindow.h
+    src/impl/window_watch.h
+    src/impl/handler_list.h
     src/CompositionWindow.cpp
     src/TextureCache.h
     src/TextureCache.cpp
@@ -565,6 +567,10 @@ if(BUILD_TESTING)
     #
     # The wait on a timer is a template over the timer, given a fake one the
     # test ticks; the queue is the one event_cancel_test stands for.
+    #
+    # A watch on an event of the window is a template over the window and the
+    # event's pair of calls, given a fake window over the handler lists the
+    # real one keeps; the test raises the events.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
@@ -574,6 +580,7 @@ if(BUILD_TESTING)
             test/event_cancel_test.cpp
             test/waitable_timer_test.cpp
             test/operation_test.cpp
+            test/window_watch_test.cpp
             src/Object.cpp
             src/impl/bound_items_source.cpp
         DEPS

@@ -14,6 +14,7 @@
 #include "events.h"
 #include "hstring_param.h"
 #include "impl/member.h"
+#include "impl/window_watch.h"
 
 #include <filesystem>
 #include <functional>
@@ -390,6 +391,14 @@ public:
     // делает каждое ожидаемым в корутине. Отправитель -- пустой Object: окно не
     // объект WinRT; обработчик без аргументов или с одними аргументами события
     // его не видит. Все зовутся на интерфейсном потоке.
+    //
+    // remove_on... отвечает, стоял ли обработчик: false -- токен не называет
+    // обработчика этого события (снят раньше или выдан другому событию либо
+    // окну).
+    // Снятие, которое делает сам wxl, -- `-=` в скобках, конец ожидания
+    // on_event -- ответ проверяет: false там останавливает процесс. Подписку
+    // члена, которая снимается сама вместе с владельцем, держит WindowWatch
+    // (ниже).
 
     /// Просьба закрыть окно -- крестик, Alt+F4, close(): первое, что делает
     /// WM_CLOSE. Отклонённая (`args.cancel(true)`), она кончается ничем: окно
@@ -398,17 +407,17 @@ public:
     /// спрашивает его снова, а close() изнутри обработчика -- следующая
     /// просьба, после этой. Сколько отклонять, решает приложение.
     EventToken add_onClosing(EventHandler<WindowClosingEventArgs> const& handler) const;
-    void remove_onClosing(EventToken token) const;
+    bool remove_onClosing(EventToken token) const;
 
     /// Закрытие окна: приложению есть что сохранить по дороге (место чтения,
     /// геометрию). Зовётся до разрушения, если Closing просьбу не отклонил.
     EventToken add_onClosed(EventHandler<Object> const& handler) const;
-    void remove_onClosed(EventToken token) const;
+    bool remove_onClosed(EventToken token) const;
 
     /// Место окна сменилось -- двигали, растягивали, максимизировали или
     /// восстановили. Под отложенное сохранение места.
     EventToken add_onGeometryChanged(EventHandler<Object> const& handler) const;
-    void remove_onGeometryChanged(EventToken token) const;
+    bool remove_onGeometryChanged(EventToken token) const;
 
     /// Клиентская область сменила размер или масштаб (ClientSize).
     ///
@@ -419,7 +428,7 @@ public:
     /// уже изнутри прохода вёрстки, а править дерево оттуда нельзя. Смена
     /// увеличения (`zoomFactor`) зовёт его тоже: логическая ширина от неё меняется.
     EventToken add_onClientSizeChanged(EventHandler<ClientSize> const& handler) const;
-    void remove_onClientSizeChanged(EventToken token) const;
+    bool remove_onClientSizeChanged(EventToken token) const;
 
     // Ввод со сцены (режим чтения, XAML-острова нет). У чистой сцены ввод
     // расщеплён: указатель перехватывает InputSite острова (верхний WndProc
@@ -427,15 +436,15 @@ public:
     // доходит до WndProc (WM_KEYDOWN). Окно сводит оба в эти события; они
     // приносят те же обёртки, что раздаёт XAML (VirtualKey, PointerPoint).
     EventToken add_onKeyDown(EventHandler<VirtualKey> const& handler) const;
-    void remove_onKeyDown(EventToken token) const;
+    bool remove_onKeyDown(EventToken token) const;
     EventToken add_onPointerPressed(EventHandler<PointerPoint> const& handler) const;
-    void remove_onPointerPressed(EventToken token) const;
+    bool remove_onPointerPressed(EventToken token) const;
     EventToken add_onPointerMoved(EventHandler<PointerPoint> const& handler) const;
-    void remove_onPointerMoved(EventToken token) const;
+    bool remove_onPointerMoved(EventToken token) const;
     EventToken add_onPointerReleased(EventHandler<PointerPoint> const& handler) const;
-    void remove_onPointerReleased(EventToken token) const;
+    bool remove_onPointerReleased(EventToken token) const;
     EventToken add_onPointerWheelChanged(EventHandler<PointerPoint> const& handler) const;
-    void remove_onPointerWheelChanged(EventToken token) const;
+    bool remove_onPointerWheelChanged(EventToken token) const;
 
     // Те же события одним вызовом, как их подписывали до тегов: обработчик
     // добавляется и остаётся до конца жизни окна.
@@ -456,5 +465,40 @@ private:
 
     core::intrusive_ptr<WindowState> state_;
 };
+
+/// Подписка члена владельца на событие окна, которую держит член того же
+/// владельца и снимает его деструктор. Событие названо ключом, слушатель --
+/// член владельца -- в типе, так что класс объявляет подписки, как прочие члены:
+///
+///     class Page {
+///         void windowMoved();
+///         void sizeChanged(ClientSize const& client);
+///         ...
+///         WindowWatch<EventKey::GeometryChanged, &Page::windowMoved> geometryWatch_;
+///         WindowWatch<EventKey::ClientSizeChanged, &Page::sizeChanged> sizeWatch_;
+///     };
+///
+///     Page::Page(CompositionWindow const& window) : sizeWatch_{window, *this} {}
+///
+/// Слушатель берёт аргументы события, как их получает обработчик, или ничего --
+/// у GeometryChanged и Closed аргументы пустые, -- и он noexcept: окно поднимает
+/// события из своей оконной процедуры, из делегатов источника указателя и из
+/// noexcept-слушателя масштаба, и исключению оттуда идти некуда, -- так что сбой
+/// в слушателе -- остановка. Пустой держатель ни на чём не стоит, пока
+/// attach() не поставит его на окно, -- один раз. Окно он держит копией хендла,
+/// поэтому место держателя среди членов решает только слушатель: после всего,
+/// что тот трогает, -- обычно последними членами.
+///
+/// Снятие проверяется: окно, ответившее, что токена у него нет, -- обработчик
+/// снял кто-то чужой, -- останавливает процесс, как и второй attach(). Изнутри
+/// своего вызова держатель может уйти, пока окно держит кто-то ещё, кроме него:
+/// окно зовёт копию обработчика, а список обработчиков живёт в состоянии окна.
+/// Живое окно Windows держит своё состояние само, до WM_NCDESTROY, и события,
+/// которые оно поднимает, это условие выполняют; копия держателя, последняя
+/// на окно, освободила бы список посреди вызова. Не копируется и не
+/// перемещается: обработчик зовёт владельца, с которым держатель поставлен, и
+/// в другом месте держатель звал бы чужого.
+template <EventKey key, auto Listener>
+using WindowWatch = impl::window_watch<CompositionWindow, impl::EventAdder<key>, Listener>;
 
 }  // namespace wxl
