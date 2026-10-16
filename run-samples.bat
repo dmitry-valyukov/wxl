@@ -16,6 +16,7 @@ chcp 65001 >nul
 set "ROOT=%~dp0"
 set "SAMPLES=%ROOT%build\x64\samples"
 set "blank=0"
+set "exitcode=0"
 
 rem Чем занят каждый пример — по имени его папки. Папка без строки здесь
 rem попадёт в список с именем исполняемого файла вместо пояснения.
@@ -25,6 +26,7 @@ set "about.Quadratic=квадратное уравнение на observable-п�
 set "about.Trayed=консоль чужой программы в своём окне, из трея"
 set "about.HtmlView=показ разметки HTML, BB и RSDN без тяжеловесного WebView2"
 set "about.CustomTitleBar=свой заголовок окна и масштаб всего острова"
+set "about.Gallery=WinUI 3 Gallery без XAML: страница на каждый контрол"
 
 echo Сборка примеров, Debug...
 call :build
@@ -40,6 +42,7 @@ if errorlevel 1 (
     echo На клоне без сгенерированных обёрток сначала пройдите шаги
     echo README.md, раздел «От клона до окна».
     pause
+    set "exitcode=1"
     goto :quit
 )
 
@@ -102,7 +105,9 @@ goto menu
 pwsh -NoLogo -NoProfile -File "%ROOT%tools\build.ps1" -Config Debug -Target samples/all
 exit /b %errorlevel%
 
+rem Неудача сборки видна тому, кто запустил скрипт: код выхода 1, а выход
+rem из меню — 0. exitcode раскрывается при разборе строки, то есть до
+rem endlocal, который эту переменную стирает.
 :quit
 chcp %OLDCP% >nul
-endlocal
-exit /b 0
+endlocal & exit /b %exitcode%
