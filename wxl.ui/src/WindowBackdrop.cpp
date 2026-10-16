@@ -96,8 +96,12 @@ void paint(HWND hwnd, HDC dc, backdrop_state& state, bool fine) {
 /// flicker-free Win32 application uses. Exactly once per size: the erase
 /// that follows sees the surface already current and only says so, and the
 /// filtered pass waits for WM_EXITSIZEMOVE.
+///
+/// noexcept: an exception must not cross a Win32 callback -- unwinding through the frames of
+/// user32 is not supported, and on x64 a call from the kernel may swallow it -- so a failure
+/// inside is std::terminate, which names it.
 LRESULT CALLBACK on_message(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, UINT_PTR,
-                            DWORD_PTR data) {
+                            DWORD_PTR data) noexcept {
     auto* const state = reinterpret_cast<backdrop_state*>(data);
     switch (message) {
         case WM_ERASEBKGND: {

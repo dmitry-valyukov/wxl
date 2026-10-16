@@ -57,8 +57,11 @@ std::vector<std::wstring> paths_of(HDROP drop) {
 /// wxl installs, and the pair (procedure, id) is what identifies it.
 constexpr UINT_PTR kSubclassId = 1;
 
+// noexcept: an exception must not cross a Win32 callback -- unwinding through the frames of
+// user32 is not supported, and on x64 a call from the kernel may swallow it -- so a failure
+// inside is std::terminate, which names it.
 LRESULT CALLBACK dropped(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, UINT_PTR,
-                         DWORD_PTR) {
+                         DWORD_PTR) noexcept {
     switch (message) {
         case WM_DROPFILES: {
             auto const drop = reinterpret_cast<HDROP>(wparam);
