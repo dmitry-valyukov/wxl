@@ -21,5 +21,11 @@ macro(wxl_add_gtest target)
     )
 
     wxl_set_target_folders(${target} PREFIX "tests")
-    gtest_discover_tests(${target})
+
+    # Listed when ctest starts, from the binary of the configuration it tests. A
+    # listing taken after the link is one file per target for every configuration
+    # of a multi-config tree (CMake before 4.4): after a Release link, ctest -C Debug
+    # took the Release binary's tests and ran the Release binary. A program that
+    # cannot list itself stops ctest with an error, as it stopped the build.
+    gtest_discover_tests(${target} DISCOVERY_MODE PRE_TEST)
 endmacro()
