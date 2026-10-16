@@ -204,8 +204,11 @@ struct TrayIconAccess {
         impl.flyout.showAt(impl.anchor);
     }
 
+    // noexcept: an exception must not cross a Win32 callback -- unwinding through the frames
+    // of user32 is not supported, and on x64 a call from the kernel may swallow it -- so a
+    // failure inside is std::terminate, which names it.
     static LRESULT CALLBACK proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
-                                 UINT_PTR, DWORD_PTR ref) {
+                                 UINT_PTR, DWORD_PTR ref) noexcept {
         auto* const icon = reinterpret_cast<TrayIcon*>(ref);
 
         if (message == WM_NCDESTROY)

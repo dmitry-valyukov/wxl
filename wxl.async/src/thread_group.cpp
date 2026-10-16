@@ -295,7 +295,10 @@ public:
 
     void start_thread();
 
-    static unsigned __stdcall thread_proc(void* arg);
+    // noexcept: an exception must not leave a thread's entry point for the system frames
+    // below it -- what the body throws goes to the promise -- so a failure outside the body
+    // is std::terminate.
+    static unsigned __stdcall thread_proc(void* arg) noexcept;
 
 private:
     thread_group_ptr group_;
@@ -684,7 +687,7 @@ bool thread_group::is_internal_thread() {
     return s_thread_data != nullptr || core::current_thread_id() == main_thread_id();
 }
 
-unsigned __stdcall thread_starter::thread_proc(void* arg) {
+unsigned __stdcall thread_starter::thread_proc(void* arg) noexcept {
     std::unique_ptr<thread_starter> starter(static_cast<thread_starter*>(arg));
 
     thread_info* thread_info = starter->info();
