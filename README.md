@@ -125,11 +125,12 @@ build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 - Пока обёрток нет, настройка пропускает `wxl.ui` и всё, что от неё зависит,
   и предупреждает об этом. Сборка генератор не запускает: после правки
   профиля генерация и `-Configure` повторяются.
+- Все примеры сразу — `run-samples.bat`: собирает их в Debug и предлагает
+  запустить любой из списка.
 - `WXL_BUILD_DOCS=OFF` остаётся в кэше; сайт документации и его тест
   возвращает `tools\build.ps1 -Define WXL_BUILD_DOCS=ON`.
 - Пример лежит в `build\x64\samples\<Папка>\<Конфигурация>\<цель>.exe`
-  с ресурсами и DLL; цели — в [samples/README.md](samples/README.md), все
-  разом — `-Target samples/all`.
+  с ресурсами и DLL; цели — в [samples/README.md](samples/README.md).
 
 ### Сборка
 
