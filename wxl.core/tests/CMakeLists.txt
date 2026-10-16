@@ -52,8 +52,14 @@ wxl_set_target_folders(wxl.core.tests)
 
 include(GoogleTest)
 
+# Listed when ctest starts, from the binary of the configuration it tests, as
+# wxl_add_gtest does: a listing taken after the link is shared by every
+# configuration of a multi-config tree (CMake before 4.4), and the Debug and
+# Release programs differ here: the probes that read the debug CRT heap are
+# built in Debug only.
 gtest_discover_tests(
     wxl.core.tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    DISCOVERY_MODE PRE_TEST
 )
