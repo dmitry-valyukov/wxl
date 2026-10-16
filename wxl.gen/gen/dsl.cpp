@@ -125,6 +125,9 @@ struct CollectionSetter<PropertyKey::{0}> {{
                    name, member_name(name));
     }
 
+    // remove passes on whatever the class's remove_on... answers: nothing from a generated
+    // wrapper, whose WinRT event does not say, and whether the token was there from
+    // CompositionWindow, whose WindowWatch checks it.
     for (auto&& name : d.events) {
         std::print(file, R"(
 template <>
@@ -135,8 +138,8 @@ struct EventAdder<EventKey::{0}> {{
     }}
 
     template <typename Obj>
-    static void remove(Obj const& object, EventToken token) {{
-        object.remove_on{0}(token);
+    static auto remove(Obj const& object, EventToken token) {{
+        return object.remove_on{0}(token);
     }}
 
     template <typename Obj>
