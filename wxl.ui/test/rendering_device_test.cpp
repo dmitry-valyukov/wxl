@@ -28,9 +28,12 @@
 
 #include <cstdint>
 #include <format>
+#include <latch>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -291,7 +294,7 @@ struct fake_backend {
         log->push_back(std::format("move g{} {} to d{}", graphics, name_of(api), device.id));
     }
 
-    void post() {
+    void post() noexcept {
         log->push_back("post");
         ++posted;
     }
@@ -715,6 +718,39 @@ TEST(RenderingDevices, after_the_close_nothing_is_replaced) {
     EXPECT_EQ(log, (log_t{"keep o2", "graphics g2 on d1"}));
     EXPECT_EQ(all.replacements(), 0u);
     EXPECT_EQ(all.backend().posted, 0u);
+}
+
+// The close does not wait for the answer of a removal under way: the pool's callback, still
+// running on its thread, holds only its generation, and the turn it posts after the close
+// replaces nothing. That the real watch is taken back without waiting (UnregisterWaitEx with no
+// completion event) is DrawingSurface.cpp's; here the callback is a thread of the test.
+TEST(RenderingDevices, a_removal_answer_under_way_at_the_close_replaces_nothing_after_it) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    watch(all, 1, composition_api::winui, log);
+    log.clear();
+
+    std::mutex queue_lock;
+    std::vector<std::uint64_t> answers;   // the turns the callback posts, by generation
+    std::latch closed{1};
+    std::uint64_t const generation = all.current()->id;
+    std::thread callback{[&, generation] {
+        closed.wait();
+        std::lock_guard const posting{queue_lock};
+        answers.push_back(generation);
+    }};
+
+    all.close();   // returns with the callback still running
+    EXPECT_EQ(log, (log_t{"unwatch d1"}));
+    closed.count_down();
+    callback.join();
+
+    std::lock_guard const running{queue_lock};
+    ASSERT_EQ(answers, (std::vector<std::uint64_t>{1}));
+    for (std::uint64_t const answer : answers) all.replace(answer);
+    EXPECT_EQ(log, (log_t{"unwatch d1"})) << "the late turn replaces nothing";
+    EXPECT_EQ(all.replacements(), 0u);
 }
 
 // A turn posted before the close calls nobody once the queue has begun to shut down: the holders

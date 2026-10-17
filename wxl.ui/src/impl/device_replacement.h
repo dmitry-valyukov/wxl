@@ -59,7 +59,7 @@ enum class composition_api { winui, system };
 ///   void unwatch(device_t&) noexcept                         its watch taken back
 ///   void release(device_t&) noexcept                         the device let go
 ///   void move(graphics_t, composition_api, device_t const&)  a graphics device onto the device
-///   void post()                                              a turn of the UI thread's queue
+///   void post() noexcept                                     a turn of the UI thread's queue
 ///                                                            that calls notify()
 ///   void keep(owner_t) noexcept                              the identity held while its entry
 ///                                                            stands, so that a later compositor
@@ -164,8 +164,8 @@ public:
     }
 
     /// The thread's queue begins to shut down: the device in use is no longer watched, and nothing
-    /// is replaced from here on -- an answer of a removal posted before finds the replacement over,
-    /// and so does a turn of the holders. The device stays, to draw on until the end: a lost one,
+    /// is replaced from here on -- an answer of a removal finds the replacement over, posted before
+    /// or after, by a callback still under way, and so does a turn of the holders. The device stays, to draw on until the end: a lost one,
     /// or one whose holders were never called, answers false to every draw().
     void close() noexcept {
         if (closed_) return;
