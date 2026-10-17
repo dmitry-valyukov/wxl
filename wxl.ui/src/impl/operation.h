@@ -216,12 +216,27 @@ private:
 };
 
 /// The completion handler: it touches nothing but the queue and the link, which it posts on.
+///
+/// It runs on a thread of the runtime's, inside the projection's delegate, which would turn an
+/// exception into an HRESULT for the platform and lose the turn without a word. So what the
+/// posting throws -- the queue's call failing, the delegate it is given not made -- stops the
+/// process here, named: terminate_with_reason() describes the exception being handled and
+/// aborts, whatever terminate handler the thread has.
+///
+/// A refusal is not an exception, and it is left as it is: the queue of the calling thread
+/// refuses only once it is shut down, with XAML, on the way out. The coroutine waiting stays
+/// suspended, and a detached frame keeps the wait at exit going for it -- a hang, which a Debug
+/// build's watch over that wait reports after ten seconds, and not a turn lost in silence.
 template <class Producer, class Op, class Queue>
 void post_completion(Op const& operation, Queue const& queue, Producer& made) {
     operation.Completed([link = made.reach(), queue](auto const&, AsyncStatus status) {
-        queue.TryEnqueue([link, status] {
-            if (link->self) link->self->finish(status);
-        });
+        try {
+            static_cast<void>(queue.TryEnqueue([link, status] {
+                if (link->self) link->self->finish(status);
+            }));
+        } catch (...) {
+            core::impl::terminate_with_reason();
+        }
     });
 }
 
