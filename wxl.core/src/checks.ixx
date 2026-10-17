@@ -23,6 +23,16 @@ export namespace wxl::core {
 [[noreturn]] void abort(std::string_view why,
                         std::source_location where = std::source_location::current()) noexcept;
 
+/**
+ * Says what went wrong and goes on: the line `abort()` writes, `file(line): what`,
+ * to stderr and to the debugger's output, and no stop. For a failure that is
+ * the process's to report and nobody's to answer any more -- one that comes when
+ * there is nothing left to show it in -- so that it is not lost. Nothing is
+ * allocated.
+ */
+void report(std::string_view what,
+            std::source_location where = std::source_location::current()) noexcept;
+
 // ---- What std::terminate says --------------------------------------------------------
 //
 // A noexcept call that an exception reaches ends in std::terminate, and the handler the

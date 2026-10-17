@@ -13,19 +13,23 @@ namespace {
 /// One line, `file(line): what`, the form a compiler reports in, so the debugger's
 /// output window takes it to the place. Into a buffer on the stack: the report
 /// may be about memory that has run out.
-[[noreturn]] void stop(std::source_location where, std::string_view prefix, std::string_view what,
-                       std::string_view suffix) noexcept {
+void write_line(std::source_location where, std::string_view prefix, std::string_view what,
+                std::string_view suffix) noexcept {
     char line[1024];
     const int length = std::snprintf(line, sizeof line, "%s(%u): %.*s%.*s%.*s\n", where.file_name(),
                                      static_cast<unsigned>(where.line()), static_cast<int>(prefix.size()),
                                      prefix.data(), static_cast<int>(what.size()), what.data(),
                                      static_cast<int>(suffix.size()), suffix.data());
 
-    // A report cut short keeps its end of line.
+    // A report cut short keeps its end of line, and the end of line takes the place of the
+    // last byte only if that byte starts a code point: inside a letter, it goes back to the
+    // letter's lead byte, so the line stays UTF-8.
     int used = length < 0 ? 0 : length;
     if (used >= static_cast<int>(sizeof line)) {
-        used = static_cast<int>(sizeof line) - 1;
-        line[used - 1] = '\n';
+        const std::size_t end = unicode::floor_code_point_boundary(
+            std::string_view{line, sizeof line - 1}, sizeof line - 2);
+        line[end] = '\n';
+        used = static_cast<int>(end) + 1;
     }
 
     std::cerr.write(line, used);
@@ -37,6 +41,12 @@ namespace {
         ::MultiByteToWideChar(CP_UTF8, 0, line, used, wide, static_cast<int>(std::size(wide)) - 1);
     wide[widened > 0 ? widened : 0] = L'\0';
     ::OutputDebugStringW(wide);
+}
+
+/// The line, then the stop: right there under a debugger, an abort otherwise.
+[[noreturn]] void stop(std::source_location where, std::string_view prefix, std::string_view what,
+                       std::string_view suffix) noexcept {
+    write_line(where, prefix, what, suffix);
 
     if (::IsDebuggerPresent()) __debugbreak();
 
@@ -48,6 +58,10 @@ namespace {
 [[noreturn]]
 void abort(std::string_view why, std::source_location where) noexcept {
     stop(where, {}, why, {});
+}
+
+void report(std::string_view what, std::source_location where) noexcept {
+    write_line(where, {}, what, {});
 }
 
 [[noreturn]]

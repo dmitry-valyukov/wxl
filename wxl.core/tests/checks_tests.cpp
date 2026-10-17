@@ -49,6 +49,49 @@ TEST(ChecksDeathTest, AbortNamesThePlaceItIsGiven) {
     EXPECT_DEATH(abort_naming(where), place_of(where.line()) + "the reason given");
 }
 
+TEST(ChecksTest, AReportWritesTheLineOfAnAbortAndGoesOn) {
+    testing::internal::CaptureStderr();
+    constexpr std::uint_least32_t line_of_the_report = std::source_location::current().line() + 1;
+    wxl::core::report("the note");
+    const std::string said = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(line_of_the_report) + "the note\\n$"))) << said;
+}
+
+TEST(ChecksTest, AReportNamesThePlaceItIsGiven) {
+    const std::source_location where = somewhere_else();
+
+    testing::internal::CaptureStderr();
+    wxl::core::report("the note given", where);
+    const std::string said = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(where.line()) + "the note given\\n$"))) << said;
+}
+
+// A line longer than the buffer is cut, and the cut does not split a letter. Two-byte letters
+// after an even and after an odd number of bytes: in one of the two lines the end of line falls
+// on the second byte of a letter, and that line is a byte shorter rather than ending in half of it.
+TEST(ChecksTest, AReportCutShortEndsInAWholeLetter) {
+    const std::source_location where = somewhere_else();
+
+    std::string letters;
+    for (int i = 0; i != 600; ++i) letters += "ж";
+
+    std::size_t sizes[2] = {};
+    for (std::size_t odd = 0; odd != 2; ++odd) {
+        testing::internal::CaptureStderr();
+        wxl::core::report(std::string(odd, 'x') + letters, where);
+        const std::string said = testing::internal::GetCapturedStderr();
+
+        EXPECT_TRUE(said.ends_with("ж\n")) << said;
+        EXPECT_FALSE(wxl::core::unicode::find_invalid_utf8(said).has_value()) << said;
+        sizes[odd] = said.size();
+    }
+
+    EXPECT_EQ(std::max(sizes[0], sizes[1]), 1023u);
+    EXPECT_EQ(std::min(sizes[0], sizes[1]), 1022u);
+}
+
 TEST(ChecksDeathTest, AFailedPreconditionIsReportedTheSameWay) {
     const std::source_location where = somewhere_else();
 
