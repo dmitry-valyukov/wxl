@@ -293,6 +293,34 @@ void collect_method(MethodDef const& method, std::string_view field_view, type_i
         ++position;
     }
 
+    // Beside every asynchronous method, its form with a token, taken last as wxl.async's own
+    // operations take one: cancelled, the operation is asked to stop and the co_await ends with
+    // the cancellation (impl/operation.h). The token is a parameter of wxl's alone, so it is
+    // named by wxl -- and a method with a parameter of that name already has no room for it.
+    if (!info.returns_void && !info.result.from_winrt_under.empty()) {
+        if (std::any_of(info.params.begin(), info.params.end(),
+                        [](param_info const& param) { return param.name == "stop"; })) {
+            throw std::runtime_error(std::format(
+                "{}: a parameter named 'stop' leaves no name for the token of its form with one",
+                info.winrt_name));
+        }
+
+        member_info under = info;
+        under.under_token = true;
+        under.result.from_winrt = under.result.from_winrt_under;
+
+        type_use token;
+        token.supported = true;
+        token.value_type = "async::cancellation_token";
+        token.param_type = token.value_type;
+        token.public_includes = {"../Operation.h"};
+        under.params.push_back({"stop", std::move(token)});
+
+        members.push_back(std::move(info));
+        members.push_back(std::move(under));
+        return;
+    }
+
     members.push_back(std::move(info));
 }
 
@@ -351,6 +379,10 @@ std::string parameter_list(member_info const& member) {
         list += std::format("{} {}", param.type.param_type, param.name);
     }
     return list;
+}
+
+std::size_t projection_arity(member_info const& member) {
+    return member.under_token ? member.params.size() - 1 : member.params.size();
 }
 
 std::string result_type(member_info const& member) {

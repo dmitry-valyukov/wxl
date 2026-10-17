@@ -429,7 +429,8 @@ type_use iterable_of(type_use const& item, std::string_view winrt_name, std::str
 
 // async::task<R> -- what an asynchronous operation becomes, the one type wxl awaits. The result is
 // converted by the element's own expression, on the thread that made the call, once the operation
-// has finished.
+// has finished. Its form with a token takes the call as a lambda over it, so that under a token
+// cancelled already the operation is not started at all.
 type_use operation_of(type_use const& item) {
     if (!item.supported) {
         return unsupported(std::format("operation result: {}", item.reason));
@@ -446,6 +447,10 @@ type_use operation_of(type_use const& item) {
     use.winrt_type = "winrt::Windows::Foundation::IInspectable";
     use.from_winrt = std::format("impl::start_operation<{}>($, [](auto const& v) {{ return {}; }})",
                                  item.value_type, substitute(item.from_winrt, "v"));
+    use.from_winrt_under = std::format(
+        "impl::start_operation_under<{}>([&] {{ return $; }}, [](auto const& v) {{ return {}; }}, "
+        "std::move(stop))",
+        item.value_type, substitute(item.from_winrt, "v"));
     use.instantiations = item.instantiations;
     use.public_includes = item.public_includes;
     use.public_includes.insert("../Operation.h");
@@ -462,6 +467,7 @@ type_use action_operation() {
     use.param_type = use.value_type;
     use.winrt_type = "winrt::Windows::Foundation::IInspectable";
     use.from_winrt = "impl::start_action($)";
+    use.from_winrt_under = "impl::start_action_under([&] { return $; }, std::move(stop))";
     use.public_includes = {"../Operation.h"};
     use.impl_includes = {"../impl/operation.h"};
     return use;
