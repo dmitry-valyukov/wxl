@@ -32,6 +32,7 @@
 #include <windows.ui.composition.interop.h>
 
 #include <chrono>
+#include <cstdint>
 #include <vector>
 
 #include "WindowShade.h"
@@ -162,10 +163,11 @@ struct WindowShade::Impl {
     // The snapshot the flight carries, kept between collapse and expand: the
     // window is hidden by the time it expands, so a fresh capture then would
     // be blank -- and kept whole, pixels too, so that a surface the lost
-    // device took with it can be drawn again.
+    // device took with it can be drawn again. Let go once the expand lands.
     Snapshot shot;
     comp::CompositionDrawingSurface surface{nullptr};
     bool hasSnapshot = false;
+    std::uint64_t worn = 0;   // snapshots worn so far: which one a landing is of
     POINT overlayOrigin{};
 
     // A failure to build is thrown on, with the overlay made before it taken
@@ -229,6 +231,7 @@ struct WindowShade::Impl {
     void wear(Snapshot taken) {
         comp::CompositionGraphicsDevice const& device = graphicsDevice();
         shot = std::move(taken);
+        ++worn;
         surface = device.CreateDrawingSurface(
             {float(shot.width), float(shot.height)},
             directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -256,6 +259,18 @@ struct WindowShade::Impl {
             context->DrawBitmap(bitmap.get(),
                                 D2D1_RECT_F{0, 0, float(shot.width), float(shot.height)});
         });
+    }
+
+    /// The flight back of snapshot `landed` is over and the window shows: the
+    /// snapshot goes -- its pixels and its surface, the next collapse takes a
+    /// fresh one -- and a replacement of the device has nothing to draw again.
+    /// One worn since, by a collapse while this one flew back, stays.
+    void land(std::uint64_t landed) {
+        if (landed != worn) return;
+        hasSnapshot = false;
+        sprite.Brush(nullptr);
+        surface = nullptr;
+        shot = Snapshot{};
     }
 
     /// The device under the surface was replaced, and the surface is empty:
@@ -381,8 +396,9 @@ void WindowShade::expandFrom(Point screenPoint, std::function<void()> whenDone) 
     // The window is shown under the snapshot only once the flight lands, so it
     // does not flash at full size before the animation has grown to it.
     shade.fly(from, {scale, scale, 1}, 0.0f, to, {1, 1, 1}, 1.0f,
-              [&shade, done = std::move(whenDone)] {
+              [&shade, landed = shade.worn, done = std::move(whenDone)] {
                   ::ShowWindow(shade.window, SW_SHOW);
+                  shade.land(landed);
                   if (done) done();
               });
 }

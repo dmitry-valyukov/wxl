@@ -23,7 +23,8 @@
 // overlay or a compositor that cannot be made is an exception from the
 // constructor. The snapshot is drawn on the rendering device every
 // DrawingSurface draws through; when that device is lost and replaced, the
-// snapshot kept between collapse and expand is drawn again.
+// snapshot kept between collapse and expand is drawn again. Once the expand
+// lands, the snapshot is let go.
 
 // Declared, not included: what is kept is a window handle, and a caller that
 // only wants to minimize a window should not have to parse a Windows header.
