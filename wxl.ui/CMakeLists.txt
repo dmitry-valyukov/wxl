@@ -153,6 +153,7 @@ add_library(wxl.ui STATIC
     src/RevealEffect.cpp
     src/schema.h
     src/impl/event_waits.h
+    src/impl/core_event_wait.h
     src/aliases.h
     src/ui.h
     src/Collection.h

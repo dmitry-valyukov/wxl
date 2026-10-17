@@ -22,6 +22,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -67,7 +68,7 @@ public:
             state_->handler = std::move(handler);
             return;
         }
-        handler(*this, state_->status);
+        invoke(handler, state_->status);
     }
 
     /// The result of one that completed; for one that failed or was cancelled, the platform's
@@ -96,7 +97,7 @@ public:
     /// The operation ends: the handler is called on whichever thread calls this.
     void end(AsyncStatus status) const {
         state_->status = status;
-        if (handler_t const handler = std::exchange(state_->handler, {})) handler(*this, status);
+        if (handler_t const handler = std::exchange(state_->handler, {})) invoke(handler, status);
     }
 
     template <class... Value>
@@ -117,6 +118,15 @@ public:
     long held() const { return state_.use_count(); }
 
 private:
+    /// As the projection's delegate calls the handler: what it throws becomes an HRESULT for the
+    /// platform, which reads none, so the exception is gone.
+    void invoke(handler_t const& handler, AsyncStatus status) const {
+        try {
+            handler(*this, status);
+        } catch (...) {
+        }
+    }
+
     struct state {
         AsyncStatus status = AsyncStatus::Started;
         handler_t handler;
@@ -839,6 +849,31 @@ TEST(ShowDialogDeathTest, UnderATokenNobodyCanCancelTheCallStops) {
     fake_dialog const dialog;
     EXPECT_DEATH(show_under_a_token_of_nobody(dialog), "wxl: showDialog under a token nobody can cancel");
     EXPECT_EQ(dialog.shown, 0);
+}
+
+/// The queue of the calling thread whose call fails: the projection's TryEnqueue throws when the
+/// call into the queue fails, or the delegate for it cannot be made.
+struct throwing_queue {
+    template <class Fn>
+    bool TryEnqueue(Fn&&) const {
+        throw std::runtime_error("the queue failed to take the call");
+    }
+};
+
+void complete_into_a_throwing_queue() {
+    without_a_dialog();
+    fake_operation<int> op;
+    int converted = 0;
+    auto const pending = start<std::string>(op, throwing_queue{}, counted(converted));
+    std::thread{[&op] { op.complete(7); }}.join();
+}
+
+// The completion runs on a thread of the runtime's, inside the projection's delegate, which would
+// turn the exception into an HRESULT for the platform and lose the turn: it stops the process
+// there instead, and the report names the exception.
+TEST(OperationTaskDeathTest, AQueueThatThrowsInTheCompletionStopsTheProcessNamingIt) {
+    EXPECT_DEATH(complete_into_a_throwing_queue(),
+                 "wxl: unhandled exception: the queue failed to take the call");
 }
 
 }  // namespace

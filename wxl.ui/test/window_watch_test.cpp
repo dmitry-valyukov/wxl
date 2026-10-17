@@ -42,20 +42,12 @@ struct close_args : EventArgsBase {
     bool cancel = false;
 };
 
-/// The one counter that gives every subscription to any event of any window its token, as
-/// the real windows have it.
-std::int64_t lastToken = 0;
-
-EventToken nextToken() noexcept {
-    return {++lastToken};
-}
-
 /// The window's side of three events: their handler lists, and the token it gave last, for a
 /// test that takes a handler off behind the back of whoever put it there.
 struct window_state {
     EventToken lastGiven;
 
-    EventToken give() noexcept { return lastGiven = nextToken(); }
+    EventToken give() noexcept { return lastGiven = wxl::impl::next_event_token(); }
 
     handler_list<Object> moved;
     handler_list<size_args> resized;

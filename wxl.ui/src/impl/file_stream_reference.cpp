@@ -16,7 +16,8 @@ namespace {
 winrt::Windows::Storage::StorageFile get_file(winrt::hstring const& path) {
     auto const operation = winrt::Windows::Storage::StorageFile::GetFileFromPathAsync(path);
     auto const done = std::make_shared<core::hevent>(true);
-    operation.Completed([done](auto const&, winrt::Windows::Foundation::AsyncStatus) { done->set(); });
+    operation.Completed(
+        [done](auto const&, winrt::Windows::Foundation::AsyncStatus) noexcept { done->set(); });
     done->wait();
     return operation.GetResults();  // throws what the operation failed with: no such file, no access
 }

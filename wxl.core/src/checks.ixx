@@ -39,11 +39,13 @@ void report(std::string_view what,
 // runtime starts with ends the process through abort without a word. The one below names
 // the exception that got there and stops through abort() above. MSVC keeps a terminate
 // handler for each thread, so it is set where wxl starts code on a thread: by wWinMain on
-// the thread of the windows, by the entry of each thread of a thread_group, by the callback
-// wxl.async hands the thread pool, for as long as it runs, and by terminate_with_exception
-// on whichever thread a coroutine nobody holds fails. A thread wxl does not start keeps the
-// runtime's own until then. Machinery of wxl's own layers, hence impl: a consumer has no
-// handler to set.
+// the thread of the windows, by the entry of each thread of a thread_group, by each callback
+// wxl hands the thread pool -- wxl.async's work, wxl.ui's wait for a lost rendering device --
+// for as long as it runs, and by terminate_with_exception on whichever thread a coroutine
+// nobody holds fails. A thread wxl does not start keeps the runtime's own until then -- and
+// what wxl runs on one without a handler of its own, a completion on a thread of the
+// runtime's, calls terminate_with_reason() straight from a catch, which sets itself first.
+// Machinery of wxl's own layers, hence impl: a consumer has no handler to set.
 
 namespace impl {
 
@@ -109,6 +111,11 @@ void describe_terminate(terminate_report& report) noexcept;
  * std::terminate back -- a namer, a what() or the exception's destructor that throws -- and
  * the handler entered again on the same thread stops with a line of its own rather than
  * describing it over and over.
+ *
+ * It may also be called straight from a catch, on any thread, to stop over the exception
+ * being handled: that one is described the same way. It sets itself as the calling thread's
+ * handler first, so that a terminate the describing brings back finds it on a thread whose
+ * handler is the runtime's; it never returns, so nothing is left to put the old one back for.
  */
 [[noreturn]] void terminate_with_reason() noexcept;
 

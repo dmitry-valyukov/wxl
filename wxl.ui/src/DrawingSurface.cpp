@@ -106,9 +106,18 @@ void replace_device() noexcept;
 /// more is going down, and then there is nothing left to draw. noexcept: the pool has
 /// nobody to hand an exception to.
 void CALLBACK device_removed(void*, BOOLEAN) noexcept {
+    // MSVC keeps a terminate handler for each thread, so the one that names the exception is
+    // set here too: an exception out of the handing over -- the projection's TryEnqueue, the
+    // delegate it is given -- ends in std::terminate. A thread of the pool is the system's and
+    // runs other callbacks after this one, so it gets its own handler back. The handler and
+    // not a catch, as post_completion has: it names a terminate a noexcept call inside raises too.
+    const std::terminate_handler previous = core::impl::set_terminate_with_reason();
+
     dispatching::DispatcherQueue queue{nullptr};
     winrt::copy_from_abi(queue, current_device().queue);
     queue.TryEnqueue([]() noexcept { replace_device(); });
+
+    std::set_terminate(previous);
 }
 
 /// A D3D11 device on the first adapter of a fresh DXGI factory that makes one, WARP last.
@@ -171,7 +180,8 @@ void make_device(rendering_device& device) {
         ::D2D1CreateDevice(d3d.as<IDXGIDevice>().get(), &properties, d2d.put()));
 
     // ID3D11Device4 is Windows 10's; the Windows App SDK runs on nothing older.
-    auto const removable = d3d.as<ID3D11Device4>();
+    // Not const: its reference goes to device.d3d, which owns it raw (detach below).
+    auto removable = d3d.as<ID3D11Device4>();
     HANDLE const removed = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!removed) winrt::throw_last_error();
     DWORD cookie = 0;
