@@ -292,6 +292,8 @@ struct Shell {
     std::shared_ptr<PageSize> size;
     // Модели показанной страницы (см. holdModel).
     std::vector<std::shared_ptr<void>> models;
+    // Общий источник отмены приложения (см. exitToken): отменяется, когда закрывается главное окно.
+    async::cancellation_source exitSource;
     Destination current;
     bool hasCurrent = false;
     // Выбор в панели ставит сам `select`; его событие не должно вести
@@ -655,6 +657,11 @@ Window createMainWindow() {
             savedSize = {size.width, size.height};
             saveState();
         }
+        // Выход. Ожидания под токеном выхода кончаются здесь, пока очередь окна ещё крутится: процесс ждёт их до
+        // Teardown, и отмена оттуда опоздала бы.
+        if (shell) {
+            shell->exitSource.cancel();
+        }
     });
     s.main = std::make_shared<Window>(window);
 
@@ -683,6 +690,10 @@ Window createMainWindow() {
 
 Window const& mainWindow() {
     return *shell->main;
+}
+
+async::cancellation_token exitToken() {
+    return shell->exitSource.token();
 }
 
 void trackWindow(Window const& window, std::shared_ptr<void> state) {

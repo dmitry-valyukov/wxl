@@ -1,5 +1,5 @@
-// showDialog, the winrt side: the XamlRoot, then the await nobody else has
-// to write.
+// showDialog, the winrt side: the XamlRoot, then the dialog shown under the caller's token and
+// the wait for its answer left running (impl/show_dialog.h).
 //
 // The projection headers come first, and with them the standard library they
 // pull in: the wxl headers below carry the wxl.core import, and a standard
@@ -7,30 +7,18 @@
 // module.
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.h>
-#include <winrt/Windows.Foundation.h>
 
 #include "Object.impl.h"
 #include "ShowDialog.h"
+#include "impl/show_dialog.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include <wxl/Microsoft.UI.Xaml.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
 
 namespace wxl {
-namespace {
 
-// The await, in a coroutine of its own. Fire-and-forget is what makes this
-// call return while the dialog is still up, and the coroutine frame is also
-// what keeps the operation alive until the reader closes it -- a caller who
-// merely dropped the IAsyncOperation on the floor would be trusting the
-// framework to hold it for them.
-winrt::fire_and_forget await_dialog(winrt::Microsoft::UI::Xaml::Controls::ContentDialog native) {
-    co_await native.ShowAsync();
-}
-
-}  // namespace
-
-void showDialog(ContentDialog const& dialog, UIElement const& host) {
+void showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token stop) {
     winrt::Microsoft::UI::Xaml::Controls::ContentDialog const& native =
         *Object::Impl::get_typed<ContentDialog>(dialog);
 
@@ -40,13 +28,13 @@ void showDialog(ContentDialog const& dialog, UIElement const& host) {
             native.XamlRoot(*Object::Impl::get_typed<XamlRoot>(root));
     }
 
-    await_dialog(native);
+    impl::show_under(dialog, std::move(stop));
 }
 
 // A window is named by what it shows: a dialog raised from a window belongs
 // over that same content, in that same island.
-void showDialog(ContentDialog const& dialog, Window const& host) {
-    showDialog(dialog, host.content());
+void showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token stop) {
+    showDialog(dialog, host.content(), std::move(stop));
 }
 
 }  // namespace wxl
