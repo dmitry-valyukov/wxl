@@ -302,6 +302,11 @@ struct WindowState : core::refcounted {
     // есть, и снимать их есть с кого.
     void closeXaml() {
         xamlClosed = true;
+        // Загрузка фона, которая идёт, окну больше не нужна: её отмена -- ход
+        // очереди, а очередь ещё принимает работу; остановленная, она хода не
+        // приняла бы, и кадр загрузки ждал бы на выходе вечно. С отменой забыто и
+        // то, что просили: замена устройства после этого ничего не грузит.
+        backgroundLoads.cancel();
         try {
             dropTitleBar();
             if (xamlRoot) xamlRoot.Changed(xamlRootChanged);
@@ -1453,6 +1458,11 @@ void CompositionWindow::backgroundAsync(BackgroundImage const& image,
 }
 
 void WindowState::loadBackground(BackgroundImage image, async::cancellation_token owner) {
+    // Окно уничтожено -- показывать загруженное негде, а загрузка, начатая после
+    // его конца, не отменилась бы ничем, кроме токена владельца: RO_E_CLOSED, как
+    // у острова. Замена устройства сюда после конца не приходит: closeXaml забыл,
+    // что просили.
+    if (xamlClosed) throw winrt::hresult_error{RO_E_CLOSED, L"wxl::CompositionWindow: окно уже закрыто"};
     async::cancellation_token const load = backgroundLoads.next(std::move(owner), image);
     impl::show_when_loaded(
         textureCache->getAsync(image.path, load), load,
