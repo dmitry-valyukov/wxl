@@ -16,7 +16,8 @@ module;
 // The rules are the extended grapheme clusters of UAX #29, and the property
 // table they read is generated from one pinned Unicode version by
 // wxl.core/tools/gen-grapheme-table.py (run with uv). The same version's
-// GraphemeBreakTest.txt is the test.
+// GraphemeBreakTest.txt is the test. The table also says which code points are
+// letters, so a caller that asks both questions gets one Unicode version.
 //
 // Why not ICU or DirectWrite: the icu.dll in Windows appears in 1903 while the
 // Windows App SDK runs on 1809, and its Unicode version follows the Windows
@@ -76,6 +77,14 @@ std::size_t next_grapheme_boundary(std::u16string_view text, std::size_t at) noe
 /// many times in one text walks with next_grapheme_boundary() instead.
 std::size_t floor_grapheme_boundary(std::wstring_view text, std::size_t at) noexcept;
 std::size_t floor_grapheme_boundary(std::u16string_view text, std::size_t at) noexcept;
+
+/// Whether the code point is a letter: General_Category L (Lu, Ll, Lt, Lm or
+/// Lo) in the Unicode version of the boundaries, grapheme_unicode_version().
+/// A property of the one code point, not the user-perceived letter the
+/// boundaries keep whole: combining marks, digits, symbols, punctuation and
+/// spaces are not letters, nor are private-use, unassigned and surrogate code
+/// points, nor anything past U+10FFFF.
+bool is_letter(char32_t code_point) noexcept;
 
 /// The Unicode version the property table was generated from.
 std::string_view grapheme_unicode_version() noexcept;

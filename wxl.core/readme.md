@@ -44,8 +44,9 @@
 
 ## Таблица графемных кластеров
 
-Границы букв (`grapheme_breaker`, `next_grapheme_boundary`, `floor_grapheme_boundary`) читают
-таблицу свойств Unicode из `src/grapheme_data.inc`. Файл сгенерирован и в сборке не
+Границы букв (`grapheme_breaker`, `next_grapheme_boundary`, `floor_grapheme_boundary`) и
+`is_letter` (общая категория L: Lu, Ll, Lt, Lm, Lo) читают таблицу свойств Unicode из
+`src/grapheme_data.inc` — одна версия Unicode на оба ответа. Файл сгенерирован и в сборке не
 пересоздаётся: данные меняются раз в год, с выходом новой версии Unicode.
 
 **Нужен [uv](https://docs.astral.sh/uv/)** — генератор написан на Python, а интерпретатор и
@@ -55,11 +56,11 @@
 uv run wxl.core/tools/gen-grapheme-table.py
 ```
 
-Скрипт скачивает с unicode.org четыре файла закреплённой версии (`UNICODE_VERSION` в нём самом;
+Скрипт скачивает с unicode.org пять файлов закреплённой версии (`UNICODE_VERSION` в нём самом;
 кэш — `build/unicode/<версия>`) и пишет два: таблицу `src/grapheme_data.inc` и официальный тест
 `tests/data/GraphemeBreakTest.txt` той же версии. Чтобы перейти на новую версию Unicode, поднимите
 `UNICODE_VERSION`, запустите скрипт и прогоните `wxl.core.tests`: тест проверяет таблицу вместе с
-правилами на всех случаях файла.
+правилами на всех случаях файла, пробы `is_letter` — бит буквы.
 ## Подключение из другого проекта
 
 Требования к потребителю: **генератор Ninja или Ninja Multi-Config** и открытый экспериментальный гейт

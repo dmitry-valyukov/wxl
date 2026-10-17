@@ -8,8 +8,9 @@ namespace {
 #include "grapheme_data.inc"
 
 // The numbering the generator writes. It is spelled out twice -- here and in
-// GCB / INCB of gen-grapheme-table.py -- and GraphemeBreakTest.txt is what
-// notices when the two stop agreeing.
+// GCB / INCB / LETTER of gen-grapheme-table.py -- and GraphemeBreakTest.txt is
+// what notices when the two stop agreeing; for the letter bit, the is_letter
+// tests are.
 enum class break_class : std::uint8_t {
     other,
     cr,
@@ -30,6 +31,8 @@ enum class break_class : std::uint8_t {
 enum class conjunct_class : std::uint8_t { none, linker, consonant, extend };
 
 constexpr std::uint8_t extended_pictographic = 0x40;
+
+constexpr std::uint8_t letter_category = 0x80;
 
 constexpr std::uint8_t no_code_point_yet = 0xFF;
 
@@ -187,6 +190,10 @@ std::size_t floor_grapheme_boundary(const std::wstring_view text, const std::siz
 
 std::size_t floor_grapheme_boundary(const std::u16string_view text, const std::size_t at) noexcept {
     return floor_boundary(text, at);
+}
+
+bool is_letter(const char32_t code_point) noexcept {
+    return (properties_of(code_point) & letter_category) != 0;
 }
 
 std::string_view grapheme_unicode_version() noexcept {
