@@ -1829,6 +1829,60 @@ static_assert(std::is_same_v<decltype(std::declval<ContentDialog const&>().showA
     co_return co_await dialog.showAsync(std::move(stop)) == ContentDialogResult::Primary;
 }
 
+// An event of the application's own, a core::event, awaited under a token: one wait per
+// co_await, either spelling of the signature, and the arguments -- one as it is, several as a
+// tuple, none as nothing -- as values, but for a reference to non-const, the channel the
+// coroutine answers through.
+using count_wait_t = decltype(on_event(std::declval<core::event<void(int)>&>(),
+                                       std::declval<async::cancellation_token>()));
+
+static_assert(std::is_same_v<decltype(std::declval<count_wait_t&>().await_resume()), int>);
+static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void(int&) noexcept>&>(),
+                                               std::declval<async::cancellation_token>())
+                                          .await_resume()),
+                             int&>);
+static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void(std::u16string const&, int)>&>(),
+                                               std::declval<async::cancellation_token>())
+                                          .await_resume()),
+                             std::tuple<std::u16string, int>>);
+static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void(std::u16string const&)>&>(),
+                                               std::declval<async::cancellation_token>())
+                                          .await_resume()),
+                             std::u16string>);
+static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void()>&>(),
+                                               std::declval<async::cancellation_token>())
+                                          .await_resume()),
+                             void>);
+static_assert(!std::is_move_constructible_v<count_wait_t>);
+static_assert(async::detail::cancellable_awaiter<impl::core_event_wait<core::event<void(int)>, int>>);
+
+// A reference to const comes as a copy, so a type whose copy would be cut down to its static
+// type -- or that has none -- is refused where the wait is made, with a static_assert that says
+// what to declare instead. The assert stands on a concept, which is what can be checked here:
+// ordinary types pass, a polymorphic one does not, and a reference to non-const is never copied.
+struct sliced_answer {
+    virtual ~sliced_answer() = default;
+};
+
+static_assert(impl::invocation_answerable<int>);
+static_assert(impl::invocation_answerable<std::u16string const&>);
+static_assert(impl::invocation_answerable<sliced_answer&>);
+static_assert(!impl::invocation_answerable<sliced_answer const&>);
+
+[[maybe_unused]] probe_task awaiting_an_event_of_the_model(core::event<void(int)>& counted,
+                                                           core::event<void(std::u16string const&, int) noexcept>& renamed,
+                                                           core::event<void()>& reset,
+                                                           async::cancellation_token stop) {
+    int const count = co_await on_event(counted, stop);
+    static_cast<void>(count);
+
+    auto const [name, times] = co_await on_event(renamed, stop);
+    static_cast<void>(name);
+    static_cast<void>(times);
+
+    co_await on_event(reset, stop);
+}
+
 // HaloEffect and GaussianBlurEffect -- written by hand, so their schema
 // lines are too.
 [[maybe_unused]] void HaloEffect_color_assigned(::wxl::HaloEffect const& object, ::wxl::Color value) {

@@ -70,10 +70,24 @@
 // so it travels on as if nobody waited (impl/event_waits.h). A wait made
 // without a token is the same object it always was, and pays nothing for the
 // other.
+//
+// **An event of the application's own** -- a core::event of its model, with no
+// sender and no element -- is awaited the same way, one wait per co_await, and
+// only under a token: no element leaves the tree to end it, so its owner does.
+//
+//     int const pages = co_await wxl::on_event(model.paginated, stop);
+//
+// What comes back is the arguments, one as it is, several as a tuple, none as
+// nothing -- and as values: one the event passes by value is moved, one by
+// reference to const copied, since a reference would die with the call and the
+// coroutine may keep it past its next suspension. Only a reference to non-const
+// stays one: it is how the coroutine answers the raiser, and it is valid until the
+// coroutine next suspends (impl/core_event_wait.h).
 
 #include "core.h"
 
 #include "events.h"
+#include "impl/core_event_wait.h"
 #include "impl/event_waits.h"
 #include "impl/member.h"
 
@@ -405,6 +419,10 @@ struct member_event {
     }
 };
 
+// A static member of a type, as the form below takes its pair of calls.
+template <typename F>
+concept function_pointer = std::is_pointer_v<F> && std::is_function_v<std::remove_pointer_t<F>>;
+
 // Named by its own members, on the type -- an event with no object to
 // subscribe on:
 // `on_event(&CompositionTarget::add_onRendering, &CompositionTarget::remove_onRendering)`.
@@ -438,8 +456,10 @@ event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(Obj const& source
 }
 
 /// And a wait on an event of the type itself, which has no object to be
-/// asked of: only the two members, and they are static.
-template <typename Add, typename Remove>
+/// asked of: only the two members, and they are static -- plain function
+/// pointers, so that an object handed in their place, a core::event among
+/// them, finds the form meant for it or none.
+template <impl::function_pointer Add, impl::function_pointer Remove>
 event_awaitable<impl::type_event<Add, Remove>> on_event(Add add, Remove remove) {
     return event_awaitable<impl::type_event<Add, Remove>>{{add, remove}};
 }
@@ -459,10 +479,30 @@ cancellable_event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(
                                                                              std::move(stop)};
 }
 
-template <typename Add, typename Remove>
+template <impl::function_pointer Add, impl::function_pointer Remove>
 cancellable_event_awaitable<impl::type_event<Add, Remove>> on_event(Add add, Remove remove,
                                                                     async::cancellation_token stop) {
     return cancellable_event_awaitable<impl::type_event<Add, Remove>>{{add, remove}, std::move(stop)};
+}
+
+/// A wait on the next invocation of an event of the application's own, under a
+/// cancellation token. An event cleared or ended while the coroutine waits ends the wait,
+/// on the queue's next turn, as one whose event will not come.
+template <typename... Args>
+impl::event_wait_under<impl::core_event_wait<core::event<void(Args...)>, Args...>,
+                       async::cancellation_token>
+on_event(core::event<void(Args...)>& event, async::cancellation_token stop) {
+    return impl::event_wait_under<impl::core_event_wait<core::event<void(Args...)>, Args...>,
+                                  async::cancellation_token>{std::move(stop), event};
+}
+
+/// The same for the signature spelled noexcept.
+template <typename... Args>
+impl::event_wait_under<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
+                       async::cancellation_token>
+on_event(core::event<void(Args...) noexcept>& event, async::cancellation_token stop) {
+    return impl::event_wait_under<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
+                                  async::cancellation_token>{std::move(stop), event};
 }
 
 /// The keyed wait through its tag: `onClick(button)` is `on_event<EventKey::Click>(button)`.
