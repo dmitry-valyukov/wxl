@@ -15,6 +15,12 @@
 #include <string>
 #include <string_view>
 
+// IRestrictedErrorInfo before cppwinrt, as terminate_reason.cpp has it: the test asks an error
+// whether it has one.
+#include "platform.h"
+
+#include <restrictederrorinfo.h>
+
 #include <winrt/base.h>
 
 #include "impl/terminate_reason.h"
@@ -66,19 +72,24 @@ TEST(TerminateReason, names_the_code_of_an_hresult_error) {
         << said;
 }
 
-// An error made with no_originate has no error info: the code is followed by what the
-// system says of it, in the system's language.
+// An error with no error info: the code is followed by what the system says of it, in the
+// system's language. Made by the default constructor -- E_FAIL, and no info -- because that is
+// the one form without any: every constructor with a code originates one, the one that takes
+// the thread's info (take_ownership_from_abi) too, when the thread has none of its own to give.
 TEST(TerminateReason, names_an_hresult_error_without_error_info) {
     std::string_view const named = "wxl: unhandled exception: winrt::hresult_error 0x80004005: ";
-    std::string const said =
-        describe_thrown(winrt::hresult_error{failed, winrt::hresult_error::no_originate});
+    winrt::hresult_error const bare{};
+    ASSERT_FALSE(bare.try_as<::IRestrictedErrorInfo>()) << "the error is to have no info";
+
+    std::string const said = describe_thrown(bare);
     EXPECT_TRUE(said.starts_with(named)) << said;
     EXPECT_GT(said.size(), named.size()) << said;
+}
 
-    // The code is written as Windows writes one, in capitals.
+// The code is written as Windows writes one, in capitals.
+TEST(TerminateReason, writes_the_code_in_capitals) {
     constexpr std::int32_t out_of_memory = static_cast<std::int32_t>(0x8007000E);  // E_OUTOFMEMORY
-    std::string const short_of_memory =
-        describe_thrown(winrt::hresult_error{out_of_memory, winrt::hresult_error::no_originate});
+    std::string const short_of_memory = describe_thrown(winrt::hresult_error{out_of_memory});
     EXPECT_TRUE(short_of_memory.starts_with(
         "wxl: unhandled exception: winrt::hresult_error 0x8007000E: "))
         << short_of_memory;
