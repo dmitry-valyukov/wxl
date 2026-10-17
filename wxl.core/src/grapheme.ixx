@@ -66,14 +66,18 @@ private:
 
 /// The start of the letter after the one that starts at `at`, or the end of
 /// the text. `at` has to be a letter boundary -- 0, or an offset one of these
-/// functions returned; past the end, the answer is the end.
+/// functions returned; past the end, the answer is the end. Between two
+/// neighbours below U+0300 or from U+0370 to U+0482 -- Latin, Greek, Cyrillic,
+/// digits, punctuation, spaces -- the answer takes no table.
 std::size_t next_grapheme_boundary(std::wstring_view text, std::size_t at) noexcept;
 std::size_t next_grapheme_boundary(std::u16string_view text, std::size_t at) noexcept;
 
 /// The nearest letter boundary at or before `at` -- the grapheme counterpart of
 /// floor_code_point_boundary(), for a limit counted in units. Walks from the
-/// start of the text, so it costs the length up to `at`; a caller that cuts
-/// many times in one text walks with next_grapheme_boundary() instead.
+/// nearest place before `at` where two such neighbours meet; in text without
+/// them -- CJK, Devanagari, Arabic, Hebrew, Armenian -- from the start, so it
+/// costs the length up to `at`. A caller that cuts many times in one text
+/// walks with next_grapheme_boundary() instead.
 std::size_t floor_grapheme_boundary(std::wstring_view text, std::size_t at) noexcept;
 std::size_t floor_grapheme_boundary(std::u16string_view text, std::size_t at) noexcept;
 
