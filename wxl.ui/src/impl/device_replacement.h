@@ -6,6 +6,7 @@
 // Windows header here; the backend brings its own.
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -56,6 +57,10 @@ public:
     /// The device in use; null before the first is made.
     device_t const* current() const noexcept { return made_ ? &device_ : nullptr; }
 
+    /// How many times the device has been replaced -- counted before the watches are called, so
+    /// that what one of them asks for finds the count of the device that stands.
+    std::uint64_t replacements() const noexcept { return replacements_; }
+
     /// The device in use; the first is made here.
     device_t const& device() {
         if (!made_) {
@@ -103,6 +108,7 @@ public:
             if (entries_[at].graphics) backend_.move(entries_[at].graphics, entries_[at].api, device_);
         }
         backend_.release(lost);
+        ++replacements_;
 
         for (std::size_t at = 0; at < known; ++at) entries_[at].replaced->fire(Object::Impl::empty<Object>());
     }
@@ -132,6 +138,7 @@ private:
     Backend backend_;
     device_t device_{};
     bool made_ = false;
+    std::uint64_t replacements_ = 0;
     std::vector<entry> entries_;
 };
 

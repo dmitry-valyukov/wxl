@@ -106,7 +106,7 @@ public:
     /// a paint nobody catches it, and the process stops naming it.
     class DeviceLost : public std::exception {
     public:
-        char const* what() const noexcept override;
+        char const* what() const noexcept override { return "wxl: the rendering device is lost"; }
     };
 
     /// For the answer of a Direct2D call made inside a paint, before the

@@ -208,6 +208,8 @@ public:
     /// токена общего источника приложения или сделанного под ним: его отменяет
     /// фон, поставленный позже (он и остаётся), и отмена `stop`. Отказ
     /// загрузки -- файла нет -- не глотается: процесс останавливается, назвав его.
+    /// Потерянное устройство уносит и картинку: на его замену окно грузит её
+    /// снова, под тем же `stop`, если фон с тех пор не сменили иначе.
     void backgroundAsync(BackgroundImage const& image, async::cancellation_token stop) const;
     void backgroundAsync(std::filesystem::path const& image, async::cancellation_token stop) const;
 

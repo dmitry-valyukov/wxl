@@ -445,10 +445,6 @@ bool DrawingSurface::draw(std::function<void(ID2D1DeviceContext*)> const& paint)
     return draw_on(*interop_of(surface_), nullptr, paint);
 }
 
-char const* DrawingSurface::DeviceLost::what() const noexcept {
-    return "wxl: the rendering device is lost";
-}
-
 void DrawingSurface::throwIfDeviceLost(std::int32_t result) {
     if (confirmed_loss(result)) throw DeviceLost{};
 }
@@ -572,6 +568,14 @@ EventToken system_rendering_device_replaced::add(system_compositor compositor, E
 bool system_rendering_device_replaced::remove(system_compositor compositor, EventToken token) {
     handler_list<Object>* const handlers = devices().find_handlers(compositor.identity);
     return handlers && handlers->remove(token);
+}
+
+std::uint64_t rendering_device_replacements() noexcept {
+    return devices().replacements();
+}
+
+void ensure_rendering_device() {
+    static_cast<void>(devices().device());
 }
 
 void signal_rendering_device_removed() {

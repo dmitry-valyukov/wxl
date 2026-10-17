@@ -24,6 +24,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <format>
 #include <memory>
 #include <optional>
@@ -371,6 +372,25 @@ TEST(RenderingDevices, what_a_watch_makes_from_its_call_is_on_the_new_device_alr
     all.replace();
     EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "move g2 winui to d3",
                           "release d2", "watch o1", "watch o2"}));
+}
+
+// The replacements are counted, and the count has moved by the time the first watch is called:
+// what follows the device from a watch's call -- TextureCache, asked for a picture again -- finds
+// the count of the device that stands.
+TEST(RenderingDevices, the_replacements_are_counted_before_the_watches_are_called) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    EXPECT_EQ(all.replacements(), 0u);
+
+    std::vector<std::uint64_t> seen;
+    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        seen.push_back(all.replacements());
+    }));
+    all.replace();
+    all.replace();
+    EXPECT_EQ(all.replacements(), 2u);
+    EXPECT_EQ(seen, (std::vector<std::uint64_t>{1, 2}));
 }
 
 // The handlers of a compositor: the same list whoever asks, and none for one nobody asked for --

@@ -154,10 +154,11 @@ struct WindowState : core::refcounted {
     BackgroundFill pictureFill{};
     Color pictureColor{};
 
-    // Асинхронная загрузка фона, если она идёт: под своим источником, дочерним
-    // от токена, с которым её попросили. Всякая смена фона её отменяет -- фон,
-    // поставленный позже, остаётся.
-    impl::background_loads backgroundLoads;
+    // Асинхронная загрузка фона -- идущая или кончившаяся, пока фон не сменили
+    // иначе: под своим источником, дочерним от токена, с которым её попросили,
+    // и что просили. Всякая смена фона её отменяет -- фон, поставленный позже,
+    // остаётся; замена устройства грузит её снова (deviceReplaced).
+    impl::background_loads<BackgroundImage> backgroundLoads;
 
     // Ввод со сцены (режим чтения без острова): источники ввода её ContentIsland.
     // Источники держим живыми -- на них висят подписки.
@@ -1111,6 +1112,24 @@ struct WindowState : core::refcounted {
         apply(input::NonClientRegionKind::Maximize, physicalRectOf(maximizeButton));
         apply(input::NonClientRegionKind::Close, physicalRectOf(closeButton));
     }
+
+    // ---- Задник картинкой, загруженной на ходу ----
+
+    // Загрузка начинается в самом вызове, под токеном своего источника, сделанного
+    // под `owner`; ждёт её кадр detached_task (impl/background_load.h). Путь --
+    // уже рядом с приложением.
+    void loadBackground(BackgroundImage image, async::cancellation_token owner);
+
+    // Устройство под поверхностями заменено: картинка задника, загруженная на
+    // ходу, пуста вместе с поверхностью кэша -- она грузится снова, под тем же
+    // токеном владельца, если фон с тех пор не сменили иначе.
+    void deviceReplaced() noexcept {
+        if (auto again = backgroundLoads.last()) loadBackground(std::move(again->request), std::move(again->owner));
+    }
+
+    // Последним: после всего, что трогает слушатель, -- и после самого слушателя,
+    // которого называет указатель на член.
+    RenderingDeviceWatch<&WindowState::deviceReplaced> deviceWatch;
 };
 
 namespace {
@@ -1428,14 +1447,17 @@ void CompositionWindow::backgroundAsync(std::filesystem::path const& image,
 
 void CompositionWindow::backgroundAsync(BackgroundImage const& image,
                                         async::cancellation_token stop) const {
-    // Загрузка начинается в самом вызове, под токеном своего источника: его
-    // отменяет следующая смена фона. Ждёт её кадр detached_task -- его видит
-    // выход, и отказ загрузки он не глотает (impl/background_load.h). Кэш держит
-    // текстуру, так что тот же путь во второй раз сменит задник без загрузки.
-    async::cancellation_token const load = state_->backgroundLoads.next(std::move(stop));
+    // Кэш держит текстуру, так что тот же путь во второй раз сменит задник без
+    // загрузки.
+    state_->loadBackground({impl::beside_application(image.path), image.fill, image.color}, std::move(stop));
+}
+
+void WindowState::loadBackground(BackgroundImage image, async::cancellation_token owner) {
+    async::cancellation_token const load = backgroundLoads.next(std::move(owner), image);
     impl::show_when_loaded(
-        state_->textureCache->getAsync(impl::beside_application(image.path), load), load,
-        [state = state_, fill = image.fill, color = image.color](CompositionDrawingSurface const& surface) {
+        textureCache->getAsync(image.path, load), load,
+        [state = core::intrusive_ptr<WindowState>{this}, fill = image.fill,
+         color = image.color](CompositionDrawingSurface const& surface) {
             // Именованный промежуток: обёртка -> сырая поверхность (одно
             // преобразование), сырая поверхность -> ICompositionSurface у
             // CreateSurfaceBrush (второе); в одном выражении их было бы два
@@ -1466,8 +1488,11 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     state_->compositor = muc::Compositor{};
     state_->backdrop = state_->compositor.CreateSpriteVisual();
 
-    // Кэш текстур на том же компоновщике -- под асинхронные задники.
+    // Кэш текстур на том же компоновщике -- под асинхронные задники -- и держатель
+    // замены устройства под поверхностями: на ней задник, загруженный на ходу,
+    // грузится снова.
     state_->textureCache.emplace(Object::Impl::wrap<Compositor>(state_->compositor));
+    state_->deviceWatch.attach(Object::Impl::wrap<Compositor>(state_->compositor), *state_);
 
     state_->sceneIsland = content::ContentIsland::Create(state_->backdrop);
     state_->sceneBridge = content::DesktopAttachedSiteBridge::CreateFromWindowId(
