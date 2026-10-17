@@ -180,7 +180,8 @@ void make_device(rendering_device& device) {
         ::D2D1CreateDevice(d3d.as<IDXGIDevice>().get(), &properties, d2d.put()));
 
     // ID3D11Device4 is Windows 10's; the Windows App SDK runs on nothing older.
-    auto const removable = d3d.as<ID3D11Device4>();
+    // Not const: its reference goes to device.d3d, which owns it raw (detach below).
+    auto removable = d3d.as<ID3D11Device4>();
     HANDLE const removed = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!removed) winrt::throw_last_error();
     DWORD cookie = 0;
