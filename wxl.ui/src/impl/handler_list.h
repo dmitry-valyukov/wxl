@@ -13,13 +13,21 @@
 // any event of any window a token of its own, so a token of one event or window names
 // nothing in another.
 //
-// Included by CompositionWindow.cpp and the tests, after the projection: the empty sender
-// is made through Object::Impl.
+// Included by CompositionWindow.cpp, DrawingSurface.cpp and the tests, after the projection:
+// the empty sender is made through Object::Impl.
 
 #include "../Object.impl.h"
 #include "../events.h"
 
 namespace wxl::impl {
+
+// The one counter that gives every subscription to any event of any window, and to the
+// replacement of any compositor's rendering device, a token of its own. One STA thread, so
+// a plain counter; inline, so there is one for the program.
+inline EventToken next_event_token() noexcept {
+    static std::int64_t last = 0;
+    return {++last};
+}
 
 template <typename Args>
 class handler_list {

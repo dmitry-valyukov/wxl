@@ -286,6 +286,8 @@ add_library(wxl.ui STATIC
     src/WindowModal.h
     src/WindowModal.cpp
     src/DrawingSurface.h
+    src/impl/rendering_device.h
+    src/impl/device_loss.h
     src/impl/composition_interop.h
     src/DrawingSurface.cpp
     src/CompositionWindow.h
@@ -580,6 +582,11 @@ if(BUILD_TESTING)
     # What std::terminate says of a winrt::hresult_error is one source over
     # cppwinrt's base, added to wxl.core's handler: the test sets the handler
     # itself, as wWinMain does, and dies through it.
+    #
+    # A lost rendering device: which answers of the drawing calls mean it, a
+    # constexpr function over the SDK's codes, and the watch an owner keeps for
+    # the replacement, a template over the compositor and its pair of calls,
+    # given a fake one over the handler list the real one keeps.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
@@ -591,6 +598,7 @@ if(BUILD_TESTING)
             test/core_event_wait_test.cpp
             test/operation_test.cpp
             test/window_watch_test.cpp
+            test/rendering_device_test.cpp
             test/terminate_reason_test.cpp
             src/Object.cpp
             src/impl/terminate_reason.cpp

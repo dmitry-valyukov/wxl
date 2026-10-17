@@ -1,6 +1,11 @@
 #pragma once
 
+#include <cstdint>
+#include <exception>
+
 #include <wxl/Microsoft.UI.Composition.h>
+
+#include "impl/rendering_device.h"
 
 // wxl::DrawingSurface -- a rectangle of pixels the application draws itself
 // and the compositor shows.
@@ -34,6 +39,24 @@
 //
 // A wrapper, not an owner: copying one gives a second handle to the same
 // surface, the way every composition object behaves.
+//
+// The device can be lost -- a driver update, a GPU reset after a timeout, a
+// session moved to another adapter -- and that is an ordinary event, not a
+// failure: the visual tree stands, the pixels of every surface do not, and
+// neither does anything the application made from a context of the old
+// device (a bitmap, a brush, an effect, a context of its own). wxl replaces
+// the device on its own; draw() meanwhile skips and answers false -- a
+// Direct2D call inside the paint that the lost device refused ends the paint
+// through throwIfDeviceLost -- and a RenderingDeviceWatch tells the owner
+// when to drop what it made and draw again:
+//
+//     class Page {
+//         void deviceReplaced() noexcept { bitmap_ = nullptr; redraw(); }
+//         ...
+//         wxl::RenderingDeviceWatch<&Page::deviceReplaced> deviceWatch_;
+//     };
+//
+//     Page::Page(Compositor const& compositor) : deviceWatch_{compositor, *this} {}
 
 // Declared, not included. d2d1_1.h is the application's business, and a
 // pointer to an incomplete type is all a std::function signature needs --
@@ -63,7 +86,34 @@ public:
     /// already set for wherever in the shared atlas this surface landed --
     /// forgetting that offset is the classic way to draw a page that lands
     /// on top of somebody else's.
-    void draw(std::function<void(ID2D1DeviceContext*)> const& paint) const;
+    ///
+    /// False when nothing was drawn: there is nothing to draw on (a side of
+    /// zero, no paint), or the device is lost -- then `paint` did not run, or
+    /// was ended by DeviceLost, or ran to the end and its pixels went with the
+    /// device -- and every RenderingDeviceWatch is called once the new one
+    /// stands. Any other failure of the drawing throws.
+    bool draw(std::function<void(ID2D1DeviceContext*)> const& paint) const;
+
+    /// What ends a paint whose Direct2D call the lost device refused: thrown by
+    /// throwIfDeviceLost, caught by draw(), which then answers false. Outside
+    /// a paint nobody catches it, and the process stops naming it.
+    class DeviceLost : public std::exception {
+    public:
+        char const* what() const noexcept override;
+    };
+
+    /// For the answer of a Direct2D call made inside a paint, before the
+    /// caller decides what a failure means: throws DeviceLost when the answer
+    /// names a lost device and the device confirms it was removed. An answer
+    /// that names a lost device from a device that is not lost stops the
+    /// process -- draw() would skip for ever, and no replacement would come.
+    /// Any other answer returns.
+    ///
+    /// `result` is the HRESULT the Direct2D or DXGI call returned, spelled as
+    /// the 32-bit integer it is so that this header need not parse a Windows
+    /// one: a DrawingSurface speaks Direct2D anyway -- the paint is handed an
+    /// ID2D1DeviceContext.
+    static void throwIfDeviceLost(std::int32_t result);
 
     /// A brush showing this surface, for a sprite visual to wear.
     ///
@@ -75,5 +125,29 @@ private:
     Compositor compositor_;
     CompositionDrawingSurface surface_;
 };
+
+namespace impl {
+
+/// The pair of calls a RenderingDeviceWatch subscribes through: the handlers of one
+/// compositor's graphics device -- the one every DrawingSurface on it is allocated from.
+/// wxl calls them itself once every graphics device has the new rendering device. Tokens
+/// come from the counter the window's events share, and remove() answers whether the token
+/// was there.
+struct rendering_device_replaced {
+    static EventToken add(Compositor const& compositor, EventHandler<Object> handler);
+    static bool remove(Compositor const& compositor, EventToken token);
+};
+
+}  // namespace impl
+
+/// Holds the subscription of a member of its owner to the replacement of the device every
+/// DrawingSurface of one compositor draws through: the listener -- a noexcept member that
+/// takes nothing -- is called once the new device stands, and is where the owner drops
+/// every bitmap, brush, effect and context it made from the old one and draws its
+/// surfaces again. A member of the owner, after what the listener touches; attached
+/// with the compositor and the owner from the start or by attach() once, taken off by its
+/// own end. Not copied, not moved.
+template <auto Listener>
+using RenderingDeviceWatch = impl::device_watch<Compositor, impl::rendering_device_replaced, Listener>;
 
 }  // namespace wxl
