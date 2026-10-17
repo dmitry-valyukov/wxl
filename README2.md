@@ -534,7 +534,8 @@ STA-поток с его пулом, объект приложения XAML и �
   `u16_text`. Текст извне проверяется один раз, на входе (`checked()`);
   `assume_valid()` — там, где записано, почему проверка не нужна. Границы
   букв — графемные кластеры по таблице Unicode, которую пишет
-  `wxl.core/tools/gen-grapheme-table.py`.
+  `wxl.core/tools/gen-grapheme-table.py`; по ней же `is_letter` — буква ли
+  кодовая точка (общая категория L).
 - **`wxl.fmt`** — `text_builder` и `format` поверх fmt, которая собирается
   модулем `import fmt;` из своих исходников; ядро от внешнего кода не
   зависит. Подробно — [wxl.fmt/README.md](wxl.fmt/README.md) и
