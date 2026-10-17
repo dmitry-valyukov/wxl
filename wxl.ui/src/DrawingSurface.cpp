@@ -106,9 +106,17 @@ void replace_device() noexcept;
 /// more is going down, and then there is nothing left to draw. noexcept: the pool has
 /// nobody to hand an exception to.
 void CALLBACK device_removed(void*, BOOLEAN) noexcept {
+    // MSVC keeps a terminate handler for each thread, so the one that names the exception is
+    // set here too: an exception out of the handing over -- the projection's TryEnqueue, the
+    // delegate it is given -- ends in std::terminate. A thread of the pool is the system's and
+    // runs other callbacks after this one, so it gets its own handler back.
+    const std::terminate_handler previous = core::impl::set_terminate_with_reason();
+
     dispatching::DispatcherQueue queue{nullptr};
     winrt::copy_from_abi(queue, current_device().queue);
     queue.TryEnqueue([]() noexcept { replace_device(); });
+
+    std::set_terminate(previous);
 }
 
 /// A D3D11 device on the first adapter of a fresh DXGI factory that makes one, WARP last.
