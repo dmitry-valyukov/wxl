@@ -570,6 +570,9 @@ if(BUILD_TESTING)
     # The wait on a timer is a template over the timer, given a fake one the
     # test ticks; the queue is the one event_cancel_test stands for.
     #
+    # The wait on an event of the application's own is over wxl.core's event
+    # itself, which the test invokes; the queue is the same one.
+    #
     # A watch on an event of the window is a template over the window and the
     # event's pair of calls, given a fake window over the handler lists the
     # real one keeps; the test raises the events.
@@ -585,6 +588,7 @@ if(BUILD_TESTING)
             test/bound_items_source_test.cpp
             test/event_cancel_test.cpp
             test/waitable_timer_test.cpp
+            test/core_event_wait_test.cpp
             test/operation_test.cpp
             test/window_watch_test.cpp
             test/terminate_reason_test.cpp
