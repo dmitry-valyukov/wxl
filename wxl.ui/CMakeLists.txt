@@ -175,6 +175,7 @@ add_library(wxl.ui STATIC
     src/launch.h
     src/launch.cpp
     src/impl/terminate_reason.h
+    src/impl/terminate_reason.cpp
 
     # Hand-written plumbing the generated code leans on.
     src/event_token.h
@@ -573,8 +574,9 @@ if(BUILD_TESTING)
     # event's pair of calls, given a fake window over the handler lists the
     # real one keeps; the test raises the events.
     #
-    # What std::terminate says is a header over cppwinrt's base: the test sets
-    # the handler itself, as wWinMain does, and dies through it.
+    # What std::terminate says of a winrt::hresult_error is one source over
+    # cppwinrt's base, added to wxl.core's handler: the test sets the handler
+    # itself, as wWinMain does, and dies through it.
     wxl_add_gtest(wxl.ui.tests
         SRC
             test/hstring_param_test.cpp
@@ -587,6 +589,7 @@ if(BUILD_TESTING)
             test/window_watch_test.cpp
             test/terminate_reason_test.cpp
             src/Object.cpp
+            src/impl/terminate_reason.cpp
             src/impl/bound_items_source.cpp
         DEPS
             Microsoft::CppWinRT

@@ -18,25 +18,11 @@ using detached_task_failure_handler = void (*)(std::exception_ptr) noexcept;
 /// which is the same answer cppwinrt gives and the only honest one by
 /// default: the exception has escaped a coroutine that nobody is waiting on,
 /// so there is nowhere left to report it and nobody to decide what the
-/// program should do instead.
+/// program should do instead. It ends through std::terminate from inside the
+/// catch of the rethrown exception, so the terminate handler wxl sets names
+/// the exception, once -- a winrt::hresult_error by its code and message too.
 inline detached_task_failure_handler& on_detached_task_failure() noexcept {
-    static detached_task_failure_handler handler = [](std::exception_ptr error) noexcept {
-        // Named before the process goes, because the alternative is what this
-        // replaced: a bare "abort() has been called" that says nothing about
-        // which coroutine failed or why. Ending is still the only honest
-        // answer -- nobody is waiting on this one, so there is nobody to
-        // decide anything else -- but ending silently is not.
-        try {
-            std::rethrow_exception(error);
-        } catch (const std::exception& what) {
-            std::cerr << "wxl: a detached task failed with nobody to tell: " << what.what() << '\n';
-        } catch (...) {
-            std::cerr << "wxl: a detached task failed with a foreign exception and nobody to tell\n";
-        }
-
-        std::cerr.flush();
-        std::terminate();
-    };
+    static detached_task_failure_handler handler = &core::impl::terminate_with_exception;
     return handler;
 }
 

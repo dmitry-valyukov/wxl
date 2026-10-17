@@ -167,22 +167,24 @@ public:
         }
     }
 
-    // Unsubscribing can be refused, and a destructor may not pass that on.
-    // The window closes while a coroutine is still waiting; the framework
-    // goes down around the element, and taking a handler off one it has
-    // already let go of comes back as an HRESULT. There is nothing to do
-    // about it and nobody to tell -- the subscription is going away either
-    // way -- and letting it out would end the process, since this runs while
-    // the cancellation that stopped the coroutine is still in flight.
+    // Taking the handlers off throws nothing, so nothing is caught. A
+    // generated remove reads the interface its add has already fetched and
+    // calls the projection's remove, which is noexcept and does not look at
+    // the HRESULT -- the one an element the framework has let go of answers
+    // with, when the window closes while a coroutine still waits. A
+    // hand-written one (SettingsCard, SettingsExpander) asks the object again
+    // for the interface its add was given, which a live object does not
+    // refuse, and calls its own noexcept remove. A remove of
+    // CompositionWindow says whether the token was there, and checked_remove
+    // stops the process on a no. A destructor is noexcept: a remove that
+    // throws one day ends in std::terminate, which names the exception,
+    // instead of being swallowed here.
     ~event_awaitable() {
-        try {
-            if constexpr (impl::unloadable_source<Source>) {
-                impl::EventAdder<impl::unloaded_key<Source>>::remove(source_.object, unloaded_);
-            }
-
-            source_.remove(token_);
-        } catch (...) {
+        if constexpr (impl::unloadable_source<Source>) {
+            impl::EventAdder<impl::unloaded_key<Source>>::remove(source_.object, unloaded_);
         }
+
+        source_.remove(token_);
     }
 
     event_awaitable(event_awaitable const&) = delete;

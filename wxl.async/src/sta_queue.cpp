@@ -227,6 +227,13 @@ private:
 };
 
 void __stdcall run_on_pool(PTP_CALLBACK_INSTANCE, void* context) noexcept {
+    // MSVC keeps a terminate handler for each thread, so the one that names the exception is
+    // set here too: packaged_execute() catches what the body throws, and what reaches
+    // std::terminate is an exception that left a noexcept call inside. A thread of the pool
+    // is the system's and runs other callbacks after this one, so it gets its own handler
+    // back.
+    const std::terminate_handler previous = core::impl::set_terminate_with_reason();
+
     returning_handler& handler = *static_cast<returning_handler*>(context);
 
     handler.op().packaged_execute();
@@ -236,6 +243,8 @@ void __stdcall run_on_pool(PTP_CALLBACK_INSTANCE, void* context) noexcept {
     post(handler);
 
     handler.Release();
+
+    std::set_terminate(previous);
 }
 
 }  // namespace
