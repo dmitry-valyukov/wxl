@@ -1079,7 +1079,8 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
     }
 
     std::string arguments;
-    for (auto&& param : member.params) {
+    for (std::size_t i = 0; i < projection_arity(member); ++i) {
+        auto const& param = member.params[i];
         if (!arguments.empty()) {
             arguments += ", ";
         }
