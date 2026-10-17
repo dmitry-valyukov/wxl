@@ -49,6 +49,25 @@ TEST(ChecksDeathTest, AbortNamesThePlaceItIsGiven) {
     EXPECT_DEATH(abort_naming(where), place_of(where.line()) + "the reason given");
 }
 
+TEST(ChecksTest, AReportWritesTheLineOfAnAbortAndGoesOn) {
+    testing::internal::CaptureStderr();
+    constexpr std::uint_least32_t line_of_the_report = std::source_location::current().line() + 1;
+    wxl::core::report("the note");
+    const std::string said = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(line_of_the_report) + "the note\\n$"))) << said;
+}
+
+TEST(ChecksTest, AReportNamesThePlaceItIsGiven) {
+    const std::source_location where = somewhere_else();
+
+    testing::internal::CaptureStderr();
+    wxl::core::report("the note given", where);
+    const std::string said = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(where.line()) + "the note given\\n$"))) << said;
+}
+
 TEST(ChecksDeathTest, AFailedPreconditionIsReportedTheSameWay) {
     const std::source_location where = somewhere_else();
 
