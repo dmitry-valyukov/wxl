@@ -67,6 +67,14 @@ constexpr char32_t decode(const char* at, int size) noexcept {
     return code_point;
 }
 
+/// Where the encoder the strings grow by writes into a buffer instead: the room is
+/// measured before each code point, so it never writes past the end.
+struct bytes_at {
+    using value_type = char;
+    char* at;
+    void push_back(const char byte) noexcept { *at++ = byte; }
+};
+
 }  // namespace
 
 std::size_t impl::code_point_count(const std::string_view utf8) noexcept {
@@ -303,6 +311,44 @@ u16_text repaired(const std::wstring_view utf16) {
 
 u16_text repaired(const std::u16string_view utf16) {
     return repaired(std::wstring_view(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size()));
+}
+
+transcode_result write_utf8_repaired(const std::span<char> out, const std::wstring_view utf16) noexcept {
+    transcode_result done;
+
+    while (done.read != utf16.size()) {
+        auto code_point = static_cast<char32_t>(static_cast<std::uint16_t>(utf16[done.read]));
+        std::size_t units = 1;
+
+        if (is_surrogate(code_point)) {
+            const auto next = done.read + 1 != utf16.size()
+                                  ? static_cast<char32_t>(static_cast<std::uint16_t>(utf16[done.read + 1]))
+                                  : char32_t{0};
+
+            if (is_high_surrogate(code_point) && is_low_surrogate(next)) {
+                code_point = 0x10000 + ((code_point - 0xD800u) << 10) + (next - 0xDC00u);
+                units = 2;
+            } else {
+                code_point = replacement_character;
+            }
+        }
+
+        const auto size = static_cast<std::size_t>(utf8_size(code_point));
+
+        if (out.size() - done.written < size) break;
+
+        bytes_at into{out.data() + done.written};
+        impl::push_utf8(into, code_point);
+
+        done.written += size;
+        done.read += units;
+    }
+
+    return done;
+}
+
+transcode_result write_utf8_repaired(const std::span<char> out, const std::u16string_view utf16) noexcept {
+    return write_utf8_repaired(out, std::wstring_view(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size()));
 }
 
 u8_text to_utf8(const std::filesystem::path& path) {

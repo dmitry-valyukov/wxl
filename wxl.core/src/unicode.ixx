@@ -245,6 +245,26 @@ constexpr std::size_t floor_utf16_boundary(std::basic_string_view<CharT> text,
     return unicode::is_high_surrogate(before) ? at - 1 : at;
 }
 
+/// Back to the lead byte of the sequence `at` falls inside, and nowhere otherwise. A
+/// sequence is four bytes at most, so its lead is no more than three back.
+template <typename CharT>
+constexpr std::size_t floor_utf8_boundary(std::basic_string_view<CharT> text,
+                                          std::size_t at) noexcept {
+    if (at >= text.size()) return text.size();
+
+    for (std::size_t back = 0; back != 4 && back <= at; ++back) {
+        const auto byte = static_cast<char>(text[at - back]);
+
+        if (unicode::is_continuation(byte)) continue;
+
+        return back != 0 && static_cast<std::size_t>(unicode::utf8_sequence_size(byte)) > back
+                   ? at - back
+                   : at;
+    }
+
+    return at;
+}
+
 }  // namespace impl
 
 export {
@@ -307,6 +327,20 @@ constexpr std::size_t floor_code_point_boundary(const std::wstring_view text,
 constexpr std::size_t floor_code_point_boundary(const std::u16string_view text,
                                                 const std::size_t at) noexcept {
     return impl::floor_utf16_boundary(text, at);
+}
+
+/// The same for UTF-8: `at` itself, unless it falls among the bytes that continue a
+/// sequence, and then the sequence's lead byte. Bytes nobody has checked -- a buffer filled
+/// up to its size, a message cut where the room ended -- are cut the same way: a byte that
+/// continues no lead within reach is no sequence, and a cut beside it stays put.
+constexpr std::size_t floor_code_point_boundary(const std::string_view text,
+                                                const std::size_t at) noexcept {
+    return impl::floor_utf8_boundary(text, at);
+}
+
+constexpr std::size_t floor_code_point_boundary(const std::u8string_view text,
+                                                const std::size_t at) noexcept {
+    return impl::floor_utf8_boundary(text, at);
 }
 
 }  // namespace unicode
@@ -862,6 +896,24 @@ inline wchar_t* write_utf16(wchar_t* out, const u8_view utf8) noexcept {
 inline char* write_utf8(char* out, const u16_view utf16) noexcept {
     return impl::write_utf8_to(out, utf16.wchars());
 }
+
+/// What write_utf8_repaired() did: how many units of the text it took, and how
+/// many bytes it wrote for them. Fewer units taken than the text holds means the
+/// room ran out first.
+struct transcode_result {
+    std::size_t read = 0;
+    std::size_t written = 0;
+};
+
+/// Writes UTF-16 nobody has checked into `out` as UTF-8, each unpaired surrogate
+/// as U+FFFD, the way repaired() has it, for as long as the room lasts.
+///
+/// For text that has to be written where nothing may be allocated -- the report
+/// std::terminate makes, which may be about memory that has run out -- into a
+/// buffer of fixed size. Writing stops before the first code point that does not
+/// fit whole, so what is written is UTF-8 however short the room.
+transcode_result write_utf8_repaired(std::span<char> out, std::wstring_view utf16) noexcept;
+transcode_result write_utf8_repaired(std::span<char> out, std::u16string_view utf16) noexcept;
 
 /// Appends one code point to a UTF-8 string. The code point must be a scalar
 /// value; the caller is what checks that, because the caller is where it came
