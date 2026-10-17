@@ -192,7 +192,9 @@ public:
     ///
     /// The part, once cut, must be no longer than maxUpdateSide() on either side; a longer
     /// one stops the process. The limit is the caller's to keep -- splitting the part here
-    /// would hide a caller who thinks the device draws more at once than it does.
+    /// would hide a caller who thinks the device draws more at once than it does. On a new
+    /// device whose watches have not been called yet the drawing answers false before the
+    /// limit is asked: the owner's parts were cut by the old device's.
     ///
     /// False when nothing was drawn: the part is empty once cut, there is no paint, or the
     /// device is lost or new and its watches have not been called yet -- as

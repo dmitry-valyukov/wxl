@@ -377,7 +377,8 @@ composition::CompositionDrawingSurface allocate(composition::Compositor const& c
 /// rectangle, and a paint drawing in the whole surface's coordinates reaches past any part
 /// of it. Clear honours the clip, so it clears that part alone.
 template <class Interop>
-bool draw_on(Interop& interop, RECT const* update, std::function<void(ID2D1DeviceContext*)> const& paint) {
+bool draw_on(Interop& interop, RECT const* update,
+             std::function<void(ID2D1DeviceContext*)> const& paint) {
     // The device is new and its holders have not been called yet: what they made from the old one
     // would go into a context of this one. Skipped; they draw again from their call.
     if (!devices().holders_told()) return false;
@@ -432,8 +433,11 @@ bool draw_on(Interop& interop, RECT const* update, std::function<void(ID2D1Devic
 
 /// The drawing interop of a WinUI surface, fixed or virtual: the virtual one is held as the
 /// drawing surface it derives from.
-winrt::com_ptr<impl::ICompositionDrawingSurfaceInterop> interop_of(CompositionDrawingSurface const& surface) {
-    return Object::Impl::get_typed<CompositionDrawingSurface>(surface)->as<impl::ICompositionDrawingSurfaceInterop>();
+winrt::com_ptr<impl::ICompositionDrawingSurfaceInterop> interop_of(
+    CompositionDrawingSurface const& surface) {
+    composition::CompositionDrawingSurface const& held =
+        *Object::Impl::get_typed<CompositionDrawingSurface>(surface);
+    return held.as<impl::ICompositionDrawingSurfaceInterop>();
 }
 
 /// The size of a virtual surface: a side of zero or less is zero, as with a fixed one, and a
@@ -540,6 +544,12 @@ bool VirtualDrawingSurface::draw(RectInt32 updatePixels,
     std::int64_t const bottom =
         std::min<std::int64_t>(std::int64_t{updatePixels.y} + updatePixels.height, pixels.height);
     if (!paint || left >= right || top >= bottom) return false;
+
+    // Before the limit: a replacement graphics_of ran has the new device's limit in place
+    // already, and an owner not told yet draws its parts by the old one -- a part it may no
+    // longer draw at once, which is not its mistake. Skipped, as draw_on would skip it; the
+    // owner cuts its parts again from its call.
+    if (!devices().holders_told()) return false;
 
     std::int32_t const most = maxUpdateSide();
     if (right - left > most || bottom - top > most) {
