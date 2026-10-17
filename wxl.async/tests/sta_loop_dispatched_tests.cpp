@@ -293,6 +293,33 @@ TEST(StaLoopDispatchedDeathTest, AQuitPostedWhileTheLoopWaitsIsABrokenRule) {
     EXPECT_DEATH(quit_while_the_loop_waits(), "WM_QUIT");
 }
 
+[[noreturn]] void fail_on_the_pool() {
+    throw std::runtime_error("проба пула");
+}
+
+// A call with no way out for an exception, inside the body the pool runs.
+void listen_on_the_pool() noexcept {
+    fail_on_the_pool();
+}
+
+// The body's own exceptions go back to the co_await; one that leaves a noexcept call inside
+// it ends the process on the pool's thread, which the callback gives the handler that names
+// it. Nothing is set on the thread of the test.
+void die_on_the_pool() {
+    report_broken_rules_to_stderr();
+
+    task<int> pending = sta_loop::async_call(orphanable, [] {
+        listen_on_the_pool();
+        return 0;
+    });
+
+    sta_loop::run_until(pending);
+}
+
+TEST(StaLoopDispatchedDeathTest, AnExceptionLeavingANoexceptCallOnThePoolIsNamed) {
+    EXPECT_DEATH(die_on_the_pool(), "wxl: unhandled exception: проба пула");
+}
+
 // stop() checks that nothing is out rather than waiting for it: the loop is stopped once its
 // work is over, and an operation still out then is one nobody is going to see back. Here its
 // task is still there and nobody has waited -- the orphan is asleep on the pool as stop() is

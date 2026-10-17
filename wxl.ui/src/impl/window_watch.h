@@ -14,7 +14,9 @@ namespace wxl::impl {
 // says all it has to say by being raised. It returns nothing, and neither it nor handing it
 // the args throws: the window raises its events from its procedure, from the delegates of its
 // pointer source and from a noexcept listener of its zoom field, and an exception has
-// nowhere to go from any of them. The sender is not offered: the window's events raise an
+// nowhere to go from any of them; ClientSizeChanged also from the consumer's code, from
+// zoomFactor(double) and from attaching a ZoomEffect (attachZoom), and a listener cannot
+// tell which of them called it. The sender is not offered: the window's events raise an
 // empty one.
 template <auto Listener, class Owner, class Args>
 concept window_listener =

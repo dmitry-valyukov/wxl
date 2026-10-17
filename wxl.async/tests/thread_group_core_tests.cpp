@@ -1,5 +1,7 @@
 #include "process_handles.h"
 
+#include <crtdbg.h>
+
 #include <gtest/gtest.h>
 
 import std;
@@ -167,4 +169,32 @@ TEST(ThreadGroupTest, ReleasedGroupClosesTheHandlesOfThreadsNobodyJoined) {
     });
 
     EXPECT_LT(gained, cycles / 4);
+}
+
+namespace {
+
+[[noreturn]] void fail_in_the_thread() {
+    throw std::runtime_error("проба потока");
+}
+
+// A call with no way out for an exception, as a listener is.
+void listen_in_the_thread() noexcept {
+    fail_in_the_thread();
+}
+
+// Nothing is set on the thread of the test: the report comes from the handler the spawned
+// thread's entry sets, which MSVC keeps for that thread alone. To stderr rather than to a
+// dialog that would hang the run.
+void die_in_a_spawned_thread() {
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+
+    thread_scope manager;
+    manager->spawn([] { listen_in_the_thread(); });
+    manager->join_all();
+}
+
+}  // namespace
+
+TEST(ThreadGroupDeathTest, AnExceptionLeavingANoexceptCallOnAThreadIsNamed) {
+    EXPECT_DEATH(die_in_a_spawned_thread(), "wxl: unhandled exception: проба потока");
 }

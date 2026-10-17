@@ -74,6 +74,18 @@ detached_task fails_at_once(std::string_view what) {
     co_return;
 }
 
+// The default for a failure nobody holds: the process stops, and wxl.core's terminate
+// handler names the exception. Nothing sets the handler on the thread of the test, which no
+// wWinMain started: the default sets it for the thread the coroutine fails on.
+void fail_with_the_default_handler() {
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    fails_at_once("nobody holds it");
+}
+
+TEST(DetachedTaskDeathTest, AFailureNobodyHoldsIsNamedByTheTerminateHandler) {
+    EXPECT_DEATH(fail_with_the_default_handler(), "wxl: unhandled exception: nobody holds it");
+}
+
 TEST_F(DetachedTaskTest, RunsWhereItIsCalled) {
     int sink = 0;
 

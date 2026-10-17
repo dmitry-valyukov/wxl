@@ -1149,7 +1149,8 @@ RECT withFrame(HWND hwnd, RECT client) noexcept {
 // через кадры user32 не поддерживается, а на x64 вызов из ядра может его
 // проглотить, -- так что сбой внутри -- std::terminate, а обработчик terminate,
 // который ставит wWinMain, называет исключение. И для сообщений из очереди
-// (WM_DROPFILES, WM_KEYDOWN, WM_EXITSIZEMOVE) это остановка без Teardown.
+// (WM_DROPFILES, WM_KEYDOWN) это остановка без Teardown; WM_EXITSIZEMOVE не из
+// них -- его шлёт модальный цикл перемещения.
 LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) noexcept {
     WindowState* state = stateOf(hwnd);
     switch (message) {

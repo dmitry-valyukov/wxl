@@ -150,9 +150,12 @@ void CALLBACK reportWhatIsStillAlive(HWND, UINT, UINT_PTR id, DWORD) noexcept {
 int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // First of all: an exception that reaches a noexcept call -- a listener of a window or of
     // a field, the window's procedure -- ends in std::terminate, which otherwise leaves through
-    // abort without a word. From here on it names the exception and stops through core::abort.
-    // An error XAML records has a way of its own, UnhandledException above.
-    wxl::impl::set_terminate_with_reason();
+    // abort without a word. From here on it names the exception and stops through core::abort,
+    // on this thread; a worker thread of wxl sets the same handler for itself, and the namer
+    // set here is the one it asks about a winrt::hresult_error. A coroutine nobody holds that
+    // fails ends here too: wxl.async's default hands its exception to this handler. An error
+    // XAML records has a way of its own, UnhandledException above.
+    wxl::impl::install_terminate_report();
 
 #ifndef NDEBUG
     // A failed assert in a windowed application has nowhere to say so: the
@@ -167,11 +170,6 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_WNDW);
     _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 #endif
-
-    // What a coroutine nobody holds does when it fails: the process stops, and the exception
-    // is named once, by the terminate handler set above -- it knows the projection's
-    // winrt::hresult_error, which wxl.async's own report would call a foreign exception.
-    wxl::async::on_detached_task_failure() = &wxl::impl::terminate_with_exception;
 
     // The framework package first: without it no WinUI3 class can be
     // activated at all, and the failure is an unhelpful "class not
