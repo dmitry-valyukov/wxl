@@ -291,6 +291,8 @@ add_library(wxl.ui STATIC
     src/impl/rendering_device.h
     src/impl/device_limits.h
     src/impl/device_loss.h
+    src/impl/device_replacement.h
+    src/impl/system_drawing.h
     src/impl/composition_interop.h
     src/DrawingSurface.cpp
     src/CompositionWindow.h
@@ -595,9 +597,11 @@ if(BUILD_TESTING)
     # itself, as wWinMain does, and dies through it.
     #
     # A lost rendering device: which answers of the drawing calls mean it, a
-    # constexpr function over the SDK's codes, and the watch an owner keeps for
+    # constexpr function over the SDK's codes; the watch an owner keeps for
     # the replacement, a template over the compositor and its pair of calls,
-    # given a fake one over the handler list the real one keeps. Beside it, the
+    # given a fake one over the handler list the real one keeps; the order of
+    # the replacement itself, a template over the devices it makes and moves,
+    # given a backend that writes down what it is asked. Beside them, the
     # longest side the device draws at once, a constexpr function over the
     # feature level less what composition pads an allocation with.
     wxl_add_gtest(wxl.ui.tests

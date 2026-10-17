@@ -19,9 +19,11 @@
 // (a console, here) has to cooperate.
 //
 // One shade per window, kept for as long as the window is managed this way:
-// the overlay and the compositor behind it are made once and reused. Where no
-// compositor is available the calls still hide and show the window, only
-// without the animation -- so a caller never has to check.
+// the overlay and the compositor behind it are made once and reused, and an
+// overlay or a compositor that cannot be made is an exception from the
+// constructor. The snapshot is drawn on the rendering device every
+// DrawingSurface draws through; when that device is lost and replaced, the
+// snapshot kept between collapse and expand is drawn again.
 
 // Declared, not included: what is kept is a window handle, and a caller that
 // only wants to minimize a window should not have to parse a Windows header.
@@ -32,7 +34,7 @@ namespace wxl {
 class WindowShade {
 public:
     /// Binds to the window whose pixels will fly. The overlay and compositor
-    /// are built here, once.
+    /// are built here, once; a failure to build them is thrown.
     explicit WindowShade(HWND__* window);
     ~WindowShade();
 
