@@ -21,11 +21,15 @@ void write_line(std::source_location where, std::string_view prefix, std::string
                                      prefix.data(), static_cast<int>(what.size()), what.data(),
                                      static_cast<int>(suffix.size()), suffix.data());
 
-    // A report cut short keeps its end of line.
+    // A report cut short keeps its end of line, and the end of line takes the place of the
+    // last byte only if that byte starts a code point: inside a letter, it goes back to the
+    // letter's lead byte, so the line stays UTF-8.
     int used = length < 0 ? 0 : length;
     if (used >= static_cast<int>(sizeof line)) {
-        used = static_cast<int>(sizeof line) - 1;
-        line[used - 1] = '\n';
+        const std::size_t end = unicode::floor_code_point_boundary(
+            std::string_view{line, sizeof line - 1}, sizeof line - 2);
+        line[end] = '\n';
+        used = static_cast<int>(end) + 1;
     }
 
     std::cerr.write(line, used);
