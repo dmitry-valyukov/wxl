@@ -319,7 +319,10 @@ void device_backend::post() noexcept {
 /// references to one compositor through different interfaces are different addresses, and only
 /// IUnknown answers the same one every time.
 winrt::com_ptr<::IUnknown> identity_of(Compositor const& compositor) {
-    return Object::Impl::get_typed<Compositor>(compositor)->as<::IUnknown>();
+    // get_typed hands out the wrapper's Impl, which converts to the projection object it holds;
+    // the projection object is what answers QueryInterface.
+    composition::Compositor const& held = *Object::Impl::get_typed<Compositor>(compositor);
+    return held.as<::IUnknown>();
 }
 
 /// The graphics device *of this compositor*, made once per compositor.
