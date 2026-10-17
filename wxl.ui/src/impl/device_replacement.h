@@ -21,19 +21,28 @@ namespace wxl::impl {
 /// IIDs of their own, so a graphics device is moved through the interface of its API.
 enum class composition_api { winui, system };
 
-/// The device in use, the graphics devices made on it and the handlers of the watches on each
-/// compositor; and the replacement, which runs in this order: the old device's watch for removal
-/// taken back, a new device made, every graphics device moved onto it, the old one let go -- and
-/// only then every watch called, so that nothing an owner draws from its call lands on the old
-/// device.
+/// The device in use, the graphics devices made on it and the holders -- the handlers of the
+/// watches -- of each compositor; and the replacement, which runs in this order: the old device's
+/// watch for removal taken back, a new device made, every graphics device moved onto it, the old
+/// one let go -- and only then every holder called, so that nothing an owner draws from its call
+/// lands on the old device.
 ///
 /// Each device is made under a generation of its own, counted from one, and the watch for its
-/// removal asks for the replacement of that generation: an answer to a device replaced already --
-/// by the UI thread, which found it lost before the answer came -- replaces nothing. A graphics
-/// device is not made on a lost device: the replacement runs first, there. And once the thread's
-/// queue begins to shut down (close()), nothing is replaced any more: the compositors close with
-/// the frameworks on the way out, and a graphics device of a closed compositor refuses a new
-/// rendering device.
+/// removal asks for the replacement of that generation: an answer to a device replaced already
+/// replaces nothing.
+///
+/// A graphics device is not made on a lost device. Asked for one while the device in use says it
+/// was removed, before the answer of its removal has come, the class moves everything onto a new
+/// device right there and calls nobody: the call that asked is somebody else's -- a DrawingSurface
+/// being made, from inside a holder's own call as well -- and a holder called from inside it would
+/// make graphics devices and surfaces under that caller's feet. The holders are called from a turn
+/// of the UI thread's queue posted there (notify()); until one has run, or a replacement after it
+/// has called them, holders_told() is false, and every draw() answers false: what the owners made
+/// from the old device is not dropped yet.
+///
+/// Once the thread's queue begins to shut down (close()), nothing is replaced and nobody is called
+/// any more: the compositors close with the frameworks on the way out, and a graphics device of a
+/// closed compositor refuses a new rendering device.
 ///
 /// `Backend` makes and moves the real things:
 ///   owner_t     what names a compositor: its COM identity, compared and never called through
@@ -46,6 +55,8 @@ enum class composition_api { winui, system };
 ///   void unwatch(device_t&) noexcept                         its watch taken back
 ///   void release(device_t&) noexcept                         the device let go
 ///   void move(graphics_t, composition_api, device_t const&)  a graphics device onto the device
+///   void post()                                              a turn of the UI thread's queue
+///                                                            that calls notify()
 ///   void keep(owner_t) noexcept                              the identity held for good, so that
 ///                                                            a later compositor cannot take its
 ///                                                            address
@@ -68,9 +79,14 @@ public:
     /// The device in use; null before the first is made.
     device_t const* current() const noexcept { return made_ ? &device_ : nullptr; }
 
-    /// How many times the device has been replaced -- counted before the watches are called, so
-    /// that what one of them asks for finds the count of the device that stands.
+    /// How many times the device has been replaced -- counted when everything is moved, before any
+    /// holder is called, so that what a holder asks for finds the count of the device that stands.
     std::uint64_t replacements() const noexcept { return made_ ? generation_ - 1 : 0; }
+
+    /// Whether the holders have been called for the device in use. False from a replacement that
+    /// graphics_of() ran until its turn: drawing then would put what an owner made from the old
+    /// device into a context of the new one.
+    bool holders_told() const noexcept { return told_ == generation_; }
 
     /// Whether the replacement is over: the thread's queue has begun to shut down.
     bool closed() const noexcept { return closed_; }
@@ -80,6 +96,7 @@ public:
         if (!made_) {
             device_ = backend_.make(generation_ + 1);
             ++generation_;
+            told_ = generation_;
             made_ = true;
             if (closed_) backend_.unwatch(device_);
         }
@@ -87,27 +104,29 @@ public:
     }
 
     /// The graphics device of the compositor `owner` names, made by `make(device)` the first time
-    /// it is asked for -- on the device in use, unless that device says it was removed: then the
-    /// replacement its removal asked for runs here, watches and all, and the graphics device is
-    /// made on the new one; the answer of the removal, when it comes, finds its device gone.
+    /// it is asked for -- on the device in use, unless that device says it was removed: then
+    /// everything is moved onto a new device here, and the turn that calls the holders is posted;
+    /// the answer of the removal, when it comes, finds its device gone.
     template <class Make>
     graphics_t graphics_of(owner_t owner, composition_api api, Make&& make) {
         std::size_t const at = index_of(owner, api);
         if (!entries_[at].graphics) {
-            if (made_ && !closed_ && backend_.lost(device_)) replace(generation_);
-            // By index again: a watch called by the replacement may have added an entry.
+            if (made_ && !closed_ && backend_.lost(device_)) {
+                move();
+                backend_.post();
+            }
             entries_[at].graphics = std::forward<Make>(make)(device());
         }
         return entries_[at].graphics;
     }
 
-    /// The handlers of the watches on the compositor `owner` names. Its entry is made here, with
-    /// no graphics device yet, for a watch put on before the compositor's first surface.
+    /// The holders of the compositor `owner` names. Its entry is made here, with no graphics device
+    /// yet, for a watch put on before the compositor's first surface.
     handler_list<Object>& handlers_of(owner_t owner, composition_api api) {
         return *entries_[index_of(owner, api)].replaced;
     }
 
-    /// Those handlers, or null for a compositor nobody has asked for.
+    /// Those holders, or null for a compositor nobody has asked for.
     handler_list<Object>* find_handlers(owner_t owner) const noexcept {
         for (entry const& each : entries_) {
             if (each.owner == owner) return each.replaced.get();
@@ -117,30 +136,27 @@ public:
 
     /// Replaces the device of generation `lost`, in the order the class gives -- if it is still
     /// the one in use, and the thread is not shutting down; otherwise there is nothing to do.
-    /// Graphics devices and watches are taken by index and by the count before the first call: a
-    /// watch drawing again may be the first to draw on another compositor and add an entry -- made
-    /// on the new device already, so it has nothing to be moved or told. noexcept: it runs from a
-    /// turn of the UI thread's queue, and a graphics device that refuses the new device leaves
-    /// nothing to draw with -- the exception stops the process, named by wxl's terminate handler.
+    /// noexcept: it runs from a turn of the UI thread's queue, and a graphics device that refuses
+    /// the new device leaves nothing to draw with -- the exception stops the process, named by
+    /// wxl's terminate handler.
     void replace(std::uint64_t lost) noexcept {
         if (closed_ || !made_ || lost != generation_) return;
+        move();
+        tell();
+    }
 
-        backend_.unwatch(device_);
-        device_t old = std::exchange(device_, backend_.make(generation_ + 1));
-        ++generation_;
-
-        std::size_t const known = entries_.size();
-        for (std::size_t at = 0; at < known; ++at) {
-            if (entries_[at].graphics) backend_.move(entries_[at].graphics, entries_[at].api, device_);
-        }
-        backend_.release(old);
-
-        for (std::size_t at = 0; at < known; ++at) entries_[at].replaced->fire(Object::Impl::empty<Object>());
+    /// The turn graphics_of() posted: the holders are called for the device in use -- unless they
+    /// were called for it already, by a replacement or by an earlier turn (one posted for a device
+    /// replaced again since finds the newest one), or the thread is shutting down.
+    void notify() noexcept {
+        if (closed_ || told_ == generation_) return;
+        tell();
     }
 
     /// The thread's queue begins to shut down: the device in use is no longer watched, and nothing
-    /// is replaced from here on -- an answer of a removal posted before finds the replacement over.
-    /// The device stays, to draw on until the end: a lost one answers false to every draw().
+    /// is replaced from here on -- an answer of a removal posted before finds the replacement over,
+    /// and so does a turn of the holders. The device stays, to draw on until the end: a lost one,
+    /// or one whose holders were never called, answers false to every draw().
     void close() noexcept {
         if (closed_) return;
         closed_ = true;
@@ -152,7 +168,7 @@ private:
         owner_t owner;
         composition_api api;
         graphics_t graphics;
-        // On the heap: a watch called from the list may add an entry, and the vector moves.
+        // On the heap: a holder called from the list may add an entry, and the vector moves.
         std::unique_ptr<handler_list<Object>> replaced;
     };
 
@@ -169,11 +185,34 @@ private:
         return entries_.size() - 1;
     }
 
+    /// The device in use for a new one, every graphics device moved onto it, the old one let go;
+    /// nobody is called. noexcept for the reason replace() gives.
+    void move() noexcept {
+        backend_.unwatch(device_);
+        device_t old = std::exchange(device_, backend_.make(generation_ + 1));
+        ++generation_;
+        for (entry const& each : entries_) {
+            if (each.graphics) backend_.move(each.graphics, each.api, device_);
+        }
+        backend_.release(old);
+    }
+
+    /// Every holder called, for the device in use. Told before the first call, so that a holder
+    /// drawing again from its call draws. By index and by the count before the first call: a holder
+    /// drawing again may be the first to draw on another compositor and add an entry -- made on
+    /// the new device already, so it has nothing to be told.
+    void tell() noexcept {
+        told_ = generation_;
+        std::size_t const known = entries_.size();
+        for (std::size_t at = 0; at < known; ++at) entries_[at].replaced->fire(Object::Impl::empty<Object>());
+    }
+
     Backend backend_;
     device_t device_{};
     bool made_ = false;
     bool closed_ = false;
     std::uint64_t generation_ = 0;   // of the device in use; 0 before the first
+    std::uint64_t told_ = 0;         // the generation the holders were last called for
     std::vector<entry> entries_;
 };
 

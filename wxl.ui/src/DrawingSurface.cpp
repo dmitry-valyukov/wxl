@@ -82,6 +82,7 @@ struct device_backend {
     void unwatch(rendering_device& device) noexcept;
     void release(rendering_device& device) noexcept;
     void move(::IInspectable* graphics, impl::composition_api api, rendering_device const& device);
+    void post();
     void keep(::IUnknown* owner) noexcept { owner->AddRef(); }
 };
 
@@ -89,7 +90,8 @@ struct device_backend {
 /// is: a watch held by an object of static duration is taken off in that object's destructor,
 /// after any function-local static would be gone.
 ///
-/// Between a loss and its replacement every draw() skips. The watches are called by the
+/// Between a loss and its replacement every draw() skips, and so it does between a replacement
+/// graphics_of ran and the turn that calls the holders. The watches are called by the
 /// replacement and not from the graphics devices' own RenderingDeviceReplaced: whether that
 /// event is raised inside SetRenderingDevice or on a later turn the documentation does not say,
 /// and if later, a drawing between the two would draw what the owner made from the old device
@@ -277,6 +279,17 @@ void device_backend::move(::IInspectable* graphics, impl::composition_api api,
         set_rendering_device<system_interop::ICompositionGraphicsDeviceInterop>(graphics, device.d2d);
 }
 
+/// The turn that calls the holders after a replacement graphics_of ran, on the queue taken with the
+/// first device. The queue refuses only once it is shut down, and the replacement is closed before
+/// that (ShutdownStarting) and posts nothing: a refusal here is not a way out, and stops.
+void device_backend::post() {
+    dispatching::DispatcherQueue current{nullptr};
+    winrt::copy_from_abi(current, queue);
+    if (!current.TryEnqueue([]() noexcept { devices().notify(); })) {
+        core::abort("wxl: the UI thread's queue refused the turn that calls the holders of a new rendering device");
+    }
+}
+
 /// The identity a compositor is named by: COM's, not the interface pointer at hand -- two
 /// references to one compositor through different interfaces are different addresses, and only
 /// IUnknown answers the same one every time.
@@ -340,6 +353,10 @@ composition::CompositionDrawingSurface allocate(composition::Compositor const& c
 /// of it. Clear honours the clip, so it clears that part alone.
 template <class Interop>
 bool draw_on(Interop& interop, RECT const* update, std::function<void(ID2D1DeviceContext*)> const& paint) {
+    // The device is new and its holders have not been called yet: what they made from the old one
+    // would go into a context of this one. Skipped; they draw again from their call.
+    if (!devices().holders_told()) return false;
+
     winrt::com_ptr<ID2D1DeviceContext> context;
     POINT offset{};
     HRESULT const begun = interop.BeginDraw(update, winrt::guid_of<ID2D1DeviceContext>(),

@@ -55,7 +55,10 @@
 // the device on its own; draw() meanwhile skips and answers false -- a
 // Direct2D call inside the paint that the lost device refused ends the paint
 // through throwIfDeviceLost -- and a RenderingDeviceWatch tells the owner
-// when to drop what it made and draw again:
+// when to drop what it made and draw again. The watch is called from a turn
+// of the UI thread's queue of its own, never from inside a call of the
+// application's -- one that makes a surface while the device is lost
+// included -- and until it has been called, draw() goes on answering false:
 //
 //     class Page {
 //         void deviceReplaced() noexcept { bitmap_ = nullptr; redraw(); }
@@ -68,7 +71,8 @@
 // A replacement moves the graphics device of every compositor a surface was
 // made on, so such a compositor is not closed before the UI thread's queue
 // begins to shut down -- XAML closes its own then. From that moment the device
-// is no longer replaced: a loss on the way out leaves draw() answering false.
+// is no longer replaced and no watch is called: a loss on the way out leaves
+// draw() answering false.
 
 // Declared, not included. d2d1_1.h is the application's business, and a
 // pointer to an incomplete type is all a std::function signature needs --
@@ -84,11 +88,6 @@ public:
     /// A side of zero or less is allowed and yields a surface nothing can be
     /// drawn into: that is what an element which has not been measured yet
     /// is, and refusing it would only move the check into every caller.
-    ///
-    /// The first surface of a compositor, made while the device says it was
-    /// lost and before its replacement has come, runs the replacement here:
-    /// every RenderingDeviceWatch is called from inside this constructor, and
-    /// the surface is made on the new device.
     DrawingSurface(Compositor const& compositor, SizeInt32 sizePixels);
 
     SizeInt32 size() const;
@@ -107,8 +106,9 @@ public:
     /// False when nothing was drawn: there is nothing to draw on (a side of
     /// zero, no paint), or the device is lost -- then `paint` did not run, or
     /// was ended by DeviceLost, or ran to the end and its pixels went with the
-    /// device -- and every RenderingDeviceWatch is called once the new one
-    /// stands. Any other failure of the drawing throws.
+    /// device -- or it is new and its watches have not been called yet; every
+    /// RenderingDeviceWatch is called once the new one stands. Any other
+    /// failure of the drawing throws.
     bool draw(std::function<void(ID2D1DeviceContext*)> const& paint) const;
 
     /// What ends a paint whose Direct2D call the lost device refused: thrown by
@@ -194,7 +194,8 @@ public:
     /// would hide a caller who thinks the device draws more at once than it does.
     ///
     /// False when nothing was drawn: the part is empty once cut, there is no paint, or the
-    /// device is lost -- as DrawingSurface::draw says. Any other failure throws.
+    /// device is lost or new and its watches have not been called yet -- as
+    /// DrawingSurface::draw says. Any other failure throws.
     bool draw(RectInt32 updatePixels, std::function<void(ID2D1DeviceContext*)> const& paint) const;
 
     /// Keeps the pixels of these parts and gives back the memory of every other: what is
