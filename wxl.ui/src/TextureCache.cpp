@@ -52,10 +52,10 @@ struct TextureCache::Impl {
     std::uint64_t followed{impl::rendering_device_replacements()};
 
     // Устройство wxl заменено с тех пор, как кэш смотрел. Потеряно ли с ним и
-    // устройство Win2D, кэш не спрашивает -- при потере адаптера на нём оба, -- а
-    // переходит на новое: карта забывается, устройство Win2D -- новое, а не
-    // общее (общее Win2D отдаёт прежним, пока само не скажет, что потеряно), и
-    // графическое устройство переходит на него.
+    // устройство Win2D, кэш не спрашивает -- адаптер тому выбирал Win2D, и он
+    // может быть другим, -- а переходит на новое: карта забывается, устройство
+    // Win2D -- новое, а не общее (общее Win2D отдаёт прежним, пока само не скажет,
+    // что потеряно), и графическое устройство переходит на него.
     void follow() {
         std::uint64_t const now = impl::rendering_device_replacements();
         if (now == followed) return;
@@ -124,9 +124,12 @@ async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::p
     // и карта переживают выброшенную обёртку.
     std::wstring const key = image.wstring();
     std::shared_ptr<Impl> const cache = impl_;
-    impl::ensure_rendering_device();
 
     for (;;) {
+        // Под отменённым токеном ничего не начинается: ни устройство wxl, ни переход
+        // на новое устройство Win2D, ни загрузка, ни её повтор.
+        stop.throw_if_canceled();
+        impl::ensure_rendering_device();
         cache->follow();
 
         // Уже в кэше -- задача готова сразу, и co_await её не приостанавливается.
@@ -143,6 +146,12 @@ async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::p
                 [&] { return canvas::CanvasBitmap::LoadAsync(cache->device, key); }, std::identity{},
                 stop);
         } catch (winrt::hresult_error const& failure) {
+            // Устройство заменили, пока файл грузился: отказ мог прийти от устройства
+            // Win2D, которое кэш покинул (сброс GPU, и ответ загрузки встал в очередь
+            // за ходом замены), а о потере спросили бы новое -- оно цело, ответ «нет»,
+            // и законный сброс остановил бы процесс. Файл грузится снова, уже на
+            // новом; иной отказ повторится там и выйдет отсюда.
+            if (impl::rendering_device_replacements() != replacements) continue;
             cache->throwIfLost(failure.code());
             throw;
         }
