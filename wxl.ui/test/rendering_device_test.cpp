@@ -297,6 +297,8 @@ struct fake_backend {
     }
 
     void keep(owner_t owner) noexcept { log->push_back(std::format("keep o{}", owner)); }
+
+    void forget(owner_t owner) noexcept { log->push_back(std::format("forget o{}", owner)); }
 };
 
 using fake_devices = rendering_devices<fake_backend>;
@@ -315,11 +317,11 @@ int graphics_of(fake_devices& all, int owner, composition_api api, log_t& log) {
     });
 }
 
-/// A watch on compositor `owner` that writes down that it was called.
-void watch(fake_devices& all, int owner, composition_api api, log_t& log) {
-    static_cast<void>(all.handlers_of(owner, api).add(wxl::impl::next_event_token(), [&log, owner] {
+/// A watch on compositor `owner` that writes down that it was called; its token.
+EventToken watch(fake_devices& all, int owner, composition_api api, log_t& log) {
+    return all.handlers_of(owner, api).add(wxl::impl::next_event_token(), [&log, owner] {
         log.push_back(std::format("watch o{}", owner));
-    }));
+    });
 }
 
 TEST(RenderingDevices, the_first_device_is_made_with_the_first_graphics_device) {
@@ -408,18 +410,25 @@ TEST(RenderingDevices, the_replacements_are_counted_before_the_watches_are_calle
     EXPECT_EQ(seen, (std::vector<std::uint64_t>{1, 2}));
 }
 
-// The handlers of a compositor: the same list whoever asks, and none for one nobody asked for --
-// the answer a watch's remove reads.
-TEST(RenderingDevices, a_compositor_nobody_asked_for_has_no_handlers) {
+// The holders of a compositor: the same list whoever asks; a token is taken off the list of its
+// own compositor and of no other, and nothing is taken off a compositor nobody asked for -- the
+// answer a watch's remove reads.
+TEST(RenderingDevices, a_holder_is_taken_off_its_own_compositor_alone) {
     log_t log;
     fake_devices all{fake_backend{&log}};
-    EXPECT_EQ(all.find_handlers(1), nullptr);
+    EXPECT_FALSE(all.remove(1, EventToken{1}));
 
     handler_list<Object>& handlers = all.handlers_of(1, composition_api::system);
-    EXPECT_EQ(all.find_handlers(1), &handlers);
     EXPECT_EQ(&all.handlers_of(1, composition_api::system), &handlers);
-    EXPECT_EQ(all.find_handlers(2), nullptr);
-    EXPECT_EQ(log, (log_t{"keep o1"})) << "no device for a watch alone";
+    EventToken const token = watch(all, 1, composition_api::system, log);
+    EventToken const other = watch(all, 2, composition_api::system, log);
+    EXPECT_EQ(log, (log_t{"keep o1", "keep o2"})) << "no device for a watch alone";
+
+    EXPECT_FALSE(all.remove(2, token)) << "not of that compositor";
+    EXPECT_FALSE(all.remove(3, token)) << "a compositor nobody asked for";
+    EXPECT_TRUE(all.remove(1, token));
+    EXPECT_FALSE(all.remove(1, token)) << "taken off already";
+    EXPECT_TRUE(all.remove(2, other));
 }
 
 // The answer of a removal is for the device it was put on: one for a device replaced already
@@ -618,6 +627,57 @@ TEST(RenderingDevices, the_holders_are_called_once_for_the_device_that_stands) {
     EXPECT_TRUE(all.holders_told());
 }
 
+// A compositor's entry goes, and its identity is let go, once its last holder is taken off and no
+// graphics device was made on it: a window that never drew on its compositor leaves nothing behind.
+// One with a graphics device stays, and is moved at the next replacement.
+TEST(RenderingDevices, an_entry_with_neither_a_graphics_device_nor_a_holder_goes) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    EventToken const drawn = watch(all, 1, composition_api::winui, log);
+    EventToken const first = watch(all, 2, composition_api::winui, log);
+    EventToken const second = watch(all, 2, composition_api::winui, log);
+    log.clear();
+
+    EXPECT_TRUE(all.remove(2, first));
+    EXPECT_TRUE(log.empty()) << "a holder is left";
+    EXPECT_TRUE(all.remove(2, second));
+    EXPECT_EQ(log, (log_t{"forget o2"}));
+
+    log.clear();
+    EXPECT_TRUE(all.remove(1, drawn));
+    EXPECT_TRUE(log.empty()) << "the graphics device of o1 stays";
+    all.replace(1);
+    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1"}));
+
+    log.clear();
+    watch(all, 2, composition_api::winui, log);
+    EXPECT_EQ(log, (log_t{"keep o2"})) << "a new entry, its identity held again";
+}
+
+// A holder taken off from inside its own call -- a popup that closes itself on the replacement: its
+// entry goes once the calls are over, not in the middle of them, and every other holder is called.
+TEST(RenderingDevices, an_entry_emptied_by_a_holders_call_goes_once_the_calls_are_over) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    EventToken leaving{};
+    leaving = all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        log.push_back("watch o2, off");
+        EXPECT_TRUE(all.remove(2, leaving));
+    });
+    watch(all, 3, composition_api::winui, log);
+    watch(all, 1, composition_api::winui, log);
+    log.clear();
+
+    all.replace(1);
+    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o1",
+                          "watch o2, off", "watch o3", "forget o2"}));
+
+    log.clear();
+    all.replace(2);
+    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "release d2", "watch o1", "watch o3"}));
+}
 
 // A graphics device made already is not made again, lost device or not: nothing is replaced
 // until the answer comes.

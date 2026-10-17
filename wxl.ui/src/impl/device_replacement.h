@@ -40,6 +40,10 @@ enum class composition_api { winui, system };
 /// has called them, holders_told() is false, and every draw() answers false: what the owners made
 /// from the old device is not dropped yet.
 ///
+/// A compositor's entry goes once it has neither a graphics device nor a holder, and its identity
+/// is let go -- never while the holders are being called: a holder may take a watch off from its
+/// call, and the calls go through the entries by index.
+///
 /// Once the thread's queue begins to shut down (close()), nothing is replaced and nobody is called
 /// any more: the compositors close with the frameworks on the way out, and a graphics device of a
 /// closed compositor refuses a new rendering device.
@@ -57,9 +61,10 @@ enum class composition_api { winui, system };
 ///   void move(graphics_t, composition_api, device_t const&)  a graphics device onto the device
 ///   void post()                                              a turn of the UI thread's queue
 ///                                                            that calls notify()
-///   void keep(owner_t) noexcept                              the identity held for good, so that
-///                                                            a later compositor cannot take its
-///                                                            address
+///   void keep(owner_t) noexcept                              the identity held while its entry
+///                                                            stands, so that a later compositor
+///                                                            cannot take its address
+///   void forget(owner_t) noexcept                            the identity let go with its entry
 ///
 /// One thread, the UI thread: every call, the replacement included, is made there.
 template <class Backend>
@@ -126,12 +131,17 @@ public:
         return *entries_[index_of(owner, api)].replaced;
     }
 
-    /// Those holders, or null for a compositor nobody has asked for.
-    handler_list<Object>* find_handlers(owner_t owner) const noexcept {
-        for (entry const& each : entries_) {
-            if (each.owner == owner) return each.replaced.get();
+    /// Takes the holder `token` names off the compositor `owner` names; false when it was not
+    /// there -- the compositor has no entry, or the token is not of its list. An entry left with
+    /// neither a graphics device nor a holder goes here, or once the holders' calls are over.
+    bool remove(owner_t owner, EventToken token) {
+        for (entry& each : entries_) {
+            if (each.owner != owner) continue;
+            bool const removed = each.replaced->remove(token);
+            if (removed && calling_ == 0) sweep();
+            return removed;
         }
-        return nullptr;
+        return false;
     }
 
     /// Replaces the device of generation `lost`, in the order the class gives -- if it is still
@@ -200,11 +210,23 @@ private:
     /// Every holder called, for the device in use. Told before the first call, so that a holder
     /// drawing again from its call draws. By index and by the count before the first call: a holder
     /// drawing again may be the first to draw on another compositor and add an entry -- made on
-    /// the new device already, so it has nothing to be told.
+    /// the new device already, so it has nothing to be told -- and the entries emptied by the calls
+    /// go once the last of them is over.
     void tell() noexcept {
         told_ = generation_;
+        ++calling_;
         std::size_t const known = entries_.size();
         for (std::size_t at = 0; at < known; ++at) entries_[at].replaced->fire(Object::Impl::empty<Object>());
+        if (--calling_ == 0) sweep();
+    }
+
+    /// The entries with neither a graphics device nor a holder go, with their identities.
+    void sweep() noexcept {
+        std::erase_if(entries_, [this](entry const& each) {
+            if (each.graphics || !each.replaced->empty()) return false;
+            backend_.forget(each.owner);
+            return true;
+        });
     }
 
     Backend backend_;
@@ -213,6 +235,7 @@ private:
     bool closed_ = false;
     std::uint64_t generation_ = 0;   // of the device in use; 0 before the first
     std::uint64_t told_ = 0;         // the generation the holders were last called for
+    int calling_ = 0;                // tell() under way, one inside another included
     std::vector<entry> entries_;
 };
 

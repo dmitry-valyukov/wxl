@@ -13,6 +13,9 @@
 // any event of any window a token of its own, so a token of one event or window names
 // nothing in another.
 //
+// Whether a list is empty is asked by the rendering devices (device_replacement.h): a compositor
+// with no holder left and no graphics device lets its entry go.
+//
 // Included by CompositionWindow.cpp, DrawingSurface.cpp and the tests, after the projection:
 // the empty sender is made through Object::Impl.
 
@@ -52,6 +55,15 @@ public:
             }
         }
         return false;
+    }
+
+    // Whether no handler is on: none was added, or every one was taken off -- a place taken off
+    // during a call and not swept out yet counts as none.
+    bool empty() const noexcept {
+        for (entry const& each : entries_) {
+            if (each.handler) return false;
+        }
+        return true;
     }
 
     void fire(EventArgsRef<Args> args) {

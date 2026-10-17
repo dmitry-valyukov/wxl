@@ -64,9 +64,12 @@ struct rendering_device {
 };
 
 /// What impl::rendering_devices makes and moves: the device above, and graphics devices and
-/// compositors as the raw interfaces they are. A graphics device and a compositor's identity are
-/// leaked deliberately, for the reason rendering_device gives; the identity is only compared,
-/// and being immortal it cannot be a stale address a later compositor happens to reuse.
+/// compositors as the raw interfaces they are. A graphics device is leaked deliberately, for the
+/// reason rendering_device gives. A compositor's identity is held while its entry stands -- only
+/// compared, and held, it cannot be a stale address a later compositor happens to reuse -- and let
+/// go with the entry, when the compositor's last watch comes off and no surface was made on it:
+/// at the moment that watch lets its own reference go. An entry that keeps a graphics device
+/// stands for good, and its identity with it.
 struct device_backend {
     using owner_t = ::IUnknown*;
     using device_t = rendering_device;
@@ -84,6 +87,7 @@ struct device_backend {
     void move(::IInspectable* graphics, impl::composition_api api, rendering_device const& device);
     void post();
     void keep(::IUnknown* owner) noexcept { owner->AddRef(); }
+    void forget(::IUnknown* owner) noexcept { owner->Release(); }
 };
 
 /// The device, the graphics devices and the watches of the process. Leaked, as everything in it
@@ -555,7 +559,8 @@ namespace impl {
 
 // The handlers of the watches on a compositor live in its entry, on wxl's own list, whose
 // removal answers; the replacement calls them. A watch put on before any surface makes the
-// entry without a graphics device, and a watch taken off finds the entry its attach made.
+// entry without a graphics device, and a watch taken off finds the entry its attach made -- and
+// the last one off lets that entry go, if no surface was made on the compositor.
 
 EventToken rendering_device_replaced::add(Compositor const& compositor, EventHandler<Object> handler) {
     return devices()
@@ -564,8 +569,7 @@ EventToken rendering_device_replaced::add(Compositor const& compositor, EventHan
 }
 
 bool rendering_device_replaced::remove(Compositor const& compositor, EventToken token) {
-    handler_list<Object>* const handlers = devices().find_handlers(identity_of(compositor).get());
-    return handlers && handlers->remove(token);
+    return devices().remove(identity_of(compositor).get(), token);
 }
 
 ::IInspectable* system_graphics_device(system_compositor compositor) {
@@ -598,8 +602,7 @@ EventToken system_rendering_device_replaced::add(system_compositor compositor, E
 }
 
 bool system_rendering_device_replaced::remove(system_compositor compositor, EventToken token) {
-    handler_list<Object>* const handlers = devices().find_handlers(compositor.identity);
-    return handlers && handlers->remove(token);
+    return devices().remove(compositor.identity, token);
 }
 
 std::uint64_t rendering_device_replacements() noexcept {
