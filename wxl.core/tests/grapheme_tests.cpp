@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <format>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -146,6 +147,113 @@ TEST(grapheme, a_lone_surrogate_is_a_letter_of_its_own) {
     const std::wstring_view broken = L"a\xDC00" L"b";
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(broken, 0), 1u);
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(broken, 1), 2u);
+}
+
+/// Where letters begin by the rules alone: one breaker fed the whole text, no
+/// restarts, so whatever next and floor skip has to agree with it.
+std::vector<std::size_t> boundaries_by_the_rules(const std::u16string_view text) {
+    wxl::core::unicode::grapheme_breaker breaker;
+    std::vector<std::size_t> boundaries;
+
+    for (std::size_t at = 0; at < text.size();) {
+        const std::size_t start = at;
+        char32_t code_point = text[at++];
+
+        if (code_point >= 0xD800 && code_point < 0xDC00 && at < text.size() && text[at] >= 0xDC00 &&
+            text[at] < 0xE000)
+            code_point = 0x10000 + ((code_point - 0xD800) << 10) + (text[at++] - 0xDC00);
+
+        if (breaker.breaks_before(code_point)) boundaries.push_back(start);
+    }
+
+    boundaries.push_back(text.size());
+    return boundaries;
+}
+
+/// The units in hex, for a failure message; gtest builds the message only on
+/// failure.
+std::string units_of(const std::u16string_view text) {
+    std::string units;
+    for (const char16_t unit : text) units += std::format(" {:04X}", static_cast<unsigned>(unit));
+    return units;
+}
+
+/// The same text asked through both UTF-16 views: every step of next from 0,
+/// and floor at every offset.
+void expect_the_rules(const std::u16string_view text) {
+    const std::vector<std::size_t> expected = boundaries_by_the_rules(text);
+    const std::wstring wide(text.begin(), text.end());
+
+    std::vector<std::size_t> found{0}, found_wide{0};
+    for (std::size_t at = 0; at < text.size();)
+        found.push_back(at = wxl::core::unicode::next_grapheme_boundary(text, at));
+    for (std::size_t at = 0; at < wide.size();)
+        found_wide.push_back(at = wxl::core::unicode::next_grapheme_boundary(std::wstring_view(wide), at));
+
+    ASSERT_EQ(found, expected) << "next over" << units_of(text);
+    ASSERT_EQ(found_wide, expected) << "next over wchar_t" << units_of(text);
+
+    std::size_t floor = 0;
+    for (std::size_t at = 0; at < text.size(); ++at) {
+        for (const std::size_t boundary : expected)
+            if (boundary <= at) floor = boundary;
+
+        ASSERT_EQ(wxl::core::unicode::floor_grapheme_boundary(text, at), floor)
+            << "floor at " << at << " over" << units_of(text);
+        ASSERT_EQ(wxl::core::unicode::floor_grapheme_boundary(std::wstring_view(wide), at), floor)
+            << "floor at " << at << " over wchar_t" << units_of(text);
+    }
+}
+
+TEST(grapheme, plain_neighbours_break_as_the_rules_say) {
+    // Every pair up to U+0600 -- past both ranges that need no table, with the
+    // marks U+0300..U+036F and U+0483..U+0489 between them and the Hebrew
+    // marks after -- so a range that claims too much, or a table that changes
+    // under it, shows up as a pair. One view is enough: both overloads are the
+    // same template, and the next test asks through wchar_t as well.
+    for (char16_t first = 0; first < 0x600; ++first) {
+        for (char16_t second = 0; second < 0x600; ++second) {
+            wxl::core::unicode::grapheme_breaker breaker;
+            breaker.breaks_before(first);
+            const bool breaks = breaker.breaks_before(second);
+
+            const char16_t pair[] = {first, second};
+            const std::u16string_view text(pair, 2);
+
+            ASSERT_EQ(wxl::core::unicode::next_grapheme_boundary(text, 0), breaks ? 1u : 2u)
+                << std::format("{:04X} {:04X}", +first, +second);
+            ASSERT_EQ(wxl::core::unicode::floor_grapheme_boundary(text, 1), breaks ? 1u : 0u)
+                << std::format("{:04X} {:04X}", +first, +second);
+        }
+    }
+}
+
+TEST(grapheme, beside_marks_joiners_and_jamo_the_rules_decide) {
+    // Each code point up to U+0600 before, after and between the classes that
+    // join: a mark, ZWJ, a spacing mark, a prepended sign, the five Hangul
+    // classes, a regional indicator and a pictograph (both as surrogate
+    // pairs), a virama and a consonant, CR and LF.
+    const std::u16string_view joining[] = {
+        u"\u0301", u"\u200D", u"\u0903", u"\u0600", u"\u1100", u"\u1161", u"\u11A8",
+        u"\uAC00", u"\uAC01", u"\U0001F1E6", u"\U0001F600", u"\u094D", u"\u0915", u"\r", u"\n",
+    };
+
+    for (char16_t plain = 0; plain < 0x600; ++plain) {
+        const std::u16string one(1, plain);
+
+        for (const std::u16string_view other : joining) {
+            const std::u16string around(other);
+
+            ASSERT_NO_FATAL_FAILURE(expect_the_rules(around + one));
+            ASSERT_NO_FATAL_FAILURE(expect_the_rules(one + around));
+            ASSERT_NO_FATAL_FAILURE(expect_the_rules(one + around + one));
+            ASSERT_NO_FATAL_FAILURE(expect_the_rules(around + one + one + around));
+        }
+
+        // A conjunct carries "after the virama" across InCB=Extend: two plain
+        // code points in the middle must not carry it.
+        ASSERT_NO_FATAL_FAILURE(expect_the_rules(u"\u0915\u094D" + one + one + u"\u0915"));
+    }
 }
 
 TEST(grapheme, checked_text_is_asked_as_it_is) {

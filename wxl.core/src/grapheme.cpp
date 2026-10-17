@@ -45,6 +45,25 @@ constexpr std::uint8_t properties_of(const char32_t code_point) noexcept {
     return grapheme_pages[(page << grapheme_page_shift) + within];
 }
 
+/// Below U+0300 and from U+0370 to U+0482 -- Latin, Greek and Cyrillic
+/// letters, digits, punctuation, spaces and controls -- the table holds only
+/// the break classes other, cr, lf and control and no conjunct class. Between
+/// two such code points every rule but GB3 ends in a break, and the state the
+/// breaker keeps after a plain code point depends on that code point alone:
+/// the rules that look further back need a regional indicator, a ZWJ or a
+/// linker before it, and none of them is plain. A plain unit is never a
+/// surrogate, so it is a whole code point. The tests hold the ranges against
+/// the table.
+constexpr bool is_plain(const char32_t unit) noexcept {
+    return unit < 0x300 || (unit >= 0x370 && unit < 0x483);
+}
+
+/// Whether a letter begins between two neighbouring units, answered without
+/// the table and without the state before them; false is "ask the rules".
+constexpr bool certainly_breaks(const char32_t previous, const char32_t current) noexcept {
+    return is_plain(previous) && is_plain(current) && !(previous == U'\r' && current == U'\n');
+}
+
 constexpr bool is_control(const break_class value) noexcept {
     return value == break_class::control || value == break_class::cr || value == break_class::lf;
 }
@@ -80,16 +99,21 @@ constexpr bool breaks(const break_class previous, const break_class current,
     return true;                                                                // GB999
 }
 
+template <typename CharT>
+constexpr char32_t unit_at(const std::basic_string_view<CharT> text, const std::size_t at) noexcept {
+    return static_cast<char32_t>(static_cast<std::uint16_t>(text[at]));
+}
+
 /// One code point of UTF-16 at `at`, stepping past it. A lone surrogate is
 /// handed back as itself: the grapheme table does not list it, so it is a
 /// letter of its own, and a caller cutting broken text still gets offsets on
 /// unit boundaries.
 template <typename CharT>
 char32_t decode(const std::basic_string_view<CharT> text, std::size_t& at) noexcept {
-    const auto unit = static_cast<char32_t>(static_cast<std::uint16_t>(text[at++]));
+    const char32_t unit = unit_at(text, at++);
 
     if (unicode::is_high_surrogate(unit) && at < text.size()) {
-        const auto next = static_cast<char32_t>(static_cast<std::uint16_t>(text[at]));
+        const char32_t next = unit_at(text, at);
 
         if (unicode::is_low_surrogate(next)) {
             ++at;
@@ -103,6 +127,9 @@ char32_t decode(const std::basic_string_view<CharT> text, std::size_t& at) noexc
 template <typename CharT>
 std::size_t next_boundary(const std::basic_string_view<CharT> text, std::size_t at) noexcept {
     if (at >= text.size()) return text.size();
+
+    if (at + 1 < text.size() && certainly_breaks(unit_at(text, at), unit_at(text, at + 1)))
+        return at + 1;
 
     unicode::grapheme_breaker breaker;
     breaker.breaks_before(decode(text, at));
@@ -122,10 +149,16 @@ template <typename CharT>
 std::size_t floor_boundary(const std::basic_string_view<CharT> text, const std::size_t at) noexcept {
     if (at >= text.size()) return text.size();
 
-    unicode::grapheme_breaker breaker;
-    std::size_t letter = 0;
+    // A boundary between two plain units leaves the rules in the state a
+    // fresh start would, so the walk begins at the nearest one rather than at
+    // the start of the text.
+    std::size_t start = at;
+    while (start > 0 && !certainly_breaks(unit_at(text, start - 1), unit_at(text, start))) --start;
 
-    for (std::size_t position = 0; position <= at;) {
+    unicode::grapheme_breaker breaker;
+    std::size_t letter = start;
+
+    for (std::size_t position = start; position <= at;) {
         std::size_t after = position;
 
         if (breaker.breaks_before(decode(text, after))) letter = position;
