@@ -205,7 +205,11 @@ rendering_device device_backend::make(std::uint64_t generation) {
     if (!queue) {
         auto current = dispatching::DispatcherQueue::GetForCurrentThread();
         if (!current) core::abort("wxl: a drawing surface is made off the UI thread");
-        // Never taken off: the queue goes with it.
+        // Never taken off: the queue goes with it. Assumed: the queue raises ShutdownStarting holding
+        // no lock its TryEnqueue takes -- close() waits out a removal callback under way (unwatch),
+        // and that callback posts to this queue from the pool; believed because the queue takes work
+        // while the event and its deferral are out (DispatcherQueue.ShutdownStarting, Remarks) and
+        // TryEnqueue is called from any thread, not seen in the queue's sources, which are not public.
         static_cast<void>(current.ShutdownStarting([](auto&&, auto&&) noexcept { devices().close(); }));
         queue = static_cast<::IInspectable*>(winrt::detach_abi(current));
     }
@@ -267,12 +271,19 @@ void device_backend::release(rendering_device& device) noexcept {
     device = rendering_device{};
 }
 
-/// The same call under the IID of the graphics device's own API.
+/// The same call under the IID of the graphics device's own API. A graphics device of a closed
+/// compositor refuses with RO_E_CLOSED: the compositor was closed before the UI thread's queue began
+/// to shut down, against what DrawingSurface.h asks, and the process stops saying so.
 template <class Interop>
 void set_rendering_device(::IInspectable* graphics, ID2D1Device* d2d) {
     winrt::com_ptr<Interop> interop;
     winrt::check_hresult(graphics->QueryInterface(winrt::guid_of<Interop>(), interop.put_void()));
-    winrt::check_hresult(interop->SetRenderingDevice(d2d));
+    HRESULT const set = interop->SetRenderingDevice(d2d);
+    if (set == RO_E_CLOSED) {
+        core::abort("wxl: a compositor a drawing surface was made on is closed before the UI thread's queue began "
+                    "to shut down, and its graphics device cannot take the new rendering device (RO_E_CLOSED)");
+    }
+    winrt::check_hresult(set);
 }
 
 void device_backend::move(::IInspectable* graphics, impl::composition_api api,

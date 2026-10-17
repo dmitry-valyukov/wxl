@@ -70,9 +70,10 @@
 //
 // A replacement moves the graphics device of every compositor a surface was
 // made on, so such a compositor is not closed before the UI thread's queue
-// begins to shut down -- XAML closes its own then. From that moment the device
-// is no longer replaced and no watch is called: a loss on the way out leaves
-// draw() answering false.
+// begins to shut down -- XAML closes its own then; one closed before stops the
+// process at the next replacement. From that moment the device is no longer
+// replaced and no watch is called: a loss on the way out leaves draw()
+// answering false.
 
 // Declared, not included. d2d1_1.h is the application's business, and a
 // pointer to an incomplete type is all a std::function signature needs --
