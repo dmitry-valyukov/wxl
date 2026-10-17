@@ -3,7 +3,8 @@
 // Which answers of the drawing calls name a lost device: those, confirmed by the device,
 // skip the drawing, and everything else stays a failure. And the watch an owner keeps for the replacement: a
 // member of its own, called each time the device under a compositor's surfaces is
-// replaced, and taken off by the watch's end with the answer checked.
+// replaced, and taken off by the watch's end with the answer checked. And the longest side
+// a device draws at once, by its feature level.
 //
 // No GPU, no compositor. The compositor is a fake: a handle to the handler list the real
 // graphics device's entry keeps -- impl::handler_list itself -- with the pair of calls a
@@ -14,8 +15,9 @@
 // (impl::signal_rendering_device_removed, a real TDR).
 #include <crtdbg.h>
 
-// The classification first: it reaches windows.h, which has to come before the wxl.core
-// import the list's and the watch's headers carry.
+// The classification and the limit first: they reach windows.h, which has to come before
+// the wxl.core import the list's and the watch's headers carry.
+#include "impl/device_limits.h"
 #include "impl/device_loss.h"
 
 #include <gtest/gtest.h>
@@ -35,6 +37,8 @@ using wxl::Object;
 using wxl::impl::device_watch;
 using wxl::impl::handler_list;
 using wxl::impl::device_loss_code;
+using wxl::impl::composition_padding;
+using wxl::impl::max_update_side;
 
 // The codes are the SDK's, and their values the documented ones: a header that spelled
 // one differently would be seen here, not on a machine whose GPU was just reset.
@@ -66,6 +70,22 @@ TEST(DeviceLossCode, everything_else_is_not) {
     EXPECT_FALSE(device_loss_code(DXGI_ERROR_DRIVER_INTERNAL_ERROR));
     EXPECT_FALSE(device_loss_code(D2DERR_WRONG_RESOURCE_DOMAIN));
 }
+
+// The longest side one update of a surface may have, by the device's feature level -- the
+// column Max Texture Dimension of the table of Direct3D feature levels less the three pixels
+// composition pads an allocation with, each level and both ends of each step: a level above
+// the last one known still draws the most.
+static_assert(composition_padding == 3);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_9_1) == 2045);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_9_2) == 2045);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_9_3) == 4093);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_10_0) == 8189);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_10_1) == 8189);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_11_0) == 16381);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_11_1) == 16381);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_12_0) == 16381);
+static_assert(max_update_side(D3D_FEATURE_LEVEL_12_1) == 16381);
+static_assert(max_update_side(static_cast<D3D_FEATURE_LEVEL>(0xc200)) == 16381);
 
 /// A compositor as a watch has it: a handle, copied by value, to the handlers of the
 /// replacement of its graphics device.

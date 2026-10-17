@@ -326,6 +326,27 @@
                 "Changed"
             ]
         },
+        "Microsoft.UI.Xaml.Controls.ScrollViewer": {
+            "comment": "ViewChanging says where the view is going before it is shown there, which is when content drawn on a VirtualDrawingSurface has to have those parts drawn: ViewChanged reports a view already shown.",
+            "members": [
+                "ViewChanging"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollViewerViewChangingEventArgs": {
+            "comment": "NextView is the view the viewer shows next, FinalView the one it comes to rest at after a pan or a fling: both are where pixels are about to be needed.",
+            "members": [
+                "NextView",
+                "FinalView",
+                "IsInertial"
+            ]
+        },
+        "Microsoft.UI.Xaml.Controls.ScrollViewerView": {
+            "comment": "A view as ViewChanging names it; the offsets are what a drawing ahead of the scroll reads.",
+            "members": [
+                "VerticalOffset",
+                "HorizontalOffset"
+            ]
+        },
 
         "Microsoft.UI.Windowing.AppWindow": {
             "comment": "One member added to what extended already asks for: the window's id, which is the only way from a WinUI window to its HWND (GetWindowFromWindowId) and therefore to everything Win32 still owns -- window placement above all.",

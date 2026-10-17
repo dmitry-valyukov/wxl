@@ -1038,6 +1038,57 @@ void device_replaced(Compositor const& compositor) {
     (void)page;
 }
 
+// A surface longer than any texture of the device, drawn in parts: the boundaries of the
+// whole, a part no longer than the device draws at once, painted in the coordinates of the
+// whole, and the parts to keep named when the rest can go. The device is the same as a
+// DrawingSurface's, and so is its loss.
+void own_drawing_in_parts(Compositor const& compositor, FrameworkElement const& host) {
+    VirtualDrawingSurface text{compositor, SizeInt32{640, 60000}};
+    text.resize(SizeInt32{640, 80000});
+    SizeInt32 const pixels = text.size();
+    std::int32_t const most = text.maxUpdateSide();
+
+    RectInt32 const part{0, 40000, pixels.width, most < 1024 ? most : 1024};
+    bool const drew =
+        text.draw(part, [](ID2D1DeviceContext*) { DrawingSurface::throwIfDeviceLost(0); });
+    (void)drew;
+    RectInt32 const kept[] = {part};
+    text.trim(kept);
+    text.trim({});
+
+    SpriteVisual sprite = compositor.createSpriteVisual();
+    sprite.brush(text.brush());
+    sprite.size({640.0f, 80000.0f});
+    ElementCompositionPreview::setElementChildVisual(host, sprite);
+}
+
+// The same surface as the member pointers say it: drawing and trimming change pixels, not
+// the wrapper, and the longest side is a question of the device the surface is on.
+using SurfacePaint = std::function<void(ID2D1DeviceContext*)>;
+static_assert(VirtualDrawingSurface::maxSide == 16777216);
+static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::draw),
+                             bool (VirtualDrawingSurface::*)(RectInt32, SurfacePaint const&) const>);
+static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::trim),
+                             void (VirtualDrawingSurface::*)(std::span<RectInt32 const>) const>);
+static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::maxUpdateSide),
+                             std::int32_t (VirtualDrawingSurface::*)() const>);
+static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::resize),
+                             void (VirtualDrawingSurface::*)(SizeInt32)>);
+
+// Where a scroller is going, before it is shown there: the view of the next frame and the one
+// a fling comes to rest at -- the parts a VirtualDrawingSurface under the content draws ahead.
+void drawing_ahead_of_the_scroll() {
+    ScrollViewer{onViewChanging = [](ScrollViewer const&, ScrollViewerViewChangingEventArgs& args) {
+        double const next = args.nextView().verticalOffset();
+        double const rest = args.finalView().verticalOffset();
+        bool const flung = args.isInertial();
+        (void)args.nextView().horizontalOffset();
+        (void)next;
+        (void)rest;
+        (void)flung;
+    }};
+}
+
 // Work handed to the UI thread, both ways round.
 //
 // tryEnqueue is the generated one: a delegate parameter is projected as a
