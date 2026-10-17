@@ -39,11 +39,11 @@ void report(std::string_view what,
 // runtime starts with ends the process through abort without a word. The one below names
 // the exception that got there and stops through abort() above. MSVC keeps a terminate
 // handler for each thread, so it is set where wxl starts code on a thread: by wWinMain on
-// the thread of the windows, by the entry of each thread of a thread_group, by the callback
-// wxl.async hands the thread pool, for as long as it runs, and by terminate_with_exception
-// on whichever thread a coroutine nobody holds fails. A thread wxl does not start keeps the
-// runtime's own until then. Machinery of wxl's own layers, hence impl: a consumer has no
-// handler to set.
+// the thread of the windows, by the entry of each thread of a thread_group, by each callback
+// wxl hands the thread pool -- wxl.async's work, wxl.ui's wait for a lost rendering device --
+// for as long as it runs, and by terminate_with_exception on whichever thread a coroutine
+// nobody holds fails. A thread wxl does not start keeps the runtime's own until then.
+// Machinery of wxl's own layers, hence impl: a consumer has no handler to set.
 
 namespace impl {
 
