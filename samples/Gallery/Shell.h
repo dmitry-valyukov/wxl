@@ -48,6 +48,11 @@ wxl::Window const& mainWindow();
 // вместе с главным, а state живёт, пока оно открыто.
 void trackWindow(wxl::CompositionWindow const& window, std::shared_ptr<void> state = {});
 
+// Отмена уровня приложения: оболочка отменяет её, когда закрывается главное окно. Процесс на выходе ждёт, пока
+// жива хоть одна корутина detached_task (открытый диалог примера — тоже она), и такая корутина ждёт под этим
+// токеном или под дочерним от него — иначе её некому кончить.
+wxl::async::cancellation_token exitToken();
+
 // Строит модель и отдаёт её оболочке: `auto const model = gallery::hold<Model>();`
 template <class Model, class... Arguments>
 std::shared_ptr<Model> hold(Arguments&&... arguments) {

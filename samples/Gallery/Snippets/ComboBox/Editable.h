@@ -41,6 +41,6 @@ auto combo = ComboBox {
                        closeButtonText = u"Close",
                        defaultButton = ContentDialogButton::Close,
                    },
-                   self);
+                   self, gallery::exitToken());
     },
 };

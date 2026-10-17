@@ -1445,7 +1445,7 @@ static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
 // arrived for the forum client, and both are here so that a change to the
 // profile or to showDialog's signature stops this translation unit rather
 // than an application.
-[[maybe_unused]] void tabs_and_dialogs(Window const& window) {
+[[maybe_unused]] void tabs_and_dialogs(Window const& window, async::cancellation_token stop) {
     SelectorBar tabs{
         hAlign.center,
         onSelectionChanged = [](Object const&, SelectorBarSelectionChangedEventArgs&) {},
@@ -1460,8 +1460,18 @@ static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
         content = TextBlock{L"Nothing to say yet"},
     };
 
-    showDialog(about, window);
+    showDialog(about, window, stop);
+    showDialog(about, window.content(), stop);
 }
+
+// showDialog takes the token its owner closes the dialog with, and has no form without one: the
+// wait for the answer is a frame the exit waits for, and a dialog nobody can close would keep the
+// process waiting.
+template <class Host>
+concept shows_dialog_without_a_token =
+    requires(ContentDialog const& dialog, Host const& host) { showDialog(dialog, host); };
+
+static_assert(!shows_dialog_without_a_token<Window> && !shows_dialog_without_a_token<UIElement>);
 
 // One property, two vocabularies. SymbolIcon already knows the font, so a
 // glyph is named and nothing else is said -- with WinRT's Symbol where the
