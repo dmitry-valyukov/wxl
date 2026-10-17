@@ -281,6 +281,7 @@ add_library(wxl.ui STATIC
     src/WindowFit.cpp
     src/ShowDialog.h
     src/ShowDialog.cpp
+    src/impl/show_dialog.h
     src/ThemeBrush.h
     src/ThemeBrush.cpp
     src/WindowModal.h
@@ -567,7 +568,9 @@ if(BUILD_TESTING)
     #
     # The task a WinRT asynchronous operation becomes is tested the same way:
     # its producer is a template over the operation and the queue, given a
-    # fake of each, so no dispatcher is needed.
+    # fake of each, so no dispatcher is needed. showDialog's two halves -- the
+    # call that may refuse, the detached wait the exit counts -- are a template
+    # over the dialog, tested in the same file over a fake dialog on those fakes.
     #
     # The wait on a timer is a template over the timer, given a fake one the
     # test ticks; the queue is the one event_cancel_test stands for.

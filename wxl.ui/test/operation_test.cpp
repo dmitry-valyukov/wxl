@@ -6,6 +6,12 @@
 // queue is a fake one that keeps what is posted to it until the test runs it, on this thread,
 // which stands for the thread that made the call. Whether the producer is gone is read off the
 // operation: the producer holds a reference to it until it is deleted.
+//
+// showDialog's two halves (impl/show_dialog.h) are tested here too, over a dialog whose showAsync
+// is made of the same fakes the way a generated wrapper makes its form with a token: the call
+// that may refuse, and the detached wait for the answer the exit counts.
+#include <crtdbg.h>
+
 #include <gtest/gtest.h>
 
 #include <cstddef>
@@ -25,16 +31,19 @@
 #include <winrt/Windows.Foundation.h>
 
 #include "impl/operation.h"
+#include "impl/show_dialog.h"
 
 namespace {
 
 using winrt::Windows::Foundation::AsyncStatus;
 using wxl::async::cancellation_source;
 using wxl::async::cancellation_token;
+using wxl::async::detached_task;
 using wxl::async::operation_canceled_exception;
 using wxl::async::task;
 using wxl::impl::detail::start;
 using wxl::impl::detail::start_under;
+using wxl::impl::show_under;
 
 /// What the platform throws for an operation that failed: the code, as winrt::hresult_error
 /// carries it.
@@ -684,6 +693,152 @@ TEST(OperationUnderTokenTest, ATaskLetGoWhileTheTurnAsksIsNotTouchedAfterwards) 
     EXPECT_FALSE(pending.has_value());
     EXPECT_EQ(op.cancels(), 1);
     EXPECT_EQ(op.held(), 1);
+}
+
+// ---- showDialog (impl/show_dialog.h) -------------------------------------------------------
+
+/// What XAML refuses a second dialog over an island with: E_ASYNC_OPERATION_NOT_STARTED.
+constexpr uint32_t refused_code = 0x80000019;
+
+/// A ContentDialog as showDialog has it: showAsync in its form with a token, made as a generated
+/// wrapper makes it -- the platform's call as a lambda, through start_under -- over the fake
+/// operation and the fake queue. One that refuses throws from that call, as ShowAsync does.
+struct fake_dialog {
+    fake_operation<int> op;
+    fake_queue queue;
+    bool refuses = false;
+    mutable int shown = 0;   ///< calls of the platform's ShowAsync
+
+    task<int> showAsync(cancellation_token stop) const {
+        return start_under<int>(
+            [this] {
+                ++shown;
+                if (refuses) throw platform_failure{refused_code};
+                return op;
+            },
+            queue, std::identity{}, std::move(stop));
+    }
+};
+
+TEST(ShowDialogTest, TheWaitForTheAnswerIsAFrameTheExitCountsUntilTheAnswerComes) {
+    fake_dialog dialog;
+    cancellation_source source;
+    std::size_t const before = detached_task::live_frames();
+
+    show_under(dialog, source.token());
+    EXPECT_EQ(dialog.shown, 1);
+    EXPECT_EQ(detached_task::live_frames(), before + 1) << "the call has returned, and the wait is left";
+
+    // The reader answers: the platform's completion only posts.
+    dialog.op.complete(1);
+    EXPECT_EQ(detached_task::live_frames(), before + 1);
+
+    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(detached_task::live_frames(), before);
+    EXPECT_EQ(dialog.op.reads(), 1);
+    EXPECT_EQ(dialog.op.held(), 1) << "the producer went with the frame";
+
+    // Gone, the wait stands under the token no more.
+    source.cancel();
+    EXPECT_EQ(dialog.queue.posted(), 0u);
+    EXPECT_EQ(dialog.op.cancels(), 0);
+}
+
+TEST(ShowDialogTest, CancellingTheTokenClosesTheDialogAndTheFrameEndsOnTheNextTurn) {
+    fake_dialog dialog;
+    cancellation_source source;
+    std::size_t const before = detached_task::live_frames();
+
+    show_under(dialog, source.token());
+
+    source.cancel();
+    EXPECT_EQ(dialog.op.cancels(), 0) << "cancelling only posts the turn";
+    EXPECT_EQ(detached_task::live_frames(), before + 1) << "and resumes nobody";
+
+    // The turn asks the dialog to close and ends the frame: the platform has not answered, and
+    // need not.
+    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.op.cancels(), 1);
+    EXPECT_EQ(detached_task::live_frames(), before);
+    EXPECT_EQ(dialog.op.held(), 1) << "the producer went with the frame";
+
+    // The dialog's completion, when it comes after its closing, finds nobody.
+    dialog.op.end(AsyncStatus::Canceled);
+    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.op.reads(), 0);
+    EXPECT_EQ(dialog.op.cancels(), 1) << "the runtime is asked once";
+}
+
+TEST(ShowDialogTest, ADialogThatCompletesInsideItsCancelEndsTheFrameOnce) {
+    fake_dialog dialog;
+    dialog.op.ends_when_cancelled();   // a ContentDialog whose popup is gone already
+    cancellation_source source;
+    std::size_t const before = detached_task::live_frames();
+
+    show_under(dialog, source.token());
+    source.cancel();
+
+    // The turn asks; the completion the asking raises is posted behind it, and finds the frame
+    // gone.
+    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(detached_task::live_frames(), before);
+    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.op.reads(), 0);
+    EXPECT_EQ(dialog.op.held(), 1);
+}
+
+TEST(ShowDialogTest, ARefusalIsThrownToTheCallerAndLeavesNothingRunning) {
+    fake_dialog dialog;
+    dialog.refuses = true;
+    cancellation_source source;
+    std::size_t const before = detached_task::live_frames();
+
+    try {
+        show_under(dialog, source.token());
+        ADD_FAILURE() << "the refusal did not reach the caller";
+    } catch (platform_failure const& refusal) {
+        EXPECT_EQ(refusal.code, refused_code);
+    }
+
+    EXPECT_EQ(dialog.shown, 1);
+    EXPECT_EQ(detached_task::live_frames(), before) << "no frame is made for a dialog that is not up";
+    EXPECT_EQ(dialog.op.held(), 1) << "no producer either";
+
+    // Nothing stands under the token.
+    source.cancel();
+    EXPECT_EQ(dialog.queue.posted(), 0u);
+    EXPECT_EQ(dialog.op.cancels(), 0);
+}
+
+TEST(ShowDialogTest, UnderATokenCancelledAlreadyTheDialogIsNotShownAndNothingIsLeft) {
+    fake_dialog dialog;
+    cancellation_source source;
+    std::size_t const before = detached_task::live_frames();
+
+    source.cancel();
+    show_under(dialog, source.token());
+
+    EXPECT_EQ(dialog.shown, 0) << "the call is not made";
+    EXPECT_EQ(detached_task::live_frames(), before) << "the frame ended where it began";
+    EXPECT_EQ(dialog.queue.posted(), 0u);
+    EXPECT_EQ(dialog.op.held(), 1);
+}
+
+/// A report goes to stderr and the process ends without a dialog, which in a test run would be a
+/// hang.
+void without_a_dialog() {
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+}
+
+void show_under_a_token_of_nobody(fake_dialog const& dialog) {
+    without_a_dialog();
+    show_under(dialog, cancellation_token{});
+}
+
+TEST(ShowDialogDeathTest, UnderATokenNobodyCanCancelTheCallStops) {
+    fake_dialog const dialog;
+    EXPECT_DEATH(show_under_a_token_of_nobody(dialog), "wxl: showDialog under a token nobody can cancel");
+    EXPECT_EQ(dialog.shown, 0);
 }
 
 }  // namespace
