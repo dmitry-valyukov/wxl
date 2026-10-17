@@ -50,12 +50,15 @@ struct Model {
                 window->background(colour.get());
                 break;
             case Kind::Picture:
-                // A picture is decoded off the interface thread and appears when it is ready.
-                window->backgroundAsync(BackgroundImage {
-                    .path = applicationFolder() / L"Assets" / L"SampleMedia" / L"LandscapeImage3.jpg",
-                    .fill = fill(),
-                    .color = rgb(0x20, 0x20, 0x20),
-                });
+                // A picture is decoded off the interface thread and appears when it is ready; the load waits
+                // under the exit token of the application, which closing the main window cancels.
+                window->backgroundAsync(
+                    BackgroundImage {
+                        .path = applicationFolder() / L"Assets" / L"SampleMedia" / L"LandscapeImage3.jpg",
+                        .fill = fill(),
+                        .color = rgb(0x20, 0x20, 0x20),
+                    },
+                    gallery::exitToken());
                 break;
             case Kind::Drawing: {
                 // A surface of the compositor of the window, drawn with Direct2D.
