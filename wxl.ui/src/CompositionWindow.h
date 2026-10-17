@@ -11,6 +11,7 @@
 
 #include "Color.h"
 #include "DrawingSurface.h"
+#include "Operation.h"
 #include "events.h"
 #include "hstring_param.h"
 #include "impl/member.h"
@@ -201,10 +202,14 @@ public:
     /// Задний фон -- картинкой, загруженной асинхронно (Win2D/TextureCache):
     /// декод идёт на потоках WinRT, задник сменится, когда картинка готова, а
     /// UI не подвисает. Под смену фона на ходу; первый (стартовый) экран ставит
-    /// синхронный background(path). Запускается и забывается; фон, поставленный
-    /// позже, загрузка не перебивает.
-    void backgroundAsync(BackgroundImage const& image) const;
-    void backgroundAsync(std::filesystem::path const& image) const;
+    /// синхронный background(path). Возвращается сразу, а ожидание картинки --
+    /// кадр detached_task, которого ждёт выход приложения: отсюда токен, и формы
+    /// без него нет. Загрузка идёт под источником окна, дочерним от `stop`, --
+    /// токена общего источника приложения или сделанного под ним: его отменяет
+    /// фон, поставленный позже (он и остаётся), и отмена `stop`. Отказ
+    /// загрузки -- файла нет -- не глотается: процесс останавливается, назвав его.
+    void backgroundAsync(BackgroundImage const& image, async::cancellation_token stop) const;
+    void backgroundAsync(std::filesystem::path const& image, async::cancellation_token stop) const;
 
     /// Куда приложение цепляет визуалы страницы -- над задним фоном, под
     /// островом. Контейнер во всё окно, ресайзится вместе с ним.

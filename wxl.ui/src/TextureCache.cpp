@@ -84,7 +84,8 @@ TextureCache::~TextureCache() = default;
 TextureCache::TextureCache(TextureCache&&) noexcept = default;
 TextureCache& TextureCache::operator=(TextureCache&&) noexcept = default;
 
-async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::path const& image) {
+async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::path const& image,
+                                                             async::cancellation_token stop) {
     std::wstring const key = image.wstring();
 
     // Уже в кэше -- задача готова сразу, и co_await её не приостанавливается.
@@ -96,11 +97,12 @@ async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::p
     // Загрузка запускается сразу -- декод пойдёт на потоках WinRT, -- а поверхность
     // из битмапа делается по её завершении, уже на этом (UI-) потоке, и кэшируется.
     // Загрузка держит кэш: устройство и карта переживают выброшенную обёртку.
-    return impl::start_operation<CompositionDrawingSurface>(
-        canvas::CanvasBitmap::LoadAsync(impl_->device, key),
+    return impl::start_operation_under<CompositionDrawingSurface>(
+        [this, &key] { return canvas::CanvasBitmap::LoadAsync(impl_->device, key); },
         [cache = impl_, key](canvas::CanvasBitmap const& bitmap) {
             return Object::Impl::wrap<CompositionDrawingSurface>(cache->surfaceFor(key, bitmap));
-        });
+        },
+        std::move(stop));
 }
 
 void TextureCache::clear() { impl_->surfaces.clear(); }

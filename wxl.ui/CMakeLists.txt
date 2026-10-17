@@ -296,6 +296,7 @@ add_library(wxl.ui STATIC
     src/CompositionWindow.h
     src/impl/window_watch.h
     src/impl/handler_list.h
+    src/impl/background_load.h
     src/CompositionWindow.cpp
     src/TextureCache.h
     src/TextureCache.cpp
@@ -574,6 +575,11 @@ if(BUILD_TESTING)
     # call that may refuse, the detached wait the exit counts -- are a template
     # over the dialog, tested in the same file over a fake dialog on those fakes.
     #
+    # The load of a window's background on the way -- its own source under the
+    # owner's token, and the detached frame that shows what it loaded -- is a
+    # template over what is loaded and how it is shown, given a load that waits
+    # at a gate the test opens.
+    #
     # The wait on a timer is a template over the timer, given a fake one the
     # test ticks; the queue is the one event_cancel_test stands for.
     #
@@ -604,6 +610,7 @@ if(BUILD_TESTING)
             test/waitable_timer_test.cpp
             test/core_event_wait_test.cpp
             test/operation_test.cpp
+            test/background_load_test.cpp
             test/window_watch_test.cpp
             test/rendering_device_test.cpp
             test/terminate_reason_test.cpp
