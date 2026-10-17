@@ -266,4 +266,34 @@ TEST(grapheme, checked_text_is_asked_as_it_is) {
     EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(owned, 3), 3u);
 }
 
+TEST(grapheme, is_letter_is_general_category_l) {
+    using wxl::core::unicode::is_letter;
+
+    EXPECT_TRUE(is_letter(U'A'));             // Lu
+    EXPECT_TRUE(is_letter(U'z'));             // Ll
+    EXPECT_TRUE(is_letter(U'я'));        // я, Ll
+    EXPECT_TRUE(is_letter(U'Ё'));        // Ё, Lu
+    EXPECT_TRUE(is_letter(U'ḥ'));        // ḥ, Ll
+    EXPECT_TRUE(is_letter(U'ễ'));        // ễ, Ll
+    EXPECT_TRUE(is_letter(U'\U0001D51E'));    // 𝔞 MATHEMATICAL FRAKTUR SMALL A, Ll
+    EXPECT_TRUE(is_letter(U'中'));        // 中, Lo
+    EXPECT_TRUE(is_letter(U'ℓ'));        // ℓ SCRIPT SMALL L, Ll
+    EXPECT_TRUE(is_letter(U'ⁿ'));        // ⁿ SUPERSCRIPT LATIN SMALL LETTER N, Lm
+    EXPECT_TRUE(is_letter(U'ǅ'));        // ǅ, Lt
+}
+
+TEST(grapheme, is_letter_refuses_marks_digits_symbols_and_the_unassigned) {
+    using wxl::core::unicode::is_letter;
+
+    EXPECT_FALSE(is_letter(U'№'));       // № NUMERO SIGN, So
+    EXPECT_FALSE(is_letter(U'—'));       // — EM DASH, Pd
+    EXPECT_FALSE(is_letter(U'٣'));       // ٣ ARABIC-INDIC DIGIT THREE, Nd
+    EXPECT_FALSE(is_letter(U''));       // private use, Co
+    EXPECT_FALSE(is_letter(U'　'));       // IDEOGRAPHIC SPACE, Zs
+    EXPECT_FALSE(is_letter(U'́'));       // COMBINING ACUTE ACCENT, Mn
+    EXPECT_FALSE(is_letter(U'\U0010FFFF'));   // a noncharacter, Cn
+    EXPECT_FALSE(is_letter(char32_t{0xD800}));     // a surrogate, Cs
+    EXPECT_FALSE(is_letter(char32_t{0x110000}));   // past the code space
+}
+
 }  // namespace
