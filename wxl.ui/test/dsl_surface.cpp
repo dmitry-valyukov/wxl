@@ -37,6 +37,7 @@
 #include "RsdnBlock.h"
 #include "ShowDialog.h"
 #include "SplitPanel.h"
+#include "TextureCache.h"
 #include "ThemeBrush.h"
 #include "Panels.h"
 #include "Relief.h"
@@ -335,7 +336,7 @@ using namespace wxl::dsl;
 // and the tags apply to it; its title bar is placed by the window itself, so
 // it is built right in the braces; its own events take the same tags, and a
 // copy captured by a lambda is the same window.
-[[maybe_unused]] void composition_window(TitleBar const& built, Grid const& page) {
+[[maybe_unused]] void composition_window(TitleBar const& built, Grid const& page, async::cancellation_token stop) {
     CompositionWindow window{
         title = L"App",
         minSize = {820, 560},
@@ -359,8 +360,9 @@ using namespace wxl::dsl;
         page,
     };
     CompositionWindow const coloured{background = rgb(32, 32, 32)};
-    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, rgb(0, 0, 0)});
-    (void)coloured;
+    // A picture loaded on the way, under the token the exit ends its wait with.
+    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, rgb(0, 0, 0)}, stop);
+    coloured.backgroundAsync(std::filesystem::path{L"Assets/cover.png"}, stop);
 
     auto const closeLater = [window] { window.close(); };
     (void)closeLater;
@@ -374,6 +376,21 @@ using namespace wxl::dsl;
     auto closings = wxl::on_event<EventKey::Closing>(window);
     static_assert(std::is_same_v<decltype(closings)::args_ref_t, WindowClosingEventArgs&>);
     (void)closings;
+}
+
+// backgroundAsync takes the token its load stands under, and has no form without one: the wait for
+// the picture is a frame the exit waits for.
+template <class Image>
+concept loads_background_without_a_token =
+    requires(CompositionWindow const& window, Image const& image) { window.backgroundAsync(image); };
+
+static_assert(!loads_background_without_a_token<BackgroundImage> &&
+              !loads_background_without_a_token<std::filesystem::path>);
+
+// A texture from the cache, under a token as every operation of the platform's.
+[[maybe_unused]] async::task<CompositionDrawingSurface> cached_texture(TextureCache& cache,
+                                                                       async::cancellation_token stop) {
+    return cache.getAsync(std::filesystem::path{L"C:/Books/cover.png"}, std::move(stop));
 }
 
 // An application that refuses to close until its own exit is over: the handler is

@@ -48,6 +48,7 @@
 #include "impl/window_frame.h"
 #include "impl/window_placement.h"
 #include "impl/application_folder.h"
+#include "impl/background_load.h"
 #include "Object.impl.h"
 #include "impl/handler_list.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
@@ -153,9 +154,11 @@ struct WindowState : core::refcounted {
     BackgroundFill pictureFill{};
     Color pictureColor{};
 
-    // Номер последней смены фона. Асинхронная загрузка ставит свою картинку,
-    // только если за время загрузки фон никто не сменил.
-    std::uint64_t backgroundChange{0};
+    // Асинхронная загрузка фона -- идущая или кончившаяся, пока фон не сменили
+    // иначе: под своим источником, дочерним от токена, с которым её попросили,
+    // и что просили. Всякая смена фона её отменяет -- фон, поставленный позже,
+    // остаётся; замена устройства грузит её снова (deviceReplaced).
+    impl::background_loads<BackgroundImage> backgroundLoads;
 
     // Ввод со сцены (режим чтения без острова): источники ввода её ContentIsland.
     // Источники держим живыми -- на них висят подписки.
@@ -1109,6 +1112,24 @@ struct WindowState : core::refcounted {
         apply(input::NonClientRegionKind::Maximize, physicalRectOf(maximizeButton));
         apply(input::NonClientRegionKind::Close, physicalRectOf(closeButton));
     }
+
+    // ---- Задник картинкой, загруженной на ходу ----
+
+    // Загрузка начинается в самом вызове, под токеном своего источника, сделанного
+    // под `owner`; ждёт её кадр detached_task (impl/background_load.h). Путь --
+    // уже рядом с приложением.
+    void loadBackground(BackgroundImage image, async::cancellation_token owner);
+
+    // Устройство под поверхностями заменено: картинка задника, загруженная на
+    // ходу, пуста вместе с поверхностью кэша -- она грузится снова, под тем же
+    // токеном владельца, если фон с тех пор не сменили иначе.
+    void deviceReplaced() noexcept {
+        if (auto again = backgroundLoads.last()) loadBackground(std::move(again->request), std::move(again->owner));
+    }
+
+    // Последним: после всего, что трогает слушатель, -- и после самого слушателя,
+    // которого называет указатель на член.
+    RenderingDeviceWatch<&WindowState::deviceReplaced> deviceWatch;
 };
 
 namespace {
@@ -1319,45 +1340,6 @@ void ensureClass() {
     (void)registered;
 }
 
-// Корутина «запусти и забудь» для смены задника на UI-потоке: стартует сразу
-// (initial_suspend never), подвисает на co_await, пока Win2D декодит,
-// возвращается на UI-поток и завершается, уничтожая свой же кадр (final_suspend
-// never). Владельца ей не надо: кадр жив всё ожидание, а обработчик завершения
-// возобновляет именно его. Кадр -- из STA-пула: живёт и умирает на UI-потоке.
-struct fire_and_forget {
-    struct promise_type {
-        fire_and_forget get_return_object() const noexcept { return {}; }
-        std::suspend_never initial_suspend() const noexcept { return {}; }
-        std::suspend_never final_suspend() const noexcept { return {}; }
-        void return_void() const noexcept {}
-        void unhandled_exception() const noexcept {}   // задник не сменился -- не падаем
-
-        static void* operator new(std::size_t size) {
-            return core::sta_memory_pool::alloc(static_cast<uint32_t>(size));
-        }
-        static void operator delete(void* mem, std::size_t size) noexcept {
-            core::sta_memory_pool::free(mem, static_cast<uint32_t>(size));
-        }
-    };
-};
-
-// Асинхронная смена задника: ждёт текстуру из кэша (декод на потоках WinRT) и,
-// вернувшись на UI-поток, ставит её картинкой фона -- если за время загрузки фон
-// не сменили. Состояние держится хендлом, картинка -- по значению: корутина
-// владеет обоими через ожидание.
-fire_and_forget swapBackground(core::intrusive_ptr<WindowState> state, BackgroundImage image,
-                               std::uint64_t change) {
-    CompositionDrawingSurface const surface = co_await state->textureCache->getAsync(image.path);
-    if (state->backgroundChange != change) co_return;
-
-    // Именованные промежутки: обёртка -> сырая поверхность (одно преобразование),
-    // сырая поверхность -> ICompositionSurface у CreateSurfaceBrush (второе); в
-    // одном выражении их было бы два подряд, чего аргументу не дают.
-    muc::CompositionDrawingSurface const& raw =
-        *Object::Impl::get_typed<CompositionDrawingSurface>(surface);
-    state->showPicture(state->compositor.CreateSurfaceBrush(raw), image.fill, image.color);
-}
-
 }  // namespace
 
 // ---- Сцена: задний фон и страница ------------------------------------------
@@ -1379,7 +1361,7 @@ float CompositionWindow::rasterizationScale() const {
 }
 
 void CompositionWindow::background(Color color) const {
-    ++state_->backgroundChange;
+    state_->backgroundLoads.cancel();
     state_->picture = nullptr;
     state_->backdrop.Brush(state_->compositor.CreateColorBrush(asWinrt(color)));
 }
@@ -1388,7 +1370,7 @@ void CompositionWindow::clearBackground() const {
     // Спрайт без кисти ничего не рисует, но остаётся корнем сцены и
     // контейнером визуалов приложения -- дерево не меняется, меняется только
     // то, что у него нет своей заливки.
-    ++state_->backgroundChange;
+    state_->backgroundLoads.cancel();
     state_->picture = nullptr;
     state_->backdrop.Brush(nullptr);
 }
@@ -1438,7 +1420,7 @@ void CompositionWindow::background(BackgroundImage const& image) const {
     // Обёртку держим именованной: get_typed отдаёт сырой winrt внутри неё, а не
     // копию, и временная обёртка умерла бы прежде, чем кисть скопируют.
     CompositionSurfaceBrush wrapped = surface.brush();
-    ++state_->backgroundChange;
+    state_->backgroundLoads.cancel();
     state_->showPicture(*Object::Impl::get_typed<CompositionSurfaceBrush>(wrapped), image.fill,
                         image.color);
 }
@@ -1453,21 +1435,37 @@ void CompositionWindow::background(DrawingSurface const& surface) const {
     // UniformToFill: поверхность-задник тянется под окно, как картинка-заставка,
     // и в просвете быстрой растяжки кроет окно, а не сквозит.
     brush.Stretch(muc::CompositionStretch::UniformToFill);
-    ++state_->backgroundChange;
+    state_->backgroundLoads.cancel();
     state_->picture = nullptr;
     state_->backdrop.Brush(brush);
 }
 
-void CompositionWindow::backgroundAsync(std::filesystem::path const& image) const {
-    backgroundAsync(BackgroundImage{image});
+void CompositionWindow::backgroundAsync(std::filesystem::path const& image,
+                                        async::cancellation_token stop) const {
+    backgroundAsync(BackgroundImage{image}, std::move(stop));
 }
 
-void CompositionWindow::backgroundAsync(BackgroundImage const& image) const {
-    // Запускаем и забываем: swapBackground сам доведёт себя до конца на UI-потоке
-    // и уберёт свой кадр. Кэш держит текстуру, так что тот же путь во второй раз
-    // сменит задник уже без загрузки.
-    swapBackground(state_, {impl::beside_application(image.path), image.fill, image.color},
-                   ++state_->backgroundChange);
+void CompositionWindow::backgroundAsync(BackgroundImage const& image,
+                                        async::cancellation_token stop) const {
+    // Кэш держит текстуру, так что тот же путь во второй раз сменит задник без
+    // загрузки.
+    state_->loadBackground({impl::beside_application(image.path), image.fill, image.color}, std::move(stop));
+}
+
+void WindowState::loadBackground(BackgroundImage image, async::cancellation_token owner) {
+    async::cancellation_token const load = backgroundLoads.next(std::move(owner), image);
+    impl::show_when_loaded(
+        textureCache->getAsync(image.path, load), load,
+        [state = core::intrusive_ptr<WindowState>{this}, fill = image.fill,
+         color = image.color](CompositionDrawingSurface const& surface) {
+            // Именованный промежуток: обёртка -> сырая поверхность (одно
+            // преобразование), сырая поверхность -> ICompositionSurface у
+            // CreateSurfaceBrush (второе); в одном выражении их было бы два
+            // подряд, чего аргументу не дают.
+            muc::CompositionDrawingSurface const& raw =
+                *Object::Impl::get_typed<CompositionDrawingSurface>(surface);
+            state->showPicture(state->compositor.CreateSurfaceBrush(raw), fill, color);
+        });
 }
 
 // ---- CompositionWindow ----------------------------------------------------
@@ -1490,8 +1488,11 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     state_->compositor = muc::Compositor{};
     state_->backdrop = state_->compositor.CreateSpriteVisual();
 
-    // Кэш текстур на том же компоновщике -- под асинхронные задники.
+    // Кэш текстур на том же компоновщике -- под асинхронные задники -- и держатель
+    // замены устройства под поверхностями: на ней задник, загруженный на ходу,
+    // грузится снова.
     state_->textureCache.emplace(Object::Impl::wrap<Compositor>(state_->compositor));
+    state_->deviceWatch.attach(Object::Impl::wrap<Compositor>(state_->compositor), *state_);
 
     state_->sceneIsland = content::ContentIsland::Create(state_->backdrop);
     state_->sceneBridge = content::DesktopAttachedSiteBridge::CreateFromWindowId(

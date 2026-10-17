@@ -24,13 +24,24 @@ constexpr bool device_loss_code(std::int32_t result) noexcept {
            result == D2DERR_RECREATE_TARGET;
 }
 
-/// Pretends that the device every DrawingSurface draws through was lost: the replacement
-/// then runs as after a real loss, from the system's thread pool to the UI thread -- a new
-/// device, every graphics device moved onto it, every RenderingDeviceWatch called. What it
-/// cannot pretend is the old device failing: drawing on it goes on succeeding until the
-/// replacement. For seeing an application redraw on a machine -- from a debugger's
-/// immediate window or a key of a debug build, on the UI thread. Stops the process if no
-/// surface has been made yet: there is no device to lose.
+/// Sets the event the device every DrawingSurface draws through sets when it is removed: the
+/// replacement then runs as after a real loss, from the system's thread pool to the UI thread --
+/// a new device, every graphics device moved onto it, every RenderingDeviceWatch called. For a
+/// device under wxl's surfaces that wxl does not watch, found lost by its owner -- Win2D's, under
+/// TextureCache -- and for seeing an application redraw on a machine, from a debugger's
+/// immediate window or a key of a debug build; on the UI thread. What it cannot pretend is the
+/// old device failing: drawing on it goes on succeeding until the replacement. Stops the
+/// process if no surface has been made yet: there is no device to lose. Once the UI thread's
+/// queue has begun to shut down it does nothing: the device is no longer replaced.
 void signal_rendering_device_removed();
+
+/// How many times the device every DrawingSurface draws through has been replaced. What a
+/// holder of things made on another device under wxl's surfaces -- Win2D's, under
+/// TextureCache -- compares, to learn that its things are empty and it has to follow.
+std::uint64_t rendering_device_replacements() noexcept;
+
+/// Makes that device if there is none yet, so that a loss of the adapter under it is heard:
+/// for TextureCache, whose own device wxl does not watch. On the UI thread.
+void ensure_rendering_device();
 
 }  // namespace wxl::impl

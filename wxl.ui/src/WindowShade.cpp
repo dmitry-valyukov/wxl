@@ -4,14 +4,15 @@
 // The winrt and Windows headers come first, and with them the standard
 // library they pull in textually: WindowShade.h reaches wxl.core through
 // core.h, and a standard header included after that import is one MSVC has
-// already seen through the std module. WindowShade.h is last for the same
+// already seen through the std module. The wxl headers are last for the same
 // reason.
 //
 // The system compositor (Windows.UI.Composition), not WinUI's -- because the
 // target is a bare HWND of our own and the flight goes outside any window,
 // which is exactly what a DesktopWindowTarget is for and what a XAML island's
-// compositor is not. The four links from Direct2D to a composition surface
-// are the same ones DrawingSurface uses, here against this compositor.
+// compositor is not. Its graphics device sits on the rendering device every
+// DrawingSurface draws through, and is moved with them when that device is
+// lost and replaced (impl/system_drawing.h); the snapshot is drawn again then.
 //
 // GDI is needed for the window snapshot (PrintWindow into a DIB), so NOGDI is
 // lifted for this one file, the way WindowBackdrop.cpp does. It is first,
@@ -28,14 +29,14 @@
 #include <winrt/Windows.UI.Composition.h>
 
 #include <d2d1_1.h>
-#include <d3d11.h>
-#include <dxgi.h>
 #include <windows.ui.composition.interop.h>
 
 #include <chrono>
 #include <vector>
 
 #include "WindowShade.h"
+#include "DrawingSurface.h"
+#include "impl/system_drawing.h"
 
 namespace wxl {
 namespace {
@@ -150,7 +151,6 @@ constexpr float kLandedPixels = 24.0f;
 struct WindowShade::Impl {
     HWND window = nullptr;
     HWND overlay = nullptr;
-    bool ready = false;
 
     comp::Compositor compositor{nullptr};
     desktop::DesktopWindowTarget target{nullptr};
@@ -161,19 +161,30 @@ struct WindowShade::Impl {
 
     // The snapshot the flight carries, kept between collapse and expand: the
     // window is hidden by the time it expands, so a fresh capture then would
-    // be blank.
-    RECT windowRect{};
+    // be blank -- and kept whole, pixels too, so that a surface the lost
+    // device took with it can be drawn again.
+    Snapshot shot;
+    comp::CompositionDrawingSurface surface{nullptr};
     bool hasSnapshot = false;
     POINT overlayOrigin{};
 
-    explicit Impl(HWND w) : window(w) { build(); }
+    // A failure to build is thrown on, with the overlay made before it taken
+    // down: the destructor of an Impl that was never made does not run.
+    explicit Impl(HWND w) : window(w) {
+        try {
+            build();
+        } catch (...) {
+            if (overlay) ::DestroyWindow(overlay);
+            throw;
+        }
+    }
 
     ~Impl() {
         if (overlay) ::DestroyWindow(overlay);
     }
 
-    void build() try {
-        if (!overlayClass()) return;
+    void build() {
+        if (!overlayClass()) winrt::throw_last_error();
 
         // Created tiny and moved to the flight's rectangle before each show
         // (placeOverlay): it is never a full-screen window, so it never trips
@@ -182,12 +193,11 @@ struct WindowShade::Impl {
                                         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
                                     kOverlayClass, L"", WS_POPUP, 0, 0, 1, 1, nullptr, nullptr,
                                     ::GetModuleHandleW(nullptr), nullptr);
-        if (!overlay) return;
+        if (!overlay) winrt::throw_last_error();
 
         // The compositor needs a Windows.System dispatcher on the thread, and the
         // thread has one: the I/O loop started in launch.cpp made it.
         compositor = comp::Compositor{};
-        graphics = makeGraphicsDevice();
 
         auto const interop = compositor.as<ABI::Windows::UI::Composition::Desktop::
                                                ICompositorDesktopInterop>();
@@ -200,68 +210,59 @@ struct WindowShade::Impl {
         sprite = compositor.CreateSpriteVisual();
         root.Children().InsertAtTop(sprite);
 
-        ready = true;
-    } catch (...) {
-        // No compositor: the shade still hides and shows the window, only
-        // without the flight, so a caller never has to check.
-        ready = false;
+        deviceWatch.attach(identity(), *this);
     }
 
-    comp::CompositionGraphicsDevice makeGraphicsDevice() {
-        winrt::com_ptr<ID3D11Device> d3d;
-        winrt::check_hresult(::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-                                                 D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
-                                                 D3D11_SDK_VERSION, d3d.put(), nullptr, nullptr));
-
-        D2D1_CREATION_PROPERTIES const properties{D2D1_THREADING_MODE_SINGLE_THREADED,
-                                                  D2D1_DEBUG_LEVEL_NONE,
-                                                  D2D1_DEVICE_CONTEXT_OPTIONS_NONE};
-        winrt::com_ptr<ID2D1Device> d2d;
-        winrt::check_hresult(
-            ::D2D1CreateDevice(d3d.as<IDXGIDevice>().get(), &properties, d2d.put()));
-
-        auto const interop = compositor.as<ABI::Windows::UI::Composition::ICompositorInterop>();
-        ABI::Windows::UI::Composition::ICompositionGraphicsDevice* raw = nullptr;
-        winrt::check_hresult(interop->CreateGraphicsDevice(d2d.as<::IUnknown>().get(), &raw));
-        comp::CompositionGraphicsDevice device{nullptr};
-        winrt::attach_abi(device, raw);
-        return device;
+    impl::system_compositor identity() const {
+        return {compositor.as<::IUnknown>().get()};
     }
 
-    /// Draws the snapshot into a surface and wears it on the sprite, sized to
-    /// the window.
-    void wear(Snapshot const& shot) {
-        comp::CompositionDrawingSurface surface = graphics.CreateDrawingSurface(
+    /// The graphics device, made with the first snapshot: a shade that never
+    /// flies makes none.
+    comp::CompositionGraphicsDevice const& graphicsDevice() {
+        if (!graphics) winrt::copy_from_abi(graphics, impl::system_graphics_device(identity()));
+        return graphics;
+    }
+
+    /// Draws the snapshot into a surface of its size and wears it on the
+    /// sprite, sized to the window.
+    void wear(Snapshot taken) {
+        comp::CompositionGraphicsDevice const& device = graphicsDevice();
+        shot = std::move(taken);
+        surface = device.CreateDrawingSurface(
             {float(shot.width), float(shot.height)},
             directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
             directx::DirectXAlphaMode::Premultiplied);
-
-        auto const interop =
-            surface.as<ABI::Windows::UI::Composition::ICompositionDrawingSurfaceInterop>();
-        winrt::com_ptr<ID2D1DeviceContext> context;
-        POINT offset{};
-        winrt::check_hresult(interop->BeginDraw(nullptr, winrt::guid_of<ID2D1DeviceContext>(),
-                                                context.put_void(), &offset));
-        // The surface lives in a shared atlas, so its origin is wherever the
-        // atlas put it -- drawing without this transform lands on a neighbour.
-        context->SetTransform(D2D1::Matrix3x2F::Translation(float(offset.x), float(offset.y)));
-        context->Clear(D2D1::ColorF(0, 0, 0, 0));
-
-        D2D1_BITMAP_PROPERTIES const props{
-            {DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED}, 96, 96};
-        winrt::com_ptr<ID2D1Bitmap> bitmap;
-        context->CreateBitmap(D2D1_SIZE_U{UINT32(shot.width), UINT32(shot.height)},
-                              shot.pixels.data(), UINT32(shot.width) * 4, props, bitmap.put());
-        if (bitmap) {
-            context->DrawBitmap(bitmap.get(),
-                                D2D1_RECT_F{0, 0, float(shot.width), float(shot.height)});
-        }
-        winrt::check_hresult(interop->EndDraw());
+        draw();
 
         auto brush = compositor.CreateSurfaceBrush(surface);
         brush.Stretch(comp::CompositionStretch::Fill);
         sprite.Brush(brush);
         sprite.Size({float(shot.width), float(shot.height)});
+    }
+
+    /// The snapshot's pixels into the surface. Not drawn on a lost device: the
+    /// replacement calls deviceReplaced, and the snapshot is drawn then.
+    void draw() {
+        impl::draw_system_surface(surface.as<::IUnknown>().get(), [this](ID2D1DeviceContext* context) {
+            D2D1_BITMAP_PROPERTIES const props{
+                {DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED}, 96, 96};
+            winrt::com_ptr<ID2D1Bitmap> bitmap;
+            HRESULT const made = context->CreateBitmap(
+                D2D1_SIZE_U{UINT32(shot.width), UINT32(shot.height)}, shot.pixels.data(),
+                UINT32(shot.width) * 4, props, bitmap.put());
+            DrawingSurface::throwIfDeviceLost(made);
+            winrt::check_hresult(made);
+            context->DrawBitmap(bitmap.get(),
+                                D2D1_RECT_F{0, 0, float(shot.width), float(shot.height)});
+        });
+    }
+
+    /// The device under the surface was replaced, and the surface is empty:
+    /// the snapshot is drawn again, if there is one to draw. noexcept, as the
+    /// watch asks: a failure here stops the process, named.
+    void deviceReplaced() noexcept {
+        if (hasSnapshot) draw();
     }
 
     /// Moves the overlay to where the flight needs it, and remembers its
@@ -305,11 +306,22 @@ struct WindowShade::Impl {
         sprite.StartAnimation(L"Opacity", opacity);
         batch.End();
 
+        // The projection's delegate would turn an exception into an HRESULT for
+        // the compositor and lose it: whatever `whenDone` throws stops the
+        // process here, named.
         batch.Completed([this, done = std::move(whenDone)](auto&&, auto&&) {
-            if (done) done();
-            ::ShowWindow(overlay, SW_HIDE);
+            try {
+                if (done) done();
+                ::ShowWindow(overlay, SW_HIDE);
+            } catch (...) {
+                core::impl::terminate_with_reason();
+            }
         });
     }
+
+    // Last: after what its listener touches -- the snapshot and its surface --
+    // and after the listener itself, which a member pointer has to name.
+    impl::system_device_watch<&Impl::deviceReplaced> deviceWatch;
 };
 
 WindowShade::WindowShade(HWND__* window)
@@ -322,27 +334,28 @@ WindowShade& WindowShade::operator=(WindowShade&&) noexcept = default;
 void WindowShade::collapseTo(Point screenPoint, std::function<void()> whenDone) const {
     Impl& shade = *impl_;
 
-    Snapshot const shot = shade.ready ? capture(shade.window) : Snapshot{};
-    if (!shade.ready || shot.width <= 0) {
-        // No compositor, or nothing to snapshot: hide and be done.
+    Snapshot shot = capture(shade.window);
+    if (shot.width <= 0) {
+        // Nothing to snapshot: hide and be done.
         ::ShowWindow(shade.window, SW_HIDE);
         if (whenDone) whenDone();
         return;
     }
 
-    shade.wear(shot);
-    shade.windowRect = shot.rect;
+    RECT const rect = shot.rect;
+    int const width = shot.width;
+    shade.wear(std::move(shot));
     shade.hasSnapshot = true;
 
     // The overlay over just the path, then up with the snapshot exactly over
     // the window, then the window hidden behind it -- no gap where neither
     // shows.
-    shade.placeOverlay(flightBounds(shot.rect, screenPoint));
-    numerics::float3 const from = shade.overlayPoint(float(shot.rect.left), float(shot.rect.top));
+    shade.placeOverlay(flightBounds(rect, screenPoint));
+    numerics::float3 const from = shade.overlayPoint(float(rect.left), float(rect.top));
     ::ShowWindow(shade.overlay, SW_SHOWNOACTIVATE);
     ::ShowWindow(shade.window, SW_HIDE);
 
-    float const scale = shot.width > 0 ? kLandedPixels / shot.width : 0.1f;
+    float const scale = kLandedPixels / width;
     numerics::float3 const to = shade.overlayPoint(screenPoint.x, screenPoint.y);
     shade.fly(from, {1, 1, 1}, 1.0f, to, {scale, scale, 1}, 0.0f, std::move(whenDone));
 }
@@ -350,13 +363,13 @@ void WindowShade::collapseTo(Point screenPoint, std::function<void()> whenDone) 
 void WindowShade::expandFrom(Point screenPoint, std::function<void()> whenDone) const {
     Impl& shade = *impl_;
 
-    if (!shade.ready || !shade.hasSnapshot) {
+    if (!shade.hasSnapshot) {
         ::ShowWindow(shade.window, SW_SHOW);
         if (whenDone) whenDone();
         return;
     }
 
-    RECT const& rect = shade.windowRect;
+    RECT const& rect = shade.shot.rect;
     float const width = float(rect.right - rect.left);
     float const scale = width > 0 ? kLandedPixels / width : 0.1f;
 
