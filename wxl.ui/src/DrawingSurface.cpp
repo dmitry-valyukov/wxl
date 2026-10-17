@@ -109,7 +109,8 @@ void CALLBACK device_removed(void*, BOOLEAN) noexcept {
     // MSVC keeps a terminate handler for each thread, so the one that names the exception is
     // set here too: an exception out of the handing over -- the projection's TryEnqueue, the
     // delegate it is given -- ends in std::terminate. A thread of the pool is the system's and
-    // runs other callbacks after this one, so it gets its own handler back.
+    // runs other callbacks after this one, so it gets its own handler back. The handler and
+    // not a catch, as post_completion has: it names a terminate a noexcept call inside raises too.
     const std::terminate_handler previous = core::impl::set_terminate_with_reason();
 
     dispatching::DispatcherQueue queue{nullptr};

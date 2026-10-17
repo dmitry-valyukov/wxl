@@ -154,8 +154,15 @@ public:
         return left;
     }
 
+    // The answer of the post is not read: no refusal of it leaves the wait asleep. The wait
+    // reads the action's status itself, after each message, so the waiting thread may have
+    // read it after another message and left the wait before this post, and the thread may
+    // have ended since: ERROR_INVALID_THREAD_ID then comes after the wait is over. A queue that
+    // is full (ERROR_NOT_ENOUGH_QUOTA) does not let GetMessageW sleep, and the status is read
+    // after each message. The other refusals do not arise for a thread of this process that
+    // pumps GetMessageW itself.
     HRESULT __stdcall Invoke(IAsyncAction*, AsyncStatus) noexcept override {
-        ::PostThreadMessageW(thread_, WM_NULL, 0, 0);
+        static_cast<void>(::PostThreadMessageW(thread_, WM_NULL, 0, 0));
         return S_OK;
     }
 
