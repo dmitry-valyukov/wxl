@@ -1,11 +1,9 @@
-// What std::terminate says before the process ends: the exception that reached a noexcept
-// call -- a listener of the window or of a field -- or that a coroutine nobody holds failed
-// with, named in the report core::abort writes, and a terminate with nothing thrown said as
-// such.
+// What std::terminate says of a winrt::hresult_error: its code, and what the error says of
+// itself or, without that, what the system says of the code -- named by the namer wWinMain
+// gives wxl.core's handler. The rest of what the handler says is wxl.core's, and tested there.
 //
-// The handler is the one wWinMain sets, set here by the test itself; the deaths run in a
-// child process, which is also where MSVC shows that the exception is still to be had once
-// it has left a noexcept call.
+// The handler is the one wWinMain sets, set here by the test itself; the death runs in a
+// child process.
 #include <crtdbg.h>
 
 #include <gtest/gtest.h>
@@ -23,67 +21,74 @@
 
 namespace {
 
-using wxl::impl::describe_terminate;
+// The handler and its namer, set as wWinMain sets them: once in a process, since the namer
+// is set once. A death runs in a process of its own and sets them there.
+void set_the_handler_once() {
+    static bool const set = (wxl::impl::install_terminate_report(), true);
+    static_cast<void>(set);
+}
 
 // The report is read while the exception is the one being handled, as it is in the handler.
-template <typename Exception, std::size_t N>
-std::string describe_thrown(Exception const& exception, char (&text)[N]) {
+template <typename Exception>
+std::string describe_thrown(Exception const& exception) {
+    set_the_handler_once();
     try {
         throw exception;
     } catch (...) {
-        return std::string{describe_terminate(text)};
+        char text[512];
+        wxl::core::impl::terminate_report report{text};
+        wxl::core::impl::describe_terminate(report);
+        return std::string{report.text()};
     }
 }
 
 constexpr std::int32_t failed = static_cast<std::int32_t>(0x80004005);  // E_FAIL
 
-TEST(TerminateReason, names_what_a_std_exception_says) {
-    char text[512];
-    EXPECT_EQ(describe_thrown(std::runtime_error("no room left"), text),
-              "wxl: unhandled exception: no room left");
-}
-
-// An hresult_error is named by its code and by its message, which for an error of XAML or
-// the composition is everything the error says; the message comes as UTF-16 and goes out
-// as UTF-8.
+// The message of an error of XAML or of the composition is everything the error says; it
+// comes as UTF-16 and goes out as UTF-8.
 TEST(TerminateReason, names_the_code_and_the_message_of_an_hresult_error) {
-    char text[512];
-    EXPECT_EQ(describe_thrown(winrt::hresult_error(failed, L"нет поверхности"), text),
+    EXPECT_EQ(describe_thrown(winrt::hresult_error(failed, L"нет поверхности")),
               "wxl: unhandled exception: winrt::hresult_error 0x80004005: нет поверхности");
 }
 
-// Without a message of its own, the code is followed by what the system says of it, in the
-// system's language.
+// A pair goes out as one code point, a lone half as U+FFFD, and the end of line a message
+// may carry does not.
+TEST(TerminateReason, writes_the_message_as_utf8) {
+    EXPECT_EQ(describe_thrown(winrt::hresult_error(failed, L"a\xD83D\xDE00" L"b\xD800 \r\n")),
+              "wxl: unhandled exception: winrt::hresult_error 0x80004005: "
+              "a\xF0\x9F\x98\x80" "b\xEF\xBF\xBD");
+}
+
+// Without a message of its own, the code is followed by what the error info says of it.
 TEST(TerminateReason, names_the_code_of_an_hresult_error) {
-    char text[512];
-    std::string const said = describe_thrown(winrt::hresult_error(failed), text);
-    EXPECT_TRUE(said.starts_with("wxl: unhandled exception: winrt::hresult_error 0x80004005"))
+    std::string const said = describe_thrown(winrt::hresult_error(failed));
+    EXPECT_TRUE(said.starts_with("wxl: unhandled exception: winrt::hresult_error 0x80004005: "))
         << said;
 }
 
-TEST(TerminateReason, says_when_the_type_is_unknown) {
-    char text[512];
-    EXPECT_EQ(describe_thrown(42, text), "wxl: unhandled exception of an unknown type");
+// An error made with no_originate has no error info: the code is followed by what the
+// system says of it, in the system's language.
+TEST(TerminateReason, names_an_hresult_error_without_error_info) {
+    std::string_view const named = "wxl: unhandled exception: winrt::hresult_error 0x80004005: ";
+    std::string const said =
+        describe_thrown(winrt::hresult_error{failed, winrt::hresult_error::no_originate});
+    EXPECT_TRUE(said.starts_with(named)) << said;
+    EXPECT_GT(said.size(), named.size()) << said;
+
+    // The code is written as Windows writes one, in capitals.
+    constexpr std::int32_t out_of_memory = static_cast<std::int32_t>(0x8007000E);  // E_OUTOFMEMORY
+    std::string const short_of_memory =
+        describe_thrown(winrt::hresult_error{out_of_memory, winrt::hresult_error::no_originate});
+    EXPECT_TRUE(short_of_memory.starts_with(
+        "wxl: unhandled exception: winrt::hresult_error 0x8007000E: "))
+        << short_of_memory;
 }
 
-TEST(TerminateReason, says_when_nothing_was_thrown) {
-    char text[512];
-    EXPECT_EQ(describe_terminate(text), "wxl: std::terminate without an exception");
-}
-
-// A report longer than its buffer is cut where the buffer ends, and the cut is seen.
-TEST(TerminateReason, a_report_that_does_not_fit_ends_in_dots) {
-    char text[16];
-    EXPECT_EQ(describe_thrown(std::runtime_error("longer than sixteen"), text),
-              "wxl: unhandle...");
-}
-
-// The cut goes back to the start of the code point it would split: the dots follow a whole
-// letter, never half of one.
-TEST(TerminateReason, a_cut_report_keeps_whole_code_points) {
-    char text[32];
-    EXPECT_EQ(describe_thrown(std::runtime_error("ЖЖЖЖ"), text),
-              "wxl: unhandled exception: Ж...");
+// What is not an hresult_error is left to wxl.core: the namer puts nothing for it.
+TEST(TerminateReason, leaves_other_exceptions_to_wxl_core) {
+    EXPECT_EQ(describe_thrown(std::runtime_error("no room left")),
+              "wxl: unhandled exception: no room left");
+    EXPECT_EQ(describe_thrown(42), "wxl: unhandled exception of an unknown type");
 }
 
 // The report goes to stderr rather than to a dialog that would hang the run.
@@ -92,7 +97,7 @@ void without_a_dialog() {
 }
 
 [[noreturn]] void fail() {
-    throw std::runtime_error("проба terminate");
+    throw winrt::hresult_error(failed, L"проба terminate");
 }
 
 // A call with no way out for an exception, as a listener of the window is.
@@ -102,45 +107,13 @@ void listen() noexcept {
 
 void throw_out_of_a_noexcept_call() {
     without_a_dialog();
-    wxl::impl::set_terminate_with_reason();
+    set_the_handler_once();
     listen();
 }
 
-void terminate_with_nothing_thrown() {
-    without_a_dialog();
-    wxl::impl::set_terminate_with_reason();
-    std::terminate();
-}
-
-// What a coroutine nobody holds hands over when it fails: the exception, out of any catch of
-// the caller's, named by the handler and by nobody else.
-void fail_as_a_detached_coroutine() {
-    without_a_dialog();
-    wxl::impl::set_terminate_with_reason();
-    auto const failure = std::make_exception_ptr(std::runtime_error("корутина упала"));
-    wxl::impl::terminate_with_exception(failure);
-}
-
-void fail_with_no_exception_to_hand_over() {
-    without_a_dialog();
-    wxl::impl::set_terminate_with_reason();
-    wxl::impl::terminate_with_exception(nullptr);
-}
-
-TEST(TerminateReasonDeathTest, names_the_exception_that_left_a_noexcept_call) {
-    EXPECT_DEATH(throw_out_of_a_noexcept_call(), "wxl: unhandled exception: проба terminate");
-}
-
-TEST(TerminateReasonDeathTest, says_when_nothing_was_thrown) {
-    EXPECT_DEATH(terminate_with_nothing_thrown(), "wxl: std::terminate without an exception");
-}
-
-TEST(TerminateReasonDeathTest, names_the_exception_a_failed_coroutine_hands_over) {
-    EXPECT_DEATH(fail_as_a_detached_coroutine(), "wxl: unhandled exception: корутина упала");
-}
-
-TEST(TerminateReasonDeathTest, says_when_a_coroutine_hands_over_nothing) {
-    EXPECT_DEATH(fail_with_no_exception_to_hand_over(), "wxl: std::terminate without an exception");
+TEST(TerminateReasonDeathTest, names_the_hresult_error_that_left_a_noexcept_call) {
+    EXPECT_DEATH(throw_out_of_a_noexcept_call(),
+                 "wxl: unhandled exception: winrt::hresult_error 0x80004005: проба terminate");
 }
 
 }  // namespace

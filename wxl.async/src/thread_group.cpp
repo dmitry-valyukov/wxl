@@ -688,6 +688,13 @@ bool thread_group::is_internal_thread() {
 }
 
 unsigned __stdcall thread_starter::thread_proc(void* arg) noexcept {
+    // First of all, as wWinMain does on its thread: MSVC keeps a terminate handler for each
+    // thread, and this one starts with the runtime's, which ends the process through abort
+    // without a word. The body hands its exceptions to the promise; what reaches
+    // std::terminate here is one that left a noexcept call -- this one included, outside the
+    // body's try -- and the handler names it.
+    static_cast<void>(core::impl::set_terminate_with_reason());
+
     std::unique_ptr<thread_starter> starter(static_cast<thread_starter*>(arg));
 
     thread_info* thread_info = starter->info();

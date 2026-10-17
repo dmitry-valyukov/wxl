@@ -55,4 +55,100 @@ void fail(std::string_view cond_str, std::source_location loc) {
     stop(loc, "Precondition ", cond_str, " failed");
 }
 
+// ---- What std::terminate says --------------------------------------------------------
+
+namespace impl {
+
+namespace {
+
+/// Set by the layer that knows the type, before the threads it is to serve start, and
+/// read by the handler on whichever thread terminates.
+std::atomic<exception_namer> foreign_exception_namer{nullptr};
+
+}  // namespace
+
+void terminate_report::put(const std::string_view part) noexcept {
+    if (cut_) return;
+
+    const std::size_t taken = std::min(part.size(), text_.size() - used_);
+    std::copy_n(part.data(), taken, text_.data() + used_);
+    used_ += taken;
+
+    if (taken != part.size()) cut();
+}
+
+void terminate_report::put(const std::wstring_view part) noexcept {
+    if (cut_) return;
+
+    const auto done = unicode::write_utf8_repaired(text_.subspan(used_), part);
+    used_ += done.written;
+
+    if (done.read != part.size()) cut();
+}
+
+void terminate_report::cut() noexcept {
+    // The dots take the last three bytes of the room, moved back to the start of the code
+    // point they would split.
+    const std::size_t end =
+        unicode::floor_code_point_boundary(std::string_view{text_.data(), used_}, text_.size() - 3);
+    std::copy_n("...", 3, text_.data() + end);
+    used_ = end + 3;
+    cut_ = true;
+}
+
+void set_exception_namer(const exception_namer namer) noexcept {
+    if (foreign_exception_namer.exchange(namer, std::memory_order_acq_rel) != nullptr)
+        core::abort("wxl: an exception namer is set already; it is set once in a process");
+}
+
+void describe_terminate(terminate_report& report) noexcept {
+    if (!std::current_exception()) {
+        report.put("wxl: std::terminate without an exception");
+        return;
+    }
+
+    try {
+        throw;
+    } catch (const std::exception& error) {
+        report.put("wxl: unhandled exception: ");
+        report.put(std::string_view{error.what()});
+    } catch (...) {
+        const exception_namer namer = foreign_exception_namer.load(std::memory_order_acquire);
+
+        if (!namer || !namer(report)) report.put("wxl: unhandled exception of an unknown type");
+    }
+}
+
+// Smaller than the line of stop(), which adds the place in front of it.
+[[noreturn]] void terminate_with_reason() noexcept {
+    thread_local bool describing = false;
+    if (describing) core::abort("wxl: std::terminate again while its exception was being described");
+    describing = true;
+
+    char text[512];
+    terminate_report report{text};
+    describe_terminate(report);
+    core::abort(report.text());
+}
+
+std::terminate_handler set_terminate_with_reason() noexcept {
+    return std::set_terminate(&terminate_with_reason);
+}
+
+[[noreturn]] void terminate_with_exception(const std::exception_ptr error) noexcept {
+    static_cast<void>(set_terminate_with_reason());
+
+    if (error) {
+        try {
+            std::rethrow_exception(error);
+        } catch (...) {
+            std::terminate();
+        }
+    }
+
+    std::terminate();
+}
+
+}  // namespace impl
+
 }  // namespace wxl::core
