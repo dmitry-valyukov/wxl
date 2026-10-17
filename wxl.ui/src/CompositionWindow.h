@@ -209,7 +209,9 @@ public:
     /// фон, поставленный позже (он и остаётся), и отмена `stop`. Отказ
     /// загрузки -- файла нет -- не глотается: процесс останавливается, назвав его.
     /// Потерянное устройство уносит и картинку: на его замену окно грузит её
-    /// снова, под тем же `stop`, если фон с тех пор не сменили иначе.
+    /// снова, под тем же `stop`, если фон с тех пор не сменили иначе. Конец окна
+    /// (WM_DESTROY) отменяет загрузку и забывает её, а уничтоженное окно загрузку
+    /// не начинает: winrt::hresult_error RO_E_CLOSED.
     void backgroundAsync(BackgroundImage const& image, async::cancellation_token stop) const;
     void backgroundAsync(std::filesystem::path const& image, async::cancellation_token stop) const;
 

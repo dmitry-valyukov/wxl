@@ -31,8 +31,8 @@ struct system_compositor {
 ::IInspectable* system_graphics_device(system_compositor compositor);
 
 /// DrawingSurface::draw for a surface of that graphics device, given as its IUnknown: false when
-/// nothing was drawn -- no paint, or the device is lost, and the watch below is called once the new
-/// one stands -- and any other failure thrown.
+/// nothing was drawn -- no paint, or the device is lost or new and its watches not called yet, and
+/// the watch below is called once the new one stands -- and any other failure thrown.
 bool draw_system_surface(::IUnknown* surface, std::function<void(ID2D1DeviceContext*)> const& paint);
 
 /// The pair of calls a system_device_watch subscribes through, as rendering_device_replaced is

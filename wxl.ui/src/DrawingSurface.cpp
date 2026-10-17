@@ -64,9 +64,12 @@ struct rendering_device {
 };
 
 /// What impl::rendering_devices makes and moves: the device above, and graphics devices and
-/// compositors as the raw interfaces they are. A graphics device and a compositor's identity are
-/// leaked deliberately, for the reason rendering_device gives; the identity is only compared,
-/// and being immortal it cannot be a stale address a later compositor happens to reuse.
+/// compositors as the raw interfaces they are. A graphics device is leaked deliberately, for the
+/// reason rendering_device gives. A compositor's identity is held while its entry stands -- only
+/// compared, and held, it cannot be a stale address a later compositor happens to reuse -- and let
+/// go with the entry, when the compositor's last watch comes off and no surface was made on it:
+/// at the moment that watch lets its own reference go. An entry that keeps a graphics device
+/// stands for good, and its identity with it.
 struct device_backend {
     using owner_t = ::IUnknown*;
     using device_t = rendering_device;
@@ -82,14 +85,17 @@ struct device_backend {
     void unwatch(rendering_device& device) noexcept;
     void release(rendering_device& device) noexcept;
     void move(::IInspectable* graphics, impl::composition_api api, rendering_device const& device);
+    void post();
     void keep(::IUnknown* owner) noexcept { owner->AddRef(); }
+    void forget(::IUnknown* owner) noexcept { owner->Release(); }
 };
 
 /// The device, the graphics devices and the watches of the process. Leaked, as everything in it
 /// is: a watch held by an object of static duration is taken off in that object's destructor,
 /// after any function-local static would be gone.
 ///
-/// Between a loss and its replacement every draw() skips. The watches are called by the
+/// Between a loss and its replacement every draw() skips, and so it does between a replacement
+/// graphics_of ran and the turn that calls the holders. The watches are called by the
 /// replacement and not from the graphics devices' own RenderingDeviceReplaced: whether that
 /// event is raised inside SetRenderingDevice or on a later turn the documentation does not say,
 /// and if later, a drawing between the two would draw what the owner made from the old device
@@ -199,7 +205,11 @@ rendering_device device_backend::make(std::uint64_t generation) {
     if (!queue) {
         auto current = dispatching::DispatcherQueue::GetForCurrentThread();
         if (!current) core::abort("wxl: a drawing surface is made off the UI thread");
-        // Never taken off: the queue goes with it.
+        // Never taken off: the queue goes with it. Assumed: the queue raises ShutdownStarting holding
+        // no lock its TryEnqueue takes -- close() waits out a removal callback under way (unwatch),
+        // and that callback posts to this queue from the pool; believed because the queue takes work
+        // while the event and its deferral are out (DispatcherQueue.ShutdownStarting, Remarks) and
+        // TryEnqueue is called from any thread, not seen in the queue's sources, which are not public.
         static_cast<void>(current.ShutdownStarting([](auto&&, auto&&) noexcept { devices().close(); }));
         queue = static_cast<::IInspectable*>(winrt::detach_abi(current));
     }
@@ -261,12 +271,19 @@ void device_backend::release(rendering_device& device) noexcept {
     device = rendering_device{};
 }
 
-/// The same call under the IID of the graphics device's own API.
+/// The same call under the IID of the graphics device's own API. A graphics device of a closed
+/// compositor refuses with RO_E_CLOSED: the compositor was closed before the UI thread's queue began
+/// to shut down, against what DrawingSurface.h asks, and the process stops saying so.
 template <class Interop>
 void set_rendering_device(::IInspectable* graphics, ID2D1Device* d2d) {
     winrt::com_ptr<Interop> interop;
     winrt::check_hresult(graphics->QueryInterface(winrt::guid_of<Interop>(), interop.put_void()));
-    winrt::check_hresult(interop->SetRenderingDevice(d2d));
+    HRESULT const set = interop->SetRenderingDevice(d2d);
+    if (set == RO_E_CLOSED) {
+        core::abort("wxl: a compositor a drawing surface was made on is closed before the UI thread's queue began "
+                    "to shut down, and its graphics device cannot take the new rendering device (RO_E_CLOSED)");
+    }
+    winrt::check_hresult(set);
 }
 
 void device_backend::move(::IInspectable* graphics, impl::composition_api api,
@@ -275,6 +292,17 @@ void device_backend::move(::IInspectable* graphics, impl::composition_api api,
         set_rendering_device<impl::ICompositionGraphicsDeviceInterop>(graphics, device.d2d);
     else
         set_rendering_device<system_interop::ICompositionGraphicsDeviceInterop>(graphics, device.d2d);
+}
+
+/// The turn that calls the holders after a replacement graphics_of ran, on the queue taken with the
+/// first device. The queue refuses only once it is shut down, and the replacement is closed before
+/// that (ShutdownStarting) and posts nothing: a refusal here is not a way out, and stops.
+void device_backend::post() {
+    dispatching::DispatcherQueue current{nullptr};
+    winrt::copy_from_abi(current, queue);
+    if (!current.TryEnqueue([]() noexcept { devices().notify(); })) {
+        core::abort("wxl: the UI thread's queue refused the turn that calls the holders of a new rendering device");
+    }
 }
 
 /// The identity a compositor is named by: COM's, not the interface pointer at hand -- two
@@ -340,6 +368,10 @@ composition::CompositionDrawingSurface allocate(composition::Compositor const& c
 /// of it. Clear honours the clip, so it clears that part alone.
 template <class Interop>
 bool draw_on(Interop& interop, RECT const* update, std::function<void(ID2D1DeviceContext*)> const& paint) {
+    // The device is new and its holders have not been called yet: what they made from the old one
+    // would go into a context of this one. Skipped; they draw again from their call.
+    if (!devices().holders_told()) return false;
+
     winrt::com_ptr<ID2D1DeviceContext> context;
     POINT offset{};
     HRESULT const begun = interop.BeginDraw(update, winrt::guid_of<ID2D1DeviceContext>(),
@@ -538,7 +570,8 @@ namespace impl {
 
 // The handlers of the watches on a compositor live in its entry, on wxl's own list, whose
 // removal answers; the replacement calls them. A watch put on before any surface makes the
-// entry without a graphics device, and a watch taken off finds the entry its attach made.
+// entry without a graphics device, and a watch taken off finds the entry its attach made -- and
+// the last one off lets that entry go, if no surface was made on the compositor.
 
 EventToken rendering_device_replaced::add(Compositor const& compositor, EventHandler<Object> handler) {
     return devices()
@@ -547,8 +580,7 @@ EventToken rendering_device_replaced::add(Compositor const& compositor, EventHan
 }
 
 bool rendering_device_replaced::remove(Compositor const& compositor, EventToken token) {
-    handler_list<Object>* const handlers = devices().find_handlers(identity_of(compositor).get());
-    return handlers && handlers->remove(token);
+    return devices().remove(identity_of(compositor).get(), token);
 }
 
 ::IInspectable* system_graphics_device(system_compositor compositor) {
@@ -581,8 +613,7 @@ EventToken system_rendering_device_replaced::add(system_compositor compositor, E
 }
 
 bool system_rendering_device_replaced::remove(system_compositor compositor, EventToken token) {
-    handler_list<Object>* const handlers = devices().find_handlers(compositor.identity);
-    return handlers && handlers->remove(token);
+    return devices().remove(compositor.identity, token);
 }
 
 std::uint64_t rendering_device_replacements() noexcept {

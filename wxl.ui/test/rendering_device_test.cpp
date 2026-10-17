@@ -12,10 +12,11 @@
 // impl::rendering_devices, which DrawingSurface.cpp runs over the real devices: its order, the
 // generation an answer of a removal is for, the replacement run before a graphics device would be
 // made on a lost device, and the close on the way out -- is run over a backend that writes down
-// what it is asked to make, move and let go. That a real loss reaches it -- the removal event, the pool's wait, the turn of the UI
-// thread's queue -- that SetRenderingDevice takes the new device, that the device confirms
-// the codes, and that BeginDraw on a lost device answers one of them, is seen on a machine
-// (impl::signal_rendering_device_removed, a real TDR).
+// what it is asked to make, move, post and let go, and whose posted turns the test runs. That a
+// real loss reaches it -- the removal event, the pool's wait, the turn of the UI thread's queue --
+// that SetRenderingDevice takes the new device, that the device confirms the codes, that BeginDraw
+// on a lost device answers one of them, and that draw() skips until the holders are called, is seen
+// on a machine (impl::signal_rendering_device_removed, a real TDR).
 #include <crtdbg.h>
 
 // The classification and the limit first: they reach windows.h, which has to come before
@@ -259,7 +260,7 @@ char const* name_of(composition_api api) {
 
 /// The real things as a log: a device is numbered by its generation, a graphics device by its
 /// compositor, and every call the replacement makes is written down in the order it is made. The
-/// test says which device says it was removed.
+/// test says which device says it was removed, and runs the turns posted to the queue.
 struct fake_backend {
     using owner_t = int;
     struct device_t {
@@ -270,6 +271,7 @@ struct fake_backend {
 
     log_t* log;
     std::uint64_t removed = 0;
+    std::size_t posted = 0;   // the turns on the queue
 
     device_t make(std::uint64_t generation) {
         log->push_back(std::format("make d{}", generation));
@@ -289,10 +291,22 @@ struct fake_backend {
         log->push_back(std::format("move g{} {} to d{}", graphics, name_of(api), device.id));
     }
 
+    void post() {
+        log->push_back("post");
+        ++posted;
+    }
+
     void keep(owner_t owner) noexcept { log->push_back(std::format("keep o{}", owner)); }
+
+    void forget(owner_t owner) noexcept { log->push_back(std::format("forget o{}", owner)); }
 };
 
 using fake_devices = rendering_devices<fake_backend>;
+
+/// The queue's turn: the turns posted so far run, in order; what they post waits for the next.
+void run_posted(fake_devices& all) {
+    for (std::size_t now = std::exchange(all.backend().posted, 0); now != 0; --now) all.notify();
+}
 
 /// The graphics device of compositor `owner`, made as the real one is: on the device handed in,
 /// numbered after its compositor.
@@ -303,11 +317,11 @@ int graphics_of(fake_devices& all, int owner, composition_api api, log_t& log) {
     });
 }
 
-/// A watch on compositor `owner` that writes down that it was called.
-void watch(fake_devices& all, int owner, composition_api api, log_t& log) {
-    static_cast<void>(all.handlers_of(owner, api).add(wxl::impl::next_event_token(), [&log, owner] {
+/// A watch on compositor `owner` that writes down that it was called; its token.
+EventToken watch(fake_devices& all, int owner, composition_api api, log_t& log) {
+    return all.handlers_of(owner, api).add(wxl::impl::next_event_token(), [&log, owner] {
         log.push_back(std::format("watch o{}", owner));
-    }));
+    });
 }
 
 TEST(RenderingDevices, the_first_device_is_made_with_the_first_graphics_device) {
@@ -396,18 +410,25 @@ TEST(RenderingDevices, the_replacements_are_counted_before_the_watches_are_calle
     EXPECT_EQ(seen, (std::vector<std::uint64_t>{1, 2}));
 }
 
-// The handlers of a compositor: the same list whoever asks, and none for one nobody asked for --
-// the answer a watch's remove reads.
-TEST(RenderingDevices, a_compositor_nobody_asked_for_has_no_handlers) {
+// The holders of a compositor: the same list whoever asks; a token is taken off the list of its
+// own compositor and of no other, and nothing is taken off a compositor nobody asked for -- the
+// answer a watch's remove reads.
+TEST(RenderingDevices, a_holder_is_taken_off_its_own_compositor_alone) {
     log_t log;
     fake_devices all{fake_backend{&log}};
-    EXPECT_EQ(all.find_handlers(1), nullptr);
+    EXPECT_FALSE(all.remove(1, EventToken{1}));
 
     handler_list<Object>& handlers = all.handlers_of(1, composition_api::system);
-    EXPECT_EQ(all.find_handlers(1), &handlers);
     EXPECT_EQ(&all.handlers_of(1, composition_api::system), &handlers);
-    EXPECT_EQ(all.find_handlers(2), nullptr);
-    EXPECT_EQ(log, (log_t{"keep o1"})) << "no device for a watch alone";
+    EventToken const token = watch(all, 1, composition_api::system, log);
+    EventToken const other = watch(all, 2, composition_api::system, log);
+    EXPECT_EQ(log, (log_t{"keep o1", "keep o2"})) << "no device for a watch alone";
+
+    EXPECT_FALSE(all.remove(2, token)) << "not of that compositor";
+    EXPECT_FALSE(all.remove(3, token)) << "a compositor nobody asked for";
+    EXPECT_TRUE(all.remove(1, token));
+    EXPECT_FALSE(all.remove(1, token)) << "taken off already";
+    EXPECT_TRUE(all.remove(2, other));
 }
 
 // The answer of a removal is for the device it was put on: one for a device replaced already
@@ -430,9 +451,10 @@ TEST(RenderingDevices, an_answer_for_a_device_replaced_already_replaces_nothing)
 }
 
 // A graphics device asked for while the device in use says it was removed, before the answer of
-// its removal has come: the replacement runs first, there -- every graphics device moved and every
-// watch called -- and the new graphics device is made on the new device. The answer, when it comes,
-// finds its device gone, and nobody is called twice.
+// its removal has come: everything is moved onto a new device there, and the new graphics device is
+// made on it -- but nobody is called from inside the call that asked: the turn that calls the
+// holders is posted, and until it runs the holders are not told, so every draw() skips. The answer
+// of the removal, when it comes, finds its device replaced, and nobody is called twice.
 TEST(RenderingDevices, a_graphics_device_is_not_made_on_a_lost_device) {
     log_t log;
     fake_devices all{fake_backend{&log}};
@@ -440,15 +462,221 @@ TEST(RenderingDevices, a_graphics_device_is_not_made_on_a_lost_device) {
     watch(all, 1, composition_api::winui, log);
     all.backend().removed = 1;
     log.clear();
+    EXPECT_TRUE(all.holders_told());
 
     EXPECT_EQ(graphics_of(all, 2, composition_api::system, log), 2);
-    EXPECT_EQ(log, (log_t{"keep o2", "unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o1",
+    EXPECT_EQ(log, (log_t{"keep o2", "unwatch d1", "make d2", "move g1 winui to d2", "release d1", "post",
                           "graphics g2 on d2"}));
+    EXPECT_EQ(all.replacements(), 1u) << "counted with the move";
+    EXPECT_FALSE(all.holders_told()) << "draw() skips until the turn";
 
     log.clear();
     all.replace(1);
     EXPECT_TRUE(log.empty()) << "the answer of the removal finds its device replaced";
+
+    run_posted(all);
+    EXPECT_EQ(log, (log_t{"watch o1"}));
+    EXPECT_TRUE(all.holders_told());
+
+    log.clear();
+    all.notify();
+    EXPECT_TRUE(log.empty()) << "called once";
     EXPECT_EQ(all.replacements(), 1u);
+}
+
+// A watch on compositor 2, put on before its first surface -- as a window puts its own -- whose
+// listener draws on compositor 2. The first surface of compositor 2 is made while the device is
+// lost: the listener is not called from inside that, so the graphics device the surface was made on
+// is the one the entry keeps, the listener finds it when its turn comes, and the next replacement
+// moves it.
+TEST(RenderingDevices, a_holder_drawing_on_its_compositor_finds_the_graphics_device_the_entry_keeps) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    int nested = 0;
+    static_cast<void>(all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        log.push_back("watch o2");
+        nested = graphics_of(all, 2, composition_api::winui, log);
+    }));
+    all.backend().removed = 1;
+    log.clear();
+
+    int const outer = graphics_of(all, 2, composition_api::winui, log);
+    EXPECT_EQ(nested, 0) << "nobody is called from inside the call that asked";
+    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1", "post",
+                          "graphics g2 on d2"}));
+
+    log.clear();
+    run_posted(all);
+    EXPECT_EQ(nested, outer);
+    EXPECT_EQ(log, (log_t{"watch o2"})) << "no second graphics device";
+
+    log.clear();
+    all.replace(2);
+    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "move g2 winui to d3", "release d2",
+                          "watch o2"}));
+}
+
+// A holder whose call is the first to draw on another compositor, called by the turn graphics_of
+// posted: that graphics device is made on the device that stands, kept, and moved by the next
+// replacement.
+TEST(RenderingDevices, what_a_holder_makes_from_the_posted_turn_is_kept_and_moved_next_time) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    bool drawn = false;
+    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        log.push_back("watch o1");
+        if (std::exchange(drawn, true)) return;
+        graphics_of(all, 3, composition_api::winui, log);
+    }));
+    all.backend().removed = 1;
+    graphics_of(all, 2, composition_api::winui, log);
+    log.clear();
+
+    run_posted(all);
+    EXPECT_EQ(log, (log_t{"watch o1", "keep o3", "graphics g3 on d2"}));
+
+    log.clear();
+    all.replace(2);
+    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "move g2 winui to d3",
+                          "move g3 winui to d3", "release d2", "watch o1"}));
+}
+
+// A holder's call that asks for a graphics device while the new device is lost already: everything
+// moves again from inside the call -- still nobody is called from there -- and the holders not
+// called yet in this turn are called with the newest device's holders not told, so their draws
+// skip; the turn posted for the newest device calls every holder again, once.
+TEST(RenderingDevices, a_replacement_from_inside_a_holders_call_calls_nobody_and_posts_its_turn) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    graphics_of(all, 2, composition_api::winui, log);
+    std::vector<bool> told;
+    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        log.push_back("watch o1");
+        told.push_back(all.holders_told());
+        if (all.current()->id == 2) {
+            all.backend().removed = 2;
+            graphics_of(all, 3, composition_api::winui, log);
+        }
+    }));
+    static_cast<void>(all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        log.push_back("watch o2");
+        told.push_back(all.holders_told());
+    }));
+    log.clear();
+
+    all.replace(1);
+    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "move g2 winui to d2", "release d1",
+                          "watch o1", "keep o3", "unwatch d2", "make d3", "move g1 winui to d3",
+                          "move g2 winui to d3", "release d2", "post", "graphics g3 on d3", "watch o2"}));
+    EXPECT_EQ(told, (std::vector<bool>{true, false}));
+    EXPECT_EQ(all.replacements(), 2u);
+
+    log.clear();
+    told.clear();
+    run_posted(all);
+    EXPECT_EQ(log, (log_t{"watch o1", "watch o2"}));
+    EXPECT_EQ(told, (std::vector<bool>{true, true}));
+}
+
+// A holder is told before its call, by the replacement and by the posted turn alike: what it draws
+// from there is drawn.
+TEST(RenderingDevices, the_holders_are_told_before_they_are_called) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    std::vector<bool> told;
+    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        told.push_back(all.holders_told());
+    }));
+    all.replace(1);
+    all.backend().removed = 2;
+    graphics_of(all, 2, composition_api::winui, log);
+    run_posted(all);
+    EXPECT_EQ(told, (std::vector<bool>{true, true}));
+}
+
+// Two replacements graphics_of ran, two turns: the first calls the holders for the device that
+// stands, and the second finds them called. A turn whose holders a replacement has called already
+// calls nobody either.
+TEST(RenderingDevices, the_holders_are_called_once_for_the_device_that_stands) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    std::vector<std::uint64_t> seen;
+    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        seen.push_back(all.current()->id);
+    }));
+
+    all.backend().removed = 1;
+    graphics_of(all, 2, composition_api::winui, log);
+    all.backend().removed = 2;
+    graphics_of(all, 3, composition_api::winui, log);
+    EXPECT_EQ(all.backend().posted, 2u);
+    run_posted(all);
+    EXPECT_EQ(seen, (std::vector<std::uint64_t>{3}));
+
+    all.backend().removed = 3;
+    graphics_of(all, 4, composition_api::winui, log);
+    all.replace(4);
+    EXPECT_EQ(seen, (std::vector<std::uint64_t>{3, 5}));
+    run_posted(all);
+    EXPECT_EQ(seen, (std::vector<std::uint64_t>{3, 5})) << "the replacement of d4 called them for d5";
+    EXPECT_TRUE(all.holders_told());
+}
+
+// A compositor's entry goes, and its identity is let go, once its last holder is taken off and no
+// graphics device was made on it: a window that never drew on its compositor leaves nothing behind.
+// One with a graphics device stays, and is moved at the next replacement.
+TEST(RenderingDevices, an_entry_with_neither_a_graphics_device_nor_a_holder_goes) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    EventToken const drawn = watch(all, 1, composition_api::winui, log);
+    EventToken const first = watch(all, 2, composition_api::winui, log);
+    EventToken const second = watch(all, 2, composition_api::winui, log);
+    log.clear();
+
+    EXPECT_TRUE(all.remove(2, first));
+    EXPECT_TRUE(log.empty()) << "a holder is left";
+    EXPECT_TRUE(all.remove(2, second));
+    EXPECT_EQ(log, (log_t{"forget o2"}));
+
+    log.clear();
+    EXPECT_TRUE(all.remove(1, drawn));
+    EXPECT_TRUE(log.empty()) << "the graphics device of o1 stays";
+    all.replace(1);
+    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1"}));
+
+    log.clear();
+    watch(all, 2, composition_api::winui, log);
+    EXPECT_EQ(log, (log_t{"keep o2"})) << "a new entry, its identity held again";
+}
+
+// A holder taken off from inside its own call -- a popup that closes itself on the replacement: its
+// entry goes once the calls are over, not in the middle of them, and every other holder is called.
+TEST(RenderingDevices, an_entry_emptied_by_a_holders_call_goes_once_the_calls_are_over) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    EventToken leaving{};
+    leaving = all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+        log.push_back("watch o2, off");
+        EXPECT_TRUE(all.remove(2, leaving));
+    });
+    watch(all, 3, composition_api::winui, log);
+    watch(all, 1, composition_api::winui, log);
+    log.clear();
+
+    all.replace(1);
+    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o1",
+                          "watch o2, off", "watch o3", "forget o2"}));
+
+    log.clear();
+    all.replace(2);
+    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "release d2", "watch o1", "watch o3"}));
 }
 
 // A graphics device made already is not made again, lost device or not: nothing is replaced
@@ -486,6 +714,24 @@ TEST(RenderingDevices, after_the_close_nothing_is_replaced) {
     EXPECT_EQ(graphics_of(all, 2, composition_api::winui, log), 2);
     EXPECT_EQ(log, (log_t{"keep o2", "graphics g2 on d1"}));
     EXPECT_EQ(all.replacements(), 0u);
+    EXPECT_EQ(all.backend().posted, 0u);
+}
+
+// A turn posted before the close calls nobody once the queue has begun to shut down: the holders
+// would draw on compositors that are closing. draw() goes on skipping to the end.
+TEST(RenderingDevices, after_the_close_a_posted_turn_calls_nobody) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    watch(all, 1, composition_api::winui, log);
+    all.backend().removed = 1;
+    graphics_of(all, 2, composition_api::winui, log);
+    all.close();
+    log.clear();
+
+    run_posted(all);
+    EXPECT_TRUE(log.empty());
+    EXPECT_FALSE(all.holders_told());
 }
 
 // Closed before the first device: the first is made without a watch for its removal.
