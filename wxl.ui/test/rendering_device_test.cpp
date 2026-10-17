@@ -8,10 +8,11 @@
 //
 // No GPU, no compositor. The compositor is a fake: a handle to the handler list the real
 // graphics device's entry keeps -- impl::handler_list itself -- with the pair of calls a
-// watch subscribes through, and the test raises the replacement. And the order of the
-// replacement itself -- impl::rendering_devices, which DrawingSurface.cpp runs over the real
-// devices -- is run over a backend that writes down what it is asked to make, move and let
-// go. That a real loss reaches it -- the removal event, the pool's wait, the turn of the UI
+// watch subscribes through, and the test raises the replacement. And the replacement itself --
+// impl::rendering_devices, which DrawingSurface.cpp runs over the real devices: its order, the
+// generation an answer of a removal is for, the replacement run before a graphics device would be
+// made on a lost device, and the close on the way out -- is run over a backend that writes down
+// what it is asked to make, move and let go. That a real loss reaches it -- the removal event, the pool's wait, the turn of the UI
 // thread's queue -- that SetRenderingDevice takes the new device, that the device confirms
 // the codes, and that BeginDraw on a lost device answers one of them, is seen on a machine
 // (impl::signal_rendering_device_removed, a real TDR).
@@ -256,24 +257,26 @@ char const* name_of(composition_api api) {
     return api == composition_api::winui ? "winui" : "system";
 }
 
-/// The real things as a log: devices and graphics devices are numbers, and every call the
-/// replacement makes is written down in the order it is made.
+/// The real things as a log: a device is numbered by its generation, a graphics device by its
+/// compositor, and every call the replacement makes is written down in the order it is made. The
+/// test says which device says it was removed.
 struct fake_backend {
     using owner_t = int;
     struct device_t {
-        int id = 0;
+        std::uint64_t id = 0;
         bool watched = false;
     };
     using graphics_t = int;
 
     log_t* log;
-    int devices = 0;
+    std::uint64_t removed = 0;
 
-    device_t make() {
-        ++devices;
-        log->push_back(std::format("make d{}", devices));
-        return {devices, true};
+    device_t make(std::uint64_t generation) {
+        log->push_back(std::format("make d{}", generation));
+        return {generation, true};
     }
+
+    bool lost(device_t const& device) noexcept { return device.id == removed; }
 
     void unwatch(device_t& device) noexcept {
         log->push_back(std::format("unwatch d{}", device.id));
@@ -315,7 +318,7 @@ TEST(RenderingDevices, the_first_device_is_made_with_the_first_graphics_device) 
     EXPECT_EQ(graphics_of(all, 1, composition_api::winui, log), 1);
     EXPECT_EQ(graphics_of(all, 1, composition_api::winui, log), 1) << "made once";
     ASSERT_NE(all.current(), nullptr);
-    EXPECT_EQ(all.current()->id, 1);
+    EXPECT_EQ(all.current()->id, 1u);
     EXPECT_EQ(log, (log_t{"keep o1", "make d1", "graphics g1 on d1"}));
 }
 
@@ -330,10 +333,10 @@ TEST(RenderingDevices, a_replacement_moves_every_graphics_device_before_any_watc
     watch(all, 2, composition_api::system, log);
     log.clear();
 
-    all.replace();
+    all.replace(1);
     EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "move g2 system to d2",
                           "release d1", "watch o1", "watch o2"}));
-    EXPECT_EQ(all.current()->id, 2);
+    EXPECT_EQ(all.current()->id, 2u);
     EXPECT_TRUE(all.current()->watched);
 }
 
@@ -345,7 +348,7 @@ TEST(RenderingDevices, a_watch_with_no_surface_yet_is_called_and_nothing_is_move
     watch(all, 2, composition_api::winui, log);
     log.clear();
 
-    all.replace();
+    all.replace(1);
     EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o2"}));
 }
 
@@ -364,12 +367,12 @@ TEST(RenderingDevices, what_a_watch_makes_from_its_call_is_on_the_new_device_alr
     }));
     log.clear();
 
-    all.replace();
+    all.replace(1);
     EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o1",
                           "keep o2", "graphics g2 on d2"}));
 
     log.clear();
-    all.replace();
+    all.replace(2);
     EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "move g2 winui to d3",
                           "release d2", "watch o1", "watch o2"}));
 }
@@ -387,8 +390,8 @@ TEST(RenderingDevices, the_replacements_are_counted_before_the_watches_are_calle
     static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
         seen.push_back(all.replacements());
     }));
-    all.replace();
-    all.replace();
+    all.replace(1);
+    all.replace(2);
     EXPECT_EQ(all.replacements(), 2u);
     EXPECT_EQ(seen, (std::vector<std::uint64_t>{1, 2}));
 }
@@ -405,6 +408,96 @@ TEST(RenderingDevices, a_compositor_nobody_asked_for_has_no_handlers) {
     EXPECT_EQ(&all.handlers_of(1, composition_api::system), &handlers);
     EXPECT_EQ(all.find_handlers(2), nullptr);
     EXPECT_EQ(log, (log_t{"keep o1"})) << "no device for a watch alone";
+}
+
+// The answer of a removal is for the device it was put on: one for a device replaced already
+// replaces nothing, and the device in use answers for itself.
+TEST(RenderingDevices, an_answer_for_a_device_replaced_already_replaces_nothing) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    watch(all, 1, composition_api::winui, log);
+    all.replace(1);
+    log.clear();
+
+    all.replace(1);
+    all.replace(3);
+    EXPECT_TRUE(log.empty());
+    EXPECT_EQ(all.current()->id, 2u);
+
+    all.replace(2);
+    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "release d2", "watch o1"}));
+}
+
+// A graphics device asked for while the device in use says it was removed, before the answer of
+// its removal has come: the replacement runs first, there -- every graphics device moved and every
+// watch called -- and the new graphics device is made on the new device. The answer, when it comes,
+// finds its device gone, and nobody is called twice.
+TEST(RenderingDevices, a_graphics_device_is_not_made_on_a_lost_device) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    watch(all, 1, composition_api::winui, log);
+    all.backend().removed = 1;
+    log.clear();
+
+    EXPECT_EQ(graphics_of(all, 2, composition_api::system, log), 2);
+    EXPECT_EQ(log, (log_t{"keep o2", "unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o1",
+                          "graphics g2 on d2"}));
+
+    log.clear();
+    all.replace(1);
+    EXPECT_TRUE(log.empty()) << "the answer of the removal finds its device replaced";
+    EXPECT_EQ(all.replacements(), 1u);
+}
+
+// A graphics device made already is not made again, lost device or not: nothing is replaced
+// until the answer comes.
+TEST(RenderingDevices, a_graphics_device_made_already_replaces_nothing) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    all.backend().removed = 1;
+    log.clear();
+
+    EXPECT_EQ(graphics_of(all, 1, composition_api::winui, log), 1);
+    EXPECT_TRUE(log.empty());
+}
+
+// Once the thread's queue begins to shut down, the device in use is no longer watched and
+// nothing is replaced: neither by the answer of a removal posted before, nor before a graphics
+// device made on a lost device. The device stays, and is not let go.
+TEST(RenderingDevices, after_the_close_nothing_is_replaced) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    graphics_of(all, 1, composition_api::winui, log);
+    watch(all, 1, composition_api::winui, log);
+    log.clear();
+
+    all.close();
+    all.close();
+    EXPECT_TRUE(all.closed());
+    EXPECT_EQ(log, (log_t{"unwatch d1"})) << "once";
+    EXPECT_FALSE(all.current()->watched);
+
+    log.clear();
+    all.replace(1);
+    all.backend().removed = 1;
+    EXPECT_EQ(graphics_of(all, 2, composition_api::winui, log), 2);
+    EXPECT_EQ(log, (log_t{"keep o2", "graphics g2 on d1"}));
+    EXPECT_EQ(all.replacements(), 0u);
+}
+
+// Closed before the first device: the first is made without a watch for its removal.
+TEST(RenderingDevices, a_device_made_after_the_close_is_not_watched) {
+    log_t log;
+    fake_devices all{fake_backend{&log}};
+    all.close();
+    EXPECT_TRUE(log.empty()) << "no device to unwatch";
+
+    graphics_of(all, 1, composition_api::winui, log);
+    EXPECT_EQ(log, (log_t{"keep o1", "make d1", "unwatch d1", "graphics g1 on d1"}));
+    EXPECT_FALSE(all.current()->watched);
 }
 
 void ask_under_two_apis() {

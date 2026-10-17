@@ -31,7 +31,8 @@ constexpr bool device_loss_code(std::int32_t result) noexcept {
 /// TextureCache -- and for seeing an application redraw on a machine, from a debugger's
 /// immediate window or a key of a debug build; on the UI thread. What it cannot pretend is the
 /// old device failing: drawing on it goes on succeeding until the replacement. Stops the
-/// process if no surface has been made yet: there is no device to lose.
+/// process if no surface has been made yet: there is no device to lose. Once the UI thread's
+/// queue has begun to shut down it does nothing: the device is no longer replaced.
 void signal_rendering_device_removed();
 
 /// How many times the device every DrawingSurface draws through has been replaced. What a

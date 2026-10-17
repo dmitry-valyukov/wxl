@@ -77,7 +77,8 @@ struct device_backend {
     // only ever read after that first device, so the pool reads it without a lock.
     ::IInspectable* queue = nullptr;
 
-    rendering_device make();
+    rendering_device make(std::uint64_t generation);
+    bool lost(rendering_device const& device) noexcept { return device.d3d->GetDeviceRemovedReason() != S_OK; }
     void unwatch(rendering_device& device) noexcept;
     void release(rendering_device& device) noexcept;
     void move(::IInspectable* graphics, impl::composition_api api, rendering_device const& device);
@@ -121,10 +122,11 @@ bool confirmed_loss(HRESULT result) noexcept {
 }
 
 /// The pool's half of a loss: hand the news to the UI thread, which owns the device and
-/// every surface. Nothing else happens on the pool's thread. A queue that takes nothing
-/// more is going down, and then there is nothing left to draw. noexcept: the pool has
+/// every surface -- the replacement of the device the wait was put on for, whose generation
+/// is the context of the wait. Nothing else happens on the pool's thread. A queue that takes
+/// nothing more is going down, and then there is nothing left to draw. noexcept: the pool has
 /// nobody to hand an exception to.
-void CALLBACK device_removed(void*, BOOLEAN) noexcept {
+void CALLBACK device_removed(void* context, BOOLEAN) noexcept {
     // MSVC keeps a terminate handler for each thread, so the one that names the exception is
     // set here too: an exception out of the handing over -- the projection's TryEnqueue, the
     // delegate it is given -- ends in std::terminate. A thread of the pool is the system's and
@@ -132,9 +134,10 @@ void CALLBACK device_removed(void*, BOOLEAN) noexcept {
     // not a catch, as post_completion has: it names a terminate a noexcept call inside raises too.
     const std::terminate_handler previous = core::impl::set_terminate_with_reason();
 
+    std::uint64_t const generation = reinterpret_cast<std::uintptr_t>(context);
     dispatching::DispatcherQueue queue{nullptr};
     winrt::copy_from_abi(queue, devices().backend().queue);
-    queue.TryEnqueue([]() noexcept { devices().replace(); });
+    queue.TryEnqueue([generation]() noexcept { devices().replace(generation); });
 
     std::set_terminate(previous);
 }
@@ -183,11 +186,21 @@ winrt::com_ptr<ID3D11Device> new_d3d_device() {
 
 /// Makes the D3D11 device, the D2D device on it, and the watch for its removal: the device
 /// sets an event when it is removed, and a wait of the system pool -- no thread of ours,
-/// nothing that looks again and again -- hears it once.
-rendering_device device_backend::make() {
+/// nothing that looks again and again -- hears it once, and asks for the replacement of
+/// `generation`.
+///
+/// With the first device the UI thread's queue is taken, and the replacement is closed when the
+/// queue begins to shut down: ShutdownStarting is the first of its shutdown events, raised before
+/// FrameworkShutdownStarting, in which XAML shuts down on the thread and closes its compositor
+/// (FrameworkApplication::StartOnCurrentThreadImpl, DCompTreeHost::ReleaseResources in the
+/// sources of WinUI 3) -- and SetRenderingDevice on a graphics device of a closed compositor
+/// fails. The handler does not throw: close() stops on a failure of its own.
+rendering_device device_backend::make(std::uint64_t generation) {
     if (!queue) {
         auto current = dispatching::DispatcherQueue::GetForCurrentThread();
         if (!current) core::abort("wxl: a drawing surface is made off the UI thread");
+        // Never taken off: the queue goes with it.
+        static_cast<void>(current.ShutdownStarting([](auto&&, auto&&) noexcept { devices().close(); }));
         queue = static_cast<::IInspectable*>(winrt::detach_abi(current));
     }
 
@@ -212,8 +225,9 @@ rendering_device device_backend::make() {
     DWORD cookie = 0;
     winrt::check_hresult(removable->RegisterDeviceRemovedEvent(removed, &cookie));
     HANDLE wait = nullptr;
-    if (!::RegisterWaitForSingleObject(&wait, removed, &device_removed, nullptr, INFINITE,
-                                       WT_EXECUTEONLYONCE)) {
+    if (!::RegisterWaitForSingleObject(&wait, removed, &device_removed,
+                                       reinterpret_cast<void*>(static_cast<std::uintptr_t>(generation)),
+                                       INFINITE, WT_EXECUTEONLYONCE)) {
         winrt::throw_last_error();
     }
 
@@ -221,17 +235,18 @@ rendering_device device_backend::make() {
                             impl::max_update_side(d3d->GetFeatureLevel())};
 }
 
-/// The wait fired once (WT_EXECUTEONLYONCE) and its callback asked for the turn that replaces
-/// the device; it is waited out here, nowhere near the callback itself, before the wait is let
-/// go.
+/// The watch taken back: from a replacement -- the wait fired once (WT_EXECUTEONLYONCE) and its
+/// callback asked for the turn, or the UI thread found the device lost first -- or from the
+/// close. A callback under way is waited out here, nowhere near the callback itself, before the
+/// wait is let go; the turn it posts finds its device replaced.
 void device_backend::unwatch(rendering_device& device) noexcept {
     if (!::UnregisterWaitEx(device.wait, INVALID_HANDLE_VALUE)) {
-        stop_on("wxl: the wait on the lost device did not come off, Win32 error",
+        stop_on("wxl: the wait on the rendering device did not come off, Win32 error",
                 ::GetLastError());
     }
     device.d3d->UnregisterDeviceRemoved(device.cookie);
     if (!::CloseHandle(device.removed)) {
-        stop_on("wxl: the removal event of the lost device did not close, Win32 error",
+        stop_on("wxl: the removal event of the rendering device did not close, Win32 error",
                 ::GetLastError());
     }
     device.wait = nullptr;
@@ -580,9 +595,11 @@ void ensure_rendering_device() {
 
 void signal_rendering_device_removed() {
     // The event the D3D device sets when it is removed is ours, made in device_backend::make:
-    // setting it is what the device does, and the wait cannot tell the two apart.
+    // setting it is what the device does, and the wait cannot tell the two apart. Once the
+    // queue has begun to shut down there is no event: nothing is replaced any more.
     rendering_device const* const device = devices().current();
     if (!device) core::abort("wxl: no rendering device to lose -- no drawing surface yet");
+    if (devices().closed()) return;
     if (!::SetEvent(device->removed)) winrt::throw_last_error();
 }
 

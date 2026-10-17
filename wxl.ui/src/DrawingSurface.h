@@ -64,6 +64,11 @@
 //     };
 //
 //     Page::Page(Compositor const& compositor) : deviceWatch_{compositor, *this} {}
+//
+// A replacement moves the graphics device of every compositor a surface was
+// made on, so such a compositor is not closed before the UI thread's queue
+// begins to shut down -- XAML closes its own then. From that moment the device
+// is no longer replaced: a loss on the way out leaves draw() answering false.
 
 // Declared, not included. d2d1_1.h is the application's business, and a
 // pointer to an incomplete type is all a std::function signature needs --
@@ -79,6 +84,11 @@ public:
     /// A side of zero or less is allowed and yields a surface nothing can be
     /// drawn into: that is what an element which has not been measured yet
     /// is, and refusing it would only move the check into every caller.
+    ///
+    /// The first surface of a compositor, made while the device says it was
+    /// lost and before its replacement has come, runs the replacement here:
+    /// every RenderingDeviceWatch is called from inside this constructor, and
+    /// the surface is made on the new device.
     DrawingSurface(Compositor const& compositor, SizeInt32 sizePixels);
 
     SizeInt32 size() const;
