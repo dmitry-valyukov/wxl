@@ -112,12 +112,6 @@
             ]
         },
 
-        "Microsoft.UI.Composition.CompositionGraphicsDevice": {
-            "comment": "Where a drawing surface comes from -- but not through metadata. The device is created through ICompositorInterop from a D2D device of one's own, CreateDrawingSurface names two enums of Microsoft.Graphics.DirectX that no profile loads, and the drawing itself is ICompositionDrawingSurfaceInterop::BeginDraw. All three are interop, so the whole chain is hand-written as wxl::DrawingSurface (DrawingSurface.h) and only the event is asked for here: a lost device leaves the visual tree standing and the surfaces empty, and this is how that is learned.",
-            "members": [
-                "RenderingDeviceReplaced"
-            ]
-        },
         "Microsoft.UI.Composition.CompositionDrawingSurface": {
             "comment": "Listed for its size alone: the drawing itself goes through ICompositionDrawingSurfaceInterop::BeginDraw_Abi, which no metadata describes.",
             "members": [

@@ -1002,12 +1002,40 @@ void own_drawing(Compositor const& compositor, FrameworkElement const& host, Xam
     SizeInt32 const pixels = page.size();
     (void)pixels;
 
-    page.draw([](ID2D1DeviceContext*) {});
+    // False: nothing drawn -- no size yet, or the device is lost and the watch below
+    // will say when to draw again. A Direct2D call inside the paint hands its answer to
+    // throwIfDeviceLost before deciding what a failure means; DeviceLost ends the paint,
+    // and draw() catches it.
+    bool const drew = page.draw([](ID2D1DeviceContext*) { DrawingSurface::throwIfDeviceLost(0); });
+    (void)drew;
+    DrawingSurface::DeviceLost const lost;
+    std::exception const& named = lost;
+    (void)named.what();
 
     SpriteVisual sprite = compositor.createSpriteVisual();
     sprite.brush(page.brush());
     sprite.size({width, height});
     ElementCompositionPreview::setElementChildVisual(host, sprite);
+}
+
+// An owner of surfaces hears that the device under them was replaced: a member
+// of its own, noexcept and taking nothing, held by a watch on the compositor the
+// surfaces were made on -- where it drops what it made from the old device and
+// draws again.
+struct DrawnPage {
+    explicit DrawnPage(Compositor const& compositor) : deviceWatch_{compositor, *this} {}
+
+    void deviceReplaced() noexcept {}
+
+    RenderingDeviceWatch<&DrawnPage::deviceReplaced> deviceWatch_;
+};
+
+void device_replaced(Compositor const& compositor) {
+    DrawnPage const page{compositor};
+    RenderingDeviceWatch<&DrawnPage::deviceReplaced> later;
+    bool const attached = later.attached();
+    (void)attached;
+    (void)page;
 }
 
 // Work handed to the UI thread, both ways round.
