@@ -317,6 +317,21 @@ void throw_from_inside_the_report() {
     listen_with_a_foreign_error();
 }
 
+// The same, called straight from a catch on a thread whose handler nobody has set -- a
+// completion on a thread of the system's: the terminate that describing brings back finds the
+// handler all the same, since the call has put it in the thread's place first.
+void throw_from_inside_a_report_called_from_a_catch() {
+    without_a_dialog();
+    wxl::core::impl::set_exception_namer(&name_by_throwing);
+    std::thread{[] {
+        try {
+            fail_with_a_foreign_error();
+        } catch (...) {
+            wxl::core::impl::terminate_with_reason();
+        }
+    }}.join();
+}
+
 }  // namespace
 
 // The exception is named after it has left the noexcept call: the handler rethrows the one
@@ -339,5 +354,10 @@ TEST(TerminateReasonDeathTest, SaysWhenACoroutineHandsOverNothing) {
 
 TEST(TerminateReasonDeathTest, ATerminateWhileDescribingStops) {
     EXPECT_DEATH(throw_from_inside_the_report(),
+                 "wxl: std::terminate again while its exception was being described");
+}
+
+TEST(TerminateReasonDeathTest, CalledFromACatchOnAThreadItStopsOnATerminateWhileDescribing) {
+    EXPECT_DEATH(throw_from_inside_a_report_called_from_a_catch(),
                  "wxl: std::terminate again while its exception was being described");
 }

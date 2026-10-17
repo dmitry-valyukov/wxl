@@ -190,7 +190,9 @@ private:
     void stop_asked() noexcept {
         if (this->ready()) return;
 
-        queue_.TryEnqueue([link = this->reach()] {
+        // noexcept: what the turn throws is a terminate the UI thread's handler names, not an
+        // HRESULT the projection's delegate hands the queue.
+        queue_.TryEnqueue([link = this->reach()]() noexcept {
             if (link->self) static_cast<producer_under*>(link->self)->cut();
         });
     }
@@ -231,7 +233,8 @@ template <class Producer, class Op, class Queue>
 void post_completion(Op const& operation, Queue const& queue, Producer& made) {
     operation.Completed([link = made.reach(), queue](auto const&, AsyncStatus status) {
         try {
-            static_cast<void>(queue.TryEnqueue([link, status] {
+            // The turn is noexcept for the same reason as cut()'s.
+            static_cast<void>(queue.TryEnqueue([link, status]() noexcept {
                 if (link->self) link->self->finish(status);
             }));
         } catch (...) {

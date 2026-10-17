@@ -133,8 +133,14 @@ void describe_terminate(terminate_report& report) noexcept {
     }
 }
 
-// Smaller than the line of stop(), which adds the place in front of it.
+// Smaller than the line of write_line(), which adds the place in front of it.
 [[noreturn]] void terminate_with_reason() noexcept {
+    // Called straight from a catch, it may run under the thread's own handler -- the runtime's,
+    // on a thread of the system's -- so it takes the thread's place first: a terminate that
+    // describing brings back comes here, to the line below. It does not return, so the handler
+    // it leaves is the thread's last.
+    static_cast<void>(set_terminate_with_reason());
+
     thread_local bool describing = false;
     if (describing) core::abort("wxl: std::terminate again while its exception was being described");
     describing = true;
