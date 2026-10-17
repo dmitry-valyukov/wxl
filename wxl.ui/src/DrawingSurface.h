@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <exception>
+#include <functional>
+#include <span>
 
 #include <wxl/Microsoft.UI.Composition.h>
 
@@ -39,6 +41,11 @@
 //
 // A wrapper, not an owner: copying one gives a second handle to the same
 // surface, the way every composition object behaves.
+//
+// One surface is one texture, and a texture has a longest side the device
+// allows -- 16384 pixels at best. Something longer, a long text in a
+// scroller, is a VirtualDrawingSurface (below): the boundaries of the whole,
+// pixels only for the parts drawn, each part drawn within one texture.
 //
 // The device can be lost -- a driver update, a GPU reset after a timeout, a
 // session moved to another adapter -- and that is an ordinary event, not a
@@ -119,6 +126,74 @@ public:
     ///
     /// Made fresh on each call, because a brush is cheap and holding one
     /// here would be a second thing to keep in step with resize().
+    CompositionSurfaceBrush brush() const;
+
+private:
+    Compositor compositor_;
+    CompositionDrawingSurface surface_;
+};
+
+/// A surface taller or wider than any texture of the device, drawn and kept in parts --
+/// the platform's CompositionVirtualDrawingSurface: a long document in a scroller, of which
+/// only what is near the view needs pixels.
+///
+/// Nothing is allocated until a part is drawn, and only what is drawn holds memory; trim()
+/// gives back what is no longer near the view. A part that was never drawn, or was trimmed,
+/// shows nothing.
+///
+/// The rest is DrawingSurface's: pixels, not DIPs; a wrapper, not an owner; the same device,
+/// so the same loss -- draw() answers false on a lost device, a Direct2D call inside the
+/// paint hands its answer to DrawingSurface::throwIfDeviceLost, and a RenderingDeviceWatch
+/// on the compositor is called once the new device stands. Every pixel goes with the old
+/// device: the owner draws again what is near the view.
+class VirtualDrawingSurface {
+public:
+    /// The longest side a virtual surface may have, 2^24 pixels: the remarks of
+    /// CompositionVirtualDrawingSurface set it from the float precision of the coordinates,
+    /// and IDCompositionDevice::CreateVirtualSurface names it as the largest width and height.
+    static constexpr std::int32_t maxSide = 1 << 24;
+
+    /// Allocates a surface of that many pixels -- the boundaries, not the memory. A side of
+    /// zero or less is a surface nothing can be drawn into, as with DrawingSurface; a side
+    /// over maxSide stops the process.
+    VirtualDrawingSurface(Compositor const& compositor, SizeInt32 sizePixels);
+
+    SizeInt32 size() const;
+
+    /// New boundaries for the same surface: what was drawn outside them is given back, and
+    /// every brush already showing it goes on showing it. A side over maxSide stops the
+    /// process.
+    void resize(SizeInt32 sizePixels);
+
+    /// The longest side of one draw(): an update is drawn into one texture of the device,
+    /// whose side the device's feature level bounds, and composition keeps three pixels of
+    /// that side for itself (gutters and a white pixel) -- 16381 pixels from 11_0 up, 8189 at
+    /// 10_x, 4093 at 9_3, 2045 at 9_1 and 9_2. The device's answer, so it may change when the
+    /// device is replaced: read it again in the RenderingDeviceWatch listener.
+    std::int32_t maxUpdateSide() const;
+
+    /// Draws one part of the surface, `updatePixels` cut to the surface's boundaries.
+    ///
+    /// The context arrives cleared to transparent within the part, clipped to it, and with
+    /// its transform set so that the paint draws in the coordinates of the whole surface:
+    /// a line at y = 40000 is drawn at y = 40000, whatever part of the texture the
+    /// compositor handed out for it.
+    ///
+    /// The part, once cut, must be no longer than maxUpdateSide() on either side; a longer
+    /// one stops the process. The limit is the caller's to keep -- splitting the part here
+    /// would hide a caller who thinks the device draws more at once than it does.
+    ///
+    /// False when nothing was drawn: the part is empty once cut, there is no paint, or the
+    /// device is lost -- as DrawingSurface::draw says. Any other failure throws.
+    bool draw(RectInt32 updatePixels, std::function<void(ID2D1DeviceContext*)> const& paint) const;
+
+    /// Keeps the pixels of these parts and gives back the memory of every other: what is
+    /// left out shows nothing until it is drawn again. Nothing to keep is every pixel
+    /// given back. Not from inside a paint.
+    void trim(std::span<RectInt32 const> keepPixels) const;
+
+    /// A brush showing this surface, for a sprite visual to wear: made fresh on each call,
+    /// as DrawingSurface::brush is.
     CompositionSurfaceBrush brush() const;
 
 private:

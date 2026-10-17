@@ -9,20 +9,24 @@
 #include <winrt/Microsoft.Graphics.DirectX.h>
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
+#include <winrt/Windows.Graphics.h>
 
 #include <d2d1_1.h>
 #include <d3d11_4.h>
 #include <dxgi.h>
 #include <inspectable.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <span>
 #include <vector>
 
 #include "DrawingSurface.h"
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 #include "impl/composition_interop.h"
+#include "impl/device_limits.h"
 #include "impl/device_loss.h"
 #include "impl/handler_list.h"
 
@@ -51,6 +55,7 @@ struct rendering_device {
     HANDLE removed = nullptr;       // set by the D3D device when it is removed
     DWORD cookie = 0;               // its registration, to take back from the old device
     HANDLE wait = nullptr;          // the system pool's wait on `removed`
+    std::int32_t max_update_side = 0;   // of `d3d`, by its feature level
     // The UI thread's queue, taken when the first device is made -- on the UI thread, as
     // every surface is. The pool hands the news of a loss over through it; it is agile, and
     // only ever read after that first device, so the pool reads it without a lock.
@@ -192,6 +197,7 @@ void make_device(rendering_device& device) {
         winrt::throw_last_error();
     }
 
+    device.max_update_side = impl::max_update_side(d3d->GetFeatureLevel());
     device.d2d = d2d.detach();
     device.d3d = removable.detach();
     device.removed = removed;
@@ -323,6 +329,105 @@ composition::CompositionDrawingSurface allocate(composition::Compositor const& c
         directx::DirectXAlphaMode::Premultiplied);
 }
 
+/// The size of a virtual surface: a side of zero or less is zero, as with a fixed one, and a
+/// side over VirtualDrawingSurface::maxSide stops -- it is past what the platform documents
+/// as its largest, and a caller who asks for one has a length it did not expect.
+SizeInt32 virtual_size(SizeInt32 sizePixels) {
+    if (sizePixels.width > VirtualDrawingSurface::maxSide ||
+        sizePixels.height > VirtualDrawingSurface::maxSide) {
+        char text[160];
+        std::snprintf(text, sizeof text,
+                      "wxl: a VirtualDrawingSurface of %dx%d pixels, over %d a side",
+                      static_cast<int>(sizePixels.width), static_cast<int>(sizePixels.height),
+                      static_cast<int>(VirtualDrawingSurface::maxSide));
+        core::abort(text);
+    }
+    return {std::max(sizePixels.width, 0), std::max(sizePixels.height, 0)};
+}
+
+/// Allocates a virtual surface, in the format of a fixed one, held as the drawing surface it
+/// derives from: size, resize and the interop of BeginDraw are that class's, and only trim
+/// asks for the virtual one.
+composition::CompositionDrawingSurface allocate_virtual(composition::Compositor const& compositor,
+                                                        SizeInt32 sizePixels) {
+    return graphics_device(compositor).CreateVirtualDrawingSurface(
+        winrt::Windows::Graphics::SizeInt32{sizePixels.width, sizePixels.height},
+        directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+        directx::DirectXAlphaMode::Premultiplied);
+}
+
+/// A brush showing a surface of either kind. Named, not nested: the surface converts to the
+/// projection type through its Impl and the projection type converts to ICompositionSurface,
+/// and one implicit conversion is all an argument gets.
+CompositionSurfaceBrush brush_of(Compositor const& owner, CompositionDrawingSurface const& shown) {
+    composition::Compositor const& compositor = *Object::Impl::get_typed<Compositor>(owner);
+    composition::CompositionDrawingSurface const& drawn =
+        *Object::Impl::get_typed<CompositionDrawingSurface>(shown);
+    return Object::Impl::wrap<CompositionSurfaceBrush>(compositor.CreateSurfaceBrush(drawn));
+}
+
+/// BeginDraw, the paint, EndDraw -- what every drawing of a surface shares, with what a lost
+/// device means at each step. `update` is the part to draw, in the surface's pixels, or null
+/// for the whole surface.
+///
+/// The transform puts the surface's origin where the paint draws it: BeginDraw's offset is
+/// where the top left corner of the update landed in the texture handed out (surfaces share
+/// a texture atlas), so the origin is that offset less the update's corner. A part is also
+/// clipped: BeginDraw's documentation asks the application not to draw outside the update
+/// rectangle, and a paint drawing in the whole surface's coordinates reaches past any part
+/// of it. Clear honours the clip, so it clears that part alone.
+bool draw_on(composition::CompositionDrawingSurface const& surface, RECT const* update,
+             std::function<void(ID2D1DeviceContext*)> const& paint) {
+    auto const interop = surface.as<impl::ICompositionDrawingSurfaceInterop>();
+
+    winrt::com_ptr<ID2D1DeviceContext> context;
+    POINT offset{};
+    HRESULT const begun = interop->BeginDraw(update, winrt::guid_of<ID2D1DeviceContext>(),
+                                             context.put_void(), &offset);
+    // A lost device is the one failure of BeginDraw that is not a bug: skipped, and drawn
+    // again once the new device stands (RenderingDeviceWatch). A begin that failed is not
+    // ended.
+    if (confirmed_loss(begun)) return false;
+    winrt::check_hresult(begun);
+
+    POINT const corner = update ? POINT{update->left, update->top} : POINT{};
+    context->SetTransform(D2D1::Matrix3x2F::Translation(static_cast<float>(offset.x - corner.x),
+                                                        static_cast<float>(offset.y - corner.y)));
+    if (update) {
+        context->PushAxisAlignedClip(
+            D2D1::RectF(static_cast<float>(update->left), static_cast<float>(update->top),
+                        static_cast<float>(update->right), static_cast<float>(update->bottom)),
+            D2D1_ANTIALIAS_MODE_ALIASED);
+    }
+    context->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+
+    // EndDraw runs even if the drawing threw: a surface left open is a surface no later
+    // draw can begin on. The clip comes off first, on every way out -- a push without its
+    // pop leaves the context in error. A paint ended by a lost device (throwIfDeviceLost)
+    // is a drawing skipped: whatever EndDraw says of the same device then, nothing was
+    // drawn.
+    auto const end = [&]() {
+        if (update) context->PopAxisAlignedClip();
+        return interop->EndDraw();
+    };
+    try {
+        paint(context.get());
+    } catch (DrawingSurface::DeviceLost const&) {
+        HRESULT const ended = end();
+        if (!confirmed_loss(ended)) winrt::check_hresult(ended);
+        return false;
+    } catch (...) {
+        end();
+        throw;
+    }
+    // The interop documentation says EndDraw does not report a lost device; whoever says
+    // it, a lost device is that and nothing else, and gets the answer BeginDraw's does.
+    HRESULT const ended = end();
+    if (confirmed_loss(ended)) return false;
+    winrt::check_hresult(ended);
+    return true;
+}
+
 }  // namespace
 
 DrawingSurface::DrawingSurface(Compositor const& compositor, SizeInt32 sizePixels)
@@ -344,50 +449,11 @@ bool DrawingSurface::draw(std::function<void(ID2D1DeviceContext*)> const& paint)
         return false;  // nothing to draw on: an element that has not been measured
     }
 
-    composition::CompositionDrawingSurface const& surface =
-        *Object::Impl::get_typed<CompositionDrawingSurface>(surface_);
-    auto const interop = surface.as<impl::ICompositionDrawingSurfaceInterop>();
-
-    winrt::com_ptr<ID2D1DeviceContext> context;
-    POINT offset{};
-    // nullptr: the whole surface. A partial update would be an update
-    // rectangle here, and the day something wants one it is one overload.
-    HRESULT const begun = interop->BeginDraw(nullptr, winrt::guid_of<ID2D1DeviceContext>(),
-                                             context.put_void(), &offset);
-    // A lost device is the one failure of BeginDraw that is not a bug: skipped, and drawn
-    // again once the new device stands (RenderingDeviceWatch). A begin that failed is not
-    // ended.
-    if (confirmed_loss(begun)) return false;
-    winrt::check_hresult(begun);
-
-    // Surfaces share one texture atlas, so the origin of this one is
-    // wherever the atlas put it. Drawing without this transform lands on
-    // whatever else is in the same texture -- which looks like another
-    // surface's contents leaking into this one.
-    context->SetTransform(D2D1::Matrix3x2F::Translation(static_cast<float>(offset.x),
-                                                        static_cast<float>(offset.y)));
-    context->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
-
-    // EndDraw runs even if the drawing threw: a surface left open is a
-    // surface no later draw can begin on. A paint ended by a lost device
-    // (throwIfDeviceLost) is a drawing skipped: whatever EndDraw says of the
-    // same device then, nothing was drawn.
-    try {
-        paint(context.get());
-    } catch (DeviceLost const&) {
-        HRESULT const ended = interop->EndDraw();
-        if (!confirmed_loss(ended)) winrt::check_hresult(ended);
-        return false;
-    } catch (...) {
-        interop->EndDraw();
-        throw;
-    }
-    // The interop documentation says EndDraw does not report a lost device; whoever says
-    // it, a lost device is that and nothing else, and gets the answer BeginDraw's does.
-    HRESULT const ended = interop->EndDraw();
-    if (confirmed_loss(ended)) return false;
-    winrt::check_hresult(ended);
-    return true;
+    // Null: the whole surface. Surfaces share one texture atlas, so the origin of this one
+    // is wherever the atlas put it; drawing without draw_on's transform lands on whatever
+    // else is in the same texture -- which looks like another surface's contents leaking
+    // into this one.
+    return draw_on(*Object::Impl::get_typed<CompositionDrawingSurface>(surface_), nullptr, paint);
 }
 
 char const* DrawingSurface::DeviceLost::what() const noexcept {
@@ -399,14 +465,73 @@ void DrawingSurface::throwIfDeviceLost(std::int32_t result) {
 }
 
 CompositionSurfaceBrush DrawingSurface::brush() const {
-    composition::Compositor const& compositor = *Object::Impl::get_typed<Compositor>(compositor_);
+    return brush_of(compositor_, surface_);
+}
 
-    // Named, not nested: the surface converts to the projection type through
-    // its Impl and the projection type converts to ICompositionSurface, and
-    // one implicit conversion is all an argument gets.
-    composition::CompositionDrawingSurface const& drawn =
+VirtualDrawingSurface::VirtualDrawingSurface(Compositor const& compositor, SizeInt32 sizePixels)
+    : compositor_(compositor),
+      surface_(Object::Impl::wrap<CompositionDrawingSurface>(allocate_virtual(
+          *Object::Impl::get_typed<Compositor>(compositor), virtual_size(sizePixels)))) {}
+
+SizeInt32 VirtualDrawingSurface::size() const {
+    return surface_.sizeInt32();
+}
+
+void VirtualDrawingSurface::resize(SizeInt32 sizePixels) {
+    surface_.resize(virtual_size(sizePixels));
+}
+
+std::int32_t VirtualDrawingSurface::maxUpdateSide() const {
+    // The surface's graphics device was made when the surface was, and with it the rendering
+    // device; a replacement makes the new one before anybody is told.
+    return current_device().max_update_side;
+}
+
+bool VirtualDrawingSurface::draw(RectInt32 updatePixels,
+                                 std::function<void(ID2D1DeviceContext*)> const& paint) const {
+    // Cut to the boundaries in 64 bits: x + width of two int32_t may not fit in one.
+    SizeInt32 const pixels = size();
+    std::int64_t const left = std::max<std::int64_t>(updatePixels.x, 0);
+    std::int64_t const top = std::max<std::int64_t>(updatePixels.y, 0);
+    std::int64_t const right =
+        std::min<std::int64_t>(std::int64_t{updatePixels.x} + updatePixels.width, pixels.width);
+    std::int64_t const bottom =
+        std::min<std::int64_t>(std::int64_t{updatePixels.y} + updatePixels.height, pixels.height);
+    if (!paint || left >= right || top >= bottom) return false;
+
+    std::int32_t const most = maxUpdateSide();
+    if (right - left > most || bottom - top > most) {
+        char text[192];
+        std::snprintf(
+            text, sizeof text,
+            "wxl: a VirtualDrawingSurface update of %lldx%lld pixels, over maxUpdateSide %d",
+            static_cast<long long>(right - left), static_cast<long long>(bottom - top),
+            static_cast<int>(most));
+        core::abort(text);
+    }
+
+    RECT const update{static_cast<LONG>(left), static_cast<LONG>(top), static_cast<LONG>(right),
+                      static_cast<LONG>(bottom)};
+    return draw_on(*Object::Impl::get_typed<CompositionDrawingSurface>(surface_), &update, paint);
+}
+
+// The rectangles are what stays, and no rectangles at all is nothing kept: so
+// IDCompositionVirtualSurface::Trim documents them, and Microsoft's VirtualSurfaces sample
+// relies on it -- TileDrawingManager::Trim hands over the tiles it still needs and counts
+// them as the ones drawn.
+void VirtualDrawingSurface::trim(std::span<RectInt32 const> keepPixels) const {
+    std::vector<winrt::Windows::Graphics::RectInt32> kept;
+    kept.reserve(keepPixels.size());
+    for (RectInt32 const& part : keepPixels) {
+        kept.push_back({part.x, part.y, part.width, part.height});
+    }
+    composition::CompositionDrawingSurface const& surface =
         *Object::Impl::get_typed<CompositionDrawingSurface>(surface_);
-    return Object::Impl::wrap<CompositionSurfaceBrush>(compositor.CreateSurfaceBrush(drawn));
+    surface.as<composition::CompositionVirtualDrawingSurface>().Trim(kept);
+}
+
+CompositionSurfaceBrush VirtualDrawingSurface::brush() const {
+    return brush_of(compositor_, surface_);
 }
 
 namespace impl {
