@@ -1458,6 +1458,9 @@ void CompositionWindow::backgroundAsync(BackgroundImage const& image,
 }
 
 void WindowState::loadBackground(BackgroundImage image, async::cancellation_token owner) {
+    // Под отменённым токеном не делается ничего, как у getAsync и у всякой
+    // операции с токеном: ни загрузки, ни отмены прежней, ни отказа.
+    if (owner.is_canceled()) return;
     // Окно уничтожено -- показывать загруженное негде, а загрузка, начатая после
     // его конца, не отменилась бы ничем, кроме токена владельца: RO_E_CLOSED, как
     // у острова. Замена устройства сюда после конца не приходит: closeXaml забыл,

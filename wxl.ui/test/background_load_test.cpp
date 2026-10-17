@@ -51,16 +51,23 @@ task<std::string> loads(gate& at, std::string picture) {
     co_return picture;
 }
 
+/// Throws, and to the compiler "gives" a T: the body of a coroutine with a value has to end in
+/// co_return, and MSVC does not count a throw as its end (C4033).
+template <class T, class Failure>
+[[noreturn]] T fail_with(Failure failure) {
+    throw failure;
+}
+
 /// A picture that is not there: the load fails when the gate opens.
 task<std::string> fails(gate& at) {
     co_await at;
-    throw std::runtime_error("no such file");
+    co_return fail_with<std::string>(std::runtime_error("no such file"));
 }
 
 /// A load the lost device cuts short when the gate opens, as TextureCache::getAsync ends one.
 task<std::string> loses_the_device(gate& at) {
     co_await at;
-    throw DrawingSurface::DeviceLost{};
+    co_return fail_with<std::string>(DrawingSurface::DeviceLost{});
 }
 
 using shown_t = std::vector<std::string>;

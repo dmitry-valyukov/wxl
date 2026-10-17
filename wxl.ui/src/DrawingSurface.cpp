@@ -85,7 +85,7 @@ struct device_backend {
     void unwatch(rendering_device& device) noexcept;
     void release(rendering_device& device) noexcept;
     void move(::IInspectable* graphics, impl::composition_api api, rendering_device const& device);
-    void post();
+    void post() noexcept;
     void keep(::IUnknown* owner) noexcept { owner->AddRef(); }
     void forget(::IUnknown* owner) noexcept { owner->Release(); }
 };
@@ -132,6 +132,12 @@ bool confirmed_loss(HRESULT result) noexcept {
 /// is the context of the wait. Nothing else happens on the pool's thread. A queue that takes
 /// nothing more is going down, and then there is nothing left to draw. noexcept: the pool has
 /// nobody to hand an exception to.
+///
+/// What makes it safe to run after its watch is taken back (unwatch does not wait for it): it
+/// touches devices(), which is never let go, the queue in backend().queue, written once on the UI
+/// thread before the first wait is registered and never again, and the generation, by value --
+/// nothing unwatch frees, neither the device nor the event nor the wait. The turn it posts, coming
+/// late, replaces nothing: after the close (closed) or after a replacement (another generation).
 void CALLBACK device_removed(void* context, BOOLEAN) noexcept {
     // MSVC keeps a terminate handler for each thread, so the one that names the exception is
     // set here too: an exception out of the handing over -- the projection's TryEnqueue, the
@@ -205,11 +211,9 @@ rendering_device device_backend::make(std::uint64_t generation) {
     if (!queue) {
         auto current = dispatching::DispatcherQueue::GetForCurrentThread();
         if (!current) core::abort("wxl: a drawing surface is made off the UI thread");
-        // Never taken off: the queue goes with it. Assumed: the queue raises ShutdownStarting holding
-        // no lock its TryEnqueue takes -- close() waits out a removal callback under way (unwatch),
-        // and that callback posts to this queue from the pool; believed because the queue takes work
-        // while the event and its deferral are out (DispatcherQueue.ShutdownStarting, Remarks) and
-        // TryEnqueue is called from any thread, not seen in the queue's sources, which are not public.
+        // Never taken off: the queue goes with it. close() does not wait for a removal callback under
+        // way, which posts to this queue from the pool: unwatch takes the wait back without waiting
+        // (device_removed says why it may run late), so the handler blocks on nothing the queue holds.
         static_cast<void>(current.ShutdownStarting([](auto&&, auto&&) noexcept { devices().close(); }));
         queue = static_cast<::IInspectable*>(winrt::detach_abi(current));
     }
@@ -247,10 +251,13 @@ rendering_device device_backend::make(std::uint64_t generation) {
 
 /// The watch taken back: from a replacement -- the wait fired once (WT_EXECUTEONLYONCE) and its
 /// callback asked for the turn, or the UI thread found the device lost first -- or from the
-/// close. A callback under way is waited out here, nowhere near the callback itself, before the
-/// wait is let go; the turn it posts finds its device replaced.
+/// close. A callback under way is not waited for: with no completion event UnregisterWaitEx takes
+/// the wait back and returns at once, answering FALSE with ERROR_IO_PENDING when a callback is
+/// still outstanding, queued or running -- which is success here, since the callback touches
+/// nothing freed below (device_removed), and the turn it posts finds its device replaced or the
+/// replacement closed.
 void device_backend::unwatch(rendering_device& device) noexcept {
-    if (!::UnregisterWaitEx(device.wait, INVALID_HANDLE_VALUE)) {
+    if (!::UnregisterWaitEx(device.wait, nullptr) && ::GetLastError() != ERROR_IO_PENDING) {
         stop_on("wxl: the wait on the rendering device did not come off, Win32 error",
                 ::GetLastError());
     }
@@ -296,8 +303,11 @@ void device_backend::move(::IInspectable* graphics, impl::composition_api api,
 
 /// The turn that calls the holders after a replacement graphics_of ran, on the queue taken with the
 /// first device. The queue refuses only once it is shut down, and the replacement is closed before
-/// that (ShutdownStarting) and posts nothing: a refusal here is not a way out, and stops.
-void device_backend::post() {
+/// that (ShutdownStarting) and posts nothing: a refusal here is not a way out, and stops. noexcept:
+/// by now everything has moved, and a TryEnqueue that throws leaves the holders uncalled and every
+/// draw() answering false until the next loss -- so the exception stops the process here, named by
+/// the UI thread's terminate handler, instead of leaving graphics_of for the application's code.
+void device_backend::post() noexcept {
     dispatching::DispatcherQueue current{nullptr};
     winrt::copy_from_abi(current, queue);
     if (!current.TryEnqueue([]() noexcept { devices().notify(); })) {
@@ -309,7 +319,10 @@ void device_backend::post() {
 /// references to one compositor through different interfaces are different addresses, and only
 /// IUnknown answers the same one every time.
 winrt::com_ptr<::IUnknown> identity_of(Compositor const& compositor) {
-    return Object::Impl::get_typed<Compositor>(compositor)->as<::IUnknown>();
+    // get_typed hands out the wrapper's Impl, which converts to the projection object it holds;
+    // the projection object is what answers QueryInterface.
+    composition::Compositor const& held = *Object::Impl::get_typed<Compositor>(compositor);
+    return held.as<::IUnknown>();
 }
 
 /// The graphics device *of this compositor*, made once per compositor.
@@ -367,7 +380,8 @@ composition::CompositionDrawingSurface allocate(composition::Compositor const& c
 /// rectangle, and a paint drawing in the whole surface's coordinates reaches past any part
 /// of it. Clear honours the clip, so it clears that part alone.
 template <class Interop>
-bool draw_on(Interop& interop, RECT const* update, std::function<void(ID2D1DeviceContext*)> const& paint) {
+bool draw_on(Interop& interop, RECT const* update,
+             std::function<void(ID2D1DeviceContext*)> const& paint) {
     // The device is new and its holders have not been called yet: what they made from the old one
     // would go into a context of this one. Skipped; they draw again from their call.
     if (!devices().holders_told()) return false;
@@ -422,8 +436,11 @@ bool draw_on(Interop& interop, RECT const* update, std::function<void(ID2D1Devic
 
 /// The drawing interop of a WinUI surface, fixed or virtual: the virtual one is held as the
 /// drawing surface it derives from.
-winrt::com_ptr<impl::ICompositionDrawingSurfaceInterop> interop_of(CompositionDrawingSurface const& surface) {
-    return Object::Impl::get_typed<CompositionDrawingSurface>(surface)->as<impl::ICompositionDrawingSurfaceInterop>();
+winrt::com_ptr<impl::ICompositionDrawingSurfaceInterop> interop_of(
+    CompositionDrawingSurface const& surface) {
+    composition::CompositionDrawingSurface const& held =
+        *Object::Impl::get_typed<CompositionDrawingSurface>(surface);
+    return held.as<impl::ICompositionDrawingSurfaceInterop>();
 }
 
 /// The size of a virtual surface: a side of zero or less is zero, as with a fixed one, and a
@@ -530,6 +547,12 @@ bool VirtualDrawingSurface::draw(RectInt32 updatePixels,
     std::int64_t const bottom =
         std::min<std::int64_t>(std::int64_t{updatePixels.y} + updatePixels.height, pixels.height);
     if (!paint || left >= right || top >= bottom) return false;
+
+    // Before the limit: a replacement graphics_of ran has the new device's limit in place
+    // already, and an owner not told yet draws its parts by the old one -- a part it may no
+    // longer draw at once, which is not its mistake. Skipped, as draw_on would skip it; the
+    // owner cuts its parts again from its call.
+    if (!devices().holders_told()) return false;
 
     std::int32_t const most = maxUpdateSide();
     if (right - left > most || bottom - top > most) {

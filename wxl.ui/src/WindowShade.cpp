@@ -32,6 +32,8 @@
 #include <windows.ui.composition.interop.h>
 
 #include <chrono>
+#include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "WindowShade.h"
@@ -162,10 +164,25 @@ struct WindowShade::Impl {
     // The snapshot the flight carries, kept between collapse and expand: the
     // window is hidden by the time it expands, so a fresh capture then would
     // be blank -- and kept whole, pixels too, so that a surface the lost
-    // device took with it can be drawn again.
+    // device took with it can be drawn again. Let go once the expand lands.
     Snapshot shot;
     comp::CompositionDrawingSurface surface{nullptr};
     bool hasSnapshot = false;
+    // Commands so far, collapse and expand alike: which one a flight's
+    // end is of. A flight that a later command cut short ends doing
+    // nothing -- the later command's own end, or the command itself if it
+    // has no flight, decides what is shown.
+    std::uint64_t command = 0;
+
+    // Where the end of a flight finds the shade: the shade while it lives,
+    // null once it is gone. The batch's Completed outlives the shade -- the
+    // compositor raises it when the animation ends or is cut, and a shade
+    // destroyed mid-flight is gone by then -- so the delegate holds the link,
+    // as the completion of an operation holds its producer's.
+    struct link {
+        Impl* self;
+    };
+    std::shared_ptr<link> const reach = std::make_shared<link>(link{this});
     POINT overlayOrigin{};
 
     // A failure to build is thrown on, with the overlay made before it taken
@@ -180,6 +197,7 @@ struct WindowShade::Impl {
     }
 
     ~Impl() {
+        reach->self = nullptr;
         if (overlay) ::DestroyWindow(overlay);
     }
 
@@ -258,6 +276,16 @@ struct WindowShade::Impl {
         });
     }
 
+    /// The flight back is over and the window shows: the snapshot goes -- its
+    /// pixels and its surface, the next collapse takes a fresh one -- and a
+    /// replacement of the device has nothing to draw again.
+    void land() {
+        hasSnapshot = false;
+        sprite.Brush(nullptr);
+        surface = nullptr;
+        shot = Snapshot{};
+    }
+
     /// The device under the surface was replaced, and the surface is empty:
     /// the snapshot is drawn again, if there is one to draw. noexcept, as the
     /// watch asks: a failure here stops the process, named.
@@ -278,11 +306,30 @@ struct WindowShade::Impl {
         return {screenX - overlayOrigin.x, screenY - overlayOrigin.y, 0};
     }
 
-    /// Flies the sprite from one placement to another with a fade, hiding the
-    /// overlay when it lands and running `whenDone` there.
+    /// Whether a collapse flies the snapshot worn rather than a fresh
+    /// capture: the window is hidden already -- by the flight back this
+    /// collapse cuts short, or by a collapse before it -- and PrintWindow on a
+    /// hidden window fails or answers with black or stale pixels, which would
+    /// take the place of the good snapshot the next expand shows.
+    bool keepsSnapshot() const { return hasSnapshot && !::IsWindowVisible(window); }
+
+    /// The end of the flight of command `given`: unless a later command has
+    /// come since, `done` runs and the overlay is hidden. A later command's
+    /// StartAnimation on the same properties ends this flight's batch at once,
+    /// and its end then would show or hide what the later command does not.
+    /// Asked again after `done`: a command given from it is the later one.
+    void flown(std::uint64_t given, std::function<void()> const& done) {
+        if (given != command) return;
+        if (done) done();
+        if (given != command) return;
+        ::ShowWindow(overlay, SW_HIDE);
+    }
+
+    /// Flies the sprite from one placement to another with a fade, for command
+    /// `given`: at its end, flown().
     void fly(numerics::float3 fromOffset, numerics::float3 fromScale, float fromOpacity,
              numerics::float3 toOffset, numerics::float3 toScale, float toOpacity,
-             std::function<void()> whenDone) {
+             std::uint64_t given, std::function<void()> whenDone) {
         sprite.Offset(fromOffset);
         sprite.Scale(fromScale);
         sprite.Opacity(fromOpacity);
@@ -309,10 +356,9 @@ struct WindowShade::Impl {
         // The projection's delegate would turn an exception into an HRESULT for
         // the compositor and lose it: whatever `whenDone` throws stops the
         // process here, named.
-        batch.Completed([this, done = std::move(whenDone)](auto&&, auto&&) {
+        batch.Completed([reach = reach, given, done = std::move(whenDone)](auto&&, auto&&) {
             try {
-                if (done) done();
-                ::ShowWindow(overlay, SW_HIDE);
+                if (Impl* const self = reach->self) self->flown(given, done);
             } catch (...) {
                 core::impl::terminate_with_reason();
             }
@@ -333,19 +379,24 @@ WindowShade& WindowShade::operator=(WindowShade&&) noexcept = default;
 
 void WindowShade::collapseTo(Point screenPoint, std::function<void()> whenDone) const {
     Impl& shade = *impl_;
+    std::uint64_t const given = ++shade.command;
 
-    Snapshot shot = capture(shade.window);
-    if (shot.width <= 0) {
-        // Nothing to snapshot: hide and be done.
-        ::ShowWindow(shade.window, SW_HIDE);
-        if (whenDone) whenDone();
-        return;
+    if (!shade.keepsSnapshot()) {
+        Snapshot shot = capture(shade.window);
+        if (shot.width <= 0) {
+            // Nothing to snapshot: hide and be done -- the overlay too, which
+            // a flight this command cut short leaves up.
+            ::ShowWindow(shade.overlay, SW_HIDE);
+            ::ShowWindow(shade.window, SW_HIDE);
+            if (whenDone) whenDone();
+            return;
+        }
+        shade.wear(std::move(shot));
+        shade.hasSnapshot = true;
     }
 
-    RECT const rect = shot.rect;
-    int const width = shot.width;
-    shade.wear(std::move(shot));
-    shade.hasSnapshot = true;
+    RECT const rect = shade.shot.rect;
+    int const width = shade.shot.width;
 
     // The overlay over just the path, then up with the snapshot exactly over
     // the window, then the window hidden behind it -- no gap where neither
@@ -357,13 +408,15 @@ void WindowShade::collapseTo(Point screenPoint, std::function<void()> whenDone) 
 
     float const scale = kLandedPixels / width;
     numerics::float3 const to = shade.overlayPoint(screenPoint.x, screenPoint.y);
-    shade.fly(from, {1, 1, 1}, 1.0f, to, {scale, scale, 1}, 0.0f, std::move(whenDone));
+    shade.fly(from, {1, 1, 1}, 1.0f, to, {scale, scale, 1}, 0.0f, given, std::move(whenDone));
 }
 
 void WindowShade::expandFrom(Point screenPoint, std::function<void()> whenDone) const {
     Impl& shade = *impl_;
+    std::uint64_t const given = ++shade.command;
 
     if (!shade.hasSnapshot) {
+        ::ShowWindow(shade.overlay, SW_HIDE);
         ::ShowWindow(shade.window, SW_SHOW);
         if (whenDone) whenDone();
         return;
@@ -380,9 +433,13 @@ void WindowShade::expandFrom(Point screenPoint, std::function<void()> whenDone) 
     ::ShowWindow(shade.overlay, SW_SHOWNOACTIVATE);
     // The window is shown under the snapshot only once the flight lands, so it
     // does not flash at full size before the animation has grown to it.
-    shade.fly(from, {scale, scale, 1}, 0.0f, to, {1, 1, 1}, 1.0f,
-              [&shade, done = std::move(whenDone)] {
+    // Asked again after SW_SHOW: the messages it sends may give a command,
+    // and the snapshot that one wears is not this landing's to let go.
+    shade.fly(from, {scale, scale, 1}, 0.0f, to, {1, 1, 1}, 1.0f, given,
+              [&shade, given, done = std::move(whenDone)] {
                   ::ShowWindow(shade.window, SW_SHOW);
+                  if (given != shade.command) return;
+                  shade.land();
                   if (done) done();
               });
 }

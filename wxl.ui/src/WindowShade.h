@@ -23,7 +23,8 @@
 // overlay or a compositor that cannot be made is an exception from the
 // constructor. The snapshot is drawn on the rendering device every
 // DrawingSurface draws through; when that device is lost and replaced, the
-// snapshot kept between collapse and expand is drawn again.
+// snapshot kept between collapse and expand is drawn again. Once the expand
+// lands, the snapshot is let go.
 
 // Declared, not included: what is kept is a window handle, and a caller that
 // only wants to minimize a window should not have to parse a Windows header.
@@ -45,12 +46,18 @@ public:
 
     /// Hides the window and flies its snapshot down to `screenPoint` (screen
     /// pixels), shrinking and fading. `whenDone` runs once the flight is over;
-    /// it may be empty.
+    /// it may be empty. A collapse or an expand given while a flight is still
+    /// under way -- from a `whenDone` too -- cuts it short: that flight ends
+    /// doing nothing, its `whenDone` does not run, and the last command
+    /// decides what is shown. A window hidden already, its snapshot still
+    /// worn -- an expand cut short -- is not captured again: the collapse
+    /// flies that snapshot.
     void collapseTo(Point screenPoint, std::function<void()> whenDone = {}) const;
 
     /// Flies the snapshot up from `screenPoint` back to the window's place and
     /// shows the window. `whenDone` runs once it is back and shown -- where a
-    /// caller brings it to the front; it may be empty.
+    /// caller brings it to the front; it may be empty. Cut short by a later
+    /// command, as collapseTo says.
     void expandFrom(Point screenPoint, std::function<void()> whenDone = {}) const;
 
 private:
