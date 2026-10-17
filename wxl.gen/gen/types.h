@@ -88,6 +88,11 @@ struct type_use {
     std::string to_winrt;
     std::string from_winrt;
 
+    // An asynchronous operation only: what the form with a token returns, with '$' standing for
+    // the call -- made inside, so that under a token cancelled already it is not made at all --
+    // and `stop` for the token the form takes last. Empty for every other type.
+    std::string from_winrt_under;
+
     std::set<std::string> public_includes;  // needed by <Namespace>.h
     std::set<std::string> impl_includes;    // needed by <Namespace>.cpp
 };

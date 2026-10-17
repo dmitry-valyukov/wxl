@@ -96,7 +96,16 @@ struct member_info {
     // Its value is a class narrower than the method's parameter, named by
     // the profile -- which is what lets the tag build one from braces.
     bool braced = false;
+
+    // The form with a token of an asynchronous method: its last parameter, `stop`, is wxl's and
+    // not the projection's -- the call is made without it, and the operation stands under it
+    // (result.from_winrt is the operation's from_winrt_under).
+    bool under_token = false;
 };
+
+// The parameters the projection's call is handed: all of them, but the token of a form with
+// one.
+std::size_t projection_arity(member_info const& member);
 
 // What a member cannot be generated for, so the trimming stays visible
 // instead of a member simply not being there.

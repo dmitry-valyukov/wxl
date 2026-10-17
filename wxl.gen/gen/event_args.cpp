@@ -174,7 +174,8 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
             auto const& info = member.info;
 
             std::string arguments;
-            for (auto&& param : info.params) {
+            for (std::size_t i = 0; i < projection_arity(info); ++i) {
+                auto const& param = info.params[i];
                 if (!arguments.empty()) {
                     arguments += ", ";
                 }

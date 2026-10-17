@@ -1816,6 +1816,19 @@ struct probe_task {
     co_await UiThread::onIdle();
 }
 
+// An asynchronous method of a wrapper has its form with a token beside it, the token taken last:
+// cancelled, the operation is asked to stop and the co_await ends with the cancellation -- for a
+// dialog, the dialog closes. The form without one is as it was.
+static_assert(std::is_same_v<decltype(std::declval<ContentDialog const&>().showAsync()),
+                             async::task<ContentDialogResult>>);
+static_assert(std::is_same_v<decltype(std::declval<ContentDialog const&>().showAsync(
+                                 std::declval<async::cancellation_token>())),
+                             async::task<ContentDialogResult>>);
+
+[[maybe_unused]] async::task<bool> asking_under_a_token(ContentDialog dialog, async::cancellation_token stop) {
+    co_return co_await dialog.showAsync(std::move(stop)) == ContentDialogResult::Primary;
+}
+
 // HaloEffect and GaussianBlurEffect -- written by hand, so their schema
 // lines are too.
 [[maybe_unused]] void HaloEffect_color_assigned(::wxl::HaloEffect const& object, ::wxl::Color value) {

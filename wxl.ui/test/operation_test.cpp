@@ -29,9 +29,12 @@
 namespace {
 
 using winrt::Windows::Foundation::AsyncStatus;
+using wxl::async::cancellation_source;
+using wxl::async::cancellation_token;
 using wxl::async::operation_canceled_exception;
 using wxl::async::task;
 using wxl::impl::detail::start;
+using wxl::impl::detail::start_under;
 
 /// What the platform throws for an operation that failed: the code, as winrt::hresult_error
 /// carries it.
@@ -70,7 +73,16 @@ public:
             return *state_->result;
     }
 
-    void Cancel() const { ++state_->cancels; }
+    /// Counted. What the platform does inside the call happens here: events of the application's
+    /// (`when_cancelled`), and an end, for one that ends when asked.
+    void Cancel() const {
+        ++state_->cancels;
+        if (std::function<void()> const hook = std::exchange(state_->when_cancelled, {})) hook();
+        if (state_->ends_when_cancelled && state_->status == AsyncStatus::Started) end(AsyncStatus::Canceled);
+    }
+
+    void ends_when_cancelled() const { state_->ends_when_cancelled = true; }
+    void when_cancelled(std::function<void()> hook) const { state_->when_cancelled = std::move(hook); }
 
     /// The operation ends: the handler is called on whichever thread calls this.
     void end(AsyncStatus status) const {
@@ -103,6 +115,8 @@ private:
         uint32_t code = 0;
         int cancels = 0;
         int reads = 0;
+        bool ends_when_cancelled = false;
+        std::function<void()> when_cancelled;
     };
 
     std::shared_ptr<state> state_ = std::make_shared<state>();
@@ -149,6 +163,15 @@ auto counted(int& converted) {
     return [&converted](int value) {
         ++converted;
         return std::to_string(value);
+    };
+}
+
+/// The call a form with a token makes, as a generated wrapper hands it over: counts how often it
+/// is made.
+auto begins(fake_operation<int> const& op, int& made) {
+    return [&op, &made] {
+        ++made;
+        return op;
     };
 }
 
@@ -334,7 +357,7 @@ TEST(OperationTaskTest, AnOperationOverAlreadyIsAnsweredThroughTheQueueAsWell) {
     EXPECT_EQ(pending.result(), "7");
 }
 
-TEST(OperationTaskTest, LettingTheTaskGoCancelsTheOperationAndItsCompletionDeletesTheProducer) {
+TEST(OperationTaskTest, LettingTheTaskGoCancelsTheOperationAndDeletesTheProducerAtOnce) {
     fake_operation<int> op;
     fake_queue queue;
     int converted = 0;
@@ -346,12 +369,11 @@ TEST(OperationTaskTest, LettingTheTaskGoCancelsTheOperationAndItsCompletionDelet
     }  // the coroutine's frame goes, and the task it awaits with it
 
     EXPECT_EQ(op.cancels(), 1);
-    EXPECT_EQ(op.held(), 2) << "given up, the producer waits for the completion";
+    EXPECT_EQ(op.held(), 1) << "the producer does not wait for the platform";
 
+    // The completion still comes, and finds nobody: nothing is read, nobody resumed.
     op.end(AsyncStatus::Canceled);
     EXPECT_EQ(queue.run(), 1u);
-
-    // Deleted, and nobody resumed: the frame that waited is gone.
     EXPECT_EQ(op.held(), 1);
     EXPECT_TRUE(log.empty());
     EXPECT_EQ(converted, 0);
@@ -377,7 +399,7 @@ TEST(OperationTaskTest, AGivenUpOperationThatCompletedAnywayIsNotRead) {
     EXPECT_TRUE(log.empty());
 }
 
-TEST(OperationTaskTest, ATaskLetGoWhileItsAnswerIsPostedIsDeletedByThePostedCall) {
+TEST(OperationTaskTest, ATaskLetGoWhileItsAnswerIsPostedGoesAndThePostedCallFindsNobody) {
     fake_operation<int> op;
     fake_queue queue;
     int converted = 0;
@@ -388,9 +410,9 @@ TEST(OperationTaskTest, ATaskLetGoWhileItsAnswerIsPostedIsDeletedByThePostedCall
     // Not ready until the queue's turn: the task asks the operation to stop, which costs nothing.
     { auto const gone = std::move(pending); }
     EXPECT_EQ(op.cancels(), 1);
-    EXPECT_EQ(op.held(), 2);
+    EXPECT_EQ(op.held(), 1);
 
-    queue.run();
+    EXPECT_EQ(queue.run(), 1u);
     EXPECT_EQ(op.held(), 1);
     EXPECT_EQ(converted, 0);
 }
@@ -451,6 +473,216 @@ TEST(OperationTaskTest, ATaskMoves) {
 
     // The moved-from tasks hold nothing: no request to stop, one producer, deleted once.
     EXPECT_EQ(op.cancels(), 0);
+    EXPECT_EQ(op.held(), 1);
+}
+
+// ---- under a token -------------------------------------------------------------------------
+
+TEST(OperationUnderTokenTest, NobodyCancellingItTheAnswerIsTheOperationsOwn) {
+    fake_operation<int> op;
+    fake_queue queue;
+    cancellation_source source;
+    int converted = 0;
+    int made = 0;
+    log_t log;
+
+    {
+        auto const waiting =
+            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+        EXPECT_EQ(made, 1);
+
+        op.complete(7);
+        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_TRUE(waiting.done());
+    }
+
+    EXPECT_EQ(log, (log_t{"value 7"}));
+    EXPECT_EQ(op.cancels(), 0);
+    EXPECT_EQ(op.held(), 1);
+
+    // Gone, the producer has left the token's event: cancelling reaches nobody.
+    source.cancel();
+    EXPECT_EQ(queue.posted(), 0u);
+    EXPECT_EQ(op.cancels(), 0);
+}
+
+TEST(OperationUnderTokenTest, CancellingPostsATurnThatAsksTheOperationToStopAndEndsTheWait) {
+    fake_operation<int> op;
+    fake_queue queue;
+    cancellation_source source;
+    int converted = 0;
+    int made = 0;
+    log_t log;
+
+    {
+        auto const waiting =
+            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+
+        source.cancel();
+        EXPECT_EQ(op.cancels(), 0) << "the runtime is not asked inside the cancel";
+        EXPECT_TRUE(log.empty()) << "cancelling resumes nobody";
+        EXPECT_EQ(queue.posted(), 1u) << "the turn that asks and answers";
+
+        // The platform has not answered, and need not: the turn ends the wait.
+        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_EQ(op.cancels(), 1);
+        EXPECT_TRUE(waiting.done());
+        EXPECT_EQ(log, (log_t{"cancelled"}));
+    }  // the task goes, and the producer with it
+
+    EXPECT_EQ(op.cancels(), 1) << "the runtime is asked once";
+    EXPECT_EQ(op.held(), 1) << "the producer does not wait for the platform";
+
+    op.end(AsyncStatus::Canceled);
+    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_EQ(op.held(), 1);
+    EXPECT_EQ(op.reads(), 0);
+    EXPECT_EQ(converted, 0);
+}
+
+TEST(OperationUnderTokenTest, ACompletionPostedBeforeTheCancellationIsTheAnswer) {
+    fake_operation<int> op;
+    fake_queue queue;
+    cancellation_source source;
+    int converted = 0;
+    int made = 0;
+    log_t log;
+
+    {
+        auto const waiting =
+            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+
+        // Answered on the platform's side, not yet on this thread's.
+        op.complete(7);
+        source.cancel();
+        EXPECT_EQ(queue.posted(), 2u);
+
+        EXPECT_EQ(queue.run(), 2u);
+        EXPECT_TRUE(waiting.done());
+    }
+
+    // What got there first answers; the turn after it finds it answered and asks nothing.
+    EXPECT_EQ(log, (log_t{"value 7"}));
+    EXPECT_EQ(converted, 1);
+    EXPECT_EQ(op.cancels(), 0);
+    EXPECT_EQ(op.held(), 1);
+}
+
+TEST(OperationUnderTokenTest, AnOperationThatEndsInsideCancelIsAnsweredOnce) {
+    fake_operation<int> op;
+    fake_queue queue;
+    cancellation_source source;
+    int converted = 0;
+    int made = 0;
+    log_t log;
+
+    op.ends_when_cancelled();
+
+    {
+        auto const waiting =
+            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+
+        source.cancel();
+        EXPECT_EQ(queue.posted(), 1u) << "the turn alone: nothing is asked inside the cancel";
+
+        // The turn asks, the platform ends inside the asking and posts its completion, and the
+        // turn answers; the completion then finds it answered.
+        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_TRUE(waiting.done());
+        EXPECT_EQ(queue.run(), 1u);
+    }
+
+    EXPECT_EQ(log, (log_t{"cancelled"}));
+    EXPECT_EQ(op.cancels(), 1);
+    EXPECT_EQ(op.held(), 1);
+}
+
+TEST(OperationUnderTokenTest, UnderATokenCancelledAlreadyNothingIsStarted) {
+    fake_operation<int> op;
+    fake_queue queue;
+    cancellation_source source;
+    int converted = 0;
+    int made = 0;
+    log_t log;
+
+    source.cancel();
+
+    auto pending = start_under<std::string>(begins(op, made), queue, counted(converted), source.token());
+    EXPECT_EQ(made, 0) << "the call is not made";
+    EXPECT_TRUE(pending.done());
+
+    auto const waiting = awaits(std::move(pending), log);
+    EXPECT_TRUE(waiting.done());
+    EXPECT_EQ(log, (log_t{"cancelled"}));
+    EXPECT_EQ(queue.posted(), 0u);
+    EXPECT_EQ(op.cancels(), 0);
+}
+
+TEST(OperationUnderTokenTest, UnderATokenOfNobodyItIsTheFormWithoutOne) {
+    fake_operation<int> op;
+    fake_queue queue;
+    int converted = 0;
+    int made = 0;
+    log_t log;
+
+    {
+        auto const waiting =
+            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), cancellation_token{}), log);
+        op.complete(7);
+        queue.run();
+        EXPECT_TRUE(waiting.done());
+    }
+
+    EXPECT_EQ(log, (log_t{"value 7"}));
+    EXPECT_EQ(made, 1);
+    EXPECT_EQ(op.held(), 1);
+}
+
+TEST(OperationUnderTokenTest, ATaskLetGoUnderATokenGoesAndTheTokenReachesItNoMore) {
+    fake_operation<int> op;
+    fake_queue queue;
+    cancellation_source source;
+    int converted = 0;
+    int made = 0;
+    log_t log;
+
+    {
+        auto const waiting =
+            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+    }
+
+    EXPECT_EQ(op.cancels(), 1);
+    EXPECT_EQ(op.held(), 1) << "let go, the producer goes at once";
+
+    // Gone, it has left the token's event: the cancel posts nothing.
+    source.cancel();
+    EXPECT_EQ(queue.posted(), 0u);
+    EXPECT_EQ(op.cancels(), 1);
+
+    op.end(AsyncStatus::Canceled);
+    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_EQ(op.held(), 1);
+    EXPECT_TRUE(log.empty());
+}
+
+TEST(OperationUnderTokenTest, ATaskLetGoWhileTheTurnAsksIsNotTouchedAfterwards) {
+    fake_operation<int> op;
+    fake_queue queue;
+    cancellation_source source;
+    int converted = 0;
+    int made = 0;
+
+    std::optional<task<std::string>> pending{
+        start_under<std::string>(begins(op, made), queue, counted(converted), source.token())};
+
+    // An event the platform raises while it is asked -- a Closed handler of the application's --
+    // lets the task go, and the producer with it, inside the turn.
+    op.when_cancelled([&pending] { pending.reset(); });
+
+    source.cancel();
+    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_FALSE(pending.has_value());
+    EXPECT_EQ(op.cancels(), 1);
     EXPECT_EQ(op.held(), 1);
 }
 
