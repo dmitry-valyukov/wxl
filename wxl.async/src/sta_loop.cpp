@@ -33,7 +33,7 @@ void async_op::abandon(async_op* op) noexcept {
     // called back about.
     sta_loop::take_if_next(op);
 
-    if (owed) sta_loop::pay_owed_callback();
+    if (owed) sta_loop::return_dispatcher_trigger();
 }
 
 bool sta_loop::is_back(async_op* op) noexcept {
@@ -48,7 +48,7 @@ bool sta_loop::is_back(async_op* op) noexcept {
 bool sta_loop::wait_until_back(async_op* op) noexcept {
     sta_signal& signal = from_worker_.wakeup();
 
-    // In the driven shape an armed trigger is a callback the next handover owes the
+    // In the driven mode an armed trigger is a callback the next handover owes the
     // dispatcher. Taken here, it makes this thread the one looking, and the debt this
     // call's to pay once it has stopped looking.
     const bool owed = signal.driven() && from_worker_.disarm();
@@ -86,7 +86,7 @@ void sta_loop::take_if_next(async_op* op) noexcept {
     if (take(taken)) delete taken;
 }
 
-void sta_loop::pay_owed_callback() noexcept {
+void sta_loop::return_dispatcher_trigger() noexcept {
     // run_pending()'s way out: the trigger set again, and checked against what came
     // back while it was clear, which nobody has told the dispatcher about.
     from_worker_.arm();

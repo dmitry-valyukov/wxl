@@ -148,7 +148,7 @@ public:
             inline void await_resume() const noexcept {}
         };
 
-        this->deliver_here();
+        this->complete_in_place();
         this->continuation.set_running(false);
         return handover{this->continuation.next()};
     }

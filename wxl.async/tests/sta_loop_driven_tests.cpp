@@ -1,5 +1,5 @@
-// The driven shape of sta_loop, tested where it can be: a loop starts once per process
-// and cannot be restarted, wxl.async.tests starts the sleeping shape, so the shape a GUI
+// The driven mode of sta_loop, tested where it can be: a loop starts once per process
+// and cannot be restarted, wxl.async.tests starts the sleeping mode, so the mode a GUI
 // application runs -- start_driven(), a callback into a dispatcher, run_pending() -- has
 // a test binary of its own.
 #include <gtest/gtest.h>

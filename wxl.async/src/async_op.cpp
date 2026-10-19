@@ -16,7 +16,7 @@ void async_op::answer_canceled() noexcept {
     error_ = canceled;
 }
 
-void async_op::keep_failure() noexcept {
+void async_op::answer_current_exception() noexcept {
     try {
         throw;
     } catch (const last_error& failure) {
@@ -29,7 +29,7 @@ void async_op::keep_failure() noexcept {
     }
 }
 
-bool orphan_stage::enter() noexcept {
+bool orphan_state::try_begin() noexcept {
     thread_ = ::GetCurrentThreadId();
 
     stage found = stage::waiting;
@@ -37,7 +37,7 @@ bool orphan_stage::enter() noexcept {
     return stage_.compare_exchange_strong(found, stage::running);
 }
 
-bool orphan_stage::leave() noexcept {
+bool orphan_state::end() noexcept {
     stage found = stage::running;
 
     if (stage_.compare_exchange_strong(found, stage::finished)) [[likely]]
@@ -48,7 +48,7 @@ bool orphan_stage::leave() noexcept {
         // Whoever cancelled the operation or gave it up may be cutting short the call
         // this thread stood in. Until that is over the thread stays here: the next call it
         // makes is somebody else's.
-        case stage::cutting_short:
+        case stage::cancelling_io:
             stage_.wait(found);
             found = stage_.load();
             break;
@@ -65,29 +65,29 @@ bool orphan_stage::leave() noexcept {
     }
 }
 
-bool orphan_stage::give_up() noexcept {
+bool orphan_state::abandon() noexcept {
     stage found = stage_.load();
 
     for (;;) {
         switch (found) {
         case stage::waiting:
-            if (stage_.compare_exchange_strong(found, stage::given_up)) return false;
+            if (stage_.compare_exchange_strong(found, stage::abandoned)) return false;
             break;
 
         // Cancelled before, its call has been cut short once; the body may have gone on to
         // another since, which is cut short the same way.
         case stage::running:
         case stage::canceled:
-            if (!stage_.compare_exchange_strong(found, stage::cutting_short)) break;
+            if (!stage_.compare_exchange_strong(found, stage::cancelling_io)) break;
 
-            cut_the_call_short();
+            cancel_synchronous_io();
 
-            stage_.store(stage::given_up);
+            stage_.store(stage::abandoned);
             stage_.notify_one();
             return false;
 
         case stage::finished:
-            if (stage_.compare_exchange_strong(found, stage::given_up)) return true;
+            if (stage_.compare_exchange_strong(found, stage::abandoned)) return true;
             break;
 
         default:
@@ -96,7 +96,7 @@ bool orphan_stage::give_up() noexcept {
     }
 }
 
-void orphan_stage::cancel() noexcept {
+void orphan_state::cancel() noexcept {
     stage found = stage_.load();
 
     for (;;) {
@@ -104,13 +104,13 @@ void orphan_stage::cancel() noexcept {
         // Not started, it does not start, as one given up does not: the worker that reaches
         // it answers the cancellation.
         case stage::waiting:
-            if (stage_.compare_exchange_strong(found, stage::given_up)) return;
+            if (stage_.compare_exchange_strong(found, stage::abandoned)) return;
             break;
 
         case stage::running:
-            if (!stage_.compare_exchange_strong(found, stage::cutting_short)) break;
+            if (!stage_.compare_exchange_strong(found, stage::cancelling_io)) break;
 
-            cut_the_call_short();
+            cancel_synchronous_io();
 
             stage_.store(stage::canceled);
             stage_.notify_one();
@@ -123,7 +123,7 @@ void orphan_stage::cancel() noexcept {
     }
 }
 
-void orphan_stage::cut_the_call_short() noexcept {
+void orphan_state::cancel_synchronous_io() noexcept {
     // The body is held inside the operation from here until the stage moves on, so what is
     // cut short can only be a call of its own.
     if (const HANDLE thread = ::OpenThread(THREAD_TERMINATE, FALSE, thread_)) {

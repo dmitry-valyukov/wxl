@@ -18,7 +18,7 @@
 //    post to the dispatcher queue of the thread that made the call. The producer comes from that
 //    thread's pool and its fields are guarded by nothing, so it is touched there alone: the
 //    posted call reads the result, converts it into wxl's types, keeps it, and resumes the
-//    coroutine waiting for it (come_back()) -- or, with nobody waiting yet, leaves it ready for
+//    coroutine waiting for it (complete()) -- or, with nobody waiting yet, leaves it ready for
 //    the co_await still to come, which then does not suspend.
 //  * The answer is what happened to the operation. Completed: its result, through `convert`.
 //    Canceled: async::operation_canceled_exception, as every cancellation in wxl answers. Error:
@@ -95,7 +95,7 @@ public:
         else
             read();
 
-        this->come_back();
+        this->complete();
     }
 
     /// The task lets go: an operation still out is asked to stop, and the producer goes at once --
@@ -154,13 +154,14 @@ public:
           queue_(std::move(queue)),
           stop_(std::move(stop)),
           node_(*this) {
-        async::detail::state_of(stop_)->event().add(core::as_not_null<cancellation_event::func_t>(&node_));
+        async::detail::cancellation_state_of(stop_)->event().add(
+            core::as_not_null<cancellation_event::func_t>(&node_));
     }
 
     /// Out of the event before the token goes; once the token has been cancelled, the event the
     /// node stood in has been fired and is gone, and remove() finds nothing.
     ~producer_under() override {
-        async::detail::state_of(stop_)->event().remove(
+        async::detail::cancellation_state_of(stop_)->event().remove(
             core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
     }
 
@@ -178,7 +179,7 @@ public:
         if (!link->self || this->ready()) return;
 
         this->answer_canceled();
-        this->come_back();
+        this->complete();
     }
 
 private:
@@ -258,8 +259,9 @@ async::task<R> start(Op const& operation, Queue const& queue, Convert convert) {
 template <class R, class Begin, class Queue, class Convert>
 async::task<R> start_under(Begin&& begin, Queue const& queue, Convert convert,
                            async::cancellation_token stop) {
-    if (!async::detail::state_of(stop)) return start<R>(begin(), queue, std::move(convert));
-    if (stop.is_canceled()) return async::detail::canceled<R>();
+    if (!async::detail::cancellation_state_of(stop))
+        return start<R>(begin(), queue, std::move(convert));
+    if (stop.is_canceled()) return async::detail::canceled_task<R>();
 
     auto const operation = begin();
     using made_t = producer_under<R, std::decay_t<decltype(operation)>, Queue, Convert>;

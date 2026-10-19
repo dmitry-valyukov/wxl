@@ -4,7 +4,7 @@
 //
 // Three ways to run a body off the UI thread and come back with its answer:
 //
-//   sta_loop, driven    the loop in the shape an application starts it: the body goes to
+//   sta_loop, driven    the loop in the mode an application starts it: the body goes to
 //                       the one worker through the channel, and the worker's callback
 //                       asks the DispatcherQueue to call run_pending() on the STA thread.
 //                       A burst of finished operations is one post.
@@ -465,7 +465,7 @@ int main(int argc, char** argv) {
     }
     const ws::DispatcherQueue queue = controller.DispatcherQueue();
 
-    // The loop in its driven shape. The callback is the one TryEnqueue an application
+    // The loop in its driven mode. The callback is the one TryEnqueue an application
     // writes, with the count in front of it; it runs on the worker's thread. TryEnqueue
     // refuses only a queue that is shutting down, and this one outlives the loop.
     sta_loop::start_driven(

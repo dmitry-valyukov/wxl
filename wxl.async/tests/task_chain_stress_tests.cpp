@@ -184,9 +184,9 @@ public:
 
 protected:
     bool execute() override {
-        for (std::uint32_t i = 0; i < work_ && !cut_short(); ++i) std::this_thread::yield();
+        for (std::uint32_t i = 0; i < work_ && !stops_now(); ++i) std::this_thread::yield();
 
-        if (cut_short()) throw operation_canceled_exception();
+        if (stops_now()) throw operation_canceled_exception();
 
         if (c_.frames[frame_].alive.load(std::memory_order_acquire))
             std::ranges::fill(into_, std::byte{42});
@@ -200,7 +200,7 @@ protected:
     }
 
 private:
-    bool cut_short() const noexcept { return stops_when_given_up_ && canceled(); }
+    bool stops_now() const noexcept { return stops_when_given_up_ && stop_requested(); }
 
     round_state& c_;
     std::uint32_t frame_;

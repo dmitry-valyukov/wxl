@@ -232,9 +232,9 @@ TEST(StaLoopTest, RunsAnOperationWrittenAsAClass) {
     EXPECT_NE(ran_on, std::this_thread::get_id()) << "the body belongs on the worker thread";
 }
 
-/// The driven shape, tested where it lives.
+/// The driven mode, tested where it lives.
 ///
-/// The loop of a test binary is started once and sleeps, so the shape a WinUI
+/// The loop of a test binary is started once and sleeps, so the mode a WinUI
 /// application uses -- `sta_loop::start_driven`, a callback into a dispatcher --
 /// cannot be stood up beside it. What carries the whole of the difference is
 /// `sta_signal`, and that is what this asks: given a callback, a handover calls

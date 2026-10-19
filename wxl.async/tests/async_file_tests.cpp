@@ -545,7 +545,7 @@ std::string on_disk(const path& file_path) {
 }  // namespace
 
 // At the end of a process the loop runs on until no detached frame is alive -- one still
-// reading or writing included. In the sleeping shape that wait is run_until() on the
+// reading or writing included. In the sleeping mode that wait is run_until() on the
 // count itself, and it comes back once the frame has read, written and gone.
 detached_task reads_then_writes_detached(path from, path to, std::string& got) {
     got = co_await async_file::read_all(from);
@@ -669,6 +669,83 @@ TEST_F(AsyncFileTest, WriteAllUnderACancelledTokenLeavesTheFileAsItWas) {
     EXPECT_TRUE(cancelled);
     EXPECT_EQ(on_disk(root_ / L"state.txt"), "the old state");
     EXPECT_FALSE(file::exists((root_ / L"state.txt.tmp").c_str()));
+}
+
+// A write_all() cancelled while it writes is waited for: its co_await ends only once the body
+// has let go of the temporary, with the cancellation or with the file written. So the same
+// file written again straight after the answer never meets the first write -- no sharing
+// violation on the temporary, no temporary deleted or renamed under it -- and what is on the
+// disk is the second content. Whenever the request reaches the first write, that holds.
+TEST_F(AsyncFileTest, WriteAllCancelledThenRepeatedNeverMeetsTheFirstWrite) {
+    ASSERT_EQ(sta_loop::outstanding(), 0u);
+
+    const std::string first(16 * 1024 * 1024, 'a');
+    const std::string second = "the second state";
+
+    for (int round = 0; round < 8; ++round) {
+        SCOPED_TRACE(std::format("round {}", round));
+
+        cancellation_source stop;
+        bool cancelled = false;
+
+        task<> writing = writes_whole_under(root_ / L"state.txt", first, stop.token(), cancelled);
+        stop.cancel();
+        sta_loop::run_until(writing);
+
+        // The answer came after the body let go: nothing of the first write is still out.
+        EXPECT_EQ(sta_loop::outstanding(), 0u);
+
+        sta_loop::run_until(writes_whole(root_ / L"state.txt", second));
+
+        EXPECT_EQ(on_disk(root_ / L"state.txt"), second);
+        EXPECT_FALSE(file::exists((root_ / L"state.txt.tmp").c_str()));
+    }
+}
+
+// A read by name under a token is waited for: cancelled while its body holds the file open,
+// its co_await ends only once the body has let go of the file, and the save of the same name
+// that follows is not refused for it. The body here opens the file the way read_all()'s does,
+// and stands at a gate between opening and reading.
+TEST_F(AsyncFileTest, AReadCancelledHoldingItsFileIsWaitedForBeforeTheNextSave) {
+    ASSERT_EQ(sta_loop::outstanding(), 0u);
+
+    given_a_file(L"state.txt", "the old state");
+
+    const path name = root_ / L"state.txt";
+    hevent opened{true}, gate{true};
+    cancellation_source stop;
+    const orphans_drained_on_exit drained(gate);
+
+    task<std::string> reading = detail::async_call_waiting_for_body(
+        orphanable,
+        [name, &opened, &gate](const orphan_state& state) {
+            file source = file::open_read(name.c_str());
+
+            opened.set();
+            gate.wait();
+
+            if (state.stop_requested()) throw operation_canceled_exception();
+
+            std::string bytes(64, '\0');
+            bytes.resize(source.read(std::as_writable_bytes(std::span(bytes))));
+            return bytes;
+        },
+        stop.token());
+
+    opened.wait();
+    stop.cancel();
+    sta_loop::run_pending();
+
+    EXPECT_FALSE(reading.done()) << "the wait did not wait for the body holding the file";
+
+    gate.set();
+    sta_loop::run_until([&] { return reading.done(); });
+
+    EXPECT_THROW((void)reading.result(), operation_canceled_exception);
+    EXPECT_EQ(sta_loop::outstanding(), 0u);
+
+    EXPECT_NO_THROW(sta_loop::run_until(writes_whole(name, "the new state")));
+    EXPECT_EQ(on_disk(name), "the new state");
 }
 
 TEST_F(AsyncFileTest, ExistsUnderATokenAnswersLikeThePlainOne) {

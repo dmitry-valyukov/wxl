@@ -47,7 +47,7 @@ bool overlapped_op::start() noexcept {
 
         // Between two calls of a chain, on the worker: an operation given up or cancelled
         // meanwhile is not carried on with.
-        if (canceled()) [[unlikely]] {
+        if (stop_requested()) [[unlikely]] {
             finish(ERROR_OPERATION_ABORTED);
             return true;
         }
@@ -68,7 +68,7 @@ bool overlapped_op::completed() noexcept {
 
     if (!advance(transferred)) return true;
 
-    if (canceled()) [[unlikely]] {
+    if (stop_requested()) [[unlikely]] {
         finish(ERROR_OPERATION_ABORTED);
         return true;
     }
@@ -95,7 +95,7 @@ bool overlapped_op::execute() {
 bool overlapped_op::start_on_worker() noexcept {
     if (start()) return true;
 
-    if (canceled()) [[unlikely]]
+    if (stop_requested()) [[unlikely]]
         ::CancelIoEx(file_, &overlapped_);
 
     return false;

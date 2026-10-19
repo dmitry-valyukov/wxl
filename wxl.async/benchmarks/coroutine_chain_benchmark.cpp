@@ -17,7 +17,7 @@
 // cancelled: this is what asking costs those that are never asked.
 //
 // And one operation of this module's kind -- an async_op behind a task, which the
-// loop would resume and here a hand does (`come_back()`) -- awaited in its two forms:
+// loop would resume and here a hand does (`complete()`) -- awaited in its two forms:
 // plain, and the form with a token, `co_await read(..., stop)`, which the operations
 // that can be cut short have: the operation stands in the token's event while it lives.
 //
@@ -137,7 +137,7 @@ task<int> handed(handed_op*& slot, int i) {
 /// The form with a token, as the operations of async_file have it: the same operation,
 /// standing under the token while it lives.
 task<int> handed(handed_op*& slot, int i, cancellation_token stop) {
-    auto* const op = new detail::operation_under<handed_op>(std::move(stop), i);
+    auto* const op = new detail::cancellable_operation<handed_op>(std::move(stop), i);
     slot = op;
     return task<int>(std::unique_ptr<async_op_t<int>>(op));
 }
@@ -191,7 +191,7 @@ double best_of_ops(Start start) {
 
         const auto from = std::chrono::steady_clock::now();
         task<long long> outer = start(&slot);
-        while (!outer.done()) slot->come_back();
+        while (!outer.done()) slot->complete();
         const auto to = std::chrono::steady_clock::now();
 
         if (outer.result() != expected) return -1;

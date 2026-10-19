@@ -14,7 +14,7 @@ namespace {
 // are members: its constructor is private.
 
 auto listing_all(const core::path& pattern) {
-    return [pattern](const orphan_stage& stage) {
+    return [pattern](const orphan_state& state) {
         std::vector<async_directory::listed_entry> found;
 
         core::directory listing = core::directory::open(pattern.c_str());
@@ -31,7 +31,7 @@ auto listing_all(const core::path& pattern) {
         // answers the cancellation, and so does one whose FindNextFileW was cut short,
         // which ends the listing the way its end does and is told apart by its code.
         for (async_directory::entry next; listing.next(next);) {
-            if (stage.cut_short()) throw operation_canceled_exception();
+            if (state.stop_requested()) throw operation_canceled_exception();
 
             found.push_back(
                 {std::wstring(next.name), next.is_directory, next.size, next.last_write});
@@ -60,12 +60,12 @@ auto asking_exists(const core::path& path) {
 }
 
 auto making_all(const core::path& p) {
-    return [copy = p](const orphan_stage& stage) mutable {
+    return [copy = p](const orphan_state& state) mutable {
         // create_all() answers `false` for a no and for a failure alike: the no is
         // remembered to tell the two apart.
         bool stopped = false;
-        const auto wanted = [&stage, &stopped] {
-            stopped = stage.cut_short();
+        const auto wanted = [&state, &stopped] {
+            stopped = state.stop_requested();
             return !stopped;
         };
 
@@ -110,7 +110,7 @@ task<async_directory> async_directory::open(const core::path& pattern) {
 }
 
 task<async_directory> async_directory::open(const core::path& pattern, cancellation_token stop) {
-    return detail::call_under(orphanable, opening(pattern), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, opening(pattern), std::move(stop));
 }
 
 task<std::vector<async_directory::listed_entry>> async_directory::list(const core::path& pattern) {
@@ -119,7 +119,7 @@ task<std::vector<async_directory::listed_entry>> async_directory::list(const cor
 
 task<std::vector<async_directory::listed_entry>> async_directory::list(const core::path& pattern,
                                                                        cancellation_token stop) {
-    return detail::call_under(orphanable, listing_all(pattern), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, listing_all(pattern), std::move(stop));
 }
 
 task<std::optional<async_directory::entry>> async_directory::next() {
@@ -131,7 +131,7 @@ task<std::optional<async_directory::entry>> async_directory::next() {
 task<std::optional<async_directory::entry>> async_directory::next(cancellation_token stop) {
     ensure(directory_.opened() && "async_directory: no listing was opened");
 
-    return detail::call_under(next_entry(), std::move(stop));
+    return sta_loop::async_call(next_entry(), std::move(stop));
 }
 
 task<> async_directory::close() {
@@ -145,7 +145,7 @@ task<bool> async_directory::exists(const core::path& path) {
 }
 
 task<bool> async_directory::exists(const core::path& path, cancellation_token stop) {
-    return detail::call_under(orphanable, asking_exists(path), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, asking_exists(path), std::move(stop));
 }
 
 task<> async_directory::create_all(const core::path& p) {
@@ -153,7 +153,7 @@ task<> async_directory::create_all(const core::path& p) {
 }
 
 task<> async_directory::create_all(const core::path& p, cancellation_token stop) {
-    return detail::call_under(orphanable, making_all(p), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, making_all(p), std::move(stop));
 }
 
 task<> async_directory::remove(const core::path& path) {
@@ -161,7 +161,7 @@ task<> async_directory::remove(const core::path& path) {
 }
 
 task<> async_directory::remove(const core::path& path, cancellation_token stop) {
-    return detail::call_under(orphanable, removing(path), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, removing(path), std::move(stop));
 }
 
 }  // namespace wxl::async

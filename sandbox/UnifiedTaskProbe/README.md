@@ -18,11 +18,9 @@
 и `decltype`; свои корутины — `task<T>`. Проба собирается на обоих устройствах, и её
 таблицы сравниваются строка в строку.
 
-Формы с токеном у `sta_loop` нет: тело — код приложения, и отвечать ли на отмену, решает
-оно само (отмену чужого кода wxl не автоматизирует). Строки под токеном берут внутренние
-формы, которыми пользуются операции самой wxl, — `detail::call_under(fn, stop)`
-и `call_under(orphanable, fn, stop)`; поэтому проба собирается только на едином
-устройстве. Имена строк прежние, и с замером «до» она сравнивается по ним.
+Строки под токеном берут формы `sta_loop` с токеном, которыми пользуются и операции самой
+wxl, — `sta_loop::async_call(fn, stop)` и `sta_loop::async_call(orphanable, fn, stop)`;
+поэтому проба собирается только на едином устройстве. Имена строк прежние, и с замером «до» она сравнивается по ним.
 
 ## Запуск
 
@@ -51,7 +49,7 @@ build\x64\sandbox\UnifiedTaskProbe\Debug\sandbox.unified-task-probe.exe > before
 
 **sizes** — `sizeof` того, что возвращает вызов, через `decltype`, без имени типа:
 `async_call`, `async_call orphanable`, `call_here`, `cancellable(async_call, stop)` (имя строки
-прежнее, меряется внутренняя форма с токеном `detail::call_under(fn, stop)`),
+прежнее, меряется форма с токеном `sta_loop::async_call(fn, stop)`),
 `async_file::read_all`, `read_all` и `exists` с токеном, `task<int>`, `task<>`.
 
 **task without the loop** — машинерия `task` без петли под ней; самая устойчивая таблица.
@@ -82,7 +80,7 @@ build\x64\sandbox\UnifiedTaskProbe\Debug\sandbox.unified-task-probe.exe > before
 | `op d=0` | `co_await` самой операции: `call_here` в `here`, `async_call` в остальных |
 | `op orphanable d=0` | `co_await sta_loop::async_call(orphanable, ...)`; в `here` — нет |
 | `chain d=N` | `co_await` цепочки из `N` корутин, нижняя ждёт операцию; `d=1` — «`f` приостанавливается на одной операции» |
-| `... +token` | то же под токеном: токен — параметром в каждый кадр, операция — внутренняя форма с токеном (`detail::call_under(fn, stop)`, `call_under(orphanable, fn, stop)`); в `here` формы с токеном нет — токен спрашивают до `call_here`, как код приложения |
+| `... +token` | то же под токеном: токен — параметром в каждый кадр, операция — форма с токеном (`sta_loop::async_call(fn, stop)`, `sta_loop::async_call(orphanable, fn, stop)`); в `here` формы с токеном нет — токен спрашивают до `call_here`, как код приложения |
 
 **file by name, one at a time** — `exists` и `read_all` файла в 4 КБ в каталоге `%TEMP%`,
 без токена и формой с токеном. Здесь в числе — вызовы системы, и разница форм теряется в

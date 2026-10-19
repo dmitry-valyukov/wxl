@@ -124,7 +124,7 @@ public:
         /// Takes the signal, if that is what ended the wait. Otherwise the application is
         /// going down, and the wait ends as every wait of wxl does then. A cancelled token
         /// never gets here: the wait under it answers that itself
-        /// (async::detail::wait_under, await_canceled() below).
+        /// (async::detail::cancellable_wait, await_canceled() below).
         void await_resume() {
             armed_ = false;
 
@@ -160,7 +160,9 @@ public:
 
     using awaiter = event_wait_under<Wait, async::detail::cancellation_state*>;
 
-    awaiter operator co_await() noexcept { return awaiter{async::detail::state_of(stop_), *this}; }
+    awaiter operator co_await() noexcept {
+        return awaiter{async::detail::cancellation_state_of(stop_), *this};
+    }
 
     // Waiting writes down who is waiting, so a const timer cannot be awaited.
     awaiter operator co_await() const = delete;

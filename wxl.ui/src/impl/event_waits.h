@@ -208,7 +208,7 @@ inline bool event_waits_drained() noexcept {
 }
 
 /// A wait of this thread under a cancellation token: the awaiter made in place,
-/// what async::detail::wait_under does with it -- the wait stands in
+/// what async::detail::cancellable_wait does with it -- the wait stands in
 /// the token's event while it is suspended, by a node built into it. `Stop` is how
 /// the token is had -- held (`async::cancellation_token`), for a wait made by a
 /// call that was handed the token, or borrowed as its state, for the wait of a
@@ -217,9 +217,9 @@ inline bool event_waits_drained() noexcept {
 /// Neither copied nor moved, like the awaiter: it is co_awaited where it is made.
 template <typename Awaiter, typename Stop>
 class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] event_wait_under
-    : public async::detail::wait_under<event_wait_under<Awaiter, Stop>>
+    : public async::detail::cancellable_wait<event_wait_under<Awaiter, Stop>>
 {
-    using base = async::detail::wait_under<event_wait_under>;
+    using base = async::detail::cancellable_wait<event_wait_under>;
 
     friend base;
 
@@ -233,14 +233,14 @@ public:
 
     /// A frame destroyed while it stands here takes the wait out of the token's
     /// event before the token it may hold goes.
-    ~event_wait_under() { this->leave(); }
+    ~event_wait_under() { this->leave_token_event(); }
 
 private:
     Awaiter& awaiter() noexcept { return awaiter_; }
 
     async::detail::cancellation_state* state() const noexcept {
         if constexpr (std::is_same_v<Stop, async::cancellation_token>)
-            return async::detail::state_of(stop_);
+            return async::detail::cancellation_state_of(stop_);
         else
             return stop_;
     }

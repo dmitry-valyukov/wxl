@@ -5,10 +5,9 @@
 // и с единым task<R> на обе роли. Поэтому тип того, что возвращают операции, здесь не
 // назван нигде: с результатом sta_loop::async_call, call_here и async_file делают только
 // co_await, auto и decltype, а своё -- корутины task<T>. Одна и та же проба собирается на
-// обоих устройствах, и её таблицы сравниваются строка в строку. Формы с токеном у sta_loop
-// нет: тело -- код приложения, и отвечать ли на отмену, решает оно само. Строки «+token»
-// берут внутренние формы, которыми пользуются операции самой wxl --
-// detail::call_under(fn, stop) и call_under(orphanable, fn, stop); у ответа,
+// обоих устройствах, и её таблицы сравниваются строка в строку. Строки «+token»
+// берут формы sta_loop с токеном, которыми пользуются и операции самой wxl --
+// sta_loop::async_call(fn, stop) и sta_loop::async_call(orphanable, fn, stop); у ответа,
 // готового в вызове (call_here), такой формы нет, и токен спрашивают до вызова. Поэтому
 // строки «+token» собираются только на едином устройстве -- их имена прежние, чтобы
 // сравниваться с замером «до».
@@ -134,18 +133,18 @@ auto operation(int i) {
         return sta_loop::async_call(orphanable, [i] { return i; });
 }
 
-/// Операция под токеном -- внутренняя форма с токеном, как у операций самой wxl: операция
+/// Операция под токеном -- форма sta_loop с токеном, как у операций самой wxl: операция
 /// стоит в событии токена, пока жива. У ответа, готового в вызове, такой формы нет: токен
 /// спрашивают до вызова, как его спрашивает код приложения.
 template <leaf kind>
-auto operation_under(int i, const cancellation_token& stop) {
+auto token_operation(int i, const cancellation_token& stop) {
     if constexpr (kind == leaf::here) {
         stop.throw_if_canceled();
         return sta_loop::call_here([i] { return i; });
     } else if constexpr (kind == leaf::call) {
-        return detail::call_under([i] { return i; }, stop);
+        return sta_loop::async_call([i] { return i; }, stop);
     } else {
-        return detail::call_under(orphanable, [i] { return i; }, stop);
+        return sta_loop::async_call(orphanable, [i] { return i; }, stop);
     }
 }
 
@@ -161,7 +160,7 @@ template <leaf kind>
 __declspec(noinline) task<int> chain_under(int depth, int i, cancellation_token stop) {
     if (depth > 1) co_return co_await chain_under<kind>(depth - 1, i, stop);
 
-    co_return co_await operation_under<kind>(i, stop);
+    co_return co_await token_operation<kind>(i, stop);
 }
 
 /// Итерации одна за другой: make(i) -- что ждать на i-й.
@@ -314,12 +313,12 @@ void op_alone_row(const char* name, const settings& how) {
 
 template <leaf loop_kind>
 void op_alone_row_under(const char* name, const settings& how, const cancellation_token& stop) {
-    const auto at_loop = [&stop](int i) { return operation_under<loop_kind>(i, stop); };
+    const auto at_loop = [&stop](int i) { return token_operation<loop_kind>(i, stop); };
 
     timing here;
 
     if constexpr (loop_kind == leaf::call)
-        here = here_column(how, [&stop](int i) { return operation_under<leaf::here>(i, stop); });
+        here = here_column(how, [&stop](int i) { return token_operation<leaf::here>(i, stop); });
 
     op_row(name, here, one_column(how, at_loop), fan_column(how, at_loop));
 }
@@ -449,10 +448,10 @@ void size_table(const path& file, const cancellation_token& stop) {
     std::printf("  %-38s %4zu\n", "async_call orphanable",
                 sizeof(decltype(sta_loop::async_call(orphanable, one))));
     std::printf("  %-38s %4zu\n", "call_here", sizeof(decltype(sta_loop::call_here(one))));
-    // Имя строки прежнее, чтобы сравниваться с замером «до»; меряется внутренняя форма с
-    // токеном, detail::call_under(fn, stop).
+    // Имя строки прежнее, чтобы сравниваться с замером «до»; меряется форма с токеном,
+    // sta_loop::async_call(fn, stop).
     std::printf("  %-38s %4zu\n", "cancellable(async_call, stop)",
-                sizeof(decltype(detail::call_under(one, stop))));
+                sizeof(decltype(sta_loop::async_call(one, stop))));
     std::printf("  %-38s %4zu\n", "async_file::read_all",
                 sizeof(decltype(async_file::read_all(file))));
     std::printf("  %-38s %4zu\n", "async_file::read_all +token",
@@ -497,7 +496,7 @@ constexpr int mixed_answer(int depth, int value) {
 /// спрашивается и читается целиком.
 __declspec(noinline) task<std::string> files_under(int depth, path file, std::string text,
                                                    cancellation_token stop) {
-    co_await detail::call_under([] { return 0; }, stop);
+    co_await sta_loop::async_call([] { return 0; }, stop);
 
     if (depth > 1)
         co_return co_await files_under(depth - 1, std::move(file), std::move(text), stop);
@@ -545,7 +544,7 @@ __declspec(noinline) task<int> waits_at_gate(int depth, cancellation_token stop,
         return 1;
     };
 
-    const int got = co_await detail::call_under(blocked, stop);
+    const int got = co_await sta_loop::async_call(blocked, stop);
     ++*passed;
     co_return got;
 }

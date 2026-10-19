@@ -1,7 +1,7 @@
 // What one co_await costs through the loop -- the whole round trip from the STA thread
 // to the worker and back, measured end to end -- and then taken apart along the axes a
 // caller could change: how the two threads are woken, where the operation lives, whether
-// the worker looks before it sleeps, what priority it runs at, and how the driven shape
+// the worker looks before it sleeps, what priority it runs at, and how the driven mode
 // tells its dispatcher.
 //
 // sta_loop itself is static and cannot be built twice, so the variants are a copy of it
@@ -23,7 +23,7 @@
 //               regime in which a ten-nanosecond difference can be seen.
 //   file        a cached file read through the loop in chunks, against the same reads on
 //               the calling thread. What the loop adds to a real operation.
-//   driven      the shape a GUI application runs: the STA thread is told through a
+//   driven      the mode a GUI application runs: the STA thread is told through a
 //               dispatcher and drains with run_pending(). Posts per operation is the
 //               number, since every post is a real work item on the UI thread.
 //
@@ -170,7 +170,7 @@ private:
 
 /// One knob per axis. `spin_ns` is how long the worker looks at its channel before it
 /// sleeps -- zero is production, and anything else is the rule of the tree being bent
-/// on purpose, to see what it would buy. `force_post` is the driven shape's second
+/// on purpose, to see what it would buy. `force_post` is the driven mode's second
 /// signal per operation, the one run_pending's own protocol makes unnecessary.
 template <class signal_t, int spin_ns_, bool force_post_, int priority_ = THREAD_PRIORITY_NORMAL>
 struct config {
@@ -233,7 +233,7 @@ public:
 
         if (!from_worker_reader_.receive(op)) return false;
 
-        op->come_back();
+        op->complete();
         return true;
     }
 
@@ -243,7 +243,7 @@ public:
 
         if (!from_worker_reader_.read(op)) return false;
 
-        op->come_back();
+        op->complete();
         return true;
     }
 
@@ -251,16 +251,16 @@ public:
         while (!done()) run_one();
     }
 
-    /// run_pending() as sta_loop's sleeping shape has it: takes what is there and leaves.
+    /// run_pending() as sta_loop's sleeping mode has it: takes what is there and leaves.
     std::size_t run_pending() {
         std::size_t resumed = 0;
 
-        for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->come_back();
+        for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->complete();
 
         return resumed;
     }
 
-    /// The same, running the sleeping shape's own protocol at the end: having found the
+    /// The same, running the sleeping mode's own protocol at the end: having found the
     /// channel empty, the STA side declares itself not looking, and the next send is the
     /// one that posts. A burst of finished operations then costs one post, not one each.
     ///
@@ -275,7 +275,7 @@ public:
         std::atomic_thread_fence(std::memory_order_seq_cst);
 
         for (;;) {
-            for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->come_back();
+            for (async_op* op = nullptr; from_worker_reader_.read(op); ++resumed) op->complete();
 
             from_worker_.arm();
             std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -288,12 +288,12 @@ public:
             // be woken back -- unless the worker already took it, in which case a post is
             // on its way and will find nothing, which is the ordinary spurious wakeup.
             from_worker_.disarm();
-            op->come_back();
+            op->complete();
             ++resumed;
         }
     }
 
-    /// The driven shape's opening move: nobody is looking until the first post.
+    /// The driven mode's opening move: nobody is looking until the first post.
     void arm() { from_worker_.arm(); }
 
     from_worker_t& from_worker() noexcept { return from_worker_; }
@@ -671,7 +671,7 @@ driven_result driven_round(loop_t& loop, bool coalesced, int tasks, int count) {
 
     for (task<>& t : running) t.result();
 
-    // Leave the trigger the way the sleeping shape expects to find it.
+    // Leave the trigger the way the sleeping mode expects to find it.
     if (coalesced) loop.from_worker().disarm();
 
     return {per_op, double(loop.from_worker().wakeup().sets()) / (double(tasks) * count)};

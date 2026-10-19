@@ -261,7 +261,7 @@ void sta_loop::start_dispatched(std::string_view worker_name) {
 
     on_return = [](async_op& op) noexcept {
         --outstanding_;
-        op.come_back();
+        op.complete();
     };
 
     sta_queue = queue_of_this_thread();
@@ -281,7 +281,7 @@ void sta_loop::start_dispatched(std::string_view worker_name) {
         },
         nullptr, ::GetCurrentThreadId());
 
-    // The shape changes last: a start that failed leaves a loop that was never started,
+    // The mode changes last: a start that failed leaves a loop that was never started,
     // and stop() has nothing to let go of.
     try {
         start_driven([]() noexcept { post(drain); }, worker_name);
@@ -302,11 +302,11 @@ void sta_loop::start_dispatched(std::string_view worker_name) {
         throw;
     }
 
-    shape_ = &on_queue;
+    mode_ = &on_queue;
 }
 
 void sta_loop::post_if_pending() noexcept {
-    // The same move as pay_owed_callback(), on a trigger that may be armed already: the
+    // The same move as return_dispatcher_trigger(), on a trigger that may be armed already: the
     // thread is idle, so nobody is looking, and what lies in the channel is posted about.
     from_worker_.rearm();
     std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -314,6 +314,17 @@ void sta_loop::post_if_pending() noexcept {
     auto at = from_worker_reader_.look_ahead();
 
     if (from_worker_reader_.peek(at) && from_worker_.disarm()) post(drain);
+
+    // A turn the loop owes is posted about as well: the drain it was given may stand in this
+    // modal loop, resuming a waiter that opened it.
+    if (loop_turns_) post_drain_for_turn();
+}
+
+void sta_loop::post_drain_for_turn() noexcept {
+    const bool taken = post(drain);
+
+    ensure(taken && "sta_loop: the dispatcher queue refused the drain for a waiter's turn -- it "
+                    "is shutting down while the loop runs, and the waiter would never be resumed");
 }
 
 void sta_loop::send_to_pool(async_op& op) {
@@ -334,7 +345,7 @@ void sta_loop::pump_messages_until(bool (*done)(void*), void* condition) noexcep
     pump_until([done, condition] { return done(condition); });
 }
 
-void sta_loop::let_go_of_queue() noexcept {
+void sta_loop::release_queue() noexcept {
     if (idle_hook) {
         ::UnhookWindowsHookEx(idle_hook);
         idle_hook = nullptr;
@@ -387,7 +398,7 @@ void sta_loop::let_go_of_queue() noexcept {
         own_controller = nullptr;
     }
 
-    shape_ = &on_worker;
+    mode_ = &on_worker;
 }
 
 }  // namespace wxl::async

@@ -277,7 +277,7 @@ private:
 /// awaits a blocking read carried out where they are -- which has to come through every
 /// time: cutting short is for the call of the operation given up, and no other. The orphan
 /// given up asks what async_directory::exists() asks, and counts itself as it is deleted.
-task<> reads_among_orphans_given_up(path file_path, int rounds, int& cut_short, int& read,
+task<> reads_among_orphans_given_up(path file_path, int rounds, int& aborted, int& read,
                                     std::atomic<int>& given_up_deleted) {
     for (int round = 0; round < rounds; ++round) {
         {
@@ -301,7 +301,7 @@ task<> reads_among_orphans_given_up(path file_path, int rounds, int& cut_short, 
         });
 
         if (outcome == ERROR_OPERATION_ABORTED)
-            ++cut_short;
+            ++aborted;
         else if (outcome == ERROR_SUCCESS)
             ++read;
     }
@@ -455,34 +455,36 @@ TEST(OrphanTest, GivingUpAnOrphanCutsShortTheCallItStandsIn) {
     wait_until([&] { return deleted.load(); });
 }
 
-// Cancelled by its token while it stands in a call to the system, an orphan has that call cut
-// short the way giving it up would, and is kept: the call fails with ERROR_OPERATION_ABORTED,
-// and that failure is the cancellation -- the co_await ends with operation_canceled_exception,
-// not with the failure of the write.
-TEST(OrphanTest, CancellingAnOrphanCutsShortTheCallItStandsInAndItAnswersTheCancellation) {
+// Cancelled by its token while it stands in a call to the system, an orphan is let go of: the
+// co_await ends with operation_canceled_exception at once, and the call the body stands in is
+// cancelled as giving it up cancels it -- it fails with ERROR_OPERATION_ABORTED, and the body
+// comes back alone.
+TEST(OrphanTest, CancellingAnOrphanCancelsTheCallItStandsInAndItsWaitEndsAtOnce) {
     narrow_pipe pipe;
 
     ASSERT_TRUE(pipe.made());
 
     // Lets the write through after a while unless told not to, so that a write which
-    // was to be cut short and was not fails the test instead of hanging the binary.
+    // was to be cancelled and was not fails the test instead of hanging the binary.
     std::binary_semaphore done{0};
     std::jthread rescue([&] {
         if (!done.try_acquire_for(std::chrono::seconds(10))) pipe.drain();
     });
 
     cancellation_source stop;
+    std::atomic<DWORD> outcome{ERROR_SUCCESS};
+    const orphans_drained_on_exit drained;
 
-    task<> writing = detail::call_under(
+    task<> writing = sta_loop::async_call(
         orphanable,
-        [writer = pipe.writer()] {
+        [writer = pipe.writer(), &outcome] {
             static const std::vector<char> much(1024 * 1024);
 
             DWORD written = 0;
 
             if (!::WriteFile(writer, much.data(), static_cast<DWORD>(much.size()), &written,
                              nullptr))
-                throw last_error("WriteFile");
+                outcome = ::GetLastError();
         },
         stop.token());
 
@@ -493,9 +495,12 @@ TEST(OrphanTest, CancellingAnOrphanCutsShortTheCallItStandsInAndItAnswersTheCanc
     stop.cancel();
 
     wait_until([&] { return writing.done(); });
+    EXPECT_THROW(writing.result(), operation_canceled_exception);
+
+    wait_until([] { return sta_loop::outstanding() == 0; });
     done.release();
 
-    EXPECT_THROW(writing.result(), operation_canceled_exception);
+    EXPECT_EQ(outcome.load(), static_cast<DWORD>(ERROR_OPERATION_ABORTED));
 }
 
 TEST_F(AsyncFilePipeTest, GivingAnOrphanUpNeverCutsShortACallOfAnotherOperation) {
@@ -511,15 +516,15 @@ TEST_F(AsyncFilePipeTest, GivingAnOrphanUpNeverCutsShortACallOfAnotherOperation)
         ASSERT_EQ(made.write(content), content.size());
     }
 
-    int cut_short = 0;
+    int aborted = 0;
     int read = 0;
     std::atomic<int> given_up_deleted{0};
 
-    task<> work = reads_among_orphans_given_up(target, rounds, cut_short, read, given_up_deleted);
+    task<> work = reads_among_orphans_given_up(target, rounds, aborted, read, given_up_deleted);
 
     sta_loop::run_until(work);
 
-    EXPECT_EQ(cut_short, 0);
+    EXPECT_EQ(aborted, 0);
     EXPECT_EQ(read, rounds);
 
     // Left to finish alone, the orphans given up come back in their own time -- under the
@@ -544,12 +549,12 @@ TEST(OrphanTest, ABodyOfSeveralCallsStopsAtTheOneCutShort) {
     {
         auto writing = sta_loop::async_call(
             orphanable, [writer = pipe.writer(), &calls, &left,
-                         mark = deletion_mark(deleted)](const orphan_stage& stage) {
+                         mark = deletion_mark(deleted)](const orphan_state& state) {
                 static const std::vector<char> much(1024 * 1024);
 
                 // Three writes, each of more than the pipe holds; the body asks between
                 // them whether it is still wanted.
-                for (int call = 0; call < 3 && !stage.cut_short(); ++call) {
+                for (int call = 0; call < 3 && !state.stop_requested(); ++call) {
                     DWORD written = 0;
 
                     ++calls;

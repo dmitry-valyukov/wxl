@@ -17,8 +17,8 @@ namespace impl {
 /// and the turnstile that guards sending latches shut for good -- so a test that
 /// stopped the loop after itself would leave every later test without one.
 ///
-/// The sleeping shape, because a test has no message loop of its own: what the
-/// tests wait in is `sta_loop::run_until`. The shape a real application uses --
+/// The sleeping mode, because a test has no message loop of its own: what the
+/// tests wait in is `sta_loop::run_until`. The mode a real application uses --
 /// a callback into its dispatcher -- is `start_driven()`, and it is `sta_signal`
 /// that carries the difference.
 ///

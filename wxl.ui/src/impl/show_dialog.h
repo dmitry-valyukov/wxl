@@ -42,7 +42,7 @@ async::detached_task await_answer(async::task<R> answer) {
 /// and the frame ends at once.
 template <class Dialog>
 void show_under(Dialog const& dialog, async::cancellation_token stop) {
-    if (!async::detail::state_of(stop))
+    if (!async::detail::cancellation_state_of(stop))
         core::abort("wxl: showDialog under a token nobody can cancel -- the exit would wait for a "
                     "dialog only the reader can close");
 

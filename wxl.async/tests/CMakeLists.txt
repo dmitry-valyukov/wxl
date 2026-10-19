@@ -22,6 +22,7 @@ add_executable(wxl.async.tests
     async_directory_tests.cpp
     async_file_pipe_tests.cpp
     async_file_tests.cpp
+    orphan_under_token_tests.cpp
     task_operation_tests.cpp
     spsc_channel_tests.cpp
     spsc_queue_tests.cpp
@@ -96,14 +97,15 @@ gtest_discover_tests(
     DISCOVERY_MODE PRE_TEST
 )
 
-# The loop on a dispatcher queue -- start_dispatched(), the shape an application with a
-# window runs -- in a binary of its own, for the same reason as the one below. The file
-# and directory suites are built here a second time: under this loop what goes by a name
-# is carried out on the thread pool and comes back through the queue.
+# The loop on a dispatcher queue -- start_dispatched(), the mode an application with a
+# window runs -- in a binary of its own, for the same reason as the one below. The file,
+# directory and orphan suites are built here a second time: under this loop what goes by a
+# name is carried out on the thread pool and comes back through the queue.
 add_executable(wxl.async.dispatched-tests
     async_directory_tests.cpp
     async_file_pipe_tests.cpp
     async_file_tests.cpp
+    orphan_under_token_tests.cpp
     sta_loop_dispatched_tests.cpp
 )
 
@@ -124,9 +126,9 @@ gtest_discover_tests(
     DISCOVERY_MODE PRE_TEST
 )
 
-# The driven shape of sta_loop -- start_driven(), a dispatcher callback, run_pending()
+# The driven mode of sta_loop -- start_driven(), a dispatcher callback, run_pending()
 # -- in a binary of its own: a loop starts once per process and cannot be restarted,
-# and the binary above starts the sleeping shape.
+# and the binary above starts the sleeping mode.
 add_executable(wxl.async.driven-tests
     sta_loop_driven_tests.cpp
 )

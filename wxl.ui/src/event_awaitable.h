@@ -362,7 +362,9 @@ public:
 
     using awaiter = awaiter_t<true>;
 
-    awaiter operator co_await() noexcept { return awaiter{async::detail::state_of(stop_), event_}; }
+    awaiter operator co_await() noexcept {
+        return awaiter{async::detail::cancellation_state_of(stop_), event_};
+    }
 
     // As on the plain proxy: waiting writes down who is waiting.
     awaiter operator co_await() const = delete;
@@ -370,7 +372,7 @@ public:
     /// The answering form under the token: a cancelled wait answers with an
     /// empty error rather than throwing.
     awaiter_t<false> next() noexcept {
-        return awaiter_t<false>{async::detail::state_of(stop_), event_};
+        return awaiter_t<false>{async::detail::cancellation_state_of(stop_), event_};
     }
 
 private:

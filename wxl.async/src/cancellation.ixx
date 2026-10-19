@@ -121,7 +121,7 @@ private:
 };
 
 /// The state behind a token, for whoever stands on it; null for a token that has none.
-cancellation_state* state_of(const cancellation_token& token) noexcept;
+cancellation_state* cancellation_state_of(const cancellation_token& token) noexcept;
 
 /// What a wait of wxl under a token asks of its awaiter: `cancel() noexcept`, which asks
 /// it to end its wait early. Cancelled, it still ends the way it ends anyway -- the event
@@ -154,7 +154,7 @@ concept cancellable_awaiter = requires(Awaiter& awaiter) {
 /// `Wait` leaves the event in its own destructor, before its members go: one of them may
 /// be what keeps the state alive.
 template <class Wait>
-class wait_under
+class cancellable_wait
 {
 public:
     inline bool await_ready(detail::site where = detail::site::current()) {
@@ -179,7 +179,7 @@ public:
     }
 
     inline decltype(auto) await_resume([[maybe_unused]] detail::site where = detail::site::current()) {
-        leave();
+        leave_token_event();
 
         if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]] {
             if constexpr (requires { self().awaiter().await_canceled(); })
@@ -195,12 +195,12 @@ public:
     }
 
 protected:
-    inline wait_under() noexcept : node_(*this) {}
+    inline cancellable_wait() noexcept : node_(*this) {}
 
-    ~wait_under() = default;
+    ~cancellable_wait() = default;
 
     /// Takes the wait out of the token's event, if it stands there.
-    inline void leave() noexcept {
+    inline void leave_token_event() noexcept {
         if (standing_) {
             standing_ = false;
             self().state()->event().remove(
@@ -213,7 +213,7 @@ private:
     class node final : public cancellation_event::func_t
     {
     public:
-        inline explicit node(wait_under& wait) noexcept : wait_(wait) {}
+        inline explicit node(cancellable_wait& wait) noexcept : wait_(wait) {}
 
         /// The token was cancelled: the event the node stood in is gone, and the awaiter is
         /// cancelled.
@@ -226,7 +226,7 @@ private:
         inline void release() noexcept override {}
 
     private:
-        wait_under& wait_;
+        cancellable_wait& wait_;
     };
 
     inline Wait& self() noexcept { return static_cast<Wait&>(*this); }
@@ -258,9 +258,13 @@ private:
 ///   a token cancelled already nothing is started, and the co_await ends with it at once.
 /// - **The application's own coroutine** asks it itself -- is_canceled(),
 ///   throw_if_canceled() -- where it has something to stop, and decides what to do about
-///   it. wxl asks nobody else's code to end: there is no wrapper that puts an awaiter of
-///   somebody else's under a token, and no call of sta_loop that puts the application's
-///   body under one -- some work must not be broken off, and only its own code knows which.
+///   it. A body of its own handed to sta_loop under a token is not broken off from outside
+///   either: one the loop has not started is not started; one on the worker runs to its end
+///   and is waited for; an orphanable one is let go of -- the co_await ends with the
+///   cancellation at once, and the body, left to finish alone, has the synchronous call to
+///   the system it stands in cancelled and decides itself whether to stop between its steps,
+///   by asking its orphan_state. Some work must not be broken off, and only its own code
+///   knows which. There is no wrapper that puts an awaiter of somebody else's under a token.
 ///
 /// Asking does not end anything by itself: the chain unwinds by its own exceptions,
 /// through its own catch blocks, on the live thread -- and cleanup past a handler may
@@ -287,7 +291,8 @@ public:
 
 private:
     friend class cancellation_source;
-    friend detail::cancellation_state* detail::state_of(const cancellation_token&) noexcept;
+    friend detail::cancellation_state* detail::cancellation_state_of(
+        const cancellation_token&) noexcept;
 
     inline explicit cancellation_token(detail::cancellation_state* state) noexcept
         : state_(state) {}
@@ -295,7 +300,8 @@ private:
     detail::cancellation_state_ptr state_;
 };
 
-inline detail::cancellation_state* detail::state_of(const cancellation_token& token) noexcept {
+inline detail::cancellation_state* detail::cancellation_state_of(
+    const cancellation_token& token) noexcept {
     return token.state_.get();
 }
 

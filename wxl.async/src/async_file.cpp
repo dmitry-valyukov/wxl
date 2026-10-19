@@ -24,7 +24,7 @@ namespace {
 // object itself are members: its constructor is private.
 
 auto reading_whole(const core::path& path) {
-    return [path](const orphan_stage& stage) {
+    return [path](const orphan_state& state) {
         core::file source = core::file::open_read(path.c_str());
 
         if (!source.opened()) throw last_error("CreateFileW");
@@ -48,7 +48,7 @@ auto reading_whole(const core::path& path) {
         ::SetLastError(ERROR_SUCCESS);
 
         while (done < bytes.size()) {
-            if (stage.cut_short()) throw operation_canceled_exception();
+            if (state.stop_requested()) throw operation_canceled_exception();
 
             const std::size_t got = source.read(std::as_writable_bytes(
                 std::span(bytes).subspan(done, std::min(piece, bytes.size() - done))));
@@ -77,7 +77,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
 
     return [target = path, temporary = core::path(std::wstring_view(temporary_name)),
             parent = core::path(path.parent_path()),
-            bytes = std::move(bytes)](const orphan_stage& stage) mutable {
+            bytes = std::move(bytes)](const orphan_state& state) mutable {
         // Asked before every step. A body that stops before the rename has not
         // written the file, and answers the cancellation; one past it has, and
         // answers that, whenever the request came.
@@ -85,8 +85,8 @@ auto writing_whole(const core::path& path, std::string bytes) {
         // create_all() answers `false` for a no and for a failure alike, so the
         // no is remembered to tell the two apart.
         bool stopped = false;
-        const auto wanted = [&stage, &stopped] {
-            stopped = stage.cut_short();
+        const auto wanted = [&state, &stopped] {
+            stopped = state.stop_requested();
             return !stopped;
         };
 
@@ -198,7 +198,7 @@ task<async_file> async_file::open_read(const core::path& path) {
 }
 
 task<async_file> async_file::open_read(const core::path& path, cancellation_token stop) {
-    return detail::call_under(orphanable, opening(path), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, opening(path), std::move(stop));
 }
 
 task<async_file> async_file::create(const core::path& path) {
@@ -206,7 +206,7 @@ task<async_file> async_file::create(const core::path& path) {
 }
 
 task<async_file> async_file::create(const core::path& path, cancellation_token stop) {
-    return detail::call_under(orphanable, creating(path), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, creating(path), std::move(stop));
 }
 
 task<std::string> async_file::read_all(const core::path& path) {
@@ -214,7 +214,7 @@ task<std::string> async_file::read_all(const core::path& path) {
 }
 
 task<std::string> async_file::read_all(const core::path& path, cancellation_token stop) {
-    return detail::call_under(orphanable, reading_whole(path), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, reading_whole(path), std::move(stop));
 }
 
 task<> async_file::write_all(const core::path& path, std::string bytes) {
@@ -222,7 +222,8 @@ task<> async_file::write_all(const core::path& path, std::string bytes) {
 }
 
 task<> async_file::write_all(const core::path& path, std::string bytes, cancellation_token stop) {
-    return detail::call_under(orphanable, writing_whole(path, std::move(bytes)), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, writing_whole(path, std::move(bytes)),
+                                               std::move(stop));
 }
 
 task<bool> async_file::exists(const core::path& path) {
@@ -230,7 +231,7 @@ task<bool> async_file::exists(const core::path& path) {
 }
 
 task<bool> async_file::exists(const core::path& path, cancellation_token stop) {
-    return detail::call_under(orphanable, asking_exists(path), std::move(stop));
+    return detail::async_call_waiting_for_body(orphanable, asking_exists(path), std::move(stop));
 }
 
 task<std::size_t> async_file::read(std::span<std::byte> into) {
@@ -249,14 +250,14 @@ task<std::size_t> async_file::read(std::span<std::byte> into) {
 }
 
 task<std::size_t> async_file::read(std::span<std::byte> into, cancellation_token stop) {
-    if (!detail::state_of(stop)) return read(into);
+    if (!detail::cancellation_state_of(stop)) return read(into);
 
     ensure(file_.opened() && "async_file: no file was opened");
 
     // Not made, and the position not moved on: nothing was read.
-    if (stop.is_canceled()) return detail::canceled<std::size_t>();
+    if (stop.is_canceled()) return detail::canceled_task<std::size_t>();
 
-    std::unique_ptr<overlapped_op> op(new detail::operation_under<overlapped_op>(
+    std::unique_ptr<overlapped_op> op(new detail::cancellable_operation<overlapped_op>(
         std::move(stop), overlapped_op::kind::read, file_.native_handle(), into.data(), into.size(),
         position_, skips_port_));
 
@@ -281,13 +282,13 @@ task<std::size_t> async_file::write(std::span<const std::byte> from) {
 }
 
 task<std::size_t> async_file::write(std::span<const std::byte> from, cancellation_token stop) {
-    if (!detail::state_of(stop)) return write(from);
+    if (!detail::cancellation_state_of(stop)) return write(from);
 
     ensure(file_.opened() && "async_file: no file was opened");
 
-    if (stop.is_canceled()) return detail::canceled<std::size_t>();
+    if (stop.is_canceled()) return detail::canceled_task<std::size_t>();
 
-    std::unique_ptr<async_op_t<std::size_t>> op(new detail::operation_under<overlapped_op>(
+    std::unique_ptr<async_op_t<std::size_t>> op(new detail::cancellable_operation<overlapped_op>(
         std::move(stop), overlapped_op::kind::write, file_.native_handle(),
         const_cast<std::byte*>(from.data()), from.size(), position_, skips_port_));
 

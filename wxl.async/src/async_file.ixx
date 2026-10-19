@@ -31,7 +31,7 @@ export namespace wxl::async {
 /// - **Opening and creating go by a name**, which the system may take as long
 ///   as it likes over. Under `sta_loop::start_dispatched()` they are carried out
 ///   on the system's thread pool and come back through the thread's dispatcher
-///   queue; under the other two shapes of the loop, on the worker.
+///   queue; under the other two modes of the loop, on the worker.
 ///
 /// **The position is kept here**, an overlapped handle having none: it moves on
 /// by what was asked for as an operation starts, so that two reads started one
@@ -49,11 +49,14 @@ export namespace wxl::async {
 /// `cancellation_token` as its last argument, and the operation stands under the token
 /// while it lives. Asked, an operation not started is never started, a read or a write the
 /// kernel holds is let go by CancelIoEx, and an opening or a file by name standing in the
-/// system has the call it stands in cut short. The cancellation is the answer of an
+/// system has the synchronous call it stands in cancelled, where the system can cancel it;
+/// read_all() and write_all() stop between their steps. The cancellation is the answer of an
 /// operation cut short or never started; one that got there first answers with its own
 /// result or its own failure -- a file written whole and renamed is written, whenever the
-/// request came, and the co_await says so. Either way the co_await ends once nothing
-/// writes into the frame any more. Under a token cancelled already nothing is started at
+/// request came, and the co_await says so. Either way the co_await ends once the operation
+/// has let go -- of the frame, and of the file: an operation by name is waited for too,
+/// though it touches nothing of the frame, so that the next operation on the same name never
+/// meets it still holding the file. Under a token cancelled already nothing is started at
 /// all, and the co_await ends with operation_canceled_exception at once. The form without
 /// a token is the same operation and costs what it always did. size(), flush() and close()
 /// have no such form: there is nothing in them to cut short, and a flush cut short is a
@@ -63,7 +66,8 @@ export namespace wxl::async {
 /// so a task that goes away before them leaves them to finish alone
 /// (`orphanable`), and the file is let go of at once: one already open is
 /// closed before the task's destructor returns, one being opened has its
-/// opening cut short, and one not reached yet is never opened. So what handles
+/// opening cancelled where the system can cancel it, and one not reached yet is
+/// never opened. So what handles
 /// the failure may ask for the same file straight away.
 /// Everything else borrows this object and the
 /// caller's buffer, and a task giving one of those up waits until the

@@ -18,7 +18,7 @@
 
 #include "platform.h"
 
-#include "sta_pool.h"
+#include "loop_environment.h"
 
 import std;
 import wxl.core;
@@ -68,7 +68,7 @@ protected:
 
         ++p_.ran;
 
-        if (canceled()) {
+        if (stop_requested()) {
             set_error(std::make_exception_ptr(operation_canceled_exception()));
             return true;
         }
@@ -97,7 +97,7 @@ task<std::size_t> start_read(probe& p, std::span<std::byte> into) {
 /// The same read under a token, in the form the operations of this module take one --
 /// `async_file::read_all(path, stop)` -- and the same task.
 task<std::size_t> start_read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return detail::run_under<gated_read>(std::move(stop), p, into);
+    return sta_loop::async_run<gated_read>(std::move(stop), p, into);
 }
 
 /// Three links, the token passed down by hand; the bottom one reads into its frame.
@@ -640,7 +640,7 @@ TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreCancelled) {
     first.gate.set();
     sta_loop::run_until([&] { return two.done(); });
     EXPECT_EQ(two.result(), 16u);
-    two = task<std::size_t>(detail::canceled<std::size_t>());
+    two = task<std::size_t>(detail::canceled_task<std::size_t>());
     EXPECT_EQ(middle.alive, 0);
 
     stop.cancel();
@@ -662,7 +662,7 @@ TEST(CancellationTest, ManyUnderOneTokenLeaveInAnyOrderAndTheRestAreCancelled) {
 
 /// A body on the worker, kept behind a read that holds the worker, counting its runs.
 task<int> counts_on_the_worker(int& runs, cancellation_token stop) {
-    co_return co_await detail::call_under([&runs] { return ++runs; }, std::move(stop));
+    co_return co_await sta_loop::async_call([&runs] { return ++runs; }, std::move(stop));
 }
 
 // The lambda forms take the token as the class form does: one not reached by the worker
@@ -698,12 +698,12 @@ TEST(CancellationTest, ALambdaOnTheWorkerCancelledBeforeItIsReachedNeverRuns) {
 }
 
 // An orphanable body under a live token runs and answers; cancelled while it waits for the
-// worker, it never runs, and the co_await ends with the cancellation once it is back; under a
-// token cancelled already it is not made.
+// worker, it never runs, and the co_await ends with the cancellation without waiting for it;
+// under a token cancelled already it is not made.
 TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
     cancellation_source stop;
 
-    task<int> ran = detail::call_under(orphanable, [] { return 5; }, stop.token());
+    task<int> ran = sta_loop::async_call(orphanable, [] { return 5; }, stop.token());
     sta_loop::run_until([&] { return ran.done(); });
     EXPECT_EQ(ran.result(), 5);
 
@@ -713,18 +713,22 @@ TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
     ahead.started.wait();
 
     std::atomic<int> runs{0};
-    task<int> canceled = detail::call_under(orphanable, [&runs] { return ++runs; }, stop.token());
+    const orphans_drained_on_exit drained(ahead.gate);
+    task<int> canceled = sta_loop::async_call(orphanable, [&runs] { return ++runs; }, stop.token());
 
     stop.cancel();
     ahead.gate.set();
     sta_loop::run_until([&] { return canceled.done() && holds_the_worker.done(); });
 
     EXPECT_TRUE(ends_cancelled(canceled));
+
+    // The orphan, given up before the worker reached it, comes back without having run.
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
     EXPECT_EQ(runs, 0);
 
     bool made = false;
     task<int> not_made =
-        detail::call_under(orphanable, [&made] { return made = true, 6; }, stop.token());
+        sta_loop::async_call(orphanable, [&made] { return made = true, 6; }, stop.token());
     EXPECT_TRUE(not_made.done());
     EXPECT_TRUE(ends_cancelled(not_made));
     EXPECT_FALSE(made);
@@ -759,7 +763,7 @@ private:
 // never runs and answers the cancellation the worker wrote for it, and one never cancelled its
 // value. Taken back with nobody waiting, each is there for the co_await still to come.
 TEST(CancellationTest, AnOperationCancelledWhileOutComesBackWithWhatHappenedToIt) {
-    using op = detail::operation_under<carried_by_hand>;
+    using op = detail::cancellable_operation<carried_by_hand>;
 
     cancellation_source stop;
 
@@ -776,8 +780,8 @@ TEST(CancellationTest, AnOperationCancelledWhileOutComesBackWithWhatHappenedToIt
     EXPECT_TRUE(not_reached->packaged_execute());
     EXPECT_EQ(not_reached->runs, 0) << "an operation cancelled before the worker reached it ran";
 
-    done_first->come_back();
-    not_reached->come_back();
+    done_first->complete();
+    not_reached->complete();
 
     EXPECT_TRUE(done_first_task.done());
     EXPECT_EQ(done_first_task.result(), 3);
@@ -790,7 +794,7 @@ TEST(CancellationTest, AnOperationCancelledWhileOutComesBackWithWhatHappenedToIt
     task<int> plain_task(std::unique_ptr<async_op_t<int>>{plain});
 
     EXPECT_TRUE(plain->packaged_execute());
-    plain->come_back();
+    plain->complete();
 
     EXPECT_TRUE(plain_task.done());
     EXPECT_EQ(plain_task.result(), 4);
@@ -814,9 +818,10 @@ TEST(CancellationTest, AnOrphanGivenUpAndThenAskedStillGoesWhenItComesBack) {
     std::atomic<bool> finished{false};
     int alive = 0;
     cancellation_source stop;
+    const orphans_drained_on_exit drained(gate);
 
     {
-        task<int> dropped = detail::call_under(
+        task<int> dropped = sta_loop::async_call(
             orphanable,
             [&started, &gate, &finished, keep = counted_capture(&alive)] {
                 started.set();
@@ -892,7 +897,7 @@ TEST(CancellationTest, ABodyOnTheWorkerCancelledWhileItRunsAnswersWhatItMade) {
     hevent started{true}, gate{true};
     cancellation_source stop;
 
-    task<int> made = detail::call_under(
+    task<int> made = sta_loop::async_call(
         [&started, &gate] {
             started.set();
             gate.wait();
@@ -909,26 +914,27 @@ TEST(CancellationTest, ABodyOnTheWorkerCancelledWhileItRunsAnswersWhatItMade) {
     EXPECT_EQ(answer_of(made), "value 7");
 }
 
-// An orphan cancelled while it stands in a call has that call cut short, and answers what the
-// call did: cut short, it fails as a call to the system cut short does, and the co_await
-// ends with the cancellation; done first, its value is the answer.
-TEST(CancellationTest, AnOrphanCancelledWhileItRunsAnswersWhatHappenedToItsCall) {
+// An orphan cancelled while it stands in a call is let go of at once: the co_await answers
+// the cancellation whatever the call then does -- fails as a call cancelled under it does, or
+// finishes first -- and the body, its stop requested, comes back alone.
+TEST(CancellationTest, AnOrphanCancelledWhileItRunsAnswersTheCancellationWhateverItsCallDoes) {
     for (const bool cut : {true, false}) {
-        SCOPED_TRACE(cut ? "its call cut short" : "its call done first");
+        SCOPED_TRACE(cut ? "its call cancelled" : "its call done first");
 
         hevent started{true}, gate{true};
-        bool saw_it_cut_short = false;
+        bool saw_stop_requested = false;
         cancellation_source stop;
+        const orphans_drained_on_exit drained(gate);
 
-        task<int> reading = detail::call_under(
+        task<int> reading = sta_loop::async_call(
             orphanable,
-            [&started, &gate, &saw_it_cut_short, cut](const orphan_stage& stage) -> int {
+            [&started, &gate, &saw_stop_requested, cut](const orphan_state& state) -> int {
                 started.set();
 
                 // Stands for the call to the system the cancelling cuts short.
                 gate.wait();
 
-                saw_it_cut_short = stage.cut_short();
+                saw_stop_requested = state.stop_requested();
 
                 if (cut) throw last_error("ReadFile", ERROR_OPERATION_ABORTED);
 
@@ -938,23 +944,26 @@ TEST(CancellationTest, AnOrphanCancelledWhileItRunsAnswersWhatHappenedToItsCall)
 
         started.wait();
         stop.cancel();
-        gate.set();
 
         sta_loop::run_until([&] { return reading.done(); });
+        EXPECT_EQ(answer_of(reading), "cancelled");
 
-        EXPECT_TRUE(saw_it_cut_short);
-        EXPECT_EQ(answer_of(reading), cut ? "cancelled" : "value 1");
+        gate.set();
+        sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
+
+        EXPECT_TRUE(saw_stop_requested);
     }
 }
 
-// A failure of the body's own stays its answer, request or no request: the lambda on the
-// worker and the orphan both end with what they threw.
-TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerAfterTheRequest) {
+// A failure of the body's own stays its answer, request or no request, for the lambda on the
+// worker, which is waited for; the orphan, let go of at the request, answers the cancellation
+// and its failure goes with it.
+TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerOnTheWorkerOnly) {
     {
         hevent started{true}, gate{true};
         cancellation_source stop;
 
-        task<int> failing = detail::call_under(
+        task<int> failing = sta_loop::async_call(
             [&started, &gate]() -> int {
                 started.set();
                 gate.wait();
@@ -973,8 +982,9 @@ TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerAfterTheRequest) {
 
     hevent started{true}, gate{true};
     cancellation_source stop;
+    const orphans_drained_on_exit drained(gate);
 
-    task<int> refused = detail::call_under(
+    task<int> refused = sta_loop::async_call(
         orphanable,
         [&started, &gate]() -> int {
             started.set();
@@ -988,21 +998,24 @@ TEST(CancellationTest, AFailureOfTheBodysOwnStaysTheAnswerAfterTheRequest) {
     gate.set();
 
     sta_loop::run_until([&] { return refused.done(); });
+    EXPECT_EQ(answer_of(refused), "cancelled");
 
-    EXPECT_EQ(answer_of(refused), std::format("system error {}", int{ERROR_ACCESS_DENIED}));
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
 }
 
-// An orphan cancelled keeps what it makes for its co_await; given up afterwards, it lets go
-// of it as any orphan given up does -- on the thread that makes it, as soon as it is made,
-// and not when the loop meets the operation in the return channel.
+// An orphan cancelled is let go of at once, and what it makes is let go of as any orphan
+// given up lets go of it -- on the thread that makes it, as soon as it is made, and not when
+// the loop meets the operation in the return channel -- whether or not its task is dropped
+// before the loop's turn comes.
 TEST(CancellationTest, AnOrphanCancelledAndThenGivenUpLetsGoOfWhatItMakesAtOnce) {
     hevent started{true}, gate{true};
     std::atomic<int> alive{0};
     std::atomic<bool> made{false};
     cancellation_source stop;
+    const orphans_drained_on_exit drained(gate);
 
     {
-        auto making = detail::call_under(
+        auto making = sta_loop::async_call(
             orphanable,
             [&started, &gate, &alive, &made] {
                 started.set();
@@ -1040,7 +1053,7 @@ TEST(CancellationTest, UnderATokenOfNobodyTheFormIsThePlainOne) {
 
     std::byte buf[16]{};
     task<std::size_t> read = start_read(p, buf, cancellation_token{});
-    task<int> lambda = detail::call_under([] { return 9; }, cancellation_token{});
+    task<int> lambda = sta_loop::async_call([] { return 9; }, cancellation_token{});
 
     sta_loop::run_until([&] { return read.done() && lambda.done(); });
 
@@ -1055,7 +1068,7 @@ namespace {
 /// Whether anybody stands in the event of a token's state: an operation, a wait, a source
 /// made under the token.
 bool anybody_stands(const cancellation_token& token) {
-    return static_cast<bool>(detail::state_of(token)->event());
+    return static_cast<bool>(detail::cancellation_state_of(token)->event());
 }
 
 /// Counts the states it was put into that are still alive: a callback of its own in the
@@ -1063,7 +1076,8 @@ bool anybody_stands(const cancellation_token& token) {
 /// when the state goes. Only for a state not cancelled meanwhile: a fire lets go of what it
 /// has called.
 void count_while_alive(const cancellation_token& token, int& alive) {
-    detail::state_of(token)->event().add([keep = counted_capture(&alive)]() noexcept {});
+    detail::cancellation_state_of(token)->event().add(
+        [keep = counted_capture(&alive)]() noexcept {});
 }
 
 /// The thread's queue, as a wait of wxl.ui sees it: a cancelled wait hands its coroutine here
@@ -1096,9 +1110,9 @@ struct queued_awaiter {
 };
 
 /// A wait of wxl under a token over that awaiter: what the event waits of wxl.ui are made of.
-class queued_wait : public detail::wait_under<queued_wait>
+class queued_wait : public detail::cancellable_wait<queued_wait>
 {
-    friend detail::wait_under<queued_wait>;
+    friend detail::cancellable_wait<queued_wait>;
 
 public:
     queued_wait(turns& queue, std::coroutine_handle<>& slot, cancellation_token stop) noexcept
@@ -1107,12 +1121,14 @@ public:
     queued_wait(const queued_wait&) = delete;
     queued_wait& operator=(const queued_wait&) = delete;
 
-    ~queued_wait() { this->leave(); }
+    ~queued_wait() { this->leave_token_event(); }
 
 private:
     queued_awaiter& awaiter() noexcept { return awaiter_; }
 
-    detail::cancellation_state* state() const noexcept { return detail::state_of(stop_); }
+    detail::cancellation_state* state() const noexcept {
+        return detail::cancellation_state_of(stop_);
+    }
 
     cancellation_token stop_;
     queued_awaiter awaiter_;
@@ -1561,21 +1577,27 @@ static_assert(sizeof(task<std::size_t>) == sizeof(void*));
 static_assert(std::is_same_v<decltype(start_read(std::declval<probe&>(), {}, cancellation_token{})),
                              task<std::size_t>>);
 static_assert(
-    std::is_same_v<decltype(detail::call_under(std::declval<int (*)()>(), cancellation_token{})),
+    std::is_same_v<decltype(sta_loop::async_call(std::declval<int (*)()>(), cancellation_token{})),
                    task<int>>);
-static_assert(sizeof(detail::operation_under<gated_read>) ==
+static_assert(sizeof(detail::cancellable_operation<gated_read>) ==
               sizeof(gated_read) + sizeof(cancellation_token) + 3 * sizeof(void*));
 
-// The loop's calls take no token: a body of the application's is its own code's to stop.
+// The loop's calls that send a body take a token, last; the call that answers in place takes
+// none -- its body has run before there is anything to cancel.
 namespace {
 
 template <class Fn>
-concept a_loop_call_takes_a_token =
-    requires(Fn fn, cancellation_token token) { sta_loop::async_call(fn, token); } ||
-    requires(Fn fn, cancellation_token token) { sta_loop::async_call(orphanable, fn, token); } ||
+concept answers_in_place_under_a_token =
     requires(Fn fn, cancellation_token token) { sta_loop::call_here(fn, token); };
 
 }  // namespace
 
-static_assert(!a_loop_call_takes_a_token<int (*)()>);
+static_assert(!answers_in_place_under_a_token<int (*)()>);
+static_assert(std::is_same_v<decltype(sta_loop::async_call(orphanable, std::declval<int (*)()>(),
+                                                           cancellation_token{})),
+                             task<int>>);
+static_assert(std::is_same_v<decltype(sta_loop::async_call(
+                                 orphanable, std::declval<int (*)(const orphan_state&)>(),
+                                 cancellation_token{})),
+                             task<int>>);
 

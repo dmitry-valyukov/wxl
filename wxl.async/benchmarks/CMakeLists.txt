@@ -61,7 +61,7 @@ wxl_set_target_folders(wxl.async.channels-benchmark)
 
 # The loop against the native scheme: the same round trip written the WinRT way --
 # resume_background() out, resume_foreground(DispatcherQueue) back, and the
-# IAsyncOperation a framework call is -- beside sta_loop in its driven shape, on one
+# IAsyncOperation a framework call is -- beside sta_loop in its driven mode, on one
 # real DispatcherQueue pumped by the STA thread. coremessaging.lib is the OS queue
 # itself (CreateDispatcherQueueController); runtimeobject.lib is what the cppwinrt
 # base links against.

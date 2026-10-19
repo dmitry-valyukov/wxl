@@ -213,14 +213,14 @@ TEST(BackgroundLoadTest, AskedForAgainItIsShownAgain) {
 
 std::exception_ptr failure;
 
-void keep_failure(std::exception_ptr error) noexcept { failure = std::move(error); }
+void store_failure(std::exception_ptr error) noexcept { failure = std::move(error); }
 
 /// The handler of detached failures, the test's own while the fixture lives.
 class BackgroundLoadFailureTest : public ::testing::Test {
 protected:
     void SetUp() override {
         failure = nullptr;
-        previous_ = std::exchange(on_detached_task_failure(), &keep_failure);
+        previous_ = std::exchange(on_detached_task_failure(), &store_failure);
     }
 
     void TearDown() override { on_detached_task_failure() = previous_; }
@@ -281,7 +281,7 @@ TEST_F(BackgroundLoadFailureTest, ACancelledWaitIsNoFailure) {
 
     application.cancel();
     cancellation_token const load = loads_of_window.next(application.token(), "cover");
-    show_when_loaded(wxl::async::detail::canceled<std::string>(), load, shows(shown));
+    show_when_loaded(wxl::async::detail::canceled_task<std::string>(), load, shows(shown));
 
     EXPECT_FALSE(failure);
     EXPECT_TRUE(shown.empty());

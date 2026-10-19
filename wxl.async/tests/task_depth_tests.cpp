@@ -134,7 +134,7 @@ protected:
         p_.started.set();
         p_.gate.wait();
 
-        if (canceled()) {
+        if (stop_requested()) {
             set_error(std::make_exception_ptr(operation_canceled_exception()));
             return true;
         }
@@ -160,7 +160,7 @@ private:
 
 /// The read, in the form with a token the operations of this module have.
 task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return detail::run_under<gated_read>(std::move(stop), p, into);
+    return sta_loop::async_run<gated_read>(std::move(stop), p, into);
 }
 
 /// The operation a level awaits besides its subroutine, answering the level's number, in
@@ -181,9 +181,9 @@ task<int> step(int depth, cancellation_token stop) {
         case 0:
             return sta_loop::call_here([depth] { return depth; });
         case 1:
-            return detail::call_under([depth] { return depth; }, std::move(stop));
+            return sta_loop::async_call([depth] { return depth; }, std::move(stop));
         default:
-            return detail::call_under(orphanable, [depth] { return depth; }, std::move(stop));
+            return sta_loop::async_call(orphanable, [depth] { return depth; }, std::move(stop));
     }
 }
 
@@ -209,7 +209,7 @@ task<int> bottom(chain_state& c, cancellation_token stop) {
     if (c.bottom == bottom_kind::worker_failure)
         co_return co_await sta_loop::async_call([]() -> int { throw std::runtime_error("from the worker"); });
 
-    const int value = co_await detail::call_under([] { return 1000; }, stop);
+    const int value = co_await sta_loop::async_call([] { return 1000; }, stop);
 
     if (c.bottom == bottom_kind::coroutine_failure) throw std::runtime_error("from the bottom coroutine");
 
@@ -333,8 +333,16 @@ TEST(TaskDepthTest, AFailureOfTheBottomCoroutineClimbsToTheTop) {
 }
 
 // The token, passed down by hand through every level, reaches the read the chain stands on
-// at the bottom. Asking resumes nobody; the read comes back cut short, writes nothing, and
-// the cancellation climbs to the top.
+// at the bottom and every orphanable step still out. Asking resumes nobody. A level that
+// stands on an orphanable step not taken back yet -- on the sleeping loop, one queued behind
+// the read, or one already back but still lying in the return channel -- is resumed first,
+// by the loop's turn, with the cancellation, and its frame going takes the chain below it
+// down rather than letting the cancellation climb: the read is given up and waited for in
+// place, so it writes nothing. It is deleted as the loop takes it back, and a step's body
+// lying in the channel ahead of it goes first: so what is left alive is counted once
+// everything is back. With no level standing on a step, the read comes back cut short and the
+// cancellation climbs from the bottom. Either way no level ends with a value, and the top ends
+// with the cancellation.
 TEST(TaskDepthTest, ARequestFromTheTopReachesTheBottom) {
     for (int depth = shallowest; depth <= deepest; ++depth) {
         SCOPED_TRACE(std::format("depth {}", depth));
@@ -357,9 +365,11 @@ TEST(TaskDepthTest, ARequestFromTheTopReachesTheBottom) {
         EXPECT_EQ(c.p.wrote, 0);
         EXPECT_EQ(c.ended, 0);
         EXPECT_EQ(c.frames, 0);
-        EXPECT_EQ(c.p.alive, 0);
 
         take_back_the_given_up();
+
+        ASSERT_EQ(sta_loop::outstanding(), 0u);
+        EXPECT_EQ(c.p.alive, 0);
     }
 }
 
