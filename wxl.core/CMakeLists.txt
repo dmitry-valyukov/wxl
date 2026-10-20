@@ -58,7 +58,7 @@ option(WXL_INSTALL "Generate install and export rules for wxl." ${WXL_CORE_STAND
 
 # Refresh .vscode/c_cpp_properties.json after building, so that the editor sees
 # the module interfaces of the configuration just built (see tools/
-# gen-intellisense-config.ps1 and the readme). The post-build step is a no-op
+# gen-intellisense-config.ps1 and docs/editor.md). The post-build step is a no-op
 # unless the build was started from an IDE, and it is off entirely when wxl is
 # somebody else's subproject: its editor configuration is none of our business.
 option(WXL_UPDATE_INTELLISENSE

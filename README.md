@@ -1,15 +1,27 @@
 # wxl
 
 wxl (WinUI XAML-Less) — экспериментальная библиотека для настольных
-приложений Windows на C++23: интерфейс WinUI 3 описывается прямо в коде,
+приложений Windows на C++23: интерфейс WinUI описывается прямо в коде,
 декларативно и без XAML. Под ней — собственный генератор проекций
 `winui-srcgen`: по метаданным `.winmd` и профилю он пишет тонкие обёртки
 только для нужных типов. Примеры — обычные исполняемые файлы без упаковки,
 запускаются прямо из каталога сборки.
 
+Документация — на сайте и в дереве, в `docs/`:
+
+- устройство wxl по слоям и причины решений —
+  [сайт](https://dmitry-valyukov.github.io/wxl/index.html),
+  [docs/index.md](docs/index.md);
+- сборка и подключение к своему проекту —
+  [сайт](https://dmitry-valyukov.github.io/wxl/md_docs_2building.html),
+  [docs/building.md](docs/building.md);
+- цикл статей на Хабре —
+  [сайт](https://dmitry-valyukov.github.io/wxl/md_docs_2articles.html),
+  [docs/articles.md](docs/articles.md).
+
 ## Зачем
 
-Официальный путь к WinUI 3 из C++ — C++/WinRT и XAML: интерфейс пишется на
+Официальный путь к WinUI из C++ — C++/WinRT и XAML: интерфейс пишется на
 втором языке со своим компилятором, IDL и связью с кодом по именам; огромные
 заголовки проекции cppwinrt разбирает каждая единица трансляции, где назван
 хоть один контрол; каждый объект — COM с запросами интерфейсов и атомарными
@@ -79,35 +91,18 @@ TextBox {
 },
 ```
 
-Остальные примеры, от калькулятора до переноса WinUI 3 Gallery, — в
+Остальные примеры, от калькулятора до переноса WinUI Gallery, — в
 [samples/README.md](samples/README.md); устройство синтаксиса — в
-[README2.md](README2.md#декларативный-синтаксис).
+[docs/dsl.md](docs/dsl.md).
 
 ## Быстрый старт
 
-### Требования
+Нужны Windows x64, Visual Studio 2026 (канал Insiders) с тулсетом MSVC 14.53,
+CMake 4.3 или 4.4, Ninja, PowerShell 7 (`pwsh`) и vcpkg, у которого один раз
+выполнен `vcpkg integrate install`: сборка находит vcpkg по `vcpkg.path.txt`
+или по `-DVCPKG_ROOT=<путь>`.
 
-- Windows x64.
-- Visual Studio 2026 (канал Insiders) с C++, тулсетом MSVC 14.53 и Windows
-  SDK — ради `import std;` в модулях C++20.
-- CMake 4.3 или 4.4: снизу — `cmake_minimum_required(VERSION 4.3)`, сверху —
-  UUID ключа `import std;`, известный
-  [cmake/wxl_import_std_gate.cmake](cmake/wxl_import_std_gate.cmake) для 4.1–4.4.
-- Ninja: генераторы Visual Studio не строят BMI (скомпилированные интерфейсы
-  модулей) для импортированных целей.
-- PowerShell 7 (`pwsh`).
-- vcpkg с портом `cppwinrt:x64-windows-static-md`, для тестов — ещё
-  `gtest:x64-windows-static-md`.
-- Один раз `vcpkg integrate install`: сборка находит vcpkg по `vcpkg.path.txt`
-  или по `-DVCPKG_ROOT=<путь>`, а не по переменной окружения — её подменяет
-  `vcvars64.bat`.
-- Сеть при первой настройке: пакеты NuGet, `winmd` и `fmt` через
-  `FetchContent`, Doxygen 1.18 и тема для сайта документации.
-
-### От клона до окна
-
-Проекция cppwinrt (`generated\`) и обёртки wxl (`wxl.ui\src\wxl\`)
-генерируются и в репозиторий не входят. Из корня дерева, в `pwsh`:
+Из корня дерева, в `pwsh`, от клона до окна:
 
 ```powershell
 pwsh -NoProfile -File tools\restore-packages.ps1    # пакеты NuGet, версии — tools\packages.json
@@ -119,50 +114,8 @@ tools\build.ps1 -Configure -Target sample.quadratic
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 
-- Обёртки сделаны по метаданным экспериментального канала WinUI (в стабильном
-  нет `WrapPanel` и `LayoutPanel`): без среды этого канала, которая ставится
-  для текущего пользователя рядом со стабильной, приложение не запустится.
-- Пока обёрток нет, настройка пропускает `wxl.ui` и всё, что от неё зависит,
-  и предупреждает об этом. Сборка генератор не запускает: после правки
-  профиля генерация и `-Configure` повторяются.
-- Все примеры сразу — `run-samples.bat`: собирает их в Debug и предлагает
-  запустить любой из списка.
-- `WXL_BUILD_DOCS=OFF` остаётся в кэше; сайт документации и его тест
-  возвращает `tools\build.ps1 -Define WXL_BUILD_DOCS=ON`.
-- Пример лежит в `build\x64\samples\<Папка>\<Конфигурация>\<цель>.exe`
-  с ресурсами и DLL; цели — в [samples/README.md](samples/README.md).
-
-### Сборка
-
-`tools\build.ps1` сам поднимает окружение Visual Studio с закреплённым тулсетом
-(другой — `-Toolset`) и настраивает `build\x64`, если тот не настроен:
-
-```powershell
-tools\build.ps1                                   # всё, Debug
-tools\build.ps1 -Target sample.calc               # одна цель
-tools\build.ps1 -Configure                        # настроить заново
-tools\build.ps1 -Define WXL_BUILD_DOCS=OFF,WXL_BUILD_BENCHMARKS=ON
-```
-
-В Developer PowerShell тулсет берётся из уже поднятого окружения, `-Toolset`
-там игнорируется, и годятся пресеты: `cmake --preset x64`, затем
-`cmake --build --preset x64-debug` или `x64-release`. Ключи `-Define` остаются
-в `CMakeCache.txt`; список через запятую разбирает PowerShell, а из `cmd`
-(`pwsh -File`) он приходит одной строкой — оттуда по одному ключу за запуск.
-
-| Ключ | По умолчанию | Что делает |
-| --- | --- | --- |
-| `BUILD_TESTING` | `OFF` | тесты GTest; пресеты его не трогают |
-| `WXL_BUILD_DOCS` | `ON` | сайт документации Doxygen, цель `docs`, результат — `build\x64\docs\wxl\html\index.html` |
-| `WXL_BUILD_BENCHMARKS` | `OFF` | бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui` |
-
-### Тесты
-
-```powershell
-tools\build.ps1 -Define BUILD_TESTING=ON
-ctest --preset x64-debug                 # из корня: пресет ищется в текущем каталоге
-ctest --preset x64-debug -R docs         # сайт документации как тест, при WXL_BUILD_DOCS=ON
-```
+Оговорки к этим шагам, ключи CMake, тесты и подключение к своему проекту — на
+странице сборки, [docs/building.md](docs/building.md).
 
 ## Состав
 
@@ -174,56 +127,24 @@ ctest --preset x64-debug -R docs         # сайт документации к�
 | `wxl.xml`, `wxl.json` | Читатели XML и JSON |
 | `wxl.html`, `wxl.bb`, `wxl.rsdn`, `wxl.highlight` | Разбор HTML, BB- и RSDN-разметки для `HtmlBlock`, `BbBlock`, `RsdnBlock`; подсветка кода |
 | `wxl.gen.common`, `wxl.gen`, `wxl.gen.ui` | Генератор `winui-srcgen` и визуальный редактор его профилей (собрать и запустить — `run-gen-ui.cmd`) |
-| `wxl.ui` | WinUI 3 без XAML: обёртки, декларативный синтаксис, окна, привязки, эффекты, точка входа |
-| `samples`, `sandbox`, `test-support`, `cmake`, `tools`, `docs` | Примеры; пробы механизмов WinUI; обвязка тестов; скрипты CMake и сборки; главная страница сайта документации |
-
-## Как подключить к своему проекту
-
-Приложение на wxl объявляется функциями из [cmake/](cmake/). Так выглядит
-[samples/Quadratic/CMakeLists.txt](samples/Quadratic/CMakeLists.txt):
-
-```cmake
-wxl_add_executable(sample.quadratic
-    main.cpp
-)
-
-target_link_libraries(sample.quadratic PRIVATE wxl::fmt)
-
-wxl_target_icon(sample.quadratic app.ico)
-wxl_target_assets(sample.quadratic Assets)
-```
-
-- `wxl_add_executable(<цель> <исходники>…)` — оконный exe с точкой входа из
-  `wxl::ui` и манифестом из `cmake/wxl_app.manifest.in`; зовёт
-  `wxl_target_runtime`.
-- `wxl_target_runtime(<цель>)` — DLL загрузчика Windows App Runtime, Win2D и
-  `WebView2Loader.dll` рядом с exe; руками — только для цели, объявленной иначе.
-- `wxl_target_icon(<цель> <файл.ico>)` — значок в ресурсах exe; его же wxl
-  ставит окнам без своего значка и значку в трее.
-- `wxl_target_assets(<цель> <папка>)` — папка рядом с exe, по правилу на файл;
-  адрес ресурса без схемы (`u"Assets/logo.png"`) ищется там же.
-
-В исходниках — заголовки `wxl.ui` (`ui.h` и соседи, как в
-[samples/HelloHere/pch.h](samples/HelloHere/pch.h)) и функция
-`wxl::Teardown wxl_launched()` из [wxl.ui/src/launch.h](wxl.ui/src/launch.h).
-Проще всего — папка в `samples/` и строка в `samples/CMakeLists.txt`; проект
-рядом с деревом wxl и остальные ключи сборки — в [README2.md](README2.md#сборка).
+| `wxl.ui` | WinUI без XAML: обёртки, декларативный синтаксис, окна, привязки, эффекты, точка входа |
+| `samples`, `sandbox`, `test-support`, `cmake`, `tools`, `docs` | Примеры; пробы механизмов WinUI; обвязка тестов; скрипты CMake и сборки; страницы сайта документации |
 
 ## Статус и ограничения
 
 Библиотека одного автора: интерфейс меняется вместе с задачами,
 совместимость между коммитами не обещается, выпусков и CI нет, перенос
-WinUI 3 Gallery идёт по группам контролов.
+WinUI Gallery идёт по группам контролов.
 
-**Release.** MSVC для x64 с оптимизацией (`/O1`, `/O2`) и синхронной
-моделью исключений (`/EHsc`) не разрушает локальные переменные корутины, у
-которой `final_suspend` возвращает `suspend_never`, и не освобождает её кадр,
-если решит, что в теле корутины ничего не бросает; с `/Od` или `/EHa` всё
-верно ([bugs/coro-report.md](bugs/coro-report.md): найдено на 14.51, в
-октябре 2026 так же ведёт себя 14.53). Так устроена `async::detached_task`, а
-выход приложения ждёт, пока живых кадров не останется, — поэтому пример,
-собранный с `-Config Release`, может не закрыться. Пока дефект не исправлен,
-рабочая конфигурация — Debug.
+**Release.** MSVC для x64 с оптимизацией (`/O1`, `/O2`) и синхронной моделью
+исключений (`/EHsc`) не разрушает локальные переменные корутины, у которой
+`final_suspend` возвращает `suspend_never`, и не освобождает её кадр, если
+решит, что в теле корутины ничего не бросает; с `/Od` или `/EHa` всё верно
+(найдено на 14.51, в октябре 2026 так же ведёт себя 14.53). Так устроена
+`async::detached_task`, а выход приложения ждёт, пока живых кадров не
+останется, — поэтому пример, собранный с `-Config Release`, может не
+закрыться; пока дефект не исправлен, рабочая конфигурация — Debug.
+Подробности — [bugs/coro-report.md](bugs/coro-report.md).
 
 - Типа или члена WinUI, которого нет в профиле `full`, нет и в wxl, пока его
   не добавят в профиль и не перегенерируют обёртки.
@@ -231,12 +152,6 @@ WinUI 3 Gallery идёт по группам контролов.
   (`I<Класс>Overrides`) приложение пока не пишет (прототип агрегации —
   `sandbox/Overrides`, не собирается); свою раскладку дают `CustomLayout` и
   `CustomVirtualizingLayout`.
-
-## Документация
-
-[README2.md](README2.md) — как устроен wxl и почему так, по слоям, и список
-статей цикла; главная страница сайта документации —
-[docs/index.md](docs/index.md).
 
 ## Лицензия
 

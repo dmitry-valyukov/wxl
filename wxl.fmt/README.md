@@ -1,4 +1,4 @@
-## wxl.fmt
+# wxl.fmt
 
 Кастомный буфер и построитель текста поверх библиотеки [fmt](https://github.com/fmtlib/fmt): компоненты `text_buffer` и `text_builder`, и функция `format` — текст для интерфейса одним вызовом.  
 Модуль для подключения: `import wxl.fmt;`, таргет сборки: `wxl::fmt`.

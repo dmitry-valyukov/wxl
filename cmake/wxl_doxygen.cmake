@@ -27,10 +27,23 @@ set(WXL_DOXYGEN_MIN_VERSION 1.18.0)
 # The pinned fallback build, used when the host has nothing new enough. That is
 # the normal case rather than the exception: 1.18.0 is weeks old, so requiring
 # a system install would mean requiring an install nobody has yet.
-set(WXL_DOXYGEN_URL
-    "https://www.doxygen.nl/files/doxygen-1.18.0.windows.x64.bin.zip")
-set(WXL_DOXYGEN_SHA256
-    "e84f54cfd49ef06b0b16536056dbec0c496323de28abcce53a4269463de35eaf")
+# Two builds, one per host the site is built on: the developer's Windows
+# machine and the Linux runner that publishes it. Doxygen lexes rather than
+# compiles, so the Linux build renders this tree without MSVC or anything of
+# the toolchain -- which is what lets the site be built where the code cannot.
+if(WIN32)
+    set(WXL_DOXYGEN_URL
+        "https://www.doxygen.nl/files/doxygen-1.18.0.windows.x64.bin.zip")
+    set(WXL_DOXYGEN_SHA256
+        "e84f54cfd49ef06b0b16536056dbec0c496323de28abcce53a4269463de35eaf")
+    set(WXL_DOXYGEN_FETCHED_EXECUTABLE "doxygen.exe")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    set(WXL_DOXYGEN_URL
+        "https://www.doxygen.nl/files/doxygen-1.18.0.linux.bin.tar.gz")
+    set(WXL_DOXYGEN_SHA256
+        "14fa81bdc34171edb5f1f02b1d60e74802f0439b77fa44e592565d517d72df90")
+    set(WXL_DOXYGEN_FETCHED_EXECUTABLE "bin/doxygen")
+endif()
 
 # jothepro/doxygen-awesome-css, master at 2026-05-31 (past the v2.4.2 tag).
 # Pinned by commit for the same reason winmd is in the root CMakeLists: a tag
@@ -72,19 +85,19 @@ function(wxl_doxygen_bootstrap)
     if(DOXYGEN_FOUND)
         set(_doxygen "${DOXYGEN_EXECUTABLE}")
         message(STATUS "Doxygen ${DOXYGEN_VERSION}: ${_doxygen}")
-    elseif(WIN32)
+    elseif(WXL_DOXYGEN_URL)
         FetchContent_Declare(wxl_doxygen
             URL "${WXL_DOXYGEN_URL}"
             URL_HASH "SHA256=${WXL_DOXYGEN_SHA256}"
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
         FetchContent_MakeAvailable(wxl_doxygen)
-        set(_doxygen "${wxl_doxygen_SOURCE_DIR}/doxygen.exe")
+        set(_doxygen "${wxl_doxygen_SOURCE_DIR}/${WXL_DOXYGEN_FETCHED_EXECUTABLE}")
         message(STATUS "Doxygen ${WXL_DOXYGEN_MIN_VERSION} (fetched): ${_doxygen}")
     else()
         message(FATAL_ERROR
             "Doxygen ${WXL_DOXYGEN_MIN_VERSION} or newer is needed to build the "
-            "documentation and none was found. Only the Windows build is fetched "
-            "automatically; install it and re-configure.")
+            "documentation and none was found. Only the Windows and Linux builds "
+            "are fetched automatically; install it and re-configure.")
     endif()
 
     FetchContent_Declare(wxl_doxygen_awesome
@@ -159,6 +172,51 @@ function(_wxl_doxygen_quote out)
         string(APPEND _result " \\\n                         \"${_item}\"")
     endforeach()
     set(${out} "${_result}" PARENT_SCOPE)
+endfunction()
+
+# wxl_doxygen_tree_inputs(<input-var> <exclude-var> <root>)
+#
+# What the site of a wxl tree rooted at <root> reads: the prose in docs/ and in
+# each module's doc/ next to the sources of every module, and the patterns that
+# keep tests, benchmarks and tooling out. One list, because two sites read it:
+# wxl's own (docs/CMakeLists.txt) and the copy an application builds from its
+# tree for the sake of the tag file. A second copy of the list drifted once,
+# and the application's site stopped on a directory that no longer existed.
+function(wxl_doxygen_tree_inputs input_var exclude_var root)
+    set(${input_var}
+        "${root}/docs"
+        "${root}/wxl.core/src"
+        "${root}/wxl.core/readme.md"
+        "${root}/wxl.fmt/src"
+        "${root}/wxl.fmt/doc"
+        "${root}/wxl.fmt/README.md"
+        "${root}/wxl.async/src"
+        "${root}/wxl.logging/src"
+        "${root}/wxl.xml/src"
+        # The other reader, and the arena's second consumer.
+        "${root}/wxl.json/src"
+        # The markup family: the HTML subset and the sibling tokenizers over
+        # the shared tree builder, with the design note that explains them.
+        "${root}/wxl.html/src"
+        "${root}/wxl.html/design.md"
+        "${root}/wxl.bb/src"
+        "${root}/wxl.rsdn/src"
+        "${root}/wxl.highlight/src"
+        # The generated WinUI3 projection is part of the surface, not an
+        # implementation detail: wxl::Button and wxl::UIElement are what a
+        # consumer writes, and without them the tag file an application's
+        # site reads resolves nothing.
+        "${root}/wxl.ui/src"
+        "${root}/wxl.ui/doc"
+        PARENT_SCOPE)
+    set(${exclude_var}
+        "*/tests/*"
+        "*/test/*"
+        "*/bench/*"
+        "*/benchmarks/*"
+        "*/packaging/*"
+        "*/tools/*"
+        PARENT_SCOPE)
 endfunction()
 
 # wxl_add_doxygen_site(<target>
