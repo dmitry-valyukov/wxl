@@ -22,6 +22,8 @@ EXTENSION_MAPPING      = ixx=C++
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       = @DOXY_EXCLUDE_PATTERNS@
 STRIP_FROM_PATH        = @DOXY_STRIP_FROM_PATH@
+# Where an image named in a markdown page is looked up.
+IMAGE_PATH             = @DOXY_IMAGE_PATH@
 
 # An anonymous union inside a private nested class gets a compound of its own
 # even though the class holding it is never emitted -- spsc_queue::block is the

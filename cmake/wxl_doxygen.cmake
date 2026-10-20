@@ -174,30 +174,35 @@ function(_wxl_doxygen_quote out)
     set(${out} "${_result}" PARENT_SCOPE)
 endfunction()
 
-# wxl_doxygen_tree_inputs(<input-var> <exclude-var> <root>)
+# wxl_doxygen_tree_inputs(<input-var> <exclude-var> <images-var> <root>)
 #
-# What the site of a wxl tree rooted at <root> reads: the prose in docs/ and in
-# each module's doc/ next to the sources of every module, and the patterns that
-# keep tests, benchmarks and tooling out. One list, because two sites read it:
-# wxl's own (docs/CMakeLists.txt) and the copy an application builds from its
-# tree for the sake of the tag file. A second copy of the list drifted once,
-# and the application's site stopped on a directory that no longer existed.
-function(wxl_doxygen_tree_inputs input_var exclude_var root)
+# What the site of a wxl tree rooted at <root> reads: the prose in docs/, the
+# READMEs of the samples, and the sources of every module; the patterns that
+# keep tests, benchmarks and tooling out; and the directories images in the
+# prose are resolved against. One list, because two sites read it: wxl's own
+# (docs/CMakeLists.txt) and the copy an application builds from its tree for
+# the sake of the tag file. A second copy of the list drifted once, and the
+# application's site stopped on a directory that no longer existed.
+#
+# Module READMEs are one-screen cards for GitHub and stay off the site; the
+# articles about the modules live in docs/.
+function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
     set(${input_var}
         "${root}/docs"
+        "${root}/samples/README.md"
+        "${root}/samples/Quadratic/README.md"
+        "${root}/samples/Trayed/README.md"
+        "${root}/samples/Gallery/README.md"
         "${root}/wxl.core/src"
-        "${root}/wxl.core/readme.md"
         "${root}/wxl.fmt/src"
-        "${root}/wxl.fmt/README.md"
         "${root}/wxl.async/src"
         "${root}/wxl.logging/src"
         "${root}/wxl.xml/src"
         # The other reader, and the arena's second consumer.
         "${root}/wxl.json/src"
         # The markup family: the HTML subset and the sibling tokenizers over
-        # the shared tree builder, with the design note that explains them.
+        # the shared tree builder.
         "${root}/wxl.html/src"
-        "${root}/wxl.html/design.md"
         "${root}/wxl.bb/src"
         "${root}/wxl.rsdn/src"
         "${root}/wxl.highlight/src"
@@ -206,7 +211,6 @@ function(wxl_doxygen_tree_inputs input_var exclude_var root)
         # consumer writes, and without them the tag file an application's
         # site reads resolves nothing.
         "${root}/wxl.ui/src"
-        "${root}/wxl.ui/doc"
         PARENT_SCOPE)
     set(${exclude_var}
         "*/tests/*"
@@ -216,12 +220,16 @@ function(wxl_doxygen_tree_inputs input_var exclude_var root)
         "*/packaging/*"
         "*/tools/*"
         PARENT_SCOPE)
+    set(${images_var}
+        "${root}/samples/Quadratic"
+        PARENT_SCOPE)
 endfunction()
 
 # wxl_add_doxygen_site(<target>
 #     PROJECT_NAME <name> [BRIEF <text>] [LANGUAGE <Doxygen language>]
 #     INPUT <path>...  [EXCLUDE <pattern>...]  [STRIP_FROM <dir>]
 #     [MAINPAGE <file.md>] [OUTPUT <dir>]
+#     [IMAGES <dir>...]       -- where ![](...) in the prose is resolved
 #     [TAGFILE <file>]        -- write one, for other sites to link against
 #     [TAGS <file>=<url>...]  -- read others, turning mentions into links
 #     [DEPENDS <target>...])
@@ -232,7 +240,7 @@ function(wxl_add_doxygen_site target)
     cmake_parse_arguments(A
         ""
         "PROJECT_NAME;BRIEF;LANGUAGE;STRIP_FROM;MAINPAGE;OUTPUT;TAGFILE"
-        "INPUT;EXCLUDE;TAGS;DEPENDS"
+        "INPUT;EXCLUDE;IMAGES;TAGS;DEPENDS"
         ${ARGN})
 
     wxl_doxygen_bootstrap()
@@ -247,6 +255,7 @@ function(wxl_add_doxygen_site target)
     _wxl_doxygen_quote(DOXY_INPUT ${A_INPUT})
     _wxl_doxygen_quote(DOXY_EXCLUDE_PATTERNS ${A_EXCLUDE})
     _wxl_doxygen_quote(DOXY_TAGFILES ${A_TAGS})
+    _wxl_doxygen_quote(DOXY_IMAGE_PATH ${A_IMAGES})
 
     set(DOXY_PROJECT_NAME     "${A_PROJECT_NAME}")
     set(DOXY_PROJECT_BRIEF    "${A_BRIEF}")

@@ -36,7 +36,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 cmake_path(SET _tree NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/..")
-wxl_doxygen_tree_inputs(_input _exclude "${_tree}")
+wxl_doxygen_tree_inputs(_input _exclude _images "${_tree}")
 
 wxl_add_doxygen_site(docs
     PROJECT_NAME "wxl"
@@ -48,6 +48,7 @@ wxl_add_doxygen_site(docs
     TAGFILE      "${CMAKE_BINARY_DIR}/docs/wxl.tag"
     INPUT        ${_input}
     EXCLUDE      ${_exclude}
+    IMAGES       ${_images}
 )
 
 if(BUILD_TESTING)

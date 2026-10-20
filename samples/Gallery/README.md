@@ -2,7 +2,7 @@
 
 Портирование официальной
 [WinUI Gallery](https://github.com/microsoft/WinUI-Gallery) на wxl: те же
-типы WinUI, без XAML-разметки. Оболочка приложения реализована в `Shell.cpp`
+типы **WinUI**, без XAML-разметки. Оболочка приложения реализована в `Shell.cpp`
 (окно с `TitleBar` и `NavigationView`, история переходов), каталог элементов
 управления — `Assets/Data/ControlInfoData.json`. Каждому элементу управления
 соответствует страница `<Контрол>Page.cpp`.
@@ -25,4 +25,4 @@
 Каталог `ControlInfoData.json`, изображения в `Assets/ControlImages` и
 `Assets/HomeHeaderTiles`, файлы `Assets/GalleryHeaderImage.png` и
 `Assets/Slices.png`, а также значок `Assets/Tiles/GalleryIcon.ico` взяты из
-репозитория WinUI Gallery, © Microsoft Corporation, лицензия MIT.
+репозитория **WinUI** Gallery, © Microsoft Corporation, лицензия MIT.

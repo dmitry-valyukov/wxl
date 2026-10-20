@@ -49,7 +49,7 @@ uv run wxl.core/tools/gen-grapheme-table.py
 и функцию `format`. Подсистема построена поверх библиотеки `fmt`, которая
 компилируется модулем `import fmt;` из собственного исходного кода; ядро
 `wxl.core` от внешнего кода не зависит. Подробное описание и замеры
-производительности — [`wxl.fmt`](../wxl.fmt/README.md).
+производительности — [`wxl.fmt`](fmt.md).
 
 ## Парсеры XML и JSON
 
@@ -73,7 +73,7 @@ uv run wxl.core/tools/gen-grapheme-table.py
 графические элементы `wxl::HtmlBlock`, `wxl::BbBlock` и `wxl::RsdnBlock`,
 построенные на базе нативного `RichTextBlock`. Подробное описание
 архитектуры слоя разметки приведено в документе
-[«`wxl.html`: подмножество HTML для `RichTextBlock`»](../wxl.html/design.md).
+[«`wxl.html`: подмножество HTML для `RichTextBlock`»](html.md).
 
 Подсистема подсветки синтаксиса `wxl.highlight` поддерживает 31 язык
 программирования и оперирует статическими таблицами правил: комментарии

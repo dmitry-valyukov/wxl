@@ -3,7 +3,7 @@
 *Русская версия: [README.md](README.md)*
 
 **wxl (WinUI XAML-Less)** is an experimental C++23 library for building
-Windows desktop applications. It lets you describe a WinUI user interface
+Windows desktop applications. It lets you describe a **WinUI** user interface
 declaratively, directly in the source code, without resorting to XAML.
 
 The library is built around its own projection generator, **winui-srcgen**:
@@ -31,7 +31,7 @@ locally in the `docs/` directory:
 
 ## Architectural manifesto
 
-The official Windows development stack (WinUI + C++/WinRT + XAML) has three
+The official Windows development stack (**WinUI** + C++/WinRT + XAML) has three
 fundamental drawbacks:
 
 - **A split language environment:** the UI is described in XAML, which
@@ -52,7 +52,7 @@ The **wxl** architecture offers an alternative approach:
   the end application does not require WinRT headers, and it builds in
   seconds.
 - **True inheritance and thin wrappers.** Wrapper classes in `wxl` inherit
-  from one another exactly as their WinUI counterparts do (`wxl::Button` →
+  from one another exactly as their **WinUI** counterparts do (`wxl::Button` →
   `wxl::ButtonBase` → … → `wxl::UIElement`). As a result, an object is
   passed wherever its base class is expected by native language means, with
   no `.as<T>()`-style casts. The wrapper itself is a single smart pointer to
@@ -71,13 +71,13 @@ The **wxl** architecture offers an alternative approach:
   compile time. Moreover, events can be not only handled but also awaited
   natively inside coroutines with `co_await onClick(button)`.
 - **Optimized for the single-threaded apartment (STA).** By specification,
-  the WinUI user interface runs on a single STA thread: UI tree objects (XAML
+  the **WinUI** user interface runs on a single STA thread: UI tree objects (XAML
   elements, windows, compositor visuals) are called only from the thread
   that created them. Because of this, every internal entity that `wxl`
   creates itself — `Impl` objects, event nodes and coroutine frames — uses
   non-atomic reference counts and is allocated from the thread's memory pool
   (`sta_memory_pool`), which is free of locks and atomic operations. The
-  WinUI components themselves remain standard COM objects. Blocking
+  **WinUI** components themselves remain standard COM objects. Blocking
   operations (I/O, waits) are handed off to the worker thread of the
   `sta_loop` dispatcher, and their results are delivered back to the UI
   thread without stalling it.
@@ -149,7 +149,7 @@ TextBox {
 },
 ```
 
-The full set of sample applications (from a calculator to complex WinUI
+The full set of sample applications (from a calculator to complex **WinUI**
 Gallery components), with a detailed description of the syntax, can be found
 in [samples/README.md](samples/README.md) and
 [docs/dsl.md](docs/dsl.md).
@@ -215,8 +215,8 @@ configuration options, running the unit tests, and a guide to integrating
 | **`wxl.xml`** / **`wxl.json`** | Lightweight parsers for XML and JSON. |
 | **`wxl.html`** / related | Modules for parsing HTML, BB-code and RSDN text markup for the `HtmlBlock`, `BbBlock`, `RsdnBlock` visual components. The `wxl.highlight` syntax highlighting subsystem. |
 | **`wxl.gen.*`** | Source code of the `winui-srcgen` projection generator (`wxl.gen`, `wxl.gen.common`) and `wxl.gen.ui`, a GUI for visually editing code generation profiles (launched via `run-gen-ui.cmd`). |
-| **`wxl.ui`** | The WinUI graphics stack without XAML: public object wrappers, the declarative DSL syntax, window management, data binding and visual effects. |
-| **Auxiliary** | `samples` — sample projects; `sandbox` — isolated experiments with WinUI mechanisms; `test-support` — unit testing infrastructure; `cmake`, `tools`, `docs` — build and automation scripts and documentation sources. |
+| **`wxl.ui`** | The **WinUI** graphics stack without XAML: public object wrappers, the declarative DSL syntax, window management, data binding and visual effects. |
+| **Auxiliary** | `samples` — sample projects; `sandbox` — isolated experiments with **WinUI** mechanisms; `test-support` — unit testing infrastructure; `cmake`, `tools`, `docs` — build and automation scripts and documentation sources. |
 
 ## Current status and limitations
 
@@ -224,7 +224,7 @@ The project is under active experimental development. Backward compatibility
 between individual commits is not guaranteed at this stage. The official
 [WinUI Gallery](https://github.com/microsoft/WinUI-Gallery) has been ported
 across all control groups; only a few individual pages remain unported, those
-that need mechanisms wxl does not implement yet or packages outside the
+that need mechanisms **wxl** does not implement yet or packages outside the
 profiles (`SemanticZoom`, `WebView2`).
 
 ### MSVC optimizer defect (as of October 2026)
@@ -243,10 +243,10 @@ samples may hang when the window is closed in `Release`.
 
 ### Code generation limitations
 
-- **Profile contents.** wxl contains only those WinUI types and members that
+- **Profile contents.** **wxl** contains only those **WinUI** types and members that
   are listed in the `wxl.gen/profiles/full.json` profile. To add anything
   missing, extend the profile and regenerate the wrappers.
-- **Inheritance with overriding (Overrides).** A custom subclass of a WinUI
+- **Inheritance with overriding (Overrides).** A custom subclass of a **WinUI**
   class that overrides methods through the `I<Class>Overrides` interfaces is
   not supported yet: the COM interface aggregation prototype in
   `sandbox/Overrides` does not build. For custom layout containers, the
