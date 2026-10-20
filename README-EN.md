@@ -4,7 +4,7 @@
 
 **wxl (WinUI XAML-Less)** is an experimental C++23 library for building
 Windows desktop applications. It lets you describe a WinUI user interface
-declaratively, right in the source code, with no need for XAML at all.
+declaratively, directly in the source code, without resorting to XAML.
 
 The library is built around its own projection generator, **winui-srcgen**:
 from `.winmd` metadata and a configuration profile, it produces lightweight

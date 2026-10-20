@@ -5,7 +5,6 @@ wxl.ui/src/wxl/
 out/
 .vs/
 .vscode/
-.github/
 .sysprogside/
 
 CMakeUserPresets.json

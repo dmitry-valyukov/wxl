@@ -1,0 +1,59 @@
+# The documentation site: built on every push to main and published to GitHub
+# Pages; on a pull request only built, as the check that no comment in the
+# tree is malformed (the Doxyfile makes warnings fatal).
+#
+# docs/ is a CMake project of its own with no compiler behind it: Doxygen
+# reads the sources without building them, so a Linux runner without MSVC is
+# enough. The generated WinUI wrappers are not part of this site -- producing
+# them needs the toolchain -- and the site's main page says so.
+name: docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Doxygen 1.18.0 and the theme are fetched by the configure step itself
+      # (cmake/wxl_doxygen.cmake), pinned by hash and by commit.
+      - name: Configure
+        run: cmake -S docs -B build/docs
+
+      - name: Build the site
+        run: cmake --build build/docs --target docs
+
+      - name: Test (warnings are fatal)
+        run: ctest --test-dir build/docs --output-on-failure
+
+      - name: Upload the site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/docs/docs/wxl/html
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -28,7 +28,14 @@ STRIP_FROM_PATH        = @DOXY_STRIP_FROM_PATH@
 # live example. In HTML that is a stray page nobody links to; in a tag file it
 # is a compound whose scope is missing, and the site reading that tag stops on
 # it. Nothing is lost by dropping it: an anonymous union has no name to link to.
-EXCLUDE_SYMBOLS        = *__unnamed*
+#
+# The impl and detail namespaces, at any depth, are the library's own side of
+# the boundary: what a consumer never names. The site documents the surface, so
+# they are left out whole -- a mention of one in prose stays plain text.
+EXCLUDE_SYMBOLS        = *__unnamed* \
+                         *::impl *::impl::* \
+                         *::detail *::detail::* \
+                         *::details *::details::*
 USE_MDFILE_AS_MAINPAGE = @DOXY_MAINPAGE@
 
 # ---- What gets documented ----
