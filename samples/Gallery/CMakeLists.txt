@@ -89,6 +89,7 @@ wxl_add_executable(sample.gallery
     GlassPage.cpp
     MagnifyPage.cpp
     BevelPage.cpp
+    Button3DPage.cpp
     GaussianBlurPage.cpp
     HaloPage.cpp
     XamlResourcesPage.cpp

@@ -58,6 +58,7 @@ constexpr Entry ported[] = {
     {L"Glass", &gallery::glassPage},
     {L"Magnify", &gallery::magnifyPage},
     {L"Bevel", &gallery::bevelPage},
+    {L"Button3D", &gallery::button3DPage},
     {L"GaussianBlur", &gallery::gaussianBlurPage},
     {L"Halo", &gallery::haloPage},
     {L"XamlResources", &gallery::xamlResourcesPage},

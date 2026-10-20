@@ -3711,6 +3711,17 @@
           "RelatedControls": ["Halo", "Glass"]
         },
         {
+          "UniqueId": "Button3D",
+          "Tags": ["effect", "button", "3d", "key", "light", "shadow", "normal map"],
+          "Title": "Button3DEffect",
+          "ApiNamespace": "wxl",
+          "Subtitle": "A button as a solid key under a lamp: a body on a normal map, lit by the compositor, pressed down into the panel.",
+          "ImagePath": "ms-appx:///Assets/ControlImages/Acrylic.png",
+          "Description": "A button as a solid key under a lamp: a body on a normal map, lit by the compositor, pressed down into the panel.",
+          "IsNew": true,
+          "RelatedControls": ["Bevel", "Magnify"]
+        },
+        {
           "UniqueId": "Bevel",
           "Tags": ["effect", "bevel", "edge", "emboss"],
           "Title": "BevelEffect",

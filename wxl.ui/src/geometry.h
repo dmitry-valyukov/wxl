@@ -225,7 +225,8 @@ inline Point bottom_right(Rect r) {
 // ---- The numerics the composition surface speaks ----
 //
 // A visual's offset, scale and centre are Vector3; a brush's gradient ends
-// are Vector2; a transform is a Matrix4x4. They are plain float aggregates
+// are Vector2; a visual's transform is a Matrix4x4 and a brush's, which has
+// no depth to move in, a Matrix3x2. They are plain float aggregates
 // in metadata, and wxl declares them for the same reason it declares Size
 // and Point: cppwinrt's own float2/float3/float4x4 carry constructors and
 // arithmetic, which costs an eight-byte value its return in a register and
@@ -241,6 +242,14 @@ struct Vector2 {
 
 struct Vector3 {
     float x, y, z;
+};
+
+// The transform of a brush: two rows that turn and scale, and a row that
+// moves. Row-major, as the ABI lays it out and as Direct2D writes it.
+struct Matrix3x2 {
+    float m11, m12;
+    float m21, m22;
+    float m31, m32;
 };
 
 // Row-major, as the ABI lays it out and as DirectX writes it.

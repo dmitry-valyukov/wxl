@@ -12,17 +12,27 @@ wxl_add_executable(sandbox.lighting-lab
     Controls.cpp
     Failure.cpp
     NormalMaps.cpp
+    Images.cpp
     MaterialPage.cpp
     RevealPage.cpp
     Direct2DPage.cpp
     ShaderPage.cpp
     ShadowPage.cpp
     ScenesPage.cpp
+    SamplePage.cpp
+    SystemPage.cpp
+    KeyPage.cpp
+    NormalsPage.cpp
 )
+
+# Карты нормалей образцов Microsoft: ими страница «Образец ThumbnailLighting»
+# повторяет образец один в один. Откуда они и под какой лицензией -- в
+# Assets/NormalMaps/NOTICE.md.
+wxl_target_assets(sandbox.lighting-lab Assets)
 
 # Failure.cpp читает отказ системы из исключения проекции cppwinrt, а
 # ScenesPage.cpp строит сцену типами, у которых обёрток wxl нет: обоим нужна
 # сама проекция, та же, с которой собрана wxl.ui.
 target_include_directories(sandbox.lighting-lab PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
 target_link_libraries(sandbox.lighting-lab PRIVATE
-    Microsoft::CppWinRT d2d1.lib d3d11.lib dxguid.lib d3dcompiler.lib dwrite.lib)
+    Microsoft::CppWinRT d2d1.lib d3d11.lib dxguid.lib d3dcompiler.lib dwrite.lib windowscodecs.lib)

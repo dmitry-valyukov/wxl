@@ -8,6 +8,7 @@
 // адресу и им не владеет.
 
 #include "pch.h"
+#include "impl/key_relief.h"
 
 namespace lab {
 
@@ -25,6 +26,10 @@ Experiment direct2dPage();  // Direct2DPage.cpp
 Experiment shaderPage();    // ShaderPage.cpp
 Experiment shadowPage();    // ShadowPage.cpp
 Experiment scenesPage();    // ScenesPage.cpp
+Experiment samplePage();    // SamplePage.cpp
+Experiment systemPage();    // SystemPage.cpp
+Experiment keyPage();       // KeyPage.cpp
+Experiment normalsPage();   // NormalsPage.cpp
 
 // Сцена опыта в DIP: одна у всех, чтобы опыты сравнивались глазом.
 inline constexpr float stageWidth = 720.0f;
@@ -46,6 +51,7 @@ wxl::FrameworkElement sliderRow(char16_t const* title, wxl::core::observable<dou
 wxl::FrameworkElement choiceRow(char16_t const* title, wxl::core::observable<int>& field,
                                 std::span<char16_t const* const> names);
 wxl::FrameworkElement toggleRow(char16_t const* title, wxl::core::observable<bool>& field);
+wxl::FrameworkElement checkRow(char16_t const* title, wxl::core::observable<bool>& field);
 wxl::FrameworkElement colorRow(char16_t const* title, wxl::core::observable<wxl::Color>& field);
 wxl::FrameworkElement noteRow(char16_t const* words);
 
@@ -104,8 +110,49 @@ struct ReliefShape {
 // зрителя, а форму клавише даёт обрезка визуала.
 void drawNormalMap(wxl::DrawingSurface const& surface, Relief relief, ReliefShape const& shape);
 
-// Пишет в поверхность белый скруглённый прямоугольник во весь её размер: маска
-// формы клавиши. Радиус -- в пикселях поверхности.
-void drawShape(wxl::DrawingSurface const& surface, float radius);
+// Клавиша Button3DEffect формой и её тени -- то, чем рисует сам эффект
+// (wxl.ui/src/impl/key_relief.h): стенд берёт формулу оттуда, чтобы
+// показывать ровно то, что получит кнопка.
+using KeyRelief = wxl::impl::KeyRelief;
+using HoleShadow = wxl::impl::HoleShadow;
+
+inline void drawKeyMap(wxl::DrawingSurface const& surface, KeyRelief const& key) {
+    wxl::impl::draw_key_map(surface, key);
+}
+inline void drawFaceMask(wxl::DrawingSurface const& surface, KeyRelief const& key) {
+    wxl::impl::draw_face_mask(surface, key);
+}
+inline void drawHoleShadow(wxl::DrawingSurface const& surface, KeyRelief const& key, HoleShadow const& shadow) {
+    wxl::impl::draw_hole_shadow(surface, key, shadow);
+}
+
+// Карта нормалей конуса во всю поверхность: в круге поперечником 0,9 стороны
+// нормаль наклонена от середины, slope -- тангенс наклона; вне круга она смотрит
+// на зрителя. Круг задан в долях поверхности: растянутая на квадрат, она даёт
+// круг при любой своей плотности.
+void drawConeMap(wxl::DrawingSurface const& surface, double slope);
+
+// Карта нормалей с одной нормалью на всю поверхность: наклон вправо и вверх
+// экрана, тангенсами.
+void drawTiltMap(wxl::DrawingSurface const& surface, double slopeRight, double slopeUp);
+
+// Заливает поверхность одним цветом.
+void drawSolid(wxl::DrawingSurface const& surface, wxl::Color color);
+
+// Кладёт в поверхность картинку из Assets/NormalMaps рядом с исполняемым файлом
+// (Images.cpp); поверхность получает размер картинки.
+void loadImage(wxl::DrawingSurface& surface, wchar_t const* name);
+
+// Та же картинка пикселями: BGRA с умноженной альфой, строки сверху вниз.
+struct Pixels {
+    std::vector<std::uint32_t> pixels;
+    int width = 0;
+    int height = 0;
+};
+Pixels readImage(wchar_t const* name);
+
+// Белый скруглённый прямоугольник во всю поверхность: маска формы. Радиус --
+// в пикселях поверхности.
+inline void drawShape(wxl::DrawingSurface const& surface, float radius) { wxl::impl::draw_shape(surface, radius); }
 
 }  // namespace lab

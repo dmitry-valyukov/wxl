@@ -1032,6 +1032,21 @@ void own_drawing(Compositor const& compositor, FrameworkElement const& host, Xam
     SpriteVisual sprite = compositor.createSpriteVisual();
     sprite.brush(page.brush());
     sprite.size({width, height});
+
+    // The brush has a transform of its own, over the picture it paints: one
+    // drawn surface turned, moved or scaled inside the sprite, in the
+    // sprite's own units. Matrix3x2 is a wxl type like the vectors, and a
+    // braced literal is the whole of writing one.
+    CompositionSurfaceBrush turned = page.brush();
+    turned.centerPoint({width / 2, height / 2});
+    turned.rotationAngleInDegrees(180.0f);
+    turned.rotationAngle(3.14159265f);
+    turned.scale({1, 1});
+    turned.offset({0, 0});
+    turned.anchorPoint({0, 0});
+    turned.transformMatrix({-1, 0, 0, -1, width, height});
+    Matrix3x2 const placed = turned.transformMatrix();
+    (void)placed;
     ElementCompositionPreview::setElementChildVisual(host, sprite);
 }
 
@@ -2066,6 +2081,75 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 [[maybe_unused]] void Button3DEffect_emboss_assigned(::wxl::Button3DEffect const& object, double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::emboss = value);
 }
+[[maybe_unused]] void Button3DEffect_specularAmount_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::specularAmount = value);
+}
+[[maybe_unused]] void Button3DEffect_specularShine_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::specularShine = value);
+}
+[[maybe_unused]] void Button3DEffect_rim_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::rim = value);
+}
+[[maybe_unused]] void Button3DEffect_slope_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::slope = value);
+}
+[[maybe_unused]] void Button3DEffect_rounded_assigned(::wxl::Button3DEffect const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::rounded = value);
+}
+[[maybe_unused]] void Button3DEffect_smooth_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::smooth = value);
+}
+[[maybe_unused]] void Button3DEffect_rise_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::rise = value);
+}
+[[maybe_unused]] void Button3DEffect_travel_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::travel = value);
+}
+[[maybe_unused]] void Button3DEffect_azimuth_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::azimuth = value);
+}
+[[maybe_unused]] void Button3DEffect_elevation_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::elevation = value);
+}
+[[maybe_unused]] void Button3DEffect_lampColor_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::lampColor = value);
+}
+[[maybe_unused]] void Button3DEffect_ambientColor_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::ambientColor = value);
+}
+[[maybe_unused]] void Button3DEffect_castBlur_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::castBlur = value);
+}
+[[maybe_unused]] void Button3DEffect_holeShadow_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::holeShadow = value);
+}
+[[maybe_unused]] void Button3DEffect_holeSoftness_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::holeSoftness = value);
+}
+[[maybe_unused]] void Button3DEffect_pressDivesLamp_assigned(::wxl::Button3DEffect const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressDivesLamp = value);
+}
+[[maybe_unused]] void Button3DEffect_pressFlashes_assigned(::wxl::Button3DEffect const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressFlashes = value);
+}
+[[maybe_unused]] void Button3DEffect_pressMovesLabel_assigned(::wxl::Button3DEffect const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressMovesLabel = value);
+}
+[[maybe_unused]] void Button3DEffect_pressShades_assigned(::wxl::Button3DEffect const& object, bool value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressShades = value);
+}
+[[maybe_unused]] void Button3DEffect_diveDepth_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::diveDepth = value);
+}
+[[maybe_unused]] void Button3DEffect_diveGain_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::diveGain = value);
+}
+[[maybe_unused]] void Button3DEffect_shadeAmount_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::shadeAmount = value);
+}
+[[maybe_unused]] void Button3DEffect_labelShade_assigned(::wxl::Button3DEffect const& object, double value) {
+    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::labelShade = value);
+}
 // The braces as a button writes them: the generic tags, a colour where the
 // foreground is a brush elsewhere, and the effect attached to a Button.
 [[maybe_unused]] void Button3DEffect_in_braces() {
@@ -2076,8 +2160,8 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
     Button{u"7", key};
     // The lights over the pointer, written bare: one pair given to two kinds
     // of key, and one light written in place.
-    HoverLight const spot{size = 200, diffuseAmount = 0.4};
-    BorderLight const glow{size = 340};
+    HoverLight const spot{size = 200, fullSize = 100, diffuseAmount = 0.4};
+    BorderLight const glow{size = 340, fullSize = 200};
     Button3DEffect const lit{background = rgb(68, 72, 79), spot, glow};
     Button3DEffect const other{background = rgb(48, 68, 116), spot, glow};
     Button3DEffect const dark{background = rgb(48, 68, 116), HoverLight{intensity = 0}};

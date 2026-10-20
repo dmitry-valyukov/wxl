@@ -61,8 +61,31 @@ struct GlassEffect {
 struct Button3DEffect {
     static constexpr ::wxl::Property<::wxl::PropertyKey::Foreground, ::wxl::Color, ::wxl::Button3DEffect> foreground{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Background, ::wxl::Color, ::wxl::Button3DEffect> background{};
-    static constexpr ::wxl::Property<::wxl::PropertyKey::Shadow, double, ::wxl::Button3DEffect> shadow{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::SpecularAmount, double, ::wxl::Button3DEffect> specularAmount{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::SpecularShine, double, ::wxl::Button3DEffect> specularShine{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Emboss, double, ::wxl::Button3DEffect> emboss{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Rim, double, ::wxl::Button3DEffect> rim{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Slope, double, ::wxl::Button3DEffect> slope{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Rounded, bool, ::wxl::Button3DEffect> rounded{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Smooth, double, ::wxl::Button3DEffect> smooth{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Rise, double, ::wxl::Button3DEffect> rise{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Travel, double, ::wxl::Button3DEffect> travel{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Shadow, double, ::wxl::Button3DEffect> shadow{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Azimuth, double, ::wxl::Button3DEffect> azimuth{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::Elevation, double, ::wxl::Button3DEffect> elevation{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::LampColor, ::wxl::Color, ::wxl::Button3DEffect> lampColor{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::AmbientColor, ::wxl::Color, ::wxl::Button3DEffect> ambientColor{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::CastBlur, double, ::wxl::Button3DEffect> castBlur{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::HoleShadow, double, ::wxl::Button3DEffect> holeShadow{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::HoleSoftness, double, ::wxl::Button3DEffect> holeSoftness{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::PressDivesLamp, bool, ::wxl::Button3DEffect> pressDivesLamp{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::PressFlashes, bool, ::wxl::Button3DEffect> pressFlashes{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::PressMovesLabel, bool, ::wxl::Button3DEffect> pressMovesLabel{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::PressShades, bool, ::wxl::Button3DEffect> pressShades{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::DiveDepth, double, ::wxl::Button3DEffect> diveDepth{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::DiveGain, double, ::wxl::Button3DEffect> diveGain{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::ShadeAmount, double, ::wxl::Button3DEffect> shadeAmount{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::LabelShade, double, ::wxl::Button3DEffect> labelShade{};
 };
 
 struct BevelEffect {
@@ -83,6 +106,7 @@ struct MagnifyEffect {
 
 struct HoverLight {
     static constexpr ::wxl::Property<::wxl::PropertyKey::Size, double, ::wxl::HoverLight> size{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::FullSize, double, ::wxl::HoverLight> fullSize{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Height, double, ::wxl::HoverLight> height{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Intensity, double, ::wxl::HoverLight> intensity{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::DiffuseAmount, double, ::wxl::HoverLight> diffuseAmount{};
@@ -93,6 +117,7 @@ struct HoverLight {
 
 struct BorderLight {
     static constexpr ::wxl::Property<::wxl::PropertyKey::Size, double, ::wxl::BorderLight> size{};
+    static constexpr ::wxl::Property<::wxl::PropertyKey::FullSize, double, ::wxl::BorderLight> fullSize{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Height, double, ::wxl::BorderLight> height{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::Intensity, double, ::wxl::BorderLight> intensity{};
     static constexpr ::wxl::Property<::wxl::PropertyKey::DiffuseAmount, double, ::wxl::BorderLight> diffuseAmount{};

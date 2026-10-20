@@ -4,6 +4,10 @@
 // (клавиши, поднятые над панелью по оси Z), и визуал, который её принимает
 // (панель). Тот же источник светит на сцену, так что тень и свет -- от одной
 // лампы. Всё считает композитор XAML этого потока.
+//
+// Число клавиш -- ползунок: у одной тени система уважает лишь
+// MaxRespectedCasters кастеров, и страница показывает, сколько теней выходит
+// при общей тени и при тени на каждую клавишу.
 
 #include "Lab.h"
 
@@ -13,6 +17,9 @@ using namespace wxl::dsl;
 namespace {
 
 constexpr char16_t const* lightKinds[] = {u"PointLight", u"SpotLight", u"DistantLight"};
+
+// Клавиш на сцене самое большее: три ряда по шесть.
+constexpr int maxKeys = 18;
 
 struct Shadows {
     // Тень принимается только от далёкого источника: на PointLight и SpotLight
@@ -31,6 +38,9 @@ struct Shadows {
     core::observable<double> minBlur {0.0};
     core::observable<double> maxBlur {40.0};
     core::observable<double> corner {22.0};
+    // Сколько клавиш на сцене и по тени ли на каждую.
+    core::observable<double> count {6.0};
+    core::observable<bool> shadowPerKey {false};
     core::observable<Color> keyColor {rgb(68, 72, 79)};
     core::observable<Color> panelColor {rgb(42, 44, 49)};
 
@@ -48,7 +58,7 @@ struct Shadows {
     DistantLight distant;
     std::vector<SpriteVisual> keys;
     std::vector<CompositionRoundedRectangleGeometry> outlines;
-    core::nullable<CompositionProjectedShadow> shadow;
+    std::vector<CompositionProjectedShadow> shadows;
     core::nullable<CompositionPropertySet> pointer;
 
     Shadows()
@@ -66,9 +76,8 @@ struct Shadows {
         panel.brush(panelBrush);
         root.children().insertAtBottom(panel);
 
-        for (int index = 0; index < lab::keyColumns * lab::keyRows; ++index) {
+        for (int index = 0; index < maxKeys; ++index) {
             auto const key = compositor.createSpriteVisual();
-            key.size({lab::keySide, lab::keySide});
             key.brush(keyBrush);
             auto const outline = compositor.createRoundedRectangleGeometry();
             outline.size({lab::keySide, lab::keySide});
@@ -88,7 +97,8 @@ struct Shadows {
 
         keyColor.on_change([this](Color const& value) noexcept { keyBrush.color(value); });
         panelColor.on_change([this](Color const& value) noexcept { panelBrush.color(value); });
-        lab::onAny([this] { place(); }, lift, corner);
+        lab::onAny([this] { place(); }, lift, corner, count);
+        lab::onAny([this] { cast(); }, count, shadowPerKey);
         lab::onAny([this] { tune(); }, blurMultiplier, minBlur, maxBlur);
         lab::onAny([this] { relight(); }, lightKind, follow, height, azimuth, elevation, lightColor, lit, ambientOn);
 
@@ -103,42 +113,67 @@ struct Shadows {
         relight();
     }
 
-    // Клавиша над панелью: её высота -- третья координата смещения.
+    int shown() const { return static_cast<int>(count.get()); }
+
+    // Клавиша над панелью: её высота -- третья координата смещения. До шести
+    // клавиш -- три в ряд большие, больше -- шесть в ряд малые; лишние скрыты.
     void place() noexcept {
-        float const radius = static_cast<float>(corner.get());
+        int const total = shown();
+        int const columns = total <= lab::keyColumns * lab::keyRows ? lab::keyColumns : 6;
+        float const side = columns == lab::keyColumns
+                               ? lab::keySide
+                               : (lab::stageWidth - lab::keyGap * static_cast<float>(columns + 1)) / columns;
+        float const radius = static_cast<float>(corner.get()) * side / lab::keySide;
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-            keys[index].offset({lab::keyLeft(index % lab::keyColumns), lab::keyTop(index / lab::keyColumns),
+            keys[index].isVisible(index < total);
+            keys[index].size({side, side});
+            keys[index].offset({lab::keyGap + static_cast<float>(index % columns) * (side + lab::keyGap),
+                                lab::keyGap + static_cast<float>(index / columns) * (side + lab::keyGap),
                                 static_cast<float>(lift.get())});
+            outlines[index].size({side, side});
             outlines[index].cornerRadius({radius, radius});
         }
     }
 
+    // Тени заново: одна на все показанные клавиши или по одной на клавишу.
     void cast() noexcept {
         lab::attempt(shadowStatus, u"CreateProjectedShadow", [this] {
-            auto const made = compositor.createProjectedShadow();
-
-            auto const receiver = compositor.createProjectedShadowReceiver();
-            receiver.receivingVisual(panel);
-            made.receivers().add(receiver);
-
-            for (auto const& key : keys) {
-                auto const caster = compositor.createProjectedShadowCaster();
-                caster.castingVisual(key);
-                made.casters().insertAtTop(caster);
+            shadows.clear();
+            auto const shadowOf = [this](int first, int last) {
+                auto const made = compositor.createProjectedShadow();
+                auto const receiver = compositor.createProjectedShadowReceiver();
+                receiver.receivingVisual(panel);
+                made.receivers().add(receiver);
+                for (int index = first; index < last; ++index) {
+                    auto const caster = compositor.createProjectedShadowCaster();
+                    caster.castingVisual(keys[index]);
+                    made.casters().insertAtTop(caster);
+                }
+                shadows.push_back(made);
+            };
+            if (shadowPerKey.get()) {
+                for (int index = 0; index < shown(); ++index) {
+                    shadowOf(index, index + 1);
+                }
+            } else {
+                shadowOf(0, shown());
             }
-            shadow = made;
         });
+        std::u16string line {shadowStatus.get()};
+        line += u"; MaxRespectedCasters ";
+        core::append_number(line, static_cast<std::uint32_t>(CompositionProjectedShadowCasterCollection::maxRespectedCasters()), 10);
+        shadowStatus.set(hstring {line});
         tune();
+        relight();
     }
 
     void tune() noexcept {
-        if (!shadow) {
-            return;
-        }
-        lab::attempt(shadowStatus, u"CompositionProjectedShadow", [this] {
-            shadow->blurRadiusMultiplier(static_cast<float>(blurMultiplier.get()));
-            shadow->minBlurRadius(static_cast<float>(minBlur.get()));
-            shadow->maxBlurRadius(static_cast<float>(std::max(maxBlur.get(), minBlur.get())));
+        lab::attempt(lightStatus, u"CompositionProjectedShadow", [this] {
+            for (auto const& shadow : shadows) {
+                shadow.blurRadiusMultiplier(static_cast<float>(blurMultiplier.get()));
+                shadow.minBlurRadius(static_cast<float>(minBlur.get()));
+                shadow.maxBlurRadius(static_cast<float>(std::max(maxBlur.get(), minBlur.get())));
+            }
         });
     }
 
@@ -183,8 +218,8 @@ struct Shadows {
         if (lit.get()) {
             lamp.targets().add(root);
         }
-        if (shadow) {
-            shadow->lightSource(lamp);
+        for (auto const& shadow : shadows) {
+            shadow.lightSource(lamp);
         }
     }
 
@@ -235,6 +270,8 @@ lab::Experiment lab::shadowPage() {
                    }),
         lab::group(u"Тень", true,
                    {
+                       lab::sliderRow(u"Клавиш на сцене", model->count, 1.0, 18.0, 1.0),
+                       lab::toggleRow(u"По тени на клавишу, а не одна на все", model->shadowPerKey),
                        lab::sliderRow(u"Подъём клавиш, Offset.Z", model->lift, 0.0, 120.0, 1.0),
                        lab::sliderRow(u"BlurRadiusMultiplier", model->blurMultiplier, 0.0, 8.0, 0.05),
                        lab::sliderRow(u"MinBlurRadius", model->minBlur, 0.0, 60.0, 0.5),

@@ -70,6 +70,9 @@ struct Material {
     // поворачивает ответ карты нормалей на свет (у круга -- нет), поэтому по
     // умолчанию форма -- маска в самом графе, а обрезка оставлена для сравнения.
     core::observable<int> shaping {0};
+    // Жёсткая граница спрайта. При мягкой, которая стоит по умолчанию, ответ карты
+    // нормалей на свет повёрнут: это показал повтор образца ThumbnailLighting.
+    core::observable<bool> hardBorder {true};
 
     // Лампа.
     core::observable<int> lightKind {0};
@@ -149,7 +152,7 @@ struct Material {
                 reshape();
                 paint();
             },
-            shaping);
+            shaping, hardBorder);
         lab::onAny([this] { relight(); }, recipe);
         // У графов Win2D лампа записана в самом эффекте: её настройки меняют граф.
         lab::onAny(
@@ -189,6 +192,7 @@ struct Material {
                 auto const tile = compositor.createSpriteVisual();
                 tile.size({lab::keySide, lab::keySide});
                 tile.offset({lab::keyLeft(index % lab::keyColumns), lab::keyTop(index / lab::keyColumns), 0.0f});
+                tile.borderMode(hardBorder.get() ? CompositionBorderMode::Hard : CompositionBorderMode::Soft);
 
                 auto const outline = compositor.createRoundedRectangleGeometry();
                 if (shaping.get() == 1) {
@@ -604,6 +608,7 @@ lab::Experiment lab::materialPage() {
                        lab::sliderRow(u"Крутизна (минус -- вдавлено)", model->depth, -3.0, 3.0, 0.05),
                        lab::toggleRow(u"Зелёный канал карты растёт вверх", model->yUp),
                        lab::choiceRow(u"Форма клавиши", model->shaping, shapings),
+                       lab::toggleRow(u"Жёсткая граница спрайта (BorderMode Hard)", model->hardBorder),
                    }),
     });
 

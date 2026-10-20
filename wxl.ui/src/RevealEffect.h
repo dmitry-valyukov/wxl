@@ -33,7 +33,9 @@
 // in layout units, and `height` how far above the page the lamp stands: the
 // lamp's cone is whatever gives that spot from that height, and a lower lamp
 // under the same size lights its rim at a flatter angle, so the spot fades
-// sooner towards its edge. `intensity` is the lamp's, `diffuseAmount` how
+// sooner towards its edge. `fullSize` is the diameter of the disc inside the
+// spot where the light is at full strength, 0 unless written: a spot that
+// fades from its very axis. `intensity` is the lamp's, `diffuseAmount` how
 // much of the light the layer gives back. `color`, `constantAttenuation` and
 // `linearAttenuation` are the SpotLight's own. BorderLight also takes
 // `strokeThickness`, the width of the lit edge, and CornerRadius, the
@@ -60,6 +62,11 @@
 namespace wxl {
 
 class RevealEffect;
+class Button3DEffect;
+
+namespace impl {
+struct Beam;
+}
 
 /// The narrow lamp of a RevealEffect: the spot on the face under the pointer.
 class HoverLight {
@@ -67,7 +74,7 @@ public:
     /// A white spot 140 across from a lamp 120 high, intensity 1, diffuseAmount 0.69.
     HoverLight();
 
-    /// The tags: size, height, intensity, diffuseAmount, color,
+    /// The tags: size, fullSize, height, intensity, diffuseAmount, color,
     /// constantAttenuation, linearAttenuation.
     template <typename... Setters>
         requires(sizeof...(Setters) > 0) && impl::setter_pack<HoverLight, Setters...>
@@ -80,6 +87,7 @@ public:
     ~HoverLight();
 
     void size(double value) const;
+    void fullSize(double value) const;
     void height(double value) const;
     void intensity(double value) const;
     void diffuseAmount(double value) const;
@@ -89,6 +97,11 @@ public:
 
 private:
     friend class RevealEffect;
+    friend class Button3DEffect;
+
+    // The lamp behind the settings, for an effect that aims it at layers of
+    // its own.
+    impl::Beam& beam() const;
 
     struct State;
     core::intrusive_ptr<State> state_;
@@ -101,7 +114,7 @@ public:
     /// 1.24, an edge 1.5 wide rounded as the element is.
     BorderLight();
 
-    /// The tags: size, height, intensity, diffuseAmount, color,
+    /// The tags: size, fullSize, height, intensity, diffuseAmount, color,
     /// constantAttenuation, linearAttenuation, strokeThickness, cornerRadius.
     template <typename... Setters>
         requires(sizeof...(Setters) > 0) && impl::setter_pack<BorderLight, Setters...>
@@ -117,6 +130,7 @@ public:
     void setPositional(CornerRadius value) const { cornerRadius(value); }
 
     void size(double value) const;
+    void fullSize(double value) const;
     void height(double value) const;
     void intensity(double value) const;
     void diffuseAmount(double value) const;
@@ -128,6 +142,9 @@ public:
 
 private:
     friend class RevealEffect;
+    friend class Button3DEffect;
+
+    impl::Beam& beam() const;
 
     struct State;
     core::intrusive_ptr<State> state_;

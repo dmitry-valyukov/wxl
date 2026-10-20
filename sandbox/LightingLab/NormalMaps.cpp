@@ -1,5 +1,7 @@
-// Карты нормалей клавиши и маска рамки: считаются здесь по формуле формы и
-// пишутся в поверхность композитора одним битмапом.
+// Карты нормалей проб стенда -- рельефы страницы материала, конус и наклон
+// страницы матрицы: считаются здесь по формуле и пишутся в поверхность
+// композитора одним битмапом. Карты клавиши рисует сама библиотека
+// (impl/key_relief.h).
 
 #include "platform.h"
 
@@ -124,14 +126,54 @@ void lab::drawNormalMap(DrawingSurface const& surface, Relief relief, ReliefShap
     blit(surface, pixels, width, height);
 }
 
-void lab::drawShape(DrawingSurface const& surface, float radius) {
+namespace {
+
+// Пишет карту, нормаль каждой точки которой даёт функция от места в долях
+// поверхности, от середины; оси экрана. Зелёный канал растёт вверх экрана.
+template <class NormalOf>
+void drawMap(DrawingSurface const& surface, NormalOf normalOf) {
+    SizeInt32 const size = surface.size();
+    int const width = size.width, height = size.height;
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+    auto const channel = [](double value) {
+        return static_cast<std::uint32_t>(std::lround((value * 0.5 + 0.5) * 255.0));
+    };
+    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            Normal const normal = normalOf((x + 0.5) / width - 0.5, (y + 0.5) / height - 0.5);
+            pixels[static_cast<std::size_t>(y) * width + x] =
+                0xFF000000u | (channel(normal.x) << 16) | (channel(-normal.y) << 8) | channel(normal.z);
+        }
+    }
+    blit(surface, pixels, width, height);
+}
+
+}  // namespace
+
+void lab::drawConeMap(DrawingSurface const& surface, double slope) {
+    drawMap(surface, [slope](double u, double v) {
+        double const distance = std::sqrt(u * u + v * v);
+        if (distance < 1e-6 || distance > 0.45) {
+            return Normal {0.0, 0.0, 1.0};
+        }
+        return unit(u / distance * slope, v / distance * slope, 1.0);
+    });
+}
+
+void lab::drawTiltMap(DrawingSurface const& surface, double slopeRight, double slopeUp) {
+    drawMap(surface, [=](double, double) { return unit(slopeRight, -slopeUp, 1.0); });
+}
+
+void lab::drawSolid(DrawingSurface const& surface, Color color) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {
-        ComPtr<ID2D1SolidColorBrush> white;
-        wxl::check_hresult(context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &white));
-        D2D1_ROUNDED_RECT const shape {
-            D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height)), radius, radius};
-        context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-        context->FillRoundedRectangle(shape, white.Get());
+        ComPtr<ID2D1SolidColorBrush> fill;
+        wxl::check_hresult(context->CreateSolidColorBrush(
+            D2D1::ColorF(color.R / 255.0f, color.G / 255.0f, color.B / 255.0f, color.A / 255.0f), &fill));
+        context->FillRectangle(D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height)),
+                               fill.Get());
     });
 }

@@ -59,43 +59,51 @@ namespace {
         },
     };
 
-    // Альбедо корпуса и табло: тёмный полупрозрачный пластик и подсвеченный
-    // изнутри экран, над которым лампа стоит вдвое выше и светит ровнее
-    constexpr Glow bodyGlow = glow(rgba(39, 39, 89, 0.66), 1.0);
-    constexpr Glow lcdGlow  = glow(rgb(208, 220, 170), 2.0);
+    // Альбедо табло: подсвеченный изнутри экран, лампа над ним стоит вдвое
+    // выше и светит ровнее. Панель клавиш -- ровный тёмно-серый пластик,
+    // темнее графитовых клавиш.
+    constexpr Glow lcdGlow = glow(rgb(208, 220, 170), 2.0);
+    constexpr Color panel = rgb(50, 52, 56);
 
     // Кант для псевдообъёма: блик слева сверху, тень справа снизу. Рисует его
     // композитор поверх собственной обводки элемента.
     constexpr Color rimLight = rgba(255, 255, 255, 0.46);
     constexpr Color rimShade = rgba(52, 52, 52, 0.55);
 
-    // Три вида клавиш: чернила и материал (с прозрачностью), остальное —
-    // свет: тень 0.7, вдавленный верх.
+    // Три вида клавиш: чернила и материал, остальное -- свет и форма по
+    // умолчанию эффекта. Нажатие: вспышка пятна, знак и лицо уходят вниз и
+    // вправо, клавиша темнеет; лампа пятна не ныряет.
     Button3DEffect numericKey {
         foreground = rgb(237, 239, 242),
-        background = rgba(68, 72, 79, 0.933),
-        shadow = 0.4,
-        emboss = -0.3
+        background = rgb(68, 72, 79),
+        pressDivesLamp = false,
+        pressFlashes = true,
+        pressMovesLabel = true,
+        pressShades = true,
     };
 
     Button3DEffect actionKey {
         foreground = rgb(204, 217, 245),
-        background = rgba(48, 68, 116, 0.933),
-        shadow = 0.4,
-        emboss = -0.3
+        background = rgb(48, 68, 116),
+        pressDivesLamp = false,
+        pressFlashes = true,
+        pressMovesLabel = true,
+        pressShades = true,
     };
 
     Button3DEffect terminalKey {
         foreground = rgb(255, 227, 180),
-        background = rgba(176, 98, 30, 0.933),
-        shadow = 0.4,
-        emboss = -0.3
+        background = rgb(176, 98, 30),
+        pressDivesLamp = false,
+        pressFlashes = true,
+        pressMovesLabel = true,
+        pressShades = true,
     };
 
     // Раскладка клавиши — скругление, отступ
     // и растяжение содержимого. Вид клавиши даёт Button3DEffect.
     Preset keyLayoutPreset {
-        CornerRadius {8},
+        CornerRadius {9},
         Padding {1},
         horizontalContentAlignment = hAlign.stretch,
         verticalContentAlignment = vAlign.stretch,
@@ -133,11 +141,11 @@ wxl::Teardown wxl_launched() {
             requestedTheme = ElementTheme::Dark,
             BevelEffect {rimLight, rimShade, strokeThickness = 2},
             isTabStop = true,
-            background = backgroundTemplate(bodyGlow),
+            background = SolidColorBrush {color = panel},
             CornerRadius {6},
             Padding {16},
-            rowSpacing = 8,
-            columnSpacing = 8,
+            rowSpacing = 12,
+            columnSpacing = 12,
             rowDefinitions = u"auto,*,*,*,*,*",
             columnDefinitions = u"*,*,*,*",
 
@@ -212,15 +220,9 @@ wxl::Teardown wxl_launched() {
 
                     content = TextBlock {
                         key.text(),
-                        fontSize = 28,
-                        FontWeight {600},
+                        fontSize = 22,
                         hAlign.center,
                         vAlign.center,
-                        GaussianBlurEffect {
-                            color = rgb(0, 0, 0),
-                            blurRadius = 3.0f,
-                            gamma = 0.5
-                        },
                     },
                 };
             },

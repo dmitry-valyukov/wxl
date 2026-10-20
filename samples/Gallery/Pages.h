@@ -126,6 +126,7 @@ wxl::FrameworkElement xamlStylesPage();
 wxl::FrameworkElement glassPage();
 wxl::FrameworkElement magnifyPage();
 wxl::FrameworkElement bevelPage();
+wxl::FrameworkElement button3DPage();
 wxl::FrameworkElement gaussianBlurPage();
 wxl::FrameworkElement haloPage();
 wxl::FrameworkElement xamlResourcesPage();
