@@ -1,22 +1,28 @@
-# Gallery — WinUI 3 Gallery без XAML
+# Gallery — WinUI Gallery без XAML
 
-Перенос [WinUI 3 Gallery](https://github.com/microsoft/WinUI-Gallery) на wxl:
-те же типы WinUI 3, разметки нет. Оболочка — `Shell.cpp` (окно с `TitleBar` и
-`NavigationView`, история переходов), каталог контролов —
-`Assets/Data/ControlInfoData.json`, страница контрола — по файлу
-`<Контрол>Page.cpp`, а её код — `Snippets/<Контрол>/*.h`: тот же текст и
-выполняется, и показывается под примером.
+Портирование официальной
+[WinUI Gallery](https://github.com/microsoft/WinUI-Gallery) на wxl: те же
+типы WinUI, без XAML-разметки. Оболочка приложения реализована в `Shell.cpp`
+(окно с `TitleBar` и `NavigationView`, история переходов), каталог элементов
+управления — `Assets/Data/ControlInfoData.json`. Каждому элементу управления
+соответствует страница `<Контрол>Page.cpp`.
 
-Введения к примерам — `Snippets/<Контрол>/*.html`, показываются `HtmlBlock`;
-оригинал даёт их статичным `TextBlock`.
+Код каждого примера лежит отдельным файлом `Snippets/<Контрол>/*.h`. Страница
+подключает этот файл дважды: как исходный код, который компилируется и
+создаёт показанный элемент, и как встроенный текст, который выводится под
+примером. Поэтому код на странице всегда совпадает с тем, что выполняется.
 
-Какие страницы перенесены, видно в `ItemPages.cpp`: контрол, которого там нет,
-в навигации и на плитках недоступен, как в оригинале контрол, не попавший в
-сборку.
+Вводные описания к примерам хранятся в `Snippets/<Контрол>/*.html` и
+отображаются компонентом `HtmlBlock`; оригинал выводит их статичным
+`TextBlock`.
+
+Перечень портированных страниц задаётся в `ItemPages.cpp`: элемент
+управления, которого там нет, недоступен в навигации и на плитках — так же,
+как в оригинале недоступен элемент, не попавший в сборку.
 
 ## Происхождение данных
 
-Каталог `ControlInfoData.json`, картинки в `Assets/ControlImages`,
-`Assets/HomeHeaderTiles`, `Assets/GalleryHeaderImage.png`, значок
-`Assets/Tiles/GalleryIcon.ico` и `Assets/Slices.png` взяты из репозитория
-WinUI 3 Gallery, © Microsoft Corporation, лицензия MIT.
+Каталог `ControlInfoData.json`, изображения в `Assets/ControlImages` и
+`Assets/HomeHeaderTiles`, файлы `Assets/GalleryHeaderImage.png` и
+`Assets/Slices.png`, а также значок `Assets/Tiles/GalleryIcon.ico` взяты из
+репозитория WinUI Gallery, © Microsoft Corporation, лицензия MIT.

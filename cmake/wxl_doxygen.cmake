@@ -188,7 +188,6 @@ function(wxl_doxygen_tree_inputs input_var exclude_var root)
         "${root}/wxl.core/src"
         "${root}/wxl.core/readme.md"
         "${root}/wxl.fmt/src"
-        "${root}/wxl.fmt/doc"
         "${root}/wxl.fmt/README.md"
         "${root}/wxl.async/src"
         "${root}/wxl.logging/src"
