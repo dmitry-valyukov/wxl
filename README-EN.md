@@ -25,8 +25,8 @@ locally in the `docs/` directory:
 - **Setup:** instructions for building the library and integrating it into
   other projects — [`docs/building.md`](docs/building.md) |
   [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2building.html)
-- **Articles:** a series of in-depth technical articles on Habr —
-  [`docs/articles.md`](docs/articles.md) |
+- **Media:** a series of in-depth technical publications on Habr (in
+  Russian) — [`docs/articles.md`](docs/articles.md) |
   [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2articles.html)
 
 ## Architectural manifesto
@@ -44,7 +44,7 @@ fundamental drawbacks:
   means constant interface queries (`QueryInterface`) and atomic cross-thread
   reference counting, even though the entire UI runs on a single thread.
 
-**wxl** takes a different approach:
+The **wxl** architecture offers an alternative approach:
 
 - **WinRT projection isolation.** The heavyweight `cppwinrt` headers are
   compiled only once — when the `wxl` library itself is built. The
@@ -53,10 +53,10 @@ fundamental drawbacks:
   seconds.
 - **True inheritance and thin wrappers.** Wrapper classes in `wxl` inherit
   from one another exactly as their WinUI counterparts do (`wxl::Button` →
-  `wxl::ButtonBase` → … → `wxl::UIElement`). As a result, an object can be
-  passed wherever its base class is expected natively in C++, with no
-  `.as<T>()`-style casts. The wrapper itself is a single smart
-  pointer to the hidden `Impl` chain. No class in the public hierarchy adds
+  `wxl::ButtonBase` → … → `wxl::UIElement`). As a result, an object is
+  passed wherever its base class is expected by native language means, with
+  no `.as<T>()`-style casts. The wrapper itself is a single smart pointer to
+  the hidden `Impl` implementation chain. No class in the public hierarchy adds
   data members of its own, so every wrapper is always exactly the size of
   one pointer, and copying it by value into a base type is perfectly safe
   and causes no destructive object slicing.
@@ -71,7 +71,7 @@ fundamental drawbacks:
   compile time. Moreover, events can be not only handled but also awaited
   natively inside coroutines with `co_await onClick(button)`.
 - **Optimized for the single-threaded apartment (STA).** By specification,
-  WinUI runs its UI strictly on a single STA thread: UI tree objects (XAML
+  the WinUI user interface runs on a single STA thread: UI tree objects (XAML
   elements, windows, compositor visuals) are called only from the thread
   that created them. Because of this, every internal entity that `wxl`
   creates itself — `Impl` objects, event nodes and coroutine frames — uses
@@ -102,11 +102,11 @@ For a detailed discussion of the architectural rationale and the design of
 the projection generator, see the
 [first article of the series on Habr](https://habr.com/ru/articles/1080690/).
 
-## Examples
+## Implementation examples
 
 Below is a fragment of a quadratic equation solver from
-[samples/Quadratic/main.cpp](samples/Quadratic/main.cpp). Its design rests
-on connecting reactive `observable` containers (business logic) to UI
+[samples/Quadratic/main.cpp](samples/Quadratic/main.cpp). The architecture
+is built on binding reactive `observable` containers (business logic) to UI
 properties through declarative bindings.
 
 ```cpp
@@ -163,8 +163,8 @@ To build the library and the sample projects, you will need:
 - **OS:** Windows x64
 - **Compiler toolchain:** Visual Studio 2026 (Insiders channel) with the
   MSVC 14.53 toolset
-- **Build tools:** CMake (version 4.3 / 4.4) and Ninja
-- **Shell:** PowerShell 7 (`pwsh`)
+- **Build:** CMake (version 4.3 / 4.4) and Ninja
+- **Environment:** PowerShell 7 (`pwsh`)
 - **Dependency management:** an installed `vcpkg` with the one-time
   integration command (`vcpkg integrate install`) already run. The build
   scripts locate the package manager automatically via the
@@ -184,13 +184,13 @@ pwsh -NoProfile -File tools\restore-packages.ps1
 # 2. Generate the base cppwinrt projection into the generated\ directory
 pwsh -NoProfile -File tools\projection.ps1
 
-# 3. Install the experimental Windows App Runtime
+# 3. Deploy the experimental Windows App Runtime
 pwsh -NoProfile -File tools\install-runtime.ps1
 
 # 4. Build the winui-srcgen tool without generating its accompanying documentation
 tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
 
-# 5. Run the generator to build the wrappers from the full WinUI profile
+# 5. Run the generator to build the full profile of WinUI wrappers
 build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
 
 # 6. Configure CMake and build the Quadratic sample project
@@ -212,8 +212,8 @@ configuration options, running the unit tests, and a guide to integrating
 | **`wxl.core`** | Library core (the `wxl.core` module): the single-threaded STA memory pool, reference counting, reactive `observable` containers, the event model, grapheme-aware UTF-8/UTF-16 text support, file system access, the optimized `nullable` container. |
 | **`wxl.async`** | Asynchronous subsystem: `task` and `detached_task` coroutines, the `sta_loop` dispatcher with non-blocking file I/O, operation cancellation, low-level lock-free queues, data exchange channels and thread synchronization primitives. |
 | **`wxl.fmt`** / **`wxl.logging`** | `text_builder` and string formatting modules built on top of the `fmt` library. Logging subsystem components. |
-| **`wxl.xml`** / **`wxl.json`** | Lightweight streaming parsers for XML and JSON. |
-| **`wxl.html`** / related | Parsers for HTML, BB-code and RSDN text markup for the `HtmlBlock`, `BbBlock`, `RsdnBlock` visual components. The `wxl.highlight` syntax highlighting subsystem. |
+| **`wxl.xml`** / **`wxl.json`** | Lightweight parsers for XML and JSON. |
+| **`wxl.html`** / related | Modules for parsing HTML, BB-code and RSDN text markup for the `HtmlBlock`, `BbBlock`, `RsdnBlock` visual components. The `wxl.highlight` syntax highlighting subsystem. |
 | **`wxl.gen.*`** | Source code of the `winui-srcgen` projection generator (`wxl.gen`, `wxl.gen.common`) and `wxl.gen.ui`, a GUI for visually editing code generation profiles (launched via `run-gen-ui.cmd`). |
 | **`wxl.ui`** | The WinUI graphics stack without XAML: public object wrappers, the declarative DSL syntax, window management, data binding and visual effects. |
 | **Auxiliary** | `samples` — sample projects; `sandbox` — isolated experiments with WinUI mechanisms; `test-support` — unit testing infrastructure; `cmake`, `tools`, `docs` — build and automation scripts and documentation sources. |
@@ -222,9 +222,10 @@ configuration options, running the unit tests, and a guide to integrating
 
 The project is under active experimental development. Backward compatibility
 between individual commits is not guaranteed at this stage. The official
-*WinUI Gallery* has been ported across all control groups; only a few
-individual pages remain unported, those that need mechanisms wxl does not
-implement yet or packages outside the profiles (`SemanticZoom`, `WebView2`).
+[WinUI Gallery](https://github.com/microsoft/WinUI-Gallery) has been ported
+across all control groups; only a few individual pages remain unported, those
+that need mechanisms wxl does not implement yet or packages outside the
+profiles (`SemanticZoom`, `WebView2`).
 
 ### MSVC optimizer defect (as of October 2026)
 
@@ -237,7 +238,7 @@ application shutdown waits until no live coroutine frames remain, the
 samples may hang when the window is closed in `Release`.
 
 - **Workaround:** build in the **Debug** configuration, without optimization
-  (`/Od`), or with the asynchronous exception model (`/EHa`). Full report:
+  (`/Od`), or with the asynchronous exception model (`/EHa`). Detailed report:
   [`bugs/coro-report.md`](bugs/coro-report.md).
 
 ### Code generation limitations
@@ -245,7 +246,7 @@ samples may hang when the window is closed in `Release`.
 - **Profile contents.** wxl contains only those WinUI types and members that
   are listed in the `wxl.gen/profiles/full.json` profile. To add anything
   missing, extend the profile and regenerate the wrappers.
-- **Inheritance with overrides.** A custom subclass of a WinUI
+- **Inheritance with overriding (Overrides).** A custom subclass of a WinUI
   class that overrides methods through the `I<Class>Overrides` interfaces is
   not supported yet: the COM interface aggregation prototype in
   `sandbox/Overrides` does not build. For custom layout containers, the
@@ -255,7 +256,7 @@ samples may hang when the window is closed in `Release`.
 ## Licensing
 
 The library is distributed under the free **GNU GPL version 3** license.
-The full license text is in the [LICENSE](LICENSE) file.
+The full text of the license agreement is in the [LICENSE](LICENSE) file.
 
 For commercial licensing, closed-source use or alternative licensing
 options, please contact the author directly by email: `vdimas@mail.ru`.
