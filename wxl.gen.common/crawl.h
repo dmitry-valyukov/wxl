@@ -77,6 +77,22 @@ winmd::reader::CustomAttribute find_attribute(Owner const& owner, std::string_vi
 // a bare ActivatableAttribute, the one of a default constructor.
 std::vector<std::string_view> types_named_by(winmd::reader::CustomAttribute const& attribute);
 
+// Why the walk went from one type to another: the kind of link and, for a
+// link through a member's signature, that member. Statics and Constructors
+// lead from a class to the interface its static members or its constructors
+// come from; Added is a property or a setter the profile writes on the class;
+// InterfaceArgument is a type argument of a generic interface the type
+// implements (IVector<ColumnDefinition>).
+struct dependency_reason {
+    enum class kind_t : uint8_t {
+        Base, Interface, Statics, Constructors, Property, Method, Event, Field, Delegate, Added, InterfaceArgument
+    };
+    kind_t kind = kind_t::Base;
+    std::string member;
+
+    auto operator<=>(dependency_reason const&) const = default;
+};
+
 struct closure {
     // Every discovered type, ordered from dependency sources to their
     // consumers: a type appears after everything it needs (base classes
@@ -91,6 +107,13 @@ struct closure {
     // name. The edges `ordered` is sorted by; a viewer reads from them what
     // pulled a type in.
     std::map<winmd::reader::TypeDef, std::set<winmd::reader::TypeDef, by_full_name>> dependencies;
+
+    // The same edges the other way round, each with why it was taken: per
+    // type reached, the types that reached it. A type reached through
+    // several members keeps every one.
+    std::map<winmd::reader::TypeDef,
+             std::map<winmd::reader::TypeDef, std::set<dependency_reason>, by_full_name>>
+        reached_by;
 
     // Effective member surface per discovered type, after merging every
     // profile that reached it.

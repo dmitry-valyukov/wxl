@@ -254,10 +254,20 @@ struct crawler {
         return filter;
     }
 
+    // What the edges recorded next go through; set by whoever walks a base,
+    // an interface list or a member's signature before following it.
+    dependency_reason why;
+
     void depend(TypeDef const& from, TypeDef const& on) {
         if (from && on && from != on) {
             result.dependencies[from].insert(on);
+            result.reached_by[on][from].insert(why);
         }
+    }
+
+    void because(dependency_reason::kind_t kind, std::string_view member = {}) {
+        why.kind = kind;
+        why.member.assign(member);
     }
 
     void enqueue(TypeDef const& type, member_filter const& filter) {
@@ -307,9 +317,16 @@ struct crawler {
 
     void visit_generic_inst(GenericTypeInstSig const& inst, TypeDef const& source) {
         enqueue(inst.GenericType(), source);
+        // A type argument of an interface the class implements is not
+        // implemented by it: IVector<ColumnDefinition> on the collection.
+        auto const saved = why.kind;
+        if (why.kind == dependency_reason::kind_t::Interface) {
+            why.kind = dependency_reason::kind_t::InterfaceArgument;
+        }
         for (auto&& arg : inst.GenericArgs()) {
             visit_type_sig(arg, source);
         }
+        why.kind = saved;
     }
 
     void visit_type_sig(TypeSig const& sig, TypeDef const& source) {
@@ -350,11 +367,13 @@ struct crawler {
         } else if (cat == category::delegate_type) {
             for (auto&& method : type.MethodList()) {
                 if (method.Name() == "Invoke") {
+                    because(dependency_reason::kind_t::Delegate);
                     visit_method_signature(method.Signature(), type);
                 }
             }
         } else if (cat == category::struct_type) {
             for (auto&& field : type.FieldList()) {
+                because(dependency_reason::kind_t::Field, field.Name());
                 visit_type_sig(field.Signature().Type(), type);
             }
         } else if (cat == category::enum_type) {
@@ -380,11 +399,13 @@ struct crawler {
     // profiles say about those interfaces themselves.
     void process_inheritance(TypeDef const& type, category cat, member_filter const& filter) {
         if (auto const base = type.Extends()) {
+            because(dependency_reason::kind_t::Base);
             enqueue(base, type);
         }
 
         for (auto&& impl : type.InterfaceImpl()) {
             auto const resolved = resolve_interface(impl.Interface());
+            because(dependency_reason::kind_t::Interface);
             if (!resolved) {
                 enqueue(impl.Interface(), type);  // generic instantiation
                 continue;
@@ -410,6 +431,7 @@ struct crawler {
         if (auto const added = profiles.synthetic.find(full_name(type));
             added != profiles.synthetic.end()) {
             for (auto&& member : added->second) {
+                because(dependency_reason::kind_t::Added, member.name);
                 // A value type that is a signature element rather
                 // than a TypeDef (String) resolves to nothing here
                 // and drags nothing in; the generator maps it by
@@ -430,6 +452,7 @@ struct crawler {
         if (auto const setters = profiles.setter_methods.find(full_name(type));
             setters != profiles.setter_methods.end()) {
             for (auto&& setter : setters->second) {
+                because(dependency_reason::kind_t::Added, setter.method);
                 TypeDef const value_type = setter.type.empty() ? TypeDef{} : db.find(setter.type);
                 if (value_type) {
                     depend(type, value_type);
@@ -449,6 +472,7 @@ struct crawler {
         // the class, exactly like the instance ones: a profile names
         // OverlappedPresenter.Create, not IOverlappedPresenterStatics.
         for (auto&& iface : interfaces_named_by(type, "StaticAttribute", db)) {
+            because(dependency_reason::kind_t::Statics);
             depend(type, iface);
             auto& known = result.statics[type];
             if (std::find(known.begin(), known.end(), iface) == known.end()) {
@@ -465,6 +489,7 @@ struct crawler {
         // take. A constructor whose signature wxl cannot map yet is
         // dropped by the generator, and reported there.
         for (auto&& iface : interfaces_named_by(type, "ActivatableAttribute", db)) {
+            because(dependency_reason::kind_t::Constructors);
             depend(type, iface);
             auto& known = result.factories[type];
             if (std::find(known.begin(), known.end(), iface) == known.end()) {
@@ -487,6 +512,7 @@ struct crawler {
             }
             result.property_names.insert(std::string(property.Name()));
             result.members[type].insert(std::string(property.Name()));
+            because(dependency_reason::kind_t::Property, property.Name());
             visit_type_sig(property.Type().Type(), type);
         }
 
@@ -500,6 +526,7 @@ struct crawler {
             }
             result.event_names.insert(std::string(event.Name()));
             result.members[type].insert(std::string(event.Name()));
+            because(dependency_reason::kind_t::Event, event.Name());
             enqueue(event.EventType(), type);
         }
 
@@ -512,6 +539,7 @@ struct crawler {
                 continue;
             }
             result.members[type].insert(std::string(method.Name()));
+            because(dependency_reason::kind_t::Method, method.Name());
             visit_method_signature(method.Signature(), type);
         }
     }

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <deque>
 #include <format>
 #include <map>
 #include <set>
@@ -77,8 +78,15 @@ void append_filter(std::wstring& html, member_filter const* filter) {
         html += L"not listed</p>";
         return;
     }
-    if (filter->kind == member_filter::kind_t::All) {
+    // Пустой запрещающий список — все члены, пустой разрешающий — ни одного:
+    // тип выходит ради стилей или как зависимость.
+    if (filter->kind == member_filter::kind_t::All ||
+        (filter->kind == member_filter::kind_t::Deny && filter->names.empty())) {
         html += L"all members</p>";
+        return;
+    }
+    if (filter->names.empty()) {
+        html += L"listed, no members</p>";
         return;
     }
     html += filter->kind == member_filter::kind_t::Allow ? L"only " : L"all members except ";
@@ -87,9 +95,6 @@ void append_filter(std::wstring& html, member_filter const* filter) {
         html += first ? L"" : L", ";
         append_text(html, name);
         first = false;
-    }
-    if (first) {
-        html += L"no members";
     }
     html += L"</p>";
 }
@@ -465,38 +470,51 @@ struct Editor::Data {
 
     // Замыкание профиля с отметками, какие они сейчас: что генератор выпустит
     // зависимостями выбранного. Считается заново, только когда отметки менялись.
-    closure const& walk() {
-        if (walkStale) {
-            profile_set input = resolved;
-            input.types = inheritedTypes;
-            input.styles = inheritedStyles;
-            for (auto&& [own, inherited] : {std::pair {&prof.types, &input.types}, std::pair {&prof.styles, &input.styles}}) {
-                for (auto&& [name, filter] : *own) {
-                    if (auto [at, added] = inherited->try_emplace(name, filter); !added) {
-                        at->second.merge(filter);
-                    }
+    // Вход обхода: профили, которые этот продолжает, и поверх них — отметки
+    // `own`, какими они есть или какими станут.
+    profile_set inputFor(profile const& own) const {
+        profile_set input = resolved;
+        input.types = inheritedTypes;
+        input.styles = inheritedStyles;
+        for (auto&& [mine, inherited] : {std::pair {&own.types, &input.types}, std::pair {&own.styles, &input.styles}}) {
+            for (auto&& [name, filter] : *mine) {
+                if (auto [at, added] = inherited->try_emplace(name, filter); !added) {
+                    at->second.merge(filter);
                 }
             }
+        }
+        return input;
+    }
+
+    closure const& walk() {
+        if (walkStale) {
+            profile_set const input = inputFor(prof);
             walked = crawl(input, typeMap, db);
             walkStale = false;
+            ++generation;
+            costs.clear();
 
-            std::set<md::TypeDef> roots;
+            roots.clear();
+            std::set<md::TypeDef> all;
             std::set<md::TypeDef> own;
             for (auto&& [name, filter] : input.types) {
                 if (md::TypeDef const type = db.find(name)) {
-                    roots.insert(type);
-                    if (!inheritedTypes.contains(name)) {
+                    all.insert(type);
+                    bool const mine = !inheritedTypes.contains(name);
+                    roots.emplace(type, mine ? Root::Own : Root::Extended);
+                    if (mine) {
                         own.insert(type);
                     }
                 }
             }
             for (auto&& name : typeMap.implicit_roots) {
                 if (md::TypeDef const type = db.find(name)) {
-                    roots.insert(type);
+                    all.insert(type);
+                    roots.insert_or_assign(type, Root::TypeMap);
                     own.erase(type);
                 }
             }
-            auto const unpulled = unpulled_roots(walked, roots, own);
+            auto const unpulled = unpulled_roots(walked, all, own);
             required.clear();
             for (auto&& [type, filter] : walked.surface) {
                 if (!unpulled.contains(type)) {
@@ -508,6 +526,65 @@ struct Editor::Data {
     }
     closure walked;
     bool walkStale = true;
+    uint64_t generation = 0;  // обходов с открытия: по нему устаревает цена
+
+    // Откуда корень обхода: из отметок этого файла, из профиля, который он
+    // продолжает, или из карты типов.
+    enum class Root : uint8_t { Own, Extended, TypeMap };
+    std::map<md::TypeDef, Root> roots;
+
+    // Цена отметки: что изменится в замыкании, если отметки станут `changed`, —
+    // типы, которые придут и уйдут, и на сколько изменятся число членов и
+    // ключей (имён свойств и событий). Считается обходом заново; запоминается
+    // по `key` до следующей отметки.
+    struct Cost {
+        std::vector<md::TypeDef> added;
+        std::vector<md::TypeDef> dropped;
+        ptrdiff_t members = 0;
+        ptrdiff_t keys = 0;
+    };
+    Cost const& costOf(std::string const& key, profile const& changed) {
+        closure const& now = walk();
+        if (auto const found = costs.find(key); found != costs.end()) {
+            return found->second;
+        }
+        closure const then = crawl(inputFor(changed), typeMap, db);
+        // Служебные интерфейсы класса — его же члены, обобщённые интерфейсы
+        // проецирует карта типов: ни те ни другие отдельным типом не выходят.
+        auto const counted = [](md::TypeDef const& type) {
+            return !is_exclusive_interface(type) && !type.TypeName().contains('`');
+        };
+        Cost cost;
+        for (auto&& [type, filter] : then.surface) {
+            if (counted(type) && !now.surface.contains(type)) {
+                cost.added.push_back(type);
+            }
+        }
+        for (auto&& [type, filter] : now.surface) {
+            if (counted(type) && !then.surface.contains(type)) {
+                cost.dropped.push_back(type);
+            }
+        }
+        for (auto* list : {&cost.added, &cost.dropped}) {
+            std::ranges::sort(*list, by_full_name {});
+        }
+        // Член, который класс объявляет и сам, и в служебном интерфейсе, —
+        // один член.
+        auto const members = [&counted](closure const& walk) {
+            ptrdiff_t count = 0;
+            for (auto&& [type, names] : walk.members) {
+                count += counted(type) ? static_cast<ptrdiff_t>(names.size()) : 0;
+            }
+            return count;
+        };
+        auto const keys = [](closure const& walk) {
+            return static_cast<ptrdiff_t>(walk.property_names.size() + walk.event_names.size());
+        };
+        cost.members = members(then) - members(now);
+        cost.keys = keys(then) - keys(now);
+        return costs.emplace(key, std::move(cost)).first->second;
+    }
+    std::map<std::string, Cost> costs;
 
     // Типы, которые генератор выпустит, что бы ни говорили отметки самого
     // файла: их тянет другой тип замыкания, их называет профиль, который этот
@@ -625,6 +702,37 @@ md::TypeDef base_of(md::TypeDef const& type) {
         return {};
     }
     return md::find(base);
+}
+
+// Объявляет ли тип IClosable сам, а не через базу.
+bool declares_closable(md::TypeDef const& type) {
+    for (auto&& impl : type.InterfaceImpl()) {
+        auto const ref = impl.Interface();
+        if (ref.type() != md::TypeDefOrRef::TypeSpec) {
+            auto const [ns, name] = md::get_type_namespace_and_name(ref);
+            if (ns == "Windows.Foundation" && name == "IClosable") {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Встаёт ли Closable в цепочку баз типа: тип — корень своей иерархии, или
+// IClosable уже есть у одной из баз. Иначе Closable пришлось бы ставить над
+// базой, которая его не поддерживает, и IClosable у типа — обычный требуемый
+// интерфейс: его член выбирается в профиле.
+bool closable_fits(md::TypeDef const& type) {
+    md::TypeDef base = base_of(type);
+    if (!base) {
+        return true;
+    }
+    for (; base; base = base_of(base)) {
+        if (declares_closable(base)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace
@@ -884,9 +992,14 @@ public:
     // а нет его там (интерфейс, делегат) или он скрыт — в карточку в сведениях.
     bool knows(std::string_view full) const { return static_cast<bool>(find_type(editor_.data_->db, full)); }
 
-    // Сведения о типе дерева: объявление, база, интерфейсы, запись профиля и
-    // документация; значок — его вид.
+    // Сведения о типе дерева: объявление, база, интерфейсы, запись профиля,
+    // почему тип в выводе, цена его отметки и документация; значок — его вид.
     std::wstring typeInfo(md::TypeDef const& def, RowIcon const* icon) const;
+
+    // Цена отметки абзацем: сколько типов придёт и уйдёт — их имена ссылками —
+    // и на сколько изменятся члены и ключи; `checking` — ставится отметка или
+    // снимается.
+    void appendCost(std::wstring& html, Editor::Data::Cost const& cost, bool checking) const;
 
     // Раскрывает файл и пространство типа и выбирает его; номер его строки
     // среди видимых.
@@ -1537,6 +1650,48 @@ void append_implements(std::wstring& html, TypesModel const& types, md::TypeDef 
     }
 }
 
+// Тип ссылкой на себя, подписанной коротким именем: в причинах и цене имён
+// много, и пространства имён в них — шум; полное — в самой ссылке.
+void append_type_link(std::wstring& html, TypesModel const& types, md::TypeDef const& type) {
+    std::string const full = full_name(type);
+    std::string_view name = type.TypeName();
+    name = name.substr(0, name.find('`'));
+    if (types.knows(full)) {
+        html += L"<a href=\"";
+        append_text(html, full);
+        html += L"\">";
+        append_text(html, name);
+        html += L"</a>";
+    } else {
+        append_text(html, name);
+    }
+}
+
+// Ребро обхода словами: чем тип `from` тянет следующий — «base of Button»,
+// «in property ButtonBase.Command».
+void append_reason(std::wstring& html, TypesModel const& types, md::TypeDef const& from,
+                   dependency_reason const& why) {
+    using kind = dependency_reason::kind_t;
+    switch (why.kind) {
+        case kind::Base: html += L"base of "; break;
+        case kind::Interface: html += L"implemented by "; break;
+        case kind::Statics: html += L"statics of "; break;
+        case kind::Constructors: html += L"constructors of "; break;
+        case kind::Property: html += L"in property "; break;
+        case kind::Method: html += L"in method "; break;
+        case kind::Event: html += L"in event "; break;
+        case kind::Field: html += L"in field "; break;
+        case kind::Delegate: html += L"in delegate "; break;
+        case kind::Added: html += L"in added member "; break;
+        case kind::InterfaceArgument: html += L"in an interface of "; break;
+    }
+    append_type_link(html, types, from);
+    if (!why.member.empty()) {
+        html += L'.';
+        append_text(html, why.member);
+    }
+}
+
 }  // namespace
 
 std::wstring TypesModel::typeInfo(md::TypeDef const& def, RowIcon const* icon) const {
@@ -1566,22 +1721,159 @@ std::wstring TypesModel::typeInfo(md::TypeDef const& def, RowIcon const* icon) c
     append_bold(html, def.TypeNamespace());
     append_implements(html, *this, def);
 
-    auto const& types = editor_.data_->prof.types;
-    auto const found = types.find(full_name(def));
-    append_filter(html, found == types.end() ? nullptr : &found->second);
-    // Нужный замыканию отмечен, что бы ни говорил файл; что говорит файл,
-    // вернётся в отметку, когда тип тянуть перестанут.
-    if (editor_.data_->needs(def)) {
-        html += found == types.end()
-                    ? L"<p>Pulled in: generated while another type, an extended profile or the type map needs it; "
-                      L"this file does not list it.</p>"
-                    : L"<p>Pulled in as well: the check stays while another type, an extended profile or the type "
-                      L"map needs it; this file lists it, and keeps it when nothing does.</p>";
+    Editor::Data& data = *editor_.data_;
+    std::string const full = full_name(def);
+    auto const found = data.prof.types.find(full);
+    bool const listed = found != data.prof.types.end();
+    append_filter(html, listed ? &found->second : nullptr);
+
+    // Почему тип в выводе: корень ли он, кто его тянет — каждое ребро с
+    // подписью — и кратчайший путь до корня. Нужный замыканию отмечен, что бы
+    // ни говорил файл; что говорит файл, вернётся в отметку, когда тип тянуть
+    // перестанут.
+    closure const& walked = data.walk();
+    if (walked.surface.contains(def)) {
+        html += L"<p><b>Why generated</b>";
+        if (auto const root = data.roots.find(def); root != data.roots.end()) {
+            html += root->second == Editor::Data::Root::Own        ? L"<br>Checked in this file."
+                    : root->second == Editor::Data::Root::Extended ? L"<br>Listed by a profile this one extends."
+                                                                   : L"<br>A root of the type map.";
+        }
+        // Служебный интерфейс класса — сам класс: член IButtonBase.Command
+        // читается как ButtonBase.Command. Ребро от класса к его служебному
+        // интерфейсу ничего не объясняет.
+        auto const owner = [&](md::TypeDef const& type) {
+            if (is_exclusive_interface(type)) {
+                for (std::string_view const name : types_named_by(find_attribute(type, "ExclusiveToAttribute"))) {
+                    if (md::TypeDef const found = find_type(data.db, name)) {
+                        return found;
+                    }
+                }
+            }
+            return type;
+        };
+        if (auto const by = walked.reached_by.find(def); by != walked.reached_by.end()) {
+            std::map<md::TypeDef, std::set<dependency_reason>, by_full_name> lines;
+            for (auto&& [from, reasons] : by->second) {
+                if (md::TypeDef const shown = owner(from); shown != def) {
+                    lines[shown].insert(reasons.begin(), reasons.end());
+                }
+            }
+            constexpr size_t shown = 12;
+            size_t count = 0;
+            for (auto&& [from, reasons] : lines) {
+                for (dependency_reason const& why : reasons) {
+                    if (count++ < shown) {
+                        html += L"<br>• ";
+                        append_reason(html, *this, from, why);
+                    }
+                }
+            }
+            if (count > shown) {
+                html += std::format(L"<br>and {} more", count - shown);
+            }
+
+            // Путь до корня — обходом назад по рёбрам, до первого корня, кроме
+            // самого типа: у каждого шага его ребро.
+            std::map<md::TypeDef, md::TypeDef> toward;  // тип -> следующий к `def`
+            std::deque<md::TypeDef> queue {def};
+            md::TypeDef root;
+            while (!queue.empty() && !root) {
+                md::TypeDef const at = queue.front();
+                queue.pop_front();
+                auto const edges = walked.reached_by.find(at);
+                if (edges == walked.reached_by.end()) {
+                    continue;
+                }
+                for (auto&& [from, reasons] : edges->second) {
+                    if (from == def || !toward.try_emplace(from, at).second) {
+                        continue;
+                    }
+                    if (data.roots.contains(from)) {
+                        root = from;
+                        break;
+                    }
+                    queue.push_back(from);
+                }
+            }
+            // Служебный интерфейс на пути не называется: шаг за ним подписан
+            // членом, и читается он как член класса.
+            if (root) {
+                html += L"<br>Path: ";
+                append_type_link(html, *this, root);
+                for (md::TypeDef step = root; step != def;) {
+                    md::TypeDef const next = toward.at(step);
+                    if (next != def && is_exclusive_interface(next)) {
+                        step = next;
+                        continue;
+                    }
+                    dependency_reason const& why = *walked.reached_by.at(next).at(step).begin();
+                    html += L" → ";
+                    append_type_link(html, *this, next);
+                    static constexpr std::wstring_view kinds[] {
+                        L"base",     L"interface", L"statics", L"constructors", L"property",          L"method",
+                        L"event",    L"field",     L"delegate", L"added",       L"interface argument"};
+                    html += std::format(L" ({}", kinds[static_cast<size_t>(why.kind)]);
+                    if (!why.member.empty()) {
+                        html += L' ';
+                        append_text(html, why.member);
+                    }
+                    html += L')';
+                    step = next;
+                }
+            }
+        }
+        if (data.needs(def)) {
+            html += listed ? L"<br>The check stays while anything above needs the type; this file lists it, and "
+                             L"keeps it when nothing does."
+                           : L"<br>The check stays while anything above needs the type.";
+        }
+        html += L"</p>";
     }
-    if (auto const documentation = editor_.data_->documentation.find(def, DocumentationId::of(def))) {
+
+    // Цена — у типа, отметку которого можно поставить или снять.
+    if (!data.needs(def) && !is_predefined(def, data.typeMap) && find(full)) {
+        profile changed = data.prof;
+        if (listed) {
+            changed.types.erase(full);
+            changed.styles.erase(full);
+        } else {
+            changed.types.emplace(full, member_filter::all());
+        }
+        appendCost(html, data.costOf(std::format("type {} {}", full, !listed), changed), !listed);
+    }
+
+    if (auto const documentation = data.documentation.find(def, DocumentationId::of(def))) {
         append_documentation(html, **documentation);
     }
     return html;
+}
+
+void TypesModel::appendCost(std::wstring& html, Editor::Data::Cost const& cost, bool checking) const {
+    html += checking ? L"<p><b>Checking</b> " : L"<p><b>Unchecking</b> ";
+    if (cost.added.empty() && cost.dropped.empty() && cost.members == 0 && cost.keys == 0) {
+        html += L"changes nothing else in the output.</p>";
+        return;
+    }
+    constexpr size_t named = 24;
+    auto const types = [&](std::vector<md::TypeDef> const& list, wchar_t sign) {
+        html += std::format(L"{}{} type{}: ", sign, list.size(), list.size() == 1 ? L"" : L"s");
+        for (size_t at = 0; at < list.size() && at < named; ++at) {
+            html += at == 0 ? L"" : L", ";
+            append_type_link(html, *this, list[at]);
+        }
+        if (list.size() > named) {
+            html += std::format(L" and {} more", list.size() - named);
+        }
+        html += L"; ";
+    };
+    if (!cost.added.empty()) {
+        types(cost.added, L'+');
+    }
+    if (!cost.dropped.empty()) {
+        types(cost.dropped, L'−');
+    }
+    html += std::format(L"{:+} members, {:+} keys.</p>", cost.members, cost.keys);
 }
 
 // Правое дерево: члены выбранного типа, а за ними — члены его баз, класс за
@@ -1845,6 +2137,16 @@ public:
                 : allows(*part, name) ? L"<p>Profile: generated</p>"
                                       : L"<p>Profile: not generated</p>";
 
+        // Цена отметки члена: что придёт в вывод с ним или уйдёт без него.
+        if (!part->predefined && !group->locked) {
+            Editor::Data& data = *editor_.data_;
+            bool const on = !allows(*part, name);
+            profile changed = data.prof;
+            mark_member(changed, part->name, name, on, part->enumeration, data.styled.contains(part->name));
+            editor_.types_->appendCost(
+                html, data.costOf(std::format("member {}.{} {}", part->name, name, on), changed), on);
+        }
+
         // У перегрузок документация у каждой своя — под её сигнатурой.
         for (auto const& [line, documentation] : lines) {
             if (documentation) {
@@ -1968,7 +2270,7 @@ private:
             return;
         }
         Group& group = part.groups.emplace_back(Group {source.TypeName(), &interfaceIcon, source});
-        group.locked = full_name(source) == closableInterface;
+        group.locked = full_name(source) == closableInterface && closable_fits(part.def);
         for (auto const& [names, kind, icon] : {std::tuple {&members.properties, member_kind::Property, &propertyIcon},
                                                 std::tuple {&members.methods, member_kind::Method, &methodIcon},
                                                 std::tuple {&members.events, member_kind::Event, &eventIcon}}) {
