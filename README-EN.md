@@ -162,7 +162,7 @@ To build the library and the sample projects, you will need:
 
 - **OS:** Windows x64
 - **Compiler toolchain:** Visual Studio 2026 (Insiders channel) with the
-  MSVC 14.53 toolset
+  MSVC toolset 14.53.36911 or newer
 - **Build:** CMake (version 4.3 / 4.4) and Ninja
 - **Environment:** PowerShell 7 (`pwsh`)
 - **Dependency management:** an installed `vcpkg` with the one-time
@@ -227,19 +227,26 @@ across all control groups; only a few individual pages remain unported, those
 that need mechanisms **wxl** does not implement yet or packages outside the
 profiles (`SemanticZoom`, `WebView2`).
 
-### MSVC optimizer defect (as of October 2026)
+### MSVC optimizer defect (fixed in toolset 14.53.36911)
 
-In the **Release** configuration (`/O1` or `/O2` together with `/EHsc`),
-MSVC does not call the destructors of local variables of a coroutine whose
-`final_suspend` returns `std::suspend_never`, and does not free its frame,
-if it decides that the coroutine body does not throw. The defect was found
-on the 14.51 toolset and reproduces on the current 14.53. The body of an
-`async::task` nobody awaits also ends without suspending, and the defect
-may affect it too; since application shutdown waits until no live coroutine
-frames remain, the samples may hang when the window is closed in `Release`.
+In MSVC toolsets from 14.51 up to build 14.53.36911, the **Release**
+configuration (`/O1` or `/O2` together with `/EHsc`) was built with a
+defect: the compiler did not call the destructors of local variables of a
+coroutine whose `final_suspend` returns `std::suspend_never`, and did not
+free its frame, if it decided that the coroutine body does not throw. The
+body of an `async::task` nobody awaits also ends without suspending, and the
+defect affected it too; since application shutdown waits until no live
+coroutine frames remain, the samples could hang when the window was closed
+in `Release`.
 
-- **Workaround:** build in the **Debug** configuration, without optimization
-  (`/Od`), or with the asynchronous exception model (`/EHa`). Detailed report:
+Toolset 14.53.36911 fixes the defect: the repro from the report, under
+`/O2 /EHsc` with `/std:c++20` and with `/std:c++latest`, runs the destructors
+and frees the frame (verified in October 2026). Release is again built and
+tested on a par with Debug.
+
+- **On older toolsets** the workaround still applies: build in the **Debug**
+  configuration, without optimization (`/Od`), or with the asynchronous
+  exception model (`/EHa`). Detailed report:
   [`bugs/coro-report.md`](bugs/coro-report.md).
 
 ### Code generation limitations

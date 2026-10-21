@@ -1,5 +1,10 @@
 # x64, optimized, synchronous exception model: a coroutine whose `final_suspend()` returns `suspend_never` skips the destructors of its locals and leaks its coroutine state
 
+> Fixed in toolset 14.53.36911 (verified 2026-10-22 with repro.cpp and
+> repro-leak.cpp under `/O2 /EHsc`, `/std:c++20` and `/std:c++latest`:
+> destructors run, frame freed). Toolsets 14.51–14.52 still show it
+> (14.52.37025 checked the same day).
+
 ## Environment
 
 - Compiler: `Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36257 for x64`
