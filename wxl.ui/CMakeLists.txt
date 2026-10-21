@@ -578,13 +578,14 @@ if(BUILD_TESTING)
     # The task a WinRT asynchronous operation becomes is tested the same way:
     # its producer is a template over the operation and the queue, given a
     # fake of each, so no dispatcher is needed. showDialog's two halves -- the
-    # call that may refuse, the detached wait the exit counts -- are a template
-    # over the dialog, tested in the same file over a fake dialog on those fakes.
+    # call that may refuse, the wait the caller keeps and the exit counts -- are
+    # a template over the dialog, tested in the same file over a fake dialog on
+    # those fakes.
     #
     # The load of a window's background on the way -- its own source under the
-    # owner's token, and the detached frame that shows what it loaded -- is a
-    # template over what is loaded and how it is shown, given a load that waits
-    # at a gate the test opens.
+    # owner's token, and the task kept with it that waits for the load and shows
+    # what it loaded -- is a template over what is loaded and how it is shown,
+    # given a load that waits at a gate the test opens.
     #
     # The wait on a timer is a template over the timer, given a fake one the
     # test ticks; the queue is the one event_cancel_test stands for.
