@@ -178,6 +178,7 @@ add_library(wxl.ui STATIC
     src/StringList.cpp
     src/launch.h
     src/launch.cpp
+    src/impl/application_loop.h
     src/impl/terminate_reason.h
     src/impl/terminate_reason.cpp
 

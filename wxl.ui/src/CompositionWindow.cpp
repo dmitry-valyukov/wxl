@@ -48,6 +48,7 @@
 #include "impl/window_frame.h"
 #include "impl/window_placement.h"
 #include "impl/application_folder.h"
+#include "impl/application_loop.h"
 #include "impl/background_load.h"
 #include "Object.impl.h"
 #include "impl/handler_list.h"
@@ -127,7 +128,9 @@ xaml::DependencyProperty backgroundPropertyOf(xaml::FrameworkElement const& elem
 }  // namespace
 
 // Общее состояние окна: сырой winrt внутри, обёртки -- только на границе.
-struct WindowState : core::refcounted {
+// Узел списка живых окон (liveWindows): в нём состояние, пока у него есть окно, --
+// от создания до WM_NCDESTROY.
+struct WindowState : core::refcounted, core::intrusive_list_node<WindowState> {
     HWND hwnd{nullptr};
     muc::Compositor compositor{nullptr};
     // Один визуал на всю сцену: он и корень острова, и задний фон (картинка или
@@ -289,17 +292,17 @@ struct WindowState : core::refcounted {
         if (zoomFactorCookie) appZoom->zoomFactor().remove_change(core::cookie_t {zoomFactorCookie});
     }
 
-    // Окно уничтожается (WM_DESTROY), XAML ещё жив: всё, что состояние держит от
-    // XAML, отпускается сейчас, как у Microsoft.UI.Xaml.Window при закрытии
-    // (DesktopWindowImpl::CloseImpl и Shutdown в исходниках WinUI 3): подписки
-    // сняты, содержимое убрано, источник XAML закрыт. XamlRoot, отпущенный
-    // после закрытия XAML, падал в своём деструкторе нарушением доступа --
-    // Беседка при закрытии, но только после клавиш масштаба: деструктор
-    // разбирает службы, заведённые по требованию, а всплывающее их заводит
-    // (Flyout -- ApplicationBarService). Заголовок-элемент,
-    // если его держит приложение, переживает окно -- его обратные вызовы
-    // снимаются здесь же. С ними -- подписки на неклиентский ввод: окно ещё
-    // есть, и снимать их есть с кого.
+    // Окно уничтожается (WM_DESTROY), XAML ещё жив: окно закрывают, пока он жив, -- его же WM_CLOSE
+    // или wxl при выходе, в ShutdownStarting очереди XAML (impl::close_windows_at_exit); XAML
+    // разбирает себя следом, ещё внутри Application::Start. Всё, что состояние держит от XAML,
+    // отпускается сейчас, как у Microsoft.UI.Xaml.Window при закрытии (DesktopWindowImpl::CloseImpl
+    // и Shutdown в исходниках WinUI 3): подписки сняты, содержимое убрано, источник XAML закрыт.
+    // XamlRoot, отпущенный после закрытия XAML, падал в своём деструкторе нарушением доступа --
+    // Беседка при закрытии, но только после клавиш масштаба: деструктор разбирает службы,
+    // заведённые по требованию, а всплывающее их заводит (Flyout -- ApplicationBarService).
+    // Заголовок-элемент, если его держит приложение, переживает окно -- его обратные вызовы
+    // снимаются здесь же. С ними -- подписки на неклиентский ввод: окно ещё есть, и снимать их есть
+    // с кого.
     void closeXaml() {
         xamlClosed = true;
         // Загрузка фона, которая идёт, окну больше не нужна: её отмена -- ход
@@ -1143,6 +1146,16 @@ WindowState* stateOf(HWND hwnd) noexcept {
     return reinterpret_cast<WindowState*>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
 }
 
+// Окна, которые живы сейчас. XAML считает только свои окна: цикл приложения
+// кончается с последним из них, а CompositionWindow может остаться, -- и закрыть
+// его, пока XAML жив, может только wxl, который его знает
+// (impl::close_windows_at_exit). Список не владеет: ссылку держит само окно, до
+// WM_NCDESTROY, где узел уходит из списка.
+core::intrusive_list<WindowState>& liveWindows() noexcept {
+    static core::intrusive_list<WindowState> live;
+    return live;
+}
+
 // Клиентский прямоугольник, обросший рамкой. Толщину отвечает само окно на
 // WM_NCCALCSIZE -- тем же путём, каким Windows получает его клиентскую область.
 // AdjustWindowRectEx считает рамку по стилю и не знает, что заголовок отдан
@@ -1300,11 +1313,15 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             return 0;
 
         case WM_DESTROY:
-            // Своё окно закрылось -- его XAML отпускается, пока XAML жив, и
-            // гасится приложение; после этого Application::Start возвращается
-            // и отрабатывает Teardown.
+            // Своё окно закрылось -- его XAML отпускается, пока XAML жив, и,
+            // пока идёт цикл приложения, гасится приложение: Application::Start
+            // возвращается, и отрабатывает Teardown. Окно, которое закрывает
+            // wxl при выходе (ShutdownStarting очереди XAML), приложения уже не
+            // гасит: цикл кончился, и Exit() положил бы в очередь потока
+            // WM_QUIT, которого не ждёт уже ни один цикл, -- ожидание петли
+            // потока на выходе остановилось бы на нём.
             if (state) state->closeXaml();
-            xaml::Application::Current().Exit();
+            if (impl::application_loop_running()) xaml::Application::Current().Exit();
             return 0;
 
         case WM_NCDESTROY:
@@ -1313,6 +1330,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
             if (state) {
                 ::SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                 state->hwnd = nullptr;
+                core::intrusive_list<WindowState>::remove(core::as_not_null(state));
                 intrusive_ptr_release(state);
             }
             break;
@@ -1346,6 +1364,36 @@ void ensureClass() {
 }
 
 }  // namespace
+
+// ---- Выход: окна закрываются, пока XAML жив ---------------------------------
+
+namespace impl {
+
+// Первое окно списка, пока он не пуст: обработчики Closing и Closed уносят из
+// него и другие окна (закрывая их), и заводят новые -- обход копией не увидел бы
+// ни того, ни другого. Состояние держится на время своего закрытия: окно, его
+// державшее, отпускает его в WM_NCDESTROY, изнутри DestroyWindow.
+void close_windows_at_exit() noexcept {
+    while (WindowState* const front = liveWindows().front()) {
+        core::intrusive_ptr<WindowState> const window{front};
+        ::SendMessageW(window->hwnd, WM_CLOSE, 0, 0);
+        // Отказ Closing на выходе не в счёт: окно, оставленное жить, пережило бы
+        // XAML.
+        if (window->hwnd) ::DestroyWindow(window->hwnd);
+        // WM_NCDESTROY уносит узел из списка; оставшийся -- окно, которое не
+        // уничтожилось, и обход стоял бы на нём вечно.
+        if (window->linked()) {
+            core::abort("wxl: a CompositionWindow outlived DestroyWindow while the windows "
+                        "were closed at exit");
+        }
+    }
+}
+
+bool windows_closed() noexcept {
+    return liveWindows().empty();
+}
+
+}  // namespace impl
 
 // ---- Сцена: задний фон и страница ------------------------------------------
 
@@ -1490,11 +1538,17 @@ CompositionWindow::CompositionWindow() : state_{new WindowState(), false} {
     state_->hwnd = ::CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP, kClassName, L"", WS_OVERLAPPEDWINDOW,
                                      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                                      nullptr, nullptr, ::GetModuleHandleW(nullptr), nullptr);
+    // Пустой hwnd -- отказ системы, и он бросается здесь, до своей ссылки окна и
+    // до списка живых окон: состояние без окна в список не попадает -- иначе
+    // закрытие окон при выходе стояло бы на нём и остановило бы процесс, назвав
+    // причиной окно, пережившее DestroyWindow.
+    if (!state_->hwnd) winrt::throw_last_error();
     // Своя ссылка окна на состояние -- до WM_NCDESTROY: оконная процедура
     // находит его по USERDATA, и отпущенный последний хендл не освободит его
     // под живым окном.
     intrusive_ptr_add_ref(state_.get());
     ::SetWindowLongPtrW(state_->hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state_.get()));
+    liveWindows().push_back(core::as_not_null(state_.get()));
 
     // Сцена: свой Microsoft.UI-композитор и один задний визуал -- он же корень
     // острова, он же фон. Подключаем его к нашему HWND attached-мостом -- без
