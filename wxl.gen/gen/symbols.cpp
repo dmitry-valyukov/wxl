@@ -4,6 +4,7 @@
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 // FluentSymbol.h: the named glyphs of the icon font as an enumeration, so an
 // application writes `FontIcon { glyph = FluentSymbol::QuietHours }` rather
@@ -38,7 +39,8 @@ void write_symbols(output const& out, model const& m, emitted& em) {
     std::print(header, "}};\n\n}} // namespace wxl\n");
 
     em.add("FluentSymbol.h");
-    std::print("generated {}FluentSymbol.h ({} symbols)\n", out.dir.string() + "\\", symbols.size());
+    std::print("generated {}\\FluentSymbol.h ({} symbols)\n",
+               wxl::core::unicode::to_utf8(out.dir).chars(), symbols.size());
 }
 
 }  // namespace gen

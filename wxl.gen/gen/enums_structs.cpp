@@ -2,9 +2,12 @@
 #include <ostream>
 #include <print>
 
+#include "documentation.h"
+
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 // Enums and structs, emitted flat into `namespace wxl`, grouped into one
 // file pair per *source* WinRT namespace (Microsoft.UI.Xaml.Enums.h /
@@ -214,8 +217,10 @@ namespace wxl {{
     for (auto&& info : enums) {
         // Every enumerator carries its value: with some of them left out by a
         // profile, the rest must not move.
+        write_doc(out, "", info.doc);
         std::print(out, "enum class {} : {}\n{{\n", info.name, info.underlying);
         for (auto&& value : info.values) {
+            write_doc(out, "    ", value.doc);
             std::print(out, "    {} = {},\n", value.name, value.value);
         }
         std::print(out, "}};\n\n");
@@ -246,8 +251,10 @@ void write_structs_file(std::filesystem::path const& path, model const& m,
 
     for (auto&& index : file.structs) {
         auto const& s = m.structs[index];
+        write_doc(out, "", s.doc);
         std::print(out, "struct {}\n{{\n", s.name);
         for (auto&& field : s.fields) {
+            write_doc(out, "    ", field.doc);
             std::print(out, "    {} {}{{}};\n", field.cpp_type, field.name);
         }
         std::print(out, "}};\n\n");
@@ -310,7 +317,7 @@ std::vector<std::pair<std::string, std::string>> enum_members(
 }
 
 void analyze_enums_and_structs(type_kinds const& kinds, closure const& cl, type_map const& types,
-                               model& m) {
+                               documentation_source* docs, model& m) {
     std::vector<TypeDef> named;
     named.insert(named.end(), kinds.enums.begin(), kinds.enums.end());
     named.insert(named.end(), kinds.structs.begin(), kinds.structs.end());
@@ -320,8 +327,12 @@ void analyze_enums_and_structs(type_kinds const& kinds, closure const& cl, type_
     // re-sorting here, the order the closure produced is the order emitted.
     std::map<std::string, std::vector<enum_info>> enums_by_namespace;
     for (auto&& type : kinds.enums) {
-        enums_by_namespace[std::string(type.TypeNamespace())].push_back(
-            analyze_enum(type, cl.members));
+        auto info = analyze_enum(type, cl.members);
+        document(docs, type, documentation_id(type), info.doc);
+        for (auto&& value : info.values) {
+            document(docs, type, std::format("F:{}.{}", full_name(type), value.name), value.doc);
+        }
+        enums_by_namespace[std::string(type.TypeNamespace())].push_back(std::move(info));
     }
     for (auto&& [ns, enums] : enums_by_namespace) {
         m.enum_files.push_back({ns, std::move(enums)});
@@ -360,7 +371,13 @@ void analyze_enums_and_structs(type_kinds const& kinds, closure const& cl, type_
         auto& file = files[ns];
         file.ns = ns;
         file.structs.push_back(m.structs.size());
-        m.structs.push_back(analyze_struct(source));
+        auto& info = m.structs.emplace_back(analyze_struct(source));
+        document(docs, source.type, documentation_id(source.type), info.doc);
+        auto field = info.fields.begin();
+        for (auto&& declared : source.type.FieldList()) {
+            document(docs, source.type, std::format("F:{}.{}", full_name(source.type), declared.Name()),
+                     (field++)->doc);
+        }
 
         for (auto&& [name, field] : source.fields) {
             if (!field.include.empty()) {
@@ -390,7 +407,8 @@ void write_enums_and_structs(output const& out, model const& m, emitted& em) {
         auto const path = out.dir / filename;
         write_enums_file(path, file.enums);
         em.add(path);
-        std::print("generated {} ({} enums)\n", path.string(), file.enums.size());
+        std::print("generated {} ({} enums)\n", wxl::core::unicode::to_utf8(path).chars(),
+                   file.enums.size());
         enum_files.push_back(filename);
     }
 
@@ -400,24 +418,25 @@ void write_enums_and_structs(output const& out, model const& m, emitted& em) {
         auto const path = out.dir / filename;
         write_structs_file(path, m, file);
         em.add(path);
-        std::print("generated {} ({} structs)\n", path.string(), file.structs.size());
+        std::print("generated {} ({} structs)\n", wxl::core::unicode::to_utf8(path).chars(),
+                   file.structs.size());
         struct_files.push_back(filename);
     }
 
     auto const enums_umbrella = out.dir / "Enums.h";
     write_umbrella_file(enums_umbrella, enum_files);
     em.add(enums_umbrella);
-    std::print("generated {}\n", enums_umbrella.string());
+    std::print("generated {}\n", wxl::core::unicode::to_utf8(enums_umbrella).chars());
 
     auto const structs_umbrella = out.dir / "Structs.h";
     write_umbrella_file(structs_umbrella, struct_files);
     em.add(structs_umbrella);
-    std::print("generated {}\n", structs_umbrella.string());
+    std::print("generated {}\n", wxl::core::unicode::to_utf8(structs_umbrella).chars());
 
     auto const struct_conversions = out.dir / "Structs.impl.h";
     write_struct_conversions(struct_conversions, m.structs);
     em.add(struct_conversions);
-    std::print("generated {}\n", struct_conversions.string());
+    std::print("generated {}\n", wxl::core::unicode::to_utf8(struct_conversions).chars());
 
     if (!m.dropped_structs.empty()) {
         std::print("\nstructs dropped -- a field wxl cannot mirror ({}):\n",

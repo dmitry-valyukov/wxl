@@ -858,6 +858,13 @@ constexpr std::optional<u16_view> checked(const std::u16string_view text) noexce
 u16_text repaired(std::wstring_view utf16);
 u16_text repaired(std::u16string_view utf16);
 
+/// The same for UTF-8: every ill-formed sequence replaced by U+FFFD, one for
+/// each maximal subpart, as Unicode recommends -- a sequence cut off is one
+/// character lost, not one per byte that is left of it. For text that has to
+/// be shown whatever it holds: a message from outside that is not UTF-8 is
+/// shown with the marks where it broke, rather than not at all.
+u8_text repaired(std::string_view utf8);
+
 // ---- Measuring ---------------------------------------------------------------------
 
 /// How many code points the text holds. Bytes are what a string_view counts,

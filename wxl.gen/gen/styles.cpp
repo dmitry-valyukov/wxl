@@ -6,6 +6,7 @@
 #include "xml_input.h"
 
 import std;
+import wxl.core;
 
 // The framework's named styles and brushes, as paths the builder syntax can
 // write:
@@ -430,9 +431,9 @@ void write_styles(output const& out, model const& m, emitted& em) {
 
     write_name_table(out, em, "style_names.h", "style_names", names);
 
-    std::print("generated {}styles.h ({} styles in {} groups, {} dropped for a target type that is "
-               "not generated{}{})\n",
-               out.dir.string() + "\\", names.size(), groups.size(), dropped,
+    std::print("generated {}\\styles.h ({} styles in {} groups, {} dropped for a target type "
+               "that is not generated{}{})\n",
+               wxl::core::unicode::to_utf8(out.dir).chars(), names.size(), groups.size(), dropped,
                left_out ? std::format(", {} left out by the profile", left_out) : "",
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
 }
@@ -506,8 +507,8 @@ void write_brushes(output const& out, model const& m, emitted& em) {
 
     write_name_table(out, em, "brush_names.h", "brush_names", names);
 
-    std::print("generated {}brushes.h ({} brushes, {} theme brushes{}{})\n", out.dir.string() + "\\",
-               stems.size(), theme_stems.size(),
+    std::print("generated {}\\brushes.h ({} brushes, {} theme brushes{}{})\n",
+               wxl::core::unicode::to_utf8(out.dir).chars(), stems.size(), theme_stems.size(),
                left_out ? std::format(", {} left out by the profile", left_out) : "",
                collisions ? std::format(", {} keys collided on one name", collisions) : "");
 }
@@ -571,7 +572,8 @@ void write_alias_index(output const& out, std::vector<dictionary_resource> const
     }
     em.add("aliases.txt");
 
-    std::print("generated {}aliases.txt ({} alias keys)\n", out.dir.string() + "\\", aliases.size());
+    std::print("generated {}\\aliases.txt ({} alias keys)\n",
+               wxl::core::unicode::to_utf8(out.dir).chars(), aliases.size());
 }
 
 }  // namespace gen

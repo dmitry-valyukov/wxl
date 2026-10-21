@@ -4,6 +4,7 @@
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 // PropertyKey.h / EventKey.h: one flat enum of every property (resp.
 // event) name that survived the profile filter, under its metadata name.
@@ -48,12 +49,14 @@ void write_key_enums(output const& out, model const& m, emitted& em) {
     auto const properties = out.dir / "PropertyKey.h";
     write_key_enum(properties, "PropertyKey", m.property_names);
     em.add(properties);
-    std::print("generated {} ({} keys)\n", properties.string(), m.property_names.size());
+    std::print("generated {} ({} keys)\n", wxl::core::unicode::to_utf8(properties).chars(),
+               m.property_names.size());
 
     auto const events = out.dir / "EventKey.h";
     write_key_enum(events, "EventKey", m.event_names);
     em.add(events);
-    std::print("generated {} ({} keys)\n", events.string(), m.event_names.size());
+    std::print("generated {} ({} keys)\n", wxl::core::unicode::to_utf8(events).chars(),
+               m.event_names.size());
 }
 
 }  // namespace gen

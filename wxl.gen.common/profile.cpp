@@ -19,7 +19,8 @@ std::string env(char const* name) {
 }
 
 [[noreturn]] void fail(std::filesystem::path const& source, std::string_view message) {
-    throw std::runtime_error(std::format("{}: {}", source.string(), message));
+    throw std::runtime_error(
+        std::format("{}: {}", wxl::core::unicode::to_utf8(source).chars(), message));
 }
 
 
@@ -78,7 +79,8 @@ value const& read_json(wxl::json::document& file, std::filesystem::path const& p
     // the one failure this tool can word in its own voice, and "cannot open"
     // is what the rest of it says.
     if (!std::filesystem::is_regular_file(path)) {
-        throw std::runtime_error(std::format("cannot open: {}", path.string()));
+        throw std::runtime_error(
+            std::format("cannot open: {}", wxl::core::unicode::to_utf8(path).chars()));
     }
 
     try {
@@ -345,7 +347,7 @@ std::vector<std::filesystem::path> resolve_package(package_ref const& package,
                      (package.metadata_dir.empty() ? "metadata" : package.metadata_dir);
     if (!std::filesystem::is_directory(dir)) {
         fail(source, std::format("package '{}' {}: no metadata directory at {}", package.id,
-                                 version, dir.string()));
+                                 version, wxl::core::unicode::to_utf8(dir).chars()));
     }
 
     std::vector<std::filesystem::path> files;
@@ -357,8 +359,8 @@ std::vector<std::filesystem::path> resolve_package(package_ref const& package,
         }
         std::sort(files.begin(), files.end());
         if (files.empty()) {
-            fail(source, std::format("package '{}' {}: no .winmd files in {}", package.id,
-                                     version, dir.string()));
+            fail(source, std::format("package '{}' {}: no .winmd files in {}", package.id, version,
+                                     wxl::core::unicode::to_utf8(dir).chars()));
         }
         return files;
     }
@@ -367,7 +369,7 @@ std::vector<std::filesystem::path> resolve_package(package_ref const& package,
         auto path = dir / name;
         if (!std::filesystem::is_regular_file(path)) {
             fail(source, std::format("package '{}' {}: no such metadata file: {}", package.id,
-                                     version, path.string()));
+                                     version, wxl::core::unicode::to_utf8(path).chars()));
         }
         files.push_back(std::move(path));
     }
@@ -388,7 +390,7 @@ std::vector<std::filesystem::path> resolve_resources(package_ref const& package,
         auto path = root / name;
         if (!std::filesystem::is_regular_file(path)) {
             fail(source, std::format("package '{}' {}: no such resource file: {}", package.id,
-                                     version, path.string()));
+                                     version, wxl::core::unicode::to_utf8(path).chars()));
         }
         files.push_back(std::move(path));
     }
@@ -401,6 +403,22 @@ std::vector<std::filesystem::path> resolve_resources(package_ref const& package,
 std::filesystem::path windows_metadata_dir() {
     return std::filesystem::path{env("SystemRoot").empty() ? "C:/Windows" : env("SystemRoot")} /
            "System32" / "WinMetadata";
+}
+
+// The system's words for the code, in UTF-8. Not std::error_code::message(): MSVC's STL
+// takes them from FormatMessageA, in the ANSI code page. A code of another category -- the
+// generic one, iostream's -- is rare here, the file system reporting the system's own
+// codes; MSVC words those from its own table, and they are repaired all the same, since
+// nothing promises that table is ASCII.
+std::string explanation(std::error_code const& code) {
+    if (code.category() == std::system_category()) {
+        auto const words =
+            wxl::core::environment::error_explanation(static_cast<std::uint32_t>(code.value()));
+        if (!words.empty()) {
+            return std::string{words.chars()};
+        }
+    }
+    return std::string{wxl::core::unicode::repaired(code.message()).chars()};
 }
 
 std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path const& dir) {
@@ -577,8 +595,8 @@ struct profile_loader {
             return;
         }
         if (!loading.insert(key).second) {
-            throw std::runtime_error(
-                std::format("profile reference cycle at {}", key.string()));
+            throw std::runtime_error(std::format("profile reference cycle at {}",
+                                                 wxl::core::unicode::to_utf8(key).chars()));
         }
 
         auto const prof = load_profile(path);
@@ -670,10 +688,10 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
             continue;
         }
         if (chose_sdk && chose_sdk->windows_app_sdk != prof.windows_app_sdk) {
-            fail(prof.source,
-                 std::format("asks for {} {}, while {} asks for {}", windows_app_sdk_id,
-                             prof.windows_app_sdk, chose_sdk->source.string(),
-                             chose_sdk->windows_app_sdk));
+            fail(prof.source, std::format("asks for {} {}, while {} asks for {}",
+                                          windows_app_sdk_id, prof.windows_app_sdk,
+                                          wxl::core::unicode::to_utf8(chose_sdk->source).chars(),
+                                          chose_sdk->windows_app_sdk));
         }
         chose_sdk = &prof;
     }
@@ -685,7 +703,7 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
         if (!std::filesystem::is_regular_file(nuspec)) {
             fail(chose_sdk->source, std::format("{} {} is not in the package root: no {}",
                                                 windows_app_sdk_id, chose_sdk->windows_app_sdk,
-                                                nuspec.string()));
+                                                wxl::core::unicode::to_utf8(nuspec).chars()));
         }
         package_versions = read_sdk_dependencies(nuspec);
         package_versions.emplace(wxl::core::ascii_lower(windows_app_sdk_id), chose_sdk->windows_app_sdk);
@@ -950,4 +968,20 @@ std::vector<symbol> load_symbol_names(std::filesystem::path const& path) {
     // only order the reader of the generated enum can predict.
     std::ranges::sort(names, {}, &symbol::code);
     return names;
+}
+
+std::string error_message(std::exception const& error) {
+    auto const* const failed = dynamic_cast<std::filesystem::filesystem_error const*>(&error);
+    if (!failed) {
+        return std::string{wxl::core::unicode::repaired(error.what()).chars()};
+    }
+    std::string paths;
+    for (std::filesystem::path const* const path : {&failed->path1(), &failed->path2()}) {
+        if (!path->empty()) {
+            paths += std::format("{}{}", paths.empty() ? "" : ", ",
+                                 wxl::core::unicode::to_utf8(*path).chars());
+        }
+    }
+    std::string const words = explanation(failed->code());
+    return paths.empty() ? words : std::format("{}: {}", paths, words);
 }

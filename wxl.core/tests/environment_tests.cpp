@@ -29,3 +29,21 @@ TEST(EnvironmentTest, CommandLineStartsWithTheProgram) {
     EXPECT_EQ(program.filename(), L"wxl.core.tests.exe") << program;
     EXPECT_EQ(program.parent_path(), environment::application_folder()) << program;
 }
+
+// The system's words for a code it knows: a phrase, its line break cut off --
+// nor one inside it for this code -- and UTF-8 whatever the language.
+TEST(EnvironmentTest, ErrorExplanationIsTheSystemsPhrase) {
+    constexpr std::uint32_t file_not_found = 2;  // ERROR_FILE_NOT_FOUND
+    const auto words = environment::error_explanation(file_not_found);
+
+    EXPECT_FALSE(words.empty());
+    EXPECT_EQ(words.chars().find_first_of("\r\n"), std::string_view::npos) << words.chars();
+    EXPECT_FALSE(words.chars().ends_with(' ')) << words.chars();
+    EXPECT_TRUE(wxl::core::unicode::checked(words.chars()).has_value()) << words.chars();
+}
+
+// A code the system does not know has no explanation: an empty text, not an
+// invented phrase.
+TEST(EnvironmentTest, AnUnknownCodeHasNoErrorExplanation) {
+    EXPECT_TRUE(environment::error_explanation(0x1FFFFFFF).empty());
+}

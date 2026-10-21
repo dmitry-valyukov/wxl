@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <format>
 #include <iterator>
 #include <span>
 #include <string>
@@ -409,6 +410,27 @@ TEST(unicode, writing_bounded_utf8_takes_wchar_t) {
 
     EXPECT_EQ(done.read, 3u);
     EXPECT_EQ(std::string_view(room, done.written), "a\xF0\x9F\x98\x80");
+}
+
+// Bytes that are not UTF-8 come out with U+FFFD in their place, one for each maximal
+// subpart: a sequence cut off is one mark, a byte that starts no sequence is one each, and
+// whatever is UTF-8 around them stays as it was.
+TEST(unicode, repairing_utf8_marks_each_maximal_subpart) {
+    constexpr std::string_view mark = "\xEF\xBF\xBD";
+    const auto repaired = [](const std::string_view utf8) {
+        return std::string(wxl::core::unicode::repaired(utf8).chars());
+    };
+
+    EXPECT_EQ(repaired(mixed), mixed);
+    EXPECT_EQ(repaired(""), "");
+    EXPECT_EQ(repaired("a\xD0"), std::format("a{}", mark));               // cut off at the end
+    EXPECT_EQ(repaired("\xE2\x82z"), std::format("{}z", mark));           // cut off inside
+    EXPECT_EQ(repaired("\xF0\x9F\x98"), std::string(mark));             // three of four bytes
+    EXPECT_EQ(repaired("\x80\xBF"), std::format("{0}{0}", mark));         // continuations alone
+    EXPECT_EQ(repaired("\xC0\xAF"), std::format("{0}{0}", mark));         // an over-long form
+    EXPECT_EQ(repaired("\xED\xA0\x80"), std::format("{0}{0}{0}", mark));  // a surrogate
+    EXPECT_EQ(repaired("\xF4\x90\x80\x80"), std::format("{0}{0}{0}{0}", mark));  // above U+10FFFF
+    EXPECT_EQ(repaired("\xD0\x96\xFF\xD0\x96"), std::format("\xD0\x96{}\xD0\x96", mark));
 }
 }  // namespace
 

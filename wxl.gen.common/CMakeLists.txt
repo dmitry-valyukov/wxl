@@ -1,5 +1,6 @@
 # wxl.gen.common -- what the generator (winui-srcgen) and the profile editor
-# (wxl.gen.ui) share: the profiles and the metadata walk they describe.
+# (wxl.gen.ui) share: the profiles, the metadata walk they describe and the
+# documentation of what the walk finds.
 #
 # Headers, not a module. The walk hands back winmd's own types, and each
 # consumer includes the reader directly, through crawl.h. Imported from
@@ -12,10 +13,12 @@ wxl_add_module_library(wxl.gen.common STATIC
     HEADERS
         profile.h
         crawl.h
+        documentation.h
         xml_input.h
     SRC
         profile.cpp
         crawl.cpp
+        documentation.cpp
 
         xml_input.cpp
 )

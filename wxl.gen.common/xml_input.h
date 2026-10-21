@@ -55,6 +55,8 @@ struct member_documentation {
 // at a time.
 class documentation_file {
 public:
+    // Throws std::runtime_error naming the file and the offset of the member
+    // when a member is cut off or has attributes but no name.
     explicit documentation_file(std::filesystem::path const& file);
     documentation_file(documentation_file&&) noexcept;
     documentation_file& operator=(documentation_file&&) noexcept;
@@ -63,11 +65,13 @@ public:
     // The member by its documentation ID ("T:Ns.Type",
     // "M:Ns.Type.Method(System.String)"), or null when the file has no such
     // member. Read off the member's element the first time it is asked for
-    // and kept by the file, so good for as long as the file is.
+    // and kept by the file, so good for as long as the file is. A member that
+    // does not parse throws std::runtime_error naming the file and the member.
     member_documentation const* find(std::string_view id);
 
     // Parses members not parsed yet until the deadline passes, passing over
-    // those find() has parsed already; whether any are left.
+    // those find() has parsed already; whether any are left. Throws as find()
+    // does at the first member that does not parse.
     bool parse_some(std::chrono::steady_clock::time_point deadline);
 
     std::size_t size() const noexcept;

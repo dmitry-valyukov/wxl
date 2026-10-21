@@ -5,6 +5,7 @@
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 // schema.h -- the DSL vocabulary a second time, reached through the class
 // that declares it, and schema_surface.cpp, which compiles every line of it.
@@ -329,9 +330,9 @@ void write_schema(output const& out, model const& m, emitted& em) {
     write_schema_test(test, sch, d, lines);
     em.add(test, std::format("{}.surface-test", out.cmake_target));
 
-    std::print("generated {} ({} classes, {} members)\n", header.string(), sch.classes.size(),
-               members);
-    std::print("generated {} ({} checks)\n", test.string(), lines);
+    std::print("generated {} ({} classes, {} members)\n",
+               wxl::core::unicode::to_utf8(header).chars(), sch.classes.size(), members);
+    std::print("generated {} ({} checks)\n", wxl::core::unicode::to_utf8(test).chars(), lines);
 }
 
 }  // namespace gen

@@ -4,6 +4,7 @@
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 namespace gen {
 
@@ -44,7 +45,8 @@ void write_tags(output const& out, model const& m, emitted& em) {
     std::print(file, "\n}}  // namespace wxl\n");
 
     em.add(path);
-    std::print("generated {} ({} tags)\n", path.string(), m.tags.size());
+    std::print("generated {} ({} tags)\n", wxl::core::unicode::to_utf8(path).chars(),
+               m.tags.size());
 }
 
 }  // namespace gen

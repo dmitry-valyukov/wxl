@@ -6,6 +6,7 @@
 // в памяти.
 
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -13,6 +14,10 @@
 #include "VirtualTree.h"
 
 namespace editor {
+
+// Ошибка, как её читает человек: файловая — пути и слова системы на её языке,
+// любая другая — её текст, а что в нём не UTF-8 — знаками U+FFFD, не пропуском.
+std::wstring errorText(std::exception const& error);
 
 class TypesModel;
 class ResourcesModel;

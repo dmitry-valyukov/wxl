@@ -4,6 +4,7 @@
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 // The generated directory's own CMakeLists.txt. It defines no target of
 // its own: it is add_subdirectory()'d *after* the consuming target exists
@@ -60,7 +61,8 @@ if(TARGET {})
     // shadow the SDK headers its files are named after -- the SDK's
     // <windows.foundation.collections.h> finding Windows.Foundation.Collections.h.
 
-    std::print("generated {} ({} sources)\n", path.string(), em.files().size());
+    std::print("generated {} ({} sources)\n", wxl::core::unicode::to_utf8(path).chars(),
+               em.files().size());
 }
 
 }  // namespace gen

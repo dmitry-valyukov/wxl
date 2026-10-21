@@ -53,3 +53,25 @@ sta_vector<sta_wstring> environment::command_line() {
 
     return result;
 }
+
+u8_text environment::error_explanation(std::uint32_t const code) {
+    // Language 0 is the system's own order of search: the thread's language, the user's, the
+    // system's, English. An insert in the text (%1) has nothing to fill it, and without
+    // IGNORE_INSERTS such a phrase is not found at all. An HRESULT is explained the same way.
+    wchar_t* buffer = nullptr;
+    DWORD length = ::FormatMessageW(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, code, 0, reinterpret_cast<LPWSTR>(&buffer), 0, nullptr);
+    std::unique_ptr<wchar_t, decltype(&::LocalFree)> const owned{buffer, &::LocalFree};
+
+    if (!length || !buffer) return {};
+
+    // The system ends the phrase with a line break, some with a space before it; a reader is
+    // shown the phrase.
+    while (length && (buffer[length - 1] == L'\n' || buffer[length - 1] == L'\r' ||
+                      buffer[length - 1] == L' ')) {
+        --length;
+    }
+    // The system's own text, but nothing promises it is well-formed UTF-16.
+    return unicode::repaired(std::wstring_view{buffer, length}).to_utf8();
+}

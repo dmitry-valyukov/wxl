@@ -1,11 +1,14 @@
 #pragma once
 
+#include <ostream>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gen/types.h"
 #include "md.h"
+#include "xml_input.h"
 
 // One member of a wrapped type, read off the interface that declares it.
 //
@@ -43,7 +46,9 @@ struct member_info {
     // A method whose last parameter is an out value and which returns nothing
     // else: the wxl member returns that value (`GetText(options, out string)`
     // becomes `getText(options)`), and the call passes a local for it.
+    // `out_param` is that parameter's name, which documents the result.
     bool out_result = false;
+    std::string out_param;
 
     // A constructor of a composable class: its factory method carries the two parameters of
     // composition after its own (the object being composed into, and the inner one handed
@@ -101,6 +106,12 @@ struct member_info {
     // not the projection's -- the call is made without it, and the operation stands under it
     // (result.from_winrt is the operation's from_winrt_under).
     bool under_token = false;
+
+    // The member's .NET documentation ID, on the type the documentation files
+    // key it on (see documentation.h); empty for a member the metadata does not
+    // declare. And what the documentation says under it, when a run writes it.
+    std::string doc_id;
+    member_documentation doc;
 };
 
 // The parameters the projection's call is handed: all of them, but the token of a form with
@@ -122,10 +133,20 @@ std::vector<std::string> parameter_names(md::MethodDef const& method);
 // in member_info::field the Impl field named after the interface, which is
 // how a class wrapper's body reaches it; an args view leaves it unused and
 // queries off its ABI pointer.
-void collect_interface_members(md::TypeDef const& iface,
+//
+// `owner` is the type the documentation keys the members on -- the class,
+// for its interfaces, statics and factories alike, or the interface itself;
+// the methods of a `factory` are documented as the owner's constructors.
+void collect_interface_members(md::TypeDef const& iface, md::TypeDef const& owner, bool factory,
                                std::set<std::string> const& allowed, type_index const& index,
                                std::vector<member_info>& members,
                                std::vector<skipped_member>& skipped);
+
+// The parameters a member declares in wxl, by name: what a @param may name.
+std::vector<std::string_view> parameter_names(member_info const& member);
+
+// The documentation of a member's declaration in a class body (see write_doc).
+void write_member_doc(std::ostream& out, member_info const& member);
 
 // "Object const& value, double width" -- the parameter list as it appears
 // in both the declaration and the definition.

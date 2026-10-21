@@ -313,6 +313,66 @@ u16_text repaired(const std::u16string_view utf16) {
     return repaired(std::wstring_view(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size()));
 }
 
+namespace {
+
+// How many bytes at the start of `broken` -- text find_invalid_utf8() stopped at -- make its
+// maximal subpart: the longest start of a well-formed sequence there, or the one byte that
+// starts none. The second byte's range is narrower after some leads: that is what keeps out
+// over-long forms (E0, F0), surrogates (ED) and code points above U+10FFFF (F4).
+std::size_t maximal_subpart(const std::string_view broken) noexcept {
+    const auto lead = static_cast<unsigned char>(broken.front());
+    std::size_t size = 0;
+    unsigned char low = 0x80;
+    unsigned char high = 0xBF;
+
+    if (lead >= 0xC2 && lead <= 0xDF) {
+        size = 2;
+    } else if (lead >= 0xE0 && lead <= 0xEF) {
+        size = 3;
+        if (lead == 0xE0) low = 0xA0;
+        if (lead == 0xED) high = 0x9F;
+    } else if (lead >= 0xF0 && lead <= 0xF4) {
+        size = 4;
+        if (lead == 0xF0) low = 0x90;
+        if (lead == 0xF4) high = 0x8F;
+    } else {
+        return 1;
+    }
+
+    std::size_t taken = 1;
+    while (taken != size && taken != broken.size()) {
+        const auto byte = static_cast<unsigned char>(broken[taken]);
+        if (byte < low || byte > high) break;
+        low = 0x80;
+        high = 0xBF;
+        ++taken;
+    }
+    return taken;
+}
+
+}  // namespace
+
+u8_text repaired(const std::string_view utf8) {
+    constexpr std::u8string_view replacement = u8"\uFFFD";
+    const auto append = [](std::u8string& out, const std::string_view bytes) {
+        out.append(reinterpret_cast<const char8_t*>(bytes.data()), bytes.size());
+    };
+
+    std::u8string result;
+    result.reserve(utf8.size());
+
+    std::string_view rest = utf8;
+    while (const auto broken = find_invalid_utf8(rest)) {
+        append(result, rest.substr(0, *broken));
+        rest.remove_prefix(*broken);
+        rest.remove_prefix(maximal_subpart(rest));
+        result.append(replacement);
+    }
+    append(result, rest);
+
+    return {std::move(result), impl::validated{}};
+}
+
 transcode_result write_utf8_repaired(const std::span<char> out, const std::wstring_view utf16) noexcept {
     transcode_result done;
 

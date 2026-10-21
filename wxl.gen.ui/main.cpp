@@ -39,14 +39,6 @@ std::filesystem::path defaultProfile() {
     return std::filesystem::path {u8"" WXL_GEN_PROFILES} / u8"base.json";
 }
 
-std::wstring widen(std::string_view utf8) {
-    std::wstring wide;
-    if (auto const text = core::unicode::checked(utf8)) {
-        core::unicode::append_utf16(wide, *text);
-    }
-    return wide;
-}
-
 // Знаки кнопок панели — размер 20 шрифта Fluent UI System Icons (Assets):
 // контурные из Regular, open и save — заливочные из Filled.
 namespace glyphs {
@@ -132,7 +124,7 @@ wxl::Teardown wxl_launched() {
     } catch (std::exception const& error) {
         auto window = Window {
             title = u"wxl.gen.ui",
-            TextBlock {text = widen(error.what()), textWrapping.wrap, Margin {24}},
+            TextBlock {text = errorText(error), textWrapping.wrap, Margin {24}},
         };
         window.activate();
         return {};

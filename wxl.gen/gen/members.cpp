@@ -1,5 +1,7 @@
 #include <format>
 
+#include "documentation.h"
+
 #include "wxl.gen.h"
 
 import std;
@@ -95,8 +97,9 @@ event_args event_args_type(coded_index<TypeDefOrRef> const& delegate) {
     return {};
 }
 
-void collect_event(Event const& event, std::string_view field_view, type_index const& index,
-                   std::vector<member_info>& members, std::vector<skipped_member>& skipped) {
+void collect_event(Event const& event, std::string_view field_view, TypeDef const& owner,
+                   type_index const& index, std::vector<member_info>& members,
+                   std::vector<skipped_member>& skipped) {
     // The field name goes into every member_info this builds, and each of
     // those keeps its own string, so the copy is made once here.
     const std::string field(field_view);
@@ -136,6 +139,8 @@ void collect_event(Event const& event, std::string_view field_view, type_index c
     // the method form read as the same thing.
     member_info add{member_info::kind_t::EventAdd, std::format("add_on{}", event.Name()),
                     std::string{event.Name()}, field};
+    std::string const doc_id = documentation_id(owner, {owner, event}, event.Name());
+    add.doc_id = doc_id;
     add.returns_void = false;
     add.result.value_type = "EventToken";
     add.args_type = args_name;
@@ -155,6 +160,7 @@ void collect_event(Event const& event, std::string_view field_view, type_index c
 
     member_info remove{member_info::kind_t::EventRemove, std::format("remove_on{}", event.Name()),
                        std::string{event.Name()}, field};
+    remove.doc_id = doc_id;
     remove.params.push_back({"token", {}});
     remove.params.back().type.param_type = "EventToken";
     remove.params.back().type.public_includes = {"../events.h"};
@@ -162,7 +168,7 @@ void collect_event(Event const& event, std::string_view field_view, type_index c
     members.push_back(std::move(remove));
 }
 
-void collect_property(Property const& property, std::string_view field_view,
+void collect_property(Property const& property, std::string_view field_view, TypeDef const& owner,
                       type_index const& index, std::vector<member_info>& members,
                       std::vector<skipped_member>& skipped) {
     // The field name goes into every member_info this builds, and each of
@@ -184,6 +190,7 @@ void collect_property(Property const& property, std::string_view field_view,
 
     std::string const wxl_name = member_name(property.Name());
     std::string const winrt_name{property.Name()};
+    std::string const doc_id = documentation_id(owner, {owner, property}, property.Name());
 
     for (auto&& semantic : property.MethodSemantic()) {
         if (semantic.Semantic().Getter()) {
@@ -200,11 +207,13 @@ void collect_property(Property const& property, std::string_view field_view,
             member_info getter{member_info::kind_t::Forward, wxl_name, winrt_name, field, use,
                                /*returns_void=*/false};
             getter.is_property_getter = true;
+            getter.doc_id = doc_id;
             members.push_back(std::move(getter));
         } else if (semantic.Semantic().Setter()) {
             member_info setter{member_info::kind_t::Forward, wxl_name, winrt_name, field, {},
                                /*returns_void=*/true, {{"value", use}}};
             setter.is_property_setter = true;
+            setter.doc_id = doc_id;
             members.push_back(std::move(setter));
             if (boxes_strings) {
                 member_info boxed{member_info::kind_t::BoxedString, wxl_name, winrt_name, field};
@@ -218,8 +227,9 @@ void collect_property(Property const& property, std::string_view field_view,
     }
 }
 
-void collect_method(MethodDef const& method, std::string_view field_view, type_index const& index,
-                    std::vector<member_info>& members, std::vector<skipped_member>& skipped) {
+void collect_method(MethodDef const& method, std::string_view field_view, TypeDef const& owner,
+                    bool factory, type_index const& index, std::vector<member_info>& members,
+                    std::vector<skipped_member>& skipped) {
     // The field name goes into every member_info this builds, and each of
     // those keeps its own string, so the copy is made once here.
     const std::string field(field_view);
@@ -282,6 +292,7 @@ void collect_method(MethodDef const& method, std::string_view field_view, type_i
                 info.result = std::move(use);
                 info.returns_void = false;
                 info.out_result = true;
+                info.out_param = slot - 1 < names.size() ? names[slot - 1] : std::string{};
                 break;
             }
             skipped.push_back({info.name, "out parameters are not mapped yet"});
@@ -292,6 +303,9 @@ void collect_method(MethodDef const& method, std::string_view field_view, type_i
              std::move(use)});
         ++position;
     }
+
+    info.doc_id = factory ? constructor_documentation_id(owner, method, info.composable_constructor ? 2 : 0)
+                          : documentation_id(owner, {owner, method}, method.Name());
 
     // Beside every asynchronous method, its form with a token, taken last as wxl.async's own
     // operations take one: cancelled, the operation is asked to stop and the co_await ends with
@@ -348,26 +362,39 @@ std::vector<std::string> parameter_names(MethodDef const& method) {
 
 // The members one interface contributes to the class implementing it,
 // bounded by the names that survived the profile filter.
-void collect_interface_members(TypeDef const& iface, std::set<std::string> const& allowed,
-                               type_index const& index, std::vector<member_info>& members,
+void collect_interface_members(TypeDef const& iface, TypeDef const& owner, bool factory,
+                               std::set<std::string> const& allowed, type_index const& index,
+                               std::vector<member_info>& members,
                                std::vector<skipped_member>& skipped) {
     auto const field = interface_field_name(iface.TypeName());
 
     for (auto&& property : iface.PropertyList()) {
         if (allowed.count(std::string{property.Name()})) {
-            collect_property(property, field, index, members, skipped);
+            collect_property(property, field, owner, index, members, skipped);
         }
     }
     for (auto&& event : iface.EventList()) {
         if (allowed.count(std::string{event.Name()})) {
-            collect_event(event, field, index, members, skipped);
+            collect_event(event, field, owner, index, members, skipped);
         }
     }
     for (auto&& method : iface.MethodList()) {
         if (is_plain_method(method) && allowed.count(std::string{method.Name()})) {
-            collect_method(method, field, index, members, skipped);
+            collect_method(method, field, owner, factory, index, members, skipped);
         }
     }
+}
+
+std::vector<std::string_view> parameter_names(member_info const& member) {
+    std::vector<std::string_view> names;
+    for (auto&& param : member.params) {
+        names.push_back(param.name);
+    }
+    return names;
+}
+
+void write_member_doc(std::ostream& out, member_info const& member) {
+    write_doc(out, "    ", member.doc, parameter_names(member), !member.returns_void);
 }
 
 std::string parameter_list(member_info const& member) {

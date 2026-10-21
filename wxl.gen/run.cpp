@@ -1,5 +1,7 @@
 #include <print>
 
+#include "documentation.h"
+
 #include "wxl.gen.h"
 
 import std;
@@ -28,14 +30,14 @@ char const* category_name(category cat) {
 void report(profile_set const& profiles, closure const& cl) {
     std::print("profiles: {}\n", wxl::core::join(profiles.loaded, ", "));
     for (auto&& file : profiles.metadata) {
-        std::print("  metadata: {}\n", file.string());
+        std::print("  metadata: {}\n", wxl::core::unicode::to_utf8(file).chars());
     }
     std::print("  roots: {}\n", profiles.types.size());
 
     if (!profiles.missing_windows_metadata.empty()) {
         std::print(stderr,
                    "warning: no Windows metadata in {} -- the walk stops at every Windows type\n",
-                   profiles.missing_windows_metadata.string());
+                   wxl::core::unicode::to_utf8(profiles.missing_windows_metadata).chars());
     }
 
     for (auto&& name : cl.missing_types) {
@@ -94,7 +96,7 @@ void report(profile_set const& profiles, closure const& cl) {
 }  // namespace
 
 void run(profile_set const& profiles, type_map const& types, std::vector<symbol> symbols,
-         output const& out) {
+         output const& out, std::string_view doc_language) {
     std::vector<std::string> files;
     files.reserve(profiles.metadata.size());
     for (auto&& file : profiles.metadata) {
@@ -105,5 +107,26 @@ void run(profile_set const& profiles, type_map const& types, std::vector<symbol>
     auto const cl = crawl(profiles, types, db);
     report(profiles, cl);
 
-    write_all(out, analyze(cl, profiles, types, std::move(symbols)));
+    // The language asked for, and English where the reference has no file in it.
+    // A documentation file that does not read stops the run, naming the file.
+    std::optional<documentation_source> docs;
+    if (!doc_language.empty()) {
+        std::vector<std::wstring> languages {std::wstring(doc_language.begin(), doc_language.end())};
+        if (doc_language != "en") {
+            languages.emplace_back(L"en");
+        }
+        docs.emplace(std::move(languages));
+    }
+
+    auto const m = analyze(cl, profiles, types, std::move(symbols), docs ? &*docs : nullptr);
+    if (docs) {
+        for (auto&& file : docs->fell_back()) {
+            std::print(stderr, "warning: no {} documentation for the types of {} -- English instead\n",
+                       doc_language, file);
+        }
+        for (auto&& file : docs->undocumented()) {
+            std::print(stderr, "warning: no documentation file for types of {} -- written without\n", file);
+        }
+    }
+    write_all(out, m);
 }

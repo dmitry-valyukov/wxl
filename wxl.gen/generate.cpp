@@ -1,10 +1,12 @@
 #include <print>
 
+#include "documentation.h"
 #include "xml_input.h"
 
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 namespace {
 
@@ -30,10 +32,10 @@ void prune_stale(output const& out, gen::emitted const& em) {
 
         std::error_code ec;
         if (std::filesystem::remove(entry.path(), ec)) {
-            std::print("removed stale {}\n", entry.path().string());
+            std::print("removed stale {}\n", wxl::core::unicode::to_utf8(entry.path()).chars());
         } else {
-            std::print(stderr, "warning: cannot remove stale {}: {}\n", entry.path().string(),
-                       ec.message());
+            std::print(stderr, "warning: cannot remove stale {}: {}\n",
+                       wxl::core::unicode::to_utf8(entry.path()).chars(), ec.message());
         }
     }
 }
@@ -68,8 +70,33 @@ gen::type_kinds kinds_of(closure const& cl) {
 
 }  // namespace
 
+namespace gen {
+
+void document(documentation_source* docs, md::TypeDef const& type, std::string_view id,
+              member_documentation& doc) {
+    if (!docs || id.empty()) {
+        return;
+    }
+    if (member_documentation const* const found = docs->find(type, id)) {
+        doc = *found;
+    }
+}
+
+void document(documentation_source* docs, md::TypeDef const& type, member_info& member) {
+    document(docs, type, member.doc_id, member.doc);
+    if (member.out_result && member.doc.returns.empty()) {
+        auto const out = std::ranges::find(member.doc.params, member.out_param,
+                                           &std::pair<std::string, std::string>::first);
+        if (out != member.doc.params.end()) {
+            member.doc.returns = out->second;
+        }
+    }
+}
+
+}  // namespace gen
+
 model analyze(closure const& cl, profile_set const& profiles, type_map const& types,
-              std::vector<symbol> symbols) {
+              std::vector<symbol> symbols, documentation_source* docs) {
     auto const kinds = kinds_of(cl);
 
     model m;
@@ -79,9 +106,9 @@ model analyze(closure const& cl, profile_set const& profiles, type_map const& ty
     m.replaced_calls = profiles.replaced_calls;
 
     gen::analyze_tags(types, m);
-    gen::analyze_enums_and_structs(kinds, cl, types, m);
-    auto const index = gen::analyze_classes(kinds, cl, types, m);
-    gen::analyze_event_args(kinds, cl, index, m);
+    gen::analyze_enums_and_structs(kinds, cl, types, docs, m);
+    auto const index = gen::analyze_classes(kinds, cl, types, docs, m);
+    gen::analyze_event_args(kinds, cl, index, docs, m);
 
     // The dictionaries are read once and the writers pick what they know:
     // styles here, brushes there, and whatever a resource of another kind

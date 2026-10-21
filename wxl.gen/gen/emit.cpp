@@ -28,12 +28,112 @@ output_file::~output_file() noexcept(false) {
     std::ofstream file{path_};
     file.write(text.data(), static_cast<std::streamsize>(text.size()));
     if (!file) {
-        throw std::runtime_error(std::format("cannot write {}", path_.string()));
+        throw std::runtime_error(
+            std::format("cannot write {}", wxl::core::unicode::to_utf8(path_).chars()));
     }
 }
 
 output_file open_output(std::filesystem::path const& path) {
     return output_file{path};
+}
+
+namespace {
+
+constexpr std::size_t doc_width = 100;
+
+// Every character Doxygen reads as the start of a command, a tag, an entity or
+// a link, with the backslash that makes it a character again.
+std::string doxygen_text(std::string_view word) {
+    std::string text;
+    for (char const c : word) {
+        if (std::string_view{"\\@#<>&$%\""}.contains(c)) {
+            text += '\\';
+        }
+        text += c;
+    }
+    return text;
+}
+
+// Columns as a reader sees them: UTF-8 continuation bytes take none.
+std::size_t columns(std::string_view text) {
+    return static_cast<std::size_t>(
+        std::ranges::count_if(text, [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; }));
+}
+
+// A word Markdown reads as a list item, a rule or a heading underline when it
+// starts a line: "-", "*", "+", "1.", "2)", "---", "===". Wrapping never
+// starts a line with one.
+bool opens_block(std::string_view word) {
+    if (std::ranges::all_of(word, [](char c) { return c == '-' || c == '*' || c == '+' || c == '=' || c == '_'; })) {
+        return true;
+    }
+    return word.size() > 1 && (word.back() == '.' || word.back() == ')') &&
+           std::ranges::all_of(word.substr(0, word.size() - 1), [](char c) { return c >= '0' && c <= '9'; });
+}
+
+// A line of the comment. It never ends with a backslash: the compiler splices
+// the next line onto such a line, whitespace after it or not, and the
+// declaration below the comment would become comment too. An empty HTML
+// comment, which Doxygen drops, stands after it instead.
+void write_line(std::ostream& out, std::string_view line) {
+    std::print(out, "{}{}\n", line, line.ends_with('\\') ? "<!---->" : "");
+}
+
+// One paragraph: `lead` -- a command and what it names -- and the text after it,
+// word by word.
+void write_paragraph(std::ostream& out, std::string_view indent, std::string_view lead, std::string_view text) {
+    std::string line = std::format("{}///{}{}", indent, lead.empty() ? "" : " ", lead);
+    bool bare = lead.empty();  // nothing after the slashes yet
+    for (auto&& part : std::views::split(text, ' ')) {
+        std::string_view const word{part.begin(), part.end()};
+        if (word.empty()) {
+            continue;
+        }
+        std::string const escaped = doxygen_text(word);
+        if (!bare && columns(line) + 1 + columns(escaped) > doc_width && !opens_block(word)) {
+            write_line(out, line);
+            line = std::format("{}///", indent);
+            bare = true;
+        }
+        line += ' ';
+        line += escaped;
+        bare = false;
+    }
+    write_line(out, line);
+}
+
+bool blank(std::string_view text) {
+    return std::ranges::all_of(text, [](char c) { return c == ' '; });
+}
+
+}  // namespace
+
+void write_doc(std::ostream& out, std::string_view indent, member_documentation const& doc,
+               std::span<std::string_view const> params, bool has_result) {
+    std::vector<std::pair<std::string, std::string_view>> blocks;  // lead, text
+    if (!blank(doc.deprecated)) {
+        blocks.emplace_back("@deprecated", doc.deprecated);
+    }
+    for (std::string_view const name : params) {
+        auto const described = std::ranges::find(doc.params, name, &std::pair<std::string, std::string>::first);
+        if (described != doc.params.end() && !blank(described->second)) {
+            blocks.emplace_back(std::format("@param {}", name), described->second);
+        }
+    }
+    if (has_result && !blank(doc.returns)) {
+        blocks.emplace_back("@return", doc.returns);
+    }
+
+    bool const summary = !blank(doc.summary);
+    if (summary) {
+        write_paragraph(out, indent, {}, doc.summary);
+    }
+    if (summary && !blocks.empty()) {
+        std::print(out, "{}///\n", indent);
+    }
+    for (auto&& [lead, text] : blocks) {
+        write_paragraph(out, indent, lead, text);
+    }
 }
 
 void write_includes(std::ostream& out, std::set<std::string> const& includes) {

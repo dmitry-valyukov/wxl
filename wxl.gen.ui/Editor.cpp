@@ -1,6 +1,7 @@
 // Метаданные и профиль — только здесь: crawl.h приносит winmd_reader.h вместе с
 // <windows.h> в нужном порядке, а окно видит одни модели деревьев.
 #include "crawl.h"
+#include "documentation.h"
 #include "profile.h"
 #include "xml_input.h"
 
@@ -49,12 +50,12 @@ constexpr RowIcon brushIcon {0xF591, rgb(183, 28, 28), rgb(255, 171, 145)};     
 // база wxl::Closable.
 constexpr std::string_view closableInterface = "Windows.Foundation.IClosable";
 
-// Текст метаданных в разметку HtmlBlock: знаки разметки — сущностями.
+// Текст метаданных в разметку HtmlBlock: знаки разметки — сущностями. Текст не
+// UTF-8 — сообщение об ошибке, строка метаданных — выходит со знаками U+FFFD на
+// месте сломанного, а не пропадает.
 void append_text(std::wstring& html, std::string_view utf8) {
     std::wstring wide;
-    if (auto const text = wxl::core::unicode::checked(utf8)) {
-        wxl::core::unicode::append_utf16(wide, *text);
-    }
+    wxl::core::unicode::append_utf16(wide, wxl::core::unicode::repaired(utf8));
     for (wchar_t const c : wide) {
         switch (c) {
             case L'<': html += L"&lt;"; break;
@@ -191,169 +192,75 @@ std::vector<std::wstring> documentation_languages() {
     return languages;
 }
 
-// Справочники Windows SDK: References\<версия SDK>\<контракт>\<версия>\<язык>.
-std::filesystem::path sdk_references() {
-    wchar_t root[MAX_PATH] {};
-    DWORD size = sizeof(root);
-    if (::RegGetValueW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots", L"KitsRoot10",
-                       RRF_RT_REG_SZ | RRF_SUBKEY_WOW6432KEY, nullptr, root, &size) != ERROR_SUCCESS) {
-        return {};
+// Документация члена или типа под сведениями о нём.
+void append_documentation(std::wstring& html, member_documentation const& documentation) {
+    if (!documentation.deprecated.empty()) {
+        html += L"<p><b>Deprecated:</b> ";
+        append_text(html, documentation.deprecated);
+        html += L"</p>";
     }
-    return std::filesystem::path {root} / L"References";
+    if (!documentation.summary.empty()) {
+        html += L"<p><b>Summary:</b><br>";
+        append_text(html, documentation.summary);
+        html += L"</p>";
+    }
+    // Параметр без описания — такие в файлах есть — не показывается.
+    auto const described = [](auto const& param) { return !param.second.empty(); };
+    if (std::ranges::any_of(documentation.params, described)) {
+        html += L"<p><b>Parameters:</b>";
+        for (auto const& [name, text] : documentation.params | std::views::filter(described)) {
+            html += L"<br><i>";
+            append_text(html, name);
+            html += L"</i> — ";
+            append_text(html, text);
+        }
+        html += L"</p>";
+    }
+    if (!documentation.returns.empty()) {
+        html += L"<p><b>Returns:</b><br>";
+        append_text(html, documentation.returns);
+        html += L"</p>";
+    }
 }
 
-// Самая новая из версий-папок: имена вида 10.0.26100.0 и 19.0.0.0.
-std::filesystem::path newest_version(std::filesystem::path const& directory) {
-    std::filesystem::path newest;
-    std::vector<int> best;
-    std::error_code error;
-    for (auto&& item : std::filesystem::directory_iterator {directory, error}) {
-        if (!item.is_directory()) {
-            continue;
-        }
-        std::vector<int> parts;
-        for (auto&& part : std::views::split(item.path().filename().wstring(), L'.')) {
-            parts.push_back(std::wcstol(std::wstring {part.begin(), part.end()}.c_str(), nullptr, 10));
-        }
-        if (parts > best) {
-            best = std::move(parts);
-            newest = item.path();
-        }
-    }
-    return newest;
-}
-
-// Контракт, которому принадлежит тип Windows: ContractVersionAttribute.
-std::string contract_of(md::TypeDef const& type) {
-    for (auto&& attribute : type.CustomAttribute()) {
-        auto const [ns, name] = attribute.TypeNamespaceAndName();
-        if (ns != "Windows.Foundation.Metadata" || name != "ContractVersionAttribute") {
-            continue;
-        }
-        for (auto&& argument : attribute.Value().FixedArgs()) {
-            if (auto const* element = std::get_if<md::ElemSig>(&argument.value)) {
-                if (auto const* contract = std::get_if<md::ElemSig::SystemType>(&element->value)) {
-                    return std::string {contract->name};
-                }
-            }
-        }
-    }
-    return {};
-}
-
-// Документация метаданных, по файлу при первой нужде. Файл — .xml рядом с
-// .winmd, как её кладёт Windows App SDK; у метаданных Windows рядом ничего нет,
-// и их документация — справочник Windows SDK по контракту типа, на языке
-// интерфейса, а без него на английском. Открытый файл знает только, где какой
-// член; остальное разбирается шагами parseSome().
+// Документация метаданных (documentation_source) на языке интерфейса, а без
+// него на английском. Открылся файл, где разобрано ещё не всё, — зовётся
+// opened: остальное окно дочитывает в фоне, шагами parseSome().
 class Documentation {
 public:
-    // opened — открылся файл, где разобрано ещё не всё.
     explicit Documentation(wxl::core::function<void()> opened) : opened_(std::move(opened)) {}
 
-    wxl::core::nullable<member_documentation const> find(md::TypeDef const& type, std::string const& id) {
-        documentation_file* const file = fileOf(type);
-        return file ? file->find(id) : nullptr;
+    // Документация типа или члена под сведениями о нём, а файл, который не
+    // читается, — своей ошибкой на её месте: имя файла и что с ним не так.
+    void append(std::wstring& html, md::TypeDef const& type, std::string const& id) {
+        bool const parsing = source_.parsing();
+        try {
+            if (member_documentation const* const found = source_.find(type, id)) {
+                append_documentation(html, *found);
+            }
+        } catch (std::exception const& error) {
+            html += L"<p><b>Documentation:</b> ";
+            append_text(html, error_message(error));
+            html += L"</p>";
+        }
+        if (!parsing && source_.parsing()) {
+            opened_();
+        }
     }
 
     // Справочник Windows SDK — на английском или на языке интерфейса. Открытые
     // файлы справочника закрываются: при следующей нужде открывается файл
     // нужного языка. Документация рядом с .winmd одна и остаётся.
     void english(bool value) {
-        auto languages = value ? std::vector<std::wstring> {L"en"} : documentation_languages();
-        if (languages == languages_) {
-            return;
-        }
-        languages_ = std::move(languages);
-        std::erase_if(unfinished_, [this](documentation_file const* file) {
-            return std::ranges::any_of(contracts_, [file](auto const& each) { return each.second.get() == file; });
-        });
-        contracts_.clear();
+        source_.languages(value ? std::vector<std::wstring> {L"en"} : documentation_languages());
     }
 
     // Разбирает члены открытых файлов до срока; остались ли неразобранные.
-    bool parseSome(std::chrono::steady_clock::time_point deadline) {
-        while (!unfinished_.empty()) {
-            if (unfinished_.front()->parse_some(deadline)) {
-                return true;
-            }
-            unfinished_.erase(unfinished_.begin());
-            if (std::chrono::steady_clock::now() >= deadline) {
-                break;
-            }
-        }
-        return !unfinished_.empty();
-    }
+    bool parseSome(std::chrono::steady_clock::time_point deadline) { return source_.parse_some(deadline); }
 
 private:
-    using File = std::unique_ptr<documentation_file>;
-
-    // Файл находится по файлу метаданных, а у метаданных Windows — по
-    // контракту; и тот, и другой ищется и читается один раз.
-    documentation_file* fileOf(md::TypeDef const& type) {
-        auto const& database = type.get_database();
-        auto [beside, fresh] = beside_.try_emplace(&database);
-        if (fresh) {
-            beside->second = open(std::filesystem::path {database.path()}.replace_extension(L".xml"));
-            started(beside->second);
-        }
-        if (beside->second) {
-            return beside->second.get();
-        }
-
-        auto [contract, added] = contracts_.try_emplace(contract_of(type));
-        if (added) {
-            contract->second = open(sdkFile(contract->first));
-            started(contract->second);
-        }
-        return contract->second.get();
-    }
-
-    void started(File const& file) {
-        if (file && file->size() > 0) {
-            unfinished_.push_back(file.get());
-            opened_();
-        }
-    }
-
-    static File open(std::filesystem::path const& file) {
-        if (file.empty() || !std::filesystem::exists(file)) {
-            return {};
-        }
-        try {
-            return std::make_unique<documentation_file>(file);
-        } catch (std::exception const&) {
-            // Без документации сведения остаются сигнатурой.
-            return {};
-        }
-    }
-
-    std::filesystem::path sdkFile(std::string const& contract) {
-        if (contract.empty()) {
-            return {};
-        }
-        if (references_.empty()) {
-            references_ = sdk_references();
-        }
-        std::filesystem::path const versions = newest_version(newest_version(references_) / contract);
-        if (versions.empty()) {
-            return {};
-        }
-        for (std::wstring const& language : languages_) {
-            auto const file = versions / language / (contract + ".xml");
-            if (std::filesystem::exists(file)) {
-                return file;
-            }
-        }
-        return {};
-    }
-
     wxl::core::function<void()> opened_;
-    std::vector<std::wstring> languages_ = documentation_languages();
-    std::filesystem::path references_;
-    std::map<md::database const*, File> beside_;
-    std::map<std::string, File> contracts_;
-    std::vector<documentation_file*> unfinished_;  // в порядке открытия
+    documentation_source source_ {documentation_languages()};
 };
 
 // Корни обхода из `own`, которых в замыкании нет без них самих: никакой другой
@@ -1184,131 +1091,6 @@ private:
 
 namespace {
 
-// Ключ документации .NET, которым файлы документации называют члены:
-// "M:Ns.Type.Method(System.String,Ns.Other@)". Типы — полными именами,
-// встроенные — именами System, аргументы обобщённого — в фигурных скобках,
-// параметр по ссылке (выходной) — с @.
-class DocumentationId {
-public:
-    static std::string of(md::TypeDef const& type) { return std::format("T:{}.{}", type.TypeNamespace(), type.TypeName()); }
-
-    static std::string of(md::TypeDef const& owner, member_declaration const& declaration, std::string_view name) {
-        DocumentationId id;
-        std::visit([&](auto const& definition) { id.member(owner, definition, name); }, declaration.definition);
-        return std::move(id.text_);
-    }
-
-private:
-    void head(char kind, md::TypeDef const& owner, std::string_view name) {
-        text_ = std::format("{}:{}.{}.{}", kind, owner.TypeNamespace(), owner.TypeName(), name);
-    }
-
-    void member(md::TypeDef const& owner, md::Property const&, std::string_view name) { head('P', owner, name); }
-    void member(md::TypeDef const& owner, md::Event const&, std::string_view name) { head('E', owner, name); }
-    void member(md::TypeDef const& owner, md::Field const&, std::string_view name) { head('F', owner, name); }
-
-    void member(md::TypeDef const& owner, md::MethodDef const& method, std::string_view name) {
-        head('M', owner, name);
-        auto const signature = method.Signature();
-        bool first = true;
-        for (auto&& param : signature.Params()) {
-            text_ += first ? '(' : ',';
-            first = false;
-            type(param.Type());
-            if (param.ByRef()) {
-                text_ += '@';
-            }
-        }
-        if (!first) {
-            text_ += ')';
-        }
-    }
-
-    void type(md::TypeSig const& signature) {
-        std::visit([this](auto const& value) { element(value); }, signature.Type());
-        if (signature.is_szarray()) {
-            text_ += "[]";
-        }
-    }
-
-    void element(md::coded_index<md::TypeDefOrRef> const& ref) {
-        if (ref.type() == md::TypeDefOrRef::TypeSpec) {
-            element(ref.TypeSpec().Signature().GenericTypeInst());
-            return;
-        }
-        auto const [ns, name] = md::get_type_namespace_and_name(ref);
-        text_ += std::format("{}.{}", ns, name);
-    }
-
-    void element(md::GenericTypeInstSig const& instance) {
-        auto const [ns, name] = md::get_type_namespace_and_name(instance.GenericType());
-        text_ += std::format("{}.{}{{", ns, name.substr(0, name.find('`')));
-        bool first = true;
-        for (auto&& argument : instance.GenericArgs()) {
-            text_ += first ? "" : ",";
-            first = false;
-            type(argument);
-        }
-        text_ += '}';
-    }
-
-    void element(md::GenericTypeIndex index) { text_ += std::format("`{}", index.index); }
-    void element(md::GenericMethodTypeIndex index) { text_ += std::format("``{}", index.index); }
-
-    void element(md::ElementType element) {
-        switch (element) {
-            case md::ElementType::Boolean: text_ += "System.Boolean"; break;
-            case md::ElementType::Char: text_ += "System.Char"; break;
-            case md::ElementType::I1: text_ += "System.SByte"; break;
-            case md::ElementType::U1: text_ += "System.Byte"; break;
-            case md::ElementType::I2: text_ += "System.Int16"; break;
-            case md::ElementType::U2: text_ += "System.UInt16"; break;
-            case md::ElementType::I4: text_ += "System.Int32"; break;
-            case md::ElementType::U4: text_ += "System.UInt32"; break;
-            case md::ElementType::I8: text_ += "System.Int64"; break;
-            case md::ElementType::U8: text_ += "System.UInt64"; break;
-            case md::ElementType::R4: text_ += "System.Single"; break;
-            case md::ElementType::R8: text_ += "System.Double"; break;
-            case md::ElementType::String: text_ += "System.String"; break;
-            case md::ElementType::Object: text_ += "System.Object"; break;
-            default: break;
-        }
-    }
-
-    std::string text_;
-};
-
-// Документация члена или типа под сведениями о нём.
-void append_documentation(std::wstring& html, member_documentation const& documentation) {
-    if (!documentation.deprecated.empty()) {
-        html += L"<p><b>Deprecated:</b> ";
-        append_text(html, documentation.deprecated);
-        html += L"</p>";
-    }
-    if (!documentation.summary.empty()) {
-        html += L"<p><b>Summary:</b><br>";
-        append_text(html, documentation.summary);
-        html += L"</p>";
-    }
-    // Параметр без описания — такие в файлах есть — не показывается.
-    auto const described = [](auto const& param) { return !param.second.empty(); };
-    if (std::ranges::any_of(documentation.params, described)) {
-        html += L"<p><b>Parameters:</b>";
-        for (auto const& [name, text] : documentation.params | std::views::filter(described)) {
-            html += L"<br><i>";
-            append_text(html, name);
-            html += L"</i> — ";
-            append_text(html, text);
-        }
-        html += L"</p>";
-    }
-    if (!documentation.returns.empty()) {
-        html += L"<p><b>Returns:</b><br>";
-        append_text(html, documentation.returns);
-        html += L"</p>";
-    }
-}
-
 // Типы сигнатуры словами: встроенные — именами WinRT, обобщённые — с
 // аргументами в угловых скобках, параметры обобщения — по имени. Как писать имя
 // типа и текст, решает наследник.
@@ -1843,9 +1625,7 @@ std::wstring TypesModel::typeInfo(md::TypeDef const& def, RowIcon const* icon) c
         appendCost(html, data.costOf(std::format("type {} {}", full, !listed), changed), !listed);
     }
 
-    if (auto const documentation = data.documentation.find(def, DocumentationId::of(def))) {
-        append_documentation(html, **documentation);
-    }
+    data.documentation.append(html, def, documentation_id(def));
     return html;
 }
 
@@ -2113,13 +1893,15 @@ public:
 
         // Метод — каждой перегрузкой, строкой на каждую.
         std::string_view const name = member->name;
-        std::vector<std::pair<std::wstring, wxl::core::nullable<member_documentation const>>> lines;
+        std::vector<std::pair<std::wstring, std::wstring>> lines;  // сигнатура, её документация
         for (member_declaration const& declaration : declarationsOf(*part, *group, *member)) {
             std::wstring line;
             SignatureWriter {line, *editor_.types_, declaration.source}.write(declaration, name);
             if (std::ranges::find(lines, line, &decltype(lines)::value_type::first) == lines.end()) {
-                auto const id = DocumentationId::of(declaration.source, declaration, name);
-                lines.emplace_back(std::move(line), editor_.data_->documentation.find(declaration.source, id));
+                std::wstring documentation;
+                editor_.data_->documentation.append(documentation, declaration.source,
+                                                    documentation_id(declaration.source, declaration, name));
+                lines.emplace_back(std::move(line), std::move(documentation));
             }
         }
         std::wstring html;
@@ -2149,11 +1931,11 @@ public:
 
         // У перегрузок документация у каждой своя — под её сигнатурой.
         for (auto const& [line, documentation] : lines) {
-            if (documentation) {
+            if (!documentation.empty()) {
                 if (lines.size() > 1) {
                     html += L"<p>" + line + L"</p>";
                 }
-                append_documentation(html, **documentation);
+                html += documentation;
             }
         }
         return {member->icon, std::move(html)};
@@ -2529,9 +2311,7 @@ public:
             html += L"<p>" + lines + L"</p>";
         }
 
-        if (auto const documentation = editor_.data_->documentation.find(def_, DocumentationId::of(def_))) {
-            append_documentation(html, **documentation);
-        }
+        editor_.data_->documentation.append(html, def_, documentation_id(def_));
         RowIcon const* const icon = category == md::category::interface_type  ? &interfaceIcon
                                     : category == md::category::delegate_type ? &delegateIcon
                                     : category == md::category::struct_type   ? &structIcon
@@ -2929,6 +2709,13 @@ wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) {
     return {};
 }
 Editor::~Editor() = default;
+
+std::wstring errorText(std::exception const& error) {
+    // error_message() отдаёт UTF-8: пути и слова системы — через to_utf8, прочее — repaired.
+    std::wstring wide;
+    wxl::core::unicode::append_utf16(wide, wxl::core::unicode::assume_valid(error_message(error)));
+    return wide;
+}
 
 intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     intrusive_ptr<Editor> editor {new Editor {}, /*add_ref=*/false};

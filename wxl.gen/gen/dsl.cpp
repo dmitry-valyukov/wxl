@@ -4,6 +4,7 @@
 
 #include "wxl.gen.h"
 import std;
+import wxl.core;
 // Members.h -- the surface the builder syntax is written against.
 //
 // Two things per member, and nothing per class. A tag object (`content`,
@@ -245,8 +246,9 @@ void write_dsl(output const& out, dsl const& d, emitted& em) {
     std::print(file, "\n}}  // namespace dsl\n}}  // namespace wxl\n");
 
     em.add(path);
-    std::print("generated {} ({} property tags, {} collection tags, {} event tags)\n", path.string(),
-               d.property_value_type.size(), d.collection_element.size(), d.events.size());
+    std::print("generated {} ({} property tags, {} collection tags, {} event tags)\n",
+               wxl::core::unicode::to_utf8(path).chars(), d.property_value_type.size(),
+               d.collection_element.size(), d.events.size());
 }
 
 }  // namespace gen

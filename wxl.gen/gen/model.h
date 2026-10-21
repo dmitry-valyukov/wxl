@@ -4,6 +4,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -43,6 +44,7 @@ struct tag_alias {
 struct enum_value {
     std::string name;   // as metadata spells it: "Horizontal"
     std::string value;  // as it is written: "1"
+    member_documentation doc;
 };
 
 struct enum_info {
@@ -51,6 +53,7 @@ struct enum_info {
     // The enumerators the profiles kept, each with its value: with some of
     // them left out, the rest must not move.
     std::vector<enum_value> values;
+    member_documentation doc;
 };
 
 struct enum_file {
@@ -63,6 +66,7 @@ struct enum_file {
 struct struct_field {
     std::string name;      // camelCase: a field is a member
     std::string cpp_type;  // "int32_t", "Point", "Visibility"
+    member_documentation doc;
 };
 
 struct struct_info {
@@ -70,6 +74,7 @@ struct struct_info {
     std::string winrt_name;         // "winrt::Microsoft::UI::Xaml::GridLength"
     std::string projection_header;  // "<winrt/Microsoft.UI.Xaml.h>"
     std::vector<struct_field> fields;
+    member_documentation doc;
 
     // What proves the struct is the ABI struct, which is what lets it cross
     // whole as a bit_cast. One distinct value per field, so that the assert
@@ -215,6 +220,11 @@ struct class_info {
     // `extern template` wherever it is used, one `template class` definition
     // across the whole library.
     std::set<std::string> instantiations;
+
+    // What the documentation says of the class and of its default
+    // constructor; empty unless the run writes documentation.
+    member_documentation doc;
+    member_documentation constructor_doc;
 };
 
 // One file group: the classes of one namespace, or of several that derive
@@ -361,6 +371,7 @@ struct event_args_info {
     std::string name;
     std::string base;  // "EventArgsBase" for a root
     std::vector<args_member> members;
+    member_documentation doc;
 };
 
 struct event_args_file {
@@ -383,6 +394,8 @@ struct event_args_file {
 };
 
 }  // namespace gen
+
+class documentation_source;
 
 // Everything the writers write, in the order write_all() writes it.
 struct model {
@@ -439,10 +452,11 @@ struct model {
 
 // Works out the model from what the walk found, what the profiles name and
 // what wxl owns itself (the type map, the icon font's names). Reads the
-// metadata the closure points into and the profiles' resource dictionaries;
+// metadata the closure points into and the profiles' resource dictionaries,
+// and the documentation from `docs` -- null, and the model carries none;
 // writes nothing and prints nothing.
 model analyze(closure const& cl, profile_set const& profiles, type_map const& types,
-              std::vector<symbol> symbols);
+              std::vector<symbol> symbols, documentation_source* docs);
 
 namespace gen {
 
@@ -463,13 +477,23 @@ struct type_kinds {
 // by analyze() in this order: what a later one needs, an earlier one settled.
 void analyze_tags(type_map const& types, model& m);
 void analyze_enums_and_structs(type_kinds const& kinds, closure const& cl, type_map const& types,
-                               model& m);
+                               documentation_source* docs, model& m);
 // Classes, and with them the builder syntax's vocabulary and the schema --
 // only the class analysis has read the signatures. Hands back where every
 // wrapped type is declared, which the args views' signatures need.
 type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map const& types,
-                           model& m);
+                           documentation_source* docs, model& m);
 void analyze_event_args(type_kinds const& kinds, closure const& cl, type_index const& index,
-                        model& m);
+                        documentation_source* docs, model& m);
+
+// What `type`'s documentation says under `id`, into `doc`: nothing without
+// `docs`, for an empty ID, or for one the documentation does not have.
+void document(documentation_source* docs, md::TypeDef const& type, std::string_view id,
+              member_documentation& doc);
+
+// A member's documentation, by its doc_id. A member handing back its out
+// parameter takes that parameter's description for its result, where the
+// documentation says nothing of a result of its own.
+void document(documentation_source* docs, md::TypeDef const& type, member_info& member);
 
 }  // namespace gen

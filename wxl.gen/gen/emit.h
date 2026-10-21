@@ -5,12 +5,14 @@
 #include <map>
 #include <ostream>
 #include <set>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "md.h"
+#include "xml_input.h"
 
 // Shared plumbing for the output side of winui-srcgen: opening files,
 // the banner every generated file starts with, the record of what was
@@ -57,6 +59,15 @@ output_file open_output(std::filesystem::path const& path);
 // -- a projection header, a standard one a type mapping names (<chrono>) --
 // as it is, any other in quotes.
 void write_includes(std::ostream& out, std::set<std::string> const& includes);
+
+// The documentation of the declaration that follows, as `///` lines at
+// `indent`: the summary, then @deprecated, a @param for each of `params` the
+// documentation describes and @return when `has_result` -- a @param only for a
+// parameter the wxl declaration has, since Doxygen refuses one it does not.
+// The text is escaped for Doxygen and wrapped at 100 columns. Documentation
+// that says nothing writes nothing.
+void write_doc(std::ostream& out, std::string_view indent, member_documentation const& doc,
+               std::span<std::string_view const> params = {}, bool has_result = false);
 
 // A header that includes each of `files` in turn: Enums.h, Structs.h,
 // EventArgs.h.

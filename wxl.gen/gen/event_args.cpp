@@ -2,9 +2,12 @@
 #include <ostream>
 #include <print>
 
+#include "documentation.h"
+
 #include "wxl.gen.h"
 
 import std;
+import wxl.core;
 
 // EventArgs wrappers. WinRT has no formal "EventArgs" category -- these
 // are ordinary classes that merely follow a naming convention.
@@ -137,10 +140,12 @@ void write_event_args_file(std::filesystem::path const& path, event_args_file co
     std::print(out, "\n");
 
     for (auto&& c : file.classes) {
+        write_doc(out, "", c.doc);
         std::print(out, "class {} : public {}\n{{\n", c.name, c.base);
         if (!c.members.empty()) {
             std::print(out, "public:\n");
             for (auto&& member : c.members) {
+                write_member_doc(out, member.info);
                 std::print(out, "    {}\n", declaration(member.info));
             }
             std::print(out, "\n");
@@ -244,7 +249,7 @@ std::vector<args_member> collect_args_members(TypeDef const& type, closure const
 
         std::vector<member_info> members;
         std::vector<skipped_member> skipped;
-        collect_interface_members(iface, allowed->second, index, members, skipped);
+        collect_interface_members(iface, type, false, allowed->second, index, members, skipped);
 
         auto const winrt_interface =
             std::format("{}::{}", winrt_namespace(iface.TypeNamespace()), iface.TypeName());
@@ -274,7 +279,7 @@ std::vector<args_member> collect_args_members(TypeDef const& type, closure const
 }  // namespace
 
 void analyze_event_args(type_kinds const& kinds, closure const& cl, type_index const& index,
-                        model& m) {
+                        documentation_source* docs, model& m) {
     std::vector<TypeDef> all_event_args;
     for (auto&& type : kinds.classes) {
         if (is_event_args_class(type)) {
@@ -289,6 +294,10 @@ void analyze_event_args(type_kinds const& kinds, closure const& cl, type_index c
     for (auto&& type : all_event_args) {
         auto source = read_event_args(type, event_args_set);
         source.info.members = collect_args_members(type, cl, index, m.skipped_args_members);
+        document(docs, type, documentation_id(type), source.info.doc);
+        for (auto&& member : source.info.members) {
+            document(docs, type, member.info);
+        }
         sources.push_back(std::move(source));
     }
     // A base args class has to be complete before the class deriving from it.
@@ -367,8 +376,8 @@ void write_event_args(output const& out, model const& m, emitted& em) {
             em.add(source);
         }
 
-        std::print("generated {} ({} EventArgs wrappers, {} members)\n", path.string(),
-                   file.classes.size(), emitted_members);
+        std::print("generated {} ({} EventArgs wrappers, {} members)\n",
+                   wxl::core::unicode::to_utf8(path).chars(), file.classes.size(), emitted_members);
     }
 
     if (!m.skipped_args_members.empty()) {
@@ -381,7 +390,8 @@ void write_event_args(output const& out, model const& m, emitted& em) {
     auto const umbrella = out.dir / "EventArgs.h";
     write_umbrella_file(umbrella, event_args_files);
     em.add(umbrella);
-    std::print("generated {} ({} members in all)\n", umbrella.string(), members);
+    std::print("generated {} ({} members in all)\n", wxl::core::unicode::to_utf8(umbrella).chars(),
+               members);
 }
 
 }  // namespace gen

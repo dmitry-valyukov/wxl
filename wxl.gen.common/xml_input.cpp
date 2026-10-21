@@ -1,5 +1,9 @@
 #include "xml_input.h"
 
+#include <format>
+#include <stdexcept>
+
+import wxl.core;
 import wxl.xml;
 
 std::vector<std::pair<std::string, std::string>> nuspec_dependencies(
@@ -116,6 +120,20 @@ std::string folded(wxl::xml::node const& node) {
     return text;
 }
 
+// The file as an error names it: through to_utf8, not path::string(), which
+// converts through the ANSI code page -- it garbles a name the page cannot
+// spell, or on Windows throws std::system_error for it, and the error being
+// reported is lost.
+std::string file_name(std::filesystem::path const& file) {
+    return std::string {wxl::core::unicode::to_utf8(file).chars()};
+}
+
+// A member list that cannot be read to its end. Taken for a shorter one, a
+// cut-off file would document fewer members and say nothing.
+[[noreturn]] void broken_member(std::filesystem::path const& file, std::size_t at, std::string_view what) {
+    throw std::runtime_error(std::format("{}: documentation member at offset {} {}", file_name(file), at, what));
+}
+
 }  // namespace
 
 // The file's text, owned and kept, and where each member stands in it. The
@@ -131,6 +149,7 @@ struct documentation_file::state {
         bool parsed = false;
     };
 
+    std::filesystem::path file;  // named by the error of a member that does not parse
     std::string text;
     wxl::xml::arena arena;
     std::vector<member> members;       // in document order
@@ -159,25 +178,30 @@ struct documentation_file::state {
 
     // The member's element parsed where it stands: the byte after its end tag
     // becomes the zero the parser stops at, and then is put back. A member
-    // that does not parse is left without a node.
+    // that does not parse throws, naming the file and the member, and stays
+    // unparsed: asked for again, it throws again.
     void parse(member& m) {
-        m.parsed = true;
-        char& after = text[m.end];
-        char const kept = after;
-        after = '\0';
+        struct put_back {
+            char& at;
+            char const kept;
+            ~put_back() { at = kept; }
+        } const after {text[m.end], text[m.end]};
+        after.at = '\0';
         try {
             std::string_view const fragment {text.data() + m.begin, m.end - m.begin};
             wxl::xml::validate_utf8(fragment);
             wxl::xml::parser reader {fragment, arena};
             m.node = &reader.parse();
-        } catch (wxl::xml::exception const&) {
+        } catch (wxl::xml::exception const& error) {
+            throw std::runtime_error(std::format("{}: {}: {}", file_name(file), m.id, error.what()));
         }
-        after = kept;
+        m.parsed = true;
     }
 };
 
 documentation_file::documentation_file(std::filesystem::path const& file) : state_(std::make_unique<state>()) {
     state& st = *state_;
+    st.file = file;
     st.text = wxl::xml::read_file(file);
     std::string_view const text = st.text;
 
@@ -189,7 +213,7 @@ documentation_file::documentation_file(std::filesystem::path const& file) : stat
     for (std::size_t at = text.find(open); at != std::string_view::npos; at = text.find(open, at)) {
         std::size_t const tag_end = text.find('>', at);
         if (tag_end == std::string_view::npos) {
-            break;
+            broken_member(file, at, "is cut off: no '>' closes its start tag");
         }
         char const after = text[at + open.size()];
         if (after != ' ' && after != '\t' && after != '\r' && after != '\n') {
@@ -201,19 +225,22 @@ documentation_file::documentation_file(std::filesystem::path const& file) : stat
         if (!tag.ends_with("/>")) {
             std::size_t const closing = text.find(close, tag_end);
             if (closing == std::string_view::npos) {
-                break;
+                broken_member(file, at, "is cut off: no </member> closes it");
             }
             end = closing + close.size();
         }
 
+        // A member with attributes but no name is as broken as a cut-off one:
+        // nothing could ever ask for it.
         std::size_t const name = tag.find("name=");
-        if (name != std::string_view::npos && name + 5 < tag.size()) {
-            std::size_t const value_end = tag.find(tag[name + 5], name + 6);
-            if (value_end != std::string_view::npos) {
-                st.members.push_back({tag.substr(name + 6, value_end - name - 6), static_cast<std::uint32_t>(at),
-                                      static_cast<std::uint32_t>(end)});
-            }
+        char const quote = name == std::string_view::npos ? '\0' : tag[name + 5];
+        std::size_t const value_end =
+            quote == '"' || quote == '\'' ? tag.find(quote, name + 6) : std::string_view::npos;
+        if (value_end == std::string_view::npos) {
+            broken_member(file, at, "has no name: its start tag holds no quoted name attribute");
         }
+        st.members.push_back({tag.substr(name + 6, value_end - name - 6), static_cast<std::uint32_t>(at),
+                              static_cast<std::uint32_t>(end)});
         at = end;
     }
 
@@ -239,9 +266,6 @@ member_documentation const* documentation_file::find(std::string_view id) {
     }
     if (!member->parsed) {
         state_->parse(*member);
-    }
-    if (!member->node) {
-        return nullptr;
     }
 
     auto const number = static_cast<std::uint32_t>(member - state_->members.data());

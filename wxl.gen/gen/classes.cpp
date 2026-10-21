@@ -2,6 +2,8 @@
 #include <ostream>
 #include <print>
 
+#include "documentation.h"
+
 #include "wxl.gen.h"
 
 import std;
@@ -511,14 +513,15 @@ public_header_needs public_needs(std::string_view ns, std::vector<class_info> co
 // in one word, which is the thing a reader wants. `final` on top of
 // it, because deriving from a set of functions is meaningless.
 void write_statics_class(std::ostream& out, class_info const& info) {
-    std::print(out, R"(
-// {0}
-class {1} final : public Statics
+    std::print(out, "\n// {}\n", info.metadata_name);
+    write_doc(out, "", info.doc);
+    std::print(out, R"(class {} final : public Statics
 {{
 public:
 )",
-               info.metadata_name, info.name);
+               info.name);
     for (auto&& member : info.members) {
+        write_member_doc(out, member);
         std::print(out, "    static {} {}({});\n", result_type(member), member.name,
                    parameter_list(member));
     }
@@ -534,7 +537,9 @@ void write_constructor_declarations(std::ostream& out, class_info const& info) {
     bool const public_constructor = info.construction == construction_t::PublicActivation ||
                                     info.construction == construction_t::PublicComposition;
     if (public_constructor) {
-        std::print(out, "\n    {}();\n\n", info.name);
+        std::print(out, "\n");
+        write_doc(out, "    ", info.constructor_doc);
+        std::print(out, "    {}();\n\n", info.name);
 
         // Construction is the DSL. Each argument is either a deferred
         // op produced by `Name = value` or a bare value routed by its
@@ -578,6 +583,7 @@ void write_constructor_declarations(std::ostream& out, class_info const& info) {
             std::print(out, "\n");
         }
         for (auto&& ctor : info.constructors) {
+            write_doc(out, "    ", ctor.method.doc, parameter_names(ctor.method));
             std::print(out, "    explicit {}({});\n", info.name, parameter_list(ctor.method));
         }
         std::print(out, "\n");
@@ -592,16 +598,16 @@ void write_wrapper_class(std::ostream& out, class_info const& info) {
     // thing the wrappers need from each other -- a member of one class
     // naming the Impl field of another to hand it to WinRT without a
     // QueryInterface.
-    std::print(out, R"(
-// {}
-class {} : public {}
+    std::print(out, "\n// {}\n", info.metadata_name);
+    write_doc(out, "", info.doc);
+    std::print(out, R"(class {} : public {}
 {{
     using base_t = {};
 
 public:
     class Impl;
 )",
-               info.metadata_name, info.name, info.base_name, info.base_name);
+               info.name, info.base_name, info.base_name);
 
     write_constructor_declarations(out, info);
 
@@ -612,6 +618,7 @@ public:
     for (auto&& member : info.members) {
         // A static member belongs to the class, so it is neither called
         // on an object nor const-qualified.
+        write_member_doc(out, member);
         std::print(out, "    {}{} {}({}){};\n", member.is_static ? "static " : "",
                    result_type(member), member.name, parameter_list(member),
                    member.is_static ? "" : " const");
@@ -663,6 +670,7 @@ public:
         // Mirrors `protected extern X()` in the real class: only a type
         // deriving from it can construct one, so there is no activation
         // to do here.
+        write_doc(out, "    ", info.constructor_doc);
         std::print(out, "    {}();\n\n", info.name);
     }
 
@@ -1347,11 +1355,13 @@ std::vector<class_source> read_classes(wrapped_types const& wrapped, closure con
 
 // The members one interface contributes, bounded by the names the profiles
 // kept of it -- none, for an interface they kept nothing of.
-std::vector<member_info> members_of(TypeDef const& iface, closure const& cl,
-                                   type_index const& index, std::vector<skipped_member>& skipped) {
+std::vector<member_info> members_of(TypeDef const& iface, class_source const& source, bool factory,
+                                   closure const& cl, type_index const& index,
+                                   std::vector<skipped_member>& skipped) {
     std::vector<member_info> collected;
     if (auto const members = cl.members.find(iface); members != cl.members.end()) {
-        collect_interface_members(iface, members->second, index, collected, skipped);
+        collect_interface_members(iface, source.type, factory, members->second, index, collected,
+                                  skipped);
     }
     return collected;
 }
@@ -1363,7 +1373,7 @@ void add_static_members(class_source& source, closure const& cl, type_index cons
                        std::vector<skipped_member>& skipped) {
     auto& info = source.info;
     for (auto&& iface : source.statics) {
-        for (auto&& member : members_of(iface, cl, index, skipped)) {
+        for (auto&& member : members_of(iface, source, false, cl, index, skipped)) {
             member.is_static = true;
             member.field.clear();
             member.statics_interface =
@@ -1385,7 +1395,7 @@ void add_constructors(class_source& source, closure const& cl, type_index const&
         factories != cl.factories.end()) {
         bool composable_default = false;  // its factory has the parameterless method too
         for (auto&& iface : factories->second) {
-            for (auto&& member : members_of(iface, cl, index, skipped)) {
+            for (auto&& member : members_of(iface, source, true, cl, index, skipped)) {
                 // The parameterless factory method of a composable class is its default
                 // constructor, which the class has already.
                 if (member.composable_constructor && member.params.empty()) {
@@ -1568,7 +1578,7 @@ void drop_redeclared(std::vector<member_info>& members) {
 void collect_members(class_source& source, closure const& cl, type_index const& index, model const& m,
                      std::vector<skipped_member>& skipped) {
     for (auto&& iface : source.held_interfaces) {
-        for (auto&& member : members_of(iface, cl, index, skipped)) {
+        for (auto&& member : members_of(iface, source, false, cl, index, skipped)) {
             source.info.members.push_back(std::move(member));
         }
     }
@@ -1578,6 +1588,23 @@ void collect_members(class_source& source, closure const& cl, type_index const& 
     add_setter_methods(source, cl, index, skipped);
     add_replaced_calls(source, m, skipped);
     drop_redeclared(source.info.members);
+}
+
+// What the documentation says of the class, its default constructor, its
+// members and its constructors taking arguments, when a run writes it.
+void document_class(class_source& source, documentation_source* docs) {
+    if (!docs) {
+        return;
+    }
+    auto& info = source.info;
+    document(docs, source.type, documentation_id(source.type), info.doc);
+    document(docs, source.type, std::format("M:{}.#ctor", info.metadata_name), info.constructor_doc);
+    for (auto&& member : info.members) {
+        document(docs, source.type, member);
+    }
+    for (auto&& ctor : info.constructors) {
+        document(docs, source.type, ctor.method);
+    }
 }
 
 // What every class's vocabulary is added to, and what it is checked against.
@@ -2027,7 +2054,7 @@ void finish_schema(std::vector<std::pair<std::string, schema::member>>& attached
 }  // namespace
 
 type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map const& types,
-                           model& m) {
+                           documentation_source* docs, model& m) {
     auto const wrapped = wrapped_types_of(kinds, types);
     auto sources = read_classes(wrapped, cl, types, m);
 
@@ -2047,6 +2074,7 @@ type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map 
     for (auto&& source : sources) {
         std::vector<skipped_member> skipped;
         collect_members(source, cl, index, m, skipped);
+        document_class(source, docs);
         for (auto&& drop : skipped) {
             m.skipped_members.push_back(
                 std::format("{}.{}: {}", source.info.name, drop.name, drop.reason));
