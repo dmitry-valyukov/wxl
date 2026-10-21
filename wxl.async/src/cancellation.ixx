@@ -100,9 +100,12 @@ public:
     /// call -- finds it gone, and remove() answers false. Cancelling resumes nobody (an
     /// operation is cut short, a wait is handed to its thread's queue), so no subscriber
     /// goes away in the middle of the fire. One that begins standing afterwards finds the
-    /// answer and does not stand at all. A child state cancelled here cancels its own the
+    /// answer and does not stand at all, so a state cancelled already has nobody to cancel,
+    /// and asking it again does nothing. A child state cancelled here cancels its own the
     /// same way, from inside this fire, and goes nowhere either.
     inline void cancel() noexcept {
+        if (canceled_) return;
+
         canceled_ = true;
 
         cancellation_event once;
@@ -305,13 +308,26 @@ inline detail::cancellation_state* detail::cancellation_state_of(
     return token.state_.get();
 }
 
-/// The other end of a token: the one that asks.
+/// The other end of a token: the one that asks -- and the right to the work under it, for
+/// as long as it lives.
 ///
-/// The state is shared and lives as long as the last holder, so a chain may outlive
-/// the source that asked it to end, and the source may outlive the chain. Asking is
-/// the first of two steps, as with event waits: cancelled, the chains end by themselves,
-/// and whatever has not ended when its owner can wait no longer is destroyed by the
-/// owner, which gives up its operations the usual way.
+/// **A source that goes cancels.** Its owner gone, nobody wants the work any more: the
+/// destructor does what cancel() does, so every operation and wait standing under its
+/// tokens is cut short, every later one is answered at once, and every source made under
+/// them is cancelled in turn. Work that has ended has nothing standing, and the cancellation
+/// is a flag written and an empty event fired. So the source lives exactly as long as the
+/// right to the work: a local in a frame that unwinds takes its whole subtree down with it,
+/// and a field of an object takes it down with the object. It is not copied -- a copy would
+/// be a second owner whose going cancels the first one's work -- and the right is handed on
+/// only by moving it: the source moved from is empty and its going does nothing, and one
+/// assigned over cancels the work it held, as its destructor would, before it takes the
+/// other's.
+///
+/// The state behind it is shared with its tokens and lives as long as the last of them, so
+/// a token read after its source has gone answers that it is cancelled. Asking is the first
+/// of two steps, as with event waits: cancelled, the chains end by themselves, and whatever
+/// has not ended when its owner can wait no longer is destroyed by the owner, which gives up
+/// its operations the usual way.
 ///
 /// Only a source cancels, and a token only reads, so a part of some work that may be
 /// cancelled apart from the rest has a source of its own, made under the token of the
@@ -341,23 +357,65 @@ public:
         state_ = core::make_refcounted<detail::cancellation_state>(std::move(parent.state_));
     }
 
-    inline cancellation_token token() const noexcept { return cancellation_token(state_.get()); }
+    cancellation_source(const cancellation_source&) = delete;
+    cancellation_source& operator=(const cancellation_source&) = delete;
+
+    /// Takes the right to the work over, and cancels nothing: `other` is left empty.
+    inline cancellation_source(cancellation_source&& other) noexcept
+        : state_(std::move(other.state_)) {}
+
+    /// Cancels the work this source held, as its destructor would, and takes over the work
+    /// of `other`, which is left empty. Through a local, so that a source moved onto itself
+    /// stays as it is; the work this one held is cancelled as the local goes, after this
+    /// source holds its new state, so that nothing the cancelling lets go of finds it half
+    /// assigned.
+    inline cancellation_source& operator=(cancellation_source&& other) noexcept {
+        cancellation_source taken(std::move(other));
+        std::swap(state_, taken.state_);
+        return *this;
+    }
+
+    /// Cancels, as cancel() does, unless the source is empty -- moved from. Where a destructor
+    /// is called nothing gives the line, so the check names its own.
+    inline ~cancellation_source() {
+        if (state_) cancel_held(std::move(state_), detail::site::current());
+    }
+
+    /// \param where the caller's line, for a strict build's report; left to its default.
+    inline cancellation_token token(detail::site where = detail::site::current()) const noexcept {
+        check_not_empty(where);
+        return cancellation_token(state_.get());
+    }
 
     /// Cancels every operation and wait standing under a token of this source, and answers
-    /// every later one at once. Held across the cancelling: an operation cancelled may let go
-    /// of something that holds this source. On the coroutines' own thread, like everything
-    /// about them; a build that checks coroutines makes sure.
+    /// every later one at once. Asking again does nothing. On the coroutines' own thread, like
+    /// everything about them; a build that checks coroutines makes sure.
     inline void cancel([[maybe_unused]] detail::site where = detail::site::current()) noexcept {
+        check_not_empty(where);
+        cancel_held(state_, where);
+    }
+
+    /// \param where the caller's line, for a strict build's report; left to its default.
+    inline bool is_canceled(detail::site where = detail::site::current()) const noexcept {
+        check_not_empty(where);
+        return state_->canceled();
+    }
+
+private:
+    /// Held by a local across the cancelling: an operation cancelled may let go of something
+    /// that holds this source, and the state then goes once the fire is over.
+    inline static void cancel_held(detail::cancellation_state_ptr held,
+                                   [[maybe_unused]] detail::site where) noexcept {
         coro_check(core::sta_memory_pool::is_safe(),
                    "cancellation_source: cancelled from a thread other than its coroutines'", where);
 
-        const detail::cancellation_state_ptr held = state_;
         held->cancel();
     }
 
-    inline bool is_canceled() const noexcept { return state_->canceled(); }
+    inline void check_not_empty([[maybe_unused]] detail::site where) const noexcept {
+        coro_check(state_, "cancellation_source: empty -- moved from", where);
+    }
 
-private:
     detail::cancellation_state_ptr state_;
 };
 

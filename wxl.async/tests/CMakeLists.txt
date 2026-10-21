@@ -10,7 +10,6 @@ add_executable(wxl.async.tests
     bump_buffer_tests.cpp
     cancellation_tests.cpp
     completion_counter_tests.cpp
-    detached_task_tests.cpp
     drain_stack_tests.cpp
     future_tests.cpp
     future_tests_t.cpp
@@ -31,6 +30,8 @@ add_executable(wxl.async.tests
     countdown_event_tests.cpp
     task_chain_stress_tests.cpp
     task_depth_tests.cpp
+    task_lifetime_tests.cpp
+    task_ownership_tests.cpp
     task_tests.cpp
     task_tree_core_tests.cpp
     task_tree_tests.cpp

@@ -11,6 +11,10 @@ struct Model {
     TextBox folder {header = u"Suggested folder ", width = 148, placeholderText = u"Optional", isReadOnly = true,
                     foreground = brushes.Accent.TextFillColor.Primary};
     TextBlock saved {u"No file saved"};
+
+    // Last: they go first, and stop what they run before anything they touch.
+    async::task<> saving;
+    async::task<> selectingFolder;
 };
 auto const model = gallery::hold<Model>();
 
@@ -30,7 +34,7 @@ static constexpr PickerLocationId locations[] = {
 const std::initializer_list<char16_t const*> locationNames = {u"DocumentsLibrary", u"ComputerFolder", u"Desktop",
                                                               u"Downloads",        u"MusicLibrary",   u"PicturesLibrary",
                                                               u"VideosLibrary",    u"Objects3D",      u"Unspecified"};
-auto const save = [](Model* model, Button button) -> async::detached_task {
+auto const save = [](Model* model, Button button) -> async::task<> {
     button.isEnabled(false);
 
     auto picker = FileSavePicker {button.xamlRoot().contentIslandEnvironment().appWindowId()};
@@ -61,7 +65,7 @@ auto const save = [](Model* model, Button button) -> async::detached_task {
     button.isEnabled(true);
 };
 
-auto const selectFolder = [](Model* model, Button button) -> async::detached_task {
+auto const selectFolder = [](Model* model, Button button) -> async::task<> {
     button.isEnabled(false);
     auto picker = FolderPicker {button.xamlRoot().contentIslandEnvironment().appWindowId()};
     picker.commitButtonText(u"Select folder");
@@ -73,7 +77,7 @@ auto const selectFolder = [](Model* model, Button button) -> async::detached_tas
 auto example = StackPanel {
     spacing = 8,
     model->content,
-    Button {content = u"Save a file", onClick = [model, save](Button const& button) { save(model.get(), button); }},
+    Button {content = u"Save a file", onClick = [model, save](Button const& button) { model->saving = save(model.get(), button); }},
     model->saved,
 };
 
@@ -97,7 +101,7 @@ auto options = StackPanel {
             automationName = u"Select folder",
             toolTip = u"Select folder",
             content = FontIcon {glyph = u"\uF89A"},
-            onClick = [model, selectFolder](Button const& button) { selectFolder(model.get(), button); },
+            onClick = [model, selectFolder](Button const& button) { model->selectingFolder = selectFolder(model.get(), button); },
         },
     },
 };

@@ -31,12 +31,14 @@
 демонстрационного проекта `samples/Gallery/Snippets/SplitButton/Text.h`:
 
 ```cpp
-auto const hideOnClick = [](Flyout flyout, Button swatch) -> async::detached_task {
+auto const hideOnClick = [](Flyout flyout, Button swatch) -> async::task<> {
     auto clicks = onClick(swatch);
     if (co_await clicks.next()) {
         flyout.hide();
     }
 };
+
+model->hiding.push_back(hideOnClick(flyout, swatch));   // задачи держит модель страницы
 ```
 
 Конструкции вида `onClick(button)` или `on_event<EventKey::X>(element)`

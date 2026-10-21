@@ -24,7 +24,12 @@ void report(const char* text) {
     }
 }
 
-async::detached_task reads_itself() {
+/// The probe's coroutine, kept until the end of the process.
+struct Probe {
+    async::task<> reading;
+};
+
+async::task<> reads_itself() {
     const DWORD gui = ::GetCurrentThreadId();
 
     wchar_t self[MAX_PATH];
@@ -87,7 +92,8 @@ wxl::Teardown wxl_launched() {
 
     window.activate();
 
-    reads_itself();
+    auto const probe = core::make_refcounted<Probe>();
+    probe->reading = reads_itself();
 
-    return {};
+    return [probe](TeardownReason) {};
 }

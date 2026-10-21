@@ -40,8 +40,15 @@ core::path own_path() {
     return core::path(self);
 }
 
+/// The probe's two coroutines, kept until the end of the process: the reader the box is raised
+/// over, and the one that raises it.
+struct Probe {
+    async::task<> reading;
+    async::task<> opening;
+};
+
 /// Reads the whole file, counting the reads that came back while the box was up.
-async::detached_task reads_all_the_time() {
+async::task<> reads_all_the_time() {
     try {
         async::async_file file = co_await async::async_file::open_read(own_path());
         std::byte buffer[4096];
@@ -67,7 +74,7 @@ void closes_the_box() {
     }).detach();
 }
 
-async::detached_task opens_a_box_in_its_continuation() {
+async::task<> opens_a_box_in_its_continuation(Probe& probe) {
     char line[256];
 
     try {
@@ -77,7 +84,7 @@ async::detached_task opens_a_box_in_its_continuation() {
         co_await file.read(buffer);
 
         // Resumed inside the loop's drain: the modal loop below runs nested in it.
-        reads_all_the_time();
+        probe.reading = reads_all_the_time();
         closes_the_box();
 
         box_is_up = true;
@@ -113,7 +120,8 @@ wxl::Teardown wxl_launched() {
 
     window.activate();
 
-    opens_a_box_in_its_continuation();
+    auto const probe = core::make_refcounted<Probe>();
+    probe->opening = opens_a_box_in_its_continuation(*probe);
 
-    return {};
+    return [probe](TeardownReason) {};
 }

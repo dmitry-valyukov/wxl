@@ -1121,8 +1121,8 @@ struct WindowState : core::refcounted {
     // ---- Задник картинкой, загруженной на ходу ----
 
     // Загрузка начинается в самом вызове, под токеном своего источника, сделанного
-    // под `owner`; ждёт её кадр detached_task (impl/background_load.h). Путь --
-    // уже рядом с приложением.
+    // под `owner`; ждёт её задача, которую держит сама загрузка в backgroundLoads
+    // (impl/background_load.h). Путь -- уже рядом с приложением.
     void loadBackground(BackgroundImage image, async::cancellation_token owner);
 
     // Устройство под поверхностями заменено: картинка задника, загруженная на
@@ -1467,10 +1467,11 @@ void WindowState::loadBackground(BackgroundImage image, async::cancellation_toke
     // что просили.
     if (xamlClosed) throw winrt::hresult_error{RO_E_CLOSED, L"wxl::CompositionWindow: окно уже закрыто"};
     async::cancellation_token const load = backgroundLoads.next(std::move(owner), image);
-    impl::show_when_loaded(
+    // Окно держит ожидание полем (в загрузке), и оно уходит раньше окна: состояние
+    // берётся простым указателем.
+    backgroundLoads.hold(load, impl::show_when_loaded(
         textureCache->getAsync(image.path, load), load,
-        [state = core::intrusive_ptr<WindowState>{this}, fill = image.fill,
-         color = image.color](CompositionDrawingSurface const& surface) {
+        [state = this, fill = image.fill, color = image.color](CompositionDrawingSurface const& surface) {
             // Именованный промежуток: обёртка -> сырая поверхность (одно
             // преобразование), сырая поверхность -> ICompositionSurface у
             // CreateSurfaceBrush (второе); в одном выражении их было бы два
@@ -1478,7 +1479,7 @@ void WindowState::loadBackground(BackgroundImage image, async::cancellation_toke
             muc::CompositionDrawingSurface const& raw =
                 *Object::Impl::get_typed<CompositionDrawingSurface>(surface);
             state->showPicture(state->compositor.CreateSurfaceBrush(raw), fill, color);
-        });
+        }));
 }
 
 // ---- CompositionWindow ----------------------------------------------------

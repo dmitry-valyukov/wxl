@@ -284,7 +284,7 @@ void take_back_the_given_up() {
 // Every level adds its number on the way up, and the bottom its 1000: the value of the
 // deepest operation reaches the top through coroutines that awaited it as returned and
 // coroutines that kept it and joined it, with operations of every kind between them. What
-// is left at the end is the top frame alone, its locals already gone.
+// is left at the end is the top task's result alone: every frame went with its body.
 TEST(TaskDepthTest, TheValueClimbsToTheTop) {
     for (int depth = shallowest; depth <= deepest; ++depth) {
         SCOPED_TRACE(std::format("depth {}", depth));

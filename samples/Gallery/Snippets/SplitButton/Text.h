@@ -10,8 +10,14 @@ const Preset cell {
 
 // One coroutine per swatch: it waits for its click, closes the flyout and
 // ends. It takes the flyout as a parameter, so it lives in its own frame and
-// not in a closure this function would take with it.
-auto const hideOnClick = [](Flyout flyout, Button swatch) -> async::detached_task {
+// not in a closure this function would take with it. The page's model keeps
+// them, and the next opening of the flyout replaces them.
+struct Model {
+    std::vector<async::task<>> hiding;
+};
+auto const model = gallery::hold<Model>();
+
+auto const hideOnClick = [](Flyout flyout, Button swatch) -> async::task<> {
     auto clicks = onClick(swatch);
     if (co_await clicks.next()) {
         flyout.hide();
@@ -27,11 +33,12 @@ auto chooser = SplitButton {
     content = u"Choose color",
     flyout = Flyout {
         placement = FlyoutPlacementMode::Bottom,
-        onOpened = [hideOnClick](Object const& sender) {
+        onOpened = [model, hideOnClick](Object const& sender) {
             auto const flyout = sender.try_as<Flyout>();
             auto const swatches = flyout.content().try_as<VariableSizedWrapGrid>().children();
+            model->hiding.clear();
             for (uint32_t i = 0; i < swatches.size(); ++i) {
-                hideOnClick(flyout, swatches[i].try_as<Button>());
+                model->hiding.push_back(hideOnClick(flyout, swatches[i].try_as<Button>()));
             }
         },
         content = VariableSizedWrapGrid {

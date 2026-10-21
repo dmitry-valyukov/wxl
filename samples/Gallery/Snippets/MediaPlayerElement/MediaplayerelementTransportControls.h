@@ -6,10 +6,13 @@ struct Model {
         source = MediaSource::createFromUri(u"Assets/SampleMedia/ladybug.wmv"),
         onUnloaded = [](MediaPlayerElement const& self) { self.mediaPlayer().pause(); },
     };
+
+    // Last: it goes first, and stops what it runs before anything it touches.
+    async::task<> opening;
 };
 auto const model = gallery::hold<Model>();
 
-auto const open = [](Model* model, Button button) -> async::detached_task {
+auto const open = [](Model* model, Button button) -> async::task<> {
     auto picker = FileOpenPicker {button.xamlRoot().contentIslandEnvironment().appWindowId()};
     picker.fileType(u"*");
     auto const picked = co_await picker.pickSingleFileAsync();
@@ -21,4 +24,4 @@ auto const open = [](Model* model, Button button) -> async::detached_task {
 };
 
 auto example = model->player;
-auto options = Button {content = u"Open a file", onClick = [model, open](Button const& self) { open(model.get(), self); }};
+auto options = Button {content = u"Open a file", onClick = [model, open](Button const& self) { model->opening = open(model.get(), self); }};

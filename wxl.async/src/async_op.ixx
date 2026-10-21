@@ -28,6 +28,11 @@ struct orphanable_t {
 
 inline constexpr orphanable_t orphanable{};
 
+/// What owns an operation, defined with the coroutines (wxl.async:task): declared here to be
+/// the one reader of an answer that is not thrown (async_op::exception()).
+template <class R>
+class task;
+
 namespace detail {
 
 /// The coroutine awaiting a result, in one word. The handle's address is that of a frame,
@@ -93,14 +98,15 @@ private:
 ///   return channel and wakes the coroutine waiting for it (`complete()`). One the platform
 ///   carries out -- wxl.ui's, for a WinRT asynchronous operation -- has no body to run: the
 ///   call its thread's dispatcher queue makes answers it and calls `complete()`.
-/// - **A coroutine**, whose promise is this object too (`task<R>::promise_type`): it runs
-///   where it is resumed, on this thread, is never sent anywhere, and its end hands the
-///   thread to the coroutine waiting for it by symmetric transfer.
+/// - **A coroutine** returning a task (`detail::coroutine_op`), whose promise writes the
+///   result here: it runs where it is resumed, on this thread, is never sent anywhere, and
+///   its end takes its frame down and hands the thread to the coroutine waiting for it by
+///   symmetric transfer. This object outlives the frame, for the task to read.
 ///
 /// Waiting -- is it there, park the waiter, take the result -- is the same plain code for
 /// both, over the fields here. What differs is what the owner letting go does, one call
 /// through the virtual table (`release()`): an operation is deleted or given up, a
-/// coroutine's frame is destroyed. A request to end early reaches only an operation -- one
+/// coroutine still in flight is stopped. A request to end early reaches only an operation -- one
 /// made in the form with a token (`detail::cancellable_operation`); a coroutine
 /// ends by the token it was given, by its own code.
 ///
@@ -125,9 +131,8 @@ public:
 
     virtual ~async_op() = default;
 
-    /// Created and destroyed on the STA thread, both, so the pool is where it belongs --
-    /// for a coroutine, the whole frame, which the promise's allocation functions are
-    /// asked for. The destructor is virtual, so `delete` through this base reaches the
+    /// Created and destroyed on the STA thread, both, so the pool is where it belongs. The
+    /// destructor is virtual, so `delete` through this base reaches the
     /// most derived type's deallocation and hands the pool the size it actually gave out.
     inline static void* operator new(std::size_t size) {
         return core::sta_memory_pool::alloc(size);
@@ -147,10 +152,10 @@ public:
     detail::continuation_word continuation;
 
     /// The owner lets go: the STA thread's call, from the task's destructor. An operation
-    /// that is back goes; one still out is given up (`abandon`). A coroutine overrides it
-    /// and destroys its frame -- and since coroutine_handle::destroy() is not noexcept,
-    /// neither is this: the override ends in that call, where a noexcept one would have to
-    /// guard it.
+    /// that is back goes; one still out is given up (`abandon`). A coroutine overrides it,
+    /// and destroys the frame of a body still in flight -- and since
+    /// coroutine_handle::destroy() is not noexcept, neither is this: a noexcept override
+    /// would have to guard that call.
     virtual void release() {
         if (ready_)
             delete this;
@@ -245,6 +250,12 @@ public:
     inline bool has_exception() const noexcept { return error_ != nullptr; }
 
 protected:
+    /// What the work threw, or its cancellation; empty for work that answered with its
+    /// result. Its task's alone, and only once the result is here: before that the worker
+    /// may be writing it, and whoever holds a borrowed pointer to the operation would read
+    /// it in a race.
+    inline const std::exception_ptr& exception() const noexcept { return error_; }
+
     /// The work itself, on the worker thread. \see packaged_execute().
     virtual bool execute() = 0;
 
@@ -309,6 +320,9 @@ protected:
 private:
     template <class R>
     friend class async_op_t;
+
+    template <class R>
+    friend class task;
 
     // The flags lie between the waiter's word and the exception. A constructor zeroes all
     // three, and a compiler may make the flags' few bytes with one word-wide store that
@@ -604,6 +618,9 @@ public:
     template <class... Args>
     inline explicit cancellable_operation(cancellation_token stop, Args&&... args)
         : Op(std::forward<Args>(args)...), stop_(std::move(stop)), node_(*this) {
+        coro_check(!cancellation_state_of(stop_)->canceled(),
+                   "cancellable_operation: made under a token cancelled already", detail::site::current());
+
         cancellation_state_of(stop_)->event().add(
             core::as_not_null<cancellation_event::func_t>(&node_));
     }

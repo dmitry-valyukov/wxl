@@ -210,7 +210,7 @@ configuration options, running the unit tests, and a guide to integrating
 | Directory | Description and modules |
 | :--- | :--- |
 | **`wxl.core`** | Library core (the `wxl.core` module): the single-threaded STA memory pool, reference counting, reactive `observable` containers, the event model, grapheme-aware UTF-8/UTF-16 text support, file system access, the optimized `nullable` container. |
-| **`wxl.async`** | Asynchronous subsystem: `task` and `detached_task` coroutines, the `sta_loop` dispatcher with non-blocking file I/O, operation cancellation, low-level lock-free queues, data exchange channels and thread synchronization primitives. |
+| **`wxl.async`** | Asynchronous subsystem: `task` coroutines, the `sta_loop` dispatcher with non-blocking file I/O, operation cancellation, low-level lock-free queues, data exchange channels and thread synchronization primitives. |
 | **`wxl.fmt`** / **`wxl.logging`** | `text_builder` and string formatting modules built on top of the `fmt` library. Logging subsystem components. |
 | **`wxl.xml`** / **`wxl.json`** | Lightweight parsers for XML and JSON. |
 | **`wxl.html`** / related | Modules for parsing HTML, BB-code and RSDN text markup for the `HtmlBlock`, `BbBlock`, `RsdnBlock` visual components. The `wxl.highlight` syntax highlighting subsystem. |
@@ -233,9 +233,10 @@ In the **Release** configuration (`/O1` or `/O2` together with `/EHsc`),
 MSVC does not call the destructors of local variables of a coroutine whose
 `final_suspend` returns `std::suspend_never`, and does not free its frame,
 if it decides that the coroutine body does not throw. The defect was found
-on the 14.51 toolset and reproduces on the current 14.53. Since
-application shutdown waits until no live coroutine frames remain, the
-samples may hang when the window is closed in `Release`.
+on the 14.51 toolset and reproduces on the current 14.53. The body of an
+`async::task` nobody awaits also ends without suspending, and the defect
+may affect it too; since application shutdown waits until no live coroutine
+frames remain, the samples may hang when the window is closed in `Release`.
 
 - **Workaround:** build in the **Debug** configuration, without optimization
   (`/Od`), or with the asynchronous exception model (`/EHa`). Detailed report:

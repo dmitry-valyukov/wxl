@@ -1432,7 +1432,7 @@ concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
 // it over with the member's own parameters, so each form above is read off the
 // member as it is off a lambda, and the three stay disjoint for members too.
 // `this` inside a const member function points to const, and then a const
-// member goes; a coroutine member is called and its token dropped.
+// member goes; a member that starts a coroutine keeps its task in a field.
 struct HandlersAsMembers {
     void clicked(Button const& self, RoutedEventArgs& args) {
         Object const source = args.originalSource();
@@ -1446,7 +1446,9 @@ struct HandlersAsMembers {
             args.handled(true);
         }
     }
-    async::detached_task loaded(Button self, RoutedEventArgs&) {
+    void loaded(Button const& self, RoutedEventArgs&) { enabling = enables(self); }
+
+    async::task<> enables(Button self) {
         co_await UiThread::onIdle();
         self.isEnabled(true);
     }
@@ -1465,13 +1467,15 @@ struct HandlersAsMembers {
     }
 
     void build() const { TextBox{onKeyDown = method(this, &HandlersAsMembers::keyDown)}; }
+
+    // Last: it goes first, and stops the coroutine before anything it touches.
+    async::task<> enabling;
 };
 
-// What a member may return: nothing, or a coroutine's token. The refusal of
-// anything else is a static_assert in method()'s body -- a hard error, never a
-// false answer to a requires-expression -- so its condition is what is pinned
-// here.
-static_assert(impl::droppable_result<void> && impl::droppable_result<async::detached_task>);
+// What a member may return: nothing. The refusal of anything else is a
+// static_assert in method()'s body -- a hard error, never a false answer to a
+// requires-expression -- so its condition is what is pinned here.
+static_assert(impl::droppable_result<void>);
 static_assert(!impl::droppable_result<bool> && !impl::droppable_result<async::task<>>);
 
 // And the call reaches the member with what it was given, a reference as a
@@ -1543,12 +1547,13 @@ static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
         content = TextBlock{L"Nothing to say yet"},
     };
 
-    showDialog(about, window, stop);
-    showDialog(about, window.content(), stop);
+    // The wait for the answer is a task its owner keeps; here, until the function returns.
+    async::task<> const overWindow = showDialog(about, window, stop);
+    async::task<> const overContent = showDialog(about, window.content(), stop);
 }
 
 // showDialog takes the token its owner closes the dialog with, and has no form without one: the
-// wait for the answer is a frame the exit waits for, and a dialog nobody can close would keep the
+// wait for the answer is a body the exit waits for, and a dialog nobody can close would keep the
 // process waiting.
 template <class Host>
 concept shows_dialog_without_a_token =
@@ -2306,8 +2311,8 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
     (void)split;
 }
 
-// UiThread::onIdle -- written by hand: awaited in a detached task, between steps of work.
-[[maybe_unused]] ::wxl::async::detached_task idle_between_steps(int steps) {
+// UiThread::onIdle -- written by hand: awaited in a task, between steps of work.
+[[maybe_unused]] ::wxl::async::task<> idle_between_steps(int steps) {
     while (steps-- > 0) {
         co_await ::wxl::UiThread::onIdle();
     }

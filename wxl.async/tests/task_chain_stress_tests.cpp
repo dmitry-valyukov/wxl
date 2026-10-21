@@ -1,5 +1,6 @@
-// A short, seeded version of the randomized stress of coroutine chains: tasks and
-// detached tasks calling one another on the loop, with operations on the worker writing
+// A short, seeded version of the randomized stress of coroutine chains: tasks, and
+// scenarios -- tasks the round keeps and never drops while they run -- calling one another
+// on the loop, with operations on the worker writing
 // into the frames that started them, waits on a queue of this thread, exceptions between
 // the waits, and owners dropping or replacing what they hold at random moments. The
 // program of a round comes from its seed; the interleaving with the worker does not, and
@@ -83,8 +84,8 @@ struct round_state {
 
     const std::uint64_t seed;
 
-    /// Whether a task may await a stored task, or only a detached task may: a task can be
-    /// dropped by its owner while it waits, a detached task cannot.
+    /// Whether any task may await a stored task, or only a scenario may: a task can be
+    /// dropped by its owner while it waits, a scenario is not.
     const bool joins_by_tasks;
 
     std::array<frame_record, max_frames + max_top + 1> frames;
@@ -95,8 +96,12 @@ struct round_state {
     std::vector<std::unique_ptr<stored_slot>> stored;
     std::deque<std::shared_ptr<idle_wait*>> idle;
 
+    /// The scenarios: kept until the round is over, never dropped while they run, so that
+    /// what they join outlives nobody waiting on it. A failure is read at the end.
+    std::vector<task<>> scenarios;
+
     int frames_alive = 0;
-    int detached_alive = 0;
+    int scenarios_alive = 0;
     int ops_alive = 0;
     int resumed_gone = 0;
     int resumed_not_waiting = 0;
@@ -257,7 +262,7 @@ std::span<std::byte> piece_of(std::span<std::byte> buffer, std::uint32_t i) {
     return buffer.subspan((i * piece) % buffer.size(), piece);
 }
 
-detached_task scenario(round_state& c, std::uint32_t id, std::uint32_t depth);
+task<> scenario(round_state& c, std::uint32_t id, std::uint32_t depth);
 
 /// One link of a chain, its program drawn from the round's seed and its id.
 task<int> chain_link(round_state& c, std::uint32_t id, std::uint32_t depth) {
@@ -327,7 +332,7 @@ task<int> chain_link(round_state& c, std::uint32_t id, std::uint32_t depth) {
                 if (r.one_in(4)) throw operation_canceled_exception();
                 throw std::runtime_error("between two waits");
             } else if (what == 12 && c.can_spawn(depth)) {
-                scenario(c, c.new_id(), depth + 1);
+                c.scenarios.push_back(scenario(c, c.new_id(), depth + 1));
             } else if (what == 13 && c.can_spawn(depth)) {
                 // Two in flight, awaited in the order opposite to the one they started in.
                 task<int> first = chain_link(c, c.new_id(), depth + 1);
@@ -365,25 +370,25 @@ task<int> chain_link(round_state& c, std::uint32_t id, std::uint32_t depth) {
     co_return sum;
 }
 
-/// Counts a detached task of the round for as long as its frame is there.
-class detached_mark
+/// Counts a scenario of the round for as long as its frame is there.
+class scenario_mark
 {
 public:
-    explicit detached_mark(round_state& c) : c_(c) { ++c_.detached_alive; }
-    ~detached_mark() { --c_.detached_alive; }
+    explicit scenario_mark(round_state& c) : c_(c) { ++c_.scenarios_alive; }
+    ~scenario_mark() { --c_.scenarios_alive; }
 
-    detached_mark(const detached_mark&) = delete;
-    detached_mark& operator=(const detached_mark&) = delete;
+    scenario_mark(const scenario_mark&) = delete;
+    scenario_mark& operator=(const scenario_mark&) = delete;
 
 private:
     round_state& c_;
 };
 
-/// A detached task: joins stored tasks, awaits chains, and lets whatever it does not
-/// catch go -- a cancellation into silence, anything else to the failure handler.
-detached_task scenario(round_state& c, std::uint32_t id, std::uint32_t depth) {
+/// A scenario: joins stored tasks, awaits chains, and lets whatever it does not catch out --
+/// into its task, which the round reads at the end.
+task<> scenario(round_state& c, std::uint32_t id, std::uint32_t depth) {
     const frame_witness witness(c, id);
-    const detached_mark mark(c);
+    const scenario_mark mark(c);
     random_stream r(seed_of(c.seed, id));
     std::array<std::byte, 16> buffer{};
 
@@ -413,7 +418,7 @@ detached_task scenario(round_state& c, std::uint32_t id, std::uint32_t depth) {
             c.resumed(id);
         } else if (what == 4 && r.one_in(4)) {
             if (r.one_in(2)) throw operation_canceled_exception();
-            throw std::runtime_error("out of a detached task");
+            throw std::runtime_error("out of a scenario");
         }
     }
 }
@@ -437,7 +442,7 @@ void start_top(round_state& c, random_stream& r) {
     const std::uint32_t id = c.new_id();
 
     if (r.one_in(3)) {
-        scenario(c, id, 0);
+        c.scenarios.push_back(scenario(c, id, 0));
     } else {
         sweep(c);
         c.io.push_back(chain_link(c, id, 0));
@@ -513,21 +518,9 @@ bool run_round(round_state& c) {
     }
 }
 
-/// What the failure handler saw: it is a bare function pointer, with nowhere of its own
-/// to put it.
-int detached_failures = 0;
-
 class TaskChainStressTest : public ::testing::Test
 {
 protected:
-    void SetUp() override {
-        detached_failures = 0;
-        previous_ = on_detached_task_failure();
-        on_detached_task_failure() = [](std::exception_ptr) noexcept { ++detached_failures; };
-    }
-
-    void TearDown() override { on_detached_task_failure() = previous_; }
-
     /// Runs the rounds and stops at the first that breaks the rule, naming it.
     static void run_rounds(std::uint64_t seed, int rounds, bool joins_by_tasks) {
         for (int i = 0; i < rounds; ++i) {
@@ -542,6 +535,17 @@ protected:
 
             sweep(*c);
             c->io.clear();
+
+            // Every scenario has ended -- nothing waits -- and what it ended with is read.
+            for (task<>& t : c->scenarios) {
+                ASSERT_TRUE(t.done()) << "round " << i << ": a scenario never ended";
+
+                try {
+                    t.result();
+                } catch (...) {
+                }
+            }
+            c->scenarios.clear();
             for (auto& slot : c->stored) slot->held = {};
             c->stored.clear();
 
@@ -551,15 +555,12 @@ protected:
             ASSERT_EQ(c->wrote_into_gone_frame.load(), 0) << "round " << i << ": an operation wrote into a frame that was gone";
             ASSERT_EQ(c->resumed_gone, 0) << "round " << i << ": a frame was resumed after it was gone";
             ASSERT_EQ(c->resumed_not_waiting, 0) << "round " << i << ": a frame was resumed while not waiting";
-            ASSERT_EQ(c->detached_alive, 0) << "round " << i << ": a detached task never ended";
+            ASSERT_EQ(c->scenarios_alive, 0) << "round " << i << ": a scenario never ended";
             ASSERT_EQ(c->frames_alive, 0) << "round " << i << ": a frame outlived the round";
             ASSERT_EQ(c->ops_alive, 0) << "round " << i << ": an operation outlived the round";
             ASSERT_TRUE(c->idle.empty());
         }
     }
-
-private:
-    detached_task_failure_handler previous_ = nullptr;
 };
 
 constexpr std::uint64_t stress_seed = 20261009;

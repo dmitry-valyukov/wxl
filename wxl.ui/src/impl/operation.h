@@ -3,6 +3,8 @@
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Windows.Foundation.h>
 
+#include "coroutine_checks.h"
+
 #include "../Operation.h"
 
 // The producer behind the task a WinRT asynchronous operation becomes: an IAsyncOperation<X> or
@@ -154,6 +156,9 @@ public:
           queue_(std::move(queue)),
           stop_(std::move(stop)),
           node_(*this) {
+        coro_check(!async::detail::cancellation_state_of(stop_)->canceled(),
+                   "producer_under: made under a token cancelled already", async::detail::site::current());
+
         async::detail::cancellation_state_of(stop_)->event().add(
             core::as_not_null<cancellation_event::func_t>(&node_));
     }
@@ -228,7 +233,7 @@ private:
 ///
 /// A refusal is not an exception, and it is left as it is: the queue of the calling thread
 /// refuses only once it is shut down, with XAML, on the way out. The coroutine waiting stays
-/// suspended, and a detached frame keeps the wait at exit going for it -- a hang, which a Debug
+/// suspended, and its frame keeps the wait at exit going for it -- a hang, which a Debug
 /// build's watch over that wait reports after ten seconds, and not a turn lost in silence.
 template <class Producer, class Op, class Queue>
 void post_completion(Op const& operation, Queue const& queue, Producer& made) {

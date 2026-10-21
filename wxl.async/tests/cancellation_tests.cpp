@@ -152,14 +152,14 @@ task<std::size_t> deaf(probe& p, cancellation_token) {
     co_return got;
 }
 
-/// An orphan that was not given the token, and one that asked for it.
-detached_task orphan(probe& p, std::size_t& got, bool& ended) {
+/// Work the chain hands to another owner: one not given the token, and one that asked for it.
+task<> handed_off(probe& p, std::size_t& got, bool& ended) {
     std::byte buf[16]{};
     got = co_await start_read(p, buf);
     ended = true;
 }
 
-detached_task orphan_that_asked(probe& p, cancellation_token stop, bool& canceled) {
+task<> handed_off_under(probe& p, cancellation_token stop, bool& canceled) {
     std::byte buf[16]{};
 
     try {
@@ -169,14 +169,15 @@ detached_task orphan_that_asked(probe& p, cancellation_token stop, bool& cancele
     }
 }
 
-/// The chain's own read goes out first, then the orphans': the worker takes them in turn.
-task<std::size_t> spawns_two_orphans(probe& own, probe& unasked, probe& asking,
-                                     cancellation_token stop, std::size_t& unasked_got,
-                                     bool& unasked_ended, bool& asking_canceled) {
+/// The chain's own read goes out first, then those of the work it hands to `others`, which
+/// outlive it: the worker takes them in turn.
+task<std::size_t> hands_off_two(probe& own, probe& unasked, probe& asking, cancellation_token stop,
+                                std::vector<task<>>& others, std::size_t& unasked_got,
+                                bool& unasked_ended, bool& asking_canceled) {
     task<std::size_t> own_read = bottom(own, stop);
 
-    orphan_that_asked(asking, stop, asking_canceled);
-    orphan(unasked, unasked_got, unasked_ended);
+    others.push_back(handed_off_under(asking, stop, asking_canceled));
+    others.push_back(handed_off(unasked, unasked_got, unasked_ended));
 
     co_return co_await own_read;
 }
@@ -366,16 +367,18 @@ TEST(CancellationTest, CancellingAChainThatHasEndedDoesNothing) {
     EXPECT_TRUE(stop.is_canceled());
 }
 
-// An orphan started from the chain is not the chain's: without the token it reads on and
-// ends with its value, while the one that took the token is cancelled with the chain.
-TEST(CancellationTest, AnOrphanIsNotCancelledUnlessItTookTheToken) {
+// Work the chain started and handed to another owner is not the chain's: without the token it
+// reads on and ends with its value, while the work that took the token is cancelled with the
+// chain.
+TEST(CancellationTest, WorkHandedOffIsNotCancelledUnlessItTookTheToken) {
     probe own, unasked, asking;
     std::size_t unasked_got = 0;
     bool unasked_ended = false, asking_canceled = false;
+    std::vector<task<>> others;
 
     cancellation_source stop;
-    task<std::size_t> chain = spawns_two_orphans(own, unasked, asking, stop.token(), unasked_got,
-                                                 unasked_ended, asking_canceled);
+    task<std::size_t> chain = hands_off_two(own, unasked, asking, stop.token(), others, unasked_got,
+                                            unasked_ended, asking_canceled);
 
     own.started.wait();
     stop.cancel();
@@ -517,7 +520,7 @@ TEST(CancellationTest, AnOperationDoneOnTheWorkerKeepsItsAnswerWhenCancelledOnIt
 }
 
 // What the form with a token returns is a task like any other: kept and awaited later, it
-// holds its token, so it does not matter what has become of the source by then.
+// gives what the read made, for as long as the source -- the right to the work -- lives.
 TEST(CancellationTest, AKeptOperationUnderATokenIsAwaitedLater) {
     std::coroutine_handle<> slot;
 
@@ -525,10 +528,8 @@ TEST(CancellationTest, AKeptOperationUnderATokenIsAwaitedLater) {
         probe p;
         p.gate.set();
 
-        std::optional<cancellation_source> stop(std::in_place);
-        task<std::size_t> chain = keeps_the_read(p, stop->token(), slot);
-
-        stop.reset();
+        cancellation_source stop;
+        task<std::size_t> chain = keeps_the_read(p, stop.token(), slot);
 
         ASSERT_TRUE(slot);
         slot.resume();
@@ -536,6 +537,27 @@ TEST(CancellationTest, AKeptOperationUnderATokenIsAwaitedLater) {
 
         EXPECT_EQ(chain.result(), 16u);
         EXPECT_EQ(p.canceled, 0);
+    }
+
+    // The source gone while the read is kept is the read cancelled: the co_await that comes
+    // later waits for it to come back and ends with the cancellation.
+    {
+        probe p;
+
+        std::optional<cancellation_source> stop(std::in_place);
+        task<std::size_t> chain = keeps_the_read(p, stop->token(), slot);
+
+        p.started.wait();
+        stop.reset();
+        EXPECT_EQ(p.canceled, 1) << "the source went and the read it held was not cancelled";
+
+        ASSERT_TRUE(slot);
+        slot.resume();
+        sta_loop::run_until([&] { return chain.done(); });
+
+        EXPECT_TRUE(ends_cancelled(chain));
+        EXPECT_EQ(p.wrote, 0);
+        EXPECT_EQ(p.alive, 0);
     }
 
     // Asked while it is kept, it is cancelled at once -- it stands under the token from the
@@ -604,6 +626,9 @@ TEST(CancellationTest, AFrameDestroyedOnAKeptReadLeavesTheToken) {
         EXPECT_EQ(p.canceled, 1);
     }
 
+    // The source going first cancels the kept read, and empties the event: the frame destroyed
+    // after it gives up a read that stands nowhere any more, and asks it to stop no second
+    // time. The read's token, the last holder of the state, answers that it is cancelled.
     probe p;
     std::coroutine_handle<> slot;
     std::optional<cancellation_source> stop(std::in_place);
@@ -613,8 +638,13 @@ TEST(CancellationTest, AFrameDestroyedOnAKeptReadLeavesTheToken) {
         p.started.wait();
         slot.resume();
 
-        // The kept read now stands in the event of a state only its own token holds.
+        const cancellation_token kept = stop->token();
         stop.reset();
+
+        EXPECT_EQ(p.canceled, 1) << "the source went and the read it held was not cancelled";
+        EXPECT_TRUE(kept.is_canceled()) << "a token outliving its source is not cancelled";
+        EXPECT_FALSE(static_cast<bool>(detail::cancellation_state_of(kept)->event()))
+            << "the cancelled read still stands in the event";
     }
 
     EXPECT_EQ(p.canceled, 1);
@@ -1071,15 +1101,6 @@ bool anybody_stands(const cancellation_token& token) {
     return static_cast<bool>(detail::cancellation_state_of(token)->event());
 }
 
-/// Counts the states it was put into that are still alive: a callback of its own in the
-/// state's event, which the event lets go of -- and with it what the callback captured --
-/// when the state goes. Only for a state not cancelled meanwhile: a fire lets go of what it
-/// has called.
-void count_while_alive(const cancellation_token& token, int& alive) {
-    detail::cancellation_state_of(token)->event().add(
-        [keep = counted_capture(&alive)]() noexcept {});
-}
-
 /// The thread's queue, as a wait of wxl.ui sees it: a cancelled wait hands its coroutine here
 /// rather than resuming it, and the test takes the turns.
 using turns = std::vector<std::coroutine_handle<>>;
@@ -1238,8 +1259,9 @@ TEST(CancellationTest, UnderACancelledParentTheChildIsBornCancelled) {
 }
 
 // A child that goes before the parent is cancelled takes its callback out of the parent's
-// event -- cancelled or not, and once its last token has gone, the source or not -- and the
-// parent's cancel() reaches nothing that is gone.
+// event once its last token has gone, the source or not -- and the parent's cancel() reaches
+// nothing that is gone. The child's source going is the child cancelled: a token of it held
+// past that answers so.
 TEST(CancellationTest, AChildGoneBeforeTheParentIsCancelledLeavesItsEvent) {
     cancellation_source parent;
 
@@ -1260,6 +1282,8 @@ TEST(CancellationTest, AChildGoneBeforeTheParentIsCancelledLeavesItsEvent) {
         cancellation_source child(parent.token());
         kept = child.token();
     }
+    EXPECT_TRUE(kept->is_canceled()) << "the child's source went and its token is not cancelled";
+    EXPECT_FALSE(parent.is_canceled());
     EXPECT_TRUE(anybody_stands(parent.token())) << "the child left while its token was held";
     kept.reset();
     EXPECT_FALSE(anybody_stands(parent.token()));
@@ -1317,50 +1341,49 @@ TEST(CancellationTest, ThreeGenerations) {
     EXPECT_EQ(e.ran + m.ran + y.ran, 0);
 }
 
-// The parent's source and every token of it gone but the child's hold: the child goes on,
-// the parent's state lives as long as the child's, and both go when the child does -- the
-// parent holds nothing of the child, so there is no cycle to leak.
-TEST(CancellationTest, AChildHoldsItsParentAndNothingLeaks) {
-    int parents = 0, children = 0;
-
+// The parent's source gone is the child cancelled, and a token of either, kept past both
+// sources, still answers: the states live as long as somebody holds them, the parent's held by
+// the child's. That nothing is left once the last holder goes -- that the parent holds nothing
+// of the child, so there is no cycle -- is the code's, not this test's to show: the child's
+// state stands in the parent's event by a plain pointer, and only the child holds the parent.
+TEST(CancellationTest, AChildHoldsItsParentsStateAfterTheParentsSourceGoes) {
     {
         std::optional<cancellation_source> parent(std::in_place);
-        cancellation_source child(parent->token());
-        count_while_alive(parent->token(), parents);
-        count_while_alive(child.token(), children);
+        std::optional<cancellation_source> child(std::in_place, parent->token());
+        const cancellation_token parents_token = parent->token();
+        const cancellation_token childs_token = child->token();
 
         parent.reset();
-        EXPECT_EQ(parents, 1) << "the parent's state went while the child stood in its event";
+        EXPECT_TRUE(child->is_canceled()) << "the parent's source went and the child was not cancelled";
 
         probe p;
-        p.gate.set();
-        task<std::size_t> chain = top(p, child.token());
-        sta_loop::run_until([&] { return chain.done(); });
-        EXPECT_EQ(chain.result(), 16u);
+        task<std::size_t> chain = top(p, child->token());
+        EXPECT_TRUE(ends_cancelled(chain));
+        EXPECT_EQ(p.made, 0);
+
+        child.reset();
+        EXPECT_TRUE(parents_token.is_canceled());
+        EXPECT_TRUE(childs_token.is_canceled());
     }
 
-    EXPECT_EQ(children, 0);
-    EXPECT_EQ(parents, 0);
-
-    // And cancelled by itself, with nothing of the parent left but its hold.
+    // What stands under the child when the parent's source goes is cancelled, and comes back
+    // with the cancellation.
     {
         std::optional<cancellation_source> parent(std::in_place);
         cancellation_source child(parent->token());
-        count_while_alive(parent->token(), parents);
-        parent.reset();
 
         probe p;
         task<std::size_t> chain = top(p, child.token());
         p.started.wait();
-        child.cancel();
+
+        parent.reset();
         EXPECT_EQ(p.canceled, 1);
 
         sta_loop::run_until([&] { return chain.done(); });
         EXPECT_TRUE(ends_cancelled(chain));
-        EXPECT_EQ(parents, 1);
+        EXPECT_EQ(p.wrote, 0);
+        EXPECT_EQ(p.alive, 0);
     }
-
-    EXPECT_EQ(parents, 0);
 }
 
 // Many children under one parent, going front to back and back to front: each takes its own
@@ -1491,6 +1514,176 @@ TEST(CancellationTest, TheParentsFireCancelsTheChildsOwnAndDestroysNobody) {
     EXPECT_EQ(before.ran + under_child.ran + under_grandchild.ran + after.ran, 0);
 }
 
+// ---- The source lives as long as the right to the work ---------------------------------
+
+// The source gone is the work cancelled: what stands under its token is cut short as by
+// cancel(), and the chain ends by itself with the cancellation.
+TEST(CancellationTest, ASourceThatGoesCancelsWhatStandsUnderItsToken) {
+    probe p;
+    std::optional<cancellation_source> stop(std::in_place);
+    task<std::size_t> chain = top(p, stop->token());
+
+    p.started.wait();
+    stop.reset();
+
+    EXPECT_EQ(p.canceled, 1);
+    EXPECT_FALSE(chain.done()) << "the destructor resumed the chain itself";
+
+    sta_loop::run_until([&] { return chain.done(); });
+
+    EXPECT_TRUE(ends_cancelled(chain));
+    EXPECT_EQ(p.wrote, 0);
+    EXPECT_EQ(p.alive, 0);
+}
+
+// ...and a source made under its token, with what stands under that one.
+TEST(CancellationTest, ASourceThatGoesCancelsTheSourcesUnderIt) {
+    probe p;
+    std::optional<cancellation_source> parent(std::in_place);
+    cancellation_source child(parent->token());
+    task<std::size_t> chain = top(p, child.token());
+
+    p.started.wait();
+    parent.reset();
+
+    EXPECT_TRUE(child.is_canceled());
+    EXPECT_EQ(p.canceled, 1);
+
+    sta_loop::run_until([&] { return chain.done(); });
+    EXPECT_TRUE(ends_cancelled(chain));
+}
+
+// Moving hands the right on and cancels nothing: the source moved from is empty, and its
+// going does nothing; the work stands under the source it moved to, and goes with that one.
+TEST(CancellationTest, AMovedSourceCancelsNothingAndTheOneMovedFromDoesNothing) {
+    probe p;
+    p.gate.set();
+
+    std::optional<cancellation_source> first(std::in_place);
+    std::coroutine_handle<> slot;
+    task<std::size_t> chain = keeps_the_read(p, first->token(), slot);
+
+    cancellation_source second(std::move(*first));
+    first.reset();
+
+    EXPECT_FALSE(second.is_canceled());
+    EXPECT_EQ(p.canceled, 0) << "moving the source, or the empty one going, cancelled the read";
+
+    ASSERT_TRUE(slot);
+    slot.resume();
+    sta_loop::run_until([&] { return chain.done(); });
+
+    EXPECT_EQ(chain.result(), 16u);
+    EXPECT_EQ(p.canceled, 0);
+}
+
+// Assigned over, a source cancels the work it held, as its destructor would, and takes over
+// the other's without cancelling it.
+TEST(CancellationTest, ASourceAssignedOverCancelsTheWorkItHeld) {
+    probe held, taken;
+    std::byte buf[16]{};
+
+    // The read under the source assigned over keeps the worker; the other waits behind it.
+    cancellation_source field;
+    task<std::size_t> overwritten = start_read(held, buf, field.token());
+    held.started.wait();
+
+    cancellation_source next;
+    task<std::size_t> kept = top(taken, next.token());
+
+    field = std::move(next);
+
+    EXPECT_EQ(held.canceled, 1) << "the work of the source assigned over was not cancelled";
+    EXPECT_EQ(taken.canceled, 0) << "the work taken over was cancelled";
+    EXPECT_FALSE(field.is_canceled());
+
+    taken.gate.set();
+    sta_loop::run_until([&] { return overwritten.done() && kept.done(); });
+
+    EXPECT_TRUE(ends_cancelled(overwritten));
+    EXPECT_EQ(kept.result(), 16u);
+
+    // A source moved onto itself stays as it is.
+    cancellation_source& same = field;
+    field = std::move(same);
+    EXPECT_FALSE(field.is_canceled());
+}
+
+// A source cancelled already has nobody standing: its going asks nothing of anybody again --
+// neither what it cancelled, nor a child that cancelled itself first and still stands in its
+// event, which the parent's going reaches.
+TEST(CancellationTest, ASourceCancelledAlreadyDoesNothingAsItGoes) {
+    probe p;
+    task<std::size_t> chain;
+    {
+        cancellation_source stop;
+        chain = top(p, stop.token());
+        p.started.wait();
+
+        stop.cancel();
+        EXPECT_EQ(p.canceled, 1);
+    }
+    EXPECT_EQ(p.canceled, 1) << "the source cancelled already asked again as it went";
+
+    sta_loop::run_until([&] { return chain.done(); });
+    EXPECT_TRUE(ends_cancelled(chain));
+
+    probe under_child;
+    std::optional<cancellation_source> parent(std::in_place);
+    cancellation_source child(parent->token());
+    task<std::size_t> childs = top(under_child, child.token());
+    under_child.started.wait();
+
+    child.cancel();
+    EXPECT_EQ(under_child.canceled, 1);
+    EXPECT_TRUE(anybody_stands(parent->token())) << "the child cancelled by itself left its parent's event";
+
+    parent.reset();
+    EXPECT_EQ(under_child.canceled, 1) << "the parent's going asked the cancelled child again";
+
+    sta_loop::run_until([&] { return childs.done(); });
+    EXPECT_TRUE(ends_cancelled(childs));
+}
+
+namespace {
+
+/// Hands part of its work to another owner, under a source of its own in its frame, and fails
+/// before that work is done.
+task<> hands_off_and_fails(probe& p, cancellation_token stop, std::vector<task<>>& others,
+                           bool& handed_off_canceled) {
+    cancellation_source local(stop);
+
+    others.push_back(handed_off_under(p, local.token(), handed_off_canceled));
+
+    co_await sta_loop::call_here([] { throw std::runtime_error("failed"); });
+}
+
+}  // namespace
+
+// A source that is a local of a frame is the right to the work it started: the frame unwound
+// by an exception takes its subtree down with it -- work handed to another owner, whose read
+// stands under it, is cancelled and ends -- and the work above is not touched.
+TEST(CancellationTest, AFrameUnwindingCancelsTheWorkOfItsOwnSource) {
+    probe p;
+    bool canceled = false;
+    std::vector<task<>> others;
+    cancellation_source outer;
+
+    task<> work = hands_off_and_fails(p, outer.token(), others, canceled);
+
+    ASSERT_TRUE(work.done());
+    EXPECT_THROW(work.result(), std::runtime_error);
+    EXPECT_EQ(p.canceled, 1) << "the frame went and the work under its source was not cancelled";
+    EXPECT_FALSE(outer.is_canceled());
+
+    ASSERT_EQ(others.size(), 1u);
+    sta_loop::run_until([&] { return others.front().done(); });
+
+    EXPECT_TRUE(canceled);
+    EXPECT_EQ(p.wrote, 0);
+    EXPECT_EQ(p.alive, 0);
+}
+
 // The token is one thread's: a build that checks coroutines stops a cancel() from any other,
 // and a source made under a token there, which would join the token's event -- assert in a
 // Debug build, core::abort with the caller's line under STRICT_CORO.
@@ -1525,6 +1718,14 @@ void make_a_child_on_another_thread() {
     std::thread([&parent] { make_a_child_there(parent); }).join();
 }
 
+void ask_a_moved_from_source() {
+    report_failures_to_stderr();
+
+    cancellation_source stop;
+    cancellation_source taken(std::move(stop));
+    (void)stop.token();
+}
+
 class CancellationDeathTest : public ::testing::Test
 {
 protected:
@@ -1554,6 +1755,10 @@ TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignCancel) {
                              line_of_the_foreign_cancel));
 }
 
+TEST_F(CancellationDeathTest, AMovedFromSourceIsNotAsked) {
+    EXPECT_DEATH(ask_a_moved_from_source(), "cancellation_source: empty -- moved from");
+}
+
 TEST_F(CancellationDeathTest, AChildIsMadeOnItsCoroutinesThread) {
     EXPECT_DEATH(make_a_child_on_another_thread(),
                  "made under a token on a thread other than its coroutines'");
@@ -1566,6 +1771,12 @@ TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignChild) {
 }
 
 static_assert(sizeof(cancellation_token) == sizeof(void*));
+
+// One source is one right to the work: it moves and is not copied.
+static_assert(!std::is_copy_constructible_v<cancellation_source> &&
+              !std::is_copy_assignable_v<cancellation_source>);
+static_assert(std::is_nothrow_move_constructible_v<cancellation_source> &&
+              std::is_nothrow_move_assignable_v<cancellation_source>);
 
 // A token is not a source: a child is made by name, from its parent's token.
 static_assert(std::is_constructible_v<cancellation_source, cancellation_token>);

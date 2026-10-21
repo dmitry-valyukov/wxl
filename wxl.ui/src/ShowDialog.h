@@ -1,16 +1,18 @@
 #pragma once
 
-// wxl::showDialog -- a ContentDialog put on screen, and the wait for its answer left running.
+// wxl::showDialog -- a ContentDialog put on screen, and the wait for its answer handed back.
 //
 // ContentDialog has one door, ShowAsync, and its wrapper hands it out as a task to await
 // (dialog.showAsync(stop)). Many dialogs are not awaited, though: a notice, an "about" -- the
 // caller shows one and goes on, and the answer, where there is one, comes the way everything
 // else in wxl does -- through the dialog's own events (PrimaryButtonClick, CloseButtonClick,
 // Closed and their neighbours), which are projected already. This is that call: it returns at
-// once, and the wait is the library's.
+// once, with the wait for the answer as a task.
 //
-// The wait is a detached coroutine, the process's like every other: the exit waits for it, so a
-// dialog left up keeps the process waiting. Hence the token, and no form without one: it is how
+// The task is kept like every other, in a field of whoever closes the dialog -- the window it is
+// raised from, the model behind it; dropping it closes the dialog. Its body is under way while
+// the dialog is up, and the exit waits for it, so a dialog left up keeps the process waiting.
+// Hence the token, and no form without one: it is how
 // the owner closes the dialog -- a token of the application's common source, cancelled on the
 // way out while the window's queue still turns (from the main window's Closed at the latest:
 // the wait at exit comes before Teardown), or of a source made under it, for a dialog that has
@@ -46,13 +48,16 @@ class ContentDialog;
 class UIElement;
 class Window;
 
-/// Shows `dialog` over `host` and returns at once -- the dialog stays up
-/// until the reader answers it, and what they answered arrives on the
-/// dialog's events, or until `stop` is cancelled, which closes it.
+/// Shows `dialog` over `host` and returns at once, with the wait for its
+/// answer -- the dialog stays up until the reader answers it, and what they
+/// answered arrives on the dialog's events, or until `stop` is cancelled or the
+/// task dropped, either of which closes it.
 /// \throw the platform's refusal, when the dialog cannot be shown.
-void showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token stop);
+[[nodiscard("the dialog closes with the task: keep it where the dialog's owner keeps its tasks")]]
+async::task<> showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token stop);
 
 /// The same, over the island `host` is in.
-void showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token stop);
+[[nodiscard("the dialog closes with the task: keep it where the dialog's owner keeps its tasks")]]
+async::task<> showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token stop);
 
 }  // namespace wxl

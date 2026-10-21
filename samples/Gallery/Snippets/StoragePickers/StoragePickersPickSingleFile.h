@@ -4,6 +4,9 @@ struct Model {
     core::observable<int> view {0};
     TextBox commit {header = u"Commit button text", placeholderText = u"Open", u"Pick File"};
     TextBlock picked {u"No file picked"};
+
+    // Last: it goes first, and stops what it runs before anything it touches.
+    async::task<> picking;
 };
 auto const model = gallery::hold<Model>();
 
@@ -25,7 +28,7 @@ const std::initializer_list<char16_t const*> locationNames = {u"DocumentsLibrary
                                                               u"VideosLibrary",    u"Objects3D",      u"Unspecified"};
 // The picker is made over the window the button hangs in. Its answer is waited for with co_await: the window
 // goes on working, and the coroutine resumes on the interface thread, where the text block may be written.
-auto const pick = [](Model* model, Button button) -> async::detached_task {
+auto const pick = [](Model* model, Button button) -> async::task<> {
     button.isEnabled(false);  // no second click while the dialog is open
 
     auto picker = FileOpenPicker {button.xamlRoot().contentIslandEnvironment().appWindowId()};
@@ -53,7 +56,7 @@ auto const pick = [](Model* model, Button button) -> async::detached_task {
 
 auto example = StackPanel {
     spacing = 8,
-    Button {content = u"Pick a single file", onClick = [model, pick](Button const& button) { pick(model.get(), button); }},
+    Button {content = u"Pick a single file", onClick = [model, pick](Button const& button) { model->picking = pick(model.get(), button); }},
     model->picked,
 };
 

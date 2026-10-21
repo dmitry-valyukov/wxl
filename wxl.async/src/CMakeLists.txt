@@ -11,7 +11,6 @@ wxl_add_module_library(wxl.async STATIC
         completion_counter.ixx
         coroutine_checks.ixx
         countdown_event.ixx
-        detached_task.ixx
         drain_stack.ixx
         future.ixx
         future_shared_state.ixx

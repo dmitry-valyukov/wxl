@@ -4,6 +4,9 @@ struct Model {
     core::observable<int> view {0};
     TextBox commit {header = u"Commit button text", placeholderText = u"Open", u"Pick Files"};
     TextBlock picked {u"No files picked"};
+
+    // Last: it goes first, and stops what it runs before anything it touches.
+    async::task<> picking;
 };
 auto const model = gallery::hold<Model>();
 
@@ -23,7 +26,7 @@ static constexpr PickerLocationId locations[] = {
 const std::initializer_list<char16_t const*> locationNames = {u"DocumentsLibrary", u"ComputerFolder", u"Desktop",
                                                               u"Downloads",        u"MusicLibrary",   u"PicturesLibrary",
                                                               u"VideosLibrary",    u"Objects3D",      u"Unspecified"};
-auto const pick = [](Model* model, Button button) -> async::detached_task {
+auto const pick = [](Model* model, Button button) -> async::task<> {
     button.isEnabled(false);
 
     auto picker = FileOpenPicker {button.xamlRoot().contentIslandEnvironment().appWindowId()};
@@ -55,7 +58,7 @@ auto const pick = [](Model* model, Button button) -> async::detached_task {
 
 auto example = StackPanel {
     spacing = 8,
-    Button {content = u"Pick multiple files", onClick = [model, pick](Button const& button) { pick(model.get(), button); }},
+    Button {content = u"Pick multiple files", onClick = [model, pick](Button const& button) { model->picking = pick(model.get(), button); }},
     model->picked,
 };
 

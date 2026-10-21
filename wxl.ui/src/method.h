@@ -10,9 +10,10 @@
 // returns has exactly the member's operator, so it takes whichever form the
 // member is written in, and nothing in between has to know about it.
 //
-// Its own header, not events.h, because it names async::detached_task: the
-// import of wxl.async stays with the files that write coroutines, instead of
-// reaching every translation unit that includes a wrapper.
+// Its own header, not events.h: it brings the import of wxl.async, which the
+// files handing members over -- members that start the tasks their objects
+// keep -- use, instead of reaching every translation unit that includes a
+// wrapper.
 
 #include "core.h"
 
@@ -110,10 +111,9 @@ struct member_signature<R (C::*)(P...) const noexcept> {
 };
 
 // What the caller of a handler may drop without losing anything: no result
-// at all, or the token of a coroutine that started on the call and owns
-// itself.
+// at all.
 template <typename R>
-concept droppable_result = std::is_void_v<R> || std::is_same_v<R, async::detached_task>;
+concept droppable_result = std::is_void_v<R>;
 
 }  // namespace impl
 
@@ -133,11 +133,11 @@ concept droppable_result = std::is_void_v<R> || std::is_same_v<R, async::detache
 /// Through a pointer to const -- `this` inside a const member function -- only
 /// a const member can be named.
 ///
-/// The member returns nothing, or `async::detached_task`: a coroutine member
-/// is started by the call and its token dropped, since it owns itself, and
-/// what it keeps past its first `co_await` it takes by value -- the sender and
-/// the args are lent for the call only. Any other result would be lost
-/// unread, and is refused.
+/// The member returns nothing. One that starts a coroutine keeps its task in a
+/// field of its object, which stops it by going, and passes it by value what
+/// the coroutine keeps past its first `co_await` -- the sender and the args are
+/// lent for the call only. Any other result would be lost unread, and is
+/// refused.
 ///
 /// The object is held by a bare pointer, for an object that owns the element
 /// it handles: the element and its handler go before it, while a counted
@@ -148,8 +148,7 @@ template <typename Obj, typename Member>
 [[nodiscard]] constexpr auto method(Obj* object, Member member) noexcept {
     using signature = impl::member_signature<Member>;
     static_assert(impl::droppable_result<typename signature::result_t>,
-                  "wxl: method() takes a member that returns void, or async::detached_task when "
-                  "it is a coroutine that runs on by itself. Any other result -- a value, a task "
+                  "wxl: method() takes a member that returns void. Any other result -- a value, a task "
                   "somebody has to hold -- would be dropped unread by whoever calls the handler.");
     using call = typename signature::template call_t<Obj>;
     return call{object, member};

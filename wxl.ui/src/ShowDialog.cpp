@@ -1,5 +1,5 @@
 // showDialog, the winrt side: the XamlRoot, then the dialog shown under the caller's token and
-// the wait for its answer left running (impl/show_dialog.h).
+// the wait for its answer handed back (impl/show_dialog.h).
 //
 // The projection headers come first, and with them the standard library they
 // pull in: the wxl headers below carry the wxl.core import, and a standard
@@ -18,7 +18,7 @@
 
 namespace wxl {
 
-void showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token stop) {
+async::task<> showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token stop) {
     winrt::Microsoft::UI::Xaml::Controls::ContentDialog const& native =
         *Object::Impl::get_typed<ContentDialog>(dialog);
 
@@ -28,13 +28,13 @@ void showDialog(ContentDialog const& dialog, UIElement const& host, async::cance
             native.XamlRoot(*Object::Impl::get_typed<XamlRoot>(root));
     }
 
-    impl::show_under(dialog, std::move(stop));
+    return impl::show_under(dialog, std::move(stop));
 }
 
 // A window is named by what it shows: a dialog raised from a window belongs
 // over that same content, in that same island.
-void showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token stop) {
-    showDialog(dialog, host.content(), std::move(stop));
+async::task<> showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token stop) {
+    return showDialog(dialog, host.content(), std::move(stop));
 }
 
 }  // namespace wxl

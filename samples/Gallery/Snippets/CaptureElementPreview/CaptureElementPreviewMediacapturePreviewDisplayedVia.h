@@ -7,12 +7,19 @@ struct Model {
     ToggleSwitch mirror {header = u"Mirror preview", isOn = false, toolTip = u"Mirrors only the preview, not captured photos"};
     Button capture {content = u"Capture Photo"};
     core::nullable<MediaCapture> camera;
+
+    // Last: they go first, and stop what they run before anything they touch. Running an action
+    // again -- another photo, another camera -- assigns over its task and stops the body still
+    // running.
+    async::task<> finding;
+    async::task<> starting;
+    async::task<> takingPhoto;
 };
 auto const model = gallery::hold<Model>();
 static auto const words = [](hstring const& text) { return std::u16string {text.data(), text.size()}; };
 
 // The camera is started for the group chosen in the list: a player takes the frames of its first source.
-auto const start = [](Model* model, MediaFrameSourceGroup group) -> async::detached_task {
+auto const start = [](Model* model, MediaFrameSourceGroup group) -> async::task<> {
     try {
         if (model->camera) {
             model->preview.mediaPlayer().pause();
@@ -35,12 +42,12 @@ auto const start = [](Model* model, MediaFrameSourceGroup group) -> async::detac
 };
 model->cameras.add_onSelectionChanged([model, start](auto&&...) {
     if (auto const selected = model->cameras.selectedItem(); selected && selected.is<MediaFrameSourceGroup>()) {
-        start(model.get(), selected.try_as<MediaFrameSourceGroup>());
+        model->starting = start(model.get(), selected.try_as<MediaFrameSourceGroup>());
     }
 });
 
 // What happens when the page is shown: the cameras are looked for, and a refusal of access is told with the way to the settings.
-auto const find = [](Model* model, UIElement host) -> async::detached_task {
+auto const find = [](Model* model, UIElement host) -> async::task<> {
     Failure failure;  // a co_await cannot stand in a catch: the failure is kept and dealt with after it
     bool failed = false;
     try {
@@ -68,7 +75,8 @@ auto const find = [](Model* model, UIElement host) -> async::detached_task {
         dialog.primaryButtonText(u"Privacy Settings");
         dialog.defaultButton(ContentDialogButton::Primary);
     }
-    if (co_await dialog.showAsync() == ContentDialogResult::Primary) {
+    // Under the exit token: closing the main window closes the dialog, and the wait ends.
+    if (co_await dialog.showAsync(gallery::exitToken()) == ContentDialogResult::Primary) {
         co_await Launcher::launchUriAsync(u"ms-settings:privacy-webcam");
     }
 };
@@ -82,7 +90,7 @@ model->mirror.add_onToggled([model](auto&&...) {
     }
 });
 
-auto const takePhoto = [](Model* model) -> async::detached_task {
+auto const takePhoto = [](Model* model) -> async::task<> {
     if (!model->camera) {
         co_return;
     }
@@ -96,7 +104,7 @@ auto const takePhoto = [](Model* model) -> async::detached_task {
     model->capturedText.visibility(Visibility::Visible);
     announce(model->capture, u"Photo successfully captured.", u"CameraPreviewSampleCaptureNotificationId");
 };
-model->capture.add_onClick([model, takePhoto](auto&&...) { takePhoto(model.get()); });
+model->capture.add_onClick([model, takePhoto](auto&&...) { model->takingPhoto = takePhoto(model.get()); });
 
 // The snapshots column takes the height the preview leaves, without adding to it: its content is measured as short as can be.
 auto const fill = CustomLayout {
@@ -127,6 +135,6 @@ auto example = Grid {
     Grid {row = 1, model->preview},
     Grid {row = 0, column = 1, model->capturedText},
     Grid {row = 1, column = 1, LayoutPanel {layout = fill, ScrollViewer {verticalScrollMode = ScrollMode::Enabled, content = model->snapshots}}},
-    onLoaded = [model, find](UIElement const& self) { find(model.get(), self); },
+    onLoaded = [model, find](UIElement const& self) { model->finding = find(model.get(), self); },
 };
 auto options = StackPanel {spacing = 16, model->cameras, model->mirror, model->capture};

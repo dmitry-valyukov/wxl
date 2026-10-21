@@ -81,7 +81,7 @@ void loadState() {
 // одним переходом второй следует не раньше, чем через человеческую паузу.
 // Сохранение, которое не удалось, молчит: без этого файла Gallery всего
 // лишь забудет недавние, а окно с ошибкой при каждом переходе было бы хуже.
-async::detached_task saveState() {
+async::task<> writeState() {
     auto const file = stateFile();
     if (file.empty()) {
         co_return;
@@ -299,9 +299,20 @@ struct Shell {
     // Выбор в панели ставит сам `select`; его событие не должно вести
     // на страницу второй раз.
     bool selecting = false;
+    // Сохранения состояния, которые идут (см. saveState), — последним полем:
+    // уходят первыми. Каждое несёт полное состояние, поэтому новое не
+    // останавливает прежнее, а кончившиеся сметаются при следующем.
+    std::vector<async::task<>> saves;
 };
 
 std::shared_ptr<Shell> shell;
+
+// Сохранение состояния — задача оболочки: она держит её, пока та пишет, и
+// выход процесса ждёт, пока запись не кончится.
+void saveState() {
+    std::erase_if(shell->saves, [](async::task<> const& save) { return save.done(); });
+    shell->saves.push_back(writeState());
+}
 
 void focusSearch() {
     shell->search.focus(FocusState::Programmatic);

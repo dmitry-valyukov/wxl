@@ -15,9 +15,15 @@ const Preset tool {BorderThickness {0}, background = colors.transparent, Margin 
 const Preset dot {width = 32, height = 32};
 
 // One coroutine per swatch of the flyout: it waits for its click, colours the
-// selection, closes the flyout and ends.
+// selection, closes the flyout and ends. The page's model keeps them, and the
+// next opening of the flyout replaces them.
+struct Model {
+    std::vector<async::task<>> picking;
+};
+auto const model = gallery::hold<Model>();
+
 auto const pick = [](Flyout flyout, Button swatch, RichEditBox editor,
-                     std::shared_ptr<Color> current) -> async::detached_task {
+                     std::shared_ptr<Color> current) -> async::task<> {
     auto clicks = onClick(swatch);
     if (co_await clicks.next()) {
         auto const picked = swatch.content().try_as<Rectangle>().fill().try_as<SolidColorBrush>().color();
@@ -63,11 +69,12 @@ auto toolbar = Grid {
         content = SymbolIcon {symbol = Symbol::FontColor},
         flyout = Flyout {
             placement = FlyoutPlacementMode::Bottom,
-            onOpened = [pick, editor, current](Object const& sender) {
+            onOpened = [model, pick, editor, current](Object const& sender) {
                 auto const flyout = sender.try_as<Flyout>();
                 auto const swatches = flyout.content().try_as<VariableSizedWrapGrid>().children();
+                model->picking.clear();
                 for (uint32_t i = 0; i < swatches.size(); ++i) {
-                    pick(flyout, swatches[i].try_as<Button>(), editor, current);
+                    model->picking.push_back(pick(flyout, swatches[i].try_as<Button>(), editor, current));
                 }
             },
             content = VariableSizedWrapGrid {

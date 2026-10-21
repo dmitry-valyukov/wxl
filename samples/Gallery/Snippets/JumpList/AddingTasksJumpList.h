@@ -1,5 +1,12 @@
+// The saves under way are kept by the page's model, and go with it.
+struct Model {
+    async::task<> adding;
+    async::task<> clearing;
+};
+auto const model = gallery::hold<Model>();
+
 // A jump list belongs to a packaged application: unpackaged, there is nothing to load or save.
-auto const addTasks = [](Button const&) -> async::detached_task {
+auto const addTasks = []() -> async::task<> {
     if (!is_packaged()) co_return;
 
     auto jumpList = co_await JumpList::loadCurrentAsync();
@@ -18,7 +25,7 @@ auto const addTasks = [](Button const&) -> async::detached_task {
     co_await jumpList.saveAsync();
 };
 
-auto const clearTasks = [](Button const&) -> async::detached_task {
+auto const clearTasks = []() -> async::task<> {
     if (!is_packaged()) co_return;
 
     auto jumpList = co_await JumpList::loadCurrentAsync();
@@ -35,7 +42,7 @@ auto example = StackPanel {
     StackPanel {
         orientation.horizontal,
         spacing = 8,
-        Button {styles.Button.Accent, content = u"Add sample tasks", onClick = addTasks},
-        Button {content = u"Clear all items", onClick = clearTasks},
+        Button {styles.Button.Accent, content = u"Add sample tasks", onClick = [model, addTasks] { model->adding = addTasks(); }},
+        Button {content = u"Clear all items", onClick = [model, clearTasks] { model->clearing = clearTasks(); }},
     },
 };

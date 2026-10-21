@@ -1,6 +1,7 @@
 // Страница ToggleSplitButton — ToggleSplitButtonPage оригинала.
 
 #include "Pages.h"
+#include "Shell.h"
 #include "event_awaitable.h"
 
 import wxl.async;

@@ -7,6 +7,9 @@ struct Model {
         status.text(words);
         status.visibility(Visibility::Visible);
     }
+
+    // Last: it goes first, and stops what it runs before anything it touches.
+    async::task<> pasting;
 };
 auto const model = gallery::hold<Model>();
 
@@ -25,7 +28,7 @@ auto const copy = [](Model* model, std::u16string address) {
     }
 };
 
-auto const paste = [](Model* model) -> async::detached_task {
+auto const paste = [](Model* model) -> async::task<> {
     auto const package = Clipboard::getContent();
     if (!package.contains(StandardDataFormats::bitmap())) {
         model->say(u"Bitmap format is not available in the clipboard.");
@@ -59,7 +62,7 @@ auto example = StackPanel {
             content = u"Copy Image to Clipboard",
             onClick = [model, copy, address](Button const&) { copy(model.get(), address); },
         },
-        Button {content = u"Paste Image from Clipboard", onClick = [model, paste](Button const&) { paste(model.get()); }},
+        Button {content = u"Paste Image from Clipboard", onClick = [model, paste](Button const&) { model->pasting = paste(model.get()); }},
     },
     model->status,
     model->pasted,

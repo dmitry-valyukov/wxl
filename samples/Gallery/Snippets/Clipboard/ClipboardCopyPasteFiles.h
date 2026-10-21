@@ -1,10 +1,14 @@
 struct Model {
     TextBlock status {textWrapping = TextWrapping::Wrap};
+
+    // Last: they go first, and stop what they run before anything they touch.
+    async::task<> copying;
+    async::task<> pasting;
 };
 auto const model = gallery::hold<Model>();
 
 // The files are chosen with a picker made over this window, then handed to the clipboard as storage items.
-auto const copy = [](Model* model, WindowId window) -> async::detached_task {
+auto const copy = [](Model* model, WindowId window) -> async::task<> {
     auto picker = FileOpenPicker {window};
     picker.fileType(u"*");
 
@@ -36,7 +40,7 @@ auto const copy = [](Model* model, WindowId window) -> async::detached_task {
     model->status.text(words);
 };
 
-auto const paste = [](Model* model) -> async::detached_task {
+auto const paste = [](Model* model) -> async::task<> {
     auto const package = Clipboard::getContent();
     if (!package.contains(StandardDataFormats::storageItems())) {
         model->status.text(u"StorageItems format is not available in the clipboard.");
@@ -72,9 +76,9 @@ auto example = StackPanel {
         spacing = 8,
         Button {
             content = u"Copy Files to Clipboard",
-            onClick = [model, copy](Button const& button) { copy(model.get(), button.xamlRoot().contentIslandEnvironment().appWindowId()); },
+            onClick = [model, copy](Button const& button) { model->copying = copy(model.get(), button.xamlRoot().contentIslandEnvironment().appWindowId()); },
         },
-        Button {content = u"Paste Files from Clipboard", onClick = [model, paste](Button const&) { paste(model.get()); }},
+        Button {content = u"Paste Files from Clipboard", onClick = [model, paste](Button const&) { model->pasting = paste(model.get()); }},
     },
     model->status,
 };

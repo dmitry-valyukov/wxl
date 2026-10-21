@@ -51,25 +51,14 @@ task<int> ask_the_worker(hevent* gate = nullptr) {
     return sta_loop::async_run(std::unique_ptr<async_op_t<int>>(new answers(gate)));
 }
 
-/// A coroutine with its frame from the ordinary heap: the one to await from another
-/// thread, where the pool is not to be touched.
-struct heap_task {
-    struct promise_type;
-    using handle_t = std::coroutine_handle<promise_type>;
-
-    struct promise_type {
-        heap_task get_return_object() { return heap_task{handle_t::from_promise(*this)}; }
-        std::suspend_never initial_suspend() const noexcept { return {}; }
-        std::suspend_always final_suspend() const noexcept { return {}; }
-        void return_void() const noexcept {}
-        void unhandled_exception() const noexcept {}
-    };
-
-    ~heap_task() {
-        if (handle) handle.destroy();
-    }
-
-    handle_t handle;
+/// Takes the coroutine to a thread of its own and resumes it there, waiting for it to
+/// suspend again or end: an awaitable of somebody else's that moves a body off its thread,
+/// as a hop to a thread pool would. Only a coroutine returning a task awaits a task, so
+/// this is how one comes to await it from another thread.
+struct to_another_thread {
+    bool await_ready() const noexcept { return false; }
+    void await_suspend(std::coroutine_handle<> here) const { std::thread([here] { here.resume(); }).join(); }
+    void await_resume() const noexcept {}
 };
 
 /// Joins an operation somebody else keeps: co_await of an lvalue.
@@ -92,7 +81,7 @@ constexpr std::uint_least32_t line_of_the_second_join = std::source_location::cu
 task<> joins_second(task<int>& kept) { (void)co_await kept; }
 
 constexpr std::uint_least32_t line_of_the_foreign_join = std::source_location::current().line() + 1;
-heap_task joins_there(task<int>& kept) { (void)co_await kept; }
+task<> joins_there(task<int>& kept) { co_await to_another_thread{}; (void)co_await kept; }
 
 constexpr std::uint_least32_t line_of_the_second_take = std::source_location::current().line() + 1;
 task<int> takes_twice(task<int>& op) { (void)co_await op; co_return co_await op; }
@@ -156,7 +145,7 @@ void await_from_another_thread() {
 
     hevent gate{true};
     task<int> op = ask_the_worker(&gate);
-    std::thread([&op] { heap_task joiner = joins_there(op); }).join();
+    task<> joiner = joins_there(op);
 }
 
 /// The place a strict build's report names: the file's own name and the line, in the

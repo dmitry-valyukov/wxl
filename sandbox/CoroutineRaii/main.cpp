@@ -51,7 +51,7 @@ int allocations = 0;
 int deallocations = 0;
 
 // Корутина, которая сама себе хозяин: оба конца suspend_never, кадр
-// освобождается, как только тело кончилось. Это форма wxl::async::detached_task.
+// освобождается, как только тело кончилось.
 struct self_owning {
     struct promise_type {
         self_owning get_return_object() const noexcept { return {}; }

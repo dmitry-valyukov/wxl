@@ -6,6 +6,7 @@
 // с редактором — им нужны выбор файла и потоки WinRT.
 
 #include "Pages.h"
+#include "Shell.h"
 #include "event_awaitable.h"
 #include <wxl/Microsoft.UI.Xaml.Shapes.h>
 

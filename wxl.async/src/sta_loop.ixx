@@ -1,6 +1,7 @@
 module;
 
 #include "abi.h"
+#include "coroutine_checks.h"
 
 export module wxl.async:sta_loop;
 
@@ -397,7 +398,7 @@ public:
     ///
     /// Nothing may be out by then, and that is checked rather than waited for: the loop is
     /// stopped once its work is over -- an application turns it with run_until() until its
-    /// last detached frame is gone and nothing is outstanding() -- so an operation still out
+    /// last coroutine frame is gone (live_frames()) and nothing is outstanding() -- so an operation still out
     /// here is one nobody is going to see back. Taken back here, it would answer nobody, and
     /// a coroutine waiting for it would be destroyed where it stood rather than finished; so
     /// it is an error of the program, and the process stops on it. An operation that never
@@ -434,7 +435,7 @@ public:
     /// How many operations are out and not back yet: handed to the worker, to the pool or to
     /// the kernel, and not taken out of the return channel -- an orphan a frame let go of to
     /// finish alone counts, and so does one lying in the channel already, and a turn the loop
-    /// owes a waiter. What the end of a process waits for, beside the detached frames, and
+    /// owes a waiter. What the end of a process waits for, beside the coroutine frames, and
     /// what stop() checks is zero.
     inline static std::size_t outstanding() noexcept { return outstanding_; }
 
@@ -642,7 +643,7 @@ public:
     }
 
     /// Runs until the caller's own condition says the work is done: at the end of a
-    /// process, no detached frame being alive; a flag a coroutine sets on its way. A task
+    /// process, no coroutine frame being alive; a flag a coroutine sets on its way. A task
     /// having ended is the overload below.
     ///
     /// The wait is the mode's. The sleeping loop sleeps in run_one(); the loop under a
@@ -864,6 +865,9 @@ public:
     /// Made only under a token that has a source and is not cancelled yet.
     inline explicit orphanable_wait(cancellation_token stop)
         : async_op_t<R>(orphanable), stop_(std::move(stop)), node_(*this), turn_{this} {
+        coro_check(!cancellation_state_of(stop_)->canceled(),
+                   "orphanable_wait: made under a token cancelled already", detail::site::current());
+
         cancellation_state_of(stop_)->event().add(
             core::as_not_null<cancellation_event::func_t>(&node_));
     }

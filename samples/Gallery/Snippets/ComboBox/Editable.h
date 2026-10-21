@@ -1,5 +1,12 @@
 static constexpr int sizes[] = {8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72};
 
+// The dialog that says why a size was rejected: its wait is kept by the page's model, and the
+// dialog closes with it.
+struct Model {
+    async::task<> rejecting;
+};
+auto const model = gallery::hold<Model>();
+
 auto output = TextBlock {
     u"You can set the font size used for this text.",
     fontFamily = u"Segoe UI",
@@ -19,7 +26,7 @@ auto combo = ComboBox {
             output.fontSize(sizes[index]);
         }
     },
-    onTextSubmitted = [output](ComboBox const& self, ComboBoxTextSubmittedEventArgs& args) {
+    onTextSubmitted = [output, model](ComboBox const& self, ComboBoxTextSubmittedEventArgs& args) {
         auto const text = gallery::wide(args.text());
         wchar_t* end = nullptr;
         double const size = std::wcstod(text.c_str(), &end);
@@ -36,11 +43,11 @@ auto combo = ComboBox {
         // Anything else is rejected: the text goes back and a dialog says why.
         self.text(core::to_u16(sizes[std::max(self.selectedIndex(), 0)]));
         args.handled(true);
-        showDialog(ContentDialog {
-                       content = u"The font size must be a number between 8 and 100.",
-                       closeButtonText = u"Close",
-                       defaultButton = ContentDialogButton::Close,
-                   },
-                   self, gallery::exitToken());
+        model->rejecting = showDialog(ContentDialog {
+                                          content = u"The font size must be a number between 8 and 100.",
+                                          closeButtonText = u"Close",
+                                          defaultButton = ContentDialogButton::Close,
+                                      },
+                                      self, gallery::exitToken());
     },
 };

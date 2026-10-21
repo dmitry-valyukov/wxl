@@ -14,9 +14,15 @@ const Preset choice {
 
 // One coroutine per choice: it waits for its click, applies its marker and
 // closes the flyout. The button the flyout belongs to is found through the
-// flyout's Target, so nothing captures it.
+// flyout's Target, so nothing captures it. The page's model keeps them, and
+// the next opening of the flyout replaces them.
+struct Model {
+    std::vector<async::task<>> choosing;
+};
+auto const model = gallery::hold<Model>();
+
 auto const choose = [](Flyout flyout, Button button, Symbol symbol, MarkerType type, SymbolIcon icon,
-                       RichEditBox richBox, std::shared_ptr<MarkerType> marker) -> async::detached_task {
+                       RichEditBox richBox, std::shared_ptr<MarkerType> marker) -> async::task<> {
     auto clicks = onClick(button);
     if (co_await clicks.next()) {
         *marker = type;
@@ -38,12 +44,14 @@ auto listButton = ToggleSplitButton {
     },
     flyout = Flyout {
         placement = FlyoutPlacementMode::Bottom,
-        onOpened = [choose, richBox, icon, marker](Object const& sender) {
+        onOpened = [model, choose, richBox, icon, marker](Object const& sender) {
             auto const flyout = sender.try_as<Flyout>();
             auto const buttons = flyout.content().try_as<StackPanel>().children();
-            choose(flyout, buttons[0].try_as<Button>(), Symbol::List, MarkerType::Bullet, icon, richBox, marker);
-            choose(flyout, buttons[1].try_as<Button>(), Symbol::Bullets, MarkerType::UppercaseRoman, icon,
-                   richBox, marker);
+            model->choosing.clear();
+            model->choosing.push_back(
+                choose(flyout, buttons[0].try_as<Button>(), Symbol::List, MarkerType::Bullet, icon, richBox, marker));
+            model->choosing.push_back(choose(flyout, buttons[1].try_as<Button>(), Symbol::Bullets,
+                                             MarkerType::UppercaseRoman, icon, richBox, marker));
         },
         content = StackPanel {
             orientation.horizontal,

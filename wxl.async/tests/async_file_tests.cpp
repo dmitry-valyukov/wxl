@@ -544,27 +544,30 @@ std::string on_disk(const path& file_path) {
 
 }  // namespace
 
-// At the end of a process the loop runs on until no detached frame is alive -- one still
+// At the end of a process the loop runs on until no coroutine frame is alive -- one still
 // reading or writing included. In the sleeping mode that wait is run_until() on the
-// count itself, and it comes back once the frame has read, written and gone.
-detached_task reads_then_writes_detached(path from, path to, std::string& got) {
+// count itself, and it comes back once the frame has read, written and gone: its task, kept
+// here, holds nothing more than its end by then.
+task<> reads_then_writes(path from, path to, std::string& got) {
     got = co_await async_file::read_all(from);
     co_await async_file::write_all(to, got);
 }
 
-TEST_F(AsyncFileTest, TheLoopRunsUntilADetachedFrameStillReadingAndWritingIsGone) {
+TEST_F(AsyncFileTest, TheLoopRunsUntilAFrameStillReadingAndWritingIsGone) {
     const std::string content = test_content();
 
     given_a_file(L"book.bin", content);
 
-    const std::size_t before = detached_task::live_frames();
+    const std::size_t before = live_frames();
     std::string got;
 
-    reads_then_writes_detached(root_ / L"book.bin", root_ / L"copy.bin", got);
-    EXPECT_EQ(detached_task::live_frames(), before + 1);
+    task<> copying = reads_then_writes(root_ / L"book.bin", root_ / L"copy.bin", got);
+    EXPECT_EQ(live_frames(), before + 1);
 
-    sta_loop::run_until([before] { return detached_task::live_frames() == before; });
+    sta_loop::run_until([before] { return live_frames() == before; });
 
+    EXPECT_TRUE(copying.done());
+    copying.result();
     EXPECT_EQ(got, content);
 
     std::string copy;

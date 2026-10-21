@@ -4,6 +4,9 @@ struct Model {
                     spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline, width = 200};
     TextBlock details {textWrapping = TextWrapping::Wrap, u"No file picked"};
     Image thumbnail {stretch = Stretch::Uniform, automationName = u"File thumbnail"};
+
+    // Last: it goes first, and stops what it runs before anything it touches.
+    async::task<> picking;
 };
 auto const model = gallery::hold<Model>();
 
@@ -19,7 +22,7 @@ static constexpr ThumbnailMode modes[] = {ThumbnailMode::PicturesView, Thumbnail
                                           ThumbnailMode::DocumentsView, ThumbnailMode::ListView,   ThumbnailMode::SingleItem};
 static constexpr char16_t const* modeNames[] = {u"PicturesView", u"VideosView", u"MusicView", u"DocumentsView", u"ListView", u"SingleItem"};
 
-auto const pick = [](Model* model, Button button) -> async::detached_task {
+auto const pick = [](Model* model, Button button) -> async::task<> {
     button.isEnabled(false);
 
     auto picker = FileOpenPicker {button.xamlRoot().contentIslandEnvironment().appWindowId()};
@@ -70,7 +73,7 @@ auto example = StackPanel {
     spacing = 8,
     StackPanel {
         spacing = 8,
-        Button {content = u"Pick a file", onClick = [model, pick](Button const& button) { pick(model.get(), button); }},
+        Button {content = u"Pick a file", onClick = [model, pick](Button const& button) { model->picking = pick(model.get(), button); }},
         model->details,
     },
     Border {width = 160, height = 160, CornerRadius {4}, horizontalAlignment = HorizontalAlignment::Left,

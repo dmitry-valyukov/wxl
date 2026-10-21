@@ -1,4 +1,10 @@
-auto const addGroup = [](Button const&) -> async::detached_task {
+// The save under way is kept by the page's model, and goes with it.
+struct Model {
+    async::task<> adding;
+};
+auto const model = gallery::hold<Model>();
+
+auto const addGroup = []() -> async::task<> {
     if (!is_packaged()) co_return;
 
     auto jumpList = co_await JumpList::loadCurrentAsync();
@@ -25,5 +31,5 @@ auto example = StackPanel {
                u"Custom groups let you organize jump list items into named sections. Set the GroupName property to a non-empty string and "
                u"all items sharing the same GroupName will appear together under that heading. This is useful for grouping related items "
                u"like recent projects, pinned documents, or user-defined categories."},
-    Button {content = u"Add custom group items", onClick = addGroup},
+    Button {content = u"Add custom group items", onClick = [model, addGroup] { model->adding = addGroup(); }},
 };

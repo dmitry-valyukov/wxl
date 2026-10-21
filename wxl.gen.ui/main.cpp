@@ -111,11 +111,17 @@ struct History {
 
 // Документация дочитывается в потоке окна: шаг в несколько миллисекунд, и
 // окно отрабатывает ввод и отрисовку до следующего.
-async::detached_task prepareDocumentation(core::intrusive_ptr<Editor> document) {
+async::task<> prepareDocumentation(core::intrusive_ptr<Editor> document) {
     do {
         co_await UiThread::onIdle();
     } while (document->prepareDocumentation());
 }
+
+// Дочитывание документации — задача окна: живёт до Teardown, а на выходе её
+// ожидание onIdle кончается отменой, и тело уходит раньше.
+struct DocumentationReading {
+    async::task<> reading;
+};
 
 }  // namespace
 
@@ -237,10 +243,12 @@ wxl::Teardown wxl_launched() {
         right->refresh();
     });
 
-    // Флаг поднимается, только когда опущен, так что дочитывает одна корутина.
-    document->documentationPending.on_change([raw = document.get()](bool pending) noexcept {
+    // Флаг поднимается, только когда опущен, так что дочитывает одна корутина:
+    // прежняя к тому времени кончилась, и поле занимает новая.
+    auto const documentation = core::make_refcounted<DocumentationReading>();
+    document->documentationPending.on_change([raw = document.get(), holder = documentation.get()](bool pending) noexcept {
         if (pending) {
-            prepareDocumentation(core::intrusive_ptr<Editor> {raw});
+            holder->reading = prepareDocumentation(core::intrusive_ptr<Editor> {raw});
         }
     });
 
@@ -579,5 +587,5 @@ wxl::Teardown wxl_launched() {
     window.centreWithClientSize({1200, 800});
     window.activate();
 
-    return [document, types, members, label, settings, focus, history](TeardownReason) {};
+    return [document, types, members, label, settings, focus, history, documentation](TeardownReason) {};
 }

@@ -57,6 +57,27 @@ heap_task heap_suspends_once(int& sink) {
     sink = 2;
 }
 
+/// Whether a coroutine with this handle could suspend on this awaiter -- the call the
+/// compiler makes for a co_await. A task is awaited only from a coroutine returning a
+/// task: from any other, behind an erased handle or a promise of its own, the co_await
+/// does not compile.
+template <class Awaiter, class Handle>
+constexpr bool suspends_from = requires(Awaiter& awaiter, Handle handle) { awaiter.await_suspend(handle); };
+
+using task_handle = std::coroutine_handle<task<>::promise_type>;
+using value_task_handle = std::coroutine_handle<task<std::string>::promise_type>;
+
+static_assert(suspends_from<task<int>, task_handle>);
+static_assert(suspends_from<task<int>, value_task_handle>);
+static_assert(suspends_from<detail::join_awaiter<int>, task_handle>);
+static_assert(suspends_from<task<>, value_task_handle>);
+
+static_assert(!suspends_from<task<int>, std::coroutine_handle<>>);
+static_assert(!suspends_from<task<int>, heap_task::handle_t>);
+static_assert(!suspends_from<detail::join_awaiter<int>, std::coroutine_handle<>>);
+static_assert(!suspends_from<detail::join_awaiter<int>, heap_task::handle_t>);
+static_assert(!suspends_from<task<>, std::coroutine_handle<>>);
+
 /// Lets a test resume a coroutine by hand: the awaiter parks the handle where
 /// the test can reach it, the way an operation of this module parks it in the
 /// return channel.
@@ -669,6 +690,64 @@ TEST(TaskTest, WhatLeftTheCoroutineIsThrownEachTimeItIsAsked) {
     EXPECT_THROW((void)failed_with_a_value.result(), std::runtime_error);
 }
 
+// How a task ended, asked without throwing: a value or an exception, exactly one of the two,
+// and the exception itself; asking does not take anything, and result() answers after it as
+// before.
+TEST(TaskTest, HowItEndedIsAskedWithoutThrowing) {
+    int sink = 0;
+    task<> plain = returns_at_once(sink);
+    EXPECT_TRUE(plain.has_value());
+    EXPECT_FALSE(plain.has_exception());
+
+    task<int> answered = answers_at_once();
+    EXPECT_TRUE(answered.has_value());
+    EXPECT_FALSE(answered.has_exception());
+    EXPECT_EQ(answered.result(), 7);
+    EXPECT_TRUE(answered.has_value()) << "the value taken, the task still ended with it";
+
+    task<int> failed = fails_at_once("at once");
+    EXPECT_FALSE(failed.has_value());
+    EXPECT_TRUE(failed.has_exception());
+    try {
+        std::rethrow_exception(failed.get_exception_ptr());
+    } catch (const std::runtime_error& failure) {
+        EXPECT_STREQ(failure.what(), "at once");
+    }
+    EXPECT_EQ(failed.get_exception_ptr(), failed.get_exception_ptr()) << "asked again, the same exception";
+    EXPECT_THROW((void)failed.result(), std::runtime_error);
+}
+
+// A failure after a pause is there once the body has ended, and read as it is: nobody has
+// to rethrow it to look at it.
+TEST(TaskTest, AFailureAfterAPauseIsReadOnceTheBodyHasEnded) {
+    std::coroutine_handle<> slot;
+    task<std::string> t = fails_after_a_pause(slot);
+    EXPECT_FALSE(t.done());
+
+    slot.resume();
+
+    ASSERT_TRUE(t.done());
+    EXPECT_TRUE(t.has_exception());
+    EXPECT_FALSE(t.has_value());
+    EXPECT_TRUE(t.get_exception_ptr());
+}
+
+// Asked before the end, a build that checks stops (HowItEndedIsAskedAfterTheEnd); one that
+// does not says the truth of the moment: neither a value nor an exception yet.
+TEST(TaskTest, BeforeTheEndItHasNeitherWhereNothingChecks) {
+    if constexpr (detail::checked) GTEST_SKIP() << "a build that checks stops there";
+
+    std::coroutine_handle<> slot;
+    int deaths = 0;
+    task<int> t = answers_after_a_pause(slot, deaths);
+    EXPECT_FALSE(t.has_value());
+    EXPECT_FALSE(t.has_exception());
+
+    slot.resume();
+    EXPECT_TRUE(t.has_value());
+    EXPECT_FALSE(t.has_exception());
+}
+
 // An empty task holds nothing -- made empty, or moved from -- and one with work holds it.
 TEST(TaskTest, OnlyATaskWithWorkInItHoldsSomething) {
     task<int> empty;
@@ -743,15 +822,19 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
     EXPECT_EQ(kept.result(), 5);
 }
 
-// The promise of a task is a producer like an operation: the virtual table, the waiter's
-// handle, a word of flags and the exception, then the value. The checks cost it nothing in
-// any build, strict or not: what they keep -- whether the body is on the stack, whether the
-// waiter joined -- is two bits of the waiter's handle, and whether the value has been
-// taken is a byte of the flags' word. A task stays one pointer wide, as does the awaiter
-// of a joined one. (The exception is two pointers wide on MSVC, one on g++ and clang.)
+// The producer of a task's coroutine is a producer like an operation -- the virtual table,
+// the waiter's handle, a word of flags and the exception, then the value -- and the handle of
+// the frame while the body is in flight; the promise is one pointer to it. The checks cost
+// it nothing in any build, strict or not: what they keep -- whether the body is on the
+// stack, whether the waiter joined -- is two bits of the waiter's handle, and whether the
+// value has been taken is a byte of the flags' word. A task stays one pointer wide, as does
+// the awaiter of a joined one. (The exception is two pointers wide on MSVC, one on g++ and
+// clang.)
 static_assert(sizeof(async_op) == 3 * sizeof(void*) + sizeof(std::exception_ptr));
-static_assert(sizeof(detail::task_promise<void>) == sizeof(async_op));
-static_assert(sizeof(detail::task_promise<int>) == sizeof(async_op_t<int>));
+static_assert(sizeof(detail::coroutine_op<void>) == sizeof(async_op) + sizeof(void*));
+static_assert(sizeof(detail::coroutine_op<int>) == sizeof(async_op_t<int>) + sizeof(void*));
+static_assert(sizeof(detail::task_promise<void>) == sizeof(void*));
+static_assert(sizeof(detail::task_promise<int>) == sizeof(void*));
 static_assert(sizeof(task<>) == sizeof(void*) && sizeof(task<int>) == sizeof(void*));
 static_assert(sizeof(detail::join_awaiter<int>) == sizeof(void*));
 
@@ -809,9 +892,14 @@ void report_failures_to_stderr() {
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 }
 
-heap_task joins_from_anywhere(task<int>& kept) {
-    (void)co_await kept;
-}
+/// Takes the coroutine to a thread of its own and resumes it there, waiting for it to
+/// suspend again or end: an awaitable of somebody else's that moves a body off its thread,
+/// as a hop to a thread pool would.
+struct to_another_thread {
+    bool await_ready() const noexcept { return false; }
+    void await_suspend(std::coroutine_handle<> here) const { std::thread([here] { here.resume(); }).join(); }
+    void await_resume() const noexcept {}
+};
 
 task<> drops_the_chain(std::coroutine_handle<>& slot, task<>& chain) {
     co_await parked{slot};
@@ -840,6 +928,29 @@ void take_the_value_twice() {
     (void)t.result();
 }
 
+void ask_how_it_ended_before_the_end() {
+    report_failures_to_stderr();
+
+    std::coroutine_handle<> slot;
+    int deaths = 0;
+    task<int> t = answers_after_a_pause(slot, deaths);
+    (void)t.has_exception();
+}
+
+void ask_for_the_exception_of_a_value() {
+    report_failures_to_stderr();
+
+    task<int> t = answers_at_once();
+    (void)t.get_exception_ptr();
+}
+
+void ask_an_empty_task_how_it_ended() {
+    report_failures_to_stderr();
+
+    task<int> t;
+    (void)t.has_value();
+}
+
 void ask_before_the_end() {
     report_failures_to_stderr();
 
@@ -849,13 +960,17 @@ void ask_before_the_end() {
     (void)t.result();
 }
 
+// A task's coroutine moved to another thread, joining there.
+constexpr std::uint_least32_t line_of_the_foreign_join = std::source_location::current().line() + 1;
+task<> joins_from_there(task<int>& kept) { co_await to_another_thread{}; (void)co_await kept; }
+
 void await_from_another_thread() {
     report_failures_to_stderr();
 
     std::coroutine_handle<> slot;
     int deaths = 0;
     task<int> kept = answers_after_a_pause(slot, deaths);
-    std::thread([&kept] { heap_task joiner = joins_from_anywhere(kept); }).join();
+    task<> joiner = joins_from_there(kept);
 }
 
 void drop_the_chain_from_inside() {
@@ -906,6 +1021,16 @@ void take_the_value_twice_by_result() {
 constexpr std::uint_least32_t line_of_the_early_ask = std::source_location::current().line() + 1;
 void ask(task<int>& t) { (void)t.result(); }
 
+constexpr std::uint_least32_t line_of_the_wrong_question = std::source_location::current().line() + 1;
+void ask_for_the_exception(task<int>& t) { (void)t.get_exception_ptr(); }
+
+void ask_for_the_exception_of_a_value_by_line() {
+    report_failures_to_stderr();
+
+    task<int> t = answers_at_once();
+    ask_for_the_exception(t);
+}
+
 void ask_too_early() {
     report_failures_to_stderr();
 
@@ -929,28 +1054,28 @@ void join_second_while_the_first_waits() {
     task<> two = joins_second(kept);
 }
 
-// Any other coroutine awaiting a task: the compiler calls the task's own awaiter.
+// The value taken twice by co_await: the place is the second co_await's.
 constexpr std::uint_least32_t line_of_the_second_await = std::source_location::current().line() + 1;
-heap_task awaits_twice_by_value(task<int>& kept) { (void)co_await kept; (void)co_await kept; }
+task<> awaits_twice_by_value(task<int>& kept) { (void)co_await kept; (void)co_await kept; }
 
 void take_the_value_twice_by_co_await() {
     report_failures_to_stderr();
 
     task<int> kept = answers_at_once();
-    heap_task twice = awaits_twice_by_value(kept);
+    task<> twice = awaits_twice_by_value(kept);
 }
 
 // A task that has been moved from has nothing to wait for: awaiting it fails at the
 // co_await, whatever made the result it no longer holds.
 constexpr std::uint_least32_t line_of_the_moved_from_await = std::source_location::current().line() + 1;
-heap_task awaits_what_is_left(task<int>& left) { (void)co_await left; }
+task<> awaits_what_is_left(task<int>& left) { (void)co_await left; }
 
 void await_a_moved_from_task() {
     report_failures_to_stderr();
 
     task<int> t = answers_at_once();
     task<int> moved = std::move(t);
-    heap_task waiter = awaits_what_is_left(t);
+    task<> waiter = awaits_what_is_left(t);
 }
 
 /// Death tests of the checks: skipped where the build has none.
@@ -986,6 +1111,18 @@ TEST_F(TaskDeathTest, TheResultIsAskedAfterTheEnd) {
     EXPECT_DEATH(ask_before_the_end(), "before it ended");
 }
 
+TEST_F(TaskDeathTest, HowItEndedIsAskedAfterTheEnd) {
+    EXPECT_DEATH(ask_how_it_ended_before_the_end(), "how it ended asked before it ended");
+}
+
+TEST_F(TaskDeathTest, TheExceptionIsAskedOfATaskThatHasOne) {
+    EXPECT_DEATH(ask_for_the_exception_of_a_value(), "ended with its value");
+}
+
+TEST_F(TaskDeathTest, AnEmptyTaskHasNotEnded) {
+    EXPECT_DEATH(ask_an_empty_task_how_it_ended(), "task: empty -- default-constructed or moved-from");
+}
+
 TEST_F(TaskDeathTest, ATaskIsAwaitedOnItsOwnThread) {
     EXPECT_DEATH(await_from_another_thread(), "other than its own");
 }
@@ -1012,15 +1149,26 @@ TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTooEarly) {
                  place_of("task_tests\\.cpp", line_of_the_early_ask) + "task: result\\(\\) asked before it ended");
 }
 
+TEST_F(TaskStrictDeathTest, GetExceptionPtrNamesTheLineThatAsked) {
+    EXPECT_DEATH(ask_for_the_exception_of_a_value_by_line(),
+                 place_of("task_tests\\.cpp", line_of_the_wrong_question) +
+                     "task: get_exception_ptr\\(\\) asked of a task that ended with its value");
+}
+
 TEST_F(TaskStrictDeathTest, ATaskAwaitingNamesItsCoAwait) {
     EXPECT_DEATH(join_second_while_the_first_waits(),
                  place_of("task_tests\\.cpp", line_of_the_second_join) +
                      "task: awaited by a second coroutine while the first one still waits");
 }
 
-TEST_F(TaskStrictDeathTest, AnyCoroutineAwaitingNamesItsCoAwait) {
+TEST_F(TaskStrictDeathTest, ASecondCoAwaitNamesItsLine) {
     EXPECT_DEATH(take_the_value_twice_by_co_await(),
                  place_of("task_tests\\.cpp", line_of_the_second_await) + "task: the value has already been taken");
+}
+
+TEST_F(TaskStrictDeathTest, AForeignThreadNamesTheCoAwait) {
+    EXPECT_DEATH(await_from_another_thread(),
+                 place_of("task_tests\\.cpp", line_of_the_foreign_join) + "task: awaited from a thread other than its own");
 }
 
 TEST_F(TaskStrictDeathTest, AMovedFromTaskNamesTheCoAwait) {

@@ -208,8 +208,8 @@ TEST(StaLoopDispatchedTest, AnExceptionFromThePoolArrivesAtTheCoAwait) {
 }
 
 // run_until() under the queue turns the thread's message loop: an answer from the pool
-// reaches the detached frame waiting for it there, and the wait ends with that frame.
-detached_task awaits_the_pool(bool& answered) {
+// reaches the frame waiting for it there, and the wait ends with that frame.
+task<> awaits_the_pool(bool& answered) {
     answered = co_await sta_loop::async_call(orphanable, [] {
         ::Sleep(50);
         return true;
@@ -217,14 +217,15 @@ detached_task awaits_the_pool(bool& answered) {
 }
 
 TEST(StaLoopDispatchedTest, RunUntilTurnsTheMessageLoopUntilTheConditionHolds) {
-    const std::size_t before = detached_task::live_frames();
+    const std::size_t before = live_frames();
     bool answered = false;
 
-    awaits_the_pool(answered);
-    EXPECT_EQ(detached_task::live_frames(), before + 1);
+    task<> waiting = awaits_the_pool(answered);
+    EXPECT_EQ(live_frames(), before + 1);
 
-    sta_loop::run_until([before] { return detached_task::live_frames() == before; });
+    sta_loop::run_until([before] { return live_frames() == before; });
 
+    EXPECT_TRUE(waiting.done());
     EXPECT_TRUE(answered);
 }
 

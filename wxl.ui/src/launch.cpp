@@ -96,10 +96,9 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
     winrt::Microsoft::UI::Xaml::XamlTypeInfo::XamlControlsXamlMetaDataProvider provider_;
 };
 
-// What the process waits for before it ends: no detached frame alive and no operation out.
+// What the process waits for before it ends: no coroutine body under way and no operation out.
 bool nothingLeftToWaitFor() noexcept {
-    return wxl::async::detached_task::live_frames() == 0 &&
-           wxl::async::sta_loop::outstanding() == 0;
+    return wxl::async::live_frames() == 0 && wxl::async::sta_loop::outstanding() == 0;
 }
 
 #ifndef NDEBUG
@@ -111,13 +110,13 @@ bool nothingLeftToWaitFor() noexcept {
 void CALLBACK reportWhatIsStillAlive(HWND, UINT, UINT_PTR id, DWORD) noexcept {
     ::KillTimer(nullptr, id);
 
-    const std::size_t frames = wxl::async::detached_task::live_frames();
+    const std::size_t frames = wxl::async::live_frames();
     const std::size_t operations = wxl::async::sta_loop::outstanding();
 
     if (frames == 0 && operations == 0) return;
 
     _RPTF2(_CRT_ASSERT,
-           "wxl: ten seconds into the wait at exit, %zu detached coroutine frames are still "
+           "wxl: ten seconds into the wait at exit, %zu coroutine frames are still "
            "alive and %zu operations still out; the process goes on waiting for them",
            frames, operations);
 }
@@ -218,13 +217,17 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // them yet.
     wxl::impl::close_event_waits();
 
-    // A detached coroutine is nobody's to end but its own, and a process has no
-    // business ending while one is alive: the thread's loop turns on -- the
-    // worker's answers, the thread pool's, the queue's timers -- until the last
-    // such frame is gone. One that waits for what never comes keeps the process
-    // here, the way a thread nobody joins would, rather than being torn down
-    // underneath. Before the teardown handler, so that the application is asked
-    // what to save when nothing of its own still runs.
+    // A process has no business ending while a coroutine body is under way: the
+    // thread's loop turns on -- the worker's answers, the thread pool's, the
+    // queue's timers -- until the last frame is gone. Every task is kept by
+    // somebody who stops it, and the application stops its own by cancelling its
+    // common source on the way out, from its main window's Closed at the latest;
+    // a body cancelled ends by itself, and its frame with it, while its task --
+    // a field of an object that lives on into the teardown handler -- keeps only
+    // the end. One that waits for what never comes keeps the process here, the
+    // way a thread nobody joins would, rather than being torn down underneath.
+    // Before the teardown handler, so that the application is asked what to save
+    // when nothing of its own still runs.
     //
     // The operations are the process's as well: an orphan a frame let go of to finish
     // alone, and one on its way back, are waited for with the frames -- which is why

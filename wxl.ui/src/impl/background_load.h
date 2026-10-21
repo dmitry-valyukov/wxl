@@ -2,15 +2,14 @@
 
 // What CompositionWindow::backgroundAsync does with a picture loaded on the way: the load of one
 // window's background under way, under a source of its own made under its owner's token, and the
-// frame that waits for it and puts the picture up. Templates over what is asked for, what is
+// task that waits for it and puts the picture up. Templates over what is asked for, what is
 // loaded and how it is shown, so that a test hands in its own.
 //
-// The frame is a detached one, the process's like every other: the exit counts it
-// (detached_task::live_frames()) and does not end while it waits, and a load that fails -- a file
-// that is not there -- is named on the way out by on_detached_task_failure(), as the failure of
-// any detached frame is. The window owns its loads: a background set later makes the load under
-// way unneeded, and the window cancels it; the token the load was asked under -- the
-// application's, or one made under it -- ends it too.
+// The window owns its loads, and the wait of each is a task kept with it: a background set later
+// makes the load under way unneeded, and the window cancels it and drops its wait; the token the
+// load was asked under -- the application's, or one made under it -- ends it too. While it waits,
+// its body is under way, and the exit waits for it. A load that fails -- a file that is not there --
+// ends the wait with the failure, kept in the task with the load until the next replaces it.
 //
 // A picture loaded is on the rendering device, and goes with it: the window keeps what it asked
 // for and the token it was asked under until the background is set some other way, and loads it
@@ -44,6 +43,17 @@ public:
         return load_->source.token();
     }
 
+    /// The wait for the load `load` names -- the token next() gave for it: kept with the load, so
+    /// that the next load, or cancel(), stops it as well. The wait has run as far as its first
+    /// suspension by now, and what it reached on the way may have replaced or cancelled its load
+    /// already -- a replacement of the device asks for the picture again -- which is no broken
+    /// rule: that wait is nobody's any more, its load cancelled, and it goes here.
+    void hold(async::cancellation_token const& load, async::task<> wait) noexcept {
+        if (load_ && async::detail::cancellation_state_of(load_->source.token()) ==
+                         async::detail::cancellation_state_of(load))
+            load_->wait = std::move(wait);
+    }
+
     /// The background is set some other way: the load under way, if any, is not wanted, and what
     /// it was asked for is forgotten.
     void cancel() noexcept {
@@ -62,6 +72,9 @@ private:
 
         async::cancellation_source source;
         asked what;
+
+        // Last: it goes first, before the source it stands under.
+        async::task<> wait;
     };
 
     std::optional<load> load_;
@@ -70,10 +83,11 @@ private:
 /// Waits for `loading`, started already under `stop`, and shows what it loaded through `show` --
 /// unless `stop` was cancelled meanwhile: a load whose answer reached the queue before its
 /// cancellation still answers, and the background set after it keeps the last word. A wait cut
-/// short by the cancellation is the ordinary end of the frame; so is a load the lost device cut
-/// short (DrawingSurface::DeviceLost), which the owner asks for again once the new device stands.
+/// short by the cancellation ends with it; a load the lost device cut short
+/// (DrawingSurface::DeviceLost) ends the wait quietly, and the owner asks for it again once the
+/// new device stands.
 template <class Loaded, class Show>
-async::detached_task show_when_loaded(async::task<Loaded> loading, async::cancellation_token stop, Show show) {
+async::task<> show_when_loaded(async::task<Loaded> loading, async::cancellation_token stop, Show show) {
     std::optional<Loaded> loaded;
     try {
         loaded.emplace(co_await std::move(loading));

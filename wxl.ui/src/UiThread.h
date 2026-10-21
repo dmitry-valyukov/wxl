@@ -37,9 +37,11 @@
 // nothing more urgent: input, layout and rendering run first. Long work on the
 // UI thread is cut into steps this way, without a second thread:
 //
-//     async::detached_task index(Model& model) {
+//     async::task<> index(Model& model) {
 //         while (model.step()) co_await UiThread::onIdle();
 //     }
+//
+//     model.indexing = index(model);   // a field of whoever stops it
 //
 // Going down ends the wait the way it ends an event wait: the coroutine
 // resumes with async::operation_canceled_exception. So does a cancellation

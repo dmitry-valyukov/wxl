@@ -18,6 +18,26 @@ auto swatch = Border {
 
 const Preset dot {width = 32, height = 32, radiusX = 4.0, radiusY = 4.0};
 
+// The wait for a swatch while the flyout is open, kept by the page's model and gone with it.
+struct Model {
+    async::task<> picking;
+};
+auto const model = gallery::hold<Model>();
+
+// It waits for a swatch to be clicked and ends when the content leaves the tree, that is, when
+// the flyout closes. The flyout is its own sender, so nothing captures the button that owns it;
+// what it colours it takes as parameters, so it lives in its own frame.
+auto const pick = [](Flyout flyout, RichEditBox richBox, Border swatch, std::shared_ptr<Color> current) -> async::task<> {
+    auto clicks = onItemClick(flyout.content().try_as<GridView>());
+    while (auto const got = co_await clicks.next()) {
+        auto const picked = got->get().clickedItem().try_as<Rectangle>().fill().try_as<SolidColorBrush>().color();
+        *current = picked;
+        richBox.document().selection().characterFormat().foregroundColor(picked);
+        swatch.background(SolidColorBrush {color = picked});
+        flyout.hide();
+    }
+};
+
 auto colorButton = SplitButton {
     minWidth = 0,
     minHeight = 0,
@@ -30,21 +50,9 @@ auto colorButton = SplitButton {
     },
     flyout = Flyout {
         placement = FlyoutPlacementMode::Bottom,
-        // Opening the flyout starts a coroutine: it waits for a swatch to be
-        // clicked and ends when the content leaves the tree, that is, when the
-        // flyout closes. The flyout is its own sender, so nothing captures the
-        // button that owns it.
-        onOpened = [richBox, swatch, current](Object const& sender) -> async::detached_task {
-            auto const flyout = sender.try_as<Flyout>();
-            auto clicks = onItemClick(flyout.content().try_as<GridView>());
-            while (auto const got = co_await clicks.next()) {
-                auto const picked =
-                    got->get().clickedItem().try_as<Rectangle>().fill().try_as<SolidColorBrush>().color();
-                *current = picked;
-                richBox.document().selection().characterFormat().foregroundColor(picked);
-                swatch.background(SolidColorBrush {color = picked});
-                flyout.hide();
-            }
+        // Opening the flyout starts the wait for a swatch.
+        onOpened = [model, pick, richBox, swatch, current](Object const& sender) {
+            model->picking = pick(sender.try_as<Flyout>(), richBox, swatch, current);
         },
         content = GridView {
             isItemClickEnabled = true,
