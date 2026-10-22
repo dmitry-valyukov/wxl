@@ -34,7 +34,7 @@ namespace detail {
 /// What fires when a token is cancelled: an event of no arguments. Whoever stands under
 /// a token -- an operation or a wait of wxl -- builds its node into itself (a member
 /// deriving from `cancellation_event::func_t`, whose release() does nothing), so that
-/// standing allocates nothing; it adds the node while it stands and removes it when it is
+/// standing allocates nothing; it adds the node while it stands and unlinks it when it is
 /// over. A child state, one per source, stands as a callback the event makes.
 using cancellation_event = core::event<void() noexcept>;
 
@@ -97,12 +97,12 @@ public:
 
     /// Sets the answer and cancels everyone standing, once: the event is emptied into a local
     /// one and fired there, so a subscriber that unsubscribes later -- or from inside its
-    /// call -- finds it gone, and remove() answers false. Cancelling resumes nobody (an
-    /// operation is cut short, a wait is handed to its thread's queue), so no subscriber
-    /// goes away in the middle of the fire. One that begins standing afterwards finds the
-    /// answer and does not stand at all, so a state cancelled already has nobody to cancel,
-    /// and asking it again does nothing. A child state cancelled here cancels its own the
-    /// same way, from inside this fire, and goes nowhere either.
+    /// call -- finds it gone, and remove() or unlink() answers false. Cancelling resumes
+    /// nobody (an operation is cut short, a wait is handed to its thread's queue), so no
+    /// subscriber goes away in the middle of the fire. One that begins standing afterwards
+    /// finds the answer and does not stand at all, so a state cancelled already has nobody to
+    /// cancel, and asking it again does nothing. A child state cancelled here cancels its own
+    /// the same way, from inside this fire, and goes nowhere either.
     inline void cancel() noexcept {
         if (canceled_) return;
 
@@ -206,7 +206,7 @@ protected:
     inline void leave_token_event() noexcept {
         if (standing_) {
             standing_ = false;
-            self().state()->event().remove(
+            self().state()->event().unlink(
                 core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
         }
     }

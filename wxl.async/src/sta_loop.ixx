@@ -872,9 +872,9 @@ public:
     }
 
     /// Out of the event before the token goes; once the token has been cancelled, the event
-    /// the node stood in has been fired and is gone, and remove() finds nothing.
+    /// the node stood in has been fired and is gone, and unlink() finds nothing.
     inline ~orphanable_wait() override {
-        cancellation_state_of(stop_)->event().remove(
+        cancellation_state_of(stop_)->event().unlink(
             core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
     }
 

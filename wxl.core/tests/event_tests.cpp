@@ -827,6 +827,100 @@ TEST(EventDeathTest, ABuiltInNodeMayNotStandAgainFromInsideTheCallThatRemovedIt)
     EXPECT_DEBUG_DEATH(stand_again_from_inside_the_call(), "");
 }
 
+// A subscriber that owns its node and destroys it right after unlink(), as an operation
+// under a token does in its destructor. It counts into the test's own variables, so what
+// happened to it is still known once it is gone.
+class owned_node final : public noexcept_callback
+{
+public:
+    owned_node(int& calls, int& released) noexcept : calls_(calls), released_(released) {}
+
+    void operator()() noexcept override { ++calls_; }
+    void release() noexcept override { ++released_; }
+
+private:
+    int& calls_;
+    int& released_;
+};
+
+// Unlinked while nothing walks the event: out of the list, not let go of, and gone at once
+// -- the event never reaches the memory again, neither when it is called nor when it ends.
+TEST(EventTest, AnOwnedNodeUnlinkedOutsideAWalkIsTheSubscribersAtOnce) {
+    int calls = 0, released = 0, others = 0;
+
+    {
+        event<void() noexcept> e;
+        auto node = std::make_unique<owned_node>(calls, released);
+        const cookie_t cookie = e.add(as_not_null<noexcept_callback>(node.get()));
+        e.add([&others]() noexcept { ++others; });
+
+        e();
+        EXPECT_EQ(calls, 1);
+
+        EXPECT_TRUE(e.unlink(cookie));
+        EXPECT_EQ(released, 0);
+        EXPECT_FALSE(e.unlink(cookie));
+
+        // Its link was cleared, so it may stand again, here or anywhere.
+        e.add(as_not_null<noexcept_callback>(node.get()));
+        EXPECT_TRUE(e.unlink(cookie));
+        node.reset();
+
+        e();
+        EXPECT_EQ(others, 2);
+    }
+
+    EXPECT_EQ(calls, 1);
+    EXPECT_EQ(released, 0);
+}
+
+// Unlinked from another callback's call, while the walk would call it next: the walk goes
+// on to what follows it, and never reaches the node, which is already destroyed.
+TEST(EventTest, AnOwnedNodeUnlinkedAsTheWalksNextIsSteppedPast) {
+    event<void() noexcept> e;
+    order_t order;
+    int calls = 0, released = 0;
+    auto node = std::make_unique<owned_node>(calls, released);
+    const cookie_t cookie = as_not_null<noexcept_callback>(node.get());
+
+    e.add([&]() noexcept {
+        order.push_back(1);
+        if (!node) return;
+        EXPECT_TRUE(e.unlink(cookie));
+        node.reset();
+    });
+    e.add(as_not_null<noexcept_callback>(node.get()));
+    e.add([&order]() noexcept { order.push_back(3); });
+
+    e();
+    EXPECT_EQ(order, (order_t{1, 3}));
+    EXPECT_EQ(calls, 0);
+    EXPECT_EQ(released, 0);
+
+    order.clear();
+    e();
+    EXPECT_EQ(order, (order_t{1, 3}));
+}
+
+// A node unlinked from inside its own call: its subscriber would go away while the walk
+// stands on it, which the event's rules forbid, so a build that checks stops.
+void unlink_from_inside_its_own_call() {
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+
+    event<void() noexcept> e;
+    built_in node;
+    const cookie_t cookie = e.add(as_not_null<noexcept_callback>(&node));
+
+    node.body = [&] { e.unlink(cookie); };
+    e();
+}
+
+TEST(EventDeathTest, AnOwnedNodeMayNotBeUnlinkedWhileTheWalkStandsOnIt) {
+    EXPECT_DEBUG_DEATH(unlink_from_inside_its_own_call(), "");
+}
+
 // While clear() lets go of what it emptied, one callback's destructor asks the event to
 // remove another: the answer is false -- it is out of the list -- but the event has not let
 // go of that node yet, and does so afterwards. A subscriber with a built-in node therefore

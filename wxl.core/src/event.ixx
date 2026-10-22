@@ -103,7 +103,7 @@ public:
     /// The node must not stand in a list already, this event's or another's, and one that
     /// took itself out from inside its own call stands again only once that call has
     /// returned and the event has let go of it. The cookie names the node by the address of
-    /// its `func_t` subobject, and that is what remove() has to be handed back.
+    /// its `func_t` subobject, and that is what remove() or unlink() has to be handed back.
     cookie_t add(not_null<func_t> fn) noexcept {
         for (invocation* i = invocation_; i; i = i->outer) {
             // Removed from inside its call, which is still running: the walk lets go of it,
@@ -130,6 +130,25 @@ public:
         if (!fn) return false;
         step_past(fn);
         release(fn);
+        return true;
+    }
+
+    /// Takes out a node that its subscriber owns and is about to destroy -- a member deriving
+    /// from `func_t` -- and does nothing else: the node leaves the list, no walk under way
+    /// calls it or stops at it, its link is cleared, and its release() is not called. Such a
+    /// subscriber does not go away from inside a call that reaches its node, so when it
+    /// unlinks no walk of this event stands on the node, and there is nothing to defer; a
+    /// build that checks stops if a walk is inside the node's call. remove() stays for the
+    /// nodes the event owns: it is what frees them, and a callback removed from inside its
+    /// own call has to be freed only once that call returns.
+    /// \return false if this event has no such node, as remove() answers; a node that left
+    ///         by swap() or clear() is still held there until its release().
+    bool unlink(cookie_t cookie) noexcept {
+        assert(!in_call(cookie.get()) && "wxl: a node is unlinked while a walk is inside its call");
+        func_t* const fn = callbacks_.remove(cookie);
+        if (!fn) return false;
+        step_past(fn);
+        fn->next_ = nullptr;
         return true;
     }
 
@@ -212,6 +231,13 @@ private:
         }
     }
 
+    // Whether a walk is inside the call of the node at `node`.
+    bool in_call(void const* node) const noexcept {
+        for (invocation const* i = invocation_; i; i = i->outer)
+            if (i->current == node) return true;
+        return false;
+    }
+
     // Lets go of a callback that has left the list, unless a walk is inside its call: then
     // the outermost such walk lets go of it on return, so the code of the call never runs
     // on freed memory.
@@ -270,11 +296,12 @@ export namespace wxl::core {
  * destroyed; a node built into its subscriber (a member deriving from `func_t`, whose
  * `release()` does nothing) belongs to the subscriber. Such a subscriber allocates
  * nothing to subscribe, and in return keeps three rules. It stays alive until its
- * `release()` comes, not only while `remove` would still find the node: `clear` and the
- * event's end let go of what they emptied one by one, and a `remove` answered false in the
- * meantime is not a `release()`. It does not go away from inside a call that reaches it.
- * And a node that took itself out from inside its own call stands again only once that
- * call has returned.
+ * `release()` comes or `unlink` takes the node out, not only while `unlink` would still
+ * find it: `clear` and the event's end let go of what they emptied one by one, and an
+ * `unlink` or `remove` answered false in the meantime is not a `release()`. It does not go
+ * away from inside a call that reaches it. And a node that took itself out from inside its
+ * own call stands again only once that call has returned. Going away, it leaves by `unlink`
+ * rather than `remove`: nothing is let go of, and the node unlinked is its own at once.
  *
  * An `event` belongs to the STA thread: its nodes come from `sta_memory_pool`, so they are
  * added, fired and removed on that thread and inside the pool's life, the way a `function`'s

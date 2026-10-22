@@ -164,9 +164,9 @@ public:
     }
 
     /// Out of the event before the token goes; once the token has been cancelled, the event the
-    /// node stood in has been fired and is gone, and remove() finds nothing.
+    /// node stood in has been fired and is gone, and unlink() finds nothing.
     ~producer_under() override {
-        async::detail::cancellation_state_of(stop_)->event().remove(
+        async::detail::cancellation_state_of(stop_)->event().unlink(
             core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
     }
 
