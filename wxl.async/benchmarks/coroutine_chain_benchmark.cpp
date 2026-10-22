@@ -272,5 +272,6 @@ int main() {
     canceled.cancel();
     const cancellation_token refusing = canceled.token();
 
-    std::printf("  %-16s %8.2f\n", "under a token cancelled already", best_of_refused(refusing));
+    // Under the token column: there is no plain form of a call refused by its token.
+    std::printf("  %-16s %8s %8.2f\n", "cancelled token", "", best_of_refused(refusing));
 }
