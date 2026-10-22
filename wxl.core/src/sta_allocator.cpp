@@ -1,5 +1,6 @@
 module;
 #include "pch.h"
+#include <intrin.h>
 
 module wxl.core;
 import std;
@@ -132,7 +133,19 @@ constinit sta_memory_pool::free_fn sta_memory_pool::s_free_table[TableSize] = {
 };
 // clang-format on
 
+// The size-class index is the lzcnt instruction itself (leading_zeros): on a processor without
+// it the intrinsic decodes as bsr and gives another number, so the pool refuses to start there.
+// CPUID 0x80000001, ECX bit 5: ABM/LZCNT.
+static void check_lzcnt() noexcept {
+    int regs[4];
+    __cpuid(regs, static_cast<int>(0x80000001));
+
+    if ((regs[2] & (1 << 5)) == 0) [[unlikely]]
+        abort("The processor has no lzcnt instruction");
+}
+
 sta_memory_pool::sta_memory_pool() {
+    check_lzcnt();
     s_pages.reserve(64);
     alloc_page();
 }

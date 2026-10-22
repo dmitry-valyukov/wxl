@@ -65,7 +65,7 @@ public:
     /// size -- so, unlike free(), alloc() never needs to compute anything about block layout
     /// at runtime, only look up which per-class function to call.
     static constexpr uint32_t pool_index(uint32_t size) noexcept {
-        return std::countl_zero(size - 1);
+        return core::leading_zeros(size - 1);
     }
 
     /// Allocates size bytes. May only be called on the owning thread (the one that called

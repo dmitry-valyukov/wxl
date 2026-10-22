@@ -1,6 +1,9 @@
 module;
 
 #include "abi.h"
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#endif
 
 export module wxl.core:sta_allocator;
 
@@ -10,6 +13,19 @@ import :thread_heap;
 import std;
 
 export namespace wxl::core {
+
+/// std::countl_zero of a size, for a size class: the library's in a constant expression, where
+/// it folds, and the instruction itself at run time. MSVC's std::countl_zero tests the processor
+/// (__isa_available) before lzcnt, and does not fold even a constant through that test; the
+/// intrinsic is the one instruction, which every processor this library runs on has.
+constexpr uint32_t leading_zeros(uint32_t value) noexcept {
+    if (std::is_constant_evaluated()) return std::countl_zero(value);
+#if defined(_MSC_VER) && !defined(__clang__)
+    return __lzcnt(value);
+#else
+    return std::countl_zero(value);
+#endif
+}
 
 /// The allocator of the one STA thread: many small, short-lived blocks, with no locks and no
 /// atomics, because no other thread may touch it. Every entry point asserts that in debug builds.
@@ -39,7 +55,7 @@ public:
 
     /// The slot of a size class in the dispatch tables: one lzcnt, larger classes first.
     static constexpr uint32_t pool_index(uint32_t size) noexcept {
-        return std::countl_zero(size - 1);
+        return leading_zeros(size - 1);
     }
 
     /// How many bytes a block of this size really holds: its whole class, and at least the smallest.
