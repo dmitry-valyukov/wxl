@@ -8,16 +8,17 @@
 // while one is up, and a dialog with no XamlRoot to show over -- and a refusal is an exception
 // out of the call itself, for its caller to catch, with nothing left running behind it. What is
 // left after a dialog that did come up is the wait for its answer: a task the caller keeps in a
-// field of whoever closes the dialog. Its frame is a body under way, which the exit waits for.
+// field of whoever closes the dialog. Its frame is a body under way, which has to be over before
+// the exit.
 //
-// A body the exit waits for has to end, and the reader may never answer. So the operation is
-// started under the caller's token -- the form with a token of showAsync (impl/operation.h) --
-// and the token is the owner's way to close the dialog: cancelled, it posts a turn to the
-// thread's queue, and that turn asks the dialog to close -- without Closing, which could refuse --
-// and ends the wait with the cancellation, whatever the platform does after. Dropping the task
+// A body that has to end before the exit cannot wait for the reader, who may never answer. So the
+// operation is started under the caller's token -- the form with a token of showAsync
+// (impl/operation.h) -- and the token is the owner's way to close the dialog: cancelled, it posts
+// a turn to the thread's queue, and that turn asks the dialog to close -- without Closing, which
+// could refuse -- and ends the wait with the cancellation, whatever the platform does after. Dropping the task
 // closes it as well: the operation still out is asked to stop as its producer goes. A token with
 // no source is one nobody can cancel; a dialog under it would be the reader's alone to close, and
-// the call stops on it rather than leave the exit waiting.
+// the call stops on it rather than leave a frame alive at the exit.
 //
 // The wait does not read the answer: the dialog's events carry it (PrimaryButtonClick, Closed
 // and the rest), the way every answer in wxl comes.
@@ -42,8 +43,8 @@ async::task<> await_answer(async::task<R> answer) {
 template <class Dialog>
 [[nodiscard]] async::task<> show_under(Dialog const& dialog, async::cancellation_token stop) {
     if (!async::detail::cancellation_state_of(stop))
-        core::abort("wxl: showDialog under a token nobody can cancel -- the exit would wait for a "
-                    "dialog only the reader can close");
+        core::abort("wxl: showDialog under a token nobody can cancel -- a dialog only the reader "
+                    "can close would keep its wait alive at the exit");
 
     return await_answer(dialog.showAsync(std::move(stop)));
 }

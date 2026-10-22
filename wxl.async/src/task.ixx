@@ -86,7 +86,8 @@ private:
 };
 
 /// The frames of coroutines returning a task that exist: made and not yet unmade, running
-/// or suspended. A plain number, since the frames live on the one STA thread.
+/// or suspended. A plain number, since the frames live on the one STA thread, and counted
+/// only by a build that checks: elsewhere the frame's allocation does nothing more.
 struct task_frames {
     static inline std::size_t live = 0;
 };
@@ -192,15 +193,16 @@ class task_promise : public body_tracking<promise_returns<R>>
 public:
     /// The frame, from the pool: a small object made and unmade on the one thread, over
     /// and over. The pool asserts the thread in debug builds, so a frame made anywhere else
-    /// is caught here. Counted: a frame is alive from here to operator delete.
+    /// is caught here. Counted by a build that checks: a frame is alive from here to operator
+    /// delete.
     inline static void* operator new(std::size_t size) {
         void* const frame = core::sta_memory_pool::alloc(size);
-        ++task_frames::live;
+        if constexpr (detail::checked) ++task_frames::live;
         return frame;
     }
 
     inline static void operator delete(void* frame, std::size_t size) noexcept {
-        --task_frames::live;
+        if constexpr (detail::checked) --task_frames::live;
         core::sta_memory_pool::free(frame, size);
     }
 
@@ -398,9 +400,10 @@ public:
 /// them in a vector and sweeps the finished ones. Dropping a task whose body runs
 /// stops it, and there is no fire-and-forget: the compiler refuses a task nobody
 /// keeps. What it ends with is there to be read, and a failure nobody reads is
-/// nothing more than that, as with std::future. A process ends once no body is
-/// under way (live_frames()), so whoever keeps a task stops it by its token, or
-/// drops it, before the end.
+/// nothing more than that, as with std::future. Whoever keeps a task stops it by
+/// its token, or drops it, before the end of the process: the end waits for the
+/// operations still out and not for bodies, and a build that checks stops at a
+/// frame still alive there (live_frames()).
 ///
 /// `task<T>` ends with a value, `task<>` without one; both end the same way.
 /// `result()` gives the value or throws what left the producer, and gives the
@@ -605,8 +608,18 @@ private:
 /// How many frames of coroutines returning a task exist -- made and not yet unmade, suspended
 /// or running. A frame lasts as long as its body, so this is the count of bodies under way;
 /// a task whose body has ended holds only its result, and is not counted. The end of a
-/// process waits for it to come to zero.
-inline std::size_t live_frames() noexcept { return detail::task_frames::live; }
+/// process expects it at zero: every task lives in a place of an owner, which lets go
+/// before then.
+///
+/// Only a build that checks counts, so only there does a call compile; elsewhere the
+/// static_assert stops it. A reader that has to build both ways asks under `if constexpr
+/// (detail::checked)`, whose discarded branch does not instantiate the call.
+template <class Unused = void>
+inline std::size_t live_frames() noexcept {
+    static_assert(detail::checked && std::is_void_v<Unused>,
+                  "live_frames(): frames are counted only in a build that checks coroutines");
+    return detail::task_frames::live;
+}
 
 template <class R>
 inline task<R> detail::task_promise<R>::get_return_object() {

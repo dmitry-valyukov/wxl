@@ -23,6 +23,7 @@
 #include "impl/bootstrap.h"
 #include "impl/event_waits.h"
 #include "impl/terminate_reason.h"
+#include "coroutine_checks.h"
 #include "launch.h"
 
 import wxl.async;
@@ -114,9 +115,11 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
     winrt::Microsoft::UI::Xaml::XamlTypeInfo::XamlControlsXamlMetaDataProvider provider_;
 };
 
-// What the process waits for before it ends: no coroutine body under way and no operation out.
+// What the process waits for before it ends: no operation out. A coroutine body is not waited
+// for: every task lives in a place of an owner, and the owners let go before the end, so a frame
+// still alive there is a broken rule, which a build that checks stops at (see wWinMain).
 bool nothingLeftToWaitFor() noexcept {
-    return wxl::async::live_frames() == 0 && wxl::async::sta_loop::outstanding() == 0;
+    return wxl::async::sta_loop::outstanding() == 0;
 }
 
 #ifndef NDEBUG
@@ -128,15 +131,15 @@ bool nothingLeftToWaitFor() noexcept {
 void CALLBACK reportWhatIsStillAlive(HWND, UINT, UINT_PTR id, DWORD) noexcept {
     ::KillTimer(nullptr, id);
 
-    const std::size_t frames = wxl::async::live_frames();
     const std::size_t operations = wxl::async::sta_loop::outstanding();
 
-    if (frames == 0 && operations == 0) return;
+    if (operations == 0) return;
 
+    // A Debug build checks, so it counts the frames too: what still waits for those operations.
     _RPTF2(_CRT_ASSERT,
-           "wxl: ten seconds into the wait at exit, %zu coroutine frames are still "
-           "alive and %zu operations still out; the process goes on waiting for them",
-           frames, operations);
+           "wxl: ten seconds into the wait at exit, %zu operations are still out and %zu "
+           "coroutine frames alive; the process goes on waiting for the operations",
+           operations, wxl::async::live_frames());
 }
 #endif
 
@@ -261,28 +264,32 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // wxl has no notion of a main window to do it for them yet.
     wxl::impl::close_event_waits();
 
-    // A process has no business ending while a coroutine body is under way: the
-    // thread's loop turns on -- the worker's answers, the thread pool's, the
-    // queue's timers -- until the last frame is gone. Every task is kept by
-    // somebody who stops it, and the application stops its own by cancelling its
-    // common source on the way out, from its main window's Closed at the latest;
-    // a body cancelled ends by itself, and its frame with it, while its task --
-    // a field of an object that lives on into the teardown handler -- keeps only
-    // the end. One that waits for what never comes keeps the process here, the
-    // way a thread nobody joins would, rather than being torn down underneath.
-    // Before the teardown handler, so that the application is asked what to save
-    // when nothing of its own still runs.
+    // A process has no business ending while an operation is out: the thread's loop
+    // turns on -- the worker's answers, the thread pool's, the queue's timers -- until
+    // the last one is back. Every task is kept by somebody who stops it, and the
+    // application stops its own by cancelling its common source on the way out, from
+    // its main window's Closed at the latest; a body cancelled ends by itself, its
+    // operations with it, while its task -- a field of an object that lives on into the
+    // teardown handler -- keeps only the end. A body that answers its cancellation by
+    // awaiting a file goes on to that operation from inside the loop's turn that
+    // resumed it, so the count does not fall to zero between its two. An operation
+    // that never comes back keeps the process here, the way a thread nobody joins
+    // would, rather than being torn down underneath. Before the teardown handler, so
+    // that the application is asked what to save when nothing of its own still runs.
     //
-    // The operations are the process's as well: an orphan a frame let go of to finish
-    // alone, and one on its way back, are waited for with the frames -- which is why
-    // sta_loop::stop() below finds none out.
+    // A coroutine frame is not waited for: a frame alive at the end belongs to a task
+    // whose owner outlived the end, which is a broken rule, and a build that checks stops
+    // at it once nothing may hold a task any more, below.
+    //
+    // An orphan a frame let go of to finish alone, and an operation on its way back, are
+    // counted as well -- which is why sta_loop::stop() below finds none out.
     //
     // In a Debug build the wait is watched: a stop for a debugger is a developer's tool, and
-    // a user's process has nobody to stop for. Ten seconds is far longer than a frame or an
-    // operation that is only finishing its work -- a last write, a last answer from the pool
-    // -- takes, so one still there by then is most likely waiting for what never comes, and
-    // the watch reports it the way a failed check does: a place for a debugger to stop at,
-    // with the frames and the operations counted in the text. It is not a timeout and not a
+    // a user's process has nobody to stop for. Ten seconds is far longer than an operation
+    // that is only finishing its work -- a last write, a last answer from the pool -- takes,
+    // so one still there by then is most likely waiting for what never comes, and the
+    // watch reports it the way a failed check does: a place for a debugger to stop at,
+    // with the operations and the frames counted in the text. It is not a timeout and not a
     // way out: past the report the process goes on waiting, as it does in Release, where
     // nothing watches. The watch is a timer of the thread's own, with a procedure and no
     // window: the message loop turning here dispatches its WM_TIMER by calling the
@@ -312,9 +319,16 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // After the handler, which may still let go of coroutines that are waiting for
     // a file: giving an operation up needs the worker. What such a coroutine had out
     // on the pool finishes as an orphan, and is waited for the same way as before
-    // the handler, under the same condition -- frames included, since asking costs
-    // nothing.
+    // the handler, under the same condition.
     wxl::async::sta_loop::run_until(&nothingLeftToWaitFor);
+
+    // Nothing may hold a task from here on: the application's owners have let go, the
+    // teardown handler's last of all, and what they had out is back.
+    if constexpr (wxl::async::detail::checked) {
+        coro_check(wxl::async::live_frames() == 0,
+                   "wxl: a coroutine frame is still alive at exit -- its owner outlived the exit",
+                   wxl::async::detail::site::current());
+    }
 
     // A CompositionWindow still alive here outlived XAML: one that was not closed when the
     // queue of XAML began to shut down -- a Start that failed before its loop, or a window

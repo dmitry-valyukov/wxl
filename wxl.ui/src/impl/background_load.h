@@ -8,8 +8,9 @@
 // The window owns its loads, and the wait of each is a task kept with it: a background set later
 // makes the load under way unneeded, and the window cancels it and drops its wait; the token the
 // load was asked under -- the application's, or one made under it -- ends it too. While it waits,
-// its body is under way, and the exit waits for it. A load that fails -- a file that is not there --
-// ends the wait with the failure, kept in the task with the load until the next replaces it.
+// its body is under way, and has to be over before the exit. A load that fails -- a file that is
+// not there -- ends the wait with the failure, kept in the task with the load until the next
+// replaces it.
 //
 // A picture loaded is on the rendering device, and goes with it: the window keeps what it asked
 // for and the token it was asked under until the background is set some other way, and loads it

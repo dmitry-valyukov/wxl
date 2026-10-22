@@ -41,7 +41,7 @@ void (*on_return)(async_op&) noexcept = nullptr;
 
 /// Turns the message loop until the condition holds: what the queue is posted arrives
 /// as a message. This is the thread's only loop while it turns -- at the end of a process
-/// the wait for the last frames and stop() both come after the application's own loop has
+/// the wait for the last operations and stop() both come after the application's own loop has
 /// ended -- so nothing but messages is expected: a failed GetMessageW, and a WM_QUIT
 /// asking the thread to leave while it still waits for what it owes, are broken rules, not
 /// cases, and the process stops on them rather than going on as if the wait were over.

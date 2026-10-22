@@ -9,7 +9,7 @@
 //
 // showDialog's two halves (impl/show_dialog.h) are tested here too, over a dialog whose showAsync
 // is made of the same fakes the way a generated wrapper makes its form with a token: the call
-// that may refuse, and the wait for the answer -- a task whose frame the exit counts.
+// that may refuse, and the wait for the answer -- a task whose frame is under way until then.
 #include <crtdbg.h>
 
 #include <gtest/gtest.h>
@@ -730,21 +730,28 @@ struct fake_dialog {
     }
 };
 
-TEST(ShowDialogTest, TheWaitForTheAnswerIsAFrameTheExitCountsUntilTheAnswerComes) {
+TEST(ShowDialogTest, TheWaitForTheAnswerIsAFrameUnderWayUntilTheAnswerComes) {
     fake_dialog dialog;
     cancellation_source source;
-    std::size_t const before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (wxl::async::detail::checked) before = live_frames();
 
     task<> waiting = show_under(dialog, source.token());
     EXPECT_EQ(dialog.shown, 1);
-    EXPECT_EQ(live_frames(), before + 1) << "the call has returned, and the wait is under way";
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before + 1) << "the call has returned, and the wait is under way";
+    }
 
     // The reader answers: the platform's completion only posts.
     dialog.op.complete(1);
-    EXPECT_EQ(live_frames(), before + 1);
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before + 1);
+    }
 
     EXPECT_EQ(dialog.queue.run(), 1u);
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     EXPECT_TRUE(waiting.done());
     EXPECT_NO_THROW(waiting.result());
     EXPECT_EQ(dialog.op.reads(), 1);
@@ -759,19 +766,24 @@ TEST(ShowDialogTest, TheWaitForTheAnswerIsAFrameTheExitCountsUntilTheAnswerComes
 TEST(ShowDialogTest, CancellingTheTokenClosesTheDialogAndTheFrameEndsOnTheNextTurn) {
     fake_dialog dialog;
     cancellation_source source;
-    std::size_t const before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (wxl::async::detail::checked) before = live_frames();
 
     task<> waiting = show_under(dialog, source.token());
 
     source.cancel();
     EXPECT_EQ(dialog.op.cancels(), 0) << "cancelling only posts the turn";
-    EXPECT_EQ(live_frames(), before + 1) << "and resumes nobody";
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before + 1) << "and resumes nobody";
+    }
 
     // The turn asks the dialog to close and ends the frame: the platform has not answered, and
     // need not.
     EXPECT_EQ(dialog.queue.run(), 1u);
     EXPECT_EQ(dialog.op.cancels(), 1);
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     EXPECT_EQ(dialog.op.held(), 1) << "the producer went with the frame";
     ASSERT_TRUE(waiting.done());
     EXPECT_THROW(waiting.result(), operation_canceled_exception);
@@ -788,13 +800,18 @@ TEST(ShowDialogTest, CancellingTheTokenClosesTheDialogAndTheFrameEndsOnTheNextTu
 TEST(ShowDialogTest, DroppingTheWaitClosesTheDialog) {
     fake_dialog dialog;
     cancellation_source source;
-    std::size_t const before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (wxl::async::detail::checked) before = live_frames();
 
     task<> waiting = show_under(dialog, source.token());
-    EXPECT_EQ(live_frames(), before + 1);
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before + 1);
+    }
 
     waiting = {};
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     EXPECT_EQ(dialog.op.cancels(), 1) << "the dialog was not asked to close";
     EXPECT_EQ(dialog.op.held(), 1);
 
@@ -807,7 +824,8 @@ TEST(ShowDialogTest, ADialogThatCompletesInsideItsCancelEndsTheFrameOnce) {
     fake_dialog dialog;
     dialog.op.ends_when_cancelled();   // a ContentDialog whose popup is gone already
     cancellation_source source;
-    std::size_t const before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (wxl::async::detail::checked) before = live_frames();
 
     task<> waiting = show_under(dialog, source.token());
     source.cancel();
@@ -815,7 +833,9 @@ TEST(ShowDialogTest, ADialogThatCompletesInsideItsCancelEndsTheFrameOnce) {
     // The turn asks; the completion the asking raises is posted behind it, and finds the frame
     // gone.
     EXPECT_EQ(dialog.queue.run(), 1u);
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     EXPECT_EQ(dialog.queue.run(), 1u);
     EXPECT_EQ(dialog.op.reads(), 0);
     EXPECT_EQ(dialog.op.held(), 1);
@@ -825,7 +845,8 @@ TEST(ShowDialogTest, ARefusalIsThrownToTheCallerAndLeavesNothingRunning) {
     fake_dialog dialog;
     dialog.refuses = true;
     cancellation_source source;
-    std::size_t const before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (wxl::async::detail::checked) before = live_frames();
 
     try {
         task<> waiting = show_under(dialog, source.token());
@@ -835,7 +856,9 @@ TEST(ShowDialogTest, ARefusalIsThrownToTheCallerAndLeavesNothingRunning) {
     }
 
     EXPECT_EQ(dialog.shown, 1);
-    EXPECT_EQ(live_frames(), before) << "no frame is made for a dialog that is not up";
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before) << "no frame is made for a dialog that is not up";
+    }
     EXPECT_EQ(dialog.op.held(), 1) << "no producer either";
 
     // Nothing stands under the token.
@@ -847,13 +870,16 @@ TEST(ShowDialogTest, ARefusalIsThrownToTheCallerAndLeavesNothingRunning) {
 TEST(ShowDialogTest, UnderATokenCancelledAlreadyTheDialogIsNotShownAndNothingIsLeft) {
     fake_dialog dialog;
     cancellation_source source;
-    std::size_t const before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (wxl::async::detail::checked) before = live_frames();
 
     source.cancel();
     task<> waiting = show_under(dialog, source.token());
 
     EXPECT_EQ(dialog.shown, 0) << "the call is not made";
-    EXPECT_EQ(live_frames(), before) << "the frame ended where it began";
+    if constexpr (wxl::async::detail::checked) {
+        EXPECT_EQ(live_frames(), before) << "the frame ended where it began";
+    }
     EXPECT_TRUE(waiting.done());
     EXPECT_EQ(dialog.queue.posted(), 0u);
     EXPECT_EQ(dialog.op.held(), 1);

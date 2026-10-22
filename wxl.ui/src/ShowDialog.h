@@ -11,8 +11,8 @@
 //
 // The task is kept like every other, in a field of whoever closes the dialog -- the window it is
 // raised from, the model behind it; dropping it closes the dialog. Its body is under way while
-// the dialog is up, and the exit waits for it, so a dialog left up keeps the process waiting.
-// Hence the token, and no form without one: it is how
+// the dialog is up, and has to be over before the exit: a frame still alive there is a broken
+// rule, which a build that checks stops at. Hence the token, and no form without one: it is how
 // the owner closes the dialog -- a token of the application's common source, cancelled on the
 // way out while the window's queue still turns (from the main window's Closed at the latest:
 // the wait at exit comes before Teardown), or of a source made under it, for a dialog that has

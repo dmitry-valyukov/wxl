@@ -5,8 +5,8 @@
 //
 // What a frame is made of is what these tests look at: a parameter taken by value has its
 // copy in the frame and goes with it, so a parameter that counts its copies says whether the
-// frame is still there. And the frames are counted where they are made and unmade, which
-// live_frames() reports.
+// frame is still there. And a build that checks counts the frames where they are made and
+// unmade, which live_frames() reports.
 #include <crtdbg.h>
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -102,7 +102,10 @@ struct seen_at_resume {
 
 /// The usual co_await, of the task the call has just returned.
 task<> awaits_the_call(int& alive, std::coroutine_handle<>& slot, seen_at_resume& seen) {
-    seen = seen_at_resume{co_await answers_after_a_pause(frame_mark{alive}, slot), alive, live_frames()};
+    if constexpr (detail::checked)
+        seen = seen_at_resume{co_await answers_after_a_pause(frame_mark{alive}, slot), alive, live_frames()};
+    else
+        seen = seen_at_resume{co_await answers_after_a_pause(frame_mark{alive}, slot), alive};
 }
 
 /// A co_await of a task kept in a local: the task lives on past the co_await.
@@ -110,7 +113,7 @@ task<> joins_a_kept_task(int& alive, std::coroutine_handle<>& slot, seen_at_resu
     task<int> kept = answers_after_a_pause(frame_mark{alive}, slot);
     seen.value = co_await kept;
     seen.frames = alive;
-    seen.live = live_frames();
+    if constexpr (detail::checked) seen.live = live_frames();
 }
 
 /// Joins a task somebody else keeps.
@@ -144,40 +147,52 @@ TEST(TaskLifetimeTest, AWaitedFrameIsGoneBeforeTheWaiterGoesOn) {
     int alive = 0;
     std::coroutine_handle<> slot;
     seen_at_resume seen;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
     task<> outer = awaits_the_call(alive, slot, seen);
 
     ASSERT_TRUE(slot);
     EXPECT_EQ(alive, 1) << "the awaited frame keeps its copy while it waits";
-    EXPECT_EQ(live_frames(), before + 2);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before + 2);
+    }
 
     slot.resume();
 
     EXPECT_TRUE(outer.done());
     EXPECT_EQ(seen.value, 42);
     EXPECT_EQ(seen.frames, 0) << "the waiter was resumed with the awaited frame still there";
-    EXPECT_EQ(seen.live, before + 1) << "the waiter's own frame is the one left";
+    if constexpr (detail::checked) {
+        EXPECT_EQ(seen.live, before + 1) << "the waiter's own frame is the one left";
+    }
     EXPECT_EQ(alive, 0);
-    EXPECT_EQ(live_frames(), before) << "the outer frame, awaited by nobody, stayed after its body";
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before) << "the outer frame, awaited by nobody, stayed after its body";
+    }
 }
 
 TEST(TaskLifetimeTest, AJoinedFrameIsGoneBeforeTheJoinerGoesOn) {
     int alive = 0;
     std::coroutine_handle<> slot;
     seen_at_resume seen;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
     task<> outer = joins_a_kept_task(alive, slot, seen);
 
     ASSERT_TRUE(slot);
-    EXPECT_EQ(live_frames(), before + 2);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before + 2);
+    }
 
     slot.resume();
 
     EXPECT_TRUE(outer.done());
     EXPECT_EQ(seen.value, 42);
     EXPECT_EQ(seen.frames, 0) << "the frame of a kept task stayed after its body ended";
-    EXPECT_EQ(seen.live, before + 1);
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(seen.live, before + 1);
+        EXPECT_EQ(live_frames(), before);
+    }
 }
 
 // (b) With nobody awaiting, the frame goes right at the end of the body, and the result
@@ -185,18 +200,23 @@ TEST(TaskLifetimeTest, AJoinedFrameIsGoneBeforeTheJoinerGoesOn) {
 TEST(TaskLifetimeTest, AFrameNobodyAwaitsGoesAtTheEndOfItsBody) {
     int alive = 0;
     std::coroutine_handle<> slot;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
     task<int> t = answers_after_a_pause(frame_mark{alive}, slot);
 
     ASSERT_TRUE(slot);
     EXPECT_EQ(alive, 1);
-    EXPECT_EQ(live_frames(), before + 1);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before + 1);
+    }
     EXPECT_FALSE(t.done());
 
     slot.resume();
 
     EXPECT_EQ(alive, 0) << "the frame stayed after its body ended";
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     ASSERT_TRUE(t.done());
     EXPECT_EQ(t.result(), 42);
 }
@@ -248,11 +268,14 @@ TEST(TaskLifetimeTest, AReadBeforeTheResultIsHandedItByTheEnd) {
 // and the task holds the result.
 TEST(TaskLifetimeTest, ABodyThatEndsInsideTheCallLeavesNoFrame) {
     int alive = 0;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
     task<int> t = answers_at_once(frame_mark{alive});
 
     EXPECT_EQ(alive, 0) << "the frame of a body that never suspended outlived the call";
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     ASSERT_TRUE(t.done());
     EXPECT_EQ(t.result(), 7);
 }
@@ -298,7 +321,8 @@ TEST(TaskLifetimeTest, AssigningOverAFieldStopsTheBodyItHeld) {
     int alive = 0, deaths = 0, resumed = 0;
     std::coroutine_handle<> first_slot, second_slot;
     holds_a_load owner;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
 
     owner.load = stays_in_flight(frame_mark{alive}, first_slot, deaths, resumed);
 
@@ -309,7 +333,9 @@ TEST(TaskLifetimeTest, AssigningOverAFieldStopsTheBodyItHeld) {
 
     EXPECT_EQ(deaths, 1) << "the locals of the body assigned over are still there";
     EXPECT_EQ(alive, 1) << "only the new body's frame is left";
-    EXPECT_EQ(live_frames(), before + 1);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before + 1);
+    }
     EXPECT_EQ(resumed, 0);
 
     ASSERT_TRUE(second_slot);
@@ -317,7 +343,9 @@ TEST(TaskLifetimeTest, AssigningOverAFieldStopsTheBodyItHeld) {
 
     EXPECT_EQ(deaths, 2);
     EXPECT_EQ(alive, 0);
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     EXPECT_EQ(resumed, 1);
     EXPECT_EQ(owner.load.result(), 1);
 }
@@ -498,13 +526,21 @@ task<int> chain_level(int depth, frame_mark, chain_notes& notes) {
     if (depth == 0) {
         co_await parked{notes.slot};
         notes.frames_at_resume[0] = notes.alive;
-        notes.live_at_resume[0] = live_frames();
+        if constexpr (detail::checked) notes.live_at_resume[0] = live_frames();
         notes.stack_at_resume[0] = STACK_POSITION();
         co_return 0;
     }
 
-    const auto [below, frames, live] = std::tuple<int, int, std::size_t>{
-        co_await chain_level(depth - 1, frame_mark{notes.alive}, notes), notes.alive, live_frames()};
+    int below = 0;
+    int frames = 0;
+    std::size_t live = 0;
+
+    if constexpr (detail::checked)
+        std::tie(below, frames, live) = std::tuple<int, int, std::size_t>{
+            co_await chain_level(depth - 1, frame_mark{notes.alive}, notes), notes.alive, live_frames()};
+    else
+        std::tie(below, frames) = std::tuple<int, int>{
+            co_await chain_level(depth - 1, frame_mark{notes.alive}, notes), notes.alive};
 
     notes.frames_at_resume[depth] = frames;
     notes.live_at_resume[depth] = live;
@@ -519,27 +555,36 @@ task<int> chain_level(int depth, frame_mark, chain_notes& notes) {
 // the thread is handed over, not called into.
 TEST(TaskLifetimeTest, AChainTenDeepUnmakesItsFramesAsItEnds) {
     chain_notes notes;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
     task<int> top = chain_level(chain_depth, frame_mark{notes.alive}, notes);
 
     ASSERT_TRUE(notes.slot);
     EXPECT_EQ(notes.alive, chain_depth + 1);
-    EXPECT_EQ(live_frames(), before + chain_depth + 1);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before + chain_depth + 1);
+    }
 
     notes.slot.resume();
 
     ASSERT_TRUE(top.done());
     EXPECT_EQ(top.result(), chain_depth);
     EXPECT_EQ(notes.alive, 0) << "the top frame stayed after its body ended";
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
 
     // The bottom saw every frame; each level above, only its own and those above it.
     EXPECT_EQ(notes.frames_at_resume[0], chain_depth + 1);
-    EXPECT_EQ(notes.live_at_resume[0], before + chain_depth + 1);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(notes.live_at_resume[0], before + chain_depth + 1);
+    }
 
     for (int depth = 1; depth <= chain_depth; ++depth) {
         EXPECT_EQ(notes.frames_at_resume[depth], chain_depth + 1 - depth) << "level " << depth;
-        EXPECT_EQ(notes.live_at_resume[depth], before + chain_depth + 1 - depth) << "level " << depth;
+        if constexpr (detail::checked) {
+            EXPECT_EQ(notes.live_at_resume[depth], before + chain_depth + 1 - depth) << "level " << depth;
+        }
     }
 
     const auto [lowest, highest] = std::ranges::minmax(notes.stack_at_resume);
@@ -589,14 +634,17 @@ TEST(TaskLifetimeTest, AFailureWithAWaiterReachesItWithTheFrameGone) {
 TEST(TaskLifetimeTest, AFailureNobodyAwaitsWaitsInTheTaskWithTheFrameGone) {
     int alive = 0;
     std::coroutine_handle<> slot;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
     task<int> with_value = fails_after_a_pause(frame_mark{alive}, slot);
 
     ASSERT_TRUE(slot);
     slot.resume();
 
     EXPECT_EQ(alive, 0) << "the frame that failed stayed after its body ended";
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
     ASSERT_TRUE(with_value.done());
     EXPECT_THROW((void)with_value.result(), std::runtime_error);
     EXPECT_THROW((void)with_value.result(), std::runtime_error) << "the exception is thrown each time";
@@ -642,17 +690,21 @@ TEST(TaskLifetimeTest, AnEndWithoutAValueIsReadAsOftenAsItIsAsked) {
 // The count of frames is the count of bodies under way: a frame stopped in flight leaves it as
 // one that ended does, and a task holding only its result is not in it.
 TEST(TaskLifetimeTest, AFrameIsCountedForAsLongAsItsBody) {
-    int alive = 0;
-    std::coroutine_handle<> slot;
-    const std::size_t before = live_frames();
-    {
-        task<int> stopped = answers_after_a_pause(frame_mark{alive}, slot);
-        task<int> ended = answers_at_once(frame_mark{alive});
+    if constexpr (detail::checked) {
+        int alive = 0;
+        std::coroutine_handle<> slot;
+        const std::size_t before = live_frames();
+        {
+            task<int> stopped = answers_after_a_pause(frame_mark{alive}, slot);
+            task<int> ended = answers_at_once(frame_mark{alive});
 
-        EXPECT_EQ(live_frames(), before + 1);
+            EXPECT_EQ(live_frames(), before + 1);
+        }
+        EXPECT_EQ(live_frames(), before) << "a frame stopped in flight is still counted";
+        EXPECT_EQ(alive, 0);
+    } else {
+        GTEST_SKIP() << "frames are counted only in a build that checks coroutines";
     }
-    EXPECT_EQ(live_frames(), before) << "a frame stopped in flight is still counted";
-    EXPECT_EQ(alive, 0);
 }
 
 namespace {

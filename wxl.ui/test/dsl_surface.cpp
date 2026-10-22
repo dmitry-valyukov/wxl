@@ -379,7 +379,7 @@ using namespace wxl::dsl;
 }
 
 // backgroundAsync takes the token its load stands under, and has no form without one: the wait for
-// the picture is a frame the exit waits for.
+// the picture is a frame that has to be over before the exit.
 template <class Image>
 concept loads_background_without_a_token =
     requires(CompositionWindow const& window, Image const& image) { window.backgroundAsync(image); };
@@ -1553,8 +1553,8 @@ static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
 }
 
 // showDialog takes the token its owner closes the dialog with, and has no form without one: the
-// wait for the answer is a body the exit waits for, and a dialog nobody can close would keep the
-// process waiting.
+// wait for the answer is a body that has to be over before the exit, and a dialog nobody can close
+// would keep it alive there.
 template <class Host>
 concept shows_dialog_without_a_token =
     requires(ContentDialog const& dialog, Host const& host) { showDialog(dialog, host); };

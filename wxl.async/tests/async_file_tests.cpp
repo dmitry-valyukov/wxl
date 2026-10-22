@@ -544,10 +544,11 @@ std::string on_disk(const path& file_path) {
 
 }  // namespace
 
-// At the end of a process the loop runs on until no coroutine frame is alive -- one still
-// reading or writing included. In the sleeping mode that wait is run_until() on the
-// count itself, and it comes back once the frame has read, written and gone: its task, kept
-// here, holds nothing more than its end by then.
+// At the end of a process the loop runs on until no operation is out -- a frame still reading
+// or writing keeps one out all the way: the read's answer resumes it inside the loop's turn,
+// and it starts the write before the loop looks at the count again. In the sleeping mode that
+// wait is run_until() on the count itself, and it comes back once the frame has read, written
+// and gone: its task, kept here, holds nothing more than its end by then.
 task<> reads_then_writes(path from, path to, std::string& got) {
     got = co_await async_file::read_all(from);
     co_await async_file::write_all(to, got);
@@ -558,13 +559,12 @@ TEST_F(AsyncFileTest, TheLoopRunsUntilAFrameStillReadingAndWritingIsGone) {
 
     given_a_file(L"book.bin", content);
 
-    const std::size_t before = live_frames();
     std::string got;
 
     task<> copying = reads_then_writes(root_ / L"book.bin", root_ / L"copy.bin", got);
-    EXPECT_EQ(live_frames(), before + 1);
+    EXPECT_NE(sta_loop::outstanding(), 0u);
 
-    sta_loop::run_until([before] { return live_frames() == before; });
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
 
     EXPECT_TRUE(copying.done());
     copying.result();

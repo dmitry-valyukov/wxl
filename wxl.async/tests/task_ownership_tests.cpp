@@ -176,29 +176,34 @@ TEST(TaskOwnershipTest, AFailureNobodyReadsIsNothing) {
 }
 
 // The count of live frames: up as a frame is made, down as it is unmade -- by the body ending,
-// by the task being dropped while it runs, by a failure or a cancellation on the way.
+// by the task being dropped while it runs, by a failure or a cancellation on the way. Only a
+// build that checks counts.
 TEST(TaskOwnershipTest, ALiveFrameIsCountedUntilItIsUnmade) {
-    const std::size_t before = live_frames();
-    std::coroutine_handle<> waiter;
-    bool released = false;
+    if constexpr (detail::checked) {
+        const std::size_t before = live_frames();
+        std::coroutine_handle<> waiter;
+        bool released = false;
 
-    task<> ends = waits_then_finishes(waiter, &released);
-    EXPECT_EQ(live_frames(), before + 1);
+        task<> ends = waits_then_finishes(waiter, &released);
+        EXPECT_EQ(live_frames(), before + 1);
 
-    waiter.resume();
-    EXPECT_EQ(live_frames(), before);
+        waiter.resume();
+        EXPECT_EQ(live_frames(), before);
 
-    task<> dropped = waits_then_finishes(waiter, &released);
-    EXPECT_EQ(live_frames(), before + 1);
+        task<> dropped = waits_then_finishes(waiter, &released);
+        EXPECT_EQ(live_frames(), before + 1);
 
-    dropped = {};
-    EXPECT_EQ(live_frames(), before);
+        dropped = {};
+        EXPECT_EQ(live_frames(), before);
 
-    int sink = 0;
-    task<> at_once = runs_through(sink);
-    task<> cancelled = cancelled_at_once();
-    task<> failed = fails_at_once("counted out");
-    EXPECT_EQ(live_frames(), before);
+        int sink = 0;
+        task<> at_once = runs_through(sink);
+        task<> cancelled = cancelled_at_once();
+        task<> failed = fails_at_once("counted out");
+        EXPECT_EQ(live_frames(), before);
+    } else {
+        GTEST_SKIP() << "frames are counted only in a build that checks coroutines";
+    }
 }
 
 // A frame comes from the STA pool, and the pool asserts the thread in debug builds: a task's
@@ -304,18 +309,23 @@ private:
 TEST(TaskOwnershipTest, AnObjectThatGoesStopsTheCoroutineItKeeps) {
     Notes notes;
     std::coroutine_handle<> waiter;
-    const std::size_t before = live_frames();
+    [[maybe_unused]] std::size_t before = 0;
+    if constexpr (detail::checked) before = live_frames();
 
     {
         Watches object(notes);
         object.start(waiter);
         ASSERT_TRUE(waiter);
-        EXPECT_EQ(live_frames(), before + 1);
+        if constexpr (detail::checked) {
+            EXPECT_EQ(live_frames(), before + 1);
+        }
     }
 
     EXPECT_EQ(notes.deaths, 1);
     EXPECT_EQ(notes.resumed, 0);
-    EXPECT_EQ(live_frames(), before);
+    if constexpr (detail::checked) {
+        EXPECT_EQ(live_frames(), before);
+    }
 }
 
 // Started in the constructor, the coroutine is the object's from its birth: the object stops it

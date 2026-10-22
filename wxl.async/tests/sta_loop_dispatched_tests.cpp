@@ -208,7 +208,8 @@ TEST(StaLoopDispatchedTest, AnExceptionFromThePoolArrivesAtTheCoAwait) {
 }
 
 // run_until() under the queue turns the thread's message loop: an answer from the pool
-// reaches the frame waiting for it there, and the wait ends with that frame.
+// reaches the frame waiting for it there, and the wait -- for nothing out, as at the end of a
+// process -- ends with the answer, which has ended the frame.
 task<> awaits_the_pool(bool& answered) {
     answered = co_await sta_loop::async_call(orphanable, [] {
         ::Sleep(50);
@@ -217,13 +218,12 @@ task<> awaits_the_pool(bool& answered) {
 }
 
 TEST(StaLoopDispatchedTest, RunUntilTurnsTheMessageLoopUntilTheConditionHolds) {
-    const std::size_t before = live_frames();
     bool answered = false;
 
     task<> waiting = awaits_the_pool(answered);
-    EXPECT_EQ(live_frames(), before + 1);
+    EXPECT_NE(sta_loop::outstanding(), 0u);
 
-    sta_loop::run_until([before] { return live_frames() == before; });
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
 
     EXPECT_TRUE(waiting.done());
     EXPECT_TRUE(answered);
