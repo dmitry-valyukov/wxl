@@ -44,14 +44,7 @@ namespace detail {
 class continuation_word
 {
 public:
-    /// Whom final_suspend hands the thread to: the waiter, or nobody.
-    inline std::coroutine_handle<> next() const noexcept {
-        const std::uintptr_t handle = bits() & ~flags;
-        return handle ? std::coroutine_handle<>::from_address(reinterpret_cast<void*>(handle))
-                      : std::noop_coroutine();
-    }
-
-    /// The waiter, or an empty handle: for whoever resumes it from outside a coroutine.
+    /// The waiter, or an empty handle.
     inline std::coroutine_handle<> waiter() const noexcept {
         return std::coroutine_handle<>::from_address(reinterpret_cast<void*>(bits() & ~flags));
     }

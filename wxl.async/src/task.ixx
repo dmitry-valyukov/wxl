@@ -242,10 +242,11 @@ public:
 
             inline bool await_ready() const noexcept { return !producer->continuation.waited(); }
 
+            /// Reached only past await_ready(), which has found the waiter there.
             inline std::coroutine_handle<> await_suspend(std::coroutine_handle<> self) const noexcept {
-                const std::coroutine_handle<> next = producer->continuation.next();
+                const std::coroutine_handle<> waiter = producer->continuation.waiter();
                 self.destroy();
-                return next;
+                return waiter;
             }
 
             inline void await_resume() const noexcept {}
