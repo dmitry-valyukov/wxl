@@ -864,7 +864,7 @@ class orphanable_wait final : public async_op_t<R>
 public:
     /// Made only under a token that has a source and is not cancelled yet.
     inline explicit orphanable_wait(cancellation_token stop)
-        : async_op_t<R>(orphanable), stop_(std::move(stop)), node_(*this), turn_{this} {
+        : stop_(std::move(stop)), node_(*this), turn_{this} {
         coro_check(!cancellation_state_of(stop_)->canceled(),
                    "orphanable_wait: made under a token cancelled already", detail::site::current());
 
@@ -890,16 +890,17 @@ public:
     }
 
     /// The task lets go. A body still out is left an orphan, and the wait goes at once; an
-    /// answered wait goes; one in line for its turn is given up, and the loop deletes it
-    /// with the turn.
+    /// answered wait goes; one in line for its turn is given up without a wait -- it is in no
+    /// channel -- and the loop deletes it with the turn.
     void release() override {
         if (body_) {
             detach_body();
             delete this;
-            return;
+        } else if (this->ready()) {
+            delete this;
+        } else {
+            this->abandon_without_waiting();
         }
-
-        async_op::release();
     }
 
 protected:

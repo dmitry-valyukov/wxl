@@ -10,15 +10,6 @@ namespace wxl::async {
 void async_op::abandon(async_op* op) noexcept {
     op->abandoned_ = true;
 
-    // Left to finish alone, wherever it is; one that has not started will not. Asked even
-    // when its token has asked already: cancelled, it kept what it made, and given up, it
-    // lets go of that too.
-    if (op->orphanable_) {
-        op->canceled_.store(true, std::memory_order_seq_cst);
-        op->on_cancel();
-        return;
-    }
-
     bool owed = false;
 
     // One already in the return channel is the worker's no more, and there is nothing
@@ -83,7 +74,8 @@ void sta_loop::take_if_next(async_op* op) noexcept {
 
     async_op* taken = nullptr;
 
-    if (take(taken)) delete taken;
+    // Completed as the loop completes one given up, which deletes it with what it made.
+    if (take(taken)) taken->complete();
 }
 
 void sta_loop::return_dispatcher_trigger() noexcept {

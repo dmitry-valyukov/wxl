@@ -119,17 +119,21 @@ private:
 /// simply delete an operation that is still out: when it goes away first -- its frame
 /// unwinding on an exception, its owner dropping it, or nobody ever awaiting it -- it gives
 /// the operation up instead. The operation is asked to cancel, the task waits until the
-/// worker has let go of it (unless it is `orphanable`), and the loop deletes it when it
-/// comes back. That wait is what keeps a buffer in the frame from being written after the
-/// frame is gone -- the same guarantee a synchronous read on an ordinary stack gives.
+/// worker has let go of it (unless it is orphanable, `orphanable_op_f`), and the loop
+/// deletes it when it comes back. That wait is what keeps a buffer in the frame from being
+/// written after the frame is gone -- the same guarantee a synchronous read on an ordinary
+/// stack gives.
 class async_op : public core::noncopyable
 {
 public:
     async_op() noexcept = default;
 
-    inline explicit async_op(orphanable_t) noexcept : orphanable_(true) {}
-
-    virtual ~async_op() = default;
+    /// An error kept is released here; a value kept is the derived producer's to destroy
+    /// (async_op_t). Neither is there for a coroutine stopped in flight or an operation never
+    /// run.
+    virtual ~async_op() {
+        if (error_kept()) std::destroy_at(&kept_error());
+    }
 
     /// Created and destroyed on the STA thread, both, so the pool is where it belongs. The
     /// destructor is virtual, so `delete` through this base reaches the
@@ -152,8 +156,9 @@ public:
     detail::continuation_word continuation;
 
     /// The owner lets go: the STA thread's call, from the task's destructor. An operation
-    /// that is back goes; one still out is given up (`abandon`). A coroutine overrides it,
-    /// and destroys the frame of a body still in flight -- and since
+    /// that is back goes; one still out is given up (`abandon`). An orphanable operation
+    /// overrides it, and is given up without the wait. A coroutine overrides it, and
+    /// destroys the frame of a body still in flight -- and since
     /// coroutine_handle::destroy() is not noexcept, neither is this: a noexcept override
     /// would have to guard that call.
     virtual void release() {
@@ -207,7 +212,7 @@ public:
         try {
             return execute();
         } catch (...) {
-            error_ = std::current_exception();
+            set_current_exception();
             return true;
         }
     }
@@ -240,33 +245,47 @@ public:
     inline void complete_in_place() noexcept { ready_ = true; }
 
     /// The task's call, when it goes away before the operation has been delivered:
-    /// marks it given up, asks it to cancel, and -- unless it is orphanable -- waits,
-    /// without resuming anybody, until the worker has let go of it. The loop deletes it
-    /// when it comes back, or this does, if it is next in line already.
+    /// marks it given up, asks it to cancel, and waits, without resuming anybody, until
+    /// the worker has let go of it. The loop completes it when it comes back, which deletes
+    /// it with what it made, or this does, if it is next in line already. An orphanable
+    /// operation (`orphanable_op_f`) overrides release() and is not waited for.
     ///
     /// Defined with the loop, whose return channel it waits on (sta_loop.cpp).
     static void abandon(async_op* op) noexcept;
 
-    inline bool has_exception() const noexcept { return error_ != nullptr; }
+    inline bool has_exception() const noexcept { return error_kept(); }
 
 protected:
     /// What the work threw, or its cancellation; empty for work that answered with its
     /// result. Its task's alone, and only once the result is here: before that the worker
     /// may be writing it, and whoever holds a borrowed pointer to the operation would read
     /// it in a race.
-    inline const std::exception_ptr& exception() const noexcept { return error_; }
+    inline const std::exception_ptr& exception() const noexcept {
+        return *std::launder(reinterpret_cast<const std::exception_ptr*>(error_));
+    }
 
     /// The work itself, on the worker thread. \see packaged_execute().
     virtual bool execute() = 0;
 
-    /// What complete() does with an operation no task holds: one given up is deleted. One
-    /// whose answer belongs to another producer of this thread hands it over first and
-    /// resumes that producer's waiter. Off the path of every operation a task holds, which
-    /// is why it may cost a call through the virtual table.
+    /// What complete() does with an operation no task holds: one given up is completed and
+    /// deleted, its answer with it. One whose answer belongs to another producer of this
+    /// thread hands it over first and resumes that producer's waiter. Off the path of every
+    /// operation a task holds, which is why it may cost a call through the virtual table.
     /// \return whether a coroutine was resumed.
     virtual bool complete_without_task() {
+        ready_ = true;
         delete this;
         return false;
+    }
+
+    /// Gives the operation up without waiting for it, for one that may finish alone: marked
+    /// given up and asked to stop, and left for the loop to delete when it comes back. Asked
+    /// even when its token has asked already: cancelled, it kept what it made, and given up,
+    /// it lets go of that too.
+    inline void abandon_without_waiting() noexcept {
+        abandoned_ = true;
+        canceled_.store(true, std::memory_order_seq_cst);
+        on_cancel();
     }
 
     /// For an operation no task is ever to hold, said before it is sent: the loop taking it
@@ -287,13 +306,21 @@ protected:
     virtual void on_cancel() noexcept {}
 
     inline void rethrow_if_failed() const {
-        if (error_) std::rethrow_exception(error_);
+        if (error_kept()) std::rethrow_exception(exception());
     }
 
     /// For an operation that learns of its failure without throwing -- from the code an
-    /// overlapped call left behind -- and for a coroutine, whose failure the promise
-    /// catches.
-    inline void set_error(std::exception_ptr error) noexcept { error_ = std::move(error); }
+    /// overlapped call left behind.
+    inline void set_error(std::exception_ptr error) noexcept {
+        ::new (error_slot()) std::exception_ptr(std::move(error));
+    }
+
+    /// Keeps the exception being handled as the answer, made in place: the one call that
+    /// takes it, with no copy after. Called from inside a handler -- by the worker for what a
+    /// body threw, and by a coroutine's promise for what left the body.
+    inline void set_current_exception() noexcept {
+        ::new (error_slot()) std::exception_ptr(std::current_exception());
+    }
 
     /// The answer becomes the cancellation: for an operation cut short or never started,
     /// on whichever thread finds that out. One exception made once and shared, since the
@@ -325,10 +352,12 @@ private:
     friend class task;
 
     // The flags lie between the waiter's word and the exception. A constructor zeroes all
-    // three, and a compiler may make the flags' few bytes with one word-wide store that
-    // reaches into a neighbour; the exception, read at every co_await, is then not the
-    // one it reaches into. A read spanning two stores still in flight is not forwarded
-    // and waits for both: clang, the other way round, paid 3 ns a co_await for it.
+    // three -- the exception's storage is bytes, value-initialized, and zero is what an empty
+    // exception_ptr is, so an empty one costs no call to make, to test or to destroy. A
+    // compiler may make the flags' few bytes with one word-wide store that reaches into a
+    // neighbour; the exception's first word, read at every co_await, is then not the one it
+    // reaches into. A read spanning two stores still in flight is not forwarded and waits
+    // for both: clang, the other way round, paid 3 ns a co_await for it.
 
     /// The result is here: taken out of the return channel, or the coroutine has ended.
     bool ready_ = false;
@@ -338,8 +367,6 @@ private:
     /// flag complete() reads before the waiter.
     bool abandoned_ = false;
 
-    const bool orphanable_ = false;
-
     /// The value has been taken: read by a build that checks coroutines, to stop at a
     /// second take. In the padding after the flags, so no build pays a byte for it.
     bool taken_ = false;
@@ -348,11 +375,53 @@ private:
     /// of the operation both threads touch while it is out, hence atomic.
     std::atomic<bool> canceled_{false};
 
-    std::exception_ptr error_;
+    /// Whether an error is kept, read off its storage: an empty std::exception_ptr is all
+    /// zero bytes and a kept one has a non-zero first word -- on MSVC, where it is two
+    /// pointers, and on libstdc++ and libc++, where it is one, as a probe of each showed.
+    /// One load and a test, where the object's own `operator bool` is a call out of line
+    /// on MSVC.
+    inline bool error_kept() const noexcept {
+        std::uintptr_t first;
+        std::memcpy(&first, error_, sizeof first);
+        return first != 0;
+    }
+
+    inline std::exception_ptr& kept_error() noexcept {
+        return *std::launder(reinterpret_cast<std::exception_ptr*>(error_));
+    }
+
+    /// Where an error is made: the storage, empty until then, since an operation answers
+    /// once. A build that checks stops at a second answer, which would leak the first.
+    inline void* error_slot() noexcept {
+        coro_check(!error_kept(), "async_op: answered twice", detail::site::current());
+        return error_;
+    }
+
+    /// Takes over the error `made` keeps, if it keeps one, by moving its bytes and zeroing
+    /// the source: an exception_ptr is a counted reference nothing points back at, so the
+    /// same bytes elsewhere are the same reference, owned once before and once after, and no
+    /// count is touched. Zero bytes moved are an empty one moved.
+    inline void take_error_from(async_op& made) noexcept {
+        std::memcpy(error_slot(), made.error_, sizeof error_);
+        std::memset(made.error_, 0, sizeof made.error_);
+    }
+
+    static_assert(sizeof(std::exception_ptr) % sizeof(void*) == 0);
+
+    /// What the work threw, or its cancellation: constructed here when it comes, and zero
+    /// bytes -- an empty exception_ptr -- until then.
+    alignas(std::exception_ptr) std::byte error_[sizeof(std::exception_ptr)]{};
 };
 
 /// What a task of R waits for: a producer with a result of type R -- the value the body
 /// made, kept until the coroutine waiting for it comes back for it.
+///
+/// The value lives in raw storage, and nothing says whether it is there but the answer
+/// itself: at completion there is either an error or a value. So the destructor destroys
+/// the error if one is kept, the value if the producer is ready() without one, and nothing
+/// otherwise -- a coroutine stopped in flight, an operation never run, or an orphanable
+/// one given up, whose value went with the race that gave it up (`drop_value()`) or was
+/// handed on (`take_answer_from()`).
 template <class R>
 class async_op_t : public async_op
 {
@@ -360,6 +429,12 @@ public:
     using result_type = R;
 
     using async_op::async_op;
+
+    ~async_op_t() override {
+        if constexpr (!std::is_trivially_destructible_v<R>) {
+            if (!error_kept() && ready_) std::destroy_at(&value());
+        }
+    }
 
     /// The STA thread's call, at the end of a co_await, or from task::result().
     /// \return the value, moved out: it goes once, and a build that checks coroutines
@@ -372,37 +447,48 @@ public:
         if constexpr (detail::checked) {
             coro_check(!taken_, "task: the value has already been taken", where);
             taken_ = true;
-
-            // Finished, did not throw, and left nothing behind: a body that answered
-            // "done" without producing what it promised.
-            coro_check(value_.has_value(), "task: ended without a result", where);
         }
 
-        return std::move(*value_);
+        return std::move(value());
     }
 
 protected:
-    void set_value(R&& value) { value_.emplace(std::move(value)); }
+    /// The answer of work that did not fail, made in place. Once: a body that has answered
+    /// does not answer again.
+    void set_value(R&& value) { ::new (static_cast<void*>(value_)) R(std::move(value)); }
 
-    /// Destroys what was produced, for an operation nobody is going to ask.
-    void drop_value() noexcept { value_.reset(); }
+    /// Destroys what was produced, for an orphanable operation given up, which nobody is going
+    /// to ask: on the thread that won the race (orphan_state), once the body has answered --
+    /// with its value, or with an error, which the destructor releases.
+    void drop_value() noexcept {
+        if (!error_kept()) std::destroy_at(&value());
+    }
 
     /// Takes over the answer another producer made -- its value or its failure -- for a
     /// producer whose work that one carried out. The STA thread's, once `made` is back, and
-    /// inside the loop's call that takes it back, so it does not throw.
+    /// inside the loop's call that takes it back, so it does not throw. `made` is an orphan
+    /// no task holds, which its destructor finds not ready: what it answered leaves it here,
+    /// the error by its bytes and the value by a move and the destruction of its own.
     void take_answer_from(async_op_t& made) noexcept {
         static_assert(std::is_nothrow_move_constructible_v<R>,
                       "async_op_t::take_answer_from: the result must move without throwing");
 
-        error_ = std::move(made.error_);
+        if (made.error_kept()) {
+            take_error_from(made);
+            return;
+        }
 
-        if (made.value_) value_.emplace(std::move(*made.value_));
+        ::new (static_cast<void*>(value_)) R(std::move(made.value()));
+        std::destroy_at(&made.value());
     }
 
 private:
-    // An optional rather than an R: a result type is not obliged to have a default
-    // constructor, and an open file has no sensible empty state anyway.
-    std::optional<R> value_;
+    inline R& value() noexcept { return *std::launder(reinterpret_cast<R*>(value_)); }
+
+    // Storage rather than an R: a result type is not obliged to have a default constructor,
+    // and an open file has no sensible empty state anyway. Whether a value is in it is said
+    // by the answer (see the class).
+    alignas(R) std::byte value_[sizeof(R)];
 };
 
 template <>
@@ -422,7 +508,7 @@ public:
 protected:
     inline void drop_value() noexcept {}
 
-    inline void take_answer_from(async_op_t& made) noexcept { error_ = std::move(made.error_); }
+    inline void take_answer_from(async_op_t& made) noexcept { take_error_from(made); }
 };
 
 /// The simple case: the body is a lambda or a functor, and the result is whatever
@@ -544,15 +630,35 @@ struct orphanable_result<Fn>
 template <class Fn>
 using orphanable_result_t = orphanable_result<Fn>::type;
 
-/// An orphanable operation whose body is a lambda.
+/// An orphanable operation whose body is a lambda (`orphanable_t`): given up, it is not
+/// waited for. Its task letting go marks it given up and asks it to stop, and the loop
+/// deletes it when it comes back; what it made is destroyed by whichever thread wins the
+/// race over it (orphan_state) -- so it comes back with no value to destroy, and its
+/// complete_without_task() deletes it without completing it. An error it answered is
+/// released by the destructor all the same.
 template <class Fn, class R = orphanable_result_t<Fn>>
 class orphanable_op_f : public async_op_t<R>
 {
 public:
     template <class Fn2>
-    explicit orphanable_op_f(Fn2&& fn) : async_op_t<R>(orphanable), fn_(std::forward<Fn2>(fn)) {}
+    explicit orphanable_op_f(Fn2&& fn) : fn_(std::forward<Fn2>(fn)) {}
+
+    /// The task lets go: one back goes, and one still out is given up without the wait.
+    void release() override {
+        if (this->ready())
+            delete this;
+        else
+            this->abandon_without_waiting();
+    }
 
 protected:
+    /// The loop takes it back given up: its value is gone already, and it is deleted as it
+    /// stands, not ready.
+    bool complete_without_task() override {
+        delete this;
+        return false;
+    }
+
     bool execute() override {
         // Cancelled or given up before it started: it never runs, and answers the
         // cancellation.

@@ -822,15 +822,261 @@ TEST(TaskTest, AJoinedTaskMayDropTheCoroutineJoiningIt) {
     EXPECT_EQ(kept.result(), 5);
 }
 
+// What a producer keeps is destroyed once, by the producer's destructor, and only what it
+// holds: the error if one is kept, else the value if the body ended, else nothing.
+
+namespace {
+
+/// An exception that counts its own copies: what an exception_ptr keeps alive.
+class counted_failure : public std::runtime_error
+{
+public:
+    static inline int live = 0;
+
+    counted_failure() : std::runtime_error("counted") { ++live; }
+    counted_failure(const counted_failure& other) : std::runtime_error(other) { ++live; }
+    ~counted_failure() override { --live; }
+};
+
+/// A value that counts itself, and stops at being destroyed twice.
+class counted_value
+{
+public:
+    static inline int live = 0;
+    static inline int destroyed_twice = 0;
+
+    counted_value() noexcept { ++live; }
+    counted_value(counted_value&&) noexcept { ++live; }
+    counted_value& operator=(counted_value&&) = delete;
+
+    ~counted_value() {
+        if (state_ != constructed) ++destroyed_twice;
+        state_ = gone;
+        --live;
+    }
+
+private:
+    static constexpr std::uint32_t constructed = 0x600dc0de;
+    static constexpr std::uint32_t gone = 0xdeadbeef;
+
+    std::uint32_t state_ = constructed;
+};
+
+/// Both counts back at zero before each test, and checked after it.
+class counts_balanced
+{
+public:
+    counts_balanced() noexcept {
+        counted_failure::live = 0;
+        counted_value::live = 0;
+        counted_value::destroyed_twice = 0;
+    }
+
+    counts_balanced(const counts_balanced&) = delete;
+    counts_balanced& operator=(const counts_balanced&) = delete;
+
+    ~counts_balanced() {
+        EXPECT_EQ(counted_failure::live, 0) << "an exception was kept past its producer";
+        EXPECT_EQ(counted_value::live, 0) << "a value was kept past its producer";
+        EXPECT_EQ(counted_value::destroyed_twice, 0);
+    }
+};
+
+[[noreturn]] counted_value fail_counted() {
+    throw counted_failure();
+}
+
+task<counted_value> fails_counted() {
+    co_return fail_counted();
+}
+
+task<counted_value> answers_counted_after_a_pause(std::coroutine_handle<>& slot) {
+    co_await parked{slot};
+    co_return counted_value{};
+}
+
+task<counted_value> fails_counted_after_a_pause(std::coroutine_handle<>& slot) {
+    co_await parked{slot};
+    co_return fail_counted();
+}
+
+/// A producer of this thread whose answer is set by hand, to hand it on to another.
+template <class R>
+class answered_here final : public async_op_t<R>
+{
+public:
+    void answer_value() requires(!std::is_void_v<R>) { this->set_value(R{}); }
+
+    void answer_failure() {
+        try {
+            throw counted_failure();
+        } catch (...) {
+            this->set_current_exception();
+        }
+    }
+
+    void take_from(answered_here& made) noexcept { this->take_answer_from(made); }
+
+    void end() noexcept { this->complete_in_place(); }
+
+protected:
+    bool execute() override { return true; }
+};
+
+/// Deletes a producer of the test as a task's last owner does once it is ready; one not
+/// ready -- an orphan whose answer went elsewhere -- is deleted as the loop deletes it.
+template <class R>
+using producer_ptr = std::unique_ptr<answered_here<R>>;
+
+}  // namespace
+
+TEST(TaskTest, AFailureIsReleasedWithItsTaskAndNothingElseIs) {
+    counts_balanced counts;
+
+    {
+        task<counted_value> failed = fails_counted();
+
+        ASSERT_TRUE(failed.done());
+        EXPECT_TRUE(failed.has_exception());
+        EXPECT_GE(counted_failure::live, 1) << "the exception is kept";
+        EXPECT_EQ(counted_value::live, 0);
+        EXPECT_THROW((void)failed.result(), counted_failure);
+    }
+
+    std::coroutine_handle<> slot;
+    {
+        task<counted_value> failed = fails_counted_after_a_pause(slot);
+        slot.resume();
+
+        ASSERT_TRUE(failed.done());
+        EXPECT_GE(counted_failure::live, 1);
+    }
+}
+
+TEST(TaskTest, AValueIsDestroyedOnceWhenItsTaskGoesAndNeverBeforeTheCoReturn) {
+    counts_balanced counts;
+    std::coroutine_handle<> slot;
+
+    {
+        task<counted_value> answered = answers_counted_after_a_pause(slot);
+
+        EXPECT_EQ(counted_value::live, 0) << "a value before the co_return";
+
+        slot.resume();
+
+        ASSERT_TRUE(answered.done());
+        EXPECT_EQ(counted_value::live, 1) << "the value is kept, and only it";
+    }
+
+    EXPECT_EQ(counted_value::live, 0);
+
+    {
+        task<counted_value> answered = answers_counted_after_a_pause(slot);
+        slot.resume();
+
+        {
+            counted_value taken = answered.result();
+            EXPECT_EQ(counted_value::live, 2) << "the value taken, and what it was moved out of";
+        }
+
+        EXPECT_EQ(counted_value::live, 1);
+    }
+}
+
+TEST(TaskTest, ABodyStoppedInFlightLeavesNeitherAValueNorAnErrorToDestroy) {
+    counts_balanced counts;
+    std::coroutine_handle<> slot;
+
+    {
+        task<counted_value> answers = answers_counted_after_a_pause(slot);
+        EXPECT_FALSE(answers.done());
+    }
+
+    {
+        task<counted_value> fails = fails_counted_after_a_pause(slot);
+        EXPECT_FALSE(fails.done());
+    }
+
+    EXPECT_EQ(counted_value::live, 0);
+    EXPECT_EQ(counted_failure::live, 0);
+}
+
+TEST(TaskTest, AnAnswerHandedOnLeavesTheProducerItCameFrom) {
+    counts_balanced counts;
+
+    // A value, there and back: the one that hands it on is left with nothing, and its
+    // destructor, finding it not ready, destroys nothing.
+    {
+        producer_ptr<counted_value> made(new answered_here<counted_value>);
+        producer_ptr<counted_value> waiting(new answered_here<counted_value>);
+
+        made->answer_value();
+        waiting->take_from(*made);
+
+        EXPECT_EQ(counted_value::live, 1);
+        EXPECT_FALSE(made->has_exception());
+
+        made->take_from(*waiting);
+        made->end();
+
+        EXPECT_EQ(counted_value::live, 1);
+        EXPECT_FALSE(made->has_exception());
+    }
+
+    EXPECT_EQ(counted_value::live, 0);
+
+    // A failure, there and back: its bytes move, and it is released once, by its last holder.
+    {
+        producer_ptr<counted_value> made(new answered_here<counted_value>);
+        producer_ptr<counted_value> waiting(new answered_here<counted_value>);
+
+        made->answer_failure();
+        const int kept = counted_failure::live;
+        waiting->take_from(*made);
+
+        EXPECT_FALSE(made->has_exception());
+        EXPECT_TRUE(waiting->has_exception());
+        EXPECT_EQ(counted_failure::live, kept);
+
+        made->take_from(*waiting);
+        made->end();
+
+        EXPECT_TRUE(made->has_exception());
+        EXPECT_FALSE(waiting->has_exception());
+        EXPECT_EQ(counted_value::live, 0);
+    }
+
+    EXPECT_EQ(counted_failure::live, 0);
+
+    // Without a value, the failure the same way.
+    {
+        producer_ptr<void> made(new answered_here<void>);
+        producer_ptr<void> waiting(new answered_here<void>);
+
+        made->answer_failure();
+        waiting->take_from(*made);
+        waiting->end();
+
+        EXPECT_FALSE(made->has_exception());
+        EXPECT_TRUE(waiting->has_exception());
+    }
+
+    EXPECT_EQ(counted_failure::live, 0);
+}
+
 // The producer of a task's coroutine is a producer like an operation -- the virtual table,
-// the waiter's handle, a word of flags and the exception, then the value -- and the handle of
-// the frame while the body is in flight; the promise is one pointer to it. The checks cost
-// it nothing in any build, strict or not: what they keep -- whether the body is on the
-// stack, whether the waiter joined -- is two bits of the waiter's handle, and whether the
-// value has been taken is a byte of the flags' word. A task stays one pointer wide, as does
-// the awaiter of a joined one. (The exception is two pointers wide on MSVC, one on g++ and
-// clang.)
+// the waiter's handle, a word of flags and the exception's storage, then the value's -- and
+// the handle of the frame while the body is in flight; the promise is one pointer to it. The
+// checks cost it nothing in any build, strict or not: what they keep -- whether the body is
+// on the stack, whether the waiter joined -- is two bits of the waiter's handle, and whether
+// the value has been taken is a byte of the flags' word, which holds four flags and has room
+// for more. A task stays one pointer wide, as does the awaiter of a joined one. (The
+// exception is two pointers wide on MSVC, one on g++ and clang.) The value is stored as
+// itself, with no flag of its own: an int takes what alignment leaves of a word, and a
+// size_t a word.
 static_assert(sizeof(async_op) == 3 * sizeof(void*) + sizeof(std::exception_ptr));
+static_assert(sizeof(async_op_t<int>) == sizeof(async_op) + sizeof(void*));
+static_assert(sizeof(async_op_t<std::size_t>) == sizeof(async_op) + sizeof(std::size_t));
 static_assert(sizeof(detail::coroutine_op<void>) == sizeof(async_op) + sizeof(void*));
 static_assert(sizeof(detail::coroutine_op<int>) == sizeof(async_op_t<int>) + sizeof(void*));
 static_assert(sizeof(detail::task_promise<void>) == sizeof(void*));

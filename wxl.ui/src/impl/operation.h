@@ -77,8 +77,7 @@ public:
     };
 
     producer(Op operation, Convert convert)
-        : async::async_op_t<R>(async::orphanable),
-          operation_(std::move(operation)),
+        : operation_(std::move(operation)),
           convert_(std::move(convert)),
           link_(std::make_shared<link>(link{this})) {}
 
@@ -131,7 +130,7 @@ protected:
             else
                 this->set_value(convert_(operation_.GetResults()));
         } catch (...) {
-            this->set_error(std::current_exception());
+            this->set_current_exception();
         }
     }
 

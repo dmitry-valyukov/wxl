@@ -108,8 +108,8 @@ public:
         this->set_value(std::forward<Value>(value));
     }
 
-    /// What left the body.
-    inline void keep_error(std::exception_ptr error) noexcept { this->set_error(std::move(error)); }
+    /// What left the body: the exception being handled.
+    inline void keep_current_exception() noexcept { this->set_current_exception(); }
 
     /// The body is over, its locals gone: the result is here, and the frame goes next.
     inline void end_body() noexcept {
@@ -239,7 +239,7 @@ public:
         return handover{this->producer};
     }
 
-    inline void unhandled_exception() noexcept { this->producer->keep_error(std::current_exception()); }
+    inline void unhandled_exception() noexcept { this->producer->keep_current_exception(); }
 };
 
 /// Whether a promise is that of a coroutine returning a task -- the one kind of coroutine

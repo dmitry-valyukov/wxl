@@ -13,7 +13,7 @@ void async_op::answer_canceled() noexcept {
     static const std::exception_ptr canceled =
         std::make_exception_ptr(operation_canceled_exception());
 
-    error_ = canceled;
+    ::new (error_slot()) std::exception_ptr(canceled);
 }
 
 void async_op::answer_current_exception() noexcept {
@@ -23,9 +23,9 @@ void async_op::answer_current_exception() noexcept {
         if (failure.code().value() == ERROR_OPERATION_ABORTED)
             answer_canceled();
         else
-            error_ = std::current_exception();
+            set_current_exception();
     } catch (...) {
-        error_ = std::current_exception();
+        set_current_exception();
     }
 }
 

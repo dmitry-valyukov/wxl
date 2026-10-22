@@ -357,6 +357,90 @@ task<> queues_an_orphan_and_changes_its_mind(probe& running, std::atomic<bool>& 
     co_await k;
 }
 
+/// An exception that counts its own copies: what an exception_ptr keeps alive.
+class counted_failure : public std::runtime_error
+{
+public:
+    static inline std::atomic<int> live{0};
+
+    counted_failure() : std::runtime_error("counted") { ++live; }
+    counted_failure(const counted_failure& other) : std::runtime_error(other) { ++live; }
+    ~counted_failure() override { --live; }
+};
+
+/// A value that counts itself, and counts being destroyed twice. Made on the worker, and
+/// destroyed on whichever thread lets go of it.
+class counted_value
+{
+public:
+    static inline std::atomic<int> live{0};
+    static inline std::atomic<int> destroyed_twice{0};
+
+    counted_value() noexcept { ++live; }
+    counted_value(counted_value&&) noexcept { ++live; }
+    counted_value& operator=(counted_value&&) = delete;
+
+    ~counted_value() {
+        if (state_ != constructed) ++destroyed_twice;
+        state_ = gone;
+        --live;
+    }
+
+private:
+    static constexpr std::uint32_t constructed = 0x600dc0de;
+    static constexpr std::uint32_t gone = 0xdeadbeef;
+
+    std::uint32_t state_ = constructed;
+};
+
+/// Both counts at zero before the test, and checked after it.
+class counts_balanced
+{
+public:
+    counts_balanced() noexcept {
+        counted_failure::live = 0;
+        counted_value::live = 0;
+        counted_value::destroyed_twice = 0;
+    }
+
+    counts_balanced(const counts_balanced&) = delete;
+    counts_balanced& operator=(const counts_balanced&) = delete;
+
+    ~counts_balanced() {
+        EXPECT_EQ(counted_failure::live.load(), 0) << "an exception was kept past its operation";
+        EXPECT_EQ(counted_value::live.load(), 0) << "a value was kept past its operation";
+        EXPECT_EQ(counted_value::destroyed_twice.load(), 0);
+    }
+};
+
+/// Answers a counted value once the gate opens; cancelling it opens the gate, and it
+/// answers the value all the same, as one that got there first does.
+class gated_answer : public async_op_t<counted_value>
+{
+public:
+    gated_answer(hevent& started, hevent& gate) noexcept : started_(started), gate_(gate) {}
+
+protected:
+    bool execute() override {
+        started_.set();
+        gate_.wait();
+
+        set_value(counted_value{});
+        return true;
+    }
+
+    void on_cancel() noexcept override { gate_.set(); }
+
+private:
+    hevent& started_;
+    hevent& gate_;
+};
+
+task<counted_value> start_gated_answer(hevent& started, hevent& gate) {
+    return sta_loop::async_run(
+        std::unique_ptr<async_op_t<counted_value>>(new gated_answer(started, gate)));
+}
+
 /// Given-up operations stay in the return channel until their turn, and the sleeping loop
 /// of this binary takes them only when asked. Asked here, so that no test leaves anything
 /// behind for the next one.
@@ -628,4 +712,128 @@ TEST(StaLoopAbandonTest, AnOrphanLeftToFinishAloneIsWaitedForByRunUntil) {
     sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
 
     EXPECT_EQ(deleted.load(), 1) << "the wait ended before the orphan was back";
+}
+
+// What a given-up operation made is destroyed once: an ordinary one's where it is deleted, by
+// the destructor; an orphan's by whichever thread wins the race over it, and not again when
+// the loop deletes the orphan. An error is released at the deletion either way.
+
+TEST(StaLoopAbandonTest, AValueOfAnOperationGivenUpIsDestroyedOnceAsItIsDeleted) {
+    counts_balanced counts;
+    hevent started{true};
+    hevent gate{true};
+
+    // Next in line once it is back: the task's destructor deletes it, with its value.
+    {
+        task<counted_value> answer = start_gated_answer(started, gate);
+        started.wait();
+    }
+
+    EXPECT_EQ(counted_value::live.load(), 0);
+
+    // Behind another one: the loop deletes it when it takes it back.
+    started.reset();
+    gate.reset();
+
+    auto ahead = sta_loop::async_call([] { return 1; });
+    task<counted_value> answer = start_gated_answer(started, gate);
+    started.wait();
+
+    answer = {};
+
+    EXPECT_EQ(counted_value::live.load(), 1) << "the value went before its operation";
+
+    EXPECT_EQ(sta_loop::run_until(ahead), 1);
+    take_what_was_given_up();
+
+    EXPECT_EQ(counted_value::live.load(), 0);
+}
+
+TEST(StaLoopAbandonTest, AValueOfAnOrphanGivenUpIsDestroyedOnceByTheThreadThatWinsTheRace) {
+    counts_balanced counts;
+    hevent passed{true};
+
+    // Done before it is given up: the destructor of its task destroys the value.
+    {
+        auto opening = sta_loop::async_call(orphanable, [] { return counted_value{}; });
+        auto barrier = sta_loop::async_call([&passed] { passed.set(); });
+
+        passed.wait();
+
+        EXPECT_EQ(counted_value::live.load(), 1);
+    }
+
+    EXPECT_EQ(counted_value::live.load(), 0);
+
+    take_what_was_given_up();
+
+    // Given up while it runs: the worker destroys the value as it is made.
+    hevent started{true};
+    hevent gate{true};
+
+    {
+        auto opening = sta_loop::async_call(orphanable, [&started, &gate] {
+            started.set();
+            gate.wait();
+            return counted_value{};
+        });
+
+        started.wait();
+    }
+
+    gate.set();
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
+
+    EXPECT_EQ(counted_value::live.load(), 0);
+}
+
+TEST(StaLoopAbandonTest, AnErrorOfAnOrphanGivenUpIsReleasedAsItIsDeleted) {
+    counts_balanced counts;
+
+    // Given up before it starts, behind a read the worker is held inside: it never runs,
+    // answers the cancellation, and is deleted with it, its value never made.
+    {
+        probe running;
+        std::byte buf[16]{};
+        std::atomic<bool> ran{false};
+        std::atomic<int> deleted{0};
+
+        auto k = start_read(running, buf);
+        running.started.wait();
+
+        {
+            auto opening = sta_loop::async_call(
+                orphanable, [&ran, counter = deletion_counter(deleted)] {
+                    ran = true;
+                    return counted_value{};
+                });
+        }
+
+        running.gate.set();
+        sta_loop::run_until(k);
+        sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
+
+        EXPECT_FALSE(ran.load());
+        EXPECT_EQ(deleted.load(), 1);
+    }
+
+    // Given up while it runs, and answering it with a failure of its own: the failure is
+    // released as the loop deletes it.
+    hevent started{true};
+
+    {
+        auto opening = sta_loop::async_call(orphanable, [&started](const orphan_state& state) -> counted_value {
+            started.set();
+
+            while (!state.stop_requested()) std::this_thread::yield();
+
+            throw counted_failure();
+        });
+
+        started.wait();
+    }
+
+    sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
+
+    EXPECT_EQ(counted_failure::live.load(), 0);
 }
