@@ -62,7 +62,7 @@ public:
     /// The waiter leaves; the body's own bit stays as it is.
     inline void clear() noexcept { set(bits() & running_bit); }
 
-    inline void set_running(bool running) noexcept {
+    inline void set_running([[maybe_unused]] bool running) noexcept {
         if constexpr (detail::checked) set(running ? bits() | running_bit : bits() & ~running_bit);
     }
 
