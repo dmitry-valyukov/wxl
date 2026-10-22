@@ -20,6 +20,10 @@
 // loop would resume and here a hand does (`complete()`) -- awaited in its two forms:
 // plain, and the form with a token, `co_await read(..., stop)`, which the operations
 // that can be cut short have: the operation stands in the token's event while it lives.
+// Then the same form called under a token cancelled already, `async_run<Op>(stop, ...)`,
+// which makes no operation and answers the cancellation as it returns: each iteration
+// co_awaits it inside a try and counts the catch, so the row is the call, its answer and
+// the rethrow at the co_await -- the rethrow is the reader's, and the rest is the call's.
 //
 // The callees are noinline: a frame whose whole life the caller can see is elided onto
 // the stack, and a benchmark of an elided frame measures nothing (see
@@ -154,6 +158,22 @@ __declspec(noinline) task<long long> loop_op_with(handed_op** slot, int n, cance
     co_return sum;
 }
 
+/// The form with a token under one cancelled already: nothing is made, and every co_await
+/// throws the cancellation. \return the catches.
+__declspec(noinline) task<long long> loop_op_refused(int n, cancellation_token stop) {
+    long long caught = 0;
+
+    for (int i = 0; i < n; ++i) {
+        try {
+            co_await sta_loop::async_run<handed_op>(stop, i);
+        } catch (const operation_canceled_exception&) {
+            ++caught;
+        }
+    }
+
+    co_return caught;
+}
+
 constexpr int iterations = 2'000'000;
 constexpr int rounds = 15;
 constexpr long long expected = static_cast<long long>(iterations) * (iterations - 1) / 2;
@@ -202,6 +222,27 @@ double best_of_ops(Start start) {
     return best;
 }
 
+/// Fewer: a throw costs microseconds where a co_await costs nanoseconds.
+constexpr int refused_iterations = 20'000;
+
+/// The calls under a token cancelled already, which end as they are made: nothing to deliver.
+double best_of_refused(cancellation_token stop) {
+    double best = 1e30;
+
+    for (int r = 0; r < rounds; ++r) {
+        const auto from = std::chrono::steady_clock::now();
+        task<long long> outer = loop_op_refused(refused_iterations, stop);
+        const auto to = std::chrono::steady_clock::now();
+
+        if (!outer.done() || outer.result() != refused_iterations) return -1;
+
+        best = std::min(best, std::chrono::duration<double, std::nano>(to - from).count() /
+                                  refused_iterations);
+    }
+
+    return best;
+}
+
 void row(const char* name, double plain, double under) {
     std::printf("  %-16s %8.2f %8.2f %+8.2f\n", name, plain, under, under - plain);
 }
@@ -226,4 +267,10 @@ int main() {
     const double plain = best_of_ops([](handed_op** slot) { return loop_op(slot, iterations); });
 
     row("its own form", plain, best_of_ops([&](handed_op** slot) { return loop_op_with(slot, iterations, token); }));
+
+    cancellation_source canceled;
+    canceled.cancel();
+    const cancellation_token refusing = canceled.token();
+
+    std::printf("  %-16s %8.2f\n", "under a token cancelled already", best_of_refused(refusing));
 }
