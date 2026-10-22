@@ -256,11 +256,13 @@ void post_completion(Op const& operation, Queue const& queue, Producer& made) {
 }
 
 /// The task of an operation the call has started already, answered on the thread of `queue`, the
-/// calling thread.
+/// calling thread. The operation has one owner, the producer, and the completion is hooked on its
+/// reference, so the hand-over touches no count.
 template <class R, class Op, class Queue, class Convert>
-async::task<R> start(Op const& operation, Queue const& queue, Convert convert) {
-    auto made = std::make_unique<producer<R, Op, Convert>>(operation, std::move(convert));
-    post_completion(operation, queue, *made);
+async::task<R> start(Op operation, Queue const& queue, Convert convert) {
+    auto made =
+        std::make_unique<producer<R, Op, Convert>>(std::move(operation), std::move(convert));
+    post_completion(made->operation(), queue, *made);
     return async::task<R>(std::move(made));
 }
 
@@ -290,18 +292,19 @@ async::task<R> start_under(Begin&& begin, Queue const& queue, Convert convert,
 /// An asynchronous operation with a result: `convert` turns what it returns (a projection value)
 /// into `R`, on the calling thread.
 template <class R, class Op, class Convert>
-async::task<R> start_operation(Op const& operation, Convert convert) {
+async::task<R> start_operation(Op operation, Convert convert) {
     return detail::start<R>(
-        operation, winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
+        std::move(operation),
+        winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
         std::move(convert));
 }
 
 /// An asynchronous operation without a result (IAsyncAction, with progress or without).
 template <class Op>
-async::task<> start_action(Op const& operation) {
+async::task<> start_action(Op operation) {
     return detail::start<void>(
-        operation, winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
-        std::identity{});
+        std::move(operation),
+        winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(), std::identity{});
 }
 
 /// start_operation in the form with a token: `begin` makes the call -- unless the token is
