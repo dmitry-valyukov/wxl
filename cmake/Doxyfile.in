@@ -63,6 +63,15 @@ GENERATE_LATEX         = NO
 GENERATE_XML           = NO
 HTML_OUTPUT            = html
 
+# Pinned rather than left at the default, SYSTEM, which is NO on Windows and
+# YES on Linux and decides how a page file is named: wxl::Button3DEffect is
+# classwxl_1_1Button3DEffect.html under YES and
+# classwxl_1_1_button3_d_effect.html under NO. The published site is built on
+# Windows and the pull request check on Linux, and both have to give a page
+# the same address. NO is the one that also holds on a case-insensitive file
+# system.
+CASE_SENSE_NAMES       = NO
+
 # Sidebar tree plus the stock client-side search. FULL_SIDEBAR must stay NO:
 # doxygen-awesome-css is explicitly incompatible with it.
 GENERATE_TREEVIEW      = YES

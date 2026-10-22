@@ -28,7 +28,8 @@ set(WXL_DOXYGEN_MIN_VERSION 1.18.0)
 # the normal case rather than the exception: 1.18.0 is weeks old, so requiring
 # a system install would mean requiring an install nobody has yet.
 # Two builds, one per host the site is built on: the developer's Windows
-# machine and the Linux runner that publishes it. Doxygen lexes rather than
+# machine, where the published site is built together with the wrappers, and
+# the Linux runner that checks a pull request. Doxygen lexes rather than
 # compiles, so the Linux build renders this tree without MSVC or anything of
 # the toolchain -- which is what lets the site be built where the code cannot.
 if(WIN32)
@@ -284,9 +285,12 @@ function(wxl_add_doxygen_site target)
 
     # No OUTPUT/DEPENDS pair: a stale site is worse than a redundant two-second
     # run, and getting the dependency list right would mean globbing every tree
-    # the site reads on every build anyway.
+    # the site reads on every build anyway. Doxygen runs through
+    # wxl_doxygen_run.cmake, which also stops on the warnings that bypass the
+    # warning log.
+    _wxl_doxygen_run_command(_run "${_doxyfile}")
     add_custom_target(${target}
-        COMMAND "${WXL_DOXYGEN_EXECUTABLE}" "${_doxyfile}"
+        COMMAND ${_run}
         COMMENT "Doxygen: ${A_PROJECT_NAME} -> ${A_OUTPUT}/html"
         VERBATIM)
     if(A_DEPENDS)
@@ -298,11 +302,23 @@ function(wxl_add_doxygen_site target)
 endfunction()
 
 # A test that the documentation builds clean. It runs the same Doxyfile the
-# target does, and the Doxyfile makes warnings fatal, so what it asserts is that
-# no comment in the tree is malformed -- an unclosed <code>, a Windows path
-# whose backslash reads as a command, a @param naming an argument that was
-# renamed. Those are invisible in the source and visible only here.
+# target does, the same way, and the Doxyfile makes warnings fatal, so what it
+# asserts is that no comment in the tree is malformed -- an unclosed <code>, a
+# Windows path whose backslash reads as a command, a @param naming an argument
+# that was renamed -- and that Doxygen took the configuration as it is written.
+# Those are invisible in the source and visible only here.
 function(wxl_add_doxygen_test target)
     get_target_property(_doxyfile ${target} WXL_DOXYFILE)
-    add_test(NAME ${target} COMMAND "${WXL_DOXYGEN_EXECUTABLE}" "${_doxyfile}")
+    _wxl_doxygen_run_command(_run "${_doxyfile}")
+    add_test(NAME ${target} COMMAND ${_run})
+endfunction()
+
+# The command that runs Doxygen on <doxyfile> through wxl_doxygen_run.cmake.
+function(_wxl_doxygen_run_command out doxyfile)
+    set(${out}
+        "${CMAKE_COMMAND}"
+        "-DWXL_DOXYGEN=${WXL_DOXYGEN_EXECUTABLE}"
+        "-DWXL_DOXYFILE=${doxyfile}"
+        -P "${WXL_DOXYGEN_CMAKE_DIR}/wxl_doxygen_run.cmake"
+        PARENT_SCOPE)
 endfunction()
