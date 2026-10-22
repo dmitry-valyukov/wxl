@@ -85,6 +85,9 @@ public:
 
     std::shared_ptr<link> const& reach() const noexcept { return link_; }
 
+    /// The operation, the producer's own reference to it: the completion is hooked on this one.
+    Op const& operation() const noexcept { return operation_; }
+
     /// The completion's posted call. Answered already -- by the turn of a cancellation -- it does
     /// nothing; otherwise it answers with what happened to the operation and resumes the coroutine
     /// waiting for it. It may be gone on return.
@@ -235,12 +238,15 @@ private:
 /// refuses only once it is shut down, with XAML, on the way out. The coroutine waiting stays
 /// suspended, and its frame keeps the wait at exit going for it -- a hang, which a Debug
 /// build's watch over that wait reports after ten seconds, and not a turn lost in silence.
+///
+/// The runtime takes the handler once and calls it once, so the handler hands its link on to the
+/// turn: the link changes hands, and its count, an atomic one, is not touched.
 template <class Producer, class Op, class Queue>
 void post_completion(Op const& operation, Queue const& queue, Producer& made) {
-    operation.Completed([link = made.reach(), queue](auto const&, AsyncStatus status) {
+    operation.Completed([link = made.reach(), queue](auto const&, AsyncStatus status) mutable {
         try {
             // The turn is noexcept for the same reason as cut()'s.
-            static_cast<void>(queue.TryEnqueue([link, status]() noexcept {
+            static_cast<void>(queue.TryEnqueue([link = std::move(link), status]() noexcept {
                 if (link->self) link->self->finish(status);
             }));
         } catch (...) {
@@ -260,7 +266,9 @@ async::task<R> start(Op const& operation, Queue const& queue, Convert convert) {
 
 /// The task of the operation `begin` starts, standing under `stop`; under a token cancelled
 /// already `begin` is not called, nothing is started, and the task answers the cancellation at
-/// once. Under a token nobody can cancel it is start(): there is nothing to stand under.
+/// once. Under a token nobody can cancel it is start(): there is nothing to stand under. The
+/// operation `begin` returns goes to the producer, its one owner, and the completion is hooked on
+/// the producer's reference: the operation changes hands without its count being touched.
 template <class R, class Begin, class Queue, class Convert>
 async::task<R> start_under(Begin&& begin, Queue const& queue, Convert convert,
                            async::cancellation_token stop) {
@@ -268,11 +276,12 @@ async::task<R> start_under(Begin&& begin, Queue const& queue, Convert convert,
         return start<R>(begin(), queue, std::move(convert));
     if (stop.is_canceled()) return async::detail::canceled_task<R>();
 
-    auto const operation = begin();
+    auto operation = begin();
     using made_t = producer_under<R, std::decay_t<decltype(operation)>, Queue, Convert>;
 
-    auto made = std::make_unique<made_t>(operation, std::move(convert), queue, std::move(stop));
-    post_completion(operation, queue, *made);
+    auto made =
+        std::make_unique<made_t>(std::move(operation), std::move(convert), queue, std::move(stop));
+    post_completion(made->operation(), queue, *made);
     return async::task<R>(std::move(made));
 }
 
