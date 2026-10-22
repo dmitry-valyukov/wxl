@@ -49,13 +49,17 @@ public:
     /// before the hold began -- by a drain that has since returned to its dispatcher and
     /// is owed exactly this callback. Withheld, it would be lost; made, it costs a drain
     /// that may find nothing, and only while somebody is waiting in place.
+    ///
+    /// The callback is tested once, with both paths under that test: between two tests would
+    /// stand the event's set(), which the compiler cannot see into, and the flag's atomic load,
+    /// which some compilers do not move a plain read across -- and the second would read it again.
     inline void set() {
-        if (wake_ && held_.load(std::memory_order_relaxed)) event_.set();
-
-        if (wake_)
+        if (wake_) {
+            if (held_.load(std::memory_order_relaxed)) event_.set();
             (*wake_)();
-        else
+        } else {
             event_.set();
+        }
     }
 
     /// The STA side's call, and only in the sleeping mode -- a loop with a
