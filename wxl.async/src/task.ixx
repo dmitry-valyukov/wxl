@@ -125,11 +125,18 @@ public:
 
     /// The owner lets go. A body that has ended has taken its frame with it, and the result
     /// goes; a body still in flight is stop_running_body()'s.
+    ///
+    /// The producer is destroyed and freed by hand rather than by `delete this`: on MSVC a
+    /// delete-expression goes through a separate scalar deleting destructor, with a test of
+    /// its flags and a prologue of its own, while for a final class the destructor and the
+    /// size are known here.
     inline void release() override {
-        if (this->ready())
-            delete this;
-        else
+        if (this->ready()) {
+            this->~coroutine_op();
+            async_op::operator delete(this, sizeof(coroutine_op));
+        } else {
             stop_running_body();
+        }
     }
 
 protected:
@@ -140,10 +147,12 @@ private:
     /// What becomes of a body in flight whose task goes: the one place that decides it, and
     /// the point two designs of it part at. This one destroys the frame where it stands
     /// suspended -- its locals go, a task or an operation it awaits among them, and nobody is
-    /// resumed -- and the producer after it, with no result ever made.
+    /// resumed -- and the producer after it, with no result ever made, freed as release()
+    /// frees it.
     inline void stop_running_body() {
         frame_.destroy();
-        delete this;
+        this->~coroutine_op();
+        async_op::operator delete(this, sizeof(coroutine_op));
     }
 
     /// Valid while the body is in flight; the body's end takes the frame with it.
