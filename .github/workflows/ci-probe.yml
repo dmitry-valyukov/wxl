@@ -1,11 +1,14 @@
 # A probe, not a gate: what the hosted Windows runner has, and whether the tree
 # builds and tests there without the WinUI wrappers (wxl.ui, samples and the
 # sandbox need the generated projection, which is not in the repository).
-# Started by hand only.
+# Started by hand, or by a push to its own branch: a workflow that is not on
+# the default branch cannot be started by hand until a push has run it once.
 name: ci-probe
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ci-probe]
 
 permissions:
   contents: read
