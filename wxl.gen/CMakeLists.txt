@@ -41,6 +41,7 @@ wxl_add_module_library(wxl.gen STATIC
         gen/classes.cpp
         gen/dsl.cpp
         gen/schema.cpp
+        gen/doc_language.cpp
         gen/cmake.cpp
 )
 

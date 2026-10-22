@@ -187,6 +187,15 @@ std::string constructor_documentation_id(md::TypeDef const& owner, md::MethodDef
     return std::move(id).text();
 }
 
+documentation_language const* find_documentation_language(std::string_view code) noexcept {
+    for (auto&& language : documentation_languages) {
+        if (language.code == code) {
+            return &language;
+        }
+    }
+    return nullptr;
+}
+
 documentation_source::documentation_source(std::vector<std::wstring> languages, std::filesystem::path references)
     : languages_(std::move(languages)), references_(std::move(references)) {}
 

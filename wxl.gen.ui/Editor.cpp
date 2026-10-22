@@ -169,10 +169,25 @@ void mark_member(profile& prof, std::string const& type, std::string_view member
 
 namespace {
 
-// Язык интерфейса — именем папки справочника Windows SDK: ru, de, jp,
-// zh-hans; справочник на английском есть всегда.
-std::vector<std::wstring> documentation_languages() {
+// Язык интерфейса Windows — папками справочника Windows SDK, только теми, что
+// есть в documentation_languages: у японского и китайского папка называется не
+// так, как язык локали, у остальных — так же. Справочник на английском есть
+// всегда, он последний.
+std::vector<std::wstring> interface_documentation_languages() {
     std::vector<std::wstring> languages;
+    auto const add = [&](std::wstring_view folder) {
+        // Имена локалей и коды таблицы — ASCII, сужение — копия.
+        std::string code(folder.size(), '\0');
+        std::ranges::transform(folder, code.begin(), [](wchar_t c) { return static_cast<char>(c); });
+        documentation_language const* const known = find_documentation_language(code);
+        if (!known) {
+            return;
+        }
+        std::wstring candidate(known->code.begin(), known->code.end());
+        if (std::ranges::find(languages, candidate) == languages.end()) {
+            languages.push_back(std::move(candidate));
+        }
+    };
     wchar_t locale[LOCALE_NAME_MAX_LENGTH] {};
     if (::LCIDToLocaleName(::GetUserDefaultUILanguage(), locale, LOCALE_NAME_MAX_LENGTH, 0) > 0) {
         std::wstring name {locale};
@@ -180,15 +195,15 @@ std::vector<std::wstring> documentation_languages() {
         std::wstring_view const language = std::wstring_view {name}.substr(0, name.find(L'-'));
         if (language == L"zh") {
             bool const traditional = name == L"zh-tw" || name == L"zh-hk" || name == L"zh-mo" || name.contains(L"hant");
-            languages.emplace_back(traditional ? L"zh-hant" : L"zh-hans");
+            add(traditional ? L"zh-hant" : L"zh-hans");
         } else if (language == L"ja") {
-            languages.emplace_back(L"jp");
+            add(L"jp");
         } else {
-            languages.emplace_back(name);
-            languages.emplace_back(language);
+            add(name);
+            add(language);
         }
     }
-    languages.emplace_back(L"en");
+    add(L"en");
     return languages;
 }
 
@@ -252,7 +267,7 @@ public:
     // файлы справочника закрываются: при следующей нужде открывается файл
     // нужного языка. Документация рядом с .winmd одна и остаётся.
     void english(bool value) {
-        source_.languages(value ? std::vector<std::wstring> {L"en"} : documentation_languages());
+        source_.languages(value ? std::vector<std::wstring> {L"en"} : interface_documentation_languages());
     }
 
     // Разбирает члены открытых файлов до срока; остались ли неразобранные.
@@ -260,7 +275,7 @@ public:
 
 private:
     wxl::core::function<void()> opened_;
-    documentation_source source_ {documentation_languages()};
+    documentation_source source_ {interface_documentation_languages()};
 };
 
 // Корни обхода из `own`, которых в замыкании нет без них самих: никакой другой

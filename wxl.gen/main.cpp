@@ -1,6 +1,8 @@
 #include <format>
 #include <print>
 
+#include "documentation.h"
+
 #include "wxl.gen.h"
 
 import std;
@@ -8,6 +10,8 @@ import wxl.core;
 
 namespace {
 
+// The help, with the codes --doc-language takes filled in from the one list of
+// them (documentation_languages).
 constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers from WinUI3 metadata.
 
   winui-srcgen --profile <file.json> [--profile <file.json>]...
@@ -33,12 +37,29 @@ constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers fro
                  the Windows SDK's reference, Windows App SDK types from
                  the .xml beside their .winmd, which is in English only.
                  A .winmd with no documentation is said; a documentation
-                 file that does not read stops the run.
+                 file that does not read stops the run. The language's code
+                 and Doxygen's name for it are written to doc_language.txt in
+                 the output directory, and the documentation site (docs/)
+                 takes its language from there.
   --doc-language Language of the Windows SDK's reference, as its folders
-                 name it: en, ru, de, jp, zh-hans, zh-hant (default: en).
+                 name it: {}
+                 (default: en); any other code is refused before the run.
                  Where a contract has no file in it, English is used and
                  said. Needs --docs.
 )";
+
+// "de, en, ...": the codes of documentation_languages, for the help and for
+// the error that refuses any other.
+std::string language_codes() {
+    std::string codes;
+    for (auto&& language : documentation_languages) {
+        if (!codes.empty()) {
+            codes += ", ";
+        }
+        codes += language.code;
+    }
+    return codes;
+}
 
 struct options {
     std::vector<std::filesystem::path> profiles;
@@ -51,12 +72,17 @@ struct options {
     std::filesystem::path type_map;
     std::filesystem::path symbols;
     bool docs = false;
-    std::string doc_language;
+    // The entry of documentation_languages --doc-language named, English when
+    // --docs names none; null without --docs.
+    documentation_language const* doc_language = nullptr;
     bool help = false;
 };
 
 options parse_options(int argc, char** argv) {
     options opts;
+    // Absent when --doc-language is not given: an empty code that is given is
+    // refused like any other the reference lacks, not taken for the default.
+    std::optional<std::string> language;
 
     auto const value = [&](int& i, std::string_view option) {
         if (++i >= argc) {
@@ -82,7 +108,7 @@ options parse_options(int argc, char** argv) {
         } else if (argument == "--docs") {
             opts.docs = true;
         } else if (argument == "--doc-language") {
-            opts.doc_language = value(i, argument);
+            language = value(i, argument);
         } else if (argument == "--help" || argument == "-h") {
             opts.help = true;
         } else {
@@ -90,11 +116,18 @@ options parse_options(int argc, char** argv) {
         }
     }
 
-    if (!opts.doc_language.empty() && !opts.docs) {
+    if (language && !opts.docs) {
         throw std::runtime_error("--doc-language needs --docs");
     }
-    if (opts.docs && opts.doc_language.empty()) {
-        opts.doc_language = "en";
+    if (opts.docs) {
+        if (!language) {
+            language = "en";
+        }
+        opts.doc_language = find_documentation_language(*language);
+        if (!opts.doc_language) {
+            throw std::runtime_error(std::format("--doc-language {} is not a language of the reference: {}",
+                                                 *language, language_codes()));
+        }
     }
 
     if (opts.nuget_root.empty()) {
@@ -118,7 +151,7 @@ int main(int argc, char** argv) {
     try {
         auto const opts = parse_options(argc, argv);
         if (opts.help || opts.profiles.empty()) {
-            std::print("{}", usage);
+            std::print(usage, language_codes());
             return opts.help ? 0 : 1;
         }
 

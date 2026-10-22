@@ -149,6 +149,7 @@ void write_all(output const& out, model const& m) {
     gen::write_brushes(out, m, em);
     gen::write_alias_index(out, m.resources, em);
     gen::write_symbols(out, m, em);
+    gen::write_doc_language(out, m, em);
 
     // Last: drop whatever a previous run left behind, then list everything
     // this run produced.

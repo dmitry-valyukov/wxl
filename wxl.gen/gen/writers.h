@@ -89,6 +89,15 @@ void write_dsl(output const& out, dsl const& d, emitted& em);
 // schema itself.
 void write_schema(output const& out, model const& m, emitted& em);
 
+// doc_language.txt -- the language the headers are documented in, one line
+// under the banner: the code --doc-language named and Doxygen's name for it
+// ("ru Russian", documentation_languages). The documentation site builds its
+// own text in that language, so the language is chosen once, by the run that
+// writes the descriptions. Written only by a run that documents the wrappers;
+// one that does not leaves none, and the file an earlier run wrote goes with
+// the other stale ones.
+void write_doc_language(output const& out, model const& m, emitted& em);
+
 // CMakeLists.txt adding everything above to the consuming target.
 void write_cmake_lists(output const& out, emitted const& em);
 

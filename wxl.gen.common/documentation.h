@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <exception>
@@ -37,13 +38,41 @@ std::string documentation_id(winmd::reader::TypeDef const& owner, member_declara
 std::string constructor_documentation_id(winmd::reader::TypeDef const& owner,
                                          winmd::reader::MethodDef const& method, std::size_t dropped);
 
+// A language of the Windows SDK's reference: the name of its folder, which is
+// what --doc-language takes, and the name Doxygen gives the same language in
+// OUTPUT_LANGUAGE, which the documentation site is built in. The one list of
+// them: the generator refuses a code missing here before it starts, its --help
+// names these, and the site takes the Doxygen name from what the generator
+// writes, so no second list can disagree with this one.
+struct documentation_language {
+    std::string_view code;
+    std::string_view doxygen;
+};
+
+// In the order of the folders' names.
+inline constexpr std::array<documentation_language, 10> documentation_languages {{
+    {"de", "German"},
+    {"en", "English"},
+    {"es", "Spanish"},
+    {"fr", "French"},
+    {"it", "Italian"},
+    {"jp", "Japanese"},
+    {"ko", "Korean"},
+    {"ru", "Russian"},
+    {"zh-hans", "Chinese"},
+    {"zh-hant", "Chinese-Traditional"},
+}};
+
+// The entry of documentation_languages with this code, or null.
+documentation_language const* find_documentation_language(std::string_view code) noexcept;
+
 // Where the documentation of a type is, read once per file and kept. The file
 // is the .xml beside the type's .winmd, as Windows App SDK ships it, in
 // English only; the metadata of Windows has nothing beside it, and its
 // documentation is the Windows SDK's reference for the type's contract,
 // References\<SDK version>\<contract>\<version>\<language>\<contract>.xml, in
 // the first of the languages that has one. A language is the name of that
-// folder: en, ru, de, jp, zh-hans, zh-hant.
+// folder, one of documentation_languages.
 class documentation_source {
 public:
     // `references` is the Windows SDK's References directory; empty, it is

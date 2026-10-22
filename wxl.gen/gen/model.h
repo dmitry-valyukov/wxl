@@ -396,6 +396,7 @@ struct event_args_file {
 }  // namespace gen
 
 class documentation_source;
+struct documentation_language;
 
 // Everything the writers write, in the order write_all() writes it.
 struct model {
@@ -448,6 +449,11 @@ struct model {
 
     // FluentSymbol.h, by code point; empty when the run has no symbol table.
     std::vector<symbol> symbols;
+
+    // doc_language.txt: the language the documentation was asked in, the entry
+    // of documentation_languages the arguments found; null when the run
+    // documents nothing.
+    documentation_language const* doc_language = nullptr;
 };
 
 // Works out the model from what the walk found, what the profiles name and

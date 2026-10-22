@@ -81,6 +81,38 @@ void write_documentation(std::filesystem::path const& file, std::string_view id,
 
 }  // namespace
 
+// The codes --doc-language takes, each with the name Doxygen builds the site in,
+// and no row besides them.
+TEST(documentation_languages, names_doxygens_language_for_each_code) {
+    documentation_language const expected[] {
+        {"de", "German"},
+        {"en", "English"},
+        {"es", "Spanish"},
+        {"fr", "French"},
+        {"it", "Italian"},
+        {"jp", "Japanese"},
+        {"ko", "Korean"},
+        {"ru", "Russian"},
+        {"zh-hans", "Chinese"},
+        {"zh-hant", "Chinese-Traditional"},
+    };
+    EXPECT_EQ(documentation_languages.size(), std::size(expected));
+    for (auto&& [code, doxygen] : expected) {
+        SCOPED_TRACE(code);
+        auto const language = find_documentation_language(code);
+        ASSERT_NE(language, nullptr);
+        EXPECT_EQ(language->doxygen, doxygen);
+    }
+}
+
+// What the generator's arguments refuse: a code is the reference's folder,
+// spelled as the folder is.
+TEST(documentation_languages, knows_no_other_code) {
+    EXPECT_EQ(find_documentation_language("pt"), nullptr);
+    EXPECT_EQ(find_documentation_language("RU"), nullptr);
+    EXPECT_EQ(find_documentation_language(""), nullptr);
+}
+
 TEST(documentation_id, names_a_type) {
     EXPECT_EQ(documentation_id(type("Microsoft.UI.Xaml.Controls.Button")), "T:Microsoft.UI.Xaml.Controls.Button");
 }
