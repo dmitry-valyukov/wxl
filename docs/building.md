@@ -7,13 +7,6 @@
 накладывает следующие требования к инструментарию:
 
 - **Операционная система:** Windows x64.
-- **Процессор:** x64 с поддержкой AVX2 (Intel Haswell, AMD Excavator и
-  новее). Каждая единица трансляции дерева в любой конфигурации компилируется
-  с ключом `/arch:AVX2` (`cmake/config.cmake`): с ним `std::countl_zero` из
-  стандартной библиотеки MSVC сводится к инструкции `lzcnt` без проверки
-  процессора во время выполнения. Ключ один на всю программу, потому что
-  встраиваемые функции стандартной библиотеки получают под ним другое тело.
-  Программы на **wxl** требуют того же процессора.
 - **Ключ `/Zc:throwingNew`:** его задаёт цель `wxl::core`
   (`wxl.core/src/CMakeLists.txt`), и он передаётся каждой цели, которая её
   подключает, непосредственно или через библиотеку выше. Ключ сообщает
@@ -26,7 +19,7 @@
   остаётся, что видно по листингу компилятора. Ключ оставлен, чтобы
   намерение было записано: компилятор, который учтёт его и для собственных
   функций выделения памяти классов, уберёт эти проверки без правок в дереве.
-  В отличие от `/arch:AVX2`, в свой проект этот ключ добавлять не нужно.
+  В свой проект этот ключ добавлять не нужно.
 - **Компилятор:** Visual Studio 2026 (канал Insiders) с поддержкой C++,
   набором инструментов MSVC версии 14.53.36911 или новее и Windows SDK; они
   необходимы для работы `import std;` в модулях C++20, а более ранние сборки
@@ -237,7 +230,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_MODULE_STD 1)
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
-add_compile_options(/permissive- /utf-8 /arch:AVX2)
+add_compile_options(/permissive- /utf-8)
 
 include("${WXL_ROOT}/cmake/wxl_helpers.cmake")
 
@@ -265,9 +258,6 @@ cmake_minimum_required(VERSION 4.3)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
 
 project(my_app LANGUAGES CXX)
-
-# Тот же набор команд, что у wxl: см. «Требования».
-add_compile_options(/arch:AVX2)
 
 include(FetchContent)
 FetchContent_Declare(wxl GIT_REPOSITORY <url> GIT_TAG <tag>)

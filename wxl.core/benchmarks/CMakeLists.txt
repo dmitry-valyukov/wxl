@@ -20,6 +20,20 @@ target_link_libraries(wxl.core.sta-bump-only-benchmark PRIVATE wxl::core)
 
 wxl_set_target_folders(wxl.core.sta-bump-only-benchmark)
 
+# Lets the compiler assume lzcnt is available and drop the runtime __isa_available dispatch
+# std::countl_zero's MSVC STL implementation otherwise contains (see pool_index()'s codegen
+# investigation) -- the pure bump-allocator path this benchmark isolates is exactly where that
+# per-call branch would show up.
+#
+# Set on the source rather than on the target: a target-level compile option is part of what
+# CMake fingerprints when it synthesizes the `std` module target, so putting it there buys this
+# one benchmark a whole second build of the std module interface. On the source it reaches the
+# same translation unit and costs nothing.
+if (MSVC)
+    set_source_files_properties(sta_bump_only_benchmark.cpp
+        PROPERTIES COMPILE_OPTIONS /arch:AVX2)
+endif()
+
 add_executable(wxl.core.sta-get-benchmark sta_allocator_get_benchmark.cpp)
 
 target_link_libraries(wxl.core.sta-get-benchmark PRIVATE wxl::core)
