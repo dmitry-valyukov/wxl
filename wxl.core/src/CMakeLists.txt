@@ -162,6 +162,14 @@ target_compile_features(wxl.core PUBLIC cxx_std_23)
 # them, or its Release differs from the one this tree checks.
 target_compile_options(wxl.core PUBLIC $<$<CONFIG:Release>:/Gw>)
 
+# The standard lets a new-expression assume a non-null result from an allocation
+# function that is not noexcept, yet MSVC by default tests for null after every
+# operator new anyway. The pool never answers null -- it stops the process -- so
+# that test is dead code on every producer and coroutine frame it allocates.
+# PUBLIC: whoever allocates from the pool links wxl::core, directly or through
+# a library above it; a target that does not link it does not use the pool.
+target_compile_options(wxl.core PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:throwingNew>)
+
 if(WXL_INSTALL)
     # One export set per package component, so that a consumer can ask for just
     # the part it needs: find_package(wxl CONFIG REQUIRED COMPONENTS core).
