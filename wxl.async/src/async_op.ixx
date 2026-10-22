@@ -131,6 +131,8 @@ public:
     /// Created and destroyed on the STA thread, both, so the pool is where it belongs. The
     /// destructor is virtual, so `delete` through this base reaches the
     /// most derived type's deallocation and hands the pool the size it actually gave out.
+    /// They take the size at run time, which a producer others derive from needs: objects of
+    /// several sizes begin with it. A final one takes its block through `detail::pooled`.
     inline static void* operator new(std::size_t size) {
         return core::sta_memory_pool::alloc(size);
     }
@@ -419,6 +421,50 @@ private:
     /// same size and alignment, with no alignment specifier to pad the class around.
     std::uintptr_t error_[sizeof(std::exception_ptr) / sizeof(std::uintptr_t)]{};
 };
+
+namespace detail {
+
+/// The allocation functions of a final producer `Derived`, as a link of its chain between
+/// `Base` and itself, so that they hide async_op's. Its size is a constant here, and the pool's
+/// forms for a constant size make the table slot one too: the call is the load of the slot
+/// and nothing else. async_op's take the size at run time, and MSVC does not fold
+/// `std::countl_zero` even of a constant, which leaves an lzcnt before every call through
+/// the table.
+///
+/// What it relies on is that every object these functions are found for is a `Derived`:
+/// `delete` through any base reaches, by the virtual destructor, the deallocation function of
+/// the dynamic type, and `final` keeps a type deriving from `Derived` from inheriting these
+/// with a size that is not its own. A producer others derive from keeps async_op's.
+template <class Derived, class Base>
+class pooled : public Base
+{
+public:
+    using Base::Base;
+
+    inline static void* operator new([[maybe_unused]] std::size_t size) {
+        static_assert(std::is_final_v<Derived>, "pooled: the producer must be final");
+        assert(size == sizeof(Derived));
+
+        if constexpr (sizeof(Derived) <= core::sta_memory_pool::MaxBlockSize)
+            return core::sta_memory_pool::alloc<sizeof(Derived)>();
+        else
+            return core::sta_memory_pool::alloc(size);
+    }
+
+    /// Sized, and the only form: were the form without the size declared too, a delete would
+    /// choose that one, and the size would go unchecked.
+    inline static void operator delete(void* mem, [[maybe_unused]] std::size_t size) noexcept {
+        static_assert(std::is_final_v<Derived>, "pooled: the producer must be final");
+        assert(size == sizeof(Derived));
+
+        if constexpr (sizeof(Derived) <= core::sta_memory_pool::MaxBlockSize)
+            core::sta_memory_pool::free<sizeof(Derived)>(mem);
+        else
+            core::sta_memory_pool::free(mem, size);
+    }
+};
+
+}  // namespace detail
 
 // The value's storage is aligned for R, and for an R aligned wider than the producer that
 // costs padding. C4324 reports it at level 4, and for a template it fires where the class is
@@ -752,12 +798,14 @@ namespace detail {
 /// Made only under a token that has a source and is not cancelled yet: under one cancelled
 /// already the forms make nothing at all.
 template <class Op>
-class cancellable_operation final : public Op
+class cancellable_operation final : public pooled<cancellable_operation<Op>, Op>
 {
+    using base = pooled<cancellable_operation, Op>;
+
 public:
     template <class... Args>
     inline explicit cancellable_operation(cancellation_token stop, Args&&... args)
-        : Op(std::forward<Args>(args)...), stop_(std::move(stop)), node_(*this) {
+        : base(std::forward<Args>(args)...), stop_(std::move(stop)), node_(*this) {
         coro_check(!cancellation_state_of(stop_)->canceled(),
                    "cancellable_operation: made under a token cancelled already", detail::site::current());
 

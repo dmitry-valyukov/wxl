@@ -858,7 +858,7 @@ namespace detail {
 
 /// The wait: the answer the waiter reads, and the call's place in the token's event.
 template <class R>
-class orphanable_wait final : public async_op_t<R>
+class orphanable_wait final : public pooled<orphanable_wait<R>, async_op_t<R>>
 {
 public:
     /// Made only under a token that has a source and is not cancelled yet.
@@ -949,12 +949,14 @@ private:
 /// The body: an orphan like any other, which no task holds. Taken back while still linked,
 /// it hands its answer to the wait and resumes the wait's waiter.
 template <class Fn, class R = orphanable_result_t<Fn>>
-class orphanable_body final : public orphanable_op_f<Fn, R>
+class orphanable_body final : public pooled<orphanable_body<Fn, R>, orphanable_op_f<Fn, R>>
 {
+    using base = pooled<orphanable_body, orphanable_op_f<Fn, R>>;
+
 public:
     template <class Fn2>
     inline orphanable_body(orphanable_wait<R>& wait, Fn2&& fn)
-        : orphanable_op_f<Fn, R>(std::forward<Fn2>(fn)), wait_(&wait) {
+        : base(std::forward<Fn2>(fn)), wait_(&wait) {
         this->start_without_task();
     }
 

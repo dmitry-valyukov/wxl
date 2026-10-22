@@ -96,9 +96,9 @@ struct task_frames {
 /// frame while the body is in flight. It is made with the frame and outlives it -- the body
 /// ends, its frame goes there and then, and the result stays here for the task to read --
 /// so a task's co_await reads a coroutine exactly as it reads an operation. From the pool,
-/// like every producer (async_op's allocation functions).
+/// like every producer, at the size class of its own size (pooled).
 template <class R>
-class coroutine_op final : public async_op_t<R>
+class coroutine_op final : public pooled<coroutine_op<R>, async_op_t<R>>
 {
 public:
     inline explicit coroutine_op(std::coroutine_handle<> frame) noexcept : frame_(frame) {}
@@ -129,11 +129,12 @@ public:
     /// The producer is destroyed and freed by hand rather than by `delete this`: on MSVC a
     /// delete-expression goes through a separate scalar deleting destructor, with a test of
     /// its flags and a prologue of its own, while for a final class the destructor and the
-    /// size are known here.
+    /// size are known here. Freed by its own operator delete (pooled), whose size class is a
+    /// constant: the call through the pool's table needs no lzcnt first.
     inline void release() override {
         if (this->ready()) {
             this->~coroutine_op();
-            async_op::operator delete(this, sizeof(coroutine_op));
+            coroutine_op::operator delete(this, sizeof(coroutine_op));
         } else {
             stop_running_body();
         }
@@ -152,7 +153,7 @@ private:
     inline void stop_running_body() {
         frame_.destroy();
         this->~coroutine_op();
-        async_op::operator delete(this, sizeof(coroutine_op));
+        coroutine_op::operator delete(this, sizeof(coroutine_op));
     }
 
     /// Valid while the body is in flight; the body's end takes the frame with it.

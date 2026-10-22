@@ -143,9 +143,10 @@ private:
 /// The producer in its form with a token: it stands in the token's event while it lives, and the
 /// token's cancel posts the turn that asks the runtime to stop and answers the cancellation.
 template <class R, class Op, class Queue, class Convert>
-class producer_under final : public producer<R, Op, Convert>
+class producer_under final
+    : public async::detail::pooled<producer_under<R, Op, Queue, Convert>, producer<R, Op, Convert>>
 {
-    using base = producer<R, Op, Convert>;
+    using base = async::detail::pooled<producer_under, producer<R, Op, Convert>>;
     using cancellation_event = async::detail::cancellation_event;
 
 public:
