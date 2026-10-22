@@ -1069,8 +1069,8 @@ TEST(TaskTest, AnAnswerHandedOnLeavesTheProducerItCameFrom) {
 // the handle of the frame while the body is in flight; the promise is one pointer to it. The
 // checks cost it nothing in any build, strict or not: what they keep -- whether the body is
 // on the stack, whether the waiter joined -- is two bits of the waiter's handle, and whether
-// the value has been taken is a byte of the flags' word, which holds four flags and has room
-// for more. A task stays one pointer wide, as does the awaiter of a joined one. (The
+// the value has been taken, and whether it is held, are two bytes in the padding of the flags'
+// word. A task stays one pointer wide, as does the awaiter of a joined one. (The
 // exception is two pointers wide on MSVC, one on g++ and clang.) The value is stored as
 // itself, with no flag of its own: an int takes what alignment leaves of a word, and a
 // size_t a word.
@@ -1324,6 +1324,40 @@ void await_a_moved_from_task() {
     task<> waiter = awaits_what_is_left(t);
 }
 
+/// A producer that says it is done with nothing in it, and one that holds a value it never
+/// completed with: both answers the checks keep a byte for.
+void take_a_result_never_made() {
+    report_failures_to_stderr();
+
+    producer_ptr<int> empty(new answered_here<int>);
+    empty->end();
+    (void)empty->take_result();
+}
+
+void drop_a_value_never_completed() {
+    report_failures_to_stderr();
+
+    producer_ptr<int> unfinished(new answered_here<int>);
+    unfinished->answer_value();
+}
+
+/// A local whose destructor throws: past a co_return, the body ends with both a value and an
+/// exception.
+struct throws_as_it_goes {
+    ~throws_as_it_goes() noexcept(false) { throw std::runtime_error("from a destructor"); }
+};
+
+task<int> throws_after_its_co_return() {
+    throws_as_it_goes local;
+    co_return 1;
+}
+
+void throw_after_co_return() {
+    report_failures_to_stderr();
+
+    task<int> both = throws_after_its_co_return();
+}
+
 /// Death tests of the checks: skipped where the build has none.
 class TaskDeathTest : public ::testing::Test
 {
@@ -1383,6 +1417,18 @@ TEST_F(TaskDeathTest, AJoinedTaskOutlivesTheWait) {
 
 TEST_F(TaskDeathTest, AMovedFromTaskIsNotAwaited) {
     EXPECT_DEATH(await_a_moved_from_task(), "task: empty -- default-constructed or moved-from");
+}
+
+TEST_F(TaskDeathTest, AProducerDoneWithoutItsValueStopsTheTake) {
+    EXPECT_DEATH(take_a_result_never_made(), "task: ended without a result");
+}
+
+TEST_F(TaskDeathTest, AValueHeldByAProducerThatIsNotReadyStopsItsDestruction) {
+    EXPECT_DEATH(drop_a_value_never_completed(), "holds its value, and no other does");
+}
+
+TEST_F(TaskDeathTest, ADestructorThatThrowsAfterTheCoReturnStops) {
+    EXPECT_DEATH(throw_after_co_return(), "task: a destructor threw after co_return");
 }
 
 TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTwice) {

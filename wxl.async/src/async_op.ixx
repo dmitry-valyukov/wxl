@@ -332,6 +332,9 @@ protected:
     /// which answers the cancellation. Called from inside a handler (async_op.cpp).
     void answer_current_exception() noexcept;
 
+    /// Whether a value is held: for a build that checks coroutines, which alone keeps it.
+    inline bool value_made() const noexcept { return made_; }
+
     /// Whether it has been asked to stop: given up or cancelled. For a body that hands the
     /// operation to the kernel: read after the handing over, it closes the race with a
     /// cancellation that came before there was anything to cancel.
@@ -370,6 +373,13 @@ private:
     /// The value has been taken: read by a build that checks coroutines, to stop at a
     /// second take. In the padding after the flags, so no build pays a byte for it.
     bool taken_ = false;
+
+    /// A value is held (async_op_t): kept by a build that checks coroutines alone, which
+    /// stops at a producer that ended without its value, at one whose value and readiness
+    /// disagree as it goes, and at a coroutine that failed after its co_return. In the
+    /// padding after the flags, as taken_ is. Written where the value is, by the thread
+    /// that makes or drops it.
+    bool made_ = false;
 
     /// Written by the STA thread, read by the worker before the body: the one field
     /// of the operation both threads touch while it is out, hence atomic.
@@ -417,7 +427,8 @@ private:
 /// made, kept until the coroutine waiting for it comes back for it.
 ///
 /// The value lives in raw storage, and nothing says whether it is there but the answer
-/// itself: at completion there is either an error or a value. So the destructor destroys
+/// itself: at completion there is either an error or a value. (A build that checks keeps a
+/// byte that says so too, and stops where the two disagree.) So the destructor destroys
 /// the error if one is kept, the value if the producer is ready() without one, and nothing
 /// otherwise -- a coroutine stopped in flight, an operation never run, or an orphanable
 /// one given up, whose value went with the race that gave it up (`drop_value()`) or was
@@ -431,6 +442,10 @@ public:
     using async_op::async_op;
 
     ~async_op_t() override {
+        coro_check(made_ == (!error_kept() && ready_),
+                   "async_op_t: a producer ready without an error holds its value, and no other does",
+                   detail::site::current());
+
         if constexpr (!std::is_trivially_destructible_v<R>) {
             if (!error_kept() && ready_) std::destroy_at(&value());
         }
@@ -447,6 +462,10 @@ public:
         if constexpr (detail::checked) {
             coro_check(!taken_, "task: the value has already been taken", where);
             taken_ = true;
+
+            // Finished, did not throw, and left nothing behind: a body that answered
+            // "done" without producing what it promised.
+            coro_check(made_, "task: ended without a result", where);
         }
 
         return std::move(value());
@@ -455,13 +474,19 @@ public:
 protected:
     /// The answer of work that did not fail, made in place. Once: a body that has answered
     /// does not answer again.
-    void set_value(R&& value) { ::new (static_cast<void*>(value_)) R(std::move(value)); }
+    void set_value(R&& value) {
+        ::new (static_cast<void*>(value_)) R(std::move(value));
+        if constexpr (detail::checked) made_ = true;
+    }
 
     /// Destroys what was produced, for an orphanable operation given up, which nobody is going
     /// to ask: on the thread that won the race (orphan_state), once the body has answered --
     /// with its value, or with an error, which the destructor releases.
     void drop_value() noexcept {
-        if (!error_kept()) std::destroy_at(&value());
+        if (!error_kept()) {
+            std::destroy_at(&value());
+            if constexpr (detail::checked) made_ = false;
+        }
     }
 
     /// Takes over the answer another producer made -- its value or its failure -- for a
@@ -480,6 +505,11 @@ protected:
 
         ::new (static_cast<void*>(value_)) R(std::move(made.value()));
         std::destroy_at(&made.value());
+
+        if constexpr (detail::checked) {
+            made_ = true;
+            made.made_ = false;
+        }
     }
 
 private:

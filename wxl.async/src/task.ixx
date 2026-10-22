@@ -109,8 +109,13 @@ public:
         this->set_value(std::forward<Value>(value));
     }
 
-    /// What left the body: the exception being handled.
-    inline void keep_current_exception() noexcept { this->set_current_exception(); }
+    /// What left the body: the exception being handled. A body that has made its value
+    /// already ended with co_return, and what threw after it is the destructor of a local:
+    /// a broken rule, which a build that checks stops at rather than keep both answers.
+    inline void keep_current_exception() noexcept {
+        coro_check(!this->value_made(), "task: a destructor threw after co_return", detail::site::current());
+        this->set_current_exception();
+    }
 
     /// The body is over, its locals gone: the result is here, and the frame goes next.
     inline void end_body() noexcept {
