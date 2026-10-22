@@ -31,13 +31,18 @@ public:
     static constexpr uint32_t MaxBlockSize = 32 * 1024;
     static constexpr uint32_t PageSize = 1024 * 1024;
 
+    /// The smallest block, and the alignment of every block: the classes are multiples of it and
+    /// the cursor starts on a page. It is what operator new's memory is aligned to, which is what
+    /// the compiler lays a coroutine frame out for.
+    static constexpr uint32_t MinBlockSize = sizeof(void*) * 2;
+    static_assert(MinBlockSize >= __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+
     /// The slot of a size class in the dispatch tables: one lzcnt, larger classes first.
     static constexpr uint32_t pool_index(uint32_t size) noexcept {
         return std::countl_zero(size - 1);
     }
 
-    /// How many bytes a block of this size really holds: its whole class, and at least a pointer,
-    /// because a free block keeps the link to the next one in its own bytes.
+    /// How many bytes a block of this size really holds: its whole class, and at least the smallest.
     static constexpr uint32_t block_size(uint32_t size) noexcept {
         ensure(size >= 1 && size <= MaxBlockSize);
         return std::max(1u << (32 - pool_index(size)), MinBlockSize);
@@ -92,7 +97,6 @@ private:
     using alloc_fn = void* (*)() noexcept;
     using free_fn = void (*)(void*) noexcept;
 
-    static constexpr uint32_t MinBlockSize = sizeof(void*);
     static constexpr uint32_t MallocThreshold = PageSize / 2;
 
     /// One slot for every value countl_zero can give for a uint32_t, 0 to 32.

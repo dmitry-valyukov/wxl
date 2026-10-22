@@ -18,8 +18,11 @@ std::vector<void*> s_pages;
 constinit std::byte* s_cursor = nullptr;
 constinit std::byte* s_end = nullptr;
 
-// The smallest class is a pointer wide, and the requests below it share it.
-constexpr unsigned MinN = std::countr_zero(sizeof(void*));
+// The smallest class is two pointers wide, and the requests below it share it: with every class a
+// multiple of it and the cursor starting on a page, every block comes out aligned to it, which is
+// what the memory of operator new is aligned to and what a coroutine frame is laid out for.
+constexpr unsigned MinN = std::countr_zero(sizeof(void*) * 2);
+static_assert((1u << MinN) == sta_memory_pool::MinBlockSize);
 
 // Moves the cursor to a new page. The rest of the old one goes onto the free lists, cut into the
 // largest classes that fit.
@@ -33,6 +36,7 @@ void alloc_page() noexcept {
     std::byte* rest = s_cursor;
 
     for (auto rest_size = static_cast<unsigned>(s_end - s_cursor); rest_size != 0;) {
+        assert(rest_size % sta_memory_pool::MinBlockSize == 0);
         const unsigned size = std::min(std::bit_floor(rest_size), sta_memory_pool::MaxBlockSize);
         sta_memory_pool::free(rest, size);
         rest += size;
@@ -76,9 +80,16 @@ struct free_block {
 // so a class that is only allocated from never tests the list at all.
 template <unsigned N>
 struct sta_memory_pool::pool_ {
-    static constexpr unsigned index = pool_index(1u << N);
+    /// The slots this class answers: its own, and for the smallest class every slot below it too,
+    /// so that a request smaller than a block finds the list the blocks go back to.
+    static constexpr unsigned first = pool_index(1u << N);
+    static constexpr unsigned last = N == MinN ? TableSize - 1 : first;
 
     static constinit inline free_block* s_top = nullptr;
+
+    static void dispatch(alloc_fn fn) noexcept {
+        for (unsigned slot = first; slot <= last; ++slot) s_alloc_table[slot] = fn;
+    }
 
     static void* get() noexcept {
         if (free_block* const block = s_top) [[likely]] {
@@ -86,13 +97,13 @@ struct sta_memory_pool::pool_ {
             return block;
         }
 
-        s_alloc_table[index] = bump_alloc<N>;
+        dispatch(bump_alloc<N>);
         return bump_alloc<N>();
     }
 
     static void put(void* mem) noexcept {
         s_top = ::new (mem) free_block{s_top};
-        s_alloc_table[index] = get;
+        dispatch(get);
     }
 };
 
@@ -105,7 +116,7 @@ constinit sta_memory_pool::alloc_fn sta_memory_pool::s_alloc_table[TableSize] = 
     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
     bump_alloc<15>, bump_alloc<14>, bump_alloc<13>, bump_alloc<12>, bump_alloc<11>,
     bump_alloc<10>, bump_alloc<9>,  bump_alloc<8>,  bump_alloc<7>,  bump_alloc<6>,
-    bump_alloc<5>,  bump_alloc<4>,  bump_alloc<3>,
+    bump_alloc<5>,  bump_alloc<4>,  bump_alloc<MinN>,
     bump_alloc<MinN>, bump_alloc<MinN>, bump_alloc<MinN>,
 };
 
@@ -116,7 +127,7 @@ constinit sta_memory_pool::free_fn sta_memory_pool::s_free_table[TableSize] = {
     pool_<15>::put, pool_<14>::put, pool_<13>::put, pool_<12>::put,
     pool_<11>::put, pool_<10>::put, pool_<9>::put,  pool_<8>::put,
     pool_<7>::put,  pool_<6>::put,  pool_<5>::put,  pool_<4>::put,
-    pool_<3>::put,
+    pool_<MinN>::put,
     pool_<MinN>::put, pool_<MinN>::put, pool_<MinN>::put,
 };
 // clang-format on

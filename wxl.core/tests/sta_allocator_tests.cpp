@@ -87,14 +87,61 @@ TEST(StaMemoryPoolTest, AboveMaxBlockSizeFallsBackToTheRawHeap) {
 }
 
 TEST(StaMemoryPoolTest, BlockSizeIsTheWholeClass) {
-    EXPECT_EQ(sta_memory_pool::block_size(1), sizeof(void*));
-    EXPECT_EQ(sta_memory_pool::block_size(sizeof(void*)), sizeof(void*));
-    EXPECT_EQ(sta_memory_pool::block_size(sizeof(void*) + 1), 2 * sizeof(void*));
+    EXPECT_EQ(sta_memory_pool::block_size(1), sta_memory_pool::MinBlockSize);
+    EXPECT_EQ(sta_memory_pool::block_size(sizeof(void*)), sta_memory_pool::MinBlockSize);
+    EXPECT_EQ(sta_memory_pool::block_size(sta_memory_pool::MinBlockSize), sta_memory_pool::MinBlockSize);
+    EXPECT_EQ(sta_memory_pool::block_size(sta_memory_pool::MinBlockSize + 1), 2 * sta_memory_pool::MinBlockSize);
     EXPECT_EQ(sta_memory_pool::block_size(100), 128u);
     EXPECT_EQ(sta_memory_pool::block_size(128), 128u);
     EXPECT_EQ(sta_memory_pool::block_size(129), 256u);
     EXPECT_EQ(sta_memory_pool::block_size(sta_memory_pool::MaxBlockSize),
               sta_memory_pool::MaxBlockSize);
+}
+
+/// A coroutine frame, like anything from operator new, is laid out for the default new alignment:
+/// every block of every class is aligned to it, across the page boundary too.
+TEST(StaMemoryPoolTest, EveryBlockIsAlignedForNew) {
+    constexpr std::uintptr_t alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+    static_assert(sta_memory_pool::MinBlockSize % alignment == 0);
+
+    // Enough of the smallest class to run through a whole page and into the next one.
+    constexpr size_t count = sta_memory_pool::PageSize / sta_memory_pool::MinBlockSize + 16;
+    std::vector<void*> blocks;
+    blocks.reserve(count);
+
+    for (size_t i = 0; i != count; ++i) {
+        void* const block = sta_memory_pool::alloc(1);
+        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(block) % alignment, 0u) << "block " << i;
+        blocks.push_back(block);
+    }
+
+    for (void* block : blocks) sta_memory_pool::free(block, 1);
+
+    // Every class, from a request below the smallest block to the largest one, through the
+    // free lists just filled and through the bump cursor.
+    for (std::uint32_t size = 1; size <= sta_memory_pool::MaxBlockSize; size = size * 2 + 1) {
+        void* const a = sta_memory_pool::alloc(size);
+        void* const b = sta_memory_pool::alloc(size);
+        EXPECT_EQ(reinterpret_cast<std::uintptr_t>(a) % alignment, 0u) << "size " << size;
+        EXPECT_EQ(reinterpret_cast<std::uintptr_t>(b) % alignment, 0u) << "size " << size;
+        sta_memory_pool::free(b, size);
+        sta_memory_pool::free(a, size);
+    }
+}
+
+/// A request below the smallest block is served from that class's list, like a request of the
+/// block's own size: what one frees, the other gets back.
+TEST(StaMemoryPoolTest, RequestsBelowTheSmallestBlockShareItsList) {
+    void* const block = sta_memory_pool::alloc(sta_memory_pool::MinBlockSize);
+    sta_memory_pool::free(block, sta_memory_pool::MinBlockSize);
+
+    void* const tiny = sta_memory_pool::alloc(1);
+    EXPECT_EQ(tiny, block);
+    sta_memory_pool::free(tiny, 1);
+
+    void* const again = sta_memory_pool::alloc(sta_memory_pool::MinBlockSize);
+    EXPECT_EQ(again, block);
+    sta_memory_pool::free(again, sta_memory_pool::MinBlockSize);
 }
 
 struct Small {
