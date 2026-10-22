@@ -727,6 +727,62 @@ TEST(CancellationTest, ALambdaOnTheWorkerCancelledBeforeItIsReachedNeverRuns) {
     EXPECT_EQ(runs, 1);
 }
 
+// Under a token cancelled already the call answers the cancellation as it returns, and answers
+// it without throwing: the answer is the one exception made once and shared, so two calls carry
+// the very same object -- one thrown inside each call would be an exception of its own. The
+// cancellation is thrown only where it is read.
+TEST(CancellationTest, UnderACancelledTokenTheCallAnswersWithoutThrowing) {
+    cancellation_source stop;
+    stop.cancel();
+
+    int runs = 0;
+    task<int> refused = sta_loop::async_call([&runs] { return ++runs; }, stop.token());
+
+    ASSERT_TRUE(refused.done());
+    EXPECT_FALSE(refused.has_value());
+    ASSERT_TRUE(refused.has_exception());
+    EXPECT_THROW(std::rethrow_exception(refused.get_exception_ptr()), operation_canceled_exception);
+    EXPECT_THROW((void)refused.result(), operation_canceled_exception);
+
+    task<int> again = sta_loop::async_call([&runs] { return ++runs; }, stop.token());
+    ASSERT_TRUE(again.has_exception());
+    EXPECT_EQ(refused.get_exception_ptr(), again.get_exception_ptr());
+
+    // A body that answers nothing answers the cancellation the same way.
+    task<> nothing = sta_loop::async_call([&runs] { ++runs; }, stop.token());
+    ASSERT_TRUE(nothing.done());
+    EXPECT_EQ(nothing.get_exception_ptr(), refused.get_exception_ptr());
+    EXPECT_THROW(nothing.result(), operation_canceled_exception);
+
+    // Dropped unread, the task lets its answer go with it.
+    (void)sta_loop::async_call([&runs] { return ++runs; }, stop.token());
+
+    EXPECT_EQ(runs, 0);
+}
+
+/// Awaits a call under `stop` and says whether the co_await threw the cancellation.
+task<bool> awaits_the_cancellation(cancellation_token stop) {
+    try {
+        (void)co_await sta_loop::async_call([] { return 1; }, std::move(stop));
+    } catch (const operation_canceled_exception&) {
+        co_return true;
+    }
+
+    co_return false;
+}
+
+// The co_await of a task body finds the answer there and does not suspend: it throws the
+// cancellation at once, and the body ends before the call that started it returns.
+TEST(CancellationTest, UnderACancelledTokenTheCoAwaitThrowsTheCancellationAtOnce) {
+    cancellation_source stop;
+    stop.cancel();
+
+    task<bool> body = awaits_the_cancellation(stop.token());
+
+    ASSERT_TRUE(body.done());
+    EXPECT_TRUE(body.result());
+}
+
 // An orphanable body under a live token runs and answers; cancelled while it waits for the
 // worker, it never runs, and the co_await ends with the cancellation without waiting for it;
 // under a token cancelled already it is not made.

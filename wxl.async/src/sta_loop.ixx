@@ -789,11 +789,30 @@ private:
 
 namespace detail {
 
+/// The producer of a call made under a token cancelled already, answered with the cancellation
+/// as it is made. The answer is known before anything runs, and it is an answer, not a failure
+/// of the call: written as one -- a copy of the shared exception's pointer -- it spares the
+/// caller the throw and catch a body would take to keep it. It relies on being complete the
+/// moment it is made: it is sent nowhere and nobody resumes it, so its task finds it ready.
+template <class R>
+class canceled_op final : public pooled<canceled_op<R>, async_op_t<R>>
+{
+public:
+    inline canceled_op() noexcept {
+        this->answer_canceled();
+        this->complete_in_place();
+    }
+
+protected:
+    /// Never called: answered as it is made, it is not sent anywhere.
+    bool execute() override { return true; }
+};
+
 /// What a form with a token returns under a token cancelled already: nothing is made that
 /// does work, and the task answers the cancellation at once.
 template <class R>
 [[nodiscard]] task<R> canceled_task() {
-    return sta_loop::call_here([]() -> R { throw operation_canceled_exception(); });
+    return task<R>(std::unique_ptr<async_op_t<R>>(new canceled_op<R>));
 }
 
 inline void send_orphanable(async_op& op) { sta_loop::mode_->send_orphanable(op); }
