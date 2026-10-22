@@ -16,6 +16,14 @@
 using ssize_t = ptrdiff_t;
 #endif
 
+// For a class that is never the most derived (an abstract base): its constructors and destructor
+// store no vptr that the derived class would overwrite. None of them may make a virtual call.
+#if defined(_MSC_VER)
+#define WXL_ABSTRACT_BASE __declspec(novtable)
+#else
+#define WXL_ABSTRACT_BASE
+#endif
+
 /**
  * Platform-specific implementation of the optimizer hint used by `assume()`
  * in release builds. Telling the compiler that `cond` always holds lets it

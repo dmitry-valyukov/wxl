@@ -116,7 +116,7 @@ private:
 /// deletes it when it comes back. That wait is what keeps a buffer in the frame from being
 /// written after the frame is gone -- the same guarantee a synchronous read on an ordinary
 /// stack gives.
-class async_op : public core::noncopyable
+class WXL_ABSTRACT_BASE async_op : public core::noncopyable
 {
 public:
     async_op() noexcept = default;
@@ -482,7 +482,7 @@ public:
 /// one given up, whose value went with the race that gave it up (`drop_value()`) or was
 /// handed on (`take_answer_from()`).
 template <class R>
-class async_op_t : public async_op
+class WXL_ABSTRACT_BASE async_op_t : public async_op
 {
 public:
     using result_type = R;
@@ -572,7 +572,7 @@ private:
 #pragma warning(pop)
 
 template <>
-class async_op_t<void> : public async_op
+class WXL_ABSTRACT_BASE async_op_t<void> : public async_op
 {
 public:
     using result_type = void;
