@@ -1341,21 +1341,27 @@ void drop_a_value_never_completed() {
     unfinished->answer_value();
 }
 
-/// A local whose destructor throws: past a co_return, the body ends with both a value and an
-/// exception.
+/// A local whose destructor throws when the test arms it: past a co_return, the body ends with
+/// both a value and an exception. Armed at run time, so that the destructor can return as far
+/// as the compiler knows.
 struct throws_as_it_goes {
-    ~throws_as_it_goes() noexcept(false) { throw std::runtime_error("from a destructor"); }
+    const bool& armed;
+
+    ~throws_as_it_goes() noexcept(false) {
+        if (armed) throw std::runtime_error("from a destructor");
+    }
 };
 
-task<int> throws_after_its_co_return() {
-    throws_as_it_goes local;
+task<int> throws_after_its_co_return(const bool& armed) {
+    throws_as_it_goes local{armed};
     co_return 1;
 }
 
 void throw_after_co_return() {
     report_failures_to_stderr();
 
-    task<int> both = throws_after_its_co_return();
+    bool armed = true;
+    task<int> both = throws_after_its_co_return(armed);
 }
 
 /// Death tests of the checks: skipped where the build has none.

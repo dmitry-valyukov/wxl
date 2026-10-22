@@ -312,6 +312,8 @@ protected:
     /// For an operation that learns of its failure without throwing -- from the code an
     /// overlapped call left behind.
     inline void set_error(std::exception_ptr error) noexcept {
+        coro_check(error != nullptr, "async_op: answered with an empty exception_ptr",
+                   detail::site::current());
         ::new (error_slot()) std::exception_ptr(std::move(error));
     }
 
@@ -355,7 +357,7 @@ private:
     friend class task;
 
     // The flags lie between the waiter's word and the exception. A constructor zeroes all
-    // three -- the exception's storage is bytes, value-initialized, and zero is what an empty
+    // three -- the exception's storage is words, value-initialized, and zero is what an empty
     // exception_ptr is, so an empty one costs no call to make, to test or to destroy. A
     // compiler may make the flags' few bytes with one word-wide store that reaches into a
     // neighbour; the exception's first word, read at every co_await, is then not the one it
@@ -416,13 +418,20 @@ private:
         std::memset(made.error_, 0, sizeof made.error_);
     }
 
-    static_assert(sizeof(std::exception_ptr) % sizeof(void*) == 0);
+    static_assert(sizeof(std::exception_ptr) % sizeof(void*) == 0 &&
+                  alignof(std::exception_ptr) <= alignof(std::uintptr_t));
 
     /// What the work threw, or its cancellation: constructed here when it comes, and zero
-    /// bytes -- an empty exception_ptr -- until then.
-    alignas(std::exception_ptr) std::byte error_[sizeof(std::exception_ptr)]{};
+    /// words -- an empty exception_ptr -- until then. Words rather than aligned bytes: the
+    /// same size and alignment, with no alignment specifier to pad the class around.
+    std::uintptr_t error_[sizeof(std::exception_ptr) / sizeof(std::uintptr_t)]{};
 };
 
+// The value's storage is aligned for R, and for an R aligned wider than the producer that
+// costs padding. C4324 reports it at level 4, and for a template it fires where the class is
+// laid out -- in a consumer built with /W4 -- so it is silenced here, at the declaration.
+#pragma warning(push)
+#pragma warning(disable : 4324)  // structure was padded due to alignment specifier
 /// What a task of R waits for: a producer with a result of type R -- the value the body
 /// made, kept until the coroutine waiting for it comes back for it.
 ///
@@ -475,6 +484,7 @@ protected:
     /// The answer of work that did not fail, made in place. Once: a body that has answered
     /// does not answer again.
     void set_value(R&& value) {
+        coro_check(!made_, "async_op: answered twice", detail::site::current());
         ::new (static_cast<void*>(value_)) R(std::move(value));
         if constexpr (detail::checked) made_ = true;
     }
@@ -520,6 +530,7 @@ private:
     // by the answer (see the class).
     alignas(R) std::byte value_[sizeof(R)];
 };
+#pragma warning(pop)
 
 template <>
 class async_op_t<void> : public async_op

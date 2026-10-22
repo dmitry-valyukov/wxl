@@ -270,12 +270,13 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // application stops its own by cancelling its common source on the way out, from
     // its main window's Closed at the latest; a body cancelled ends by itself, its
     // operations with it, while its task -- a field of an object that lives on into the
-    // teardown handler -- keeps only the end. A body that answers its cancellation by
+    // teardown handler -- keeps only the end. A body still suspended on something else
+    // by then is its owner's to drop. A body that answers its cancellation by
     // awaiting a file goes on to that operation from inside the loop's turn that
     // resumed it, so the count does not fall to zero between its two. An operation
     // that never comes back keeps the process here, the way a thread nobody joins
     // would, rather than being torn down underneath. Before the teardown handler, so
-    // that the application is asked what to save when nothing of its own still runs.
+    // that the application is asked what to save when none of its operations is out.
     //
     // A coroutine frame is not waited for: a frame alive at the end belongs to a task
     // whose owner outlived the end, which is a broken rule, and a build that checks stops
