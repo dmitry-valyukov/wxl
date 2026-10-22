@@ -435,12 +435,23 @@ namespace detail {
 /// `delete` through any base reaches, by the virtual destructor, the deallocation function of
 /// the dynamic type, and `final` keeps a type deriving from `Derived` from inheriting these
 /// with a size that is not its own. A producer others derive from keeps async_op's.
+///
+/// It is never the most derived object -- only `Derived` derives from it -- and its
+/// constructors and destructor make no virtual call, so the vptr they would store is always
+/// overwritten: novtable drops those stores and the vtable of each instantiation.
 template <class Derived, class Base>
-class pooled : public Base
+class WXL_ABSTRACT_BASE pooled : public Base
 {
-public:
-    using Base::Base;
+protected:
+    /// Protected, so that only `Derived` can build one. The defaulted form is its own: for an
+    /// abstract `Base` the trait below is false, and this one takes `Base`'s specification.
+    inline pooled() = default;
 
+    template <class... Args>
+    inline explicit pooled(Args&&... args) noexcept(std::is_nothrow_constructible_v<Base, Args...>)
+        : Base(std::forward<Args>(args)...) {}
+
+public:
     inline static void* operator new([[maybe_unused]] std::size_t size) {
         static_assert(std::is_final_v<Derived>, "pooled: the producer must be final");
         assert(size == sizeof(Derived));
