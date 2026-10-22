@@ -1,0 +1,81 @@
+# A probe, not a gate: what the hosted Windows runner has, and whether the tree
+# builds and tests there without the WinUI wrappers (wxl.ui, samples and the
+# sandbox need the generated projection, which is not in the repository).
+# Started by hand only.
+name: ci-probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-2025
+    timeout-minutes: 200
+    env:
+      VS_DIR: C:\Program Files\Microsoft Visual Studio\18\Enterprise
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: What the runner has
+        shell: pwsh
+        run: |
+          "== processors: $([Environment]::ProcessorCount), interactive: $([Environment]::UserInteractive)"
+          "== Visual Studio"
+          Get-ChildItem "$env:VS_DIR\VC\Tools\MSVC" | ForEach-Object { $_.Name }
+          "== cmake"; cmake --version
+          "== ninja"; ninja --version
+          "== vcpkg"; vcpkg version
+          "== Windows App Runtime packages"
+          Get-AppxPackage -Name 'Microsoft.WindowsAppRuntime*' -AllUsers -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Name) $($_.Version)" }
+          "== Windows SDK"
+          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Include" -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }
+
+      - name: vcpkg ports (cppwinrt, gtest)
+        shell: pwsh
+        run: vcpkg install cppwinrt:x64-windows-static-md gtest:x64-windows-static-md
+
+      # One shell for the developer environment and every CMake call: VsDevCmd
+      # sets the toolset and Ninja on PATH, as tools/build.ps1 does at home.
+      - name: Configure
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          cl /Bv
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF
+
+      - name: Build Debug
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          cmake --build build\x64 --config Debug
+
+      - name: Test Debug
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          ctest --preset x64-debug --output-on-failure --timeout 300
+
+      - name: Build Release
+        if: always()
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          cmake --build build\x64 --config Release
+
+      - name: Test Release
+        if: always()
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          ctest --preset x64-release --output-on-failure --timeout 300
+
+      - name: Test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs
+          path: build/x64/Testing/Temporary/
+          if-no-files-found: ignore
