@@ -161,6 +161,9 @@ in [samples/README.md](samples/README.md) and
 To build the library and the sample projects, you will need:
 
 - **OS:** Windows x64
+- **Processor:** x64 with AVX2 (Intel Haswell, AMD Excavator and later).
+  The tree is built with `/arch:AVX2`, so the same applies to the machine
+  the programs run on
 - **Compiler toolchain:** Visual Studio 2026 (Insiders channel) with the
   MSVC toolset 14.53.36911 or newer
 - **Build:** CMake (version 4.3 / 4.4) and Ninja
