@@ -578,9 +578,10 @@ if(BUILD_TESTING)
     # The task a WinRT asynchronous operation becomes is tested the same way:
     # its producer is a template over the operation and the queue, given a
     # fake of each, so no dispatcher is needed. showDialog's two halves -- the
-    # call that may refuse, the wait the caller keeps and the exit counts -- are
-    # a template over the dialog, tested in the same file over a fake dialog on
-    # those fakes.
+    # call that may refuse, the wait the caller keeps -- are a template over the
+    # dialog, tested in the same file over a fake dialog on those fakes. The exit
+    # waits for operations, not for that wait: a build that checks stops on its
+    # frame still alive there.
     #
     # The load of a window's background on the way -- its own source under the
     # owner's token, and the task kept with it that waits for the load and shows
