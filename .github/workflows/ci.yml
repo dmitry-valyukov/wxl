@@ -1,0 +1,161 @@
+# The gate: the whole tree -- the WinUI half included -- built and tested on
+# the hosted Windows runner, Debug and Release side by side, with the tree's
+# own flags and nothing else.
+#
+# The toolset is MSVC 14.53 from the Insiders channel's Build Tools, installed
+# on each run: the image's 14.51 miscompiles a coroutine whose final_suspend()
+# returns suspend_never in optimized /EHsc code (bugs/coro-report.md), and the
+# /EHa that hides it breaks a death test that expects an access violation to
+# take the process down.
+#
+# The WinUI half needs what the repository does not carry: the pinned NuGet
+# packages, the cppwinrt projection in generated/ and the wrappers winui-srcgen
+# writes into wxl.ui/src/wxl. The job produces them the way a fresh clone does:
+# restore the packages, generate the projection, seed the wrapper directory
+# with an empty CMakeLists.txt, build the generator, run it with the full
+# profile, configure again and build everything.
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request makes the older run moot.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: Debug
+            preset: x64-debug
+          - config: Release
+            preset: x64-release
+    name: build (${{ matrix.config }})
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      DEVCMD: C:\BuildToolsInsiders\Common7\Tools\VsDevCmd.bat
+      VCVARS: -vcvars_ver=14.53
+      # The scripts, CMake and winui-srcgen all read this variable first.
+      NUGET_PACKAGES: C:\nuget-packages
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3010 is "installed, a reboot is pending": the compiler is usable as is.
+      - name: Install MSVC 14.53
+        shell: pwsh
+        run: |
+          $boot = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
+          Invoke-WebRequest -Uri 'https://aka.ms/vs/insiders/vs_buildtools.exe' -OutFile $boot -UseBasicParsing
+          $p = Start-Process -FilePath $boot -WorkingDirectory $env:RUNNER_TEMP -Wait -PassThru -ArgumentList @(
+            '--installPath', 'C:\BuildToolsInsiders',
+            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+            '--add', 'Microsoft.VisualStudio.Component.VC.Preview.Tools.x86.x64',
+            '--quiet', '--wait', '--norestart', '--nocache')
+          "exit code $($p.ExitCode)"
+          Get-ChildItem 'C:\BuildToolsInsiders\VC\Tools\MSVC' | ForEach-Object { $_.Name }
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "Build Tools install failed: $($p.ExitCode)" }
+
+      - name: vcpkg port (cppwinrt)
+        shell: pwsh
+        run: vcpkg install cppwinrt:x64-windows-static-md
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/restore-packages.ps1
+
+      # projection.ps1 finds cppwinrt.exe through VCPKG_ROOT when vcpkg's own
+      # path file is not there, as on the runner.
+      - name: cppwinrt projection
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+        run: pwsh -NoProfile -File tools/projection.ps1
+
+      - name: Seed the wrapper directory
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force wxl.ui\src\wxl | Out-Null
+          New-Item -ItemType File wxl.ui\src\wxl\CMakeLists.txt | Out-Null
+
+      # One shell for the developer environment and every CMake call: VsDevCmd
+      # puts the toolset and Ninja on PATH, as tools/build.ps1 does at home.
+      - name: Configure
+        shell: cmd
+        run: |
+          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF
+
+      - name: Build winui-srcgen
+        shell: cmd
+        run: |
+          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
+          cmake --build build\x64 --config ${{ matrix.config }} --target winui-srcgen
+
+      - name: Generate the wrappers
+        shell: cmd
+        run: build\x64\wxl.gen\${{ matrix.config }}\winui-srcgen.exe --profile wxl.gen\profiles\full.json
+
+      - name: Configure with the wrappers
+        shell: cmd
+        run: |
+          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg
+
+      # -k 0: every compile error of the change at once, not only the first.
+      - name: Build
+        id: build
+        shell: cmd
+        run: |
+          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
+          cmake --build build\x64 --config ${{ matrix.config }} -- -k 0
+
+      - name: Test
+        shell: cmd
+        run: |
+          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
+          ctest --preset ${{ matrix.preset }} --output-on-failure --timeout 300 --output-junit ctest.xml
+
+      # No test opens a WinUI window; a sample does. The experimental runtime
+      # the wrappers ask for, then the hello sample for twenty seconds: it has
+      # to start and show its window on the runner's desktop. After a red test
+      # step as well -- the two answer different questions -- but not after a
+      # red build, which left nothing to start.
+      - name: Install the experimental Windows App Runtime
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/install-runtime.ps1
+
+      - name: Start a sample
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        shell: pwsh
+        run: |
+          $exe = "build\x64\samples\HelloHere\${{ matrix.config }}\sample.hello.exe"
+          if (-not (Test-Path $exe)) { throw "$exe was not built" }
+          $exe = Get-Item $exe
+          $p = Start-Process -FilePath $exe.FullName -WorkingDirectory $exe.DirectoryName -PassThru
+          Start-Sleep -Seconds 20
+          $p.Refresh()
+          if ($p.HasExited) { throw "sample.hello exited within 20 s, code $($p.ExitCode)" }
+          $window = $p.MainWindowHandle
+          "running after 20 s; main window handle $window, title '$($p.MainWindowTitle)'"
+          Stop-Process -Id $p.Id
+          if ($window -eq 0) { throw 'sample.hello runs but shows no main window' }
+
+      - name: Test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-logs-${{ matrix.config }}
+          path: |
+            build/x64/Testing/Temporary/
+            build/x64/ctest.xml
+          if-no-files-found: ignore
