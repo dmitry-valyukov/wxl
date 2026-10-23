@@ -3,6 +3,8 @@
 #
 #  - image:    the image's own MSVC (14.51), with Release compiled with /EHa
 #              instead of /EHsc, for the coroutine defect fixed in 14.53;
+#  - image-plain: the same toolset, Release only, with the tree's flags --
+#              whether 14.51 needs /EHa at all;
 #  - insiders: MSVC 14.53 from the Insiders channel's Build Tools, installed
 #              on each run, with the tree's flags as they are.
 #
@@ -42,10 +44,18 @@ jobs:
             # themselves when it is missing look for it there -- and the
             # Release flags end with /EHa /EHc-, which replace it.
             release_flags: /O2 /Ob2 /DNDEBUG /EHa /EHc-
+            debug: true
+          # The same toolset with the tree's Release flags: does 14.51 need /EHa?
+          - toolset: image-plain
+            devcmd: C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat
+            vcvars: -vcvars_ver=14.51
+            release_flags: /O2 /Ob2 /DNDEBUG
+            debug: false
           - toolset: insiders
             devcmd: C:\BuildToolsInsiders\Common7\Tools\VsDevCmd.bat
             vcvars: -vcvars_ver=14.53
             release_flags: /O2 /Ob2 /DNDEBUG
+            debug: true
     name: probe (${{ matrix.toolset }})
     runs-on: windows-2025
     timeout-minutes: 330
@@ -83,6 +93,7 @@ jobs:
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
           echo == image: %ImageOS% %ImageVersion%, processors: %NUMBER_OF_PROCESSORS%
           echo == toolset: %VCToolsVersion%
+          echo == the image's own toolsets & dir /b "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC"
           where cl
           echo == cmake & where cmake & cmake --version
           echo == ninja & where ninja & ninja --version
@@ -174,13 +185,14 @@ jobs:
           cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg
 
       - name: Build Debug
+        if: matrix.debug
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
           cmake --build build\x64 --config Debug -- -k 0
 
       - name: Test Debug
-        if: always()
+        if: always() && matrix.debug
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
@@ -219,7 +231,7 @@ jobs:
         run: pwsh -NoProfile -File tools/install-runtime.ps1
 
       - name: Start a sample
-        if: always()
+        if: always() && matrix.debug
         shell: pwsh
         run: |
           $exe = Get-ChildItem build\x64 -Recurse -Filter sample.hello.exe | Where-Object { $_.FullName -match '\\Debug\\' } | Select-Object -First 1
@@ -237,13 +249,15 @@ jobs:
       # The source that needed /bigobj, compiled once more without it, into an
       # object of its own name.
       - name: Microsoft.UI.Xaml.Controls.cpp without /bigobj
-        if: always()
+        if: always() && matrix.debug
         shell: pwsh
         run: |
           $obj = 'wxl.ui/CMakeFiles/wxl.ui.dir/Debug/src/wxl/Microsoft.UI.Xaml.Controls.cpp.obj'
           $line = ninja -C build\x64 -f build-Debug.ninja -t commands $obj | Select-Object -Last 1
-          $line = $line.Replace(' /bigobj', '').Replace('Microsoft.UI.Xaml.Controls.cpp.obj', 'Microsoft.UI.Xaml.Controls.nobigobj.obj')
+          $obj = $obj.Replace('/', '\')
+          $line = $line.Replace(' /bigobj', '').Replace("/Fo$obj", ($obj -replace '\.cpp\.obj$', '.nobigobj.obj' | ForEach-Object { "/Fo$_" }))
           if ($line -match '/bigobj') { throw 'the command still carries /bigobj' }
+          if ($line -notmatch 'nobigobj\.obj') { throw 'the object of the command was not renamed' }
           $line
           Set-Content -Path nobigobj.cmd -Value "@call `"$env:DEVCMD`" -arch=x64 -host_arch=x64 $env:VCVARS >nul`r`n@cd build\x64`r`n$line"
           $t = [Diagnostics.Stopwatch]::StartNew()
@@ -251,6 +265,35 @@ jobs:
           $code = $LASTEXITCODE
           "exit code $code after $([int]$t.Elapsed.TotalSeconds) s"
           exit $code
+
+      # wxl.ui.stream-reference narrows a Cyrillic file name with path::string(),
+      # which converts through the ANSI code page: does that throw here?
+      - name: The ANSI code page and path::string()
+        if: always()
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'acp'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Set-Content -Path (Join-Path $dir 'acp.cpp') -Encoding ascii -Value @'
+          #include <windows.h>
+          #include <cstdio>
+          #include <exception>
+          #include <filesystem>
+          int main() {
+              std::printf("ACP %u, OEMCP %u\n", GetACP(), GetOEMCP());
+              try {
+                  auto const narrow = std::filesystem::path(L"\u041a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430.jpg").string();
+                  std::printf("path::string() gave %zu bytes\n", narrow.size());
+                  return 0;
+              } catch (std::exception const& e) {
+                  std::printf("path::string() threw: %s\n", e.what());
+                  return 1;
+              }
+          }
+          '@
+          Set-Content -Path (Join-Path $dir 'acp.cmd') -Value "@call `"$env:DEVCMD`" -arch=x64 -host_arch=x64 $env:VCVARS >nul`r`n@cd /d `"$dir`"`r`n@cl /nologo /EHsc /std:c++latest acp.cpp >nul || exit /b 2`r`n@acp.exe"
+          cmd /c (Join-Path $dir 'acp.cmd')
+          exit $LASTEXITCODE
 
       - name: Test logs
         if: always()
