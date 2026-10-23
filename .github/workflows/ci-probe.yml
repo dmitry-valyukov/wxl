@@ -1,28 +1,26 @@
-# A probe, not a gate: whether the whole tree -- the WinUI half included --
-# builds and tests on the hosted Windows runner, with two toolsets side by side:
+# A probe, not a gate: the gate proposed from runs 3 to 5, run as it stands on
+# the probe branch to see it green or red with nothing else around it.
 #
-#  - image:    the image's own MSVC (14.51), with Release compiled with /EHa
-#              instead of /EHsc, for the coroutine defect fixed in 14.53;
-#  - image-plain: the same toolset, Release only, with the tree's flags --
-#              whether 14.51 needs /EHa at all;
-#  - insiders: MSVC 14.53 from the Insiders channel's Build Tools, installed
-#              on each run, with the tree's flags as they are.
+# The gate: the whole tree -- the WinUI half included -- built and tested on
+# the hosted Windows runner, Debug and Release side by side, with the tree's
+# own flags and nothing else.
+#
+# The toolset is MSVC 14.53 from the Insiders channel's Build Tools, installed
+# on each run: the image's 14.51 miscompiles a coroutine whose final_suspend()
+# returns suspend_never in optimized /EHsc code (bugs/coro-report.md), and
+# cannot fit the generated Microsoft.UI.Xaml.Controls.cpp into an ordinary
+# object file without /bigobj -- 14.53 needs neither workaround.
 #
 # The WinUI half needs what the repository does not carry: the pinned NuGet
 # packages, the cppwinrt projection in generated/ and the wrappers winui-srcgen
-# writes into wxl.ui/src/wxl. The job produces them the way a fresh clone does
-# at home: restore the packages, generate the projection, seed the wrapper
-# directory with an empty CMakeLists.txt, build the generator, run it with the
-# full profile, configure again and build everything.
-#
-# Both builds add /bigobj: under 14.51 the generated Microsoft.UI.Xaml.Controls.cpp
-# exceeds the section limit of an ordinary object file (C1128). A step at the end
-# compiles that one source again without it, to see which toolset needs it.
-#
-# Started by hand, or by a push to its own branch: a workflow that is not on the
-# default branch cannot be started by hand until a push has run it once.
+# writes into wxl.ui/src/wxl. The job produces them the way a fresh clone does:
+# restore the packages, generate the projection, seed the wrapper directory
+# with an empty CMakeLists.txt, build the generator, run it with the full
+# profile, configure again and build everything.
 name: ci-probe
 
+# A push to its own branch: a workflow that is not on the default branch
+# cannot be started by hand until a push has run it once.
 on:
   workflow_dispatch:
   push:
@@ -32,52 +30,32 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - toolset: image
-            devcmd: C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat
-            vcvars: -vcvars_ver=14.51
-            # /EHsc stays in CMAKE_CXX_FLAGS -- the libraries that add /EHsc
-            # themselves when it is missing look for it there -- and the
-            # Release flags end with /EHa /EHc-, which replace it.
-            release_flags: /O2 /Ob2 /DNDEBUG /EHa /EHc-
-            debug: true
-          # The same toolset with the tree's Release flags: does 14.51 need /EHa?
-          - toolset: image-plain
-            devcmd: C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat
-            vcvars: -vcvars_ver=14.51
-            release_flags: /O2 /Ob2 /DNDEBUG
-            debug: false
-          - toolset: insiders
-            devcmd: C:\BuildToolsInsiders\Common7\Tools\VsDevCmd.bat
-            vcvars: -vcvars_ver=14.53
-            release_flags: /O2 /Ob2 /DNDEBUG
-            debug: true
-    name: probe (${{ matrix.toolset }})
+          - config: Debug
+            preset: x64-debug
+          - config: Release
+            preset: x64-release
+    name: ${{ matrix.config }}
     runs-on: windows-2025
-    timeout-minutes: 330
+    timeout-minutes: 90
     env:
-      DEVCMD: ${{ matrix.devcmd }}
-      VCVARS: ${{ matrix.vcvars }}
-      # The vcpkg port as a binary package in a folder the Actions cache keeps
-      # between runs.
-      VCPKG_BINARY_SOURCES: clear;files,C:\vcpkg-binary-cache,readwrite
-      # The NuGet package folder, named so the Actions cache can keep it; the
-      # scripts, CMake and winui-srcgen all read this variable first.
+      DEVCMD: C:\BuildToolsInsiders\Common7\Tools\VsDevCmd.bat
+      VCVARS: -vcvars_ver=14.53
+      # The scripts, CMake and winui-srcgen all read this variable first.
       NUGET_PACKAGES: C:\nuget-packages
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install the Insiders Build Tools
-        if: matrix.toolset == 'insiders'
+      # 3010 is "installed, a reboot is pending": the compiler is usable as is.
+      - name: Install MSVC 14.53
         shell: pwsh
         run: |
           $boot = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
           Invoke-WebRequest -Uri 'https://aka.ms/vs/insiders/vs_buildtools.exe' -OutFile $boot -UseBasicParsing
-          "bootstrapper: $((Get-Item $boot).VersionInfo.ProductVersion)"
           $p = Start-Process -FilePath $boot -WorkingDirectory $env:RUNNER_TEMP -Wait -PassThru -ArgumentList @(
             '--installPath', 'C:\BuildToolsInsiders',
             '--add', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
@@ -85,65 +63,15 @@ jobs:
             '--quiet', '--wait', '--norestart', '--nocache')
           "exit code $($p.ExitCode)"
           Get-ChildItem 'C:\BuildToolsInsiders\VC\Tools\MSVC' | ForEach-Object { $_.Name }
-          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "Insiders Build Tools install failed: $($p.ExitCode)" }
-
-      - name: What the runner has
-        shell: cmd
-        run: |
-          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          echo == image: %ImageOS% %ImageVersion%, processors: %NUMBER_OF_PROCESSORS%
-          echo == toolset: %VCToolsVersion%
-          echo == the image's own toolsets & dir /b "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC"
-          where cl
-          echo == cmake & where cmake & cmake --version
-          echo == ninja & where ninja & ninja --version
-          echo == vcpkg & vcpkg version
-          echo == Windows SDK: %WindowsSDKVersion%
-
-      - name: vcpkg cache key
-        id: vcpkg-key
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force C:\vcpkg-binary-cache | Out-Null
-          "commit=$(git -C C:\vcpkg rev-parse HEAD)" >> $env:GITHUB_OUTPUT
-
-      # Restored and saved as two steps, so that a red job still keeps what it
-      # fetched.
-      - name: Restore the vcpkg binary cache
-        id: vcpkg-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: C:\vcpkg-binary-cache
-          key: vcpkg-${{ env.ImageVersion }}-${{ steps.vcpkg-key.outputs.commit }}-x64-windows-static-md-cppwinrt
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "Build Tools install failed: $($p.ExitCode)" }
 
       - name: vcpkg port (cppwinrt)
         shell: pwsh
         run: vcpkg install cppwinrt:x64-windows-static-md
 
-      - name: Save the vcpkg binary cache
-        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: C:\vcpkg-binary-cache
-          key: vcpkg-${{ env.ImageVersion }}-${{ steps.vcpkg-key.outputs.commit }}-x64-windows-static-md-cppwinrt
-
-      - name: Restore the NuGet package cache
-        id: nuget-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: C:\nuget-packages
-          key: nuget-${{ hashFiles('tools/packages.json', 'wxl.gen/profiles/base.json') }}
-
       - name: Restore NuGet packages
         shell: pwsh
         run: pwsh -NoProfile -File tools/restore-packages.ps1
-
-      - name: Save the NuGet package cache
-        if: always() && steps.nuget-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: C:\nuget-packages
-          key: nuget-${{ hashFiles('tools/packages.json', 'wxl.gen/profiles/base.json') }}
 
       # projection.ps1 finds cppwinrt.exe through VCPKG_ROOT when vcpkg's own
       # path file is not there, as on the runner.
@@ -160,23 +88,22 @@ jobs:
           New-Item -ItemType File wxl.ui\src\wxl\CMakeLists.txt | Out-Null
 
       # One shell for the developer environment and every CMake call: VsDevCmd
-      # sets the toolset and Ninja on PATH, as tools/build.ps1 does at home.
+      # puts the toolset and Ninja on PATH, as tools/build.ps1 does at home.
       - name: Configure
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF "-DCMAKE_CXX_FLAGS=/DWIN32 /D_WINDOWS /EHsc /bigobj" "-DCMAKE_CXX_FLAGS_RELEASE=${{ matrix.release_flags }}" || exit /b 1
-          findstr /b /c:"CMAKE_CXX_FLAGS" /c:"CMAKE_CXX_COMPILER:" build\x64\CMakeCache.txt
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF
 
       - name: Build winui-srcgen
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --build build\x64 --config Debug --target winui-srcgen
+          cmake --build build\x64 --config ${{ matrix.config }} --target winui-srcgen
 
       - name: Generate the wrappers
         shell: cmd
-        run: build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
+        run: build\x64\wxl.gen\${{ matrix.config }}\winui-srcgen.exe --profile wxl.gen\profiles\full.json
 
       - name: Configure with the wrappers
         shell: cmd
@@ -184,59 +111,37 @@ jobs:
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
           cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg
 
-      - name: Build Debug
-        if: matrix.debug
+      # -k 0: every compile error of the change at once, not only the first.
+      - name: Build
+        id: build
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --build build\x64 --config Debug -- -k 0
+          cmake --build build\x64 --config ${{ matrix.config }} -- -k 0
 
-      - name: Test Debug
-        if: always() && matrix.debug
+      - name: Test
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          ctest --preset x64-debug --output-on-failure --timeout 300 --output-junit ctest-debug.xml
-
-      # What a Release object is compiled with: a library that adds /EHsc
-      # itself when CMAKE_CXX_FLAGS lacks it (wxl.xml), and one that does not
-      # (wxl.core).
-      - name: Release compile flags
-        if: always()
-        shell: pwsh
-        run: |
-          ninja -C build\x64 -f build-Release.ninja -t commands wxl.xml | Where-Object { $_ -match 'wxl\.xml\\src\\arena\.cpp' -and $_ -notmatch 'scanDependencies' }
-          ninja -C build\x64 -f build-Release.ninja -t commands wxl.core | Where-Object { $_ -match 'wxl\.core\\src\\function\.ixx' -and $_ -notmatch 'scanDependencies' }
-
-      - name: Build Release
-        if: always()
-        shell: cmd
-        run: |
-          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --build build\x64 --config Release -- -k 0
-
-      - name: Test Release
-        if: always()
-        shell: cmd
-        run: |
-          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          ctest --preset x64-release --output-on-failure --timeout 300 --output-junit ctest-release.xml
+          ctest --preset ${{ matrix.preset }} --output-on-failure --timeout 300 --output-junit ctest.xml
 
       # No test opens a WinUI window; a sample does. The experimental runtime
-      # the wrappers ask for, then the hello sample for twenty seconds: does it
-      # start, and does a window come up on the runner's desktop?
+      # the wrappers ask for, then the hello sample for twenty seconds: it has
+      # to start and show its window on the runner's desktop. After a red test
+      # step as well -- the two answer different questions -- but not after a
+      # red build, which left nothing to start.
       - name: Install the experimental Windows App Runtime
-        if: always()
+        if: (success() || failure()) && steps.build.outcome == 'success'
         shell: pwsh
         run: pwsh -NoProfile -File tools/install-runtime.ps1
 
       - name: Start a sample
-        if: always() && matrix.debug
+        if: (success() || failure()) && steps.build.outcome == 'success'
         shell: pwsh
         run: |
-          $exe = Get-ChildItem build\x64 -Recurse -Filter sample.hello.exe | Where-Object { $_.FullName -match '\\Debug\\' } | Select-Object -First 1
-          if (-not $exe) { throw 'sample.hello.exe was not built' }
-          "start $($exe.FullName)"
+          $exe = "build\x64\samples\HelloHere\${{ matrix.config }}\sample.hello.exe"
+          if (-not (Test-Path $exe)) { throw "$exe was not built" }
+          $exe = Get-Item $exe
           $p = Start-Process -FilePath $exe.FullName -WorkingDirectory $exe.DirectoryName -PassThru
           Start-Sleep -Seconds 20
           $p.Refresh()
@@ -246,61 +151,12 @@ jobs:
           Stop-Process -Id $p.Id
           if ($window -eq 0) { throw 'sample.hello runs but shows no main window' }
 
-      # The source that needed /bigobj, compiled once more without it, into an
-      # object of its own name.
-      - name: Microsoft.UI.Xaml.Controls.cpp without /bigobj
-        if: always() && matrix.debug
-        shell: pwsh
-        run: |
-          $obj = 'wxl.ui/CMakeFiles/wxl.ui.dir/Debug/src/wxl/Microsoft.UI.Xaml.Controls.cpp.obj'
-          $line = ninja -C build\x64 -f build-Debug.ninja -t commands $obj | Select-Object -Last 1
-          $obj = $obj.Replace('/', '\')
-          $line = $line.Replace(' /bigobj', '').Replace("/Fo$obj", ($obj -replace '\.cpp\.obj$', '.nobigobj.obj' | ForEach-Object { "/Fo$_" }))
-          if ($line -match '/bigobj') { throw 'the command still carries /bigobj' }
-          if ($line -notmatch 'nobigobj\.obj') { throw 'the object of the command was not renamed' }
-          $line
-          Set-Content -Path nobigobj.cmd -Value "@call `"$env:DEVCMD`" -arch=x64 -host_arch=x64 $env:VCVARS >nul`r`n@cd build\x64`r`n$line"
-          $t = [Diagnostics.Stopwatch]::StartNew()
-          cmd /c nobigobj.cmd
-          $code = $LASTEXITCODE
-          "exit code $code after $([int]$t.Elapsed.TotalSeconds) s"
-          exit $code
-
-      # wxl.ui.stream-reference narrows a Cyrillic file name with path::string(),
-      # which converts through the ANSI code page: does that throw here?
-      - name: The ANSI code page and path::string()
-        if: always()
-        shell: pwsh
-        run: |
-          $dir = Join-Path $env:RUNNER_TEMP 'acp'
-          New-Item -ItemType Directory -Force $dir | Out-Null
-          Set-Content -Path (Join-Path $dir 'acp.cpp') -Encoding ascii -Value @'
-          #include <windows.h>
-          #include <cstdio>
-          #include <exception>
-          #include <filesystem>
-          int main() {
-              std::printf("ACP %u, OEMCP %u\n", GetACP(), GetOEMCP());
-              try {
-                  auto const narrow = std::filesystem::path(L"\u041a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430.jpg").string();
-                  std::printf("path::string() gave %zu bytes\n", narrow.size());
-                  return 0;
-              } catch (std::exception const& e) {
-                  std::printf("path::string() threw: %s\n", e.what());
-                  return 1;
-              }
-          }
-          '@
-          Set-Content -Path (Join-Path $dir 'acp.cmd') -Value "@call `"$env:DEVCMD`" -arch=x64 -host_arch=x64 $env:VCVARS >nul`r`n@cd /d `"$dir`"`r`n@cl /nologo /EHsc /std:c++latest acp.cpp >nul || exit /b 2`r`n@acp.exe"
-          cmd /c (Join-Path $dir 'acp.cmd')
-          exit $LASTEXITCODE
-
       - name: Test logs
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ctest-logs-${{ matrix.toolset }}
+          name: ctest-logs-${{ matrix.config }}
           path: |
             build/x64/Testing/Temporary/
-            build/x64/ctest-*.xml
+            build/x64/ctest.xml
           if-no-files-found: ignore
