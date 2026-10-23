@@ -1,8 +1,21 @@
-# A probe, not a gate: what the hosted Windows runner has, and whether the tree
-# builds and tests there without the WinUI wrappers (wxl.ui, samples and the
-# sandbox need the generated projection, which is not in the repository).
-# Started by hand, or by a push to its own branch: a workflow that is not on
-# the default branch cannot be started by hand until a push has run it once.
+# A probe, not a gate: what the hosted Windows runner has, and whether the
+# whole tree -- the WinUI half included -- builds and tests there.
+#
+# The WinUI half needs what the repository does not carry: the pinned NuGet
+# packages, the cppwinrt projection in generated/ and the wrappers winui-srcgen
+# writes into wxl.ui/src/wxl. The job produces them the way a fresh clone does
+# at home: restore the packages, generate the projection, seed the wrapper
+# directory with an empty CMakeLists.txt, build the generator, run it with the
+# full profile, configure again and build everything.
+#
+# Release is compiled with /EHa on top of the tree's /EHsc (CMAKE_CXX_FLAGS
+# keeps its /EHsc, CMAKE_CXX_FLAGS_RELEASE ends with /EHa, and the later option
+# wins): the runner's newest toolset is 14.51, which has the coroutine defect
+# fixed in 14.53, and asynchronous exceptions keep Release clear of it. A knob of
+# this workflow only; the tree itself never carries /EHa.
+#
+# Started by hand, or by a push to its own branch: a workflow that is not on the
+# default branch cannot be started by hand until a push has run it once.
 name: ci-probe
 
 on:
@@ -16,18 +29,29 @@ permissions:
 jobs:
   probe:
     runs-on: windows-2025
-    timeout-minutes: 200
+    timeout-minutes: 330
     env:
       VS_DIR: C:\Program Files\Microsoft Visual Studio\18\Enterprise
+      # The vcpkg ports as binary packages in a folder the Actions cache keeps
+      # between runs.
+      VCPKG_BINARY_SOURCES: clear;files,C:\vcpkg-binary-cache,readwrite
+      # The NuGet package folder, named so the Actions cache can keep it; the
+      # scripts, CMake and winui-srcgen all read this variable first.
+      NUGET_PACKAGES: C:\nuget-packages
     steps:
       - uses: actions/checkout@v4
 
       - name: What the runner has
         shell: pwsh
         run: |
+          "== image: $env:ImageOS $env:ImageVersion"
           "== processors: $([Environment]::ProcessorCount), interactive: $([Environment]::UserInteractive)"
           "== Visual Studio"
           Get-ChildItem "$env:VS_DIR\VC\Tools\MSVC" | ForEach-Object { $_.Name }
+          foreach ($f in 'default', 'Preview') {
+            $txt = "$env:VS_DIR\VC\Auxiliary\Build\Microsoft.VCToolsVersion.$f.txt"
+            if (Test-Path $txt) { "$f toolset: $((Get-Content $txt -Raw).Trim())" } else { "$f toolset: none" }
+          }
           "== cmake"; cmake --version
           "== ninja"; ninja --version
           "== vcpkg"; vcpkg version
@@ -36,9 +60,60 @@ jobs:
           "== Windows SDK"
           Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Include" -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }
 
+      - name: vcpkg cache key
+        id: vcpkg-key
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force C:\vcpkg-binary-cache | Out-Null
+          "commit=$(git -C C:\vcpkg rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+
+      - name: vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg-binary-cache
+          key: vcpkg-${{ env.ImageVersion }}-${{ steps.vcpkg-key.outputs.commit }}-x64-windows-static-md-cppwinrt-gtest
+
+      # The triplet the tree names, with the ports compiled as C++20. gtest 1.18
+      # (what the runner's vcpkg checkout holds) declares PrintU8StringTo under
+      # __cpp_lib_char8_t and compiles itself as C++17, where the macro is not
+      # defined: a C++23 test then links against a function the library does
+      # not have (LNK2019 in wxl.core.tests).
       - name: vcpkg ports (cppwinrt, gtest)
         shell: pwsh
-        run: vcpkg install cppwinrt:x64-windows-static-md gtest:x64-windows-static-md
+        run: |
+          $builtin = @('C:\vcpkg\triplets\x64-windows-static-md.cmake', 'C:\vcpkg\triplets\community\x64-windows-static-md.cmake') | Where-Object { Test-Path $_ } | Select-Object -First 1
+          "builtin triplet: $builtin"
+          $overlay = Join-Path $env:RUNNER_TEMP 'triplets'
+          New-Item -ItemType Directory -Force $overlay | Out-Null
+          $triplet = Join-Path $overlay 'x64-windows-static-md.cmake'
+          Copy-Item $builtin $triplet
+          Add-Content $triplet 'set(VCPKG_CMAKE_CONFIGURE_OPTIONS -DCMAKE_CXX_STANDARD=20)'
+          Get-Content $triplet
+          vcpkg install --overlay-triplets=$overlay cppwinrt:x64-windows-static-md gtest:x64-windows-static-md
+
+      - name: NuGet package cache
+        uses: actions/cache@v4
+        with:
+          path: C:\nuget-packages
+          key: nuget-${{ hashFiles('tools/packages.json', 'wxl.gen/profiles/base.json') }}
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/restore-packages.ps1
+
+      # projection.ps1 finds cppwinrt.exe through VCPKG_ROOT when vcpkg's own
+      # path file is not there, as on the runner.
+      - name: cppwinrt projection
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+        run: pwsh -NoProfile -File tools/projection.ps1
+
+      - name: Seed the wrapper directory
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force wxl.ui\src\wxl | Out-Null
+          New-Item -ItemType File wxl.ui\src\wxl\CMakeLists.txt | Out-Null
 
       # One shell for the developer environment and every CMake call: VsDevCmd
       # sets the toolset and Ninja on PATH, as tools/build.ps1 does at home.
@@ -47,38 +122,164 @@ jobs:
         run: |
           call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
           cl /Bv
-          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF "-DCMAKE_CXX_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG /EHa" || exit /b 1
+          findstr /b /c:"CMAKE_CXX_FLAGS" build\x64\CMakeCache.txt
+
+      - name: Build winui-srcgen
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          cmake --build build\x64 --config Debug --target winui-srcgen
+
+      - name: Generate the wrappers
+        shell: cmd
+        run: build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
+
+      - name: Configure with the wrappers
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg
 
       - name: Build Debug
         shell: cmd
         run: |
           call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-          cmake --build build\x64 --config Debug
+          cmake --build build\x64 --config Debug -- -k 0
 
       - name: Test Debug
         shell: cmd
         run: |
           call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-          ctest --preset x64-debug --output-on-failure --timeout 300
+          ctest --preset x64-debug --output-on-failure --timeout 300 --output-junit ctest-debug.xml
+
+      # What a Release object is compiled with: the exception model of a library
+      # that adds /EHsc itself when CMAKE_CXX_FLAGS lacks it (wxl.xml), and of one
+      # that does not (wxl.core).
+      - name: Release exception flags
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($t in 'wxl.xml', 'wxl.core') {
+            "== $t"
+            ninja -C build\x64 -f build-Release.ninja -t commands $t |
+              Where-Object { $_ -match 'cl\.exe' -and $_ -match [regex]::Escape($t) -and $_ -notmatch '/scanDependencies' } |
+              Select-Object -First 1
+          }
 
       - name: Build Release
         if: always()
         shell: cmd
         run: |
           call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-          cmake --build build\x64 --config Release
+          cmake --build build\x64 --config Release -- -k 0
 
       - name: Test Release
         if: always()
         shell: cmd
         run: |
           call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-          ctest --preset x64-release --output-on-failure --timeout 300
+          ctest --preset x64-release --output-on-failure --timeout 300 --output-junit ctest-release.xml
+
+      # No test opens a WinUI window; a sample does. The experimental runtime
+      # the wrappers ask for, then the hello sample for twenty seconds: does it
+      # start, and does a window come up on the runner's desktop?
+      - name: Install the experimental Windows App Runtime
+        if: always()
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/install-runtime.ps1
+
+      - name: Start a sample
+        if: always()
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build\x64 -Recurse -Filter sample.hello.exe | Where-Object { $_.FullName -match '\\Debug\\' } | Select-Object -First 1
+          if (-not $exe) { throw 'sample.hello.exe was not built' }
+          "start $($exe.FullName)"
+          $p = Start-Process -FilePath $exe.FullName -WorkingDirectory $exe.DirectoryName -PassThru
+          Start-Sleep -Seconds 20
+          $p.Refresh()
+          if ($p.HasExited) { throw "sample.hello exited within 20 s, code $($p.ExitCode)" }
+          $window = $p.MainWindowHandle
+          "running after 20 s; main window handle $window, title '$($p.MainWindowTitle)'"
+          Stop-Process -Id $p.Id
+          if ($window -eq 0) { throw 'sample.hello runs but shows no main window' }
 
       - name: Test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ctest-logs
-          path: build/x64/Testing/Temporary/
+          path: |
+            build/x64/Testing/Temporary/
+            build/x64/ctest-*.xml
           if-no-files-found: ignore
+
+  # Research, one run: can another toolset be had on the runner, and at what cost?
+  toolsets:
+    if: github.event_name == 'push'
+    runs-on: windows-2025
+    timeout-minutes: 120
+    env:
+      VS_DIR: C:\Program Files\Microsoft Visual Studio\18\Enterprise
+    steps:
+      - name: An older installed toolset through -vcvars_ver
+        shell: cmd
+        run: |
+          call "%VS_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 -vcvars_ver=14.44
+          cl /Bv
+
+      - name: Export the Actions cache variables for vcpkg
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: vcpkg with the x-gha binary source
+        if: always()
+        shell: pwsh
+        env:
+          VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
+        run: |
+          "ACTIONS_CACHE_URL set: $([bool]$env:ACTIONS_CACHE_URL), ACTIONS_RESULTS_URL set: $([bool]$env:ACTIONS_RESULTS_URL)"
+          vcpkg install gtest:x64-windows-static-md
+
+      - name: The stable channel's preview toolset by the installer
+        if: always()
+        timeout-minutes: 30
+        shell: pwsh
+        run: |
+          $t = [Diagnostics.Stopwatch]::StartNew()
+          $p = Start-Process -FilePath 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe' -WorkingDirectory $env:TEMP -Wait -PassThru -ArgumentList @(
+            'modify', '--installPath', "`"$env:VS_DIR`"",
+            '--add', 'Microsoft.VisualStudio.Component.VC.Preview.Tools.x86.x64',
+            '--quiet', '--norestart', '--nocache')
+          "exit code $($p.ExitCode) after $([int]$t.Elapsed.TotalMinutes) min $($t.Elapsed.Seconds) s"
+          Get-ChildItem "$env:VS_DIR\VC\Tools\MSVC" | ForEach-Object { $_.Name }
+          $txt = "$env:VS_DIR\VC\Auxiliary\Build\Microsoft.VCToolsVersion.Preview.txt"
+          if (Test-Path $txt) { "preview toolset: $((Get-Content $txt -Raw).Trim())" } else { 'preview toolset: none' }
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "setup.exe modify failed: $($p.ExitCode)" }
+
+      - name: Insiders Build Tools side by side
+        if: always()
+        timeout-minutes: 45
+        shell: pwsh
+        run: |
+          $boot = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
+          Invoke-WebRequest -Uri 'https://aka.ms/vs/insiders/vs_buildtools.exe' -OutFile $boot -UseBasicParsing
+          "bootstrapper: $((Get-Item $boot).VersionInfo.ProductVersion)"
+          $t = [Diagnostics.Stopwatch]::StartNew()
+          $p = Start-Process -FilePath $boot -WorkingDirectory $env:RUNNER_TEMP -Wait -PassThru -ArgumentList @(
+            '--installPath', 'C:\BuildToolsInsiders',
+            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+            '--add', 'Microsoft.VisualStudio.Component.VC.Preview.Tools.x86.x64',
+            '--quiet', '--wait', '--norestart', '--nocache')
+          "exit code $($p.ExitCode) after $([int]$t.Elapsed.TotalMinutes) min $($t.Elapsed.Seconds) s"
+          if (Test-Path 'C:\BuildToolsInsiders\VC\Tools\MSVC') { Get-ChildItem 'C:\BuildToolsInsiders\VC\Tools\MSVC' | ForEach-Object { $_.Name } }
+          foreach ($f in 'default', 'Preview') {
+            $txt = "C:\BuildToolsInsiders\VC\Auxiliary\Build\Microsoft.VCToolsVersion.$f.txt"
+            if (Test-Path $txt) { "$f toolset: $((Get-Content $txt -Raw).Trim())" } else { "$f toolset: none" }
+          }
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "Insiders Build Tools install failed: $($p.ExitCode)" }
