@@ -13,19 +13,6 @@ endif()
 
 if(WIN32)
     add_compile_options(/permissive- /utf-8)
-
-    # /Zc:throwingNew tells the compiler that allocation functions follow the
-    # standard: one that is not noexcept never returns null. The pool never
-    # does -- it stops the process instead. As of MSVC 14.53.36911 the compiler
-    # drops its null test only after the global operator new; after a
-    # class-specific one, the pool's included, the test still stands (checked in
-    # the listing). The option is kept to state the intent, and a compiler that
-    # honours it for class-specific allocation functions gets it for free.
-    # For the whole directory rather than as a usage requirement of wxl::core: a
-    # target-level option is part of what CMake fingerprints when it synthesizes
-    # the `std` module target, and two fingerprints in one tree give the module
-    # two targets -- and, under CMake 4.4.4, a cycle between them.
-    add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/Zc:throwingNew>)
 endif()
 
 set(_old_module_path ${CMAKE_MODULE_PATH})

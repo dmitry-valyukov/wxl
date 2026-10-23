@@ -162,6 +162,17 @@ target_compile_features(wxl.core PUBLIC cxx_std_23)
 # them, or its Release differs from the one this tree checks.
 target_compile_options(wxl.core PUBLIC $<$<CONFIG:Release>:/Gw>)
 
+# /Zc:throwingNew tells the compiler that allocation functions follow the
+# standard: one that is not noexcept never returns null. The pool never does --
+# it stops the process instead. As of MSVC 14.53.36911 the compiler drops its null
+# test only after the global operator new; after a class-specific one, the pool's
+# included, the test still stands (checked in the listing). The option is kept to
+# state the intent, and a compiler that honours it for class-specific allocation
+# functions gets it for free.
+# PUBLIC: whoever allocates from the pool links wxl::core, directly or through
+# a library above it; a target that does not link it does not use the pool.
+target_compile_options(wxl.core PUBLIC $<$<CXX_COMPILER_ID:MSVC>:/Zc:throwingNew>)
+
 if(WXL_INSTALL)
     # One export set per package component, so that a consumer can ask for just
     # the part it needs: find_package(wxl CONFIG REQUIRED COMPONENTS core).
