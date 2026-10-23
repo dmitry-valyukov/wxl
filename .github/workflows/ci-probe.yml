@@ -1,4 +1,4 @@
-# A probe, not a gate: the gate proposed from runs 3 to 5, run as it stands on
+# A probe, not a gate: the gate proposed from runs 3 to 6, run as it stands on
 # the probe branch to see it green or red with nothing else around it.
 #
 # The gate: the whole tree -- the WinUI half included -- built and tested on
@@ -7,9 +7,14 @@
 #
 # The toolset is MSVC 14.53 from the Insiders channel's Build Tools, installed
 # on each run: the image's 14.51 miscompiles a coroutine whose final_suspend()
-# returns suspend_never in optimized /EHsc code (bugs/coro-report.md), and
-# cannot fit the generated Microsoft.UI.Xaml.Controls.cpp into an ordinary
-# object file without /bigobj -- 14.53 needs neither workaround.
+# returns suspend_never in optimized /EHsc code (bugs/coro-report.md), and the
+# /EHa that hides it breaks a death test that expects an access violation to
+# take the process down.
+#
+# One flag is added to the tree's own: /bigobj. The generated
+# Microsoft.UI.Xaml.Controls.cpp has more sections than an ordinary object file
+# holds (C1128), under 14.53 as under 14.51; it changes the object format and
+# nothing in the code. It goes from here once the tree sets it on wxl.ui.
 #
 # The WinUI half needs what the repository does not carry: the pinned NuGet
 # packages, the cppwinrt projection in generated/ and the wrappers winui-srcgen
@@ -89,11 +94,12 @@ jobs:
 
       # One shell for the developer environment and every CMake call: VsDevCmd
       # puts the toolset and Ninja on PATH, as tools/build.ps1 does at home.
+      # CMAKE_CXX_FLAGS is CMake's default for MSVC with /bigobj after it.
       - name: Configure
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF "-DCMAKE_CXX_FLAGS=/DWIN32 /D_WINDOWS /EHsc /bigobj"
 
       - name: Build winui-srcgen
         shell: cmd
