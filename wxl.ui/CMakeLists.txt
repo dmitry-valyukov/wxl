@@ -537,6 +537,15 @@ target_link_libraries(wxl.ui.surface-test PRIVATE wxl.ui)
 # directory is there -- the check at the top of this file stopped otherwise.
 add_subdirectory(src/wxl)
 
+# The generated Controls translation unit (Microsoft.UI.Xaml.Controls.cpp) exceeds
+# the 65 279-section limit of the default object format: MSVC stops with C1128
+# unless the object is written as /bigobj. Set here, on the generated sources of
+# this target, because the CMakeLists.txt that adds them is itself generated.
+get_target_property(_wxl_ui_generated_sources wxl.ui SOURCES)
+list(FILTER _wxl_ui_generated_sources INCLUDE REGEX "/src/wxl/[^/]+\\.cpp$")
+set_property(SOURCE ${_wxl_ui_generated_sources} APPEND PROPERTY
+    COMPILE_OPTIONS $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
+
 # After that subdirectory and not before it: this reads the targets' SOURCES to
 # lay them out in the IDE, and until the generated sources are in, half of what
 # the library is made of would be missing from the tree.
