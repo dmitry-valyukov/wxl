@@ -405,22 +405,6 @@ std::filesystem::path windows_metadata_dir() {
            "System32" / "WinMetadata";
 }
 
-// The system's words for the code, in UTF-8. Not std::error_code::message(): MSVC's STL
-// takes them from FormatMessageA, in the ANSI code page. A code of another category -- the
-// generic one, iostream's -- is rare here, the file system reporting the system's own
-// codes; MSVC words those from its own table, and they are repaired all the same, since
-// nothing promises that table is ASCII.
-std::string explanation(std::error_code const& code) {
-    if (code.category() == std::system_category()) {
-        auto const words =
-            wxl::core::environment::error_explanation(static_cast<std::uint32_t>(code.value()));
-        if (!words.empty()) {
-            return std::string{words.chars()};
-        }
-    }
-    return std::string{wxl::core::unicode::repaired(code.message()).chars()};
-}
-
 std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path const& dir) {
     std::vector<std::filesystem::path> files;
     for (auto&& item : std::filesystem::directory_iterator{dir}) {
@@ -968,20 +952,4 @@ std::vector<symbol> load_symbol_names(std::filesystem::path const& path) {
     // only order the reader of the generated enum can predict.
     std::ranges::sort(names, {}, &symbol::code);
     return names;
-}
-
-std::string error_message(std::exception const& error) {
-    auto const* const failed = dynamic_cast<std::filesystem::filesystem_error const*>(&error);
-    if (!failed) {
-        return std::string{wxl::core::unicode::repaired(error.what()).chars()};
-    }
-    std::string paths;
-    for (std::filesystem::path const* const path : {&failed->path1(), &failed->path2()}) {
-        if (!path->empty()) {
-            paths += std::format("{}{}", paths.empty() ? "" : ", ",
-                                 wxl::core::unicode::to_utf8(*path).chars());
-        }
-    }
-    std::string const words = explanation(failed->code());
-    return paths.empty() ? words : std::format("{}: {}", paths, words);
 }

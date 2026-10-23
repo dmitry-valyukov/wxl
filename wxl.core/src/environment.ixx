@@ -36,6 +36,13 @@ public:
     /// failure needs the words, a tool without wxl.async among them; and UTF-8
     /// because std::error_code::message() spells them in the ANSI code page.
     static u8_text error_explanation(std::uint32_t code);
+
+    /// An error as a person reads it, in UTF-8: what a tool prints and a window
+    /// shows. A file system error is rebuilt from its paths and the system's
+    /// words for its code, since its own what() spells both through the ANSI
+    /// code page. Any other error is its what(), with U+FFFD where that is not
+    /// UTF-8: nothing of it is dropped on the way to the screen.
+    static u8_text error_message(std::exception const& error);
 };
 
 }  // export namespace wxl::core

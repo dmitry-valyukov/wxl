@@ -3,6 +3,7 @@
 #include "documentation.h"
 
 import std;
+import wxl.core;
 
 namespace md = winmd::reader;
 
@@ -275,7 +276,8 @@ documentation_source::source* documentation_source::source_of(md::TypeDef const&
         try {
             opened = open_reference(key.second);
         } catch (std::filesystem::filesystem_error const& error) {
-            opened.found.error = std::make_exception_ptr(std::runtime_error(error_message(error)));
+            opened.found.error = std::make_exception_ptr(std::runtime_error(
+                std::string {wxl::core::environment::error_message(error).chars()}));
         } catch (...) {
             opened.found.error = std::current_exception();
         }
@@ -306,7 +308,8 @@ documentation_source::source documentation_source::open(std::filesystem::path co
         }
         opened.file = std::make_unique<documentation_file>(file);
     } catch (std::filesystem::filesystem_error const& error) {
-        opened.error = std::make_exception_ptr(std::runtime_error(error_message(error)));
+        opened.error = std::make_exception_ptr(std::runtime_error(
+            std::string {wxl::core::environment::error_message(error).chars()}));
     } catch (...) {
         // The file names itself in what it throws, as its reader does, so the
         // error is kept as thrown.

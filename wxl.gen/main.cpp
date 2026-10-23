@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
             opts.doc_language);
     } catch (std::exception const& e) {
         // Covers profile loading, metadata reading and file writing alike.
-        std::print(stderr, "Error: {}\n", error_message(e));
+        std::print(stderr, "Error: {}\n", wxl::core::environment::error_message(e).chars());
         return 1;
     }
 

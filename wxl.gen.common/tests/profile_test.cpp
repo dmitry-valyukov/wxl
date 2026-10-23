@@ -2,14 +2,9 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <stdexcept>
 #include <string>
-#include <string_view>
-#include <system_error>
 
 #include "profile.h"
-
-import wxl.core;
 
 namespace {
 
@@ -55,29 +50,4 @@ TEST(profile, present_windows_metadata_is_read) {
         windows = windows || file.filename() == "Windows.Foundation.winmd";
     }
     EXPECT_TRUE(windows);
-}
-
-// A file system error as a person reads it: the path as written, then the system's own
-// words for the code -- all of it UTF-8, whatever the ANSI code page of the machine.
-TEST(error_message, a_file_system_error_is_its_path_and_the_systems_words) {
-    // "справка", spelled out so that the source's own encoding does not matter.
-    std::filesystem::path const file{L"C:\\wxl\\\u0441\u043F\u0440\u0430\u0432\u043A\u0430.xml"};
-    constexpr int access_denied = 5;  // ERROR_ACCESS_DENIED
-    std::filesystem::filesystem_error const error{"exists", file,
-                                                  std::error_code{access_denied, std::system_category()}};
-
-    std::string const message = error_message(error);
-
-    EXPECT_TRUE(wxl::core::unicode::is_valid_utf8(message)) << message;
-    std::string_view const name = "C:\\wxl\\\xD1\x81\xD0\xBF\xD1\x80\xD0\xB0\xD0\xB2\xD0\xBA\xD0\xB0.xml: ";
-    ASSERT_TRUE(message.starts_with(name)) << message;
-    EXPECT_EQ(message.substr(name.size()),
-              wxl::core::environment::error_explanation(access_denied).chars());
-    EXPECT_GT(message.size(), name.size()) << message;
-}
-
-// Any other error is its own text, and what of it is not UTF-8 comes out marked, not lost.
-TEST(error_message, other_text_keeps_what_is_not_utf8_marked) {
-    EXPECT_EQ(error_message(std::runtime_error{"cannot read \xC2\xA0" "file \xFF here"}),
-              "cannot read \xC2\xA0" "file \xEF\xBF\xBD here");
 }

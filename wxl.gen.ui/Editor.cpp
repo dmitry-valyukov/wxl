@@ -252,7 +252,7 @@ public:
             }
         } catch (std::exception const& error) {
             html += L"<p><b>Documentation:</b> ";
-            append_text(html, error_message(error));
+            append_text(html, wxl::core::environment::error_message(error).chars());
             html += L"</p>";
         }
         if (!parsing && source_.parsing()) {
@@ -2721,9 +2721,8 @@ wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) {
 Editor::~Editor() = default;
 
 std::wstring errorText(std::exception const& error) {
-    // error_message() отдаёт UTF-8: пути и слова системы — через to_utf8, прочее — repaired.
     std::wstring wide;
-    wxl::core::unicode::append_utf16(wide, wxl::core::unicode::assume_valid(error_message(error)));
+    wxl::core::unicode::append_utf16(wide, wxl::core::environment::error_message(error));
     return wide;
 }
 
