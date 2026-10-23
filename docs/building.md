@@ -116,7 +116,7 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 | `BUILD_TESTING` | `OFF` | Включает тесты GTest; пресеты этот ключ не задают. |
 | `WXL_BUILD_DOCS` | `ON` | Включает сайт документации Doxygen: цель `docs`, результат — `build/x64/docs/wxl/html/index.html`. |
 | `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui`. |
-| `WXL_STRICT_CORO` | `OFF` | Включает строгий режим проверок корутин (см. [«Асинхронность»](async.md)). |
+| `WXL_STRICT_CORO` | `OFF` | Оставляет проверки корутин `wxl.async` в любой конфигурации сборки, а не только в Debug (см. [«Асинхронность»](async.md)). |
 | `WXL_CPPWINRT_PROJECTION_DIR` | `generated` в корне дерева | Задаёт каталог проекции cppwinrt. |
 | `WXL_WINDOWSAPPSDK_VERSION_TAG` | `experimentalF` | Задаёт канал Windows App Runtime, который запрашивает приложение; пустое значение означает стабильный канал. |
 | `WXL_ENABLE_PCH` | `ON` | Включает предкомпилированный заголовок `src/pch.h` у `wxl.core` и `wxl.async`. Модульные единицы из него исключены (MSVC не принимает его перед объявлением модуля), поэтому ключ влияет только на время сборки обычных единиц трансляции. |
