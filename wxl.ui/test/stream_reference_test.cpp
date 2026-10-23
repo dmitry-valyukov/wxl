@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cwchar>
 #include <cwctype>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -97,9 +98,7 @@ void check_reads(std::wstring const& address, std::vector<uint8_t> const& expect
     }
 }
 
-}  // namespace
-
-int main() {
+int run() {
     winrt::init_apartment();
 
     auto const root = std::filesystem::temp_directory_path() / L"wxl-stream-reference-test";
@@ -119,7 +118,9 @@ int main() {
         for (auto& c : forward) {
             if (c == L'\\') c = L'/';
         }
-        std::string const name = file.filename().string();
+        // Через UTF-8, а не path::string(): та сужает кодовой страницей ANSI и бросает на
+        // кириллице, где её нет (1252).
+        std::string const name = narrow(file.filename().wstring());
         check_reads(L"file:///" + forward, bytes, name + " file:///");
         check_reads(L"file:///" + escaped(forward), bytes, name + " file:/// with escapes");
         check_reads(L"file:///" + native, bytes, name + " file:/// with backslashes");
@@ -169,4 +170,19 @@ int main() {
     std::error_code ignored;
     std::filesystem::remove_all(root, ignored);
     return failures == 0 ? 0 : 1;
+}
+
+}  // namespace
+
+// Исключение, которого проверки не ждали, -- провал со словом о нём, а не terminate: тот
+// кончает процесс молча (Release) или диалогом CRT, который держит ctest до таймаута (Debug).
+int main() {
+    try {
+        return run();
+    } catch (winrt::hresult_error const& e) {
+        std::fprintf(stderr, "stream_reference_test: FAILED -- unexpected %s\n", narrow(e.message()).c_str());
+    } catch (std::exception const& e) {
+        std::fprintf(stderr, "stream_reference_test: FAILED -- unexpected %s\n", e.what());
+    }
+    return 1;
 }
