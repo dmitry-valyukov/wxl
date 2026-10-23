@@ -42,6 +42,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
     if(BUILD_TESTING)
         enable_testing()
+        include(${WXL_CMAKE_SCRIPT_DIR}/wxl_gtest.cmake)
         find_package(GTest REQUIRED CONFIG)
         include(GoogleTest)
     endif()
