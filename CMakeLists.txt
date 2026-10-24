@@ -90,8 +90,6 @@ FetchContent_MakeAvailable(winmd)
 # wxl_add_gtest, wxl_set_target_folders) every subproject uses.
 include(cmake/config.cmake)
 
-option(WXL_BACKEND "Backend to be used for WXL." "WinUI3")
-
 if(NOT TARGET winmd_reader)
     add_library(winmd_reader INTERFACE)
     target_include_directories(winmd_reader INTERFACE ${winmd_SOURCE_DIR}/src)

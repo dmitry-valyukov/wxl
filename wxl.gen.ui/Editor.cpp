@@ -100,12 +100,9 @@ void append_filter(std::wstring& html, member_filter const* filter) {
     html += L"</p>";
 }
 
+// Имя из метаданных: не UTF-8 — выходит со знаками U+FFFD, как у append_text.
 std::u16string to_u16(std::string_view utf8) {
-    std::wstring wide;
-    if (auto const text = wxl::core::unicode::checked(utf8)) {
-        wxl::core::unicode::append_utf16(wide, *text);
-    }
-    return {wide.begin(), wide.end()};
+    return wxl::core::unicode::repaired(utf8).to_utf16().plain();
 }
 
 // Отметка члена в фильтре типа. Тип, которого в профиле нет, входит в него со
@@ -255,7 +252,7 @@ public:
             }
         } catch (std::exception const& error) {
             html += L"<p><b>Documentation:</b> ";
-            append_text(html, error_message(error));
+            append_text(html, wxl::core::environment::error_message(error).chars());
             html += L"</p>";
         }
         if (!parsing && source_.parsing()) {
@@ -2710,14 +2707,12 @@ bool Editor::prepareDocumentation() {
 }
 
 wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) {
-    std::string utf8;
-    if (auto const text = wxl::core::unicode::checked(type)) {
-        wxl::core::unicode::append_utf8(utf8, *text);
-    }
-    if (auto const row = types_->reveal(utf8)) {
+    // Имя из ссылки страницы: сломанная пара — U+FFFD, как у append_text.
+    auto const utf8 = wxl::core::unicode::repaired(type).to_utf8();
+    if (auto const row = types_->reveal(utf8.chars())) {
         return row;
     }
-    if (md::TypeDef const def = find_type(data_->db, utf8)) {
+    if (md::TypeDef const def = find_type(data_->db, utf8.chars())) {
         intrusive_ptr<TreeModel> const card {new TypeCard {*this, def}, /*add_ref=*/false};
         selection.set({card, card.get()});
     }
@@ -2726,9 +2721,8 @@ wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) {
 Editor::~Editor() = default;
 
 std::wstring errorText(std::exception const& error) {
-    // error_message() отдаёт UTF-8: пути и слова системы — через to_utf8, прочее — repaired.
     std::wstring wide;
-    wxl::core::unicode::append_utf16(wide, wxl::core::unicode::assume_valid(error_message(error)));
+    wxl::core::unicode::append_utf16(wide, wxl::core::environment::error_message(error));
     return wide;
 }
 
