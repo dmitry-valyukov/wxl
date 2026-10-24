@@ -23,8 +23,8 @@ struct Model {
             placeholderText = u"Search...",
             queryIcon = SymbolIcon {symbol = Symbol::Find},
         },
-        onBackRequested = [this] { goBack(); },
-        onPaneToggleRequested = [this] { navView.isPaneOpen(!navView.isPaneOpen()); },
+        onBackRequested += [this] { goBack(); },
+        onPaneToggleRequested += [this] { navView.isPaneOpen(!navView.isPaneOpen()); },
     };
 
     NavigationView navView {
@@ -39,7 +39,7 @@ struct Model {
             item(u"Menu Item4", u"4", Symbol::Download)
         ],
         content = host,
-        onSelectionChanged = [this](Object const& sender, NavigationViewSelectionChangedEventArgs&) {
+        onSelectionChanged += [this](Object const& sender, NavigationViewSelectionChangedEventArgs&) {
             auto const selected = sender.try_as<NavigationView>().selectedItem().try_as<FrameworkElement>();
             if (selected) {
                 show(selected.name()[0] - u'0', true);
@@ -94,5 +94,5 @@ auto example = StackPanel {
         u"Click the button below to see an end to end sample of a TitleBar in an new window, binding some of its "
         u"properties to the NavigationView and navigation frame.",
     },
-    Button {hAlign.center, styles.Button.Accent, content = u"Show window", onClick = [openWindow](Button const&) { openWindow(); }},
+    Button {hAlign.center, styles.Button.Accent, content = u"Show window", onClick += [openWindow](Button const&) { openWindow(); }},
 };

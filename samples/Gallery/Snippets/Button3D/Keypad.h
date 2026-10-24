@@ -136,8 +136,8 @@ auto const slider = [](char16_t const* title, core::observable<double>& field, d
 // Флажок пишет в поле сам: его IsChecked -- значение с тремя состояниями, и
 // двусторонней привязки к bool у него нет.
 auto const check = [](char16_t const* title, core::observable<bool>& field) {
-    return CheckBox {content = title, isChecked = field.get(), onChecked = [&field] { field.set(true); },
-                     onUnchecked = [&field] { field.set(false); }};
+    return CheckBox {content = title, isChecked = field.get(), onChecked += [&field] { field.set(true); },
+                     onUnchecked += [&field] { field.set(false); }};
 };
 auto const group = [](char16_t const* title, bool open, auto... rows) {
     return Expander {hAlign.stretch, horizontalContentAlignment = HorizontalAlignment::Stretch, header = title,

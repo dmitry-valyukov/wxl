@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BbBlock.h"
-#include "FileDrop.h"
+#include "WindowNative.h"
 #include "HtmlBlock.h"
 #include "RsdnBlock.h"
 #include "Panels.h"

@@ -11,16 +11,16 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Globalization.NumberFormatting.h>
 
-#include "Object.impl.h"
-#include "events.h"
+#include "../Object.impl.h"
+#include "../events.h"
 #include <wxl/Members.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.EventArgs.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include <wxl/Microsoft.UI.Xaml.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/binding.h"
-#include "impl/state_pair.h"
+#include "binding.h"
+#include "state_pair.h"
 
 namespace wxl::impl {
 namespace {
@@ -34,23 +34,23 @@ namespace {
 // It owns the control, as the watch it lives in has to anyway: a control is a
 // temporary in the description tree, and the watch writes to it.
 template <EventKey key, class Control>
-struct handler_guard {
+struct handler_revoker {
     Control control;
     EventToken token;
 
-    handler_guard(Control const& c, EventToken t) : control(c), token(t) {}
+    handler_revoker(Control const& c, EventToken t) : control(c), token(std::move(t)) {}
 
-    // Moved into the watch's closure once; the source is left with nothing to
-    // remove, so that only one of the two ever does.
-    handler_guard(handler_guard&& other) noexcept
-        : control(std::move(other.control)), token(std::exchange(other.token, EventToken{})) {}
+    // Moved into the watch's closure once; the token's own move leaves the
+    // source with nothing to remove, so that only one of the two ever does.
+    handler_revoker(handler_revoker&& other) noexcept
+        : control(std::move(other.control)), token(std::move(other.token)) {}
 
-    handler_guard(handler_guard const&) = delete;
-    handler_guard& operator=(handler_guard const&) = delete;
-    handler_guard& operator=(handler_guard&&) = delete;
+    handler_revoker(handler_revoker const&) = delete;
+    handler_revoker& operator=(handler_revoker const&) = delete;
+    handler_revoker& operator=(handler_revoker&&) = delete;
 
-    ~handler_guard() {
-        if (token) EventAdder<key>::remove(control, token);
+    ~handler_revoker() {
+        if (token) event_adder<key>::remove(control, token);
     }
 };
 
@@ -72,16 +72,16 @@ struct handler_guard {
 // and the address is good for as long as the handler exists, which the guard
 // sees to. The field -> control watch owns the control, through the guard. So
 // the ownership runs one way -- model -> watch -> control -- and there is no
-// cycle to cut: the model goes, its watches go, the handler comes off, the
+// cycle to break: the model goes, its watches go, the handler comes off, the
 // control is let go. Only a model that outlives its window needs unbind(),
 // and then the guard does the same on the way out.
 //
-// No re-entry guard: writing the control fires its change event, which writes
+// No re-entry guard: writing the control raises its change event, which writes
 // the same value back, and observable::set says nothing when nothing changed.
 template <EventKey key, class Control, class T, class Get, class Set>
 void bind_pair(Control const& control, core::observable<T>& model, bind_direction direction,
                Get get, Set set) {
-    using Args = typename EventAdder<key>::template args_t<Control>;
+    using Args = typename event_adder<key>::template args_t<Control>;
     bool const shows = direction != bind_direction::input;
     bool const edits = direction != bind_direction::output;
 
@@ -95,17 +95,17 @@ void bind_pair(Control const& control, core::observable<T>& model, bind_directio
 
     EventToken token;
     if (edits) {
-        token = EventAdder<key>::add(
+        token = event_adder<key>::add(
             control, [&model, get](Control const& sender, EventArgsRef<Args>) { model.set(get(sender)); });
     }
 
-    handler_guard<key, Control> guard{control, token};
+    handler_revoker<key, Control> revoker{control, std::move(token)};
     if (shows) {
-        model.watch_for_binding([guard = std::move(guard), set](T const& value) noexcept {
-            set(guard.control, value);
+        model.watch_for_binding([revoker = std::move(revoker), set](T const& value) noexcept {
+            set(revoker.control, value);
         });
     } else {
-        model.watch_for_binding([guard = std::move(guard)](T const&) noexcept {});
+        model.watch_for_binding([revoker = std::move(revoker)](T const&) noexcept {});
     }
 }
 
@@ -125,7 +125,7 @@ void apply_bind(ToggleSwitch const& control, core::observable<bool>& model,
 // field reads it as not checked, as isChecked().value_or(false) does.
 void apply_bind(ToggleButton const& control, core::observable<bool>& model,
                 bind_direction direction) {
-    using Args = typename EventAdder<EventKey::Checked>::template args_t<ToggleButton>;
+    using Args = typename event_adder<EventKey::Checked>::template args_t<ToggleButton>;
 
     bool const shows = direction != bind_direction::input;
     bool const edits = direction != bind_direction::output;
@@ -142,12 +142,12 @@ void apply_bind(ToggleButton const& control, core::observable<bool>& model,
     EventToken unchecked;
     if (edits) {
         auto const write = [&model, get](ToggleButton const& sender, EventArgsRef<Args>) { model.set(get(sender)); };
-        checked = EventAdder<EventKey::Checked>::add(control, write);
-        unchecked = EventAdder<EventKey::Unchecked>::add(control, write);
+        checked = event_adder<EventKey::Checked>::add(control, write);
+        unchecked = event_adder<EventKey::Unchecked>::add(control, write);
     }
 
-    handler_guard<EventKey::Checked, ToggleButton> onChecked{control, checked};
-    handler_guard<EventKey::Unchecked, ToggleButton> onUnchecked{control, unchecked};
+    handler_revoker<EventKey::Checked, ToggleButton> onChecked{control, std::move(checked)};
+    handler_revoker<EventKey::Unchecked, ToggleButton> onUnchecked{control, std::move(unchecked)};
     if (shows) {
         model.watch_for_binding([a = std::move(onChecked), b = std::move(onUnchecked),
                                  set](bool value) noexcept { set(a.control, value); });
@@ -266,17 +266,17 @@ namespace {
 // finds the inner text box, and the TextChanged handler it puts there. Held
 // by the field's watch alone, so both come off when the field goes or
 // unbind() runs -- while the handlers still name the field by bare address.
-struct intermediate_guard : core::sta_refcounted {
+struct intermediate_revoker : core::sta_refcounted {
     NumberBox box;
     EventToken loaded;
     winrt::Microsoft::UI::Xaml::Controls::TextBox input{nullptr};
     winrt::event_token changed;
 
-    explicit intermediate_guard(NumberBox const& b) : box(b) {}
+    explicit intermediate_revoker(NumberBox const& b) : box(b) {}
 
-    ~intermediate_guard() {
+    ~intermediate_revoker() {
         if (input) input.TextChanged(changed);
-        if (loaded) EventAdder<EventKey::Loaded>::remove(box, loaded);
+        if (loaded) event_adder<EventKey::Loaded>::remove(box, loaded);
     }
 };
 
@@ -296,15 +296,15 @@ struct intermediate_guard : core::sta_refcounted {
 // inner box holding the outer would be a cycle -- and the field by address,
 // which the guard makes safe.
 void apply_bind_intermediate_value(NumberBox const& control, core::observable<double>& model) {
-    using Args = typename EventAdder<EventKey::Loaded>::template args_t<NumberBox>;
+    using Args = typename event_adder<EventKey::Loaded>::template args_t<NumberBox>;
     using winrt::Windows::Globalization::NumberFormatting::INumberParser;
     namespace xaml = winrt::Microsoft::UI::Xaml;
 
-    core::intrusive_ptr<intermediate_guard> guard{new intermediate_guard{control},
+    core::intrusive_ptr<intermediate_revoker> revoker{new intermediate_revoker{control},
                                                   /*add_ref=*/false};
-    intermediate_guard* const state = guard.get();
+    intermediate_revoker* const state = revoker.get();
 
-    state->loaded = EventAdder<EventKey::Loaded>::add(
+    state->loaded = event_adder<EventKey::Loaded>::add(
         control, [&model, state](NumberBox const& sender, Args&) {
             if (state->input) return;
 
@@ -326,7 +326,7 @@ void apply_bind_intermediate_value(NumberBox const& control, core::observable<do
                 });
         });
 
-    model.watch_for_binding([guard = std::move(guard)](double const&) noexcept {});
+    model.watch_for_binding([revoker = std::move(revoker)](double const&) noexcept {});
 }
 
 namespace {
@@ -363,35 +363,35 @@ struct offset_viewer {
 // What a state pair leaves on its control: the handlers reporting into the
 // field, and, both ways, the Loaded handler that serves a request made while the
 // control was out of the tree. Held by the field's watch alone, as
-// intermediate_guard is: the handlers name it and the field by bare address,
+// intermediate_revoker is: the handlers name it and the field by bare address,
 // and come off before either is gone.
-struct focus_guard : core::sta_refcounted {
+struct focus_revoker : core::sta_refcounted {
     focus_element target;
     core::observable<bool>& field;
     winrt::event_token got;
     winrt::event_token lost;
     winrt::event_token loaded;
 
-    focus_guard(xaml::UIElement const& element, core::observable<bool>& f)
+    focus_revoker(xaml::UIElement const& element, core::observable<bool>& f)
         : target{element, element.try_as<xaml::FrameworkElement>()}, field(f) {}
 
-    ~focus_guard() {
+    ~focus_revoker() {
         target.element.GotFocus(got);
         target.element.LostFocus(lost);
         if (loaded) target.framework.Loaded(loaded);
     }
 };
 
-struct offset_guard : core::sta_refcounted {
+struct offset_revoker : core::sta_refcounted {
     offset_viewer target;
     core::observable<double>& field;
     winrt::event_token changed;
     winrt::event_token loaded;
 
-    offset_guard(xaml::Controls::ScrollViewer const& viewer, core::observable<double>& f)
+    offset_revoker(xaml::Controls::ScrollViewer const& viewer, core::observable<double>& f)
         : target{viewer, viewer.as<xaml::FrameworkElement>()}, field(f) {}
 
-    ~offset_guard() {
+    ~offset_revoker() {
         target.viewer.ViewChanged(changed);
         if (loaded) target.framework.Loaded(loaded);
     }
@@ -406,8 +406,8 @@ struct offset_guard : core::sta_refcounted {
 void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
                       bind_direction direction) {
     xaml::UIElement const& element = *Object::Impl::get_typed<UIElement>(control);
-    core::intrusive_ptr<focus_guard> guard{new focus_guard{element, model}, /*add_ref=*/false};
-    focus_guard* const state = guard.get();
+    core::intrusive_ptr<focus_revoker> revoker{new focus_revoker{element, model}, /*add_ref=*/false};
+    focus_revoker* const state = revoker.get();
 
     auto const report = [state](winrt::Windows::Foundation::IInspectable const&,
                                 xaml::RoutedEventArgs const&) {
@@ -418,7 +418,7 @@ void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
 
     if (direction == bind_direction::input) {
         model.set(state->target.focused());
-        model.watch_for_binding([guard = std::move(guard)](bool) noexcept {});
+        model.watch_for_binding([revoker = std::move(revoker)](bool) noexcept {});
         return;
     }
 
@@ -428,8 +428,8 @@ void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
                 settle_focus(state->target, state->field);
             });
     }
-    model.watch_for_binding([guard = std::move(guard)](bool) noexcept {
-        settle_focus(guard->target, guard->field);
+    model.watch_for_binding([revoker = std::move(revoker)](bool) noexcept {
+        settle_focus(revoker->target, revoker->field);
     });
     settle_focus(state->target, model);
 }
@@ -441,8 +441,8 @@ void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
 void apply_bind_vertical_offset(ScrollViewer const& control, core::observable<double>& model,
                                 bind_direction direction) {
     xaml::Controls::ScrollViewer const& viewer = *Object::Impl::get_typed<ScrollViewer>(control);
-    core::intrusive_ptr<offset_guard> guard{new offset_guard{viewer, model}, /*add_ref=*/false};
-    offset_guard* const state = guard.get();
+    core::intrusive_ptr<offset_revoker> revoker{new offset_revoker{viewer, model}, /*add_ref=*/false};
+    offset_revoker* const state = revoker.get();
 
     state->changed = viewer.ViewChanged(
         [state](winrt::Windows::Foundation::IInspectable const&,
@@ -452,7 +452,7 @@ void apply_bind_vertical_offset(ScrollViewer const& control, core::observable<do
 
     if (direction == bind_direction::input) {
         model.set(state->target.offset());
-        model.watch_for_binding([guard = std::move(guard)](double const&) noexcept {});
+        model.watch_for_binding([revoker = std::move(revoker)](double const&) noexcept {});
         return;
     }
 
@@ -460,8 +460,8 @@ void apply_bind_vertical_offset(ScrollViewer const& control, core::observable<do
         [state](winrt::Windows::Foundation::IInspectable const&, xaml::RoutedEventArgs const&) {
             settle_offset(state->target, state->field);
         });
-    model.watch_for_binding([guard = std::move(guard)](double const&) noexcept {
-        settle_offset(guard->target, guard->field);
+    model.watch_for_binding([revoker = std::move(revoker)](double const&) noexcept {
+        settle_offset(revoker->target, revoker->field);
     });
     settle_offset(state->target, model);
 }

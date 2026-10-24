@@ -8,7 +8,7 @@ auto example = StackPanel {
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"Use BitmapIcon.ShowAsMonochrome=\"False\" to display full color icons in the TabViewItem"},
     TabView {
-        onBringIntoViewRequested = [](auto const&, BringIntoViewRequestedEventArgs& args) { args.handled(true); },
+        onBringIntoViewRequested += [](auto const&, BringIntoViewRequestedEventArgs& args) { args.handled(true); },
         minWidth = 490,
         isAddTabButtonVisible = false,
         selectedIndex = 0,

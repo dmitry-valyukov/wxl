@@ -14,7 +14,7 @@ auto swipe = SwipeControl {
         behaviorOnInvoked = SwipeBehaviorOnInvoked::Close,
         iconSource = FontIconSource {glyph = u"\uE7B8"},
         text = u"Archive",
-        onInvoked = [model](SwipeItem const&, SwipeItemInvokedEventArgs& args) {
+        onInvoked += [model](SwipeItem const&, SwipeItemInvokedEventArgs& args) {
             model->archived = !model->archived;
             args.swipeControl().content().try_as<TextBlock>().text(model->archived ? u"Archived - Swipe Left" : u"Swipe Left");
         },

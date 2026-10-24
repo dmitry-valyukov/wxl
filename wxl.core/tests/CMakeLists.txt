@@ -31,6 +31,7 @@ add_executable(wxl.core.tests
     time_tests.cpp
     timeout_timer_tests.cpp
     unicode_tests.cpp
+    weak_link_tests.cpp
     zstring_view_tests.cpp
 )
 

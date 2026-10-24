@@ -33,7 +33,7 @@ auto const* data = &gallery::dataObjects();
 model->grid = GridView {
     itemMargin = Thickness {5},
     itemTemplate = [data](Object const& item) {
-        auto const& object = (*data)[static_cast<size_t>(intOf(item))];
+        auto const& object = (*data)[static_cast<size_t>(unboxValue<int64_t>(item))];
         return Grid {
             width = 100,
             Image {stretch = Stretch::UniformToFill, source = object.imageLocation},
@@ -53,8 +53,8 @@ model->grid = GridView {
             },
         };
     },
-    itemsSource = indexList(static_cast<int64_t>(data->size())),
-    onLoaded = [model](auto&&...) { model->wrap(); },
+    itemsSource = IndexList(static_cast<int64_t>(data->size())),
+    onLoaded += [model](auto&&...) { model->wrap(); },
 };
 
 auto const respond = [model](NumberBox const&, NumberBoxValueChangedEventArgs&) {

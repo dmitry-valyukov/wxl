@@ -1,7 +1,6 @@
-#include "item_template.h"
+#include "items_helpers.h"
 
 #include <map>
-#include <memory>
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
@@ -22,13 +21,18 @@ namespace xaml = winrt::Microsoft::UI::Xaml;
 using winrt::Windows::Foundation::IInspectable;
 
 // The element of an item, as the control is given it: an item of ItemsSource in, the element to show it out.
-using item_maker = core::function<IInspectable(IInspectable const& item)>;
 
-// What the handler of one list reads, and what the next call to a setter replaces: the function that makes the element
-// of an item and the margin of every container. The handler is put on a list once, and holds this: the list owns its
-// template state through the handler.
-struct Template {
-    core::nullable<item_maker> make;
+// What the handler of one list reads, and what the next call to a setter replaces: the function
+// that makes the element of an item and the margin of every container. The handler is put on a list
+// once, and holds this: the list owns its template state through the handler. The list's handlers
+// are the UI thread's, and so is the count.
+struct item_template_state : core::sta_refcounted {
+    explicit item_template_state(void* list) noexcept : key(list) {}
+    ~item_template_state() override;
+
+    // The list's address: where the index finds this, and where it is crossed out when this goes.
+    void* const key;
+    core::nullable<winrt_item_builder> make;
     bool has_margin = false;
     xaml::Thickness margin{};
     core::nullable<ItemContainerPreset::dress_t> dress;
@@ -41,7 +45,7 @@ struct Template {
 
 // Dresses a container the first time it is seen. Making the containers here instead (ChoosingItemContainer) was
 // tried and refused: the control asks for a container of an item more than once and put the item into both.
-void dress_once(Template& state, xaml::Controls::Primitives::SelectorItem const& container) {
+void dress_once(item_template_state& state, xaml::Controls::Primitives::SelectorItem const& container) {
     if (!state.dress.has_value()) return;
     void* const key = winrt::get_abi(container);
     if (auto const found = state.dressed.find(key); found != state.dressed.end()) {
@@ -52,17 +56,25 @@ void dress_once(Template& state, xaml::Controls::Primitives::SelectorItem const&
     state.dressed[key] = winrt::make_weak(container);
 }
 
-// The state of each list, found by the list's address, but owned by the list's own handler: an entry here keeps
-// nothing alive, and an entry whose list is gone -- one that died unloaded or never loaded -- is told from a new list
-// at the same address by its weak reference.
-struct Indexed {
+// The state of each list, found by the list's address, but owned by the list's own handler: an
+// entry here keeps nothing alive, and the state crosses its entry out as it goes. A state that
+// outlives its list -- one destroyed unloaded or never loaded -- is told from a new list at the
+// same address by the weak reference.
+struct template_entry {
     winrt::weak_ref<xaml::Controls::ListViewBase> list;
-    std::weak_ptr<Template> state;
+    item_template_state* state;
 };
 
-std::map<void*, Indexed>& templates() {
-    static std::map<void*, Indexed> all;
+std::map<void*, template_entry>& templates() {
+    static std::map<void*, template_entry> all;
     return all;
+}
+
+// Only its own entry: a new list at the same address may have one of its own by now.
+item_template_state::~item_template_state() {
+    auto& all = templates();
+    if (auto const found = all.find(key); found != all.end() && found->second.state == this)
+        all.erase(found);
 }
 
 // The place a container shows its element in: the content control of the template set_item_template gives the list.
@@ -72,18 +84,18 @@ xaml::Controls::ContentControl place_of(xaml::Controls::ContentControl const& co
 
 // The bindings of the element a place shows, kept in the place itself -- its Tag, which no application sees -- so
 // that they live no longer than the container does.
-com_ptr<element_scope> scope_of(xaml::Controls::ContentControl const& place) {
+core::intrusive_ptr<element_scope> scope_of(xaml::Controls::ContentControl const& place) {
     if (auto found = own_object<element_scope>(winrt::get_abi(place.Tag()))) return found;
-    com_ptr<element_scope> made{new element_scope()};
+    core::intrusive_ptr<element_scope> made{new element_scope(), /*add_ref=*/false};
     place.Tag(made->as_inspectable());
     return made;
 }
 
-// The element of an item, put in its place: the bindings of the element the place showed before are cut, and those of
-// the new one are collected while it is built.
-void show_item(Template const& state, xaml::Controls::ContentControl const& place, IInspectable const& item) {
+// The element of an item, put in its place: the bindings of the element the place showed before are
+// unbound, and those of the new one are collected while it is built.
+void show_item(item_template_state const& state, xaml::Controls::ContentControl const& place, IInspectable const& item) {
     auto const scope = scope_of(place);
-    scope->bindings.cut();
+    scope->bindings.unbind();
     place.Content(nullptr);
     if (!state.make) return;
     place.Content(scope->bindings.collect([&] { return (*state.make)(item); }));
@@ -91,20 +103,20 @@ void show_item(Template const& state, xaml::Controls::ContentControl const& plac
 
 // The place given back with its container: the element leaves it, and its bindings leave their fields.
 void clear_place(xaml::Controls::ContentControl const& place) {
-    if (auto const scope = own_object<element_scope>(winrt::get_abi(place.Tag()))) scope->bindings.cut();
+    if (auto const scope = own_object<element_scope>(winrt::get_abi(place.Tag())))
+        scope->bindings.unbind();
     place.Content(nullptr);
 }
 
 // The state of a list, made and hooked up on the first call.
-std::shared_ptr<Template> state_of(xaml::Controls::ListViewBase const& list) {
+core::intrusive_ptr<item_template_state> state_of(xaml::Controls::ListViewBase const& list) {
     void* const key = winrt::get_abi(list);
     auto& all = templates();
-    if (auto const found = all.find(key); found != all.end()) {
-        if (auto state = found->second.state.lock(); state && found->second.list.get() == list) return state;
+    if (auto const found = all.find(key); found != all.end() && found->second.list.get() == list) {
+        return found->second.state;
     }
-    std::erase_if(all, [](auto const& entry) { return entry.second.state.expired(); });
 
-    auto const state = std::make_shared<Template>();
+    auto const state = core::make_refcounted<item_template_state>(key);
     state->token = list.ContainerContentChanging([state](xaml::Controls::ListViewBase const&,
                                                          xaml::Controls::ContainerContentChangingEventArgs const& args) {
         auto const container = args.ItemContainer().try_as<xaml::Controls::ContentControl>();
@@ -125,13 +137,13 @@ std::shared_ptr<Template> state_of(xaml::Controls::ListViewBase const& list) {
             if (auto const place = place_of(target)) show_item(*state, place, later.Item());
         });
     });
-    all[key] = Indexed{winrt::make_weak(list), state};
+    all[key] = template_entry{winrt::make_weak(list), state.get()};
     return state;
 }
 
 // The function of the list in place: the template that gives each container a place for the element, if the list has
 // none yet, and the containers on screen already filled again.
-void set_maker(xaml::Controls::ListViewBase const& list, item_maker make) {
+void set_maker(xaml::Controls::ListViewBase const& list, winrt_item_builder make) {
     auto const state = state_of(list);
     state->make = std::move(make);
 
@@ -190,7 +202,7 @@ void set_item_container_style(xaml::Controls::ListViewBase const& list, ItemCont
 }
 
 // The template first, so that the first containers the source brings are filled by it.
-void attach_items(ListViewBase const& control, bound_source const& source) {
+void attach_items(ListViewBase const& control, bound_list_watch const& source) {
     xaml::Controls::ListViewBase const& list = *Object::Impl::get_typed<ListViewBase>(control);
     set_maker(list, &bound_element);
     list.ItemsSource(source.source().as_inspectable());

@@ -19,4 +19,4 @@ box.add_onKeyDown([apply](auto const&, KeyRoutedEventArgs& args) {
 });
 
 auto example = rectangle;
-auto options = StackPanel {box, Button {Margin {5}, hAlign.stretch, content = u"Set Opacity", onClick = apply}};
+auto options = StackPanel {box, Button {Margin {5}, hAlign.stretch, content = u"Set Opacity", onClick += apply}};

@@ -13,13 +13,6 @@ import std;
 export namespace wxl::core {
 
 /**
- * Opaque handle identifying a node linked into an `intrusive_slist`. Returned
- * by `push_front`/`push_back` and consumed by `remove` to unlink that same
- * node again; carries no meaning beyond node identity.
- */
-using cookie_t = not_null<const void>;
-
-/**
  * Per-node link used by `intrusive_slist`: just a pointer to the next node,
  * or null past the tail. A type inherits this (directly, or via a CRTP
  * `Base` like `wxl::core::function`'s) to become storable in an
@@ -115,18 +108,16 @@ public:
     using const_iterator = intrusive_slist_iterator<const Node>;
 
     /// Links `node` in as the new head. `node` must not already be linked.
-    cookie_t push_front(not_null<Node> node) {
+    void push_front(not_null<Node> node) {
         assert(!node->next_);
         node->next_ = this->next_;
         this->next_ = node.get();
 
         if (!last_) last_ = node.get();
-
-        return cookie_t{node};
     }
 
     /// Links `node` in as the new tail. `node` must not already be linked.
-    cookie_t push_back(not_null<Node> node) {
+    void push_back(not_null<Node> node) {
         assert(!node->next_);
 
         if (last_)
@@ -135,16 +126,17 @@ public:
             this->next_ = node.get();
 
         last_ = node.get();
-        return cookie_t{node};
     }
 
-    /// Unlinks and returns the node identified by `cookie`, or null if it's not in this list.
-    Node* remove(cookie_t cookie) {
+    /// Unlinks and returns the node at `node`, or null if it is not in this list. Only the
+    /// address is compared: `node` is not read through until it is found here, so it may name
+    /// a node that is gone.
+    Node* remove(Node const* node) {
         intrusive_slist_node<Node>* prev = this;
         Node* cur = prev->next_;
 
         while (cur) {
-            if (cookie_t{cur} == cookie) {
+            if (cur == node) {
                 prev->next_ = cur->next_;
 
                 // The node just unlinked was the tail, so the one before it
@@ -164,7 +156,7 @@ public:
     }
 
     /// Exchanges the contents of two lists. The nodes are not touched -- only which list
-    /// they hang from -- so a cookie stays valid and now names a node of `other`.
+    /// they hang from -- so a node's address now names a node of `other`.
     void swap(intrusive_slist & other) noexcept {
         std::swap(this->next_, other.next_);
         std::swap(last_, other.last_);

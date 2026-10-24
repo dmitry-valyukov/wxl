@@ -41,7 +41,7 @@ auto example = StackPanel {
     spacing = 10,
     model->box,
     StackPanel {orientation.horizontal, spacing = 16, model->history, model->roaming},
-    Button {content = u"Copy with Options", onClick = [model](Button const&) { model->copy(); }},
+    Button {content = u"Copy with Options", onClick += [model](Button const&) { model->copy(); }},
     model->status,
     StackPanel {orientation.horizontal, spacing = 16, model->historyState, model->roamingState},
 };

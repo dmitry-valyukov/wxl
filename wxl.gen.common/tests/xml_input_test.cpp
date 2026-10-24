@@ -166,18 +166,18 @@ constexpr std::string_view cyrillic_name_utf8 =
 
 }  // namespace
 
-TEST(xml_input, documentation_file_fails_on_a_start_tag_cut_off) {
+TEST(xml_input, documentation_file_fails_on_a_start_tag_truncated) {
     expect_broken_member("wxl.gen.common.cut_tag.xml",
                          "<doc><members><member name=\"T:N.Fine\"><summary>Fine.</summary></member>"
                          "<member name=\"T:N.Cut",
-                         "is cut off: no '>' closes its start tag");
+                         "is truncated: no '>' closes its start tag");
 }
 
-TEST(xml_input, documentation_file_fails_on_a_member_cut_off) {
+TEST(xml_input, documentation_file_fails_on_a_member_truncated) {
     expect_broken_member("wxl.gen.common.cut_member.xml",
                          "<doc><members><member name=\"T:N.Fine\"><summary>Fine.</summary></member>"
                          "<member name=\"T:N.Cut\"><summary>Cut",
-                         "is cut off: no </member> closes it");
+                         "is truncated: no </member> closes it");
 }
 
 TEST(xml_input, documentation_file_fails_on_a_name_left_open) {
@@ -211,12 +211,12 @@ TEST(xml_input, documentation_file_passes_over_a_member_without_attributes) {
 
 // The file is named in UTF-8, whatever the code page: a Cyrillic name comes out
 // as written -- not garbled, and not as a conversion error that loses this one.
-TEST(xml_input, documentation_file_names_a_cut_off_file_in_utf8) {
+TEST(xml_input, documentation_file_names_a_truncated_file_in_utf8) {
     auto const file = std::filesystem::temp_directory_path() / cyrillic_name;
     std::string const what =
         open_error(file, "<doc><members><member name=\"T:N.Cut\"><summary>Cut");
     EXPECT_TRUE(what.contains(cyrillic_name_utf8)) << what;
-    EXPECT_TRUE(what.contains("is cut off")) << what;
+    EXPECT_TRUE(what.contains("is truncated")) << what;
 }
 
 TEST(xml_input, documentation_file_names_a_broken_member_in_utf8) {

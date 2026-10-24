@@ -72,7 +72,7 @@ class bound_items_source final
 public:
     static constexpr winrt::guid own_iid{0xe7205a74, 0x9eb2, 0x42f0, {0xbb, 0x16, 0x3f, 0xea, 0x6d, 0xa6, 0x3b, 0x2b}};
 
-    bound_items_source(void const* followed, uint32_t count, bound_source::item_builder build);
+    bound_items_source(void const* followed, uint32_t count, bound_list_watch::indexed_item_builder build);
     ~bound_items_source();
 
     /// The list it follows, or null once disarmed.
@@ -109,14 +109,14 @@ public:
     int32_t __stdcall get_Size(uint32_t* size) noexcept final;
     int32_t __stdcall GetView(void** view) noexcept final;
     int32_t __stdcall IndexOf(void* item, uint32_t* index, bool* found) noexcept final;
-    int32_t __stdcall SetAt(uint32_t, void*) noexcept final { return com_not_implemented; }
-    int32_t __stdcall InsertAt(uint32_t, void*) noexcept final { return com_not_implemented; }
-    int32_t __stdcall RemoveAt(uint32_t) noexcept final { return com_not_implemented; }
-    int32_t __stdcall Append(void*) noexcept final { return com_not_implemented; }
-    int32_t __stdcall RemoveAtEnd() noexcept final { return com_not_implemented; }
-    int32_t __stdcall Clear() noexcept final { return com_not_implemented; }
+    int32_t __stdcall SetAt(uint32_t, void*) noexcept final { return e_notimpl; }
+    int32_t __stdcall InsertAt(uint32_t, void*) noexcept final { return e_notimpl; }
+    int32_t __stdcall RemoveAt(uint32_t) noexcept final { return e_notimpl; }
+    int32_t __stdcall Append(void*) noexcept final { return e_notimpl; }
+    int32_t __stdcall RemoveAtEnd() noexcept final { return e_notimpl; }
+    int32_t __stdcall Clear() noexcept final { return e_notimpl; }
     int32_t __stdcall GetMany(uint32_t start, uint32_t capacity, void** items, uint32_t* actual) noexcept final;
-    int32_t __stdcall ReplaceAll(uint32_t, void**) noexcept final { return com_not_implemented; }
+    int32_t __stdcall ReplaceAll(uint32_t, void**) noexcept final { return e_notimpl; }
 
     // IIterable<IInspectable>
     int32_t __stdcall First(void** iterator) noexcept final;
@@ -144,15 +144,15 @@ private:
     // the slots from `at` stand `count` places later in the list; erased, the slots
     // [at, at + count) are of items already gone, and those after stand `count` places
     // earlier. Out of a run, `count` is 0.
-    struct lag_behind {
+    struct lag {
         uint32_t at = 0;
         uint32_t count = 0;
         bool erased = false;
     };
 
     void const* list_;
-    core::nullable<bound_source::item_builder> build_;
-    lag_behind lag_;
+    core::nullable<bound_list_watch::indexed_item_builder> build_;
+    lag lag_;
     // One per item; null where the control has not asked for the item yet. Each holds one
     // reference.
     core::sta_vector<bound_slot*> slots_;

@@ -3,8 +3,7 @@
 #include "Pages.h"
 #include "Shell.h"
 #include "MotionPages.h"
-#include "StringList.h"
-#include "ResourceBrush.h"
+#include "Box.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Shapes.h>
 

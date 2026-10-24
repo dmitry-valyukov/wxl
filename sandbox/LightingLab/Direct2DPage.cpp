@@ -137,8 +137,8 @@ struct Carving {
 
         ComPtr<ID2D1SolidColorBrush> full;
         ComPtr<ID2D1SolidColorBrush> sunk;
-        wxl::check_hresult(side->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &full));
-        wxl::check_hresult(side->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.6f), &sunk));
+        wxl::impl::check_hresult(side->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &full));
+        wxl::impl::check_hresult(side->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.6f), &sunk));
 
         for (int index = 0; index < lab::keyColumns * lab::keyRows; ++index) {
             D2D1_ROUNDED_RECT const outline = keyOutline(index);
@@ -153,10 +153,10 @@ struct Carving {
                     {1.0f, D2D1::ColorF(1.0f, 1.0f, 1.0f, dome ? 0.45f : 1.0f)},
                 };
                 ComPtr<ID2D1GradientStopCollection> collection;
-                wxl::check_hresult(side->CreateGradientStopCollection(stops, 2, &collection));
+                wxl::impl::check_hresult(side->CreateGradientStopCollection(stops, 2, &collection));
                 D2D1_POINT_2F const centre = D2D1::Point2F((outline.rect.left + outline.rect.right) / 2.0f,
                                                             (outline.rect.top + outline.rect.bottom) / 2.0f);
-                wxl::check_hresult(side->CreateRadialGradientBrush(
+                wxl::impl::check_hresult(side->CreateRadialGradientBrush(
                     D2D1::RadialGradientBrushProperties(centre, D2D1::Point2F(), lab::keySide * 0.72f,
                                                         lab::keySide * 0.72f),
                     collection.Get(), &slope));
@@ -176,7 +176,7 @@ struct Carving {
     void drawColors(ID2D1DeviceContext* side) {
         side->Clear(toColor(panelColor.get()));
         ComPtr<ID2D1SolidColorBrush> key;
-        wxl::check_hresult(side->CreateSolidColorBrush(toColor(keyColor.get()), &key));
+        wxl::impl::check_hresult(side->CreateSolidColorBrush(toColor(keyColor.get()), &key));
         for (int index = 0; index < lab::keyColumns * lab::keyRows; ++index) {
             side->FillRoundedRectangle(keyOutline(index), key.Get());
         }
@@ -191,31 +191,31 @@ struct Carving {
         ComPtr<ID2D1Device> device;
         context->GetDevice(&device);
         ComPtr<ID2D1DeviceContext> side;
-        wxl::check_hresult(device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &side));
+        wxl::impl::check_hresult(device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &side));
 
         D2D1_BITMAP_PROPERTIES1 const targetProperties = D2D1::BitmapProperties1(
             D2D1_BITMAP_OPTIONS_TARGET, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
         ComPtr<ID2D1Bitmap1> heights;
         ComPtr<ID2D1Bitmap1> colors;
-        wxl::check_hresult(side->CreateBitmap(pixels, nullptr, 0, &targetProperties, &heights));
-        wxl::check_hresult(side->CreateBitmap(pixels, nullptr, 0, &targetProperties, &colors));
+        wxl::impl::check_hresult(side->CreateBitmap(pixels, nullptr, 0, &targetProperties, &heights));
+        wxl::impl::check_hresult(side->CreateBitmap(pixels, nullptr, 0, &targetProperties, &colors));
 
         side->SetTarget(heights.Get());
         side->BeginDraw();
         side->SetTransform(D2D1::Matrix3x2F::Scale(scale, scale));
         drawHeights(side.Get());
-        wxl::check_hresult(side->EndDraw());
+        wxl::impl::check_hresult(side->EndDraw());
 
         side->SetTarget(colors.Get());
         side->BeginDraw();
         side->SetTransform(D2D1::Matrix3x2F::Scale(scale, scale));
         drawColors(side.Get());
-        wxl::check_hresult(side->EndDraw());
+        wxl::impl::check_hresult(side->EndDraw());
         side->SetTarget(nullptr);
 
         auto const make = [&](REFCLSID id) {
             ComPtr<ID2D1Effect> effect;
-            wxl::check_hresult(context->CreateEffect(id, &effect));
+            wxl::impl::check_hresult(context->CreateEffect(id, &effect));
             return effect;
         };
 
@@ -355,8 +355,8 @@ lab::Experiment lab::direct2dPage() {
         vAlign.center,
         background = SolidColorBrush {color = rgb(24, 25, 28)},
         [model](Border const& host) { ElementCompositionPreview::setElementChildVisual(host, model->sprite); },
-        onLoaded = [model](Border const& self) { model->loaded(self.xamlRoot().rasterizationScale()); },
-        onPointerMoved =
+        onLoaded += [model](Border const& self) { model->loaded(self.xamlRoot().rasterizationScale()); },
+        onPointerMoved +=
             [model](Border const& self, PointerRoutedEventArgs& args) {
                 Point const place = args.getCurrentPoint(self).position();
                 model->lightAt(place.x, place.y);

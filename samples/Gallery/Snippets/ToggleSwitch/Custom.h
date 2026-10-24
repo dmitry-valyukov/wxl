@@ -5,7 +5,7 @@ StackPanel {
         isOn = true,
         offContent = u"Do work",
         onContent = u"Working",
-        onToggled = [](ToggleSwitch const& self) {
+        onToggled += [](ToggleSwitch const& self) {
             self.parent().try_as<StackPanel>().children()[1].try_as<ProgressRing>().isActive(self.isOn());
         },
     },

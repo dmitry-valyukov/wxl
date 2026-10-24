@@ -6,7 +6,7 @@
 #include <chrono>
 #include <memory>
 #include <vector>
-#include "ResourceBrush.h"
+#include "Resource.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Documents.h>
 #include <wxl/Microsoft.UI.Xaml.Media.h>

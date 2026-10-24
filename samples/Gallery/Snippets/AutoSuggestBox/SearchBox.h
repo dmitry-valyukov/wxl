@@ -43,7 +43,7 @@ auto box = AutoSuggestBox {
     hAlign.left,
     placeholderText = u"Type a control name",
     queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
-    onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
+    onTextChanged += [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
         // Only a user's typing asks for suggestions; a chosen one fills the text.
         if (args.reason() != AutoSuggestionBoxTextChangeReason::UserInput) {
             return;
@@ -54,16 +54,16 @@ auto box = AutoSuggestBox {
         }
         self.itemsSource(stringList(found));
     },
-    onSuggestionChosen = [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
+    onSuggestionChosen += [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
         // No results is not something to complete the text with.
-        auto const title = stringOf(args.selectedItem());
+        auto const title = unboxValue<hstring>(args.selectedItem());
         if (title != u"No results found") {
             self.text(title);
         }
     },
-    onQuerySubmitted = [model](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
+    onQuerySubmitted += [model](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
         if (args.chosenSuggestion()) {
-            model->name.set(stringOf(args.chosenSuggestion()));
+            model->name.set(unboxValue<hstring>(args.chosenSuggestion()));
         } else if (!args.queryText().empty()) {
             // No suggestion picked: the first control that matches the text.
             auto const found = gallery::controlTitles(args.queryText());

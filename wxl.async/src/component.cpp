@@ -568,7 +568,7 @@ bool component::impl_t::try_to_win_stopping_race(const std::exception_ptr& error
 // was: the callbacks are no longer a field the subscriber alone touches, but a list in the
 // state that a stop on another thread empties.
 
-core::cookie_t component::subscribe_on_started(core::not_null<on_started_callback> callback) {
+core::event_token component::subscribe_on_started(core::not_null<on_started_callback> callback) {
     guard g(*this);
 
     // Subscribing after the start has begun would be pointless: on_started() fires once, and
@@ -578,21 +578,21 @@ core::cookie_t component::subscribe_on_started(core::not_null<on_started_callbac
     return impl()->on_started_.add(callback);
 }
 
-bool component::unsubscribe_on_started(core::cookie_t cookie) {
+bool component::unsubscribe_on_started(core::event_token & token) {
     guard g(*this);
-    return impl()->on_started_.remove(cookie);
+    return impl()->on_started_.remove(token);
 }
 
-core::cookie_t component::subscribe_on_stopped(core::not_null<on_stopped_callback> callback) {
+core::event_token component::subscribe_on_stopped(core::not_null<on_stopped_callback> callback) {
     guard g(*this);
     assert(!impl()->running_task_.valid());
 
     return impl()->on_stopped_.add(callback);
 }
 
-bool component::unsubscribe_on_stopped(core::cookie_t cookie) {
+bool component::unsubscribe_on_stopped(core::event_token & token) {
     guard g(*this);
-    return impl()->on_stopped_.remove(cookie);
+    return impl()->on_stopped_.remove(token);
 }
 
 }  // namespace wxl::async

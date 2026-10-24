@@ -34,27 +34,27 @@
 #include <coroutine>
 #include <utility>
 
-#include "../event_token.h"
+#include "../EventToken.h"
 #include "event_waits.h"
 
 namespace wxl::impl {
 
 template <typename Timer>
-class waitable_timer : waiting_event
+class waitable_timer : event_wait
 {
 public:
     /// \param timer one-shot and stopped: restart() starts it, a tick and signal() stop it.
-    /// \param stop the token every wait on this timer stands under; none by default.
-    explicit waitable_timer(Timer timer, async::cancellation_token stop = {})
-        : timer_(std::move(timer)), stop_(std::move(stop)) {
-        token_ = timer_.add([this](auto&&...) { tick(); });
+    /// \param token the token every wait on this timer is registered with; none by default.
+    explicit waitable_timer(Timer timer, async::cancellation_token token = {})
+        : timer_(std::move(timer)), token_(std::move(token)) {
+        tick_ = timer_.add([this](auto&&...) { tick(); });
     }
 
     /// Unsubscribing and stopping can be refused by a runtime going down around the
     /// timer, and a destructor may not pass that on: the timer is going away either way.
     ~waitable_timer() {
         try {
-            timer_.remove(token_);
+            timer_.remove(tick_);
             timer_.stop();
         } catch (...) {
         }
@@ -84,22 +84,22 @@ public:
     /// One wait. It lives in the frame of the coroutine that wrote the co_await, and
     /// taking itself off the timer is what its destructor is for: a frame destroyed
     /// while suspended unhooks on the way out.
-    class Wait
+    class wait
     {
     public:
-        explicit Wait(waitable_timer& timer) noexcept : timer_(&timer) {}
+        explicit wait(waitable_timer& timer) noexcept : timer_(&timer) {}
 
-        ~Wait() {
+        ~wait() {
             if (armed_) timer_->disarm();
         }
 
-        Wait(Wait const&) = delete;
-        Wait& operator=(Wait const&) = delete;
+        wait(wait const&) = delete;
+        wait& operator=(wait const&) = delete;
 
         /// Signaled already, cancelled before it began, or the application going down:
         /// the wait does not suspend.
         bool await_ready() const noexcept {
-            return timer_->signaled_ || canceled_ || events_closing();
+            return timer_->signaled_ || canceled_ || event_wait::closing();
         }
 
         // Declared twice, as every hook that checks how it is used is: a strict build's
@@ -124,7 +124,7 @@ public:
         /// Takes the signal, if that is what ended the wait. Otherwise the application is
         /// going down, and the wait ends as every wait of wxl does then. A cancelled token
         /// never gets here: the wait under it answers that itself
-        /// (async::detail::cancellable_wait, await_canceled() below).
+        /// (async::detail::cancelable_wait, await_canceled() below).
         void await_resume() {
             armed_ = false;
 
@@ -133,7 +133,7 @@ public:
             timer_->throw_ended();
         }
 
-        /// Cancelled by the token (async::detail::cancellable_awaiter): a wait that is
+        /// Cancelled by the token (async::detail::cancelable_awaiter): a wait that is
         /// suspended is resumed by the queue's next turn, or by a tick or signal() if
         /// one comes first -- never by cancel() itself; one that has not begun never
         /// suspends.
@@ -158,10 +158,10 @@ public:
         bool canceled_ = false;
     };
 
-    using awaiter = event_wait_under<Wait, async::detail::cancellation_state*>;
+    using awaiter = cancelable_event_wait<wait, async::detail::cancellation_state*>;
 
     awaiter operator co_await() noexcept {
-        return awaiter{async::detail::cancellation_state_of(stop_), *this};
+        return awaiter{async::detail::cancellation_state_of(token_), *this};
     }
 
     // Waiting writes down who is waiting, so a const timer cannot be awaited.
@@ -178,8 +178,8 @@ private:
     }
 
     Timer timer_;
-    EventToken token_;
-    async::cancellation_token stop_;
+    EventToken tick_;
+    async::cancellation_token token_;
 
     /// The latch: the time was up, or the owner said so, and no wait has taken it yet.
     bool signaled_ = false;

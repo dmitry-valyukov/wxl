@@ -58,7 +58,7 @@ Edge edge_of(double halfWidth, double halfHeight, double corner, double px, doub
     return edge;
 }
 
-Edge edge_at(KeyRelief const& key, double px, double py) {
+Edge edge_at(key_relief const& key, double px, double py) {
     return edge_of(key.width / 2.0, key.height / 2.0, key.corner, px, py);
 }
 
@@ -68,7 +68,7 @@ Edge edge_at(KeyRelief const& key, double px, double py) {
 // it is measured from its own outline -- the key's, shrunk by the rim and
 // moved: the outer edge of the rim stays, and the rim grows wider on one
 // side and narrower on the other.
-double face_depth(KeyRelief const& key, Edge const& outer, double px, double py) {
+double face_depth(key_relief const& key, Edge const& outer, double px, double py) {
     if (key.shiftX == 0.0 && key.shiftY == 0.0) {
         return outer.inside - key.rim;
     }
@@ -87,7 +87,7 @@ double face_share(double depth, double width) {
 }
 
 // The normal of the key at a point counted from its middle; screen axes.
-Normal key_normal_at(KeyRelief const& key, double px, double py) {
+Normal key_normal_at(key_relief const& key, double px, double py) {
     // The face is a spherical cap of one curvature along both axes: the
     // slope grows from the middle linearly, and at the edge of the long side
     // under full emboss is 0.6 (about 31 degrees). A dome tilts the normal
@@ -126,7 +126,7 @@ Normal key_normal_at(KeyRelief const& key, double px, double py) {
 // The height of a point of the key over the rim's outer edge: the rim climbs
 // from the edge along its profile to the inner edge, and the face stands at
 // that height. The same width of rim here as the normal uses.
-double key_height_at(KeyRelief const& key, Edge const& edge, double depth) {
+double key_height_at(key_relief const& key, Edge const& edge, double depth) {
     if (key.rim <= 0.0) {
         return 0.0;
     }
@@ -162,7 +162,7 @@ void blit(DrawingSurface const& surface, std::vector<std::uint32_t> const& pixel
 // Runs `pixel(px, py)` for every pixel of the surface, the point in layout
 // units from the key's middle, and writes what it returns.
 template <class Pixel>
-void draw_pixels(DrawingSurface const& surface, KeyRelief const& key, Pixel pixel) {
+void draw_pixels(DrawingSurface const& surface, key_relief const& key, Pixel pixel) {
     SizeInt32 const size = surface.size();
     int const width = size.width, height = size.height;
     if (width <= 0 || height <= 0) {
@@ -180,7 +180,7 @@ void draw_pixels(DrawingSurface const& surface, KeyRelief const& key, Pixel pixe
 
 }  // namespace
 
-void draw_key_map(DrawingSurface const& surface, KeyRelief const& key) {
+void draw_key_map(DrawingSurface const& surface, key_relief const& key) {
     draw_pixels(surface, key, [&](double px, double py) {
         Normal const normal = key_normal_at(key, px, py);
         // Green up the screen: the screen's y changes sign.
@@ -188,7 +188,7 @@ void draw_key_map(DrawingSurface const& surface, KeyRelief const& key) {
     });
 }
 
-void draw_face_mask(DrawingSurface const& surface, KeyRelief const& key) {
+void draw_face_mask(DrawingSurface const& surface, key_relief const& key) {
     SizeInt32 const size = surface.size();
     if (size.width <= 0) {
         return;
@@ -203,7 +203,7 @@ void draw_face_mask(DrawingSurface const& surface, KeyRelief const& key) {
     });
 }
 
-void draw_hole_shadow(DrawingSurface const& surface, KeyRelief const& key, HoleShadow const& shadow) {
+void draw_hole_shadow(DrawingSurface const& surface, key_relief const& key, hole_shadow const& shadow) {
     SizeInt32 const size = surface.size();
     if (size.width <= 0) {
         return;

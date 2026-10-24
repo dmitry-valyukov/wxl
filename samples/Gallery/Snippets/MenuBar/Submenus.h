@@ -3,7 +3,7 @@ auto output = TextBlock {};
 auto item = [output](char16_t const* caption) {
     return MenuFlyoutItem {
         text = caption,
-        onClick = [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
+        onClick += [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
     };
 };
 
@@ -13,7 +13,7 @@ auto radio = [output](char16_t const* caption, char16_t const* group, bool check
         text = caption,
         groupName = group,
         isChecked = checked,
-        onClick = [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
+        onClick += [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
     };
 };
 

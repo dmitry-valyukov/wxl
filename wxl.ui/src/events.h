@@ -4,7 +4,8 @@
 // is handed besides the sender.
 
 #include "Object.h"
-#include "event_token.h"
+#include "EventToken.h"
+#include "impl/member_function_traits.h"
 
 #include <concepts>
 #include <functional>
@@ -17,16 +18,16 @@ namespace wxl {
 // the wrapper hierarchy: an args object belongs to the runtime, exists only
 // for the duration of the callback, and is never stored or copied by the
 // handler. So it is a non-owning view of the ABI pointer -- no reference
-// count, no Impl allocation on a path that can fire on every mouse move --
+// count, no Impl allocation on a path an event raised on every mouse move takes --
 // and non-copyable, which is what makes "only valid inside the handler"
 // something the compiler enforces rather than something a comment asks for.
-class EventArgsBase {
+class EventArgs {
 public:
-    EventArgsBase(EventArgsBase const&) = delete;
-    EventArgsBase& operator=(EventArgsBase const&) = delete;
+    EventArgs(EventArgs const&) = delete;
+    EventArgs& operator=(EventArgs const&) = delete;
 
 protected:
-    explicit EventArgsBase(void* abi) noexcept : abi_(abi) {}
+    explicit EventArgs(void* abi) noexcept : abi_(abi) {}
 
     // The wrapped args object, as the raw ABI pointer the runtime passed.
     // Members read from it by querying the interface they need; there is
@@ -50,64 +51,26 @@ protected:
 // sender: non-const would offer to replace the caller's object, which is not
 // something a handler may do.
 template <typename Args>
-using EventArgsRef = std::conditional_t<std::derived_from<Args, EventArgsBase>, Args&,
+using EventArgsRef = std::conditional_t<std::derived_from<Args, EventArgs>, Args&,
                                         Args const&>;
 
 namespace impl {
 
-// The sender parameter of a two-argument handler's call operator, decayed.
-// The primary is `void` -- an operator() this cannot read (a different arity,
-// or a generic lambda whose address cannot be taken) names no sender -- so the
-// alias below is well-formed for any callable at all.
-template <typename>
-struct handler_sender {
+// The first parameter of a handler's call operator, decayed, when it takes one
+// or two: the sender, alone or with the args. Arity is what tells the two
+// apart, and a one-argument callable naming anything else is simply not a
+// wrapper, so the concepts below stay disjoint without saying so. The primary
+// is `void` -- an operator() this cannot read (a different arity, or a generic
+// lambda whose address cannot be taken) names no sender -- so the alias below
+// is well-formed for any callable at all.
+template <typename F>
+struct handler_sender_of {
     using type = void;
 };
-
-template <typename R, typename C, typename S, typename A>
-struct handler_sender<R (C::*)(S, A) const> {
-    using type = std::decay_t<S>;
-};
-template <typename R, typename C, typename S, typename A>
-struct handler_sender<R (C::*)(S, A)> {
-    using type = std::decay_t<S>;
-};
-template <typename R, typename C, typename S, typename A>
-struct handler_sender<R (C::*)(S, A) const noexcept> {
-    using type = std::decay_t<S>;
-};
-template <typename R, typename C, typename S, typename A>
-struct handler_sender<R (C::*)(S, A) noexcept> {
-    using type = std::decay_t<S>;
-};
-
-// The same, for a handler that takes the sender alone. Arity is what tells the
-// two apart, and a one-argument callable naming anything else is simply not a
-// wrapper, so the concepts below stay disjoint without saying so.
-template <typename R, typename C, typename S>
-struct handler_sender<R (C::*)(S) const> {
-    using type = std::decay_t<S>;
-};
-template <typename R, typename C, typename S>
-struct handler_sender<R (C::*)(S)> {
-    using type = std::decay_t<S>;
-};
-template <typename R, typename C, typename S>
-struct handler_sender<R (C::*)(S) const noexcept> {
-    using type = std::decay_t<S>;
-};
-template <typename R, typename C, typename S>
-struct handler_sender<R (C::*)(S) noexcept> {
-    using type = std::decay_t<S>;
-};
-
-template <typename F, typename = void>
-struct handler_sender_of {
-    using type = void;  // no call operator whose address can be taken
-};
 template <typename F>
-struct handler_sender_of<F, std::void_t<decltype(&std::decay_t<F>::operator())>> {
-    using type = typename handler_sender<decltype(&std::decay_t<F>::operator())>::type;
+    requires(call_operator_traits<F>::arity == 1 || call_operator_traits<F>::arity == 2)
+struct handler_sender_of<F> {
+    using type = std::decay_t<typename call_operator_traits<F>::template parameter_t<0>>;
 };
 
 // The sender a handler names, or void when it names none: a lambda taking two
@@ -115,18 +78,16 @@ struct handler_sender_of<F, std::void_t<decltype(&std::decay_t<F>::operator())>>
 template <typename F>
 using handler_sender_t = typename handler_sender_of<F>::type;
 
-}  // namespace impl
-
 // A handler that names the control it expects as its sender -- (ToggleSwitch
 // const&, Args) rather than (Object const&, Args) -- and is callable that way,
 // and is not already a plain Object-sender handler (which is taken as it is).
 // The conjunction short-circuits: the invocable-with-the-named-sender check is
 // reached only once that sender is known to be a wrapper, never with void.
 template <typename Fn, typename Args>
-concept TypedSenderHandler =
+concept typed_sender_handler =
     !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>>
-    && std::derived_from<impl::handler_sender_t<Fn>, Object>
-    && std::is_invocable_v<Fn const&, impl::handler_sender_t<Fn> const&, EventArgsRef<Args>>;
+    && std::derived_from<handler_sender_t<Fn>, Object>
+    && std::is_invocable_v<Fn const&, handler_sender_t<Fn> const&, EventArgsRef<Args>>;
 
 
 // A handler that wants the control and nothing else -- `[](Button const& self)
@@ -134,20 +95,22 @@ concept TypedSenderHandler =
 // written only to be ignored is noise; arity alone tells this form from the
 // one above, so neither concept has to exclude the other.
 template <typename Fn, typename Args>
-concept SenderOnlyHandler =
+concept sender_only_handler =
     !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>>
-    && std::derived_from<impl::handler_sender_t<Fn>, Object>
-    && std::is_invocable_v<Fn const&, impl::handler_sender_t<Fn> const&>;
+    && std::derived_from<handler_sender_t<Fn>, Object>
+    && std::is_invocable_v<Fn const&, handler_sender_t<Fn> const&>;
 
-// A handler that wants neither -- `onClick = [type, symbol] { type(symbol); }`.
+// A handler that wants neither -- `onClick += [type, symbol] { type(symbol); }`.
 // What is left when everything it needs is in its own capture, and the
 // alternative is two parameters written only to be ignored. Arity tells this
 // form from the two above as well: a callable taking nothing names no sender,
 // so it fails their second clause and they fail its last one.
 template <typename Fn, typename Args>
-concept NullaryHandler =
+concept nullary_handler =
     !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>>
     && std::is_invocable_v<Fn const&>;
+
+}  // namespace impl
 
 // A handler is an ordinary callable (Object const& sender, Args). The sender
 // arrives as a wrapper, i.e. a smart pointer with an assignment operator, so by
@@ -157,10 +120,10 @@ concept NullaryHandler =
 // A handler may also name the control it expects instead of the base Object --
 // `[](ToggleSwitch const& toggle, RoutedEventArgs&) { ... }` -- and it is then
 // adapted to read that control from the bare sender by try_as. This is the way
-// a handler gets the typed control that fired *without capturing it*: a control
+// a handler gets the typed control that raised the event *without capturing it*: a control
 // is a temporary in the description tree, so a captured wrapper would keep a
 // dead one alive and a captured pointer would dangle, while the sender is the
-// live object every time the event fires.
+// live object every time the event is raised.
 //
 // And it may take that control alone -- `[](Button const& self) { ... }` --
 // when the args say nothing it needs, which is most events; or take nothing
@@ -194,7 +157,7 @@ public:
     // in a debug build -- and the handler is quietly skipped rather than called
     // on an empty wrapper.
     template <typename Fn>
-        requires TypedSenderHandler<std::decay_t<Fn>, Args>
+        requires impl::typed_sender_handler<std::decay_t<Fn>, Args>
     EventHandler(Fn&& fn)
         : base_t{[fn = std::forward<Fn>(fn)](Object const& sender, EventArgsRef<Args> args) {
               using T = impl::handler_sender_t<std::decay_t<Fn>>;
@@ -209,7 +172,7 @@ public:
     // The sender-only form, adapted the same way. The args the event carries
     // are dropped here rather than at every call site that does not read them.
     template <typename Fn>
-        requires SenderOnlyHandler<std::decay_t<Fn>, Args>
+        requires impl::sender_only_handler<std::decay_t<Fn>, Args>
     EventHandler(Fn&& fn)
         : base_t{[fn = std::forward<Fn>(fn)](Object const& sender, EventArgsRef<Args>) {
               using T = impl::handler_sender_t<std::decay_t<Fn>>;
@@ -223,7 +186,7 @@ public:
     // The nullary form: both are dropped, and nothing is looked up on the way
     // in -- there is no try_as here, because there is no sender to convert.
     template <typename Fn>
-        requires NullaryHandler<std::decay_t<Fn>, Args>
+        requires impl::nullary_handler<std::decay_t<Fn>, Args>
     EventHandler(Fn&& fn)
         : base_t{[fn = std::forward<Fn>(fn)](Object const&, EventArgsRef<Args>) { fn(); }} {}
 };

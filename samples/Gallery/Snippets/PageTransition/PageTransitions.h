@@ -24,7 +24,7 @@ auto options = StackPanel {
         RadioButton {automationName = u"CommonNavigationTransitionInfo", content = u"Common"},
         RadioButton {automationName = u"ContinuumNavigationTransitionInfo", content = u"Continuum"},
         selectedIndex = 0,
-        onSelectionChanged = [model](RadioButtons const& self) {
+        onSelectionChanged += [model](RadioButtons const& self) {
             switch (self.selectedIndex()) {
             case 1: model->info = EntranceNavigationTransitionInfo {}; break;
             case 2: model->info = DrillInNavigationTransitionInfo {}; break;
@@ -38,7 +38,7 @@ auto options = StackPanel {
         },
     },
     TextBlock {Margin {0, 12, 0, 8}, u"Navigate"},
-    Button {Margin {0, 0, 0, 4}, hAlign.stretch, content = u"Navigate Forward", onClick = [model, page1, page2](auto&&...) {
+    Button {Margin {0, 0, 0, 4}, hAlign.stretch, content = u"Navigate Forward", onClick += [model, page1, page2](auto&&...) {
                 auto const next = model->frame.depth() % 2 == 1 ? gallery::PagedFrame::Builder {page1} : gallery::PagedFrame::Builder {page2};
                 if (model->info) {
                     model->frame.forward(next, *model->info);
@@ -46,7 +46,7 @@ auto options = StackPanel {
                     model->frame.forward(next);
                 }
             }},
-    Button {hAlign.stretch, content = u"Navigate Backward", onClick = [model](auto&&...) {
+    Button {hAlign.stretch, content = u"Navigate Backward", onClick += [model](auto&&...) {
                 if (model->frame.depth() > 0) {
                     model->frame.back();
                 }

@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "ApplicationFolder.h"
+#include "Application.h"
 #include <wxl/Windows.ApplicationModel.DataTransfer.h>
 #include <wxl/Windows.Storage.h>
 #include <wxl/Windows.Storage.Streams.h>

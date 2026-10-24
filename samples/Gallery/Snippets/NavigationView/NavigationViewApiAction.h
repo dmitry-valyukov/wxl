@@ -29,7 +29,7 @@ model->view = NavigationView {
     autoSuggestBox = searchBox(),
     paneFooter = model->footer,
     content = model->frame,
-    onSelectionChanged = [model](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
+    onSelectionChanged += [model](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
         if (args.isSettingsSelected()) {
             gallery::showSettings(model->frame);
             return;
@@ -48,43 +48,43 @@ model->paneText.add_onTextChanged([model](auto&&...) { model->view.paneTitle(mod
 
 auto const checked = [](CheckBox const& self) { return self.isChecked().value_or(false); };
 auto options = StackPanel {
-    CheckBox {content = u"Settings item visible", isChecked = true, onClick = [model, checked](CheckBox const& self) { model->view.isSettingsVisible(checked(self)); }},
-    CheckBox {content = u"Back button visible", isChecked = true, onClick = [model, checked](CheckBox const& self) {
+    CheckBox {content = u"Settings item visible", isChecked = true, onClick += [model, checked](CheckBox const& self) { model->view.isSettingsVisible(checked(self)); }},
+    CheckBox {content = u"Back button visible", isChecked = true, onClick += [model, checked](CheckBox const& self) {
                   model->view.isBackButtonVisible(checked(self) ? NavigationViewBackButtonVisible::Visible : NavigationViewBackButtonVisible::Collapsed);
               }},
-    CheckBox {content = u"Back button enabled", isChecked = false, onClick = [model, checked](CheckBox const& self) { model->view.isBackEnabled(checked(self)); }},
-    CheckBox {content = u"AutoSuggestBox visible", isChecked = true, onClick = [model, checked, searchBox](CheckBox const& self) {
+    CheckBox {content = u"Back button enabled", isChecked = false, onClick += [model, checked](CheckBox const& self) { model->view.isBackEnabled(checked(self)); }},
+    CheckBox {content = u"AutoSuggestBox visible", isChecked = true, onClick += [model, checked, searchBox](CheckBox const& self) {
                   model->view.autoSuggestBox(checked(self) ? core::nullable<AutoSuggestBox> {searchBox()} : core::nullable<AutoSuggestBox> {});
               }},
 
     TextBlock {Margin {0, 12, 0, 0}, u"Header:"},
     model->headerText,
-    CheckBox {content = u"Always show header", isChecked = true, onClick = [model, checked](CheckBox const& self) { model->view.alwaysShowHeader(checked(self)); }},
+    CheckBox {content = u"Always show header", isChecked = true, onClick += [model, checked](CheckBox const& self) { model->view.alwaysShowHeader(checked(self)); }},
     TextBlock {Margin {0, 12, 0, 0}, u"PaneTitle:"},
     model->paneText,
-    CheckBox {content = u"PaneCustomContent visible", isChecked = false, onClick = [model, checked](CheckBox const& self) {
+    CheckBox {content = u"PaneCustomContent visible", isChecked = false, onClick += [model, checked](CheckBox const& self) {
                   model->paneLink.visibility(checked(self) ? Visibility::Visible : Visibility::Collapsed);
               }},
-    CheckBox {content = u"PaneFooter visible", isChecked = false, onClick = [model, checked](CheckBox const& self) {
+    CheckBox {content = u"PaneFooter visible", isChecked = false, onClick += [model, checked](CheckBox const& self) {
                   model->footer.visibility(checked(self) ? Visibility::Visible : Visibility::Collapsed);
               }},
 
     TextBlock {Margin {0, 12, 0, 0}, u"PanePosition:"},
-    RadioButton {content = u"Left", isChecked = true, onChecked = [model](auto&&...) {
+    RadioButton {content = u"Left", isChecked = true, onChecked += [model](auto&&...) {
                      model->view.paneDisplayMode(NavigationViewPaneDisplayMode::Left);
                      model->view.isPaneOpen(true);
                      model->footer.orientation(Orientation::Vertical);
                  }},
-    RadioButton {Margin {0, 0, 0, 12}, content = u"Top", onChecked = [model](auto&&...) {
+    RadioButton {Margin {0, 0, 0, 12}, content = u"Top", onChecked += [model](auto&&...) {
                      model->view.paneDisplayMode(NavigationViewPaneDisplayMode::Top);
                      model->view.isPaneOpen(false);
                      model->footer.orientation(Orientation::Horizontal);
                  }},
 
-    CheckBox {content = u"Keyboard SelectionFollowsFocus", isChecked = false, onClick = [model, checked](CheckBox const& self) {
+    CheckBox {content = u"Keyboard SelectionFollowsFocus", isChecked = false, onClick += [model, checked](CheckBox const& self) {
                   model->view.selectionFollowsFocus(checked(self) ? NavigationViewSelectionFollowsFocus::Enabled : NavigationViewSelectionFollowsFocus::Disabled);
               }},
-    CheckBox {content = u"Selection of Menu Item2 suppressed", isChecked = false, onClick = [model, checked](CheckBox const& self) {
+    CheckBox {content = u"Selection of Menu Item2 suppressed", isChecked = false, onClick += [model, checked](CheckBox const& self) {
                   model->second.selectsOnInvoked(!checked(self));
               }},
 };

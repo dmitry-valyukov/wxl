@@ -43,7 +43,7 @@ auto options = Grid {
         smallChange = 10.0,
         spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline,
         value = 30.0,
-        onValueChanged = [view](NumberBox const& self, NumberBoxValueChangedEventArgs& args) {
+        onValueChanged += [view](NumberBox const& self, NumberBoxValueChangedEventArgs& args) {
             if (std::isnan(args.oldValue())) {
                 return;
             }

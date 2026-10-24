@@ -69,7 +69,7 @@ wxl::FrameworkElement gallery::titleBarPage() {
             Paragraph {
                 Run {u"For full title bar customization without using the TitleBar control, see the "},
                 Hyperlink {
-                    onClick = [](Object const&, HyperlinkClickEventArgs&) { navigate({Place::Item, L"AppWindowTitleBar"}); },
+                    onClick += [](Object const&, HyperlinkClickEventArgs&) { navigate({Place::Item, L"AppWindowTitleBar"}); },
                     Run {u"AppWindowTitleBar"},
                 },
                 Run {u" sample"},

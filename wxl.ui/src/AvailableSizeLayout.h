@@ -61,20 +61,20 @@ protected:
     friend class Object::Impl;
 
 private:
-    // The pairs behind availableWidth and availableHeight: the field is written from the measure pass until it goes
-    // or its bindings are cut.
+    // The pairs behind availableWidth and availableHeight: the field is written from the measure
+    // pass until it goes or its bindings are unbound.
     static void bind_width(AvailableSizeLayout const& layout, core::observable<double>& field);
     static void bind_height(AvailableSizeLayout const& layout, core::observable<double>& field);
 
-    friend struct impl::PropertyBinder<PropertyKey::AvailableWidth, AvailableSizeLayout>;
-    friend struct impl::PropertyBinder<PropertyKey::AvailableHeight, AvailableSizeLayout>;
+    friend struct impl::property_binder<PropertyKey::AvailableWidth, AvailableSizeLayout>;
+    friend struct impl::property_binder<PropertyKey::AvailableHeight, AvailableSizeLayout>;
 };
 
 namespace impl {
 
 // The layout reports the two and never takes them: input alone.
 template <>
-struct PropertyBinder<PropertyKey::AvailableWidth, AvailableSizeLayout> {
+struct property_binder<PropertyKey::AvailableWidth, AvailableSizeLayout> {
     static constexpr bind_direction direction = bind_direction::input;
     static void bind(AvailableSizeLayout const& layout, core::observable<double>& field, bind_direction) {
         AvailableSizeLayout::bind_width(layout, field);
@@ -82,7 +82,7 @@ struct PropertyBinder<PropertyKey::AvailableWidth, AvailableSizeLayout> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::AvailableHeight, AvailableSizeLayout> {
+struct property_binder<PropertyKey::AvailableHeight, AvailableSizeLayout> {
     static constexpr bind_direction direction = bind_direction::input;
     static void bind(AvailableSizeLayout const& layout, core::observable<double>& field, bind_direction) {
         AvailableSizeLayout::bind_height(layout, field);

@@ -3,10 +3,8 @@
 // вложенных друг в друга и в настоящие описания.
 
 #include "Pages.h"
-#include "LoadXaml.h"
-#include "Box.h"
-#include "ItemBuilder.h"
-#include "StringList.h"
+#include "Resource.h"
+#include "ItemTemplate.h"
 
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Documents.h>

@@ -74,7 +74,7 @@ wxl::FrameworkElement gallery::acrylicPage() {
                 },
                 Run {u". Acrylic Brush uses in-app acrylic. See "},
                 Hyperlink {
-                    onClick = [](Object const&, HyperlinkClickEventArgs&) { navigate({Place::Item, L"SystemBackdrops"}); },
+                    onClick += [](Object const&, HyperlinkClickEventArgs&) { navigate({Place::Item, L"SystemBackdrops"}); },
                     Run {u"SystemBackdrops (Mica/Acrylic)"},
                 },
                 Run {u" for background acrylic."},

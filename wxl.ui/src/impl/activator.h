@@ -21,21 +21,13 @@ namespace wxl::impl {
 // interface for anything else. Shared by everything below and by the statics
 // proxy, because the answer is the same for all of them, and so is the
 // awkward case: a component shipped beside the application rather than in a
-// package, which nothing has registered. See activation_factory.cpp.
+// package, which nothing has registered. See activator.cpp.
 HRESULT resolve_activation_factory(wchar_t const* class_name, GUID const& iid,
                                    void** factory) noexcept;
 
-// Whether the XAML application is up, which is the only time a WinRT object
-// can be made. launch.cpp sets it for the application's life, and
-// resolve_activation_factory asserts on it: every first creation of a class
-// passes through there, so a wxl object built at static initialization -- a
-// namespace-scope object, most likely -- is caught with its cause named
-// instead of failing as an unregistered class.
-void set_application_launched(bool launched) noexcept;
-
 // One class's entire activation cost, and all of it data: three words, no code
 // generated per class. Everything that fills a slot in is written once, in
-// activation_factory.cpp, and shared by every class.
+// activator.cpp, and shared by every class.
 //
 // Two rules hold this design up. Both have been paid for; neither is free to
 // trade away in a later change.
@@ -93,8 +85,8 @@ struct activation_slot {
 // arg2_ carries the factory interface's IID going in and its cached
 // CreateInstance coming out. Both halves matter: the IID is read once, and the
 // entry point is kept so the thunk never touches a vtable again.
-struct composition_slot : activation_slot {
-    static HRESULT __stdcall init(composition_slot* slot, ::IInspectable** result) noexcept;
+struct composable_slot : activation_slot {
+    static HRESULT __stdcall init(composable_slot* slot, ::IInspectable** result) noexcept;
 
     void* arg2_;
 };
@@ -110,7 +102,7 @@ struct composition_slot : activation_slot {
 // written once here, without the generality -- and the atomics -- the
 // general-purpose machinery pays for.
 template <typename Obj>
-class ActivationFactory {
+class activator {
 public:
     // Not noexcept: a class that cannot be activated is an ordinary error, and
     // check_hresult throws so its HRESULT -- the one thing that says why --
@@ -126,8 +118,8 @@ private:
 };
 
 template <typename Obj>
-inline constinit activation_slot ActivationFactory<Obj>::slot_{
-    &ActivationFactory<Obj>::slot_,
+inline constinit activation_slot activator<Obj>::slot_{
+    &activator<Obj>::slot_,
     reinterpret_cast<activation_slot::activate_fn>(&activation_slot::init),
     const_cast<wchar_t*>(runtime_class_name_of<Obj>::value)};
 
@@ -138,7 +130,7 @@ inline constinit activation_slot ActivationFactory<Obj>::slot_{
 // why it matters: a slot that is not constant-initialized becomes a startup
 // function and a .CRT$XCU entry per class instead of ready bytes in .data.
 template <typename Obj, typename Factory>
-class ComposableFactory {
+class composable_activator {
 public:
     // Not noexcept, for the same reason as above.
     static void activate(::IInspectable** result) {
@@ -148,13 +140,13 @@ public:
 private:
     // Out of class, because the initializer names the object itself, and
     // constinit there because the slot must be ready bytes, never startup code.
-    static composition_slot slot_;
+    static composable_slot slot_;
 };
 
 template <typename Obj, typename Factory>
-inline constinit composition_slot ComposableFactory<Obj, Factory>::slot_{
-    {&ComposableFactory<Obj, Factory>::slot_,
-     reinterpret_cast<activation_slot::activate_fn>(&composition_slot::init),
+inline constinit composable_slot composable_activator<Obj, Factory>::slot_{
+    {&composable_activator<Obj, Factory>::slot_,
+     reinterpret_cast<activation_slot::activate_fn>(&composable_slot::init),
      const_cast<wchar_t*>(runtime_class_name_of<Obj>::value)},
     const_cast<winrt::guid*>(&winrt::impl::guid_v<Factory>)};
 

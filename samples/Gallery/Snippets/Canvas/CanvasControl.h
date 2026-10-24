@@ -22,7 +22,7 @@ auto topSlider = Slider {
     minimum = 0.0,
     maximum = 100.0,
     stepFrequency = 1.0,
-    onValueChanged = [red](Slider const& self) { Canvas::setTop(red, self.value()); },
+    onValueChanged += [red](Slider const& self) { Canvas::setTop(red, self.value()); },
 };
 
 auto leftSlider = Slider {
@@ -31,7 +31,7 @@ auto leftSlider = Slider {
     minimum = 0.0,
     maximum = 100.0,
     stepFrequency = 1.0,
-    onValueChanged = [red](Slider const& self) { Canvas::setLeft(red, self.value()); },
+    onValueChanged += [red](Slider const& self) { Canvas::setLeft(red, self.value()); },
 };
 
 auto zSlider = Slider {
@@ -40,5 +40,5 @@ auto zSlider = Slider {
     minimum = 0.0,
     maximum = 4.0,
     stepFrequency = 1.0,
-    onValueChanged = [red](Slider const& self) { Canvas::setZIndex(red, static_cast<int>(self.value())); },
+    onValueChanged += [red](Slider const& self) { Canvas::setZIndex(red, static_cast<int>(self.value())); },
 };

@@ -79,7 +79,7 @@ void write_umbrella_file(std::filesystem::path const& path, std::vector<std::str
 // dependency order. Every item carries its TypeDef as `type`; `edges(item,
 // follow)` calls `follow` with each TypeDef the item depends on, and one that
 // is not among `items` is ignored. Depth-first; a cycle -- which neither kind
-// of edge should have -- is cut where it is met instead of recursing forever.
+// of edge should have -- is broken where it is met instead of recursing forever.
 template <typename Item, typename Edges>
 std::vector<Item> topological_sort(std::vector<Item> items, Edges edges) {
     std::map<md::TypeDef, Item const*> by_type;

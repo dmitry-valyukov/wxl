@@ -1,6 +1,6 @@
 // Five hundred numbers; the repeater is given the number of each as its item.
 auto const numbered = [](Object const& item) -> UIElement {
-    int const number = static_cast<int>(intOf(item));
+    int const number = static_cast<int>(unboxValue<int64_t>(item));
     if (number % 2 == 0) {
         return Border {background = brushes.SystemControl.Background.Chrome.Medium,
                        TextBlock {hAlign.center, vAlign.center, gallery::numberText(number)}};
@@ -19,7 +19,7 @@ auto const repeater = ItemsRepeater {Margin {0, 0, 12, 0},
                                      hAlign.stretch,
                                      layout = feed,
                                      itemTemplate = numbered,
-                                     itemsSource = indexList(500)};
+                                     itemsSource = IndexList(500)};
 
 auto example = ScrollViewer {height = 400, Padding {0, 0, 16, 0}, isVerticalScrollChainingEnabled = false, content = repeater};
 
@@ -29,7 +29,7 @@ auto options = StackPanel {
         RadioButton {content = u"Uniform grid"},
         RadioButton {content = u"Custom virtualizing layout"},
         selectedIndex = 1,
-        onSelectionChanged = [repeater, feed, grid](RadioButtons const& self) {
+        onSelectionChanged += [repeater, feed, grid](RadioButtons const& self) {
             if (self.selectedIndex() == 0) {
                 repeater.layout(grid);
             } else if (self.selectedIndex() == 1) {

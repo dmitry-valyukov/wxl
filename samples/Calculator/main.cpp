@@ -27,9 +27,9 @@ namespace {
     // свет ровный, ключевой спадает от проекции лампы к краю.
     consteval Glow glow(Color albedo, double height) {
         return {
-            relief_helper::under(albedo, lamp, 0.0, height),
-            relief_helper::under(albedo, lamp, 0.5 * glowRadius, height),
-            relief_helper::under(albedo, lamp, glowRadius, height),
+            Relief::under(albedo, lamp, 0.0, height),
+            Relief::under(albedo, lamp, 0.5 * glowRadius, height),
+            Relief::under(albedo, lamp, glowRadius, height),
         };
     }
 
@@ -150,12 +150,12 @@ wxl::Teardown wxl_launched() {
             columnDefinitions = u"*,*,*,*",
 
             // Перехват текстового ввода символов
-            onCharacterReceived = [calc](Object const&, CharacterReceivedRoutedEventArgs& args) {
+            onCharacterReceived += [calc](Object const&, CharacterReceivedRoutedEventArgs& args) {
                 args.handled(calc->press(args.character()));
             },
 
             // Перехват системных горячих клавиш до стандартного роутинга диалогов WinUI 3
-            onPreviewKeyDown = [calc](Object const&, KeyRoutedEventArgs& args) {
+            onPreviewKeyDown += [calc](Object const&, KeyRoutedEventArgs& args) {
                 switch (args.key()) {
                     case VirtualKey::Enter:  calc->press(u'='); break;
                     case VirtualKey::Escape: calc->press(u'C'); break;
@@ -164,7 +164,7 @@ wxl::Teardown wxl_launched() {
                 args.handled(true);
             },
 
-            onLoaded = [](Grid const& keypad) { keypad.focus(FocusState::Programmatic); },
+            onLoaded += [](Grid const& keypad) { keypad.focus(FocusState::Programmatic); },
 
             // Табло: вдавлено тем же кантом с цветами в обратном порядке, поверх
             // тёмной обводки самого элемента.
@@ -216,7 +216,7 @@ wxl::Teardown wxl_launched() {
                     hAlign.stretch, vAlign.stretch,
                     row = key.index / 4 + 1,
                     column = key.index % 4,
-                    onClick = [calc, symbol = key.value] { calc->press(symbol); },
+                    onClick += [calc, symbol = key.value] { calc->press(symbol); },
 
                     content = TextBlock {
                         key.text(),

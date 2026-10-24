@@ -6,7 +6,7 @@ struct Model {
     int added = 0;
 
     void fill(std::initializer_list<char16_t const*> names) {
-        for (auto const name : names) list.items().append(stringBox(name));
+        for (auto const name : names) list.items().append(boxValue(name));
     }
 
     // "Some work to show new content": half a second, and an item at the top of the list.
@@ -16,7 +16,7 @@ struct Model {
 
     void done() {
         timer.stop();
-        list.items().insertAt(0, stringBox(u"NewControl"));
+        list.items().insertAt(0, boxValue(u"NewControl"));
         if (pending) {
             pending->complete();
             pending.reset();
@@ -34,7 +34,7 @@ model->fill({u"AcrylicBrush", u"ColorPicker", u"NavigationView", u"ParallaxView"
 auto example = RefreshContainer {
     horizontalAlignment = HorizontalAlignment::Center,
     verticalAlignment = VerticalAlignment::Center,
-    onRefreshRequested = [model](RefreshContainer const&, RefreshRequestedEventArgs& args) {
+    onRefreshRequested += [model](RefreshContainer const&, RefreshRequestedEventArgs& args) {
         model->pending = args.getDeferral();
         model->work();
     },

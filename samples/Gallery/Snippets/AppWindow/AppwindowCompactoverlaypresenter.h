@@ -57,7 +57,7 @@ auto example = StackPanel {
         u"screen space. To ensure a good user experience, the window should have a small yet functional size (e.g., "
         u"for media players or floating tools).",
     },
-    Button {content = u"Show window (Picture-in-Picture mode)", onClick = [model](Button const&) { model->open(); }},
+    Button {content = u"Show window (Picture-in-Picture mode)", onClick += [model](Button const&) { model->open(); }},
 };
 
 auto options = StackPanel {spacing = 8, model->initialSize, model->description};

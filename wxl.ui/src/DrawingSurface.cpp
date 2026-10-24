@@ -1,5 +1,5 @@
 // The four links between an application's Direct2D and the compositor -- WinUI's for every
-// DrawingSurface, and the system's for WindowShade (impl/system_drawing.h).
+// DrawingSurface, and the system's for WindowShade (impl/rendering_device.h).
 //
 // The projection and the Windows headers come first, and with them every
 // standard header they need: wxl's own headers carry the wxl.core import,
@@ -28,11 +28,9 @@
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 #include "impl/composition_interop.h"
-#include "impl/device_limits.h"
-#include "impl/device_loss.h"
-#include "impl/device_replacement.h"
 #include "impl/handler_list.h"
-#include "impl/system_drawing.h"
+#include "impl/rendering_device.h"
+#include "impl/rendering_devices.h"
 
 namespace wxl {
 namespace {
@@ -49,12 +47,12 @@ namespace system_interop = ABI::Windows::UI::Composition;
 /// expensive object in the chain, and nothing about it belongs to a compositor -- several
 /// graphics devices sit on this one happily, of either composition API.
 ///
-/// Every reference here is held raw and on purpose, the way impl::StaticsProxy keeps an
+/// Every reference here is held raw and on purpose, the way impl::activation_factory_proxy keeps an
 /// activation factory: a cppwinrt object in a static would be released at exit, in an order
 /// nothing here controls and possibly after the apartment it belongs to is gone; a raw
 /// pointer that is never released cannot be. A replaced device is released by the
 /// replacement, on the UI thread, while everything is alive.
-struct rendering_device {
+struct watched_device {
     ID2D1Device* d2d = nullptr;
     ID3D11Device4* d3d = nullptr;   // the one that says it was removed
     HANDLE removed = nullptr;       // set by the D3D device when it is removed
@@ -65,14 +63,14 @@ struct rendering_device {
 
 /// What impl::rendering_devices makes and moves: the device above, and graphics devices and
 /// compositors as the raw interfaces they are. A graphics device is leaked deliberately, for the
-/// reason rendering_device gives. A compositor's identity is held while its entry stands -- only
+/// reason watched_device gives. A compositor's identity is held while its entry stands -- only
 /// compared, and held, it cannot be a stale address a later compositor happens to reuse -- and let
 /// go with the entry, when the compositor's last watch comes off and no surface was made on it:
 /// at the moment that watch lets its own reference go. An entry that keeps a graphics device
 /// stands for good, and its identity with it.
 struct device_backend {
     using owner_t = ::IUnknown*;
-    using device_t = rendering_device;
+    using device_t = watched_device;
     using graphics_t = ::IInspectable*;
 
     // The UI thread's queue, taken when the first device is made -- on the UI thread, as
@@ -80,11 +78,11 @@ struct device_backend {
     // only ever read after that first device, so the pool reads it without a lock.
     ::IInspectable* queue = nullptr;
 
-    rendering_device make(std::uint64_t generation);
-    bool lost(rendering_device const& device) noexcept { return device.d3d->GetDeviceRemovedReason() != S_OK; }
-    void unwatch(rendering_device& device) noexcept;
-    void release(rendering_device& device) noexcept;
-    void move(::IInspectable* graphics, impl::composition_api api, rendering_device const& device);
+    watched_device make(std::uint64_t generation);
+    bool lost(watched_device const& device) noexcept { return device.d3d->GetDeviceRemovedReason() != S_OK; }
+    void unwatch(watched_device& device) noexcept;
+    void release(watched_device& device) noexcept;
+    void move(::IInspectable* graphics, impl::composition_api api, watched_device const& device);
     void post() noexcept;
     void keep(::IUnknown* owner) noexcept { owner->AddRef(); }
     void forget(::IUnknown* owner) noexcept { owner->Release(); }
@@ -116,12 +114,12 @@ impl::rendering_devices<device_backend>& devices() {
 }
 
 /// Whether `result` is the answer of a lost device: a code that names one (the list is
-/// impl::device_loss_code) from the device that says it was removed. A code that names one
-/// from a device that is fine stops: taken for a loss, it would skip every drawing for ever,
-/// and no replacement would come to end it.
+/// impl::rendering_device::is_device_loss_code) from the device that says it was removed. A code
+/// that names one from a device that is fine stops: taken for a loss, it would skip every drawing
+/// for ever, and no replacement would come to end it.
 bool confirmed_loss(HRESULT result) noexcept {
-    if (!impl::device_loss_code(result)) return false;
-    rendering_device const* const device = devices().current();
+    if (!impl::rendering_device::is_device_loss_code(result)) return false;
+    watched_device const* const device = devices().current();
     if (device && device->d3d->GetDeviceRemovedReason() != S_OK) return true;
     stop_on("wxl: a drawing call answered that the device is lost, and the device is not",
             static_cast<std::uint32_t>(result));
@@ -143,7 +141,8 @@ void CALLBACK device_removed(void* context, BOOLEAN) noexcept {
     // set here too: an exception out of the handing over -- the projection's TryEnqueue, the
     // delegate it is given -- ends in std::terminate. A thread of the pool is the system's and
     // runs other callbacks after this one, so it gets its own handler back. The handler and
-    // not a catch, as post_completion has: it names a terminate a noexcept call inside raises too.
+    // not a catch, as post_winrt_completion has: it names a terminate a noexcept call inside raises
+    // too.
     const std::terminate_handler previous = core::impl::set_terminate_with_reason();
 
     std::uint64_t const generation = reinterpret_cast<std::uintptr_t>(context);
@@ -207,7 +206,7 @@ winrt::com_ptr<ID3D11Device> new_d3d_device() {
 /// (FrameworkApplication::StartOnCurrentThreadImpl, DCompTreeHost::ReleaseResources in the
 /// sources of WinUI 3) -- and SetRenderingDevice on a graphics device of a closed compositor
 /// fails. The handler does not throw: close() stops on a failure of its own.
-rendering_device device_backend::make(std::uint64_t generation) {
+watched_device device_backend::make(std::uint64_t generation) {
     if (!queue) {
         auto current = dispatching::DispatcherQueue::GetForCurrentThread();
         if (!current) core::abort("wxl: a drawing surface is made off the UI thread");
@@ -245,18 +244,18 @@ rendering_device device_backend::make(std::uint64_t generation) {
         winrt::throw_last_error();
     }
 
-    return rendering_device{d2d.detach(), removable.detach(), removed, cookie, wait,
-                            impl::max_update_side(d3d->GetFeatureLevel())};
+    return watched_device{d2d.detach(), removable.detach(), removed, cookie, wait,
+                          impl::rendering_device::max_update_side(d3d->GetFeatureLevel())};
 }
 
-/// The watch taken back: from a replacement -- the wait fired once (WT_EXECUTEONLYONCE) and its
+/// The watch taken back: from a replacement -- the wait ran once (WT_EXECUTEONLYONCE) and its
 /// callback asked for the turn, or the UI thread found the device lost first -- or from the
 /// close. A callback under way is not waited for: with no completion event UnregisterWaitEx takes
 /// the wait back and returns at once, answering FALSE with ERROR_IO_PENDING when a callback is
 /// still outstanding, queued or running -- which is success here, since the callback touches
 /// nothing freed below (device_removed), and the turn it posts finds its device replaced or the
 /// replacement closed.
-void device_backend::unwatch(rendering_device& device) noexcept {
+void device_backend::unwatch(watched_device& device) noexcept {
     if (!::UnregisterWaitEx(device.wait, nullptr) && ::GetLastError() != ERROR_IO_PENDING) {
         stop_on("wxl: the wait on the rendering device did not come off, Win32 error",
                 ::GetLastError());
@@ -272,10 +271,10 @@ void device_backend::unwatch(rendering_device& device) noexcept {
 
 /// Nothing of wxl's draws through the old device any more; what the owners made from it
 /// holds it until they let go, which is what they are told next.
-void device_backend::release(rendering_device& device) noexcept {
+void device_backend::release(watched_device& device) noexcept {
     device.d3d->Release();
     device.d2d->Release();
-    device = rendering_device{};
+    device = watched_device{};
 }
 
 /// The same call under the IID of the graphics device's own API. A graphics device of a closed
@@ -294,7 +293,7 @@ void set_rendering_device(::IInspectable* graphics, ID2D1Device* d2d) {
 }
 
 void device_backend::move(::IInspectable* graphics, impl::composition_api api,
-                          rendering_device const& device) {
+                          watched_device const& device) {
     if (api == impl::composition_api::winui)
         set_rendering_device<impl::ICompositionGraphicsDeviceInterop>(graphics, device.d2d);
     else
@@ -343,7 +342,7 @@ winrt::com_ptr<::IUnknown> identity_of(Compositor const& compositor) {
 composition::CompositionGraphicsDevice graphics_device(composition::Compositor const& compositor) {
     winrt::com_ptr<::IUnknown> const identity = compositor.as<::IUnknown>();
     ::IInspectable* const made = devices().graphics_of(
-        identity.get(), impl::composition_api::winui, [&](rendering_device const& device) {
+        identity.get(), impl::composition_api::winui, [&](watched_device const& device) {
             auto const interop = compositor.as<impl::ICompositorInterop>();
             winrt::com_ptr<::IInspectable> graphics;
             winrt::check_hresult(interop->CreateGraphicsDevice(device.d2d, graphics.put()));
@@ -538,7 +537,7 @@ std::int32_t VirtualDrawingSurface::maxUpdateSide() const {
 
 bool VirtualDrawingSurface::draw(RectInt32 updatePixels,
                                  std::function<void(ID2D1DeviceContext*)> const& paint) const {
-    // Cut to the boundaries in 64 bits: x + width of two int32_t may not fit in one.
+    // Clamped to the boundaries in 64 bits: x + width of two int32_t may not fit in one.
     SizeInt32 const pixels = size();
     std::int64_t const left = std::max<std::int64_t>(updatePixels.x, 0);
     std::int64_t const top = std::max<std::int64_t>(updatePixels.y, 0);
@@ -551,7 +550,7 @@ bool VirtualDrawingSurface::draw(RectInt32 updatePixels,
     // Before the limit: a replacement graphics_of ran has the new device's limit in place
     // already, and an owner not told yet draws its parts by the old one -- a part it may no
     // longer draw at once, which is not its mistake. Skipped, as draw_on would skip it; the
-    // owner cuts its parts again from its call.
+    // owner splits its parts again from its call.
     if (!devices().holders_told()) return false;
 
     std::int32_t const most = maxUpdateSide();
@@ -602,13 +601,13 @@ EventToken rendering_device_replaced::add(Compositor const& compositor, EventHan
         .add(next_event_token(), std::move(handler));
 }
 
-bool rendering_device_replaced::remove(Compositor const& compositor, EventToken token) {
+bool rendering_device_replaced::remove(Compositor const& compositor, EventToken& token) {
     return devices().remove(identity_of(compositor).get(), token);
 }
 
-::IInspectable* system_graphics_device(system_compositor compositor) {
+::IInspectable* rendering_device::system_graphics_device(system_compositor compositor) {
     return devices().graphics_of(compositor.identity, composition_api::system,
-                                 [&](rendering_device const& device) {
+                                 [&](watched_device const& device) {
                                      winrt::com_ptr<system_interop::ICompositorInterop> interop;
                                      winrt::check_hresult(compositor.identity->QueryInterface(
                                          winrt::guid_of<system_interop::ICompositorInterop>(),
@@ -620,7 +619,8 @@ bool rendering_device_replaced::remove(Compositor const& compositor, EventToken 
                                  });
 }
 
-bool draw_system_surface(::IUnknown* surface, std::function<void(ID2D1DeviceContext*)> const& paint) {
+bool rendering_device::draw_system_surface(::IUnknown* surface,
+                                           std::function<void(ID2D1DeviceContext*)> const& paint) {
     if (!paint) return false;
 
     winrt::com_ptr<system_interop::ICompositionDrawingSurfaceInterop> interop;
@@ -635,23 +635,23 @@ EventToken system_rendering_device_replaced::add(system_compositor compositor, E
         .add(next_event_token(), std::move(handler));
 }
 
-bool system_rendering_device_replaced::remove(system_compositor compositor, EventToken token) {
+bool system_rendering_device_replaced::remove(system_compositor compositor, EventToken& token) {
     return devices().remove(compositor.identity, token);
 }
 
-std::uint64_t rendering_device_replacements() noexcept {
+std::uint64_t rendering_device::replacements() noexcept {
     return devices().replacements();
 }
 
-void ensure_rendering_device() {
+void rendering_device::ensure() {
     static_cast<void>(devices().device());
 }
 
-void signal_rendering_device_removed() {
+void rendering_device::signal_removed() {
     // The event the D3D device sets when it is removed is ours, made in device_backend::make:
     // setting it is what the device does, and the wait cannot tell the two apart. Once the
     // queue has begun to shut down there is no event: nothing is replaced any more.
-    rendering_device const* const device = devices().current();
+    watched_device const* const device = devices().current();
     if (!device) core::abort("wxl: no rendering device to lose -- no drawing surface yet");
     if (devices().closed()) return;
     if (!::SetEvent(device->removed)) winrt::throw_last_error();

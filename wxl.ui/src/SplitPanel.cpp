@@ -25,14 +25,14 @@ namespace {
 // Объект WinUI панели. Детей у него три: две части и разделитель -- последним,
 // чтобы лежать поверх частей. Состояние перетаскивания живёт здесь же: обёртка
 // wxl своего ничего не несёт.
-struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
-    SplitPanelObject() {
+struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
+    SplitPanelCore() {
         grip_.Fill(xaml::Media::SolidColorBrush {winrt::Windows::UI::Color {0, 0, 0, 0}});
         showCursor();
-        grip_.PointerPressed({this, &SplitPanelObject::pressed});
-        grip_.PointerMoved({this, &SplitPanelObject::moved});
-        grip_.PointerReleased({this, &SplitPanelObject::released});
-        grip_.PointerCaptureLost({this, &SplitPanelObject::lost});
+        grip_.PointerPressed({this, &SplitPanelCore::pressed});
+        grip_.PointerMoved({this, &SplitPanelCore::moved});
+        grip_.PointerReleased({this, &SplitPanelCore::released});
+        grip_.PointerCaptureLost({this, &SplitPanelCore::lost});
         Children().Append(grip_);
     }
 
@@ -186,24 +186,24 @@ struct SplitPanelObject : xaml::Controls::PanelT<SplitPanelObject> {
 
 class SplitPanel::Impl : public base_t::Impl {
 public:
-    explicit Impl(winrt::com_ptr<SplitPanelObject> const& object)
+    explicit Impl(winrt::com_ptr<SplitPanelCore> const& object)
         : base_t::Impl(object.as<xaml::Controls::Panel>()), object_(object.get()) {}
 
     // Реализация объекта обёртки.
-    static SplitPanelObject& of(Object::Impl* impl) { return *static_cast<Impl*>(impl)->object_; }
+    static SplitPanelCore& of(Object::Impl* impl) { return *static_cast<Impl*>(impl)->object_; }
 
 private:
     // Сам объект держит inspectable_ базы; здесь -- его реализация, до
     // которой из проекции не дотянуться.
-    SplitPanelObject* object_;
+    SplitPanelCore* object_;
 };
 
-SplitPanel::SplitPanel() : base_t(new Impl {winrt::make_self<SplitPanelObject>()}) {}
+SplitPanel::SplitPanel() : base_t(new Impl {winrt::make_self<SplitPanelCore>()}) {}
 
 SplitPanel::SplitPanel(Impl* impl) noexcept : base_t(impl) {}
 
 void SplitPanel::pane(UIElement const& value) const {
-    SplitPanelObject& object = Impl::of(impl());
+    SplitPanelCore& object = Impl::of(impl());
     object.place(object.pane_, value ? static_cast<xaml::UIElement const&>(*Object::Impl::get_typed<UIElement>(value))
                                      : xaml::UIElement {nullptr});
     object.InvalidateMeasure();
@@ -214,7 +214,7 @@ UIElement SplitPanel::pane() const {
 }
 
 void SplitPanel::content(UIElement const& value) const {
-    SplitPanelObject& object = Impl::of(impl());
+    SplitPanelCore& object = Impl::of(impl());
     object.place(object.content_, value ? static_cast<xaml::UIElement const&>(*Object::Impl::get_typed<UIElement>(value))
                                         : xaml::UIElement {nullptr});
     object.InvalidateMeasure();
@@ -225,7 +225,7 @@ UIElement SplitPanel::content() const {
 }
 
 void SplitPanel::openPaneLength(double value) const {
-    SplitPanelObject& object = Impl::of(impl());
+    SplitPanelCore& object = Impl::of(impl());
     object.length_ = static_cast<float>(value);
     object.InvalidateMeasure();
 }
@@ -235,7 +235,7 @@ double SplitPanel::openPaneLength() const {
 }
 
 void SplitPanel::orientation(Orientation value) const {
-    SplitPanelObject& object = Impl::of(impl());
+    SplitPanelCore& object = Impl::of(impl());
     object.vertical_ = value == Orientation::Vertical;
     object.showCursor();
     object.InvalidateMeasure();
@@ -246,7 +246,7 @@ Orientation SplitPanel::orientation() const {
 }
 
 void SplitPanel::panePlacement(SplitViewPanePlacement value) const {
-    SplitPanelObject& object = Impl::of(impl());
+    SplitPanelCore& object = Impl::of(impl());
     object.trailing_ = value == SplitViewPanePlacement::Right;
     object.InvalidateArrange();
 }
@@ -256,7 +256,7 @@ SplitViewPanePlacement SplitPanel::panePlacement() const {
 }
 
 void SplitPanel::spacing(double value) const {
-    SplitPanelObject& object = Impl::of(impl());
+    SplitPanelCore& object = Impl::of(impl());
     object.spacing_ = static_cast<float>(value);
     object.InvalidateMeasure();
 }

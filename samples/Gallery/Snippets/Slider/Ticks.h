@@ -5,7 +5,7 @@ auto slider = Slider {
     automationName = u"Example with ticks",
     tickFrequency = 20.0,
     tickPlacement = TickPlacement::Outside,
-    onValueChanged = [output](Slider const& self) {
+    onValueChanged += [output](Slider const& self) {
         output.text(core::to_u16(self.value(), std::chars_format::fixed, 0));
     },
 };
@@ -15,7 +15,7 @@ auto snaps = RadioButtons {
     RadioButton {content = u"StepValues"},
     RadioButton {content = u"Ticks"},
     selectedIndex = 0,
-    onSelectionChanged = [slider](RadioButtons const& self) {
+    onSelectionChanged += [slider](RadioButtons const& self) {
         slider.snapsTo(self.selectedIndex() == 0 ? SliderSnapsTo::StepValues : SliderSnapsTo::Ticks);
     },
 };

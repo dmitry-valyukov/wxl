@@ -1,6 +1,6 @@
 #pragma once
 
-// The construction-time DSL: what `content = L"Click"` and `onClick = ...`
+// The construction-time DSL: what `content = L"Click"` and `onClick += ...`
 // actually are, and how a constructor applies them.
 //
 // Construction is the only mechanism -- there is no ambient "current
@@ -14,7 +14,7 @@
 //
 // Nothing here names a property or an event: the vocabulary lives in the
 // generated Members.h. It specialises impl::enum_values below once per
-// enumeration a property has, PropertySetter / EventAdder once per key, and
+// enumeration a property has, property_setter / event_adder once per key, and
 // in namespace dsl it declares one tag per property, then the attached
 // properties -- written on the child, applied by the parent's statics,
 // `Button { row = 1, column = 2 }` inside a Grid -- then the collection tags,
@@ -24,11 +24,14 @@
 #include "../Color.h"
 #include "../Object.h"
 #include "../TaggedValue.h"
-#include "../event_token.h"
+#include "../EventToken.h"
+#include "member_function_traits.h"
 #include <wxl/EventKey.h>
 #include <wxl/PropertyKey.h>
 
 namespace wxl {
+
+class Brush;
 
 namespace impl {
 
@@ -40,11 +43,9 @@ namespace impl {
 // only thing it can be decomposed into is the handler type, which carries
 // the args as a member alias of its own.
 template <typename Member>
-struct event_args_of;
-
-template <typename Obj, typename Handler>
-struct event_args_of<EventToken (Obj::*)(Handler const&) const> {
-    using type = typename Handler::args_t;
+struct event_args_of {
+    using type = typename std::remove_cvref_t<
+        typename member_function_traits<Member>::template parameter_t<0>>::args_t;
 };
 
 // And the same for an event that belongs to the type rather than to an
@@ -61,7 +62,7 @@ using event_args_of_t = typename event_args_of<Member>::type;
 // Both take the object as a template parameter, so one specialisation
 // serves every class declaring that member -- there is no per-class code.
 template <PropertyKey key>
-struct PropertySetter;
+struct property_setter;
 
 // A property the control writes itself, paired with the event that says so.
 // Specialised in impl/binding.h per (property, control) with a static
@@ -71,16 +72,16 @@ struct PropertySetter;
 // has no such pair, finds no bind() here and is refused by bind_property
 // below, which says what to write instead.
 template <PropertyKey key, typename Obj>
-struct PropertyBinder {};
+struct property_binder {};
 
 template <EventKey key>
-struct EventAdder;
+struct event_adder;
 
 // Specialised for each collection-valued property. It takes the whole run of
 // items, not one at a time, so the specialisation is free to fill the
 // collection in a single call rather than appending in a loop.
 template <PropertyKey key>
-struct CollectionSetter;
+struct collection_setter;
 
 // The class a member was named through, checked against the object it is
 // being written on.
@@ -104,24 +105,14 @@ constexpr void check_owner() {
 
 // A binding written on the right of the `=`: `text = Bind{field}`, or
 // `BindInput{field}` / `BindOutput{field}` for one half of it. Defined in
-// Bind.h; named here so that SetterOp can tell one from a value.
-namespace impl {
-
-// What a binding does to a value on its way when no function was written.
-struct identity_fn {
-    template <typename V>
-    constexpr V const& operator()(V const& value) const noexcept {
-        return value;
-    }
-};
-
-}  // namespace impl
-
-template <class T, class Fn = impl::identity_fn>
+// Bind.h; named here so that setter_op can tell one from a value. A binding
+// written without a function has std::identity for it, and its type is what
+// says that no function was written.
+template <class T, class Fn = std::identity>
 struct Bind;
-template <class T, class Fn = impl::identity_fn>
+template <class T, class Fn = std::identity>
 struct BindInput;
-template <class T, class Fn = impl::identity_fn>
+template <class T, class Fn = std::identity>
 struct BindOutput;
 
 namespace impl {
@@ -157,7 +148,7 @@ concept two_way_pair = Pair::direction == bind_direction::both;
 // lives in the named field's watch, and goes with it.
 template <class T, class Fn, class Bind>
 void bind_transformed_input(core::observable<T>& model, Fn const& fn, Bind&& bind) {
-    auto const own = std::make_shared<core::observable<T>>();
+    auto const own = core::make_refcounted<core::observable<T>>();
     bind(*own);
     model.set(T(fn(own->get())));
     own->on_change([&model, fn](T const& value) noexcept { model.set(T(fn(value))); });
@@ -174,7 +165,7 @@ void bind_mirrored(core::observable<T>& model, Fn const& fn, Bind&& bind) {
     static_assert(std::is_convertible_v<std::invoke_result_t<Fn const&, T const&>, T>,
                   "wxl: the function of a binding returns the field's own type, and is its own "
                   "inverse. For a one-way view of another type write BindOutput{field, fn}.");
-    auto const mirror = std::make_shared<core::observable<T>>(T(fn(model.get())));
+    auto const mirror = core::make_refcounted<core::observable<T>>(T(fn(model.get())));
     bind(*mirror);
     mirror->on_change([&model, fn](T const& value) noexcept { model.set(T(fn(value))); });
     model.watch_for_binding([mirror, fn](T const& value) noexcept { mirror->set(T(fn(value))); });
@@ -183,7 +174,7 @@ void bind_mirrored(core::observable<T>& model, Fn const& fn, Bind&& bind) {
 // `property = Bind{field}`: the field's value now, and every value after.
 //
 // Each form has one shape and no fallback. Bind takes a pair that runs both
-// ways (see PropertyBinder). BindInput takes a pair, both ways or input alone.
+// ways (see property_binder). BindInput takes a pair, both ways or input alone.
 // BindOutput takes the setter the generator emits, called once here and again
 // from a watch the field keeps, pair or no pair: the watch owns the control,
 // as it must to write to it; the control holds nothing back, so the ownership
@@ -195,12 +186,12 @@ void bind_mirrored(core::observable<T>& model, Fn const& fn, Bind&& bind) {
 // only reports takes BindInput.
 template <PropertyKey key, bind_direction direction, typename Obj, typename T, typename Fn>
 void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) {
-    using Pair = PropertyBinder<key, Obj>;
-    constexpr bool plain = std::is_same_v<Fn, identity_fn>;
+    using Pair = property_binder<key, Obj>;
+    constexpr bool plain = std::is_same_v<Fn, std::identity>;
     constexpr bool paired = requires { Pair::bind(object, model, direction); };
 
     if constexpr (direction == bind_direction::output) {
-        constexpr bool settable = requires { PropertySetter<key>::set(object, fn(model.get())); };
+        constexpr bool settable = requires { property_setter<key>::set(object, fn(model.get())); };
         static_assert(settable || !two_way_pair<Pair>,
                       "wxl: BindOutput{} names a property the control takes only through its "
                       "pair, which answers back: the field says what the control did with the "
@@ -208,9 +199,10 @@ void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) 
         static_assert(settable || two_way_pair<Pair>,
                       "wxl: BindOutput{} names a property this control only reports and never "
                       "shows, so there is nothing to write to. It takes BindInput{}.");
-        PropertySetter<key>::set(object, fn(model.get()));
-        model.watch_for_binding(
-            [object, fn](T const& value) noexcept { PropertySetter<key>::set(object, fn(value)); });
+        property_setter<key>::set(object, fn(model.get()));
+        model.watch_for_binding([object, fn](T const& value) noexcept {
+            property_setter<key>::set(object, fn(value));
+        });
     } else if constexpr (!paired) {
         static_assert(direction != bind_direction::input,
                       "wxl: BindInput{} names a property this control never writes itself, so "
@@ -245,8 +237,6 @@ inline constexpr bool is_list_binding = false;
 template <typename T, typename Fn>
 inline constexpr bool is_list_binding<BindOutput<core::observable_list<T const>, Fn>> = true;
 
-}  // namespace impl
-
 // A pending assignment: the value, plus the key saying where it goes. The
 // object it goes to is not known yet -- it is whatever the constructor
 // applies the pack to.
@@ -254,63 +244,81 @@ inline constexpr bool is_list_binding<BindOutput<core::observable_list<T const>,
 // The value may be a Bind, and then the assignment is a binding: the property
 // follows the field from here on rather than taking one value now.
 template <PropertyKey key, typename T, typename Owner = void>
-struct SetterOp {
+struct setter_op {
     T value_;
 
     template <typename Obj>
     void operator()(Obj const& object) const {
-        impl::check_owner<Owner, Obj>();
-        if constexpr (impl::is_list_binding<T>) {
+        check_owner<Owner, Obj>();
+        if constexpr (is_list_binding<T>) {
             static_assert(key == PropertyKey::ItemsSource,
                           "wxl: a list is bound as the items of a list control: itemsSource = BindOutput{list, fn}.");
             value_(object);
-        } else if constexpr (impl::is_bind<T>) {
-            impl::bind_property<key, T::direction>(object, *value_.model, value_.fn);
+        } else if constexpr (is_bind<T>) {
+            bind_property<key, T::direction>(object, *value_.model, value_.fn);
         } else {
-            impl::PropertySetter<key>::set(object, value_);
+            property_setter<key>::set(object, value_);
         }
     }
 };
 
-// A pending subscription. Returns the token, so the same op serves the
-// procedural form (`element[onClick] += handler`) where the caller wants it.
+// A pending subscription, `onClick += handler`. It returns the token, and the
+// braces and Apply drop it: a subscription written there lives as long as the
+// object. The token is kept by writing where it goes -- `onClick[token] +=
+// handler` (add_event_op_into below), in the braces or in Apply alike.
 template <EventKey key, typename Fn, typename Owner = void>
-struct AddEventOp {
+struct add_event_op {
     Fn handler_;
 
     template <typename Obj>
     EventToken operator()(Obj const& object) const {
-        impl::check_owner<Owner, Obj>();
-        return impl::EventAdder<key>::add(object, handler_);
+        check_owner<Owner, Obj>();
+        return event_adder<key>::add(object, handler_);
     }
 };
 
-template <EventKey key, typename Owner = void>
-struct RemoveEventOp {
-    EventToken token_;
+// The same subscription with its token written into the caller's variable,
+// `onClick[token] += handler`, so that `Apply {button, onClick -= token}` can
+// take it back later. It points at the token, which is why a Preset and a
+// Template refuse it (borrows_token below): a description applied many times
+// and later would overwrite the token or write it through a pointer left
+// dangling.
+template <EventKey key, typename Fn, typename Owner = void>
+struct add_event_op_into {
+    add_event_op<key, Fn, Owner> add_;
+    EventToken* token_;
 
     template <typename Obj>
     void operator()(Obj const& object) const {
-        impl::check_owner<Owner, Obj>();
-        impl::checked_remove([&] { return impl::EventAdder<key>::remove(object, token_); });
+        *token_ = add_(object);
     }
 };
 
-// The shorthand form `onClick = {content = L"Thank You!"}`: a handler whose
-// whole body is assignments back to the object the event was attached to.
-template <EventKey key, typename Setter, typename Owner = void>
-struct SettersEventOp {
-    Setter setter_;
+// A pending removal, `onClick -= token`: the caller's token, emptied once the handler is off. It
+// points at the token, as add_event_op_into does, and a Preset and a Template refuse it for the
+// same reason (borrows_token below).
+template <EventKey key, typename Owner = void>
+struct remove_event_op {
+    EventToken* token_;
 
     template <typename Obj>
-    EventToken operator()(Obj const& object) const {
-        impl::check_owner<Owner, Obj>();
-        return impl::EventAdder<key>::add(
-            object, [object, setter = setter_](Object const&, auto&) { setter(object); });
+    void operator()(Obj const& object) const {
+        check_owner<Owner, Obj>();
+        checked_remove([&] { return event_adder<key>::remove(object, *token_); });
     }
 };
 
-namespace impl {
+// What `onClick[token]` makes: the place the token goes, waiting for the
+// handler that `+=` gives it.
+template <EventKey key, typename Owner = void>
+struct token_slot {
+    EventToken* token_;
+
+    template <typename Fn>
+    constexpr add_event_op_into<key, std::decay_t<Fn>, Owner> operator+=(Fn&& handler) const {
+        return {{std::forward<Fn>(handler)}, token_};
+    }
+};
 
 // The generic half of a property tag: assignment from anything the
 // property's setter accepts, with the value's type deduced.
@@ -319,9 +327,9 @@ namespace impl {
 // nothing else, so a preset written out of these is a constant the compiler
 // lays out, at namespace scope included.
 template <PropertyKey key, typename Owner = void>
-struct PropertyTag {
+struct deduced_property_tag {
     template <typename T>
-    constexpr SetterOp<key, std::decay_t<T>, Owner> operator=(T&& value) const {
+    constexpr setter_op<key, std::decay_t<T>, Owner> operator=(T&& value) const {
         return {std::forward<T>(value)};
     }
 };
@@ -329,12 +337,10 @@ struct PropertyTag {
 // The values of an enumeration as the syntax spells them: `orientation.horizontal`
 // instead of `orientation = Orientation::Horizontal`. Empty for every type the
 // generated Members.h does not specialise; a specialisation names each value once
-// and has to be visible before the first Property over that enumeration is
+// and has to be visible before the first property_tag over that enumeration is
 // instantiated.
 template <typename E>
 struct enum_values {};
-
-}  // namespace impl
 
 // A property tag -- the object the DSL writes on the left of the `=`.
 //
@@ -351,20 +357,18 @@ struct enum_values {};
 // vocabulary of namespace `dsl`; see impl::check_owner above. It is the last
 // parameter because almost nothing writes it: only the generated schema does.
 template <PropertyKey key, typename Value = void, typename Owner = void>
-struct Property : impl::PropertyTag<key, Owner>, impl::enum_values<Value> {
-    using impl::PropertyTag<key, Owner>::operator=;
+struct property_tag : deduced_property_tag<key, Owner>, enum_values<Value> {
+    using deduced_property_tag<key, Owner>::operator=;
 
-    constexpr SetterOp<key, Value, Owner> operator=(Value value) const { return {std::move(value)}; }
+    constexpr setter_op<key, Value, Owner> operator=(Value value) const {
+        return {std::move(value)};
+    }
 };
 
 template <PropertyKey key, typename Owner>
-struct Property<key, void, Owner> : impl::PropertyTag<key, Owner> {
-    using impl::PropertyTag<key, Owner>::operator=;
+struct property_tag<key, void, Owner> : deduced_property_tag<key, Owner> {
+    using deduced_property_tag<key, Owner>::operator=;
 };
-
-class Brush;
-
-namespace impl {
 
 // A solid brush written as its colour. It is still a Color, so a setter that
 // takes a colour itself -- CompositionWindow's background -- gets the colour.
@@ -372,47 +376,41 @@ struct solid_color_brush : Color {
     operator Brush() const;
 };
 
-}  // namespace impl
-
 // A property that takes a brush takes a colour as well, as CSS does:
 // `background = rgb(16, 18, 21)` is a solid brush of that colour. Only the
 // syntax says so -- Color itself converts to nothing.
 template <PropertyKey key, typename Owner>
-struct Property<key, Brush, Owner> : impl::PropertyTag<key, Owner> {
-    using impl::PropertyTag<key, Owner>::operator=;
+struct property_tag<key, Brush, Owner> : deduced_property_tag<key, Owner> {
+    using deduced_property_tag<key, Owner>::operator=;
 
-    constexpr SetterOp<key, Brush, Owner> operator=(Brush value) const { return {std::move(value)}; }
+    constexpr setter_op<key, Brush, Owner> operator=(Brush value) const {
+        return {std::move(value)};
+    }
 
-    constexpr SetterOp<key, impl::solid_color_brush, Owner> operator=(Color color) const {
+    constexpr setter_op<key, solid_color_brush, Owner> operator=(Color color) const {
         return {{color}};
     }
 };
 
 // An event tag, written `on` + the metadata name -- onClick, onPointerPressed
 // -- so that an event is visibly not a property inside the same braces.
+//
+// A subscription is `+=`, as an event of C# is, and never `=`: the same event
+// takes several handlers in a row, and an assignment would say that each one
+// replaces the one before.
 template <EventKey key, typename Owner = void>
-struct Event {
+struct event_tag {
     // An ordinary callable: (Object const& sender, Args& args).
     template <typename Fn>
-    constexpr AddEventOp<key, std::decay_t<Fn>, Owner> operator=(Fn&& handler) const {
+    constexpr add_event_op<key, std::decay_t<Fn>, Owner> operator+=(Fn&& handler) const {
         return {std::forward<Fn>(handler)};
     }
 
-    // The braced shorthand. std::initializer_list is what gives a braced
-    // list a type at all here; it deduces from the elements, so the list has
-    // to be homogeneous -- one setter today.
-    template <PropertyKey k, typename T, typename O>
-    constexpr SettersEventOp<key, SetterOp<k, T, O>, Owner> operator=(
-        std::initializer_list<SetterOp<k, T, O>> setters) const {
-        return {*setters.begin()};
-    }
+    // `onClick[token] += handler`: the subscription that keeps its token.
+    constexpr token_slot<key, Owner> operator[](EventToken& token) const { return {&token}; }
 
-    template <typename Fn>
-    constexpr AddEventOp<key, std::decay_t<Fn>, Owner> operator+=(Fn&& handler) const {
-        return {std::forward<Fn>(handler)};
-    }
-
-    constexpr RemoveEventOp<key, Owner> operator-=(EventToken token) const { return {token}; }
+    // `Apply {button, onClick -= token}`: the subscription taken back, and the token emptied.
+    constexpr remove_event_op<key, Owner> operator-=(EventToken& token) const { return {&token}; }
 
     // Awaited rather than handled: `co_await onClick(button)` is the same
     // subscription on_event<key>(button) makes, reached through the tag the
@@ -423,13 +421,15 @@ struct Event {
     auto operator()(Obj const& source) const;
 
     // The same wait under a cancellation token, given last: `co_await
-    // onClick(button, stop)`. The token's type is wxl.async's, which this
+    // onClick(button, token)`. The token's type is wxl.async's, which this
     // header does not import; the definition beside the other says which one
     // it takes.
-    template <typename Obj, typename Stop>
+    template <typename Obj, typename Token>
         requires std::derived_from<Obj, Object>
-    auto operator()(Obj const& source, Stop stop) const;
+    auto operator()(Obj const& source, Token token) const;
 };
+
+}  // namespace impl
 
 // A repeated child: `[](repeat<20> i) { return Button { ... }; }` inside a
 // parent's braces builds twenty of them.
@@ -607,22 +607,18 @@ struct iteration<iterate<Parts...>> {
     static constexpr step_t at(int index) noexcept { return {index, step_t::elements[index]}; }
 };
 
+// The iteration a body names by its one parameter. Empty for any other
+// callable, for the same reason as the primary above.
 template <typename F>
-struct iteration_of {};
-
-template <typename R, typename C, typename A>
-struct iteration_of<R (C::*)(A) const> : iteration<std::decay_t<A>> {};
-
-template <typename R, typename C, typename A>
-struct iteration_of<R (C::*)(A)> : iteration<std::decay_t<A>> {};
+struct iteration_over {};
 
 template <typename F>
-using iteration_over = iteration_of<decltype(&std::decay_t<F>::operator())>;
+    requires(call_operator_traits<F>::arity == 1)
+struct iteration_over<F>
+    : iteration<std::decay_t<typename call_operator_traits<F>::template parameter_t<0>>> {};
 
 template <typename F>
 concept iterating = requires { iteration_over<F>::count; };
-
-}  // namespace impl
 
 // The contents of a collection-valued property, pending like every other
 // argument: `children[first, second, third]`.
@@ -639,19 +635,17 @@ concept iterating = requires { iteration_over<F>::count; };
 // `Owner` sits before the pack because a pack has to come last; everywhere
 // else it is the trailing parameter. See impl::check_owner.
 template <PropertyKey key, typename Owner, typename... Items>
-struct CollectionArg {
+struct collection_arg {
     std::tuple<Items const&...> items_;
 
     template <typename Obj>
     void operator()(Obj const& object) const {
-        impl::check_owner<Owner, Obj>();
+        check_owner<Owner, Obj>();
         std::apply([&object](Items const&... items) {
-            impl::CollectionSetter<key>::set(object, items...);
+            collection_setter<key>::set(object, items...);
         }, items_);
     }
 };
-
-namespace impl {
 
 // Whether an argument merely borrows what it will apply. A collection list
 // refers to the items written inside it, which is right inside a
@@ -661,17 +655,30 @@ template <typename Arg>
 inline constexpr bool borrows_items = false;
 
 template <PropertyKey key, typename Owner, typename... Items>
-inline constexpr bool borrows_items<CollectionArg<key, Owner, Items...>> = true;
+inline constexpr bool borrows_items<collection_arg<key, Owner, Items...>> = true;
 
-}  // namespace impl
+// Whether an argument works on a token of the caller's: the subscription that
+// writes its token into a variable, and the unsubscription that takes one. Both
+// are right once, on one object -- in its braces or in Apply -- and wrong in a
+// description applied many times and later, where the token would be
+// overwritten or written through a dangling pointer, and the unsubscription
+// would reach an object that never had that token.
+template <typename Arg>
+inline constexpr bool borrows_token = false;
+
+template <EventKey key, typename Fn, typename Owner>
+inline constexpr bool borrows_token<add_event_op_into<key, Fn, Owner>> = true;
+
+template <EventKey key, typename Owner>
+inline constexpr bool borrows_token<remove_event_op<key, Owner>> = true;
 
 // The tag a collection-valued property is written as. Unlike a property tag
 // it is subscripted rather than assigned to, which is what makes the
 // contents of a collection read as a list in the source.
 template <PropertyKey key, typename Owner = void>
-struct CollectionProperty {
+struct collection_tag {
     template <typename... Items>
-    CollectionArg<key, Owner, Items...> operator[](Items const&... items) const {
+    collection_arg<key, Owner, Items...> operator[](Items const&... items) const {
         return {std::tie(items...)};
     }
 };
@@ -681,11 +688,9 @@ struct CollectionProperty {
 // comes from one base and the assignment from the other; the using-declaration
 // keeps the assignment reachable past this type's own copy assignment.
 template <PropertyKey key, typename Value, typename Owner = void>
-struct AssignableCollectionProperty : CollectionProperty<key, Owner>, Property<key, Value, Owner> {
-    using Property<key, Value, Owner>::operator=;
+struct assignable_collection_tag : collection_tag<key, Owner>, property_tag<key, Value, Owner> {
+    using property_tag<key, Value, Owner>::operator=;
 };
-
-namespace impl {
 
 // What it means for one argument to be a constructor argument at all:
 // either it is one of the ops above, which knows itself what to do with the
@@ -703,7 +708,7 @@ concept applicable_to =
     // A tagged value names its own property, so the route is the key it
     // carries and no class declares anything for it.
     || (tagged<Arg> && requires(Obj const& object, Arg&& argument) {
-           PropertySetter<std::remove_cvref_t<Arg>::tag>::set(object, argument);
+           property_setter<std::remove_cvref_t<Arg>::tag>::set(object, argument);
        })
     || requires(Obj const& object, Arg&& argument) {
            object.setPositional(std::forward<Arg>(argument));
@@ -756,7 +761,7 @@ void apply_argument(Obj const& object, Arg&& argument) {
     if constexpr (requires { argument(object); }) {
         argument(object);
     } else if constexpr (tagged<Arg>) {
-        PropertySetter<std::remove_cvref_t<Arg>::tag>::set(object, argument);
+        property_setter<std::remove_cvref_t<Arg>::tag>::set(object, argument);
     } else if constexpr (iterating<Arg>) {
         // A fold over the steps rather than a loop: how many, and what each
         // one is, both come from the parameter's type, so every step is a
@@ -794,8 +799,6 @@ struct braced : T {
     braced(Setters&&... setters) : T{std::forward<Setters>(setters)...} {}
 };
 
-}  // namespace impl
-
 // A property tag whose value is a class it can also build from braces:
 //
 //     Window { titleBar = { leftHeader = back, content = path } }
@@ -806,13 +809,15 @@ struct braced : T {
 // wxl.gen.common/profile.h). A built object, or anything that converts to one, still
 // goes through the deduced assignment every tag has.
 template <PropertyKey key, typename Value, typename Owner = void>
-struct BracedProperty : impl::PropertyTag<key, Owner> {
-    using impl::PropertyTag<key, Owner>::operator=;
+struct braced_property_tag : deduced_property_tag<key, Owner> {
+    using deduced_property_tag<key, Owner>::operator=;
 
-    SetterOp<key, impl::braced<Value>, Owner> operator=(impl::braced<Value> value) const {
+    setter_op<key, braced<Value>, Owner> operator=(braced<Value> value) const {
         return {std::move(value)};
     }
 };
+
+}  // namespace impl
 
 // A preset: the constructor arguments themselves, kept in a variable and worn
 // by as many objects as you like.
@@ -872,6 +877,11 @@ public:
                       "live only as long as the expression that built them -- a preset outlives "
                       "it. Write the items as unnamed children, or keep the list in the braces "
                       "of the object that gets it.");
+        static_assert(!(impl::borrows_token<Setters> || ...),
+                      "wxl: `onClick[token] += handler` and `onClick -= token` work on one token "
+                      "of one object, and a preset is applied many times and later. Subscribe "
+                      "with `onClick += handler` here, or take the token in the braces of the "
+                      "object itself or in Apply.");
     }
 
     // Dressing an object: the arguments, applied to one that already exists.
@@ -940,6 +950,11 @@ public:
                       "live only as long as the expression that built them -- a template "
                       "outlives it. Write the items as unnamed children, or keep the list in "
                       "the braces of the object that gets it.");
+        static_assert(!(impl::borrows_token<std::decay_t<Setters>> || ...),
+                      "wxl: `onClick[token] += handler` and `onClick -= token` work on one token "
+                      "of one object, and a template is applied many times and later. Subscribe "
+                      "with `onClick += handler` here, or take the token in the braces of the "
+                      "object itself or in Apply.");
     }
 
     // The object this template describes, built and dressed. Available for a
@@ -994,16 +1009,7 @@ public:
     }
 };
 
-template<typename Preset>
-class BuildPreset : public Preset::target_type
-{
-public:
-    template <typename... Setters>
-    BuildPreset(Setters&&... setters) : Preset::target_type {
-        Preset(),
-        std::forward<Setters>(setters)...
-    } {}
-};
+namespace impl {
 
 // A preset is worn, never assigned: the object a property asks for is what a
 // Template builds. Refused here by name rather than left to fail inside the
@@ -1012,14 +1018,14 @@ public:
 // exception: what every container of a list wears (itemContainerStyle), whose
 // setter accepts the preset itself.
 template <PropertyKey key, typename Owner, typename... Setters>
-struct SetterOp<key, Preset<Setters...>, Owner> {
+struct setter_op<key, Preset<Setters...>, Owner> {
     Preset<Setters...> value_;
 
     template <typename Obj>
     void operator()(Obj const& object) const {
-        if constexpr (requires { impl::PropertySetter<key>::set(object, value_); }) {
-            impl::check_owner<Owner, Obj>();
-            impl::PropertySetter<key>::set(object, value_);
+        if constexpr (requires { property_setter<key>::set(object, value_); }) {
+            check_owner<Owner, Obj>();
+            property_setter<key>::set(object, value_);
         } else {
             static_assert(sizeof...(Setters) < 0,
                           "wxl: a preset is worn, not assigned -- written unnamed inside the braces "
@@ -1029,8 +1035,6 @@ struct SetterOp<key, Preset<Setters...>, Owner> {
         }
     }
 };
-
-namespace impl {
 
 // Everything that takes part in a braced description: a pending assignment, a
 // pending subscription, a property or event tag, a tagged value, a preset, a
@@ -1043,19 +1047,19 @@ template <typename T>
 inline constexpr bool describes = tagged<T>;
 
 template <PropertyKey key, typename T, typename Owner>
-inline constexpr bool describes<SetterOp<key, T, Owner>> = true;
+inline constexpr bool describes<setter_op<key, T, Owner>> = true;
 template <EventKey key, typename Fn, typename Owner>
-inline constexpr bool describes<AddEventOp<key, Fn, Owner>> = true;
+inline constexpr bool describes<add_event_op<key, Fn, Owner>> = true;
 template <EventKey key, typename Owner>
-inline constexpr bool describes<RemoveEventOp<key, Owner>> = true;
-template <EventKey key, typename Setter, typename Owner>
-inline constexpr bool describes<SettersEventOp<key, Setter, Owner>> = true;
+inline constexpr bool describes<remove_event_op<key, Owner>> = true;
+template <EventKey key, typename Fn, typename Owner>
+inline constexpr bool describes<add_event_op_into<key, Fn, Owner>> = true;
 template <PropertyKey key, typename Value, typename Owner>
-inline constexpr bool describes<Property<key, Value, Owner>> = true;
+inline constexpr bool describes<property_tag<key, Value, Owner>> = true;
 template <PropertyKey key, typename Value, typename Owner>
-inline constexpr bool describes<BracedProperty<key, Value, Owner>> = true;
+inline constexpr bool describes<braced_property_tag<key, Value, Owner>> = true;
 template <EventKey key, typename Owner>
-inline constexpr bool describes<Event<key, Owner>> = true;
+inline constexpr bool describes<event_tag<key, Owner>> = true;
 template <typename... Setters>
 inline constexpr bool describes<Preset<Setters...>> = true;
 template <typename Target>
@@ -1076,11 +1080,18 @@ inline constexpr bool describes<Template<Target>> = true;
 // reaches its own destination. Any parenthesised comma between two description
 // tokens is therefore a mistake, and this says so.
 //
-// ADL finds this because the operands live in wxl. Two controls are not
-// covered: a wrapper is an ordinary object, and poisoning the comma for it
-// would reach far outside the DSL.
+// ADL finds this because the operands live in wxl -- a tagged value, a preset,
+// a template -- or in wxl::impl, where the using-declaration below puts it for
+// the ops and the tags. Two controls are not covered: a wrapper is an ordinary
+// object, and poisoning the comma for it would reach far outside the DSL.
 template <typename A, typename B>
     requires(impl::describes<std::remove_cvref_t<A>> || impl::describes<std::remove_cvref_t<B>>)
 void operator,(A&&, B&&) = delete;
+
+namespace impl {
+
+using wxl::operator,;
+
+}  // namespace impl
 
 }  // namespace wxl

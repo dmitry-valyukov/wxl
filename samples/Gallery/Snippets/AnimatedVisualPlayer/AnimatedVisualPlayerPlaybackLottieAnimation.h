@@ -45,18 +45,18 @@ auto example = StackPanel {
         columnSpacing = 8,
         columnDefinitions = u"*,*,*,*",
         Button {column = 0, hAlign.stretch, automationName = u"Play", toolTip = u"Play", content = SymbolIcon {symbol = Symbol::Play},
-                onClick = [model](auto&&...) {
+                onClick += [model](auto&&...) {
                     model->player.playbackRate(1);
                     model->ensurePlaying();
                 }},
         model->pause,
         Button {column = 2, hAlign.stretch, automationName = u"Stop", toolTip = u"Stop", content = SymbolIcon {symbol = Symbol::Stop},
-                onClick = [model](auto&&...) {
+                onClick += [model](auto&&...) {
                     model->player.stop();
                     model->pause.isChecked(false);
                 }},
         Button {column = 3, hAlign.stretch, automationName = u"Reverse", toolTip = u"Reverse", content = SymbolIcon {symbol = Symbol::Previous},
-                onClick = [model](auto&&...) {
+                onClick += [model](auto&&...) {
                     model->player.playbackRate(-1);
                     model->ensurePlaying();
                 }},

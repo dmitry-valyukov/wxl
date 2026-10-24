@@ -15,7 +15,7 @@ DispatcherQueueTimer one_shot(DispatcherQueue const& queue, std::chrono::millise
 }  // namespace
 
 WaitableTimer::WaitableTimer(DispatcherQueue const& queue, std::chrono::milliseconds interval,
-                             async::cancellation_token stop)
-    : impl::waitable_timer<impl::dispatcher_timer>({one_shot(queue, interval)}, std::move(stop)) {}
+                             async::cancellation_token token)
+    : impl::waitable_timer<impl::dispatcher_timer>({one_shot(queue, interval)}, std::move(token)) {}
 
 }  // namespace wxl

@@ -12,7 +12,7 @@ auto const categories = std::make_shared<std::vector<Category>>(std::vector<Cate
 });
 
 auto const category = [categories](Object const& item) {
-    auto const& each = (*categories)[static_cast<size_t>(intOf(item))];
+    auto const& each = (*categories)[static_cast<size_t>(unboxValue<int64_t>(item))];
     auto const* foods = each.foods;
     return StackPanel {
         TextBlock {Padding {8}, styles.TextBlock.Title, each.name},
@@ -22,9 +22,9 @@ auto const category = [categories](Object const& item) {
                 return Grid {Margin {10},
                              background = brushes.SystemControl.Background.Accent,
                              TextBlock {Padding {10}, foreground = brushes.SystemControl.Foreground.Chrome.White, hAlign.center,
-                                        vAlign.center, textWrapping = TextWrapping::Wrap, (*foods)[static_cast<size_t>(intOf(food))]}};
+                                        vAlign.center, textWrapping = TextWrapping::Wrap, (*foods)[static_cast<size_t>(unboxValue<int64_t>(food))]}};
             },
-            itemsSource = indexList(static_cast<int64_t>(foods->size())),
+            itemsSource = IndexList(static_cast<int64_t>(foods->size())),
         },
     };
 };
@@ -35,5 +35,5 @@ auto example = ScrollViewer {
     content = ItemsRepeater {vAlign.top,
                              layout = StackLayout {orientation.vertical},
                              itemTemplate = category,
-                             itemsSource = indexList(static_cast<int64_t>(categories->size()))},
+                             itemsSource = IndexList(static_cast<int64_t>(categories->size()))},
 };

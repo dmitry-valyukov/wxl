@@ -21,11 +21,11 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 // The shell reads a picture of a file: address.
-std::u16string logo = u"file:///" + (applicationFolder() / L"Assets" / L"ControlImages" / L"PersonPicture.png").generic_u16string();
+std::u16string logo = u"file:///" + (Application::folder() / L"Assets" / L"ControlImages" / L"PersonPicture.png").generic_u16string();
 
 auto example = Button {
     content = u"Show informational notification with logo and custom audio",
-    onClick = [model, logo](Button const&) {
+    onClick += [model, logo](Button const&) {
         auto const notification = AppNotificationBuilder {}
                                       .addText(u"Control Highlight: PersonPicture")
                                       .addText(u"Use the PersonPicture control to display user avatars with initials or images.")

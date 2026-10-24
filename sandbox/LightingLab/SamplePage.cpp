@@ -290,7 +290,7 @@ lab::Experiment lab::samplePage() {
         background = SolidColorBrush {color = rgb(30, 31, 34)},
         rowDefinitions = u"*,*",
         columnDefinitions = u"*,*,*",
-        onLoaded = [model](Grid const& self) { model->connect(self); },
+        onLoaded += [model](Grid const& self) { model->connect(self); },
     };
 
     for (int index = 0; index < tileCount; ++index) {

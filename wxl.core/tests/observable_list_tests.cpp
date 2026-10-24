@@ -126,16 +126,16 @@ TEST(ObservableList, count_is_a_field_that_follows_the_size) {
     EXPECT_EQ(list.count().get(), 0u);
 }
 
-TEST(ObservableList, a_cookie_removes_the_watch) {
+TEST(ObservableList, a_token_removes_the_watch) {
     observable_list<int> list;
     int calls = 0;
-    cookie_t const cookie = list.on_change([&calls](list_change const&) noexcept { ++calls; });
+    event_token token = list.on_change([&calls](list_change const&) noexcept { ++calls; });
 
     list.push_back(1);
-    EXPECT_TRUE(list.remove_change(cookie));
+    EXPECT_TRUE(list.remove_change(token));
     list.push_back(2);
     EXPECT_EQ(calls, 1);
-    EXPECT_FALSE(list.remove_change(cookie));
+    EXPECT_FALSE(static_cast<bool>(token));  // emptied by the removal
 }
 
 // Follows a field: the items are computed from it now and on every change, as one reset.
@@ -253,9 +253,9 @@ TEST(ObservableList, watches_die_with_the_list) {
     EXPECT_EQ(owned, 3);
 }
 
-// unbind() and unsubscribe_all cut a list's binding watches as they do a field's, and leave
+// unbind() and unsubscribe_all drop a list's binding watches as they do a field's, and leave
 // the application's.
-TEST(ObservableList, unbind_cuts_the_binding_watches_alone) {
+TEST(ObservableList, unbind_drops_the_binding_watches_alone) {
     observable_list<int> list;
     observable<int> field{0};
     int bound = 0;

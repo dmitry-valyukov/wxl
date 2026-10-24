@@ -25,7 +25,7 @@ export namespace wxl::async {
 /// of them but close(): asked, an operation not started is never started, and one standing
 /// in the system has the synchronous call it stands in cancelled where the system can cancel
 /// it; list() and create_all() stop between their steps. The cancellation is the answer of
-/// one cut short or never started -- a listing stopped halfway is no answer -- and one that
+/// one aborted or never started -- a listing stopped halfway is no answer -- and one that
 /// got there first answers with what it made; the co_await ends once the operation has let
 /// go, of the frame and of the disk, as `async_file`'s do.
 ///
@@ -93,8 +93,8 @@ public:
     /// Makes the whole chain of directories.
     ///
     /// The copy every operation here makes is load-bearing in this one:
-    /// `core::directory::create_all()` walks a *writable* path, cutting it short
-    /// at each separator in turn, and what it cuts is the operation's own copy
+    /// `core::directory::create_all()` walks a *writable* path, truncating it
+    /// at each separator in turn, and what it truncates is the operation's own copy
     /// rather than anything the caller can see.
     ///
     /// \throw last_error at the co_await if the chain could not be made.
@@ -104,21 +104,21 @@ public:
     /// \throw last_error at the co_await if it could not be removed.
     [[nodiscard]] static task<> remove(const core::path& path);
 
-    /// The operations above under a token, its last argument: the operation stands under
-    /// the token while it lives, and under a token cancelled already nothing is started.
+    /// The operations above under a token, its last argument: the operation is registered
+    /// with the token while it lives, and under a token cancelled already nothing is started.
     /// Each returns the same task as its form without a token.
     ///@{
-    static task<async_directory> open(const core::path& pattern, cancellation_token stop);
+    static task<async_directory> open(const core::path& pattern, cancellation_token token);
 
-    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern, cancellation_token stop);
+    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern, cancellation_token token);
 
-    [[nodiscard]] task<std::optional<entry>> next(cancellation_token stop);
+    [[nodiscard]] task<std::optional<entry>> next(cancellation_token token);
 
-    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token stop);
+    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token token);
 
-    [[nodiscard]] static task<> create_all(const core::path& p, cancellation_token stop);
+    [[nodiscard]] static task<> create_all(const core::path& p, cancellation_token token);
 
-    [[nodiscard]] static task<> remove(const core::path& path, cancellation_token stop);
+    [[nodiscard]] static task<> remove(const core::path& path, cancellation_token token);
     ///@}
 
 private:

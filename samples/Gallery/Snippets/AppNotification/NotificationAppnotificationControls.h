@@ -1,6 +1,6 @@
 auto example = Button {
     content = u"Show notification with AppNotification controls",
-    onClick = [](Button const&) {
+    onClick += [](Button const&) {
         auto const notification =
             AppNotificationBuilder {}
                 .addText(u"Survey")

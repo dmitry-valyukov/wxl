@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#include "impl/file_stream_reference.h"
+#include "impl/winrt_helpers.h"
 
 namespace {
 

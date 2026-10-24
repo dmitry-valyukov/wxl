@@ -28,7 +28,7 @@ auto example = StackPanel {
     verticalAlignment = VerticalAlignment::Top,
     StackPanel {
         orientation.horizontal,
-        Button {Margin {0, 0, 0, 10}, content = u"Copy Text to the Clipboard", onClick = [model](Button const&) { model->copy(); }},
+        Button {Margin {0, 0, 0, 10}, content = u"Copy Text to the Clipboard", onClick += [model](Button const&) { model->copy(); }},
         model->confirmation,
     },
     model->editor,

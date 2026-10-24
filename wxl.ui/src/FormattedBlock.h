@@ -35,13 +35,13 @@ namespace wxl {
 // popStyle() takes the innermost off -- the stack is what nested <b><i>
 // or nested quote colors flatten into.
 struct TextStyle {
-    std::optional<Color> color;
-    std::optional<double> fontSize;
+    core::nullable<Color> color;
+    core::nullable<double> fontSize;
     std::optional<FontFamily> fontFamily;
-    std::optional<bool> bold;
-    std::optional<bool> italic;
-    std::optional<bool> underline;
-    std::optional<bool> strikethrough;
+    core::nullable<bool> bold;
+    core::nullable<bool> italic;
+    core::nullable<bool> underline;
+    core::nullable<bool> strikethrough;
 };
 
 // What a paragraph itself can wear: the block-level facets, worn once at
@@ -58,7 +58,7 @@ struct BlockStyle {
 // for the developer wondering why the output is not what the markup said.
 // Named for its first and main source; a future BB/RSDN parser pours the
 // same kinds into the same sink.
-enum class HtmlErrorKind : std::uint8_t {
+enum class MarkupErrorKind : std::uint8_t {
     UnknownTag,     // tag outside the subset dropped, its content kept
     UnpairedClose,  // close tag with nothing open to match, ignored
     MisnestedTags,  // close matched below the top; recovered browser-fashion
@@ -70,7 +70,7 @@ enum class HtmlErrorKind : std::uint8_t {
     BadDimension,   // width/height that is not a number
     MissingImage,   // <img> without a usable src
     RemoteImage,    // non-local image source dropped by policy
-    ImageFailed,    // the image existed but did not load (fires asynchronously)
+    ImageFailed,    // the image existed but did not load (raised asynchronously)
     BlockedLink,    // link click dropped by the default policy (non-web scheme)
 };
 
@@ -78,8 +78,8 @@ enum class HtmlErrorKind : std::uint8_t {
 // name, attribute value, image source -- and, like an event-args view, is
 // valid only inside the handler call: it points into storage the caller
 // releases right after.
-struct HtmlError {
-    HtmlErrorKind kind;
+struct MarkupError {
+    MarkupErrorKind kind;
     zstring_view detail;
 };
 
@@ -199,7 +199,7 @@ public:
     // during the fill for build-time kinds, and from the UI thread later
     // for the asynchronous ones. Without a handler, everything stays
     // silent -- exactly as before.
-    using ErrorHandler = core::function<void(HtmlError const&)>;
+    using ErrorHandler = core::function<void(MarkupError const&)>;
 
     void onError(ErrorHandler handler) const;
 

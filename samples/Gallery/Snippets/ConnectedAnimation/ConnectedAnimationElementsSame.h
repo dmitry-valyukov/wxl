@@ -13,10 +13,10 @@ struct Model {
 };
 auto const model = gallery::hold<Model>();
 
-auto const items = indexList(static_cast<int64_t>(objects->size()));
+auto const items = IndexList(static_cast<int64_t>(objects->size()));
 model->collection.itemMargin(Thickness {4});
 model->collection.itemTemplate([objects](Object const& item) {
-    auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+    auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Grid {name = u"connectedElement", width = 150, height = 110, CornerRadius {4},
                  Image {source = object.imageLocation, stretch = Stretch::UniformToFill},
                  Border {Padding {8, 4}, vAlign.bottom, background = brushes.Acrylic.BackgroundFillColor.Base,
@@ -51,7 +51,7 @@ model->destination = Grid {
     CornerRadius {8},
     rowDefinitions = u"*,auto",
     model->image,
-    Button {width = 36, height = 36, Margin {8}, hAlign.right, vAlign.top, toolTip = u"Close", onClick = back,
+    Button {width = 36, height = 36, Margin {8}, hAlign.right, vAlign.top, toolTip = u"Close", onClick += back,
             content = FontIcon {fontSize = 14, glyph = u"\xE711"}},
     StackPanel {row = 1, Padding {16, 12}, background = brushes.Card.BackgroundFillColor.Default, model->title, model->description},
 };
@@ -62,7 +62,7 @@ model->collection.add_onItemClick([model, objects](auto const&, ItemClickEventAr
     if (auto const tile = itemElement(model->collection, *model->stored)) {
         ConnectedAnimationService::getForCurrentView().prepareToAnimate(u"forwardAnimation", *tile);
     }
-    auto const& object = (*objects)[static_cast<size_t>(intOf(*model->stored))];
+    auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(*model->stored))];
     model->image.source(ImageSource {object.imageLocation});
     model->title.text(object.title);
     model->description.text(object.description);

@@ -54,7 +54,7 @@ struct Model {
                 // under the exit token of the application, which closing the main window cancels.
                 window->backgroundAsync(
                     BackgroundImage {
-                        .path = applicationFolder() / L"Assets" / L"SampleMedia" / L"LandscapeImage3.jpg",
+                        .path = Application::folder() / L"Assets" / L"SampleMedia" / L"LandscapeImage3.jpg",
                         .fill = fill(),
                         .color = rgb(0x20, 0x20, 0x20),
                     },
@@ -123,7 +123,7 @@ model->colour.on_change([weak = std::weak_ptr<Model>(model)](auto&&...) noexcept
     }
 });
 
-auto example = Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }};
+auto example = Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }};
 
 auto options = StackPanel {
     spacing = 8,

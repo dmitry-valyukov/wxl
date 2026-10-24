@@ -1,6 +1,6 @@
 auto example = Button {
     content = u"Show notification with progress bar",
-    onClick = [](Button const&) {
+    onClick += [](Button const&) {
         auto const notification = AppNotificationBuilder {}
                                       .addText(u"Progress Bar Example")
                                       .addText(u"This is a sample notification showing how to use a progress bar.")

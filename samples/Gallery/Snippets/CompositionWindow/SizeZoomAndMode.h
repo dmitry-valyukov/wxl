@@ -78,14 +78,14 @@ model->captionText.on_change(paintCaption);
 
 auto example = StackPanel {
     spacing = 8,
-    Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }},
+    Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }},
     model->sizeText,
     StackPanel {
         orientation.horizontal,
         spacing = 8,
         Button {
             content = u"Centre, 960 x 600",
-            onClick = [model](Button const&) {
+            onClick += [model](Button const&) {
                 if (model->window) {
                     model->window->centreWithClientSize({960, 600});
                 }
@@ -93,7 +93,7 @@ auto example = StackPanel {
         },
         Button {
             content = u"The largest the screen allows",
-            onClick = [model](Button const&) {
+            onClick += [model](Button const&) {
                 // The answer is in the units it is given back in: no work area, no frame width to know.
                 if (model->window) {
                     model->window->centreWithClientSize(model->window->maxClientSize());

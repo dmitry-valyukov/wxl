@@ -15,7 +15,7 @@ auto card = Border {
     shadow = themeShadow,
     // The higher the card stands off the grid, the longer and softer the shadow.
     translation = BindOutput {model->depth, [](double height) { return Vector3 {0, 0, static_cast<float>(height)}; }},
-    onLoaded = [themeShadow, castOnto](Border const&) { themeShadow.receivers().append(castOnto); },
+    onLoaded += [themeShadow, castOnto](Border const&) { themeShadow.receivers().append(castOnto); },
 };
 
 auto example = Grid {Padding {36}, castOnto, card};

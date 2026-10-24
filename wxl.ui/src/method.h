@@ -16,6 +16,7 @@
 // wrapper.
 
 #include "core.h"
+#include "impl/member_function_traits.h"
 
 import wxl.async;
 
@@ -70,46 +71,6 @@ public:
     }
 };
 
-// A member pointer taken apart into its result and the call over its
-// parameters. The four spellings a handler member has -- const or not,
-// noexcept or not -- the same four events.h reads off a call operator; a
-// ref-qualified or volatile member has no specialisation and stops here.
-//
-// A noexcept member makes a noexcept call, unless handing it its arguments
-// can throw: a parameter taken by value is moved on from the call's own, and
-// a move may throw.
-template <typename Member>
-struct member_signature;
-
-template <typename R, typename C, typename... P>
-struct member_signature<R (C::*)(P...)> {
-    using result_t = R;
-    template <typename Obj>
-    using call_t = method_call<Obj, R (C::*)(P...), false, P...>;
-};
-template <typename R, typename C, typename... P>
-struct member_signature<R (C::*)(P...) const> {
-    using result_t = R;
-    template <typename Obj>
-    using call_t = method_call<Obj, R (C::*)(P...) const, false, P...>;
-};
-template <typename R, typename C, typename... P>
-struct member_signature<R (C::*)(P...) noexcept> {
-    using result_t = R;
-    using member_t = R (C::*)(P...) noexcept;
-    template <typename Obj>
-    using call_t =
-        method_call<Obj, member_t, std::is_nothrow_invocable_v<member_t, Obj*, P...>, P...>;
-};
-template <typename R, typename C, typename... P>
-struct member_signature<R (C::*)(P...) const noexcept> {
-    using result_t = R;
-    using member_t = R (C::*)(P...) const noexcept;
-    template <typename Obj>
-    using call_t =
-        method_call<Obj, member_t, std::is_nothrow_invocable_v<member_t, Obj*, P...>, P...>;
-};
-
 // What the caller of a handler may drop without losing anything: no result
 // at all.
 template <typename R>
@@ -118,7 +79,7 @@ concept droppable_result = std::is_void_v<R>;
 }  // namespace impl
 
 /// A member function of \p object as a callable with the member's own
-/// parameters: `onKeyDown = method(this, &Screen::searchKeyDown)` in the
+/// parameters: `onKeyDown += method(this, &Screen::searchKeyDown)` in the
 /// braces, `box.add_onKeyDown(method(this, &Screen::searchKeyDown))` after
 /// them, `queue.tryEnqueue(method(this, &Screen::refresh))` for a delegate
 /// parameter.
@@ -146,12 +107,19 @@ concept droppable_result = std::is_void_v<R>;
 template <typename Obj, typename Member>
     requires std::is_member_function_pointer_v<Member>
 [[nodiscard]] constexpr auto method(Obj* object, Member member) noexcept {
-    using signature = impl::member_signature<Member>;
-    static_assert(impl::droppable_result<typename signature::result_t>,
-                  "wxl: method() takes a member that returns void. Any other result -- a value, a task "
-                  "somebody has to hold -- would be dropped unread by whoever calls the handler.");
-    using call = typename signature::template call_t<Obj>;
-    return call{object, member};
+    // A ref-qualified or volatile member has no traits and stops here.
+    using traits = impl::member_function_traits<Member>;
+    static_assert(
+        impl::droppable_result<typename traits::result_t>,
+        "wxl: method() takes a member that returns void. Any other result -- a value, a task "
+        "somebody has to hold -- would be dropped unread by whoever calls the handler.");
+    // A noexcept member makes a noexcept call, unless handing it its arguments can throw: a
+    // parameter taken by value is moved on from the call's own, and a move may throw.
+    return [&]<typename... P>(std::type_identity<std::tuple<P...>>) {
+        constexpr bool nothrow =
+            traits::is_noexcept && std::is_nothrow_invocable_v<Member, Obj*, P...>;
+        return impl::method_call<Obj, Member, nothrow, P...>{object, member};
+    }(std::type_identity<typename traits::parameters_t>{});
 }
 
 }  // namespace wxl

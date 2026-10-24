@@ -21,7 +21,7 @@ auto example = TabView {
     minHeight = 475,
     Margin {-12},
     selectedIndex = 0,
-    onAddTabButtonClick = addTab,
-    onTabCloseRequested = closeTab,
+    onAddTabButtonClick += addTab,
+    onTabCloseRequested += closeTab,
     tabItems[document(0, Symbol::Placeholder), document(1, Symbol::Placeholder), document(2, Symbol::Placeholder)],
 };

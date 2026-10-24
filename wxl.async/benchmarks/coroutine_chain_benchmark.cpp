@@ -18,9 +18,9 @@
 //
 // And one operation of this module's kind -- an async_op behind a task, which the
 // loop would resume and here a hand does (`complete()`) -- awaited in its two forms:
-// plain, and the form with a token, `co_await read(..., stop)`, which the operations
-// that can be cut short have: the operation stands in the token's event while it lives.
-// Then the same form called under a token cancelled already, `async_run<Op>(stop, ...)`,
+// plain, and the form with a token, `co_await read(..., token)`, which the operations
+// that can be aborted have: the operation is registered with the token's event while it lives.
+// Then the same form called under a token cancelled already, `async_run<Op>(token, ...)`,
 // which makes no operation and answers the cancellation as it returns: each iteration
 // co_awaits it inside a try and counts the catch, so the row is the call, its answer and
 // the rethrow at the co_await -- the rethrow is the reader's, and the rest is the call's.
@@ -58,10 +58,10 @@ __declspec(noinline) task<int> after_a_pause(std::coroutine_handle<>* slot, int 
     co_return i;
 }
 
-__declspec(noinline) task<int> after_a_pause_under(std::coroutine_handle<>* slot, int i,
-                                                  cancellation_token stop) {
+__declspec(noinline) task<int> cancelable_after_a_pause(std::coroutine_handle<>* slot, int i,
+                                                  cancellation_token token) {
     co_await parked{slot};
-    stop.throw_if_canceled();
+    token.throw_if_canceled();
     co_return i;
 }
 
@@ -73,14 +73,14 @@ __declspec(noinline) task<int> first_link(std::coroutine_handle<>* slot, int i) 
     co_return co_await second_link(slot, i);
 }
 
-__declspec(noinline) task<int> second_link_under(std::coroutine_handle<>* slot, int i,
-                                                cancellation_token stop) {
-    co_return co_await after_a_pause_under(slot, i, stop);
+__declspec(noinline) task<int> cancelable_second_link(std::coroutine_handle<>* slot, int i,
+                                                cancellation_token token) {
+    co_return co_await cancelable_after_a_pause(slot, i, token);
 }
 
-__declspec(noinline) task<int> first_link_under(std::coroutine_handle<>* slot, int i,
-                                               cancellation_token stop) {
-    co_return co_await second_link_under(slot, i, stop);
+__declspec(noinline) task<int> cancelable_first_link(std::coroutine_handle<>* slot, int i,
+                                               cancellation_token token) {
+    co_return co_await cancelable_second_link(slot, i, token);
 }
 
 __declspec(noinline) task<long long> loop_at_once(int n) {
@@ -89,9 +89,9 @@ __declspec(noinline) task<long long> loop_at_once(int n) {
     co_return sum;
 }
 
-__declspec(noinline) task<long long> loop_at_once_with(int n, cancellation_token stop) {
+__declspec(noinline) task<long long> loop_at_once_with(int n, cancellation_token token) {
     long long sum = 0;
-    for (int i = 0; i < n; ++i) sum += co_await at_once_with(i, stop);
+    for (int i = 0; i < n; ++i) sum += co_await at_once_with(i, token);
     co_return sum;
 }
 
@@ -101,10 +101,10 @@ __declspec(noinline) task<long long> loop_pause(std::coroutine_handle<>* slot, i
     co_return sum;
 }
 
-__declspec(noinline) task<long long> loop_pause_under(std::coroutine_handle<>* slot, int n,
-                                                     cancellation_token stop) {
+__declspec(noinline) task<long long> cancelable_loop_pause(std::coroutine_handle<>* slot, int n,
+                                                     cancellation_token token) {
     long long sum = 0;
-    for (int i = 0; i < n; ++i) sum += co_await after_a_pause_under(slot, i, stop);
+    for (int i = 0; i < n; ++i) sum += co_await cancelable_after_a_pause(slot, i, token);
     co_return sum;
 }
 
@@ -114,10 +114,10 @@ __declspec(noinline) task<long long> loop_links(std::coroutine_handle<>* slot, i
     co_return sum;
 }
 
-__declspec(noinline) task<long long> loop_links_under(std::coroutine_handle<>* slot, int n,
-                                                     cancellation_token stop) {
+__declspec(noinline) task<long long> cancelable_loop_links(std::coroutine_handle<>* slot, int n,
+                                                     cancellation_token token) {
     long long sum = 0;
-    for (int i = 0; i < n; ++i) sum += co_await first_link_under(slot, i, stop);
+    for (int i = 0; i < n; ++i) sum += co_await cancelable_first_link(slot, i, token);
     co_return sum;
 }
 
@@ -139,9 +139,9 @@ task<int> handed(handed_op*& slot, int i) {
 }
 
 /// The form with a token, as the operations of async_file have it: the same operation,
-/// standing under the token while it lives.
-task<int> handed(handed_op*& slot, int i, cancellation_token stop) {
-    auto* const op = new detail::cancellable_operation<handed_op>(std::move(stop), i);
+/// registered with the token while it lives.
+task<int> handed(handed_op*& slot, int i, cancellation_token token) {
+    auto* const op = new detail::cancelable_operation<handed_op>(std::move(token), i);
     slot = op;
     return task<int>(std::unique_ptr<async_op_t<int>>(op));
 }
@@ -152,20 +152,21 @@ __declspec(noinline) task<long long> loop_op(handed_op** slot, int n) {
     co_return sum;
 }
 
-__declspec(noinline) task<long long> loop_op_with(handed_op** slot, int n, cancellation_token stop) {
+__declspec(noinline) task<long long> loop_op_with(handed_op** slot, int n,
+                                                  cancellation_token token) {
     long long sum = 0;
-    for (int i = 0; i < n; ++i) sum += co_await handed(*slot, i, stop);
+    for (int i = 0; i < n; ++i) sum += co_await handed(*slot, i, token);
     co_return sum;
 }
 
 /// The form with a token under one cancelled already: nothing is made, and every co_await
 /// throws the cancellation. \return the catches.
-__declspec(noinline) task<long long> loop_op_refused(int n, cancellation_token stop) {
+__declspec(noinline) task<long long> loop_op_refused(int n, cancellation_token token) {
     long long caught = 0;
 
     for (int i = 0; i < n; ++i) {
         try {
-            co_await sta_loop::async_run<handed_op>(stop, i);
+            co_await sta_loop::async_run<handed_op>(token, i);
         } catch (const operation_canceled_exception&) {
             ++caught;
         }
@@ -226,12 +227,12 @@ double best_of_ops(Start start) {
 constexpr int refused_iterations = 20'000;
 
 /// The calls under a token cancelled already, which end as they are made: nothing to deliver.
-double best_of_refused(cancellation_token stop) {
+double best_of_refused(cancellation_token token) {
     double best = 1e30;
 
     for (int r = 0; r < rounds; ++r) {
         const auto from = std::chrono::steady_clock::now();
-        task<long long> outer = loop_op_refused(refused_iterations, stop);
+        task<long long> outer = loop_op_refused(refused_iterations, token);
         const auto to = std::chrono::steady_clock::now();
 
         if (!outer.done() || outer.result() != refused_iterations) return -1;
@@ -250,17 +251,17 @@ void row(const char* name, double plain, double under) {
 }  // namespace
 
 int main() {
-    cancellation_source stop;
-    const cancellation_token token = stop.token();
+    cancellation_source source;
+    const cancellation_token token = source.token();
 
     std::printf("explicit token: ns per iteration, plain and under a token\n");
 
     row("ended at once", best_of([](std::coroutine_handle<>*) { return loop_at_once(iterations); }),
         best_of([&](std::coroutine_handle<>*) { return loop_at_once_with(iterations, token); }));
     row("after a pause", best_of([](std::coroutine_handle<>* slot) { return loop_pause(slot, iterations); }),
-        best_of([&](std::coroutine_handle<>* slot) { return loop_pause_under(slot, iterations, token); }));
+        best_of([&](std::coroutine_handle<>* slot) { return cancelable_loop_pause(slot, iterations, token); }));
     row("three links", best_of([](std::coroutine_handle<>* slot) { return loop_links(slot, iterations); }),
-        best_of([&](std::coroutine_handle<>* slot) { return loop_links_under(slot, iterations, token); }));
+        best_of([&](std::coroutine_handle<>* slot) { return cancelable_loop_links(slot, iterations, token); }));
 
     std::printf("an operation: ns per iteration, plain and under a token\n");
 

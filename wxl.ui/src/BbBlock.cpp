@@ -6,10 +6,10 @@
 
 #include "BbBlock.impl.h"
 #include "Object.impl.h"
-#include "impl/activation_factory.h"
+#include "impl/activator.h"
 
 // Импорты последними — markup_build.h несёт wxl.html, wxl.bb добавляем сами.
-#include "markup_build.h"
+#include "impl/markup_build.h"
 
 import wxl.bb;
 
@@ -27,7 +27,7 @@ struct runtime_class_name_of<BbBlock> {
 BbBlock::BbBlock(Impl* impl) noexcept : base_t(impl) {}
 
 BbBlock::BbBlock() : base_t(new Impl{}) {
-    impl::ActivationFactory<BbBlock>::activate(put_abi());
+    impl::activator<BbBlock>::activate(put_abi());
 }
 
 void BbBlock::bb(hstring_param const& markup) const {
@@ -37,7 +37,7 @@ void BbBlock::bb(hstring_param const& markup) const {
 
 void BbBlock::append(hstring_param const& markup) const {
     const html::document parsed = wxl::bb::parse(markup.text().view());
-    build_markup(*this, *static_cast<Impl*>(impl()), parsed);
+    impl::build_markup(*this, *static_cast<Impl*>(impl()), parsed);
 }
 
 }  // namespace wxl

@@ -68,10 +68,10 @@ TEST(ChecksTest, AReportNamesThePlaceItIsGiven) {
     EXPECT_TRUE(std::regex_search(said, std::regex(place_of(where.line()) + "the note given\\n$"))) << said;
 }
 
-// A line longer than the buffer is cut, and the cut does not split a letter. Two-byte letters
+// A line longer than the buffer is truncated, and not inside a letter. Two-byte letters
 // after an even and after an odd number of bytes: in one of the two lines the end of line falls
 // on the second byte of a letter, and that line is a byte shorter rather than ending in half of it.
-TEST(ChecksTest, AReportCutShortEndsInAWholeLetter) {
+TEST(ChecksTest, ATruncatedReportEndsInAWholeLetter) {
     const std::source_location where = somewhere_else();
 
     std::string letters;
@@ -193,20 +193,20 @@ TEST(TerminateReasonDeathTest, ASecondNamerIsABrokenRule) {
     EXPECT_DEATH(set_a_second_namer(), "wxl: an exception namer is set already");
 }
 
-// A report longer than its buffer is cut where the buffer ends, and the cut is seen.
+// A report longer than its buffer is truncated where the buffer ends, and that is seen.
 TEST(TerminateReason, AReportThatDoesNotFitEndsInDots) {
     char text[16];
     EXPECT_EQ(describe_thrown(std::runtime_error("longer than sixteen"), text), "wxl: unhandle...");
 }
 
-// The cut goes back to the start of the code point it would split: the dots follow a whole
+// Truncation goes back to the start of the code point it would split: the dots follow a whole
 // letter, never half of one.
-TEST(TerminateReason, ACutReportKeepsWholeCodePoints) {
+TEST(TerminateReason, ATruncatedReportKeepsWholeCodePoints) {
     char text[32];
     EXPECT_EQ(describe_thrown(std::runtime_error("ЖЖЖЖ"), text), "wxl: unhandled exception: Ж...");
 }
 
-// UTF-16 goes in as UTF-8, a pair as one code point and a lone half as U+FFFD; and a cut
+// UTF-16 goes in as UTF-8, a pair as one code point and a lone half as U+FFFD; and truncation
 // inside a four-byte sequence takes the whole of it.
 TEST(TerminateReason, PutsUtf16AsUtf8) {
     char text[16];
@@ -215,14 +215,14 @@ TEST(TerminateReason, PutsUtf16AsUtf8) {
     EXPECT_EQ(report.text(), "a\xF0\x9F\x98\x80" "b\xEF\xBF\xBD" "c");
 
     char short_text[8];
-    terminate_report cut{short_text};
-    cut.put(L"ab\xD83D\xDE00\xD83D\xDE00");
-    EXPECT_EQ(cut.text(), "ab...");
+    terminate_report truncated{short_text};
+    truncated.put(L"ab\xD83D\xDE00\xD83D\xDE00");
+    EXPECT_EQ(truncated.text(), "ab...");
 }
 
-// The report is what it says each time it is asked, and a cut one takes nothing more: a
+// The report is what it says each time it is asked, and a truncated one takes nothing more: a
 // part that would fit after the dots is not the part that was lost.
-TEST(TerminateReason, ACutReportStaysAsItWas) {
+TEST(TerminateReason, ATruncatedReportStaysAsItWas) {
     char text[8];
     terminate_report report{text};
     report.put("abcdefghij");
@@ -233,7 +233,7 @@ TEST(TerminateReason, ACutReportStaysAsItWas) {
     report.put(L"z");
     EXPECT_EQ(report.text(), "abcde...");
 
-    // A cut that went back to the start of a code point leaves room after the dots.
+    // Truncation that went back to the start of a code point leaves room after the dots.
     char wide_text[8];
     terminate_report wide{wide_text};
     wide.put(L"ab\xD83D\xDE00\xD83D\xDE00");
@@ -249,9 +249,9 @@ TEST(TerminateReason, ThreeBytesHoldTheDots) {
     fits.put("ab");
     EXPECT_EQ(fits.text(), "ab");
 
-    terminate_report cut{text};
-    cut.put("abcd");
-    EXPECT_EQ(cut.text(), "...");
+    terminate_report truncated{text};
+    truncated.put("abcd");
+    EXPECT_EQ(truncated.text(), "...");
 }
 
 namespace {

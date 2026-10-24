@@ -4,7 +4,7 @@ auto richBox = RichEditBox {
     width = 240,
     minHeight = 96,
     placeholderText = u"Type something here",
-    onTextChanged = [current](RichEditBox const& box) {
+    onTextChanged += [current](RichEditBox const& box) {
         box.document().selection().characterFormat().foregroundColor(*current);
     },
 };
@@ -45,13 +45,13 @@ auto colorButton = SplitButton {
     vAlign.top,
     automationName = u"Font color",
     content = swatch,
-    onClick = [richBox, current] {
+    onClick += [richBox, current] {
         richBox.document().selection().characterFormat().foregroundColor(*current);
     },
     flyout = Flyout {
         placement = FlyoutPlacementMode::Bottom,
         // Opening the flyout starts the wait for a swatch.
-        onOpened = [model, pick, richBox, swatch, current](Object const& sender) {
+        onOpened += [model, pick, richBox, swatch, current](Object const& sender) {
             model->picking = pick(sender.try_as<Flyout>(), richBox, swatch, current);
         },
         content = GridView {

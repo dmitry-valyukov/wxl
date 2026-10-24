@@ -32,6 +32,6 @@ auto const show = [](Model* model, Button button) -> async::task<> {
 
 auto example = StackPanel {
     orientation.horizontal,
-    Button {content = u"Show dialog without a default action", onClick = [model, show](Button const& self) { model->showing = show(model.get(), self); }},
+    Button {content = u"Show dialog without a default action", onClick += [model, show](Button const& self) { model->showing = show(model.get(), self); }},
     model->result,
 };

@@ -100,11 +100,11 @@ private:
 /// both, over the fields here. What differs is what the owner letting go does, one call
 /// through the virtual table (`release()`): an operation is deleted or given up, a
 /// coroutine still in flight is stopped. A request to end early reaches only an operation -- one
-/// made in the form with a token (`detail::cancellable_operation`); a coroutine
+/// made in the form with a token (`detail::cancelable_operation`); a coroutine
 /// ends by the token it was given, by its own code.
 ///
 /// The answer is what happened to the operation, since nothing orders a request against
-/// work on another thread: the cancellation is the answer of one cut short or never
+/// work on another thread: the cancellation is the answer of one aborted or never
 /// started, and one that got there first answers with what it made, or with its own
 /// failure.
 ///
@@ -169,7 +169,7 @@ public:
     /// interrupted by on_cancel() if it can be. Asking twice asks once.
     ///
     /// The flag and on_cancel() are all it does: what the operation then answers, it
-    /// answers itself -- the cancellation if it was cut short or never started, its own
+    /// answers itself -- the cancellation if it was aborted or never started, its own
     /// result if it got there first.
     inline void cancel() noexcept {
         if (canceled_.load(std::memory_order_relaxed)) return;
@@ -319,13 +319,13 @@ protected:
         ::new (error_slot()) std::exception_ptr(std::current_exception());
     }
 
-    /// The answer becomes the cancellation: for an operation cut short or never started,
+    /// The answer becomes the cancellation: for an operation aborted or never started,
     /// on whichever thread finds that out. One exception made once and shared, since the
     /// answer is always the same and its path the only one that pays for it (async_op.cpp).
     void answer_canceled() noexcept;
 
     /// Keeps the exception being handled as the answer -- unless it is a call to the
-    /// system that the cutting short ended, `last_error` with ERROR_OPERATION_ABORTED,
+    /// system that the abort ended, `last_error` with ERROR_OPERATION_ABORTED,
     /// which answers the cancellation. Called from inside a handler (async_op.cpp).
     void answer_current_exception() noexcept;
 
@@ -800,59 +800,44 @@ private:
 
 namespace detail {
 
-/// An operation of this module in its form with a token: `Op` as it is, standing under the
+/// An operation of this module in its form with a token: `Op` as it is, registered with the
 /// token from the moment it is made until it goes. Cancelled while it is out, it is asked to
 /// stop (`async_op::cancel()`), and answers what then happens to it; back already, it keeps
 /// its answer, and given up, it hears nothing: nobody waits for it. Its place in the token's
-/// event is built into it, so standing allocates nothing, and the token is held, so the
-/// event outlives the stand.
+/// event is built into it, so registering allocates nothing, and the token is held, so the
+/// event outlives the registration.
 /// Made only under a token that has a source and is not cancelled yet: under one cancelled
 /// already the forms make nothing at all.
 template <class Op>
-class cancellable_operation final : public pooled<cancellable_operation<Op>, Op>
+class cancelable_operation final : public pooled<cancelable_operation<Op>, Op>
 {
-    using base = pooled<cancellable_operation, Op>;
+    using base = pooled<cancelable_operation, Op>;
 
 public:
     template <class... Args>
-    inline explicit cancellable_operation(cancellation_token stop, Args&&... args)
-        : base(std::forward<Args>(args)...), stop_(std::move(stop)), node_(*this) {
-        coro_check(!cancellation_state_of(stop_)->canceled(),
-                   "cancellable_operation: made under a token cancelled already", detail::site::current());
+    inline explicit cancelable_operation(cancellation_token token, Args&&... args)
+        : base(std::forward<Args>(args)...), token_(std::move(token)), registration_(*this) {
+        coro_check(!cancellation_state_of(token_)->canceled(),
+                   "cancelable_operation: made under a token cancelled already", detail::site::current());
 
-        cancellation_state_of(stop_)->event().add(
-            core::as_not_null<cancellation_event::func_t>(&node_));
+        registration_.register_with(*cancellation_state_of(token_));
     }
 
-    /// Out of the event before the token goes. Once the token has been cancelled the event
-    /// the node stood in has been fired and is gone, and unlink() finds nothing.
-    inline ~cancellable_operation() override {
-        cancellation_state_of(stop_)->event().unlink(
-            core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
+    /// Out of the event before the token goes.
+    inline ~cancelable_operation() override {
+        registration_.unregister(*cancellation_state_of(token_));
     }
 
 private:
+    /// The token was cancelled: an operation still out and still its task's is asked to stop;
+    /// one back already or given up is left as it is. Resumes nobody.
+    inline void on_token_canceled() noexcept {
+        if (!this->ready() && !this->abandoned()) this->cancel();
+    }
+
+    cancellation_token token_;
     /// The operation's place in the token's event.
-    class node final : public cancellation_event::func_t
-    {
-    public:
-        inline explicit node(cancellable_operation& op) noexcept : op_(op) {}
-
-        /// The token was cancelled: an operation still out and still its task's is asked to
-        /// stop; one back already or given up is left as it is. Resumes nobody.
-        inline void operator()() noexcept override {
-            if (!op_.ready() && !op_.abandoned()) op_.cancel();
-        }
-
-        /// The operation owns its node.
-        inline void release() noexcept override {}
-
-    private:
-        cancellable_operation& op_;
-    };
-
-    cancellation_token stop_;
-    node node_;
+    cancellation_registration<&cancelable_operation::on_token_canceled> registration_;
 };
 
 }  // namespace detail

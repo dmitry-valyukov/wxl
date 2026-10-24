@@ -135,6 +135,6 @@ auto example = Grid {
     Grid {row = 1, model->preview},
     Grid {row = 0, column = 1, model->capturedText},
     Grid {row = 1, column = 1, LayoutPanel {layout = fill, ScrollViewer {verticalScrollMode = ScrollMode::Enabled, content = model->snapshots}}},
-    onLoaded = [model, find](UIElement const& self) { model->finding = find(model.get(), self); },
+    onLoaded += [model, find](UIElement const& self) { model->finding = find(model.get(), self); },
 };
 auto options = StackPanel {spacing = 16, model->cameras, model->mirror, model->capture};

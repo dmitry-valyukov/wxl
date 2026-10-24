@@ -37,7 +37,7 @@ auto options = StackPanel {
         smallChange = 0.001,
         stepFrequency = 0.001,
         value = 0.8,
-        onValueChanged = [brush](Slider const& self) { brush.tintOpacity(self.value()); },
+        onValueChanged += [brush](Slider const& self) { brush.tintOpacity(self.value()); },
     },
     TextBlock {Margin {0, 12, 0, 12}, u"Tint Luminosity Opacity :"},
     Slider {
@@ -50,6 +50,6 @@ auto options = StackPanel {
         smallChange = 0.001,
         stepFrequency = 0.001,
         value = 0.8,
-        onValueChanged = [brush](Slider const& self) { brush.tintLuminosityOpacity(self.value()); },
+        onValueChanged += [brush](Slider const& self) { brush.tintLuminosityOpacity(self.value()); },
     },
 };

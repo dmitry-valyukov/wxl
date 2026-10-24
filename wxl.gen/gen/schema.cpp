@@ -97,23 +97,23 @@ std::string qualified(std::string_view type) {
 
 std::string property_anchor(std::string_view key, std::string_view value_type,
                             std::string_view owner) {
-    return std::format("::wxl::Property<::wxl::PropertyKey::{}, {}, ::wxl::{}>", key,
+    return std::format("::wxl::impl::property_tag<::wxl::PropertyKey::{}, {}, ::wxl::{}>", key,
                        value_type.empty() ? "void" : qualified(value_type), owner);
 }
 
 std::string collection_anchor(std::string_view key, std::string_view owner) {
-    return std::format("::wxl::CollectionProperty<::wxl::PropertyKey::{}, ::wxl::{}>", key, owner);
+    return std::format("::wxl::impl::collection_tag<::wxl::PropertyKey::{}, ::wxl::{}>", key, owner);
 }
 
 std::string event_anchor(std::string_view key, std::string_view owner) {
-    return std::format("::wxl::Event<::wxl::EventKey::{}, ::wxl::{}>", key, owner);
+    return std::format("::wxl::impl::event_tag<::wxl::EventKey::{}, ::wxl::{}>", key, owner);
 }
 
 // The same property said two ways -- `rowDefinitions[a, b]` and
 // `rowDefinitions = L"2*,*"` -- so the anchor carries both.
 std::string assignable_collection_anchor(std::string_view key, std::string_view value_type,
                                          std::string_view owner) {
-    return std::format("::wxl::AssignableCollectionProperty<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
+    return std::format("::wxl::impl::assignable_collection_tag<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
                        key, value_type.empty() ? "void" : qualified(value_type), owner);
 }
 
@@ -161,7 +161,7 @@ std::string declare(schema::class_t const& owner, schema::member const& member,
     }
 
     if (member.braced) {
-        return std::format("::wxl::BracedProperty<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
+        return std::format("::wxl::impl::braced_property_tag<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
                            member.key, qualified(member.type), owner.name);
     }
 
@@ -258,7 +258,7 @@ namespace {{
             switch (member.kind) {
                 case schema::member::kind_t::Event:
                     std::print(file, R"([[maybe_unused]] void {0}_{1}({2}) {{
-    ::wxl::impl::apply_argument(object, {3} = [](auto const&, auto&) {{}});
+    ::wxl::impl::apply_argument(object, {3} += [](auto const&, auto&) {{}});
 }}
 )",
                                klass.name, member.name, object, path_to);

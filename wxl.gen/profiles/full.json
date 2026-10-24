@@ -116,7 +116,7 @@
                     "cppType": "core::nullable<AutoSuggestBox>",
                     "cppInclude": "../core.h",
                     "function": "impl::set_auto_suggest_box",
-                    "include": "../impl/navigation_view_search.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -312,87 +312,87 @@
                 "AutomationId": {
                     "comment": "What a test or a reader's script finds the element by -- AutomationProperties.AutomationId, the attached property.",
                     "type": "String",
-                    "function": "impl::set_automation_id",
+                    "function": "impl::automation_properties::set_automation_id",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationAccessibilityView": {
                     "comment": "Which view of the automation tree the element is in -- Raw for a picture that says nothing a screen reader should read: AutomationProperties.AccessibilityView, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AccessibilityView",
-                    "function": "impl::set_automation_accessibility_view",
+                    "function": "impl::automation_properties::set_accessibility_view",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationLiveSetting": {
                     "comment": "That a change of the element's text is announced by a screen reader, politely or at once -- AutomationProperties.LiveSetting, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting",
-                    "function": "impl::set_automation_live_setting",
+                    "function": "impl::automation_properties::set_live_setting",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationHeadingLevel": {
                     "comment": "Accessibility: that the element is a heading, and of which level -- AutomationProperties.HeadingLevel, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel",
-                    "function": "impl::set_automation_heading_level",
+                    "function": "impl::automation_properties::set_heading_level",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationLandmarkType": {
                     "comment": "Accessibility: the landmark of the page the element is -- navigation, main, search -- AutomationProperties.LandmarkType, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationLandmarkType",
-                    "function": "impl::set_automation_landmark_type",
+                    "function": "impl::automation_properties::set_landmark_type",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationControlType": {
                     "comment": "Accessibility: what kind of control a screen reader takes the element for -- AutomationProperties.AutomationControlType, the attached property.",
                     "type": "Microsoft.UI.Xaml.Automation.Peers.AutomationControlType",
-                    "function": "impl::set_automation_control_type",
+                    "function": "impl::automation_properties::set_automation_control_type",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationLocalizedControlType": {
                     "comment": "Accessibility: what a screen reader calls that kind of control in the user's language -- AutomationProperties.LocalizedControlType, the attached property.",
                     "type": "String",
-                    "function": "impl::set_automation_localized_control_type",
+                    "function": "impl::automation_properties::set_localized_control_type",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationLocalizedLandmarkType": {
                     "comment": "Accessibility: what a screen reader calls the landmark in the user's language -- AutomationProperties.LocalizedLandmarkType, the attached property.",
                     "type": "String",
-                    "function": "impl::set_automation_localized_landmark_type",
+                    "function": "impl::automation_properties::set_localized_landmark_type",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationAcceleratorKey": {
                     "comment": "Accessibility: the shortcut that does what the element does, as a screen reader says it -- AutomationProperties.AcceleratorKey, the attached property.",
                     "type": "String",
-                    "function": "impl::set_automation_accelerator_key",
+                    "function": "impl::automation_properties::set_accelerator_key",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationHelpText": {
                     "comment": "Accessibility: a few words of help, spoken after the name -- AutomationProperties.HelpText, the attached property.",
                     "type": "String",
-                    "function": "impl::set_automation_help_text",
+                    "function": "impl::automation_properties::set_help_text",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationFullDescription": {
                     "comment": "Accessibility: the long description of the element -- AutomationProperties.FullDescription, the attached property.",
                     "type": "String",
-                    "function": "impl::set_automation_full_description",
+                    "function": "impl::automation_properties::set_full_description",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationPositionInSet": {
                     "comment": "Accessibility: the place of the element among its siblings, 1-based -- AutomationProperties.PositionInSet, the attached property.",
                     "cppType": "int32_t",
                     "cppInclude": "../core.h",
-                    "function": "impl::set_automation_position_in_set",
+                    "function": "impl::automation_properties::set_position_in_set",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationSizeOfSet": {
                     "comment": "Accessibility: how many siblings the element has with itself -- AutomationProperties.SizeOfSet, the attached property.",
                     "cppType": "int32_t",
                     "cppInclude": "../core.h",
-                    "function": "impl::set_automation_size_of_set",
+                    "function": "impl::automation_properties::set_size_of_set",
                     "include": "../impl/automation_properties.h"
                 },
                 "AutomationLabeledBy": {
                     "comment": "Accessibility: the element whose text names this one -- AutomationProperties.LabeledBy, the attached property.",
                     "type": "Microsoft.UI.Xaml.UIElement",
-                    "function": "impl::set_automation_labeled_by",
+                    "function": "impl::automation_properties::set_labeled_by",
                     "include": "../impl/automation_properties.h"
                 },
                 "IsDragRegion": {
@@ -400,13 +400,13 @@
                     "cppType": "core::nullable<bool>",
                     "cppInclude": "../core.h",
                     "function": "impl::set_drag_region",
-                    "include": "../impl/title_bar_drag.h"
+                    "include": "../impl/window_helpers.h"
                 },
                 "ToolTipElement": {
                     "comment": "The tip as a ToolTip element: content that is not text, a placement, an offset. The hover half of toolTip only -- an element has no words to give a screen reader.",
                     "type": "Microsoft.UI.Xaml.Controls.ToolTip",
                     "function": "impl::set_tool_tip_element",
-                    "include": "../impl/tool_tip.h"
+                    "include": "../impl/element_helpers.h"
                 }
             }
         },
@@ -503,14 +503,14 @@
                     "cppType": "Resource",
                     "cppInclude": "../Resource.h",
                     "function": "impl::add_resource",
-                    "include": "../impl/resource.h"
+                    "include": "../impl/element_helpers.h"
                 },
                 "ThemeEntry": {
                     "comment": "The entries of one theme -- ThemeDictionaries[\"Light\"] of the XAML. The same tag repeated adds one theme each.",
-                    "cppType": "ThemeResources",
+                    "cppType": "ThemeDictionary",
                     "cppInclude": "../Resource.h",
-                    "function": "impl::add_theme_resources",
-                    "include": "../impl/resource.h"
+                    "function": "impl::add_theme_dictionary",
+                    "include": "../impl/element_helpers.h"
                 }
             }
         },
@@ -617,7 +617,7 @@
             "comment": "Shapes: the abstract geometry. A string of the path language of XAML builds one, as `data = u\"M 10,100 H 200\"` does; the framework's own converter makes the object.",
             "fromText": {
                 "function": "impl::geometry_from_text",
-                "include": "../impl/geometry_from_text.h"
+                "include": "../impl/layout_helpers.h"
             }
         },
         "Microsoft.UI.Xaml.Media.GeometryGroup": {
@@ -665,7 +665,7 @@
                     "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
                     "type": "String",
                     "function": "impl::set_points",
-                    "include": "../impl/points_from_text.h"
+                    "include": "../impl/layout_helpers.h"
                 }
             }
         },
@@ -677,7 +677,7 @@
                     "comment": "The vertices as text, in the form of XAML: points = u\"10,100 60,40 200,40\". Points is a collection of Point that wxl has no class for; the framework's own converter reads the text.",
                     "type": "String",
                     "function": "impl::set_points",
-                    "include": "../impl/points_from_text.h"
+                    "include": "../impl/layout_helpers.h"
                 }
             }
         },
@@ -750,9 +750,9 @@
                 "ItemTemplate": {
                     "comment": "The function that makes the element of an item.",
                     "cppType": "ItemBuilder",
-                    "cppInclude": "../ItemBuilder.h",
+                    "cppInclude": "../ItemTemplate.h",
                     "function": "impl::set_repeater_template",
-                    "include": "../impl/item_factory.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -839,9 +839,9 @@
                 "ItemTemplate": {
                     "comment": "The function that makes the element of an item.",
                     "cppType": "ItemBuilder",
-                    "cppInclude": "../ItemBuilder.h",
+                    "cppInclude": "../ItemTemplate.h",
                     "function": "impl::set_items_view_template",
-                    "include": "../impl/item_factory.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -860,7 +860,7 @@
                     "cppType": "bool",
                     "cppInclude": "../core.h",
                     "function": "impl::set_wheel_to_parent",
-                    "include": "../impl/wheel_to_parent.h"
+                    "include": "../impl/element_helpers.h"
                 }
             }
         },
@@ -880,13 +880,13 @@
                     "comment": "SwipeItems.Mode of the left items: Reveal shows the buttons, Execute runs the first on a full swipe.",
                     "type": "Microsoft.UI.Xaml.Controls.SwipeMode",
                     "function": "impl::set_left_items_mode",
-                    "include": "../impl/swipe_items_mode.h"
+                    "include": "../impl/items_helpers.h"
                 },
                 "RightItemsMode": {
                     "comment": "SwipeItems.Mode of the right items.",
                     "type": "Microsoft.UI.Xaml.Controls.SwipeMode",
                     "function": "impl::set_right_items_mode",
-                    "include": "../impl/swipe_items_mode.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -1217,13 +1217,13 @@
                     "comment": "The bar that drives the view up and down, and is told where it is.",
                     "type": "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar",
                     "function": "impl::set_vertical_scroll_controller",
-                    "include": "../impl/scroll_controller.h"
+                    "include": "../impl/layout_helpers.h"
                 },
                 "HorizontalScrollController": {
                     "comment": "The same, sideways.",
                     "type": "Microsoft.UI.Xaml.Controls.AnnotatedScrollBar",
                     "function": "impl::set_horizontal_scroll_controller",
-                    "include": "../impl/scroll_controller.h"
+                    "include": "../impl/layout_helpers.h"
                 }
             }
         },
@@ -1442,7 +1442,7 @@
                     "comment": "A virtualizing stack in this direction: itemsPanelOrientation = Orientation::Vertical.",
                     "type": "Microsoft.UI.Xaml.Controls.Orientation",
                     "function": "impl::set_items_panel_orientation",
-                    "include": "../impl/items_panel.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -1463,20 +1463,20 @@
                     "cppType": "ItemContainerPreset",
                     "cppInclude": "../ItemContainerPreset.h",
                     "function": "impl::set_item_container_style",
-                    "include": "../impl/item_template.h"
+                    "include": "../impl/items_helpers.h"
                 },
                 "ItemMargin": {
                     "comment": "The margin of every item container, as an ItemContainerStyle with a Setter for Margin would give it: itemMargin = Thickness {5}.",
                     "type": "Microsoft.UI.Xaml.Thickness",
                     "function": "impl::set_item_margin",
-                    "include": "../impl/item_template.h"
+                    "include": "../impl/items_helpers.h"
                 },
                 "ItemTemplate": {
                     "comment": "What an ItemTemplate says, as a function from the item to the element that shows it. A DataTemplate of XAML is text bound to the properties of a data object; here the data are C++ objects and the element is made by code.",
                     "cppType": "ItemBuilder",
-                    "cppInclude": "../ItemBuilder.h",
+                    "cppInclude": "../ItemTemplate.h",
                     "function": "impl::set_item_template",
-                    "include": "../impl/item_template.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -1492,7 +1492,7 @@
                     "cppType": "bool",
                     "cppInclude": "../core.h",
                     "function": "impl::set_element_items",
-                    "include": "../impl/element_items.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -1578,7 +1578,7 @@
                 "CreateFromUri": {
                     "comment": "The platform opens such a reference only for http, https, ms-appx and ms-appdata: an address with the file scheme fails at OpenReadAsync with E_NOTIMPL, and an unpackaged application has no ms-appx. A file address gets a reference that opens the file when asked; any other address is the platform's.",
                     "function": "impl::stream_reference_from_uri",
-                    "include": "../impl/file_stream_reference.h"
+                    "include": "../impl/winrt_helpers.h"
                 }
             }
         },
@@ -1894,7 +1894,7 @@
                     "comment": "One extension of the filter: \".txt\", or \"*\" for all. Each use of the tag adds one.",
                     "type": "String",
                     "function": "impl::add_file_type",
-                    "include": "../impl/picker_file_types.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -1912,9 +1912,9 @@
                 "FileTypeChoice": {
                     "comment": "One line of the list of types: the words and the extensions behind them. Each use of the tag adds one.",
                     "cppType": "FileTypeChoice",
-                    "cppInclude": "../PickerFileTypes.h",
+                    "cppInclude": "../FileTypeChoice.h",
                     "function": "impl::add_file_type_choice",
-                    "include": "../impl/picker_file_types.h"
+                    "include": "../impl/items_helpers.h"
                 }
             }
         },
@@ -2137,19 +2137,19 @@
                     "cppType": "bool",
                     "cppInclude": "../core.h",
                     "function": "impl::clear_system_backdrop",
-                    "include": "../impl/backdrop_controller.h"
+                    "include": "../impl/window_helpers.h"
                 },
                 "MicaController": {
                     "comment": "The Mica controller of this window: the window becomes its target. The controller still needs its configuration, and Close when the window closes.",
                     "type": "Microsoft.UI.Composition.SystemBackdrops.MicaController",
                     "function": "impl::set_mica_controller",
-                    "include": "../impl/backdrop_controller.h"
+                    "include": "../impl/window_helpers.h"
                 },
                 "DesktopAcrylicController": {
                     "comment": "The desktop acrylic controller of this window, the same way.",
                     "type": "Microsoft.UI.Composition.SystemBackdrops.DesktopAcrylicController",
                     "function": "impl::set_desktop_acrylic_controller",
-                    "include": "../impl/backdrop_controller.h"
+                    "include": "../impl/window_helpers.h"
                 }
             }
         },

@@ -20,6 +20,6 @@ tokenBox.add_onKeyDown([setToken](auto const&, KeyRoutedEventArgs& args) {
 
 auto example = StackPanel {
     spacing = 12,
-    StackPanel {orientation.horizontal, spacing = 8, tokenBox, Button {content = u"Set token", onClick = setToken}},
+    StackPanel {orientation.horizontal, spacing = 8, tokenBox, Button {content = u"Set token", onClick += setToken}},
     map,
 };

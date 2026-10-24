@@ -1,7 +1,6 @@
 #pragma once
 
 #include <coroutine>
-#include <memory>
 
 #include <wxl/Microsoft.UI.Dispatching.h>
 #include "impl/event_waits.h"
@@ -35,7 +34,7 @@
 //
 // `co_await UiThread::onIdle()` hands the UI thread back and resumes once it has
 // nothing more urgent: input, layout and rendering run first. Long work on the
-// UI thread is cut into steps this way, without a second thread:
+// UI thread is split into steps this way, without a second thread:
 //
 //     async::task<> index(Model& model) {
 //         while (model.step()) co_await UiThread::onIdle();
@@ -45,7 +44,7 @@
 //
 // Going down ends the wait the way it ends an event wait: the coroutine
 // resumes with async::operation_canceled_exception. So does a cancellation
-// token given last -- `co_await UiThread::onIdle(stop)` -- once it is
+// token given last -- `co_await UiThread::onIdle(token)` -- once it is
 // cancelled: the step in progress ends on the queue's next turn, without
 // waiting for the thread to be idle, and every later one ends at once.
 
@@ -83,14 +82,27 @@ public:
 
     /// The same under a cancellation token: once it is cancelled the wait
     /// ends with async::operation_canceled_exception.
-    [[nodiscard]] static impl::event_wait_under<Idle, async::cancellation_token> onIdle(
-        async::cancellation_token stop);
+    [[nodiscard]] static impl::cancelable_event_wait<Idle, async::cancellation_token> onIdle(
+        async::cancellation_token token);
 
 private:
     ::IInspectable* queue_ = nullptr;
 };
 
-class UiThread::Idle : impl::waiting_event {
+namespace impl {
+
+/// Where the queued resumption of an idle wait finds the wait: the wait while it is suspended, null
+/// once it has ended on the way down, been cancelled or gone. The queue's turn runs on the wait's
+/// own thread, and a queue that refuses it lets go of it there too, so the count is that thread's.
+struct idle_link final : core::sta_refcounted {
+    explicit idle_link(UiThread::Idle* idle) noexcept : wait(idle) {}
+
+    UiThread::Idle* wait;
+};
+
+}  // namespace impl
+
+class UiThread::Idle : impl::event_wait {
 public:
     Idle() = default;
     ~Idle();
@@ -98,24 +110,24 @@ public:
     Idle(Idle const&) = delete;
     Idle& operator=(Idle const&) = delete;
 
-    bool await_ready() const noexcept { return skipped_ || impl::events_closing(); }
+    bool await_ready() const noexcept { return skipped_ || impl::event_wait::closing(); }
     bool await_suspend(std::coroutine_handle<> waiter);
 
     void await_resume() const {
-        if (skipped_ || ended() || impl::events_closing()) {
+        if (skipped_ || ended() || impl::event_wait::closing()) {
             throw_ended();
         }
     }
 
-    /// Cancelled by the token of onIdle(stop)
-    /// (async::detail::cancellable_awaiter): a wait that is
+    /// Cancelled by the token of onIdle(token)
+    /// (async::detail::cancelable_awaiter): a wait that is
     /// suspended leaves its idle turn -- which finds nobody when it comes -- and
     /// is resumed by the queue's next turn of any priority; one that has not
     /// begun never suspends.
     void cancel() noexcept {
         if (waiting()) {
-            *self_ = nullptr;
-            impl::waiting_event::cancel();
+            self_->wait = nullptr;
+            impl::event_wait::cancel();
         } else {
             skipped_ = true;
         }
@@ -125,7 +137,7 @@ private:
     // The queued resumption finds the wait through this; a wait ended on the
     // way down, or cancelled, is gone by the time the queue gets to it, and
     // leaves it empty.
-    std::shared_ptr<Idle*> self_;
+    core::intrusive_ptr<impl::idle_link> self_;
 
     // Ended without suspending: the queue takes nothing more, or the wait was
     // cancelled before it began.
@@ -136,9 +148,9 @@ inline UiThread::Idle UiThread::onIdle() {
     return {};
 }
 
-inline impl::event_wait_under<UiThread::Idle, async::cancellation_token> UiThread::onIdle(
-    async::cancellation_token stop) {
-    return impl::event_wait_under<Idle, async::cancellation_token>{std::move(stop)};
+inline impl::cancelable_event_wait<UiThread::Idle, async::cancellation_token> UiThread::onIdle(
+    async::cancellation_token token) {
+    return impl::cancelable_event_wait<Idle, async::cancellation_token>{std::move(token)};
 }
 
 }  // namespace wxl

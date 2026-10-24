@@ -25,7 +25,7 @@ hstring lab::refusalOfCurrentException(char16_t const* what) {
             }
         }
         return refusal(what, static_cast<std::int32_t>(error.code()), why.c_str());
-    } catch (wxl::hresult_error const& error) {
+    } catch (wxl::impl::hresult_error const& error) {
         return refusal(what, error.code(), u"");
     } catch (...) {
         return refusal(what, u"исключение не от системы");

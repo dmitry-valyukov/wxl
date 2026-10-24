@@ -65,7 +65,7 @@ public:
     // do for that interface and stores the result; every later call reads
     // the field back.
     template <auto member>
-    member_type<member> const& get();
+    typename core::impl::member_owner<decltype(member)>::member_t const& get();
 
     // The Impl chain of another wrapper, at the level that wrapper stands
     // for. Reaching a wrapper's own Impl is what the conversion operators
@@ -100,7 +100,7 @@ public:
     // property with no value set -- would otherwise cost a pool allocation
     // for an object that is not there, and hand back a wrapper whose
     // `operator bool` says it is. DispatcherQueueTimer::Tick is the one that
-    // shows it: its args are always null, and it fires on a timer.
+    // shows it: its args are always null, and it is raised on a timer.
     template <typename T, typename WinRT>
     static T wrap(WinRT&& object) {
         if (!object) return empty<T>();
@@ -143,8 +143,9 @@ public:
 };
 
 template <auto member>
-member_type<member> const& Object::Impl::get() {
-    auto& field = static_cast<class_type<member>&>(*this).*member;
+typename core::impl::member_owner<decltype(member)>::member_t const& Object::Impl::get() {
+    using level_t = typename core::impl::member_owner<decltype(member)>::type;
+    auto& field = static_cast<level_t&>(*this).*member;
     if (!field) {
         // First use of this interface on this object: one real
         // QueryInterface, cached in the field for the object's lifetime.
@@ -157,13 +158,13 @@ member_type<member> const& Object::Impl::get() {
         // Button's constructor never filled. Filling every level eagerly
         // would be one QueryInterface per level per construction, which is
         // what this cache exists to avoid.
-        field = inspectable_.as<member_type<member>>();
+        field = inspectable_.as<typename core::impl::member_owner<decltype(member)>::member_t>();
     }
     return field;
 }
 
 template <auto member>
-const member_type<member>& Object::get() const {
+const typename core::impl::member_owner<decltype(member)>::member_t& Object::get() const {
     return impl_->get<member>();
 }
 

@@ -52,7 +52,7 @@ auto example = StackPanel {
         u"The minimum and maximum width and height can be set on an AppWindow. When setting the maximum width or "
         u"height, it's recommended to disable the window maximization.",
     },
-    Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }},
+    Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }},
 };
 
 auto options = StackPanel {

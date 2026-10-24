@@ -21,7 +21,7 @@
 // The one thing it cannot check is the negative: that the owner check
 // *refuses* another class's member. The check is a static_assert inside a
 // function body, and a body is not instantiated by a requires-expression, so
-// there is no way to assert that it fires.
+// there is no way to assert that it fails.
 
 #include "BbBlock.h"
 #include "Bind.h"
@@ -66,7 +66,7 @@ using namespace wxl::dsl;
     Button explicit_names{
         content = L"Click",
         horizontalAlignment = HorizontalAlignment::Center,
-        onClick = [](Object const&, RoutedEventArgs&) {},
+        onClick += [](Object const&, RoutedEventArgs&) {},
     };
 
     Button short_form{
@@ -96,7 +96,7 @@ using namespace wxl::dsl;
     };
 
     block.onLink([](zstring_view) {});
-    block.onError([](HtmlError const& error) {
+    block.onError([](MarkupError const& error) {
         (void)error.kind;
         (void)error.detail;
     });
@@ -150,8 +150,8 @@ using namespace wxl::dsl;
         {L"note", {.text = {.color = rgb(96, 96, 96)}}},
     });
     markup.onLink([](zstring_view) {});
-    markup.onError([](HtmlError const&) {});
-    markup.theme(HtmlTheme{.quoteColor = {rgb(128, 128, 128)},
+    markup.onError([](MarkupError const&) {});
+    markup.theme(MarkupTheme{.quoteColor = {rgb(128, 128, 128)},
                            .preRadius = 6,
                            .preElevation = 24,
                            .preBackground = rgb(242, 242, 242),
@@ -168,17 +168,17 @@ using namespace wxl::dsl;
         L"Привет, [b]мир[/b]! [url=https://example.invalid]пример[/url]",
         isTextSelectionEnabled = true,
     };
-    forum.theme(HtmlTheme{});
+    forum.theme(MarkupTheme{});
     forum.baseDirectory(LR"(C:\docs)");
     forum.onLink([](zstring_view) {});
-    forum.onError([](HtmlError const&) {});
+    forum.onError([](MarkupError const&) {});
     forum.append(L"[quote=Вася]дописано[/quote]");
     forum.bb(L"[list][*]заново[/list]");
 
     RsdnBlock post{
         L"AVK>цитата\nответ [c#]var x = 1;[/c#]",
     };
-    post.onError([](HtmlError const&) {});
+    post.onError([](MarkupError const&) {});
     post.append(L"[q]ещё[/q]");
     post.rsdn(L"[h1]Заново[/h1]");
 }
@@ -241,7 +241,7 @@ using namespace wxl::dsl;
         [](iterate<L"789"> key) {
             return Button{
                 key.text(),
-                onClick = [key](Object const&, RoutedEventArgs&) {
+                onClick += [key](Object const&, RoutedEventArgs&) {
                     wchar_t const pressed = key;
                     (void)pressed;
                 },
@@ -336,18 +336,18 @@ using namespace wxl::dsl;
 // and the tags apply to it; its title bar is placed by the window itself, so
 // it is built right in the braces; its own events take the same tags, and a
 // copy captured by a lambda is the same window.
-[[maybe_unused]] void composition_window(TitleBar const& built, Grid const& page, async::cancellation_token stop) {
+[[maybe_unused]] void composition_window(TitleBar const& built, Grid const& page, async::cancellation_token token) {
     CompositionWindow window{
         title = L"App",
         minSize = {820, 560},
         extendsContentIntoTitleBar = true,
         titleBar = {leftHeader = TextBlock{L"App"}, rightHeader = Button{L"Sign in"}},
         zoomFactor = 1.25,
-        onClosing = [](Object const&, WindowClosingEventArgs& args) { args.cancel(!args.cancel()); },
-        onClosed = [] {},
-        onGeometryChanged = [] {},
-        onClientSizeChanged = [](Object const&, ClientSize const& client) { (void)client.scale; },
-        onKeyDown = [](Object const&, VirtualKey const& key) { (void)key; },
+        onClosing += [](Object const&, WindowClosingEventArgs& args) { args.cancel(!args.cancel()); },
+        onClosed += [] {},
+        onGeometryChanged += [] {},
+        onClientSizeChanged += [](Object const&, ClientSize const& client) { (void)client.scale; },
+        onKeyDown += [](Object const&, VirtualKey const& key) { (void)key; },
         page,
     };
     CompositionWindow routed{built, page};
@@ -361,8 +361,8 @@ using namespace wxl::dsl;
     };
     CompositionWindow const coloured{background = rgb(32, 32, 32)};
     // A picture loaded on the way, under the token the exit ends its wait with.
-    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, rgb(0, 0, 0)}, stop);
-    coloured.backgroundAsync(std::filesystem::path{L"Assets/cover.png"}, stop);
+    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, rgb(0, 0, 0)}, token);
+    coloured.backgroundAsync(std::filesystem::path{L"Assets/cover.png"}, token);
 
     auto const closeLater = [window] { window.close(); };
     (void)closeLater;
@@ -378,8 +378,8 @@ using namespace wxl::dsl;
     (void)closings;
 }
 
-// backgroundAsync takes the token its load stands under, and has no form without one: the wait for
-// the picture is a frame that has to be over before the exit.
+// backgroundAsync takes the token its load is registered with, and has no form without one: the
+// wait for the picture is a frame that has to be over before the exit.
 template <class Image>
 concept loads_background_without_a_token =
     requires(CompositionWindow const& window, Image const& image) { window.backgroundAsync(image); };
@@ -389,8 +389,8 @@ static_assert(!loads_background_without_a_token<BackgroundImage> &&
 
 // A texture from the cache, under a token as every operation of the platform's.
 [[maybe_unused]] async::task<CompositionDrawingSurface> cached_texture(TextureCache& cache,
-                                                                       async::cancellation_token stop) {
-    return cache.getAsync(std::filesystem::path{L"C:/Books/cover.png"}, std::move(stop));
+                                                                       async::cancellation_token token) {
+    return cache.getAsync(std::filesystem::path{L"C:/Books/cover.png"}, std::move(token));
 }
 
 // An application that refuses to close until its own exit is over: the handler is
@@ -403,10 +403,42 @@ struct RefusesUntilDone {
     }
 
     void build() const {
-        CompositionWindow window{onClosing = method(this, &RefusesUntilDone::closing)};
+        CompositionWindow window{onClosing += method(this, &RefusesUntilDone::closing)};
         window.add_onClosing(method(this, &RefusesUntilDone::closing));
     }
 };
+
+// One reading of a member for every spelling: const or not, noexcept or not.
+struct Spellings {
+    int plain(char, double);
+    void constant(int) const;
+    void quiet() noexcept;
+    bool both(Object const&, float) const noexcept;
+};
+
+template <auto Member, typename Class, typename Result, typename Parameters, bool Const,
+          bool Noexcept>
+constexpr bool reads_as() {
+    using traits = impl::member_function_traits<decltype(Member)>;
+    return std::is_same_v<typename traits::class_t, Class> &&
+           std::is_same_v<typename traits::result_t, Result> &&
+           std::is_same_v<typename traits::parameters_t, Parameters> && traits::is_const == Const &&
+           traits::is_noexcept == Noexcept;
+}
+
+static_assert(
+    reads_as<&Spellings::plain, Spellings, int, std::tuple<char, double>, false, false>());
+static_assert(reads_as<&Spellings::constant, Spellings, void, std::tuple<int>, true, false>());
+static_assert(reads_as<&Spellings::quiet, Spellings, void, std::tuple<>, false, true>());
+static_assert(
+    reads_as<&Spellings::both, Spellings, bool, std::tuple<Object const&, float>, true, true>());
+
+// The readers of a call operator: a handler that cannot throw names its sender, a generic one
+// names none, and a body that cannot throw names its steps.
+static_assert(
+    std::is_same_v<impl::handler_sender_t<decltype([](Button const&) noexcept {})>, Button>);
+static_assert(std::is_same_v<impl::handler_sender_t<decltype([](auto const&) {})>, void>);
+static_assert(impl::iterating<decltype([](repeat<3>) noexcept { return Button{}; })>);
 
 // An owner that keeps its watches on the window's events as members: each calls a noexcept
 // member of its own, with the event's args or with nothing, and comes off with the owner. One
@@ -423,7 +455,8 @@ struct WatchesTheWindow {
     void placed(CompositionWindow const& window) {
         geometryWatch.attach(window, *this);
         bool const attached = geometryWatch.attached();
-        bool const removed = window.remove_onGeometryChanged(EventToken{});
+        EventToken token = window.add_onGeometryChanged([] {});
+        bool const removed = window.remove_onGeometryChanged(token);
         (void)attached;
         (void)removed;
     }
@@ -520,7 +553,7 @@ struct WatchesTheWindow {
 [[maybe_unused]] void theme_flip(Grid const& page) {
     page.requestedTheme(page.actualTheme() == ElementTheme::Dark ? ElementTheme::Light
                                                                  : ElementTheme::Dark);
-    EventToken const token = page.add_onActualThemeChanged([page](Object const&, Object const&) {
+    EventToken token = page.add_onActualThemeChanged([page](Object const&, Object const&) {
         page.background(brushes.SolidBackgroundFillColor.Base(page.actualTheme()));
     });
     page.remove_onActualThemeChanged(token);
@@ -655,15 +688,6 @@ namespace library_presets {
     TextBlock label{wide};
 }
 
-// The braced handler shorthand: the body is assignments applied to the
-// object the event is attached to.
-[[maybe_unused]] void handler_shorthand() {
-    Button button{
-        content = L"Click",
-        onClick = {content = L"Thank You!"},
-    };
-}
-
 // A binding written on a property, in the one form its shape allows. Bind
 // takes a property the control shows and writes itself -- a pair in
 // impl/binding.h; BindOutput takes any property with a setter; BindInput takes
@@ -789,7 +813,7 @@ struct BoundModel : core::sta_refcounted {
 
     // Tick carries no arguments of its own, so the handler is handed a plain
     // wxl::Object -- the same bridge out of WinRT the sender comes through.
-    EventToken const tick = timer.add_onTick([](Object const&, Object const&) {});
+    EventToken tick = timer.add_onTick([](Object const&, Object const&) {});
     timer.remove_onTick(tick);
 
     timer.start();
@@ -808,7 +832,7 @@ struct BoundModel : core::sta_refcounted {
     text.text(L"changed");
     hstring const current = text.text();
     button.content(L"Click");
-    EventToken const token = button.add_onClick([](Object const&, RoutedEventArgs&) {});
+    EventToken token = button.add_onClick([](Object const&, RoutedEventArgs&) {});
     button.remove_onClick(token);
     (void)current;
 }
@@ -1110,7 +1134,7 @@ static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::resize),
 // Where a scroller is going, before it is shown there: the view of the next frame and the one
 // a fling comes to rest at -- the parts a VirtualDrawingSurface under the content draws ahead.
 void drawing_ahead_of_the_scroll() {
-    ScrollViewer{onViewChanging = [](ScrollViewer const&, ScrollViewerViewChangingEventArgs& args) {
+    ScrollViewer{onViewChanging += [](ScrollViewer const&, ScrollViewerViewChangingEventArgs& args) {
         double const next = args.nextView().verticalOffset();
         double const rest = args.finalView().verticalOffset();
         bool const flung = args.isInertial();
@@ -1270,7 +1294,7 @@ static_assert(!background_takes<Color>);
     Apply {button, content = L"Switch", isEnabled = false};
     Apply {button, Margin {16, 0}, Padding {3}};
     Apply {button, styles.ButtonBase.TextBlockButton};
-    Apply {button, onClick = [](Button const& self) { self.isEnabled(false); }};
+    Apply {button, onClick += [](Button const& self) { self.isEnabled(false); }};
     Apply {button, Preset{content = L"Switch"}};
     Apply {panel, TextBlock {L"a child goes in the same way"}};
 
@@ -1317,7 +1341,7 @@ static_assert(!background_takes<Color>);
 
 [[maybe_unused]] void the_comma_is_not_a_separator() {
     static_assert(impl::describes<std::remove_cvref_t<decltype(content = L"a")>>);
-    static_assert(impl::describes<std::remove_cvref_t<decltype(onClick = [](Button const&) {})>>);
+    static_assert(impl::describes<std::remove_cvref_t<decltype(onClick += [](Button const&) {})>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(content)>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(orientation)>>);
     static_assert(impl::describes<std::remove_cvref_t<decltype(onClick)>>);
@@ -1387,23 +1411,23 @@ concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
         x::Button::flyout = MenuFlyout{},
         x::ContentControl::content = L"Click me",
         content = L"and the flat name still means the same thing",
-        x::Button::onClick = [](Object const&, RoutedEventArgs&) {},
+        x::Button::onClick += [](Object const&, RoutedEventArgs&) {},
     };
 }
 
 // A handler may take the sender alone. Most events carry args nobody reads, and
 // the parameter written only to be ignored is what this form removes -- both
 // spellings are here so neither disappears, and so the two concepts behind them
-// stay disjoint (a change that let one swallow the other would break this).
+// stay disjoint (a change that let one take in the other would break this).
 [[maybe_unused]] void handlers_may_drop_the_args() {
     Button{
         content = L"Switch",
-        onClick = [](Button const& self) { self.isEnabled(false); },
+        onClick += [](Button const& self) { self.isEnabled(false); },
     };
 
     Button{
         content = L"Switch",
-        onClick = [](Button const& self, RoutedEventArgs&) { self.isEnabled(false); },
+        onClick += [](Button const& self, RoutedEventArgs&) { self.isEnabled(false); },
     };
 
     ToggleSwitch{}.add_onToggled([](ToggleSwitch const& self) { self.isOn(false); });
@@ -1420,7 +1444,7 @@ concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
             return Button{
                 key.text(),
                 column = key.index,
-                onClick = [type, symbol = key.value] { type(symbol); },
+                onClick += [type, symbol = key.value] { type(symbol); },
             };
         },
     };
@@ -1455,18 +1479,18 @@ struct HandlersAsMembers {
 
     void build(DispatcherQueue const& queue) {
         Button{
-            onClick = method(this, &HandlersAsMembers::clicked),
-            onLoaded = method(this, &HandlersAsMembers::loaded),
+            onClick += method(this, &HandlersAsMembers::clicked),
+            onLoaded += method(this, &HandlersAsMembers::loaded),
         };
-        ToggleSwitch{onToggled = method(this, &HandlersAsMembers::toggled)};
-        Button{onClick = method(this, &HandlersAsMembers::pressed)};
+        ToggleSwitch{onToggled += method(this, &HandlersAsMembers::toggled)};
+        Button{onClick += method(this, &HandlersAsMembers::pressed)};
 
         // The same value after the braces, and as a delegate parameter.
         Button{}.add_onClick(method(this, &HandlersAsMembers::clicked));
         queue.tryEnqueue(method(this, &HandlersAsMembers::pressed));
     }
 
-    void build() const { TextBox{onKeyDown = method(this, &HandlersAsMembers::keyDown)}; }
+    void build() const { TextBox{onKeyDown += method(this, &HandlersAsMembers::keyDown)}; }
 
     // Last: it goes first, and stops the coroutine before anything it touches.
     async::task<> enabling;
@@ -1514,7 +1538,7 @@ struct Watcher {
     void clicked(Button const&, RoutedEventArgs&) noexcept {}
 
     void watch() { count.on_change(method(this, &Watcher::counted)); }
-    void build() { Button{onClick = method(this, &Watcher::clicked)}; }
+    void build() { Button{onClick += method(this, &Watcher::clicked)}; }
 };
 
 using counted_call = decltype(method(std::declval<Watcher*>(), &Watcher::counted));
@@ -1526,16 +1550,16 @@ static_assert(core::invocable<counted_call, void(int const&) noexcept>);
 static_assert(std::is_invocable_v<recounted_call, int const&> &&
               !std::is_nothrow_invocable_v<recounted_call, int const&>);
 static_assert(!core::invocable<recounted_call, void(int const&) noexcept>);
-static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
+static_assert(impl::typed_sender_handler<clicked_call, RoutedEventArgs>);
 
 // Tabs at the bottom of a window and the dialog that answers by events: both
 // arrived for the forum client, and both are here so that a change to the
 // profile or to showDialog's signature stops this translation unit rather
 // than an application.
-[[maybe_unused]] void tabs_and_dialogs(Window const& window, async::cancellation_token stop) {
+[[maybe_unused]] void tabs_and_dialogs(Window const& window, async::cancellation_token token) {
     SelectorBar tabs{
         hAlign.center,
-        onSelectionChanged = [](Object const&, SelectorBarSelectionChangedEventArgs&) {},
+        onSelectionChanged += [](Object const&, SelectorBarSelectionChangedEventArgs&) {},
         SelectorBarItem{L"Forums", icon = FontIcon{glyph = L""}},
         SelectorBarItem{L"Watched", icon = FontIcon{glyph = L""}},
     };
@@ -1548,8 +1572,8 @@ static_assert(TypedSenderHandler<clicked_call, RoutedEventArgs>);
     };
 
     // The wait for the answer is a task its owner keeps; here, until the function returns.
-    async::task<> const overWindow = showDialog(about, window, stop);
-    async::task<> const overContent = showDialog(about, window.content(), stop);
+    async::task<> const overWindow = showDialog(about, window, token);
+    async::task<> const overContent = showDialog(about, window.content(), token);
 }
 
 // showDialog takes the token its owner closes the dialog with, and has no form without one: the
@@ -1585,7 +1609,7 @@ static_assert(!shows_dialog_without_a_token<Window> && !shows_dialog_without_a_t
 // The pointer's shape over an element is a property like any other -- set
 // declaratively on a plain Border, no control subclass in between. It stands
 // on UIElement.ProtectedCursor, "protected" in the metadata and reachable all
-// the same: see impl/cursor.h.
+// the same: see impl/element_helpers.h.
 [[maybe_unused]] void cursor_over_an_element() {
     Border sizer{width = 6, cursor = InputSystemCursorShape::SizeWestEast};
 
@@ -1614,33 +1638,33 @@ static_assert(rgba(131, 50, 50, 0.2) == Color{51, 131, 50, 50});
 static_assert(rgba(0, 0, 0, 0) == colors.transparent);
 static_assert(rgba(255, 255, 255, 1.0) == colors.white);
 
-// color_helper::lightness() moves along OKLCH L: the ends are black and white,
+// ColorHelper::lightness() moves along OKLCH L: the ends are black and white,
 // a zero step is the identity, equal steps either way from a grey land
 // symmetric greys, and alpha rides along.
-static_assert(color_helper::lightness(colors.black, 1.0) == colors.white);
-static_assert(color_helper::lightness(colors.white, -1.0) == colors.black);
-static_assert(color_helper::lightness(rgb(131, 50, 50), 0.0) == rgb(131, 50, 50));
-static_assert(color_helper::lightness(colors.gray, 0.2) == rgb(189, 189, 189));
-static_assert(color_helper::lightness(colors.gray, -0.2) == rgb(72, 72, 72));
-static_assert(color_helper::lightness(rgba(30, 20, 200, 0.5), -0.1).A == 128);
+static_assert(ColorHelper::lightness(colors.black, 1.0) == colors.white);
+static_assert(ColorHelper::lightness(colors.white, -1.0) == colors.black);
+static_assert(ColorHelper::lightness(rgb(131, 50, 50), 0.0) == rgb(131, 50, 50));
+static_assert(ColorHelper::lightness(colors.gray, 0.2) == rgb(189, 189, 189));
+static_assert(ColorHelper::lightness(colors.gray, -0.2) == rgb(72, 72, 72));
+static_assert(ColorHelper::lightness(rgba(30, 20, 200, 0.5), -0.1).A == 128);
 
 // shade() is a product in linear light: a quarter of white is not a quarter
 // of the byte, one is the identity, zero is black, a colour keeps its hue
 // because the channels scale together, too much light clips at white, and
 // alpha rides along.
-static_assert(color_helper::shade(colors.white, 0.25) == rgb(137, 137, 137));
-static_assert(color_helper::shade(colors.gray, 0.5) == rgb(92, 92, 92));
-static_assert(color_helper::shade(rgb(200, 60, 30), 0.3) == rgb(116, 31, 13));
-static_assert(color_helper::shade(rgb(200, 60, 30), 1.0) == rgb(200, 60, 30));
-static_assert(color_helper::shade(rgba(200, 60, 30, 0.5), 0.0) == rgba(0, 0, 0, 0.5));
-static_assert(color_helper::shade(colors.gray, 8.0) == colors.white);
+static_assert(ColorHelper::shade(colors.white, 0.25) == rgb(137, 137, 137));
+static_assert(ColorHelper::shade(colors.gray, 0.5) == rgb(92, 92, 92));
+static_assert(ColorHelper::shade(rgb(200, 60, 30), 0.3) == rgb(116, 31, 13));
+static_assert(ColorHelper::shade(rgb(200, 60, 30), 1.0) == rgb(200, 60, 30));
+static_assert(ColorHelper::shade(rgba(200, 60, 30, 0.5), 0.0) == rgba(0, 0, 0, 0.5));
+static_assert(ColorHelper::shade(colors.gray, 8.0) == colors.white);
 
 // highlight() is a sum in linear light: the light's colour comes through and
 // the surface's saturation goes; all of a white light is white.
-static_assert(color_helper::highlight(rgb(200, 60, 30), colors.white, 0.0) == rgb(200, 60, 30));
-static_assert(color_helper::highlight(rgb(200, 60, 30), colors.white, 0.2) == rgb(228, 136, 127));
-static_assert(color_helper::highlight(colors.gray, rgb(255, 200, 100), 0.5) == rgb(220, 188, 144));
-static_assert(color_helper::highlight(colors.black, colors.white, 1.0) == colors.white);
+static_assert(ColorHelper::highlight(rgb(200, 60, 30), colors.white, 0.0) == rgb(200, 60, 30));
+static_assert(ColorHelper::highlight(rgb(200, 60, 30), colors.white, 0.2) == rgb(228, 136, 127));
+static_assert(ColorHelper::highlight(colors.gray, rgb(255, 200, 100), 0.5) == rgb(220, 188, 144));
+static_assert(ColorHelper::highlight(colors.black, colors.white, 1.0) == colors.white);
 
 // illuminate() is Lambert: a face square to a white lamp with no ambient
 // shows its albedo, a face turned away shows only the ambient, the slopes in
@@ -1658,31 +1682,31 @@ static_assert(Light::illuminate(rgb(200, 60, 30), lampAtLeft, {-1, -1, 1.5}) == 
 static_assert(Light::illuminate(rgb(200, 60, 30), lampAtLeft, {1, 1, 1.5}) == rgb(48, 9, 4));
 static_assert(Light::illuminate(rgba(200, 60, 30, 0.5), lampAbove, {0, 0, 1}).A == 128);
 
-// relief_helper: a raised relief turns its near face to the lamp and its far
+// Relief: a raised relief turns its near face to the lamp and its far
 // face away, a sunken one is the same two faces swapped, the flat top gets
 // the lamp's cosine, and under a lamp straight overhead the two faces of a
 // relief are one.
 namespace {
-constexpr auto raisedRed = relief_helper::raised(rgb(200, 60, 30), lampAtLeft);
-constexpr auto sunkenRed = relief_helper::sunken(rgb(200, 60, 30), lampAtLeft);
-constexpr auto underhead = relief_helper::raised(rgb(200, 60, 30), lampAbove);
+constexpr auto raisedRed = Relief::raised(rgb(200, 60, 30), lampAtLeft);
+constexpr auto sunkenRed = Relief::sunken(rgb(200, 60, 30), lampAtLeft);
+constexpr auto underhead = Relief::raised(rgb(200, 60, 30), lampAbove);
 }  // namespace
 static_assert(raisedRed.nearLamp == rgb(202, 58, 28) && raisedRed.farFromLamp == rgb(81, 19, 8));
 static_assert(sunkenRed.nearLamp == raisedRed.farFromLamp && sunkenRed.farFromLamp == raisedRed.nearLamp);
-static_assert(relief_helper::flat(rgb(200, 60, 30), lampAtLeft) == rgb(170, 48, 22));
+static_assert(Relief::flat(rgb(200, 60, 30), lampAtLeft) == rgb(170, 48, 22));
 static_assert(underhead.nearLamp == rgb(200, 60, 30) && underhead.farFromLamp == rgb(200, 60, 30));
-static_assert(relief_helper::raised(rgb(200, 60, 30), lampAtLeft, 0.0).nearLamp == rgb(170, 48, 22));
+static_assert(Relief::raised(rgb(200, 60, 30), lampAtLeft, 0.0).nearLamp == rgb(170, 48, 22));
 
 // falloff() is one under the lamp, falls by the inverse square and the
 // cosine, and depends only on the ratio of distance to height; under() puts
 // it on the key and leaves the ambient alone.
-static_assert(relief_helper::falloff(0.0, 1.0) == 1.0);
-static_assert(relief_helper::falloff(1.3, 2.0) - relief_helper::falloff(0.65, 1.0) < 1e-12
-              && relief_helper::falloff(0.65, 1.0) - relief_helper::falloff(1.3, 2.0) < 1e-12);
-static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 0.0, 1.0) == rgb(205, 59, 28));
-static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 0.65, 1.0) == rgb(164, 46, 21));
-static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 1.3, 1.0) == rgb(112, 29, 12));
-static_assert(relief_helper::under(rgb(200, 60, 30), lampAtLeft, 1.3, 2.0) == rgb(164, 46, 21));
+static_assert(Relief::falloff(0.0, 1.0) == 1.0);
+static_assert(Relief::falloff(1.3, 2.0) - Relief::falloff(0.65, 1.0) < 1e-12
+              && Relief::falloff(0.65, 1.0) - Relief::falloff(1.3, 2.0) < 1e-12);
+static_assert(Relief::under(rgb(200, 60, 30), lampAtLeft, 0.0, 1.0) == rgb(205, 59, 28));
+static_assert(Relief::under(rgb(200, 60, 30), lampAtLeft, 0.65, 1.0) == rgb(164, 46, 21));
+static_assert(Relief::under(rgb(200, 60, 30), lampAtLeft, 1.3, 1.0) == rgb(112, 29, 12));
+static_assert(Relief::under(rgb(200, 60, 30), lampAtLeft, 1.3, 2.0) == rgb(164, 46, 21));
 
 // towards() places a lamp by two angles: azimuth the classical way round the
 // screen, elevation above it. Straight overhead is the viewer's axis.
@@ -1700,9 +1724,9 @@ static_assert(close_to(overhead.x, 0.0) && close_to(overhead.y, 0.0) && close_to
 // side to the far side through the middle, whatever the lamp's height; a
 // lamp overhead leaves both ends in the middle.
 namespace {
-constexpr auto axisLeftUp = relief_helper::across({Direction::from_angles(120, 60), colors.white, colors.black});
-constexpr auto axisLow = relief_helper::across({Direction::from_angles(120, 20), colors.white, colors.black});
-constexpr auto axisOverhead = relief_helper::across({Direction::from_angles(120, 90), colors.white, colors.black});
+constexpr auto axisLeftUp = Relief::across({Direction::from_angles(120, 60), colors.white, colors.black});
+constexpr auto axisLow = Relief::across({Direction::from_angles(120, 20), colors.white, colors.black});
+constexpr auto axisOverhead = Relief::across({Direction::from_angles(120, 90), colors.white, colors.black});
 }  // namespace
 static_assert(close_to(axisLeftUp.startX, 0.25) && close_to(axisLeftUp.startY, 0.5 - 0.4330127)
               && close_to(axisLeftUp.endX, 0.75) && close_to(axisLeftUp.endY, 0.5 + 0.4330127));
@@ -1715,10 +1739,10 @@ static_assert(close_to(axisOverhead.startX, 0.5) && close_to(axisOverhead.endY, 
 // the top; a negative rise swaps the sides.
 namespace {
 constexpr Light lampHigh {Direction::from_angles(120, 60), rgb(255, 246, 232), rgb(64, 68, 90)};
-constexpr auto cushionRed = relief_helper::cushion<4>(rgb(200, 60, 30), lampHigh, 1.0);
-constexpr auto flatRed = relief_helper::cushion<4>(rgb(200, 60, 30), lampHigh, 0.0);
-constexpr auto dentRed = relief_helper::cushion<4>(rgb(200, 60, 30), lampHigh, -1.0);
-constexpr Color topRed = relief_helper::flat(rgb(200, 60, 30), lampHigh);
+constexpr auto cushionRed = Relief::cushion<4>(rgb(200, 60, 30), lampHigh, 1.0);
+constexpr auto flatRed = Relief::cushion<4>(rgb(200, 60, 30), lampHigh, 0.0);
+constexpr auto dentRed = Relief::cushion<4>(rgb(200, 60, 30), lampHigh, -1.0);
+constexpr Color topRed = Relief::flat(rgb(200, 60, 30), lampHigh);
 }  // namespace
 static_assert(topRed == rgb(192, 55, 26));
 static_assert(cushionRed[0].nearLamp == rgb(192, 55, 26) && cushionRed[0].farFromLamp == rgb(48, 9, 4));
@@ -1832,30 +1856,31 @@ static_assert(
 // The proxy is a type of its own, so a wait made without a token keeps every
 // byte it had: its awaiter is the pointer and two flags it can be cancelled
 // through, and the idle wait the size it was.
-using click_wait_under_t = decltype(on_event<EventKey::Click>(std::declval<Button const&>(),
+using cancelable_click_wait_t = decltype(on_event<EventKey::Click>(std::declval<Button const&>(),
                                                               std::declval<async::cancellation_token>()));
-using key_wait_under_t = decltype(on_event<EventKey::KeyDown>(std::declval<Button const&>(),
+using cancelable_key_wait_t = decltype(on_event<EventKey::KeyDown>(std::declval<Button const&>(),
                                                               std::declval<async::cancellation_token>()));
 
-static_assert(std::is_same_v<click_wait_under_t,
-                             cancellable_event_awaitable<impl::keyed_event<EventKey::Click, Button>>>);
+static_assert(std::is_same_v<cancelable_click_wait_t,
+                             impl::cancelable_event_awaitable<impl::keyed_event<EventKey::Click, Button>>>);
 static_assert(std::is_same_v<decltype(onClick(std::declval<Button const&>(),
                                               std::declval<async::cancellation_token>())),
-                             click_wait_under_t>);
-static_assert(!std::is_move_constructible_v<click_wait_under_t>);
+                             cancelable_click_wait_t>);
+static_assert(!std::is_move_constructible_v<cancelable_click_wait_t>);
 
 // The two forms answer as they do without a token.
-static_assert(std::is_same_v<decltype(std::declval<key_wait_under_t&>().operator co_await().await_resume()),
+static_assert(std::is_same_v<decltype(std::declval<cancelable_key_wait_t&>().operator co_await().await_resume()),
                              KeyRoutedEventArgs&>);
-static_assert(std::is_same_v<decltype(std::declval<key_wait_under_t&>().next().await_resume()),
+static_assert(std::is_same_v<decltype(std::declval<cancelable_key_wait_t&>().next().await_resume()),
                              key_wait_t::next_result_t>);
 
 static_assert(sizeof(click_wait_t::awaiter) == 2 * sizeof(void*));
-static_assert(sizeof(click_wait_under_t) == sizeof(click_wait_t) + sizeof(async::cancellation_token));
-static_assert(async::detail::cancellable_awaiter<click_wait_t::awaiter>);
-static_assert(async::detail::cancellable_awaiter<UiThread::Idle>);
-static_assert(sizeof(UiThread::Idle) ==
-              sizeof(impl::waiting_event) + sizeof(std::shared_ptr<UiThread::Idle*>) + sizeof(void*));
+static_assert(sizeof(cancelable_click_wait_t) == sizeof(click_wait_t) + sizeof(async::cancellation_token));
+static_assert(async::detail::cancelable_awaiter<click_wait_t::awaiter>);
+static_assert(async::detail::cancelable_awaiter<UiThread::Idle>);
+static_assert(sizeof(UiThread::Idle) == sizeof(impl::event_wait) +
+                                            sizeof(core::intrusive_ptr<impl::idle_link>) +
+                                            sizeof(void*));
 
 // The protocol itself, proven the only way it can be: by a coroutine. Never
 // called -- activating a control needs a runtime that is not up here -- and
@@ -1898,7 +1923,7 @@ struct probe_task {
             co_await on_event(button, &Button::add_onClick, &Button::remove_onClick);
         static_cast<void>(again);
 
-        // The same wait through the tag the braces use -- `onClick = handler`
+        // The same wait through the tag the braces use -- `onClick += handler`
         // to handle, `onClick(button)` to await -- and through the schema,
         // which also checks that a Button is what the tag was declared on.
         static_assert(std::is_same_v<decltype(onClick(button)),
@@ -1921,24 +1946,24 @@ struct probe_task {
 
 // The same waits under a cancellation token, given last -- and the idle wait
 // beside them, with and without one.
-[[maybe_unused]] probe_task awaiting_under_a_token(Button button, async::cancellation_token stop) {
-    auto clicks = on_event<EventKey::Click>(button, stop);
+[[maybe_unused]] probe_task awaiting_under_a_token(Button button, async::cancellation_token token) {
+    auto clicks = on_event<EventKey::Click>(button, token);
     RoutedEventArgs& args = co_await clicks;
     static_cast<void>(args);
 
-    RoutedEventArgs& tagged = co_await onClick(button, stop);
+    RoutedEventArgs& tagged = co_await onClick(button, token);
     static_cast<void>(tagged);
-    RoutedEventArgs& owned = co_await schema::Button::onClick(button, stop);
+    RoutedEventArgs& owned = co_await schema::Button::onClick(button, token);
     static_cast<void>(owned);
     RoutedEventArgs& again =
-        co_await on_event(button, &Button::add_onClick, &Button::remove_onClick, stop);
+        co_await on_event(button, &Button::add_onClick, &Button::remove_onClick, token);
     static_cast<void>(again);
 
-    if (auto const got = co_await on_event<EventKey::KeyUp>(button, stop).next()) {
+    if (auto const got = co_await on_event<EventKey::KeyUp>(button, token).next()) {
         got->get().handled(true);
     }
 
-    co_await UiThread::onIdle(stop);
+    co_await UiThread::onIdle(token);
     co_await UiThread::onIdle();
 }
 
@@ -1951,8 +1976,8 @@ static_assert(std::is_same_v<decltype(std::declval<ContentDialog const&>().showA
                                  std::declval<async::cancellation_token>())),
                              async::task<ContentDialogResult>>);
 
-[[maybe_unused]] async::task<bool> asking_under_a_token(ContentDialog dialog, async::cancellation_token stop) {
-    co_return co_await dialog.showAsync(std::move(stop)) == ContentDialogResult::Primary;
+[[maybe_unused]] async::task<bool> asking_under_a_token(ContentDialog dialog, async::cancellation_token token) {
+    co_return co_await dialog.showAsync(std::move(token)) == ContentDialogResult::Primary;
 }
 
 // An event of the application's own, a core::event, awaited under a token: one wait per
@@ -1980,9 +2005,9 @@ static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void()>&
                                           .await_resume()),
                              void>);
 static_assert(!std::is_move_constructible_v<count_wait_t>);
-static_assert(async::detail::cancellable_awaiter<impl::core_event_wait<core::event<void(int)>, int>>);
+static_assert(async::detail::cancelable_awaiter<impl::core_event_wait<core::event<void(int)>, int>>);
 
-// A reference to const comes as a copy, so a type whose copy would be cut down to its static
+// A reference to const comes as a copy, so a type whose copy would be sliced to its static
 // type -- or that has none -- is refused where the wait is made, with a static_assert that says
 // what to declare instead. The assert stands on a concept, which is what can be checked here:
 // ordinary types pass, a polymorphic one does not, and a reference to non-const is never copied.
@@ -1998,15 +2023,15 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 [[maybe_unused]] probe_task awaiting_an_event_of_the_model(core::event<void(int)>& counted,
                                                            core::event<void(std::u16string const&, int) noexcept>& renamed,
                                                            core::event<void()>& reset,
-                                                           async::cancellation_token stop) {
-    int const count = co_await on_event(counted, stop);
+                                                           async::cancellation_token token) {
+    int const count = co_await on_event(counted, token);
     static_cast<void>(count);
 
-    auto const [name, times] = co_await on_event(renamed, stop);
+    auto const [name, times] = co_await on_event(renamed, token);
     static_cast<void>(name);
     static_cast<void>(times);
 
-    co_await on_event(reset, stop);
+    co_await on_event(reset, token);
 }
 
 // HaloEffect and GaussianBlurEffect -- written by hand, so their schema
@@ -2362,7 +2387,7 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
     using namespace ::wxl::dsl;
     SettingsCard{header = TextBlock{u"App theme"}, description = u"Select which app theme to display", headerIcon = FontIcon{glyph = u"x"},
                  isClickEnabled = true, contentAlignment = SettingsCardContentAlignment::Vertical,
-                 onClick = [](Object const&, RoutedEventArgs&) {}, Button{u"Setting"}};
+                 onClick += [](Object const&, RoutedEventArgs&) {}, Button{u"Setting"}};
 }
 
 // SettingsExpander -- written by hand, so its schema lines are too.
@@ -2383,7 +2408,7 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
     using namespace ::wxl;
     using namespace ::wxl::dsl;
     SettingsExpander{header = TextBlock{u"Sound"}, description = u"Audible feedback", isExpanded = true,
-                     onExpanding = [](Object const&, Object const&) {}, ToggleSwitch{},
+                     onExpanding += [](Object const&, Object const&) {}, ToggleSwitch{},
                      items[SettingsCard{header = TextBlock{u"Spatial audio"}}]};
 }
 
@@ -2457,7 +2482,7 @@ struct Shelf {
         itemsSource = BindOutput{shelf.cards, [](core::intrusive_ptr<ShelfCard> const& card) {
             return StackPanel{TextBlock{text = card->title}, TextBlock{text = BindOutput{card->progress}}};
         }},
-        onItemClick = [&cards = shelf.cards](ListView const&, ItemClickEventArgs& args) {
+        onItemClick += [&cards = shelf.cards](ListView const&, ItemClickEventArgs& args) {
             if (core::intrusive_ptr<ShelfCard> const* card = boundItem(cards, args.clickedItem())) {
                 (*card)->progress.set(core::u16_text{u"opened"});
             }

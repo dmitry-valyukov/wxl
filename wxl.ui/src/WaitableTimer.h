@@ -9,13 +9,13 @@
 // last page turned, written at once when the reader leaves the book, and written on
 // the way out whatever the timer says.
 //
-//     WaitableTimer timer{window.dispatcherQueue(), 1500ms, stop.token()};
+//     WaitableTimer timer{window.dispatcherQueue(), 1500ms, source.token()};
 //
-//     async::task<> writes(WaitableTimer& timer, async::cancellation_token stop) {
+//     async::task<> writes(WaitableTimer& timer, async::cancellation_token token) {
 //         do {
 //             co_await timer;
 //             co_await save();
-//         } while (!stop.is_canceled());
+//         } while (!token.is_canceled());
 //     }
 //
 //     timer.restart();   // a change: the interval begins again from now
@@ -46,7 +46,7 @@ struct dispatcher_timer {
         return timer.add_onTick(std::forward<Handler>(handler));
     }
 
-    void remove(EventToken token) const { timer.remove_onTick(token); }
+    void remove(EventToken& token) const { timer.remove_onTick(token); }
     void start() const { timer.start(); }
     void stop() const { timer.stop(); }
 };
@@ -57,9 +57,9 @@ class WaitableTimer : public impl::waitable_timer<impl::dispatcher_timer>
 {
 public:
     /// A one-shot timer of the queue, stopped until restart(). The token, given last as
-    /// everywhere in wxl, is the one every wait on the timer stands under.
+    /// everywhere in wxl, is the one every wait on the timer is registered with.
     WaitableTimer(DispatcherQueue const& queue, std::chrono::milliseconds interval,
-                  async::cancellation_token stop = {});
+                  async::cancellation_token token = {});
 };
 
 }  // namespace wxl

@@ -783,11 +783,11 @@ void await_after_the_result() {
 
 /// An object that keeps its own load in a field, and a load that keeps the object alive by a
 /// parameter: the frame of the load is the object's last holder.
-struct keeps_its_load {
+struct keeps_its_load : sta_refcounted {
     task<int> load;
 };
 
-task<int> loads_holding(std::shared_ptr<keeps_its_load>, std::coroutine_handle<>& slot) {
+task<int> loads_holding(intrusive_ptr<keeps_its_load>, std::coroutine_handle<>& slot) {
     co_await parked{slot};
     co_return 1;
 }
@@ -802,7 +802,7 @@ void join_a_task_whose_object_goes_with_its_frame() {
     int got = 0;
     task<int>* field = nullptr;
     {
-        auto owner = std::make_shared<keeps_its_load>();
+        auto owner = make_refcounted<keeps_its_load>();
         owner->load = loads_holding(owner, slot);
         field = &owner->load;
     }

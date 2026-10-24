@@ -72,8 +72,8 @@ public:
     static void exclude(UIElement const& element);
 
 private:
-    struct State;
-    core::intrusive_ptr<State> state_;
+    struct Impl;
+    core::intrusive_ptr<Impl> impl_;
 };
 
 }  // namespace wxl

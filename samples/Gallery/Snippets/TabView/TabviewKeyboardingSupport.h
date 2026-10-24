@@ -17,15 +17,15 @@ auto const tabs = TabView {
     minHeight = 475,
     Margin {-12},
     selectedIndex = 0,
-    onAddTabButtonClick = addTab,
-    onTabCloseRequested = closeTab,
-    onLoaded = threeTabs,
+    onAddTabButtonClick += addTab,
+    onTabCloseRequested += closeTab,
+    onLoaded += threeTabs,
 };
 
 tabs.keyboardAccelerators().append(KeyboardAccelerator {
     key = VirtualKey::T,
     modifiers = VirtualKeyModifiers::Control,
-    onInvoked = [newTab](auto const&, KeyboardAcceleratorInvokedEventArgs& args) {
+    onInvoked += [newTab](auto const&, KeyboardAcceleratorInvokedEventArgs& args) {
         if (args.element().is<TabView>()) {
             auto const view = args.element().try_as<TabView>();
             view.tabItems().append(newTab(static_cast<int>(view.tabItems().size())));
@@ -36,7 +36,7 @@ tabs.keyboardAccelerators().append(KeyboardAccelerator {
 tabs.keyboardAccelerators().append(KeyboardAccelerator {
     key = VirtualKey::W,
     modifiers = VirtualKeyModifiers::Control,
-    onInvoked = [](auto const&, KeyboardAcceleratorInvokedEventArgs& args) {
+    onInvoked += [](auto const&, KeyboardAcceleratorInvokedEventArgs& args) {
         if (args.element().is<TabView>()) {
             auto const view = args.element().try_as<TabView>();
             // Only close the selected tab if it is closeable.
@@ -52,7 +52,7 @@ for (int number = 1; number <= 9; ++number) {
     tabs.keyboardAccelerators().append(KeyboardAccelerator {
         key = static_cast<VirtualKey>(static_cast<int>(VirtualKey::Number1) + number - 1),
         modifiers = VirtualKeyModifiers::Control,
-        onInvoked = [number](auto const&, KeyboardAcceleratorInvokedEventArgs& args) {
+        onInvoked += [number](auto const&, KeyboardAcceleratorInvokedEventArgs& args) {
             if (args.element().is<TabView>()) {
                 auto const view = args.element().try_as<TabView>();
                 // Ctrl+9 selects the last tab, whatever their number.

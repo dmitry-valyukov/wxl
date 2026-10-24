@@ -5,8 +5,8 @@ clickToPlay.add_onImageOpened([playback, clickToPlay](auto&&...) {
         playback.visibility(Visibility::Visible);
     }
 });
-playback.children().append(Button {content = u"Play", onClick = [clickToPlay](auto&&...) { clickToPlay.play(); }});
-playback.children().append(Button {content = u"Stop", onClick = [clickToPlay](auto&&...) { clickToPlay.stop(); }});
+playback.children().append(Button {content = u"Play", onClick += [clickToPlay](auto&&...) { clickToPlay.play(); }});
+playback.children().append(Button {content = u"Stop", onClick += [clickToPlay](auto&&...) { clickToPlay.stop(); }});
 
 auto example = StackPanel {
     spacing = 12,

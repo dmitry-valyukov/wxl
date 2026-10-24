@@ -26,7 +26,7 @@ auto columnSpacingSlider = Slider {
     stepFrequency = 1.0,
     tickFrequency = 1.0,
     value = 8.0,
-    onValueChanged = [grid](Slider const& self) { grid.columnSpacing(self.value()); },
+    onValueChanged += [grid](Slider const& self) { grid.columnSpacing(self.value()); },
 };
 
 auto rowSpacingSlider = Slider {
@@ -43,7 +43,7 @@ auto rowSpacingSlider = Slider {
     stepFrequency = 1.0,
     tickFrequency = 1.0,
     value = 8.0,
-    onValueChanged = [grid](Slider const& self) { grid.rowSpacing(self.value()); },
+    onValueChanged += [grid](Slider const& self) { grid.rowSpacing(self.value()); },
 };
 
 auto redColumnSlider = Slider {
@@ -55,7 +55,7 @@ auto redColumnSlider = Slider {
     snapsTo = SliderSnapsTo::Ticks,
     stepFrequency = 1.0,
     tickFrequency = 1.0,
-    onValueChanged = [red](Slider const& self) { Grid::setColumn(red, static_cast<int>(self.value())); },
+    onValueChanged += [red](Slider const& self) { Grid::setColumn(red, static_cast<int>(self.value())); },
 };
 
 auto redRowSlider = Slider {
@@ -71,7 +71,7 @@ auto redRowSlider = Slider {
     snapsTo = SliderSnapsTo::Ticks,
     stepFrequency = 1.0,
     tickFrequency = 1.0,
-    onValueChanged = [red](Slider const& self) { Grid::setRow(red, static_cast<int>(self.value())); },
+    onValueChanged += [red](Slider const& self) { Grid::setRow(red, static_cast<int>(self.value())); },
 };
 
 auto options = Grid {

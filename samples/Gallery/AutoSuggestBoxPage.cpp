@@ -5,7 +5,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "StringList.h"
+#include "Box.h"
 
 #include <string>
 #include <vector>

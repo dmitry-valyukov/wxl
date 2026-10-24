@@ -2,7 +2,6 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "StringList.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 using namespace wxl;

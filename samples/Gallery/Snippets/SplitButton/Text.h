@@ -33,7 +33,7 @@ auto chooser = SplitButton {
     content = u"Choose color",
     flyout = Flyout {
         placement = FlyoutPlacementMode::Bottom,
-        onOpened = [model, hideOnClick](Object const& sender) {
+        onOpened += [model, hideOnClick](Object const& sender) {
             auto const flyout = sender.try_as<Flyout>();
             auto const swatches = flyout.content().try_as<VariableSizedWrapGrid>().children();
             model->hiding.clear();

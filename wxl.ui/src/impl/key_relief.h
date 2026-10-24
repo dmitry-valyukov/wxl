@@ -16,7 +16,7 @@
 
 namespace wxl::impl {
 
-struct KeyRelief {
+struct key_relief {
     double width = 0.0;
     double height = 0.0;
     double corner = 0.0;   // rounding of the outline
@@ -32,7 +32,7 @@ struct KeyRelief {
 // A pressed key in the panel's opening: the body has gone down, and the
 // points of the rim that are now below the panel are hidden from the
 // distant lamp by the edge of the opening. Ambient light is not touched.
-struct HoleShadow {
+struct hole_shadow {
     double depth = 0.0;      // how far the outer edge of the rim is below the panel
     double azimuth = 0.0;    // the lamp: where the light comes from, degrees; 0 to the right, 90 up the screen
     double elevation = 0.0;  // the lamp: above the horizon, degrees
@@ -43,17 +43,17 @@ struct HoleShadow {
 
 // The normal map of the key, over the whole surface. Green grows up the
 // screen, as in Microsoft's sample maps.
-void draw_key_map(DrawingSurface const& surface, KeyRelief const& key);
+void draw_key_map(DrawingSurface const& surface, key_relief const& key);
 
 // The mask of the face: white without the rim. Its edge runs along the join
 // of face and rim and is blurred over the same `smooth` as the slope in the
 // map, but never under one pixel of the surface.
-void draw_face_mask(DrawingSurface const& surface, KeyRelief const& key);
+void draw_face_mask(DrawingSurface const& surface, key_relief const& key);
 
 // The mask of the opening's shadow: black with the share of light the shadow
 // takes for alpha, clear where the light reaches. The face counts as flat at
 // the height of the rim's inner edge.
-void draw_hole_shadow(DrawingSurface const& surface, KeyRelief const& key, HoleShadow const& shadow);
+void draw_hole_shadow(DrawingSurface const& surface, key_relief const& key, hole_shadow const& shadow);
 
 // A white rounded rectangle filling the surface: the mask of the whole key.
 // The radius is in pixels of the surface.

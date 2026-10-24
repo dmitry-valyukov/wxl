@@ -51,32 +51,32 @@ namespace impl {
 
 /**
  * A report put together in a fixed buffer, owned by the caller: what does not fit is
- * dropped, and a report that was cut ends in "...", after the last whole code point that
+ * dropped, and a report that was truncated ends in "...", after the last whole code point that
  * fits. Nothing is allocated -- the terminate may have come from a std::bad_alloc.
  */
 class terminate_report {
 public:
-    /// Room for "..." at least, which a cut report ends in.
+    /// Room for "..." at least, which a truncated report ends in.
     template <std::size_t N>
     explicit terminate_report(char (&text)[N]) noexcept : text_{text} {
         static_assert(N >= 3, "wxl: a terminate report needs room for \"...\"");
     }
 
-    /// Bytes as they are; a cut that falls inside a sequence of UTF-8 goes back to its start.
+    /// Bytes as they are; truncation that falls inside a sequence of UTF-8 goes back to its start.
     void put(std::string_view part) noexcept;
 
     /// UTF-16 as Windows hands it out, written as UTF-8, a lone surrogate as U+FFFD.
     void put(std::wstring_view part) noexcept;
 
-    /// The report so far. Once cut, it takes nothing more.
+    /// The report so far. Once truncated, it takes nothing more.
     std::string_view text() const noexcept { return {text_.data(), used_}; }
 
 private:
-    void cut() noexcept;
+    void truncate() noexcept;
 
     std::span<char> text_;
     std::size_t used_ = 0;
-    bool cut_ = false;
+    bool truncated_ = false;
 };
 
 /**

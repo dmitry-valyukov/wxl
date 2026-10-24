@@ -13,12 +13,11 @@
 
 #include <wxl/Microsoft.UI.Xaml.Media.impl.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "brush_lookup.h"
+#include "resource_lookup.h"
 #include <wxl/brush_names.h>
-#include "style_lookup.h"
 #include <wxl/style_names.h>
 
-namespace wxl::resources {
+namespace wxl::impl {
 namespace {
 
 // Filled on first use and kept for the life of the process. A nullable
@@ -155,4 +154,4 @@ Brush const& brush_at(int index, ElementTheme theme) {
     return *slot;
 }
 
-}  // namespace wxl::resources
+}  // namespace wxl::impl

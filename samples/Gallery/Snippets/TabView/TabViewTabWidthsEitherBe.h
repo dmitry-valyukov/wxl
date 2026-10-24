@@ -5,7 +5,7 @@ auto const fixedTab = [menu](char16_t const* title, Symbol symbol, int page) {
 };
 
 auto const tabs = TabView {
-    onBringIntoViewRequested = [](auto const&, BringIntoViewRequestedEventArgs& args) { args.handled(true); },
+    onBringIntoViewRequested += [](auto const&, BringIntoViewRequestedEventArgs& args) { args.handled(true); },
     minHeight = 475,
     Margin {-12},
     isAddTabButtonVisible = false,
@@ -22,7 +22,7 @@ auto options = ComboBox {
     ComboBoxItem {content = u"Equal"},
     ComboBoxItem {content = u"Compact"},
     selectedIndex = 0,
-    onSelectionChanged = [tabs](ComboBox const& self) {
+    onSelectionChanged += [tabs](ComboBox const& self) {
         static constexpr TabViewWidthMode modes[] = {TabViewWidthMode::SizeToContent, TabViewWidthMode::Equal, TabViewWidthMode::Compact};
         tabs.tabWidthMode(modes[std::max(self.selectedIndex(), 0)]);
     },

@@ -135,7 +135,9 @@ namespace {
 
 /// In asynchronous programming, it is very common for one asynchronous operation, on completion, to invoke a second operation and pass data to it.
 struct continuation {
-    struct state {
+    // A copy goes wherever the future keeps its continuations, and the future is let go of on
+    // any thread: the count is atomic.
+    struct state final : refcounted_mt {
         bool volatile * run_flag_;
         bool volatile * delete_flag_;
 
@@ -144,20 +146,17 @@ struct continuation {
             , delete_flag_(delete_flag)
         {}
 
-        ~state() {
-            *delete_flag_ = true;
-        }
+        ~state() override { *delete_flag_ = true; }
     };
 
-    continuation(bool volatile * run_flag, bool volatile * delete_flag)
-        : state_(std::make_shared<state>(run_flag, delete_flag))
-    {}
+    continuation(bool volatile* run_flag, bool volatile* delete_flag)
+        : state_(make_refcounted<state>(run_flag, delete_flag)) {}
 
     void operator()() noexcept {
         *state_->run_flag_ = true;
     }
 
-    std::shared_ptr<state> state_;
+    intrusive_ptr<state> state_;
 };
 }
 
@@ -266,7 +265,8 @@ STRESS_TEST_CASE(future, set_exception_from_another_thread)
 
 namespace{
 struct atomic_continuation {
-    struct state {
+    // Copied by every thread that adds it as a continuation: the count is atomic.
+    struct state final : refcounted_mt {
         state()
             : counter_()
         {}
@@ -278,15 +278,13 @@ struct atomic_continuation {
         std::atomic<size_t> counter_;
     };
 
-    atomic_continuation()
-        : state_(std::make_shared<state>())
-    {}
+    atomic_continuation() : state_(make_refcounted<state>()) {}
 
     void operator()() noexcept {
         state_->increase_counter();
     }
 
-    std::shared_ptr<state> state_;
+    intrusive_ptr<state> state_;
 };
 
 void add_continuation(barrier * enter_barrier, test_future& future, atomic_continuation& continuation, size_t number_of_cycles) {

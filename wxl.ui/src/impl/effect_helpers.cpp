@@ -1,4 +1,4 @@
-// wxl::impl::insert_layer, when_drawn, corner_of -- see effect_layer.h.
+// wxl::impl::insert_layer, when_drawn, corner_of -- see effect_helpers.h.
 
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
@@ -6,9 +6,11 @@
 #include <winrt/Windows.Foundation.Collections.h>
 
 #include <functional>
-#include <memory>
 
-#include "impl/effect_layer.h"
+#include "impl/effect_helpers.h"
+
+// Last: it carries the wxl.core import, after every plain header.
+#include "../core.h"
 
 namespace wxl::impl {
 
@@ -48,7 +50,7 @@ void when_drawn(composition::ContainerVisual const& host,
         place(children);
         return;
     }
-    auto const waiting = std::make_shared<winrt::event_token>();
+    auto const waiting = core::make_refcounted<winrt::event_token>();
     *waiting = winrt::Microsoft::UI::Xaml::Media::CompositionTarget::Rendering(
         [children, place = std::move(place), waiting](auto&&, auto&&) {
             if (children.Count() == 0) return;

@@ -17,13 +17,12 @@
 #include <crtdbg.h>
 #include <iostream>
 
-#include "impl/activation_factory.h"
-#include "impl/app_icon.h"
-#include "impl/application_loop.h"
-#include "impl/bootstrap.h"
+#include "impl/activator.h"
+#include "CompositionWindow.h"
 #include "impl/event_waits.h"
-#include "impl/terminate_reason.h"
+#include "impl/winrt_helpers.h"
 #include "coroutine_checks.h"
+#include "Application.h"
 #include "launch.h"
 
 import wxl.async;
@@ -41,6 +40,10 @@ namespace dispatching = winrt::Microsoft::UI::Dispatching;
 // loop that report came from has finished.
 wxl::Teardown teardownHandler;
 
+}  // namespace
+
+namespace wxl::impl {
+
 // XAML will not start without an Application object, and everything the
 // framework looks up at run time -- the default control styles, the type
 // information a control asks for while building its own template -- it looks
@@ -55,20 +58,20 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
         // From here on a WinRT object can be made; before, and after Start
         // returns, an attempt to make one is the mistake the check in
         // resolve_activation_factory names.
-        wxl::impl::set_application_launched(true);
+        ::wxl::Application::set_launched(true);
 
         // The windows of wxl's own are closed when the queue of XAML begins to shut down: its
         // ShutdownStarting is the last moment XAML is alive under them, and the loop is over by
-        // then, so the flag goes down first (see impl/application_loop.h). Subscribed here, before
-        // any subscription of the application's, and never taken off: the queue goes with it. The
-        // order among the handlers of the event does not matter: closing the rendering devices
-        // stops only their replacement. Neither call throws; a handler of Closing or Closed that
-        // does ends in std::terminate, as from the window's procedure itself.
+        // then, so the flag goes down first (see Application::loopRunning()). Subscribed here,
+        // before any subscription of the application's, and never taken off: the queue goes with
+        // it. The order among the handlers of the event does not matter: closing the rendering
+        // devices stops only their replacement. Neither call throws; a handler of Closing or Closed
+        // that does ends in std::terminate, as from the window's procedure itself.
         auto const queue = dispatching::DispatcherQueue::GetForCurrentThread();
         if (!queue) wxl::core::abort("wxl: the XAML application launched with no dispatcher queue");
         static_cast<void>(queue.ShutdownStarting([](auto&&, auto&&) noexcept {
-            wxl::impl::set_application_loop_running(false);
-            wxl::impl::close_windows_at_exit();
+            ::wxl::Application::set_loop_running(false);
+            ::wxl::CompositionWindow::close_all_at_exit();
         }));
 
         // Without a XAML application definition nothing has merged the
@@ -95,8 +98,8 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
 
         // The application has built and shown its windows by now, so this
         // is the moment a window that carries no icon can be given the one
-        // in the executable -- see impl/app_icon.h.
-        wxl::impl::apply_application_icon();
+        // in the executable -- see Application::apply_icon().
+        ::wxl::Application::apply_icon();
     }
 
     // A control building its own template asks the application to resolve the
@@ -115,6 +118,10 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
     winrt::Microsoft::UI::Xaml::XamlTypeInfo::XamlControlsXamlMetaDataProvider provider_;
 };
 
+}  // namespace wxl::impl
+
+namespace {
+
 // What the process waits for before it ends: no operation out. A coroutine body is not waited
 // for: every task lives in a place of an owner, and the owners let go before the end, so a frame
 // still alive there is a broken rule, which a build that checks stops at (see wWinMain).
@@ -126,7 +133,7 @@ bool nothingLeftToWaitFor() noexcept {
 // The watch over the wait at exit, in a Debug build (see wWinMain): called once, when the
 // thread timer comes due, and the timer goes with the call. noexcept: an exception must not
 // cross a Win32 callback -- unwinding through the frames of user32 is not supported, and on
-// x64 a call from the kernel may swallow it -- so a failure inside is std::terminate, which
+// x64 a call from the kernel may lose it -- so a failure inside is std::terminate, which
 // names it.
 void CALLBACK reportWhatIsStillAlive(HWND, UINT, UINT_PTR id, DWORD) noexcept {
     ::KillTimer(nullptr, id);
@@ -144,24 +151,6 @@ void CALLBACK reportWhatIsStillAlive(HWND, UINT, UINT_PTR id, DWORD) noexcept {
 #endif
 
 }  // namespace
-
-namespace wxl::impl {
-namespace {
-
-// Whether Application::Start is running its loop; see impl/application_loop.h.
-bool s_application_loop_running = false;
-
-}  // namespace
-
-void set_application_loop_running(bool running) noexcept {
-    s_application_loop_running = running;
-}
-
-bool application_loop_running() noexcept {
-    return s_application_loop_running;
-}
-
-}  // namespace wxl::impl
 
 // Version 6 of the common controls, asked for the only way it can be asked
 // for: a manifest dependency on the side-by-side assembly. Without it a
@@ -193,7 +182,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // set here is the one it asks about a winrt::hresult_error. A coroutine nobody holds that
     // fails ends here too: wxl.async's default hands its exception to this handler. An error
     // XAML records has a way of its own, UnhandledException above.
-    wxl::impl::install_terminate_report();
+    wxl::Application::install_terminate_report();
 
 #ifndef NDEBUG
     // A failed assert in a windowed application has nowhere to say so: the
@@ -221,11 +210,11 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     wxl::async::sta_loop::start_dispatched("wxl: I/O");
 
     auto reason = wxl::TeardownReason::Closed;
-    wxl::impl::set_application_loop_running(true);
+    wxl::Application::set_loop_running(true);
     try {
         // Returns when the application exits; OnLaunched above runs inside.
         winrt::Microsoft::UI::Xaml::Application::Start(
-            [](auto&&) { winrt::make<App>(); });
+            [](auto&&) { winrt::make<wxl::impl::App>(); });
     } catch (winrt::hresult_error const& failure) {
         // The teardown handler is told it was an error, and nothing else:
         // without this line nobody learns what it was.
@@ -242,8 +231,8 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
     // ShutdownStarting has put the flag down already; this is for a Start that ends without
     // it, by an error before its loop.
-    wxl::impl::set_application_loop_running(false);
-    wxl::impl::set_application_launched(false);
+    wxl::Application::set_loop_running(false);
+    wxl::Application::set_launched(false);
 
     // Every coroutine still suspended on an event is told that what it waits
     // for will not come, so that it can unwind, run its destructors and let
@@ -262,7 +251,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // once. An application that needs XAML on the way out has to close its
     // waits while its loop is still turning, from its main window's Closed;
     // wxl has no notion of a main window to do it for them yet.
-    wxl::impl::close_event_waits();
+    wxl::impl::event_wait::close_all();
 
     // A process has no business ending while an operation is out: the thread's loop
     // turns on -- the worker's answers, the thread pool's, the queue's timers -- until
@@ -336,7 +325,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // opened later, by the teardown handler, say. Destroyed in stop(), it would release its
     // XAML content under a XAML that is gone; the process stops on it here instead, with the
     // cause named.
-    if (!wxl::impl::windows_closed()) {
+    if (!wxl::CompositionWindow::all_closed()) {
         wxl::core::abort("wxl: a CompositionWindow is still alive at sta_loop::stop() -- it was "
                          "to be closed while XAML lived, in ShutdownStarting of its queue");
     }

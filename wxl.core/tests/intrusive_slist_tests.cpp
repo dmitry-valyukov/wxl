@@ -8,7 +8,6 @@ import wxl.core;
 namespace {
 
 using wxl::core::as_not_null;
-using wxl::core::cookie_t;
 using wxl::core::intrusive_slist;
 using wxl::core::intrusive_slist_node;
 
@@ -75,10 +74,10 @@ TEST(IntrusiveSlistTest, RemoveUnlinksTheIdentifiedNode) {
     Item a(1), b(2), c(3);
 
     list.push_back(as_not_null(&a));
-    cookie_t cookie_b = list.push_back(as_not_null(&b));
+    list.push_back(as_not_null(&b));
     list.push_back(as_not_null(&c));
 
-    Item* removed = list.remove(cookie_b);
+    Item* removed = list.remove(&b);
 
     EXPECT_EQ(removed, &b);
     EXPECT_EQ(values(list), (std::vector<int>{1, 3}));
@@ -88,10 +87,10 @@ TEST(IntrusiveSlistTest, RemoveHeadUpdatesFront) {
     intrusive_slist<Item> list;
     Item a(1), b(2);
 
-    cookie_t cookie_a = list.push_back(as_not_null(&a));
+    list.push_back(as_not_null(&a));
     list.push_back(as_not_null(&b));
 
-    list.remove(cookie_a);
+    list.remove(&a);
 
     EXPECT_EQ(list.front(), &b);
 }
@@ -101,21 +100,20 @@ TEST(IntrusiveSlistTest, RemoveTailUpdatesBack) {
     Item a(1), b(2);
 
     list.push_back(as_not_null(&a));
-    cookie_t cookie_b = list.push_back(as_not_null(&b));
+    list.push_back(as_not_null(&b));
 
-    list.remove(cookie_b);
+    list.remove(&b);
 
     EXPECT_EQ(list.back(), &a);
 }
 
-TEST(IntrusiveSlistTest, RemoveUnknownCookieReturnsNullptrAndLeavesListIntact) {
+TEST(IntrusiveSlistTest, RemoveUnknownNodeReturnsNullptrAndLeavesListIntact) {
     intrusive_slist<Item> list;
     Item a(1), b(2);
 
     list.push_back(as_not_null(&a));
-    cookie_t foreign_cookie{as_not_null(&b)};  // never linked into `list`
 
-    EXPECT_EQ(list.remove(foreign_cookie), nullptr);
+    EXPECT_EQ(list.remove(&b), nullptr);  // never linked into `list`
     EXPECT_EQ(values(list), (std::vector<int>{1}));
 }
 
@@ -127,8 +125,8 @@ TEST(IntrusiveSlistTest, PushBackAfterTheTailWasRemoved) {
     Item a(1), b(2), c(3);
 
     list.push_back(as_not_null(&a));
-    cookie_t cookie_b = list.push_back(as_not_null(&b));
-    list.remove(cookie_b);
+    list.push_back(as_not_null(&b));
+    list.remove(&b);
 
     list.push_back(as_not_null(&c));
 
@@ -140,8 +138,8 @@ TEST(IntrusiveSlistTest, PushBackAfterTheListWasEmptied) {
     intrusive_slist<Item> list;
     Item a(1), b(2);
 
-    cookie_t cookie_a = list.push_back(as_not_null(&a));
-    list.remove(cookie_a);
+    list.push_back(as_not_null(&a));
+    list.remove(&a);
 
     list.push_back(as_not_null(&b));
 
@@ -155,8 +153,8 @@ TEST(IntrusiveSlistTest, RemovingTheLastNodeMakesTheListEmptyAgain) {
     intrusive_slist<Item> list;
     Item a(1);
 
-    cookie_t cookie_a = list.push_back(as_not_null(&a));
-    list.remove(cookie_a);
+    list.push_back(as_not_null(&a));
+    list.remove(&a);
 
     EXPECT_TRUE(list.empty());
     EXPECT_EQ(list.begin(), list.end());

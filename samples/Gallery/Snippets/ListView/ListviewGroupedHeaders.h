@@ -2,7 +2,7 @@
 // item (the position of a contact in the application's vector) to the element that shows it.
 auto const* people = &gallery::contacts();
 auto const contactOf = [people](Object const& item) {
-    auto const& contact = (*people)[static_cast<size_t>(intOf(item))];
+    auto const& contact = (*people)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Grid {
         rowDefinitions = u"*,*",
         columnDefinitions = u"auto,*",
@@ -48,12 +48,12 @@ auto example = StackPanel {
         borderBrush = brushes.Control.Strong.StrokeColorDefault,
         borderThickness = 1,
         itemTemplate = [contactOf, groups](Object const& item) -> UIElement {
-            auto const entry = groups->order[static_cast<size_t>(intOf(item))];
+            auto const entry = groups->order[static_cast<size_t>(unboxValue<int64_t>(item))];
             if (entry < 0) {
                 return TextBlock {automationAccessibilityView = AccessibilityView::Raw, styles.TextBlock.Title, groups->headers[static_cast<size_t>(-entry) - 1]};
             }
-            return contactOf(intBox(entry));
+            return contactOf(boxValue(entry));
         },
-        itemsSource = indexList(static_cast<int64_t>(groups->order.size())),
+        itemsSource = IndexList(static_cast<int64_t>(groups->order.size())),
     },
 };

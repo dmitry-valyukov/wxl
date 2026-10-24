@@ -42,6 +42,9 @@
 
 #include <winrt/Windows.Foundation.h>
 
+#include "hresult.h"
+#include "sta_com.h"
+
 namespace wxl::impl {
 
 /// A property value that is never made and never counted: one object per
@@ -54,11 +57,8 @@ namespace wxl::impl {
 /// what it holds does not compile.
 // cppwinrt calls every one of its ABI vtables `type` -- abi<X>::type -- so
 // deriving from two of them at once leaves a class with two base classes of
-// the same name, and MSVC refuses it. One named layer each is enough to tell
-// them apart; nothing else is added, and neither has a member of its own.
-template <typename Interface>
-struct interface_vtable : winrt::impl::abi_t<Interface> {};
-
+// the same name, and MSVC refuses it. One named layer each (interface_vtable,
+// impl/sta_com.h, and the one below) is enough to tell them apart.
 struct property_value_vtable : winrt::impl::abi_t<winrt::Windows::Foundation::IPropertyValue> {};
 
 template <typename Interface>
@@ -84,7 +84,7 @@ struct eternal_value : interface_vtable<Interface>, property_value_vtable {
         }
 
         *object = nullptr;
-        return no_interface;
+        return e_nointerface;
     }
 
     // The whole of the lifetime. Two is what a live object with one more
@@ -125,95 +125,91 @@ struct eternal_value : interface_vtable<Interface>, property_value_vtable {
         return 0;
     }
 
-    int32_t __stdcall GetUInt8(uint8_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetInt16(int16_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetUInt16(uint16_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetInt32(int32_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetUInt32(uint32_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetInt64(int64_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetUInt64(uint64_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetSingle(float*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetDouble(double*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetChar16(char16_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetBoolean(bool*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetString(void**) noexcept override { return not_implemented; }
-    int32_t __stdcall GetGuid(winrt::guid*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetDateTime(int64_t*) noexcept override { return not_implemented; }
-    int32_t __stdcall GetTimeSpan(int64_t*) noexcept override { return not_implemented; }
+    int32_t __stdcall GetUInt8(uint8_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetInt16(int16_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetUInt16(uint16_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetInt32(int32_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetUInt32(uint32_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetInt64(int64_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetUInt64(uint64_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetSingle(float*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetDouble(double*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetChar16(char16_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetBoolean(bool*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetString(void**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetGuid(winrt::guid*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetDateTime(int64_t*) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetTimeSpan(int64_t*) noexcept override { return e_notimpl; }
     int32_t __stdcall GetPoint(winrt::Windows::Foundation::Point*) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetSize(winrt::Windows::Foundation::Size*) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetRect(winrt::Windows::Foundation::Rect*) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
 
     int32_t __stdcall GetUInt8Array(uint32_t*, uint8_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetInt16Array(uint32_t*, int16_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetUInt16Array(uint32_t*, uint16_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetInt32Array(uint32_t*, int32_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetUInt32Array(uint32_t*, uint32_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetInt64Array(uint32_t*, int64_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetUInt64Array(uint32_t*, uint64_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetSingleArray(uint32_t*, float**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetDoubleArray(uint32_t*, double**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetChar16Array(uint32_t*, char16_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetBooleanArray(uint32_t*, bool**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetStringArray(uint32_t*, void***) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetInspectableArray(uint32_t*, void***) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetGuidArray(uint32_t*, winrt::guid**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetDateTimeArray(uint32_t*, int64_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetTimeSpanArray(uint32_t*, int64_t**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetPointArray(uint32_t*,
                                     winrt::Windows::Foundation::Point**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetSizeArray(uint32_t*,
                                    winrt::Windows::Foundation::Size**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
     int32_t __stdcall GetRectArray(uint32_t*,
                                    winrt::Windows::Foundation::Rect**) noexcept override {
-        return not_implemented;
+        return e_notimpl;
     }
-
-protected:
-    static constexpr int32_t no_interface = static_cast<int32_t>(0x80004002);   // E_NOINTERFACE
-    static constexpr int32_t not_implemented = static_cast<int32_t>(0x80004001);  // E_NOTIMPL
 };
 
 /// One of the two booleans WinRT is ever handed, and the only two that exist.

@@ -26,7 +26,7 @@ struct Model {
     Slider originYSlider = slider(u"GradientOrigin.Y", 3, 1);
 
     Slider slider(char16_t const* title, int gridRow, int gridColumn) {
-        return Slider {header = title, row = gridRow, column = gridColumn, onValueChanged = [this](Slider const&) { apply(); }};
+        return Slider {header = title, row = gridRow, column = gridColumn, onValueChanged += [this](Slider const&) { apply(); }};
     }
 
     static Point point(double x, double y) { return Point {static_cast<float>(x), static_cast<float>(y)}; }
@@ -68,7 +68,7 @@ auto options = Grid {
         ComboBoxItem {content = u"RelativeToBoundingBox"},
         ComboBoxItem {content = u"Absolute"},
         selectedIndex = 0,
-        onSelectionChanged = [model](ComboBox const& self) {
+        onSelectionChanged += [model](ComboBox const& self) {
             bool const absolute = self.selectedIndex() == 1;
             model->brush.mappingMode(absolute ? BrushMappingMode::Absolute : BrushMappingMode::RelativeToBoundingBox);
             model->initSliders(absolute);
@@ -89,11 +89,11 @@ auto options = Grid {
         ComboBoxItem {content = u"Reflect"},
         ComboBoxItem {content = u"Repeat"},
         selectedIndex = 0,
-        onSelectionChanged = [model](ComboBox const& self) {
+        onSelectionChanged += [model](ComboBox const& self) {
             static constexpr GradientSpreadMethod methods[] = {
                 GradientSpreadMethod::Pad, GradientSpreadMethod::Reflect, GradientSpreadMethod::Repeat};
             model->brush.spreadMethod(methods[self.selectedIndex()]);
         },
     },
-    onLoaded = [model](Grid const&) { model->initSliders(false); },
+    onLoaded += [model](Grid const&) { model->initSliders(false); },
 };

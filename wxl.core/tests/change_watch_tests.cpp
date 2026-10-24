@@ -169,7 +169,7 @@ void take_off_by_someone_else() {
     Listener owner;
     value_watch watch{value, owner};
     using node_t = observable<int const>::changed_event::func_t;
-    static_cast<void>(value.remove_change(cookie_t{static_cast<node_t*>(&watch)}));
+    static_cast<void>(value.remove_change(static_cast<node_t&>(watch)));
 }
 
 TEST(ChangeWatchDeathTest, taken_off_by_someone_else_stops) {

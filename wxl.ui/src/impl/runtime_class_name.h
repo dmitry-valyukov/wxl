@@ -3,8 +3,8 @@
 namespace wxl::impl {
 
 // Customization point the generator specializes per WinRT-backed
-// wxl::impl::X (for ActivationFactory<Obj>, see activation_factory.h) or
-// per I<Name>Statics interface (for Statics<I>, see statics.h) --
+// wxl::impl::X (for activator<Obj>, see activator.h) or
+// per I<Name>Statics interface (for activation_factory<I>, see activation_factory.h) --
 // deliberately no primary definition, so using either of those templates
 // for a T nobody specialized this for is a compile error, not a silently
 // wrong runtime lookup.
@@ -16,9 +16,9 @@ namespace wxl::impl {
 // The specializations live in the generated .cpp of the class's namespace,
 // not in a header: each name is used by that one translation unit only.
 //
-// Shared, single declaration for both consumers -- ActivationFactory<Obj>
+// Shared, single declaration for both consumers -- activator<Obj>
 // specializes this on an Obj marker (the class being activated);
-// Statics<I> specializes it directly on the statics interface I itself
+// activation_factory<I> specializes it directly on the statics interface I itself
 // (which already uniquely identifies its class, so no separate marker
 // type is needed there).
 template <typename T>

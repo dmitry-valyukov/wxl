@@ -3,8 +3,8 @@
 #include "NavigationPages.h"
 
 #include "Box.h"
+#include "IndexList.h"
 #include "Pages.h"
-#include "StringList.h"
 #include <wxl/Microsoft.UI.Xaml.Media.h>
 
 using namespace wxl;
@@ -23,7 +23,7 @@ void gallery::showSettings(Frame const& frame) {
 }
 
 int gallery::sampleNumber(Object const& tag) {
-    auto const text = stringOf(tag);
+    auto const text = unboxValue<hstring>(tag);
     return text.empty() ? 1 : text.data()[text.size() - 1] - u'0';
 }
 
@@ -32,7 +32,7 @@ std::u16string gallery::sampleHeader(int number) {
 }
 
 MenuFlyout gallery::tabViewContextMenu() {
-    return MenuFlyout {onOpening = [](MenuFlyout const& self) {
+    return MenuFlyout {onOpening += [](MenuFlyout const& self) {
         populateTabViewContextMenu(self);
         // A menu that ended up with nothing in it is not shown.
         if (self.items().size() == 0) {
@@ -79,9 +79,10 @@ void gallery::populateTabViewContextMenu(MenuFlyout const& flyout) {
     auto const index = static_cast<uint32_t>((*list).indexFromContainer(item));
     auto const move = [view](uint32_t from, uint32_t to) {
         if (auto const source = view.tabItemsSource()) {
-            auto const value = indexListAt(source, from);
-            indexListRemoveAt(source, from);
-            indexListInsertAt(source, to, value);
+            IndexList const list{source};
+            auto const value = list.getAt(from);
+            list.removeAt(from);
+            list.insertAt(to, value);
         } else {
             auto const items = view.tabItems();
             auto const moved = items[from];
@@ -91,9 +92,9 @@ void gallery::populateTabViewContextMenu(MenuFlyout const& flyout) {
     };
 
     if (index > 0) {
-        flyout.items().append(MenuFlyoutItem {text = u"Move tab left", onClick = [move, index](auto&&...) { move(index, index - 1); }});
+        flyout.items().append(MenuFlyoutItem {text = u"Move tab left", onClick += [move, index](auto&&...) { move(index, index - 1); }});
     }
     if (index + 1 < (*list).items().size()) {
-        flyout.items().append(MenuFlyoutItem {text = u"Move tab right", onClick = [move, index](auto&&...) { move(index, index + 1); }});
+        flyout.items().append(MenuFlyoutItem {text = u"Move tab right", onClick += [move, index](auto&&...) { move(index, index + 1); }});
     }
 }

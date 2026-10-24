@@ -20,7 +20,7 @@ auto view = ScrollView {
     vAlign.top,
     isTabStop = true,
     // The scroll is about to run its stock animation; the handler may run its own instead.
-    onScrollAnimationStarting = [model, targetOffset](ScrollView const& self, ScrollingScrollAnimationStartingEventArgs& args) {
+    onScrollAnimationStarting += [model, targetOffset](ScrollView const& self, ScrollingScrollAnimationStartingEventArgs& args) {
         auto const stock = args.animation().try_as<Vector3KeyFrameAnimation>();
         auto const duration = core::duration {std::chrono::milliseconds {static_cast<int64_t>(model->duration.get())}};
         if (model->animation.get() == 0) {
@@ -112,7 +112,7 @@ auto options = Grid {
         toolTip = u"scroll with animation",
         automationName = u"scroll with animation",
         content = u"Scroll with animation",
-        onClick = [view, targetOffset] {
+        onClick += [view, targetOffset] {
             view.scrollTo(view.horizontalOffset(), targetOffset(view),
                           ScrollingScrollOptions {ScrollingAnimationMode::Enabled, ScrollingSnapPointsMode::Ignore});
         },

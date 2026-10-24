@@ -7,8 +7,6 @@
 #include <vector>
 #include "Box.h"
 #include "RepeaterData.h"
-#include "StringList.h"
-#include "ResourceBrush.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
 #include <wxl/Microsoft.UI.Xaml.Shapes.h>

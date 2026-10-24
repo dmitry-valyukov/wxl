@@ -7,7 +7,7 @@ auto const model = gallery::hold<Model>();
 // item (the position of a contact in the application's vector) to the element that shows it.
 auto const* people = &gallery::contacts();
 auto const contactOf = [people](Object const& item) {
-    auto const& contact = (*people)[static_cast<size_t>(intOf(item))];
+    auto const& contact = (*people)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Grid {
         rowDefinitions = u"*,*",
         columnDefinitions = u"auto,*",
@@ -25,7 +25,7 @@ auto const list = ListView {
     borderThickness = 1,
     selectionMode = BindOutput {model->mode, [](int index) { return static_cast<ListViewSelectionMode>(index); }},
     itemTemplate = contactOf,
-    itemsSource = indexList(static_cast<int64_t>(people->size())),
+    itemsSource = IndexList(static_cast<int64_t>(people->size())),
 };
 
 auto example = StackPanel {

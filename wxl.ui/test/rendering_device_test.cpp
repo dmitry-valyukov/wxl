@@ -16,20 +16,14 @@
 // real loss reaches it -- the removal event, the pool's wait, the turn of the UI thread's queue --
 // that SetRenderingDevice takes the new device, that the device confirms the codes, that BeginDraw
 // on a lost device answers one of them, and that draw() skips until the holders are called, is seen
-// on a machine (impl::signal_rendering_device_removed, a real TDR).
+// on a machine (impl::rendering_device::signal_removed, a real TDR).
 #include <crtdbg.h>
-
-// The classification and the limit first: they reach windows.h, which has to come before
-// the wxl.core import the list's and the watch's headers carry.
-#include "impl/device_limits.h"
-#include "impl/device_loss.h"
 
 #include <gtest/gtest.h>
 
 #include <cstdint>
 #include <format>
 #include <latch>
-#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -38,9 +32,12 @@
 #include <utility>
 #include <vector>
 
-#include "impl/device_replacement.h"
-#include "impl/handler_list.h"
+// The classification and the limit first: impl/rendering_device.h reaches windows.h before the
+// wxl.core import the watch's header carries, and after the standard headers.
 #include "impl/rendering_device.h"
+#include "impl/rendering_devices.h"
+#include "impl/handler_list.h"
+#include "impl/event_watch.h"
 
 namespace {
 
@@ -48,11 +45,9 @@ using wxl::EventHandler;
 using wxl::EventToken;
 using wxl::Object;
 using wxl::impl::composition_api;
-using wxl::impl::device_watch;
+using wxl::impl::event_watch;
 using wxl::impl::handler_list;
-using wxl::impl::device_loss_code;
-using wxl::impl::composition_padding;
-using wxl::impl::max_update_side;
+using wxl::impl::rendering_device;
 using wxl::impl::rendering_devices;
 
 // The codes are the SDK's, and their values the documented ones: a header that spelled
@@ -62,9 +57,9 @@ static_assert(static_cast<std::uint32_t>(DXGI_ERROR_DEVICE_RESET) == 0x887A0007u
 static_assert(static_cast<std::uint32_t>(D2DERR_RECREATE_TARGET) == 0x8899000Cu);
 
 TEST(DeviceLossCode, the_codes_of_a_lost_device) {
-    EXPECT_TRUE(device_loss_code(DXGI_ERROR_DEVICE_REMOVED));
-    EXPECT_TRUE(device_loss_code(DXGI_ERROR_DEVICE_RESET));
-    EXPECT_TRUE(device_loss_code(D2DERR_RECREATE_TARGET));
+    EXPECT_TRUE(rendering_device::is_device_loss_code(DXGI_ERROR_DEVICE_REMOVED));
+    EXPECT_TRUE(rendering_device::is_device_loss_code(DXGI_ERROR_DEVICE_RESET));
+    EXPECT_TRUE(rendering_device::is_device_loss_code(D2DERR_RECREATE_TARGET));
 }
 
 // Everything else a drawing call says is not a lost device, and is not skipped: a bug of
@@ -73,54 +68,58 @@ TEST(DeviceLossCode, the_codes_of_a_lost_device) {
 // D2DERR_WRONG_RESOURCE_DOMAIN), the system's want of memory, success, and the codes that
 // are not in the list.
 TEST(DeviceLossCode, everything_else_is_not) {
-    EXPECT_FALSE(device_loss_code(S_OK));
-    EXPECT_FALSE(device_loss_code(S_FALSE));
-    EXPECT_FALSE(device_loss_code(E_FAIL));
-    EXPECT_FALSE(device_loss_code(E_INVALIDARG));
-    EXPECT_FALSE(device_loss_code(E_OUTOFMEMORY));
-    EXPECT_FALSE(device_loss_code(E_ACCESSDENIED));
-    EXPECT_FALSE(device_loss_code(DXGI_ERROR_INVALID_CALL));
-    EXPECT_FALSE(device_loss_code(DXGI_ERROR_WAS_STILL_DRAWING));
-    EXPECT_FALSE(device_loss_code(DXGI_ERROR_DEVICE_HUNG));
-    EXPECT_FALSE(device_loss_code(DXGI_ERROR_DRIVER_INTERNAL_ERROR));
-    EXPECT_FALSE(device_loss_code(D2DERR_WRONG_RESOURCE_DOMAIN));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(S_OK));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(S_FALSE));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(E_FAIL));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(E_INVALIDARG));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(E_OUTOFMEMORY));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(E_ACCESSDENIED));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(DXGI_ERROR_INVALID_CALL));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(DXGI_ERROR_WAS_STILL_DRAWING));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(DXGI_ERROR_DEVICE_HUNG));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(DXGI_ERROR_DRIVER_INTERNAL_ERROR));
+    EXPECT_FALSE(rendering_device::is_device_loss_code(D2DERR_WRONG_RESOURCE_DOMAIN));
 }
 
 // The longest side one update of a surface may have, by the device's feature level -- the
 // column Max Texture Dimension of the table of Direct3D feature levels less the three pixels
 // composition pads an allocation with, each level and both ends of each step: a level above
 // the last one known still draws the most.
-static_assert(composition_padding == 3);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_9_1) == 2045);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_9_2) == 2045);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_9_3) == 4093);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_10_0) == 8189);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_10_1) == 8189);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_11_0) == 16381);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_11_1) == 16381);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_12_0) == 16381);
-static_assert(max_update_side(D3D_FEATURE_LEVEL_12_1) == 16381);
-static_assert(max_update_side(static_cast<D3D_FEATURE_LEVEL>(0xc200)) == 16381);
+static_assert(rendering_device::composition_padding == 3);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_9_1) == 2045);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_9_2) == 2045);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_9_3) == 4093);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_10_0) == 8189);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_10_1) == 8189);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_11_0) == 16381);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_11_1) == 16381);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_12_0) == 16381);
+static_assert(rendering_device::max_update_side(D3D_FEATURE_LEVEL_12_1) == 16381);
+static_assert(rendering_device::max_update_side(static_cast<D3D_FEATURE_LEVEL>(0xc200)) == 16381);
 
 /// A compositor as a watch has it: a handle, copied by value, to the handlers of the
-/// replacement of its graphics device.
+/// replacement of its graphics device. One thread, the pool's.
 struct fake_compositor {
-    std::shared_ptr<handler_list<Object>> replaced = std::make_shared<handler_list<Object>>();
+    wxl::core::refcounted_ptr<handler_list<Object>> replaced =
+        wxl::core::make_refcounted<handler_list<Object>>();
 };
 
 /// The pair of calls, as impl::rendering_device_replaced has it.
 struct fake_replaced {
+    template <class>
+    using args_t = Object;
+
     static EventToken add(fake_compositor const& compositor, EventHandler<Object> handler) {
         return compositor.replaced->add(wxl::impl::next_event_token(), std::move(handler));
     }
 
-    static bool remove(fake_compositor const& compositor, EventToken token) {
+    static bool remove(fake_compositor const& compositor, EventToken& token) {
         return compositor.replaced->remove(token);
     }
 };
 
 void replace(fake_compositor const& compositor) {
-    compositor.replaced->fire(Object::Impl::empty<Object>());
+    compositor.replaced->raise(Object::Impl::empty<Object>());
 }
 
 /// An owner as an application has one: it keeps the watch as a member and hears the
@@ -131,7 +130,7 @@ struct Page {
     void deviceReplaced() noexcept { ++redraws; }
 };
 
-using replaced_watch = device_watch<fake_compositor, fake_replaced, &Page::deviceReplaced>;
+using replaced_watch = event_watch<fake_compositor, fake_replaced, &Page::deviceReplaced>;
 
 // The handler calls the owner the watch was put on with, so there is nowhere to copy or move
 // the watch to.
@@ -209,7 +208,7 @@ struct SelfRemoving {
         watch.reset();
     }
 
-    std::optional<device_watch<fake_compositor, fake_replaced, &SelfRemoving::deviceReplaced>> watch;
+    std::optional<event_watch<fake_compositor, fake_replaced, &SelfRemoving::deviceReplaced>> watch;
 };
 
 TEST(RenderingDeviceWatch, goes_from_inside_its_own_call) {
@@ -237,7 +236,7 @@ void attach_twice() {
 }
 
 TEST(RenderingDeviceWatchDeathTest, attaching_twice_stops) {
-    EXPECT_DEATH(attach_twice(), "a RenderingDeviceWatch is attached twice");
+    EXPECT_DEATH(attach_twice(), "an event watch is attached twice");
 }
 
 // The token is the watch's: whoever takes the handler off by it takes away what the watch's
@@ -248,11 +247,14 @@ void take_off_by_someone_else() {
     Page page;
     replaced_watch watch{compositor, page};
     EventToken const theirs = fake_replaced::add(compositor, [] {});
-    static_cast<void>(compositor.replaced->remove(EventToken{theirs.value - 1}));
+    // A token is not copied, so someone else's hold on the watch's subscription is made from its
+    // number -- the machinery's factory, which only a test reaches for.
+    EventToken watchs = wxl::core::impl::make_event_token(theirs.value() - 1);
+    static_cast<void>(compositor.replaced->remove(watchs));
 }
 
 TEST(RenderingDeviceWatchDeathTest, taken_off_by_someone_else_stops) {
-    EXPECT_DEATH(take_off_by_someone_else(), "a RenderingDeviceWatch is no longer on its compositor");
+    EXPECT_DEATH(take_off_by_someone_else(), "an event watch is no longer on its source");
 }
 
 using log_t = std::vector<std::string>;
@@ -419,18 +421,24 @@ TEST(RenderingDevices, the_replacements_are_counted_before_the_watches_are_calle
 TEST(RenderingDevices, a_holder_is_taken_off_its_own_compositor_alone) {
     log_t log;
     fake_devices all{fake_backend{&log}};
-    EXPECT_FALSE(all.remove(1, EventToken{1}));
+    // A removal empties the token it is given, so each answer that is not the holder's own is
+    // asked with a token made from the same number -- the machinery's factory, for a test alone.
+    auto const same = [](EventToken const& token) { return wxl::core::impl::make_event_token(token.value()); };
+    EventToken unknown = wxl::core::impl::make_event_token(1);
+    EXPECT_FALSE(all.remove(1, unknown));
 
     handler_list<Object>& handlers = all.handlers_of(1, composition_api::system);
     EXPECT_EQ(&all.handlers_of(1, composition_api::system), &handlers);
-    EventToken const token = watch(all, 1, composition_api::system, log);
-    EventToken const other = watch(all, 2, composition_api::system, log);
+    EventToken token = watch(all, 1, composition_api::system, log);
+    EventToken other = watch(all, 2, composition_api::system, log);
     EXPECT_EQ(log, (log_t{"keep o1", "keep o2"})) << "no device for a watch alone";
 
-    EXPECT_FALSE(all.remove(2, token)) << "not of that compositor";
-    EXPECT_FALSE(all.remove(3, token)) << "a compositor nobody asked for";
+    EventToken elsewhere = same(token);
+    EXPECT_FALSE(all.remove(2, elsewhere)) << "not of that compositor";
+    EventToken nowhere = same(token);
+    EXPECT_FALSE(all.remove(3, nowhere)) << "a compositor nobody asked for";
     EXPECT_TRUE(all.remove(1, token));
-    EXPECT_FALSE(all.remove(1, token)) << "taken off already";
+    EXPECT_FALSE(static_cast<bool>(token)) << "emptied by the removal";
     EXPECT_TRUE(all.remove(2, other));
 }
 
@@ -637,9 +645,9 @@ TEST(RenderingDevices, an_entry_with_neither_a_graphics_device_nor_a_holder_goes
     log_t log;
     fake_devices all{fake_backend{&log}};
     graphics_of(all, 1, composition_api::winui, log);
-    EventToken const drawn = watch(all, 1, composition_api::winui, log);
-    EventToken const first = watch(all, 2, composition_api::winui, log);
-    EventToken const second = watch(all, 2, composition_api::winui, log);
+    EventToken drawn = watch(all, 1, composition_api::winui, log);
+    EventToken first = watch(all, 2, composition_api::winui, log);
+    EventToken second = watch(all, 2, composition_api::winui, log);
     log.clear();
 
     EXPECT_TRUE(all.remove(2, first));
@@ -664,7 +672,7 @@ TEST(RenderingDevices, an_entry_emptied_by_a_holders_call_goes_once_the_calls_ar
     log_t log;
     fake_devices all{fake_backend{&log}};
     graphics_of(all, 1, composition_api::winui, log);
-    EventToken leaving{};
+    EventToken leaving;
     leaving = all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
         log.push_back("watch o2, off");
         EXPECT_TRUE(all.remove(2, leaving));

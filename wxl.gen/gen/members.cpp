@@ -162,7 +162,9 @@ void collect_event(Event const& event, std::string_view field_view, TypeDef cons
                        std::string{event.Name()}, field};
     remove.doc_id = doc_id;
     remove.params.push_back({"token", {}});
-    remove.params.back().type.param_type = "EventToken";
+    // The caller's own token, emptied by the removal (impl::take_token): a second removal through
+    // the same variable would otherwise take off whatever subscription got the number next.
+    remove.params.back().type.param_type = "EventToken&";
     remove.params.back().type.public_includes = {"../events.h"};
     remove.params.back().type.impl_includes = {"../impl/conversions.h"};
     members.push_back(std::move(remove));
@@ -310,28 +312,34 @@ void collect_method(MethodDef const& method, std::string_view field_view, TypeDe
     // Beside every asynchronous method, its form with a token, taken last as wxl.async's own
     // operations take one: cancelled, the operation is asked to stop and the co_await ends with
     // the cancellation (impl/operation.h). The token is a parameter of wxl's alone, so it is
-    // named by wxl -- and a method with a parameter of that name already has no room for it.
-    if (!info.returns_void && !info.result.from_winrt_under.empty()) {
-        if (std::any_of(info.params.begin(), info.params.end(),
-                        [](param_info const& param) { return param.name == "stop"; })) {
-            throw std::runtime_error(std::format(
-                "{}: a parameter named 'stop' leaves no name for the token of its form with one",
-                info.winrt_name));
+    // named by wxl (cancellation_parameter_name).
+    if (!info.returns_void && !info.result.from_winrt_cancelable.empty()) {
+        std::string name;
+        try {
+            name = cancellation_parameter_name(info.params);
+        } catch (std::runtime_error const& error) {
+            throw std::runtime_error(std::format("{}: {}", info.winrt_name, error.what()));
         }
 
-        member_info under = info;
-        under.under_token = true;
-        under.result.from_winrt = under.result.from_winrt_under;
+        member_info cancelable = info;
+        cancelable.cancelable = true;
+        cancelable.result.from_winrt.clear();
+        for (char const c : cancelable.result.from_winrt_cancelable) {
+            if (c == '@')
+                cancelable.result.from_winrt += name;
+            else
+                cancelable.result.from_winrt += c;
+        }
 
         type_use token;
         token.supported = true;
         token.value_type = "async::cancellation_token";
         token.param_type = token.value_type;
         token.public_includes = {"../Operation.h"};
-        under.params.push_back({"stop", std::move(token)});
+        cancelable.params.push_back({std::move(name), std::move(token)});
 
         members.push_back(std::move(info));
-        members.push_back(std::move(under));
+        members.push_back(std::move(cancelable));
         return;
     }
 
@@ -409,7 +417,19 @@ std::string parameter_list(member_info const& member) {
 }
 
 std::size_t projection_arity(member_info const& member) {
-    return member.under_token ? member.params.size() - 1 : member.params.size();
+    return member.cancelable ? member.params.size() - 1 : member.params.size();
+}
+
+std::string cancellation_parameter_name(std::vector<param_info> const& params) {
+    auto const taken = [&params](std::string_view name) {
+        return std::any_of(params.begin(), params.end(),
+                           [name](param_info const& param) { return param.name == name; });
+    };
+    if (!taken("token")) return "token";
+    if (!taken("cancellation")) return "cancellation";
+    throw std::runtime_error(
+        "parameters named 'token' and 'cancellation' leave no name for the token of its form with "
+        "one");
 }
 
 std::string result_type(member_info const& member) {

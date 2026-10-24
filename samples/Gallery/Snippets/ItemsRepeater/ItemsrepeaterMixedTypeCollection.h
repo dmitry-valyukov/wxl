@@ -19,7 +19,7 @@ auto const entries = std::make_shared<std::vector<Entry>>(std::vector<Entry> {
 
 // What the DataTemplateSelector of the original does: the template follows the type of the item.
 auto const stringOrInt = [entries](Object const& item) -> UIElement {
-    auto const& entry = (*entries)[static_cast<size_t>(intOf(item))];
+    auto const& entry = (*entries)[static_cast<size_t>(unboxValue<int64_t>(item))];
     if (entry.isText) {
         return Grid {Margin {10},
                      background = brushes.SystemControl.Background.Accent,
@@ -39,5 +39,5 @@ auto example = StackPanel {
                    hAlign.stretch,
                    layout = UniformGridLayout {minItemHeight = 200, minItemWidth = 200},
                    itemTemplate = stringOrInt,
-                   itemsSource = indexList(static_cast<int64_t>(entries->size()))},
+                   itemsSource = IndexList(static_cast<int64_t>(entries->size()))},
 };

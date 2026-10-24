@@ -15,7 +15,7 @@
 #include <string>
 #include <string_view>
 
-// IRestrictedErrorInfo before cppwinrt, as terminate_reason.cpp has it: the test asks an error
+// IRestrictedErrorInfo before cppwinrt, as Application.cpp has it: the test asks an error
 // whether it has one.
 #include "platform.h"
 
@@ -23,14 +23,24 @@
 
 #include <winrt/base.h>
 
-#include "impl/terminate_reason.h"
+#include "Application.h"
+
+// The application's namer and the installing of it are its private members; the test reaches
+// them through this friend of the class, as the event waits' tests reach theirs.
+namespace wxl::impl {
+
+struct application_test {
+    static void install_terminate_report() noexcept { Application::install_terminate_report(); }
+};
+
+}  // namespace wxl::impl
 
 namespace {
 
-// The handler and its namer, set as wWinMain sets them: once in a process, since the namer
-// is set once. A death runs in a process of its own and sets them there.
+// The handler and its namer, set as wWinMain sets them: once in a process, since the namer is set
+// once. A death runs in a process of its own and sets them there.
 void set_the_handler_once() {
-    static bool const set = (wxl::impl::install_terminate_report(), true);
+    static bool const set = (wxl::impl::application_test::install_terminate_report(), true);
     static_cast<void>(set);
 }
 

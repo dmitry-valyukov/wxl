@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "WindowModal.h"
+#include "WindowNative.h"
 
 using namespace wxl;
 using namespace wxl::dsl;

@@ -62,7 +62,7 @@ struct Model {
 auto const model = gallery::hold<Model>();
 model->titleBox.text(u"This is a title");
 
-auto example = Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }};
+auto example = Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }};
 
 auto options = StackPanel {
     spacing = 8,

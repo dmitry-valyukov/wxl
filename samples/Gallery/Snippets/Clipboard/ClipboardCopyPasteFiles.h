@@ -76,9 +76,9 @@ auto example = StackPanel {
         spacing = 8,
         Button {
             content = u"Copy Files to Clipboard",
-            onClick = [model, copy](Button const& button) { model->copying = copy(model.get(), button.xamlRoot().contentIslandEnvironment().appWindowId()); },
+            onClick += [model, copy](Button const& button) { model->copying = copy(model.get(), button.xamlRoot().contentIslandEnvironment().appWindowId()); },
         },
-        Button {content = u"Paste Files from Clipboard", onClick = [model, paste](Button const&) { model->pasting = paste(model.get()); }},
+        Button {content = u"Paste Files from Clipboard", onClick += [model, paste](Button const&) { model->pasting = paste(model.get()); }},
     },
     model->status,
 };

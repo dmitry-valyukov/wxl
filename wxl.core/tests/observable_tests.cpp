@@ -39,19 +39,19 @@ TEST(Observable, setting_the_same_value_says_nothing) {
     EXPECT_EQ(calls, 1);
 }
 
-TEST(Observable, a_cookie_removes_the_watch) {
+TEST(Observable, a_token_removes_the_watch) {
     observable<int> value{0};
     int calls = 0;
-    cookie_t const cookie = value.on_change([&](int const&) noexcept { ++calls; });
+    event_token token = value.on_change([&](int const&) noexcept { ++calls; });
 
     value.set(1);
     EXPECT_EQ(calls, 1);
 
-    EXPECT_TRUE(value.remove_change(cookie));
+    EXPECT_TRUE(value.remove_change(token));
     value.set(2);
     EXPECT_EQ(calls, 1);  // no longer watching
 
-    EXPECT_FALSE(value.remove_change(cookie));  // gone already
+    EXPECT_FALSE(static_cast<bool>(token));  // emptied by the removal
 }
 
 // A field of its model, not a handle over shared state: there is no second
@@ -106,7 +106,7 @@ TEST(Observable, bindings_hear_before_the_application) {
 // watch_for_binding is heard just like on_change, but the field keeps the watch:
 // there is nothing handed back to remove it with. It is unbind() that drops it,
 // which is how a binding's model->control watch (the one that owns the control)
-// is cut when the model outlives the window -- and what it owned is let go then.
+// is dropped when the model outlives the window -- and what it owned is let go then.
 TEST(Observable, a_binding_watch_is_the_fields_to_drop) {
     observable<int> value{0};
     int calls = 0;
@@ -122,7 +122,7 @@ TEST(Observable, a_binding_watch_is_the_fields_to_drop) {
     EXPECT_EQ(calls, 1);  // the binding watch is gone
 }
 
-// unbind() cuts the binding watches and leaves the caller's on_change watches
+// unbind() drops the binding watches and leaves the caller's on_change watches
 // alone -- an application saving the model on every change keeps saving after a
 // window that bound a control to it has closed.
 TEST(Observable, unbind_spares_the_on_change_watches) {

@@ -99,7 +99,7 @@ wxl::GridView gallery::tileGrid(std::span<ControlInfo const* const> items,
         selectionMode = ListViewSelectionMode::None,
         isItemClickEnabled = true,
         Padding {padding},
-        onItemClick = [](Object const&, ItemClickEventArgs& args) {
+        onItemClick += [](Object const&, ItemClickEventArgs& args) {
             auto const tile = args.clickedItem().try_as<FrameworkElement>();
             if (!tile) {
                 return;

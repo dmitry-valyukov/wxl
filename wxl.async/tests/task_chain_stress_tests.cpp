@@ -73,6 +73,14 @@ struct stored_slot {
 
 class idle_wait;
 
+/// Where the round's delivery finds an idle wait: the wait while it is suspended, null once its
+/// frame is gone. Queued, delivered and let go on the round's thread alone.
+struct idle_link final : sta_refcounted {
+    explicit idle_link(idle_wait* idle) noexcept : wait(idle) {}
+
+    idle_wait* wait;
+};
+
 struct round_state {
     static constexpr std::uint32_t max_frames = 240;
     static constexpr std::uint32_t max_depth = 5;
@@ -94,7 +102,7 @@ struct round_state {
     /// The owner of the top-level tasks, the way an application's I/O keeps them.
     std::vector<task<int>> io;
     std::vector<std::unique_ptr<stored_slot>> stored;
-    std::deque<std::shared_ptr<idle_wait*>> idle;
+    std::deque<intrusive_ptr<idle_link>> idle;
 
     /// The scenarios: kept until the round is over, never dropped while they run, so that
     /// what they join outlives nobody waiting on it. A failure is read at the end.
@@ -233,7 +241,7 @@ public:
     explicit idle_wait(round_state& c) : c_(c) {}
 
     ~idle_wait() {
-        if (self_) *self_ = nullptr;
+        if (self_) self_->wait = nullptr;
     }
 
     idle_wait(const idle_wait&) = delete;
@@ -242,7 +250,7 @@ public:
     bool await_ready() const noexcept { return false; }
 
     void await_suspend(std::coroutine_handle<> waiter) {
-        self_ = std::make_shared<idle_wait*>(this);
+        self_ = make_refcounted<idle_link>(this);
         waiter_ = waiter;
         c_.idle.push_back(self_);
     }
@@ -253,7 +261,7 @@ public:
 
 private:
     round_state& c_;
-    std::shared_ptr<idle_wait*> self_;
+    intrusive_ptr<idle_link> self_;
     std::coroutine_handle<> waiter_;
 };
 
@@ -494,10 +502,10 @@ bool run_round(round_state& c) {
         if (r.one_in(2) && sta_loop::run_pending() != 0) continue;
 
         if (!c.idle.empty()) {
-            const std::shared_ptr<idle_wait*> entry = std::move(c.idle.front());
+            const intrusive_ptr<idle_link> entry = std::move(c.idle.front());
             c.idle.pop_front();
 
-            if (idle_wait* const wait = *entry) wait->deliver();
+            if (idle_wait* const wait = entry->wait) wait->deliver();
             continue;
         }
 

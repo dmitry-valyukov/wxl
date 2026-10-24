@@ -59,13 +59,13 @@ Border card(int index, bench::CardText const& text) {
                 bench::actionA,
                 hAlign.stretch,
                 Padding {8, 4},
-                onClick = [] {},
+                onClick += [] {},
             },
             Button {
                 bench::actionB,
                 hAlign.stretch,
                 Padding {8, 4},
-                onClick = [] {},
+                onClick += [] {},
             },
             CheckBox {
                 bench::checkLabel,
@@ -88,7 +88,7 @@ Border card(int index, bench::CardText const& text) {
                 onContent = bench::switchOn,
                 offContent = bench::switchOff,
                 isOn = index % 3 == 0,
-                onToggled = [] {},
+                onToggled += [] {},
             },
             Slider {
                 minimum = 0.0,

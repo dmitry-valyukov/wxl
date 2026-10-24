@@ -58,7 +58,7 @@ auto const pick = [](Model* model, Button button) -> async::task<> {
 
 auto example = StackPanel {
     spacing = 8,
-    Button {content = u"Pick multiple files", onClick = [model, pick](Button const& button) { model->picking = pick(model.get(), button); }},
+    Button {content = u"Pick multiple files", onClick += [model, pick](Button const& button) { model->picking = pick(model.get(), button); }},
     model->picked,
 };
 

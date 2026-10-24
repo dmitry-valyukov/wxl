@@ -1,6 +1,8 @@
-#include "activation_factory.h"
+#include "activator.h"
 
 #include <cassert>
+
+#include "../Application.h"
 
 // The branch hints below are part of the tuning, not decoration: they say
 // which way each test goes for the overwhelming majority of classes. Carry
@@ -8,8 +10,6 @@
 
 namespace wxl::impl {
 namespace {
-
-bool s_application_launched = false;
 
 // IActivationFactory and every I<Class>Factory alike declare their one extra
 // member directly after IInspectable, so the entry point is always vtable slot
@@ -88,13 +88,9 @@ HRESULT resolve_factory_from_dll(wchar_t const* name, GUID const& iid, void** fa
 
 } // namespace
 
-void set_application_launched(bool launched) noexcept {
-    s_application_launched = launched;
-}
-
 HRESULT resolve_activation_factory(wchar_t const* class_name, GUID const& iid,
                                    void** factory) noexcept {
-    assert(s_application_launched &&
+    assert(Application::launched_ &&
            "wxl: a WinRT object is being created before the application has launched -- most "
            "likely a namespace-scope or static object. Nothing of WinRT exists before "
            "wxl_launched(): describe it with Template<T> there, and it will be built where it "
@@ -132,7 +128,7 @@ using create_fn = HRESULT(__stdcall*)(void*, ::IInspectable*, ::IInspectable**,
 // arrives with is released here -- otherwise every composable object would be
 // born with one too many. The projection's own constructor does the same, by
 // letting a local go out of scope.
-HRESULT __stdcall thunk(composition_slot* slot, ::IInspectable** result) noexcept {
+HRESULT __stdcall thunk(composable_slot* slot, ::IInspectable** result) noexcept {
     auto const create = reinterpret_cast<create_fn>(slot->arg2_);
     ::IInspectable* inner = nullptr;
     HRESULT const hr = create(slot->arg1_, nullptr, &inner, result);
@@ -167,7 +163,7 @@ HRESULT __stdcall activation_slot::init(activation_slot* slot,
     return hr;
 }
 
-HRESULT __stdcall composition_slot::init(composition_slot* slot,
+HRESULT __stdcall composable_slot::init(composable_slot* slot,
                                          ::IInspectable** result) noexcept {
     void* factory = nullptr;
     HRESULT hr = resolve_factory(slot->arg1_, &factory);

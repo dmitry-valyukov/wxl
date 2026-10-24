@@ -4,7 +4,8 @@
 #include "Shell.h"
 #include <ranges>
 #include "Box.h"
-#include "ItemBuilder.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include "CustomDataObject.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 

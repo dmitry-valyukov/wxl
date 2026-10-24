@@ -6,7 +6,7 @@ auto editor = RichEditBox {
     height = 80,
     width = 724,
     hAlign.left,
-    onTextChanged = [mathml](RichEditBox const& self) {
+    onTextChanged += [mathml](RichEditBox const& self) {
         // Only a formula in one line has MathML to give: more lines give an empty string.
         auto const text = self.document().getMathML();
         mathml.rsdn(L"[code=xml]" +
@@ -36,7 +36,7 @@ auto const formula = std::u16string {
 auto setFormula = Button {
     u"Set sample formula",
     styles.Button.Accent,
-    onClick = [editor, formula] {
+    onClick += [editor, formula] {
         // The formula's own colour has to be the text colour of the theme.
         auto text = formula;
         if (editor.actualTheme() == ElementTheme::Dark) {

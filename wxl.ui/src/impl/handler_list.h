@@ -13,7 +13,7 @@
 // any event of any window a token of its own, so a token of one event or window names
 // nothing in another.
 //
-// Whether a list is empty is asked by the rendering devices (device_replacement.h): a compositor
+// Whether a list is empty is asked by the rendering devices (rendering_devices.h): a compositor
 // with no holder left and no graphics device lets its entry go.
 //
 // Included by CompositionWindow.cpp, DrawingSurface.cpp and the tests, after the projection:
@@ -29,25 +29,26 @@ namespace wxl::impl {
 // a plain counter; inline, so there is one for the program.
 inline EventToken next_event_token() noexcept {
     static std::int64_t last = 0;
-    return {++last};
+    return core::impl::make_event_token(++last);
 }
 
 template <typename Args>
 class handler_list {
 public:
-    // `token` is the counter's next one, never the empty token.
+    // `token` is the counter's next one, never the empty token, and it goes back to the caller.
     EventToken add(EventToken token, EventHandler<Args> handler) {
-        entries_.push_back({token.value, std::move(handler)});
+        entries_.push_back({token.value(), std::move(handler)});
         return token;
     }
 
-    // False when the token names no handler of this list: one taken off already, one given
-    // to another event or another window, or no token at all. A place taken off during a call
-    // keeps no token, so it answers to none.
-    bool remove(EventToken token) {
-        if (!token) return false;
+    // Takes the caller's token out of its variable (impl::take_token: an empty one stops the
+    // process) and answers false when it names no handler of this list: one given to another
+    // event or another window. A place taken off during a call keeps no token, so it answers to
+    // none.
+    bool remove(EventToken& token) {
+        std::int64_t const value = take_token(token).value();
         for (entry& each : entries_) {
-            if (each.token == token.value) {
+            if (each.token == value) {
                 each.token = 0;
                 each.handler = nullptr;
                 if (invocations_ == 0) compact();
@@ -66,7 +67,7 @@ public:
         return true;
     }
 
-    void fire(EventArgsRef<Args> args) {
+    void raise(EventArgsRef<Args> args) {
         ++invocations_;
         Object const sender = Object::Impl::empty<Object>();
         for (std::size_t at = 0; at < entries_.size(); ++at) {

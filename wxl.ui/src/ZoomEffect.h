@@ -7,7 +7,7 @@
 //     CompositionWindow {
 //         zoom,
 //         titleBar = {rightHeader = Button {
-//             onClick = [zoom] { zoom.model().zoomIn(); },
+//             onClick += [zoom] { zoom.model().zoomIn(); },
 //             isEnabled = BindOutput {zoom.model().canZoomIn()},
 //         }},
 //     };

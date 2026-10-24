@@ -21,7 +21,7 @@ void write_line(std::source_location where, std::string_view prefix, std::string
                                      prefix.data(), static_cast<int>(what.size()), what.data(),
                                      static_cast<int>(suffix.size()), suffix.data());
 
-    // A report cut short keeps its end of line, and the end of line takes the place of the
+    // A truncated report keeps its end of line, and the end of line takes the place of the
     // last byte only if that byte starts a code point: inside a letter, it goes back to the
     // letter's lead byte, so the line stays UTF-8.
     int used = length < 0 ? 0 : length;
@@ -82,32 +82,32 @@ std::atomic<exception_namer> foreign_exception_namer{nullptr};
 }  // namespace
 
 void terminate_report::put(const std::string_view part) noexcept {
-    if (cut_) return;
+    if (truncated_) return;
 
     const std::size_t taken = std::min(part.size(), text_.size() - used_);
     std::copy_n(part.data(), taken, text_.data() + used_);
     used_ += taken;
 
-    if (taken != part.size()) cut();
+    if (taken != part.size()) truncate();
 }
 
 void terminate_report::put(const std::wstring_view part) noexcept {
-    if (cut_) return;
+    if (truncated_) return;
 
     const auto done = unicode::write_utf8_repaired(text_.subspan(used_), part);
     used_ += done.written;
 
-    if (done.read != part.size()) cut();
+    if (done.read != part.size()) truncate();
 }
 
-void terminate_report::cut() noexcept {
+void terminate_report::truncate() noexcept {
     // The dots take the last three bytes of the room, moved back to the start of the code
     // point they would split.
     const std::size_t end =
         unicode::floor_code_point_boundary(std::string_view{text_.data(), used_}, text_.size() - 3);
     std::copy_n("...", 3, text_.data() + end);
     used_ = end + 3;
-    cut_ = true;
+    truncated_ = true;
 }
 
 void set_exception_namer(const exception_namer namer) noexcept {

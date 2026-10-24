@@ -10,8 +10,8 @@ auto const run = [spring](UIElement const& element, float finalValue) {
 
 auto const item = [run](char16_t const* title) {
     return Button {width = 100, height = 50, Margin {5}, content = title,
-                   onPointerEntered = [run](Button const& self) { run(self, 1.5f); },
-                   onPointerExited = [run](Button const& self) { run(self, 1.0f); }};
+                   onPointerEntered += [run](Button const& self) { run(self, 1.5f); },
+                   onPointerExited += [run](Button const& self) { run(self, 1.0f); }};
 };
 std::vector<Button> buttons = {item(u"Item 1"), item(u"Item 2"), item(u"Item 3"), item(u"Item 4")};
 

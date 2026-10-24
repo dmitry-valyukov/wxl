@@ -24,7 +24,7 @@
 #include "impl/conversions.h"
 
 // Импорт последним — его несёт markup_build.h.
-#include "markup_build.h"
+#include "impl/markup_build.h"
 
 namespace wxl {
 
@@ -35,14 +35,14 @@ namespace media = winrt::Microsoft::UI::Xaml::Media;
 template <typename T>
 using pooled_vector = std::vector<T, core::sta_allocator<T>>;
 
-// Вид тегов живёт в HtmlTheme (MarkupBlock.h) и приезжает на каждый блок;
+// Вид тегов живёт в MarkupTheme (MarkupBlock.h) и приезжает на каждый блок;
 // константой остаётся одна таблица — семантика HTML, а не вид: наследная
 // шкала 1..7 у <font size>, множителями базового кегля.
 constexpr double kFontScale[] = {0.63, 0.82, 1.0, 1.13, 1.5, 2.0, 3.0};
 
 // ---- маленькие разборы значений атрибутов ----
 
-std::optional<double> parse_number(std::u16string_view text) {
+core::nullable<double> parse_number(std::u16string_view text) {
     if (text.empty()) return std::nullopt;
     double value = 0;
     for (const char16_t c : text) {
@@ -53,12 +53,12 @@ std::optional<double> parse_number(std::u16string_view text) {
 }
 
 // <font size>: 1..7, или +n/-n от умолчания 3.
-std::optional<double> parse_font_scale(std::u16string_view text) {
+core::nullable<double> parse_font_scale(std::u16string_view text) {
     if (text.empty()) return std::nullopt;
     const bool relative = text.front() == u'+' || text.front() == u'-';
     const bool negative = text.front() == u'-';
     if (relative) text.remove_prefix(1);
-    const std::optional<double> number = parse_number(text);
+    const core::nullable<double> number = parse_number(text);
     if (!number) return std::nullopt;
     const int given = static_cast<int>(*number);
     const int value = std::clamp(relative ? 3 + (negative ? -given : given) : given, 1, 7);
@@ -125,14 +125,14 @@ constexpr named_color kNamedColors[] = {
     {u"yellowgreen", 0x9ACD32},
 };
 
-std::optional<int> hex_digit(char16_t c) {
+core::nullable<int> hex_digit(char16_t c) {
     if (c >= u'0' && c <= u'9') return c - u'0';
     if (c >= u'a' && c <= u'f') return c - u'a' + 10;
     if (c >= u'A' && c <= u'F') return c - u'A' + 10;
     return std::nullopt;
 }
 
-std::optional<Color> parse_color(std::u16string_view text) {
+core::nullable<Color> parse_color(std::u16string_view text) {
     if (text.empty()) return std::nullopt;
 
     if (text.front() == u'#') {
@@ -140,13 +140,13 @@ std::optional<Color> parse_color(std::u16string_view text) {
         std::uint32_t rgb = 0;
         if (text.size() == 3) {
             for (const char16_t c : text) {
-                const std::optional<int> digit = hex_digit(c);
+                const core::nullable<int> digit = hex_digit(c);
                 if (!digit) return std::nullopt;
                 rgb = rgb << 8 | static_cast<std::uint32_t>(*digit * 17);
             }
         } else if (text.size() == 6) {
             for (const char16_t c : text) {
-                const std::optional<int> digit = hex_digit(c);
+                const core::nullable<int> digit = hex_digit(c);
                 if (!digit) return std::nullopt;
                 rgb = rgb << 4 | static_cast<std::uint32_t>(*digit);
             }
@@ -433,12 +433,12 @@ private:
         // перекрывал его. Незнакомое имя игнорируется по замыслу (в
         // style чужого HTML лежит настоящий CSS), но записывается: своё
         // имя с опечаткой выглядит ровно так же.
-        const HtmlStyle* named = nullptr;
-        HtmlStyle coded;
+        const MarkupStyle* named = nullptr;
+        MarkupStyle coded;
         if (const zstring_view name = element.attribute_str(attr_t::style); !name.empty()) {
             named = impl_.findStyle(name);
             if (!named && code_style(name, coded)) named = &coded;
-            if (!named) report(HtmlErrorKind::UnknownStyle, name);
+            if (!named) report(MarkupErrorKind::UnknownStyle, name);
         }
 
         switch (element.tag()) {
@@ -566,7 +566,7 @@ private:
 
     // Кисть линий: цвет из темы блока, а при пустом поле — разделитель темы
     // окна, свой у светлой и у тёмной.
-    static Brush line_brush(std::optional<Color> const& color) {
+    static Brush line_brush(core::nullable<Color> const& color) {
         if (color) return SolidColorBrush{*color};
         return dsl::BrushPaths::DividerStrokeColorDefault;
     }
@@ -574,12 +574,12 @@ private:
     // Кисти подложки кода: фон и кромка карточки. Пустое поле — ресурсы
     // карточки самой темы, вторичный фон (на светлой теме он и есть лёгкий
     // серый) и обычная кромка.
-    static Brush code_ground(std::optional<Color> const& color) {
+    static Brush code_ground(core::nullable<Color> const& color) {
         if (color) return SolidColorBrush{*color};
         return dsl::CardBackgroundFillColorBrushes::Secondary;
     }
 
-    static Brush code_edge(std::optional<Color> const& color) {
+    static Brush code_edge(core::nullable<Color> const& color) {
         if (color) return SolidColorBrush{*color};
         return dsl::CardBrushes::StrokeColorDefault;
     }
@@ -600,7 +600,7 @@ private:
         content.fontSize(base_size_);
         content.isTextSelectionEnabled(root_.isTextSelectionEnabled());
         content.onLink([box = impl_.onLink_](zstring_view target) { box->invoke(target); });
-        content.onError([box = impl_.onError_](HtmlError const& error) { box->invoke(error); });
+        content.onError([box = impl_.onError_](MarkupError const& error) { box->invoke(error); });
         // Моноширинный — на весь код разом: внутри карточки он один на всё,
         // и снимать его не с чего.
         content.pushStyle({.fontFamily = theme_.monospace});
@@ -637,7 +637,7 @@ private:
     // содержимое — обычные абзацы этого же блока, спрятанные складкой
     // (beginFold/endFold). Ничего не вкладывается: пока показано, выделение
     // и поиск идут сквозь него.
-    void open_details(level_t& entered, const html::node& element, const HtmlStyle* named) {
+    void open_details(level_t& entered, const html::node& element, const MarkupStyle* named) {
         open_block(entered, {.margin = theme_.detailsMargin}, named);
 
         core::sta_u16string title;
@@ -700,7 +700,7 @@ private:
     // Число из атрибута объединения: 1 по умолчанию, и всё, что не число
     // или меньше единицы, — тоже 1.
     static int span_of(const html::node& cell, attr_t name) {
-        const std::optional<double> value = parse_number(cell.attribute_str(name));
+        const core::nullable<double> value = parse_number(cell.attribute_str(name));
         if (!value || *value < 1) return 1;
         return static_cast<int>(std::min(*value, 100.0));
     }
@@ -763,7 +763,7 @@ private:
             content.fontSize(base_size_);
             content.isTextSelectionEnabled(root_.isTextSelectionEnabled());
             content.onLink([box = impl_.onLink_](zstring_view target) { box->invoke(target); });
-            content.onError([box = impl_.onError_](HtmlError const& error) { box->invoke(error); });
+            content.onError([box = impl_.onError_](MarkupError const& error) { box->invoke(error); });
             if (cell.header) {
                 content.pushStyle({.bold = true});
                 content.appendParagraph({.alignment = TextAlignment::Center});
@@ -804,7 +804,7 @@ private:
 
     // Блочный элемент: его абзац, блочная половина именованного стиля
     // поверх вида тега, текстовая — надета до выхода.
-    void open_block(level_t& entered, BlockStyle style, const HtmlStyle* named) {
+    void open_block(level_t& entered, BlockStyle style, const MarkupStyle* named) {
         if (named) {
             if (named->block.margin) style.margin = named->block.margin;
             if (named->block.alignment) style.alignment = named->block.alignment;
@@ -813,7 +813,7 @@ private:
         block_.appendParagraph(style);
     }
 
-    void open_list_item(level_t& entered, const HtmlStyle* named) {
+    void open_list_item(level_t& entered, const MarkupStyle* named) {
         const double depth = static_cast<double>(lists_.empty() ? 1 : lists_.size());
         open_block(entered, {.margin = Thickness{theme_.listIndent * depth, 0, 0, 2}}, named);
 
@@ -832,7 +832,7 @@ private:
         ++entered.style_pops;
     }
 
-    void push(level_t& entered, TextStyle const& style, const HtmlStyle* named) {
+    void push(level_t& entered, TextStyle const& style, const MarkupStyle* named) {
         push(entered, style);
         if (named) push(entered, named->text);
     }
@@ -841,17 +841,17 @@ private:
         TextStyle style;
         if (const zstring_view color = element.attribute_str(attr_t::color); !color.empty()) {
             style.color = parse_color(color);
-            if (!style.color) report(HtmlErrorKind::BadColor, color);
+            if (!style.color) report(MarkupErrorKind::BadColor, color);
         }
         if (const zstring_view face = element.attribute_str(attr_t::face); !face.empty()) {
             const std::u16string_view family = first_face(face);
             if (!family.empty()) style.fontFamily = FontFamily{hstring{family}};
         }
         if (const zstring_view size = element.attribute_str(attr_t::size); !size.empty()) {
-            if (const std::optional<double> scale = parse_font_scale(size)) {
+            if (const core::nullable<double> scale = parse_font_scale(size)) {
                 style.fontSize = base_size_ * *scale;
             } else {
-                report(HtmlErrorKind::BadFontSize, size);
+                report(MarkupErrorKind::BadFontSize, size);
             }
         }
         return style;
@@ -863,9 +863,9 @@ private:
     void emit_text(zstring_view text) { block_.appendText(text); }
 
     // В диагностический слив, когда он у блока есть. detail — вид в DOM,
-    // действителен на время вызова: ровно то, что обещает HtmlError.
-    void report(HtmlErrorKind kind, zstring_view detail) const {
-        impl_.onError_->invoke(HtmlError{kind, detail});
+    // действителен на время вызова: ровно то, что обещает MarkupError.
+    void report(MarkupErrorKind kind, zstring_view detail) const {
+        impl_.onError_->invoke(MarkupError{kind, detail});
     }
 
     // Сколько цитат уже открыто над этой. Считается по стеку, а не
@@ -906,7 +906,7 @@ private:
     void emit_image(const html::node& element) {
         const zstring_view source = element.attribute_str(attr_t::src);
         if (source.empty()) {
-            report(HtmlErrorKind::MissingImage, element.attribute_str(attr_t::alt));
+            report(MarkupErrorKind::MissingImage, element.attribute_str(attr_t::alt));
             return;
         }
 
@@ -923,7 +923,7 @@ private:
                 if (c >= u'A' && c <= u'Z') c = static_cast<char16_t>(c + 32);
             }
             if (name != u"file" && name != u"ms-appx" && name != u"ms-appdata") {
-                report(HtmlErrorKind::RemoteImage, src);
+                report(MarkupErrorKind::RemoteImage, src);
                 return;
             }
         } else if (!impl_.baseDirectory_.empty()) {
@@ -943,11 +943,11 @@ private:
         Size size{static_cast<float>(theme_.imageSide), static_cast<float>(theme_.imageSide)};
         if (const zstring_view width = element.attribute_str(attr_t::width); !width.empty()) {
             if (const auto value = parse_number(width)) size.width = static_cast<float>(*value);
-            else report(HtmlErrorKind::BadDimension, width);
+            else report(MarkupErrorKind::BadDimension, width);
         }
         if (const zstring_view height = element.attribute_str(attr_t::height); !height.empty()) {
             if (const auto value = parse_number(height)) size.height = static_cast<float>(*value);
-            else report(HtmlErrorKind::BadDimension, height);
+            else report(MarkupErrorKind::BadDimension, height);
         }
         block_.appendImage(src, size, element.attribute_str(attr_t::alt));
     }
@@ -1000,8 +1000,8 @@ private:
     // — палитра по фактической теме элемента, светлой или тёмной (цвета
     // Visual Studio: синее ключевое слово с белого фона на чёрном не
     // читается). Реестр стилей смотрели раньше: он сильнее.
-    bool code_style(std::u16string_view name, HtmlStyle& out) {
-        const std::optional<Color>* themed = nullptr;
+    bool code_style(std::u16string_view name, MarkupStyle& out) {
+        const core::nullable<Color>* themed = nullptr;
         std::uint32_t light = 0;
         std::uint32_t dark = 0;
         if (name == u"kw") {
@@ -1043,11 +1043,11 @@ private:
     FormattedBlock const& block_;
     MarkupBlock const& root_;
     MarkupBlock::Impl const& impl_;
-    HtmlTheme const& theme_;
+    MarkupTheme const& theme_;
     const double base_size_;
     const int depth_;
-    std::optional<Color> quoteColor_;
-    std::optional<bool> dark_;
+    core::nullable<Color> quoteColor_;
+    core::nullable<bool> dark_;
 
     pooled_vector<level_t> stack_;
 
@@ -1061,25 +1061,25 @@ private:
 };
 
 // Восстановления парсера — в словаре слива.
-HtmlErrorKind mapped(html::error_t code) noexcept {
+MarkupErrorKind mapped(html::error_t code) noexcept {
     switch (code) {
-    case html::error_t::unknown_tag: return HtmlErrorKind::UnknownTag;
-    case html::error_t::unpaired_close: return HtmlErrorKind::UnpairedClose;
-    case html::error_t::misnested_tags: return HtmlErrorKind::MisnestedTags;
-    case html::error_t::bad_entity: return HtmlErrorKind::BadEntity;
-    case html::error_t::misplaced_tag: return HtmlErrorKind::MisplacedTag;
+    case html::error_t::unknown_tag: return MarkupErrorKind::UnknownTag;
+    case html::error_t::unpaired_close: return MarkupErrorKind::UnpairedClose;
+    case html::error_t::misnested_tags: return MarkupErrorKind::MisnestedTags;
+    case html::error_t::bad_entity: return MarkupErrorKind::BadEntity;
+    case html::error_t::misplaced_tag: return MarkupErrorKind::MisplacedTag;
     }
-    return HtmlErrorKind::UnknownTag;
+    return MarkupErrorKind::UnknownTag;
 }
 
 }  // namespace
 
-void build_markup(MarkupBlock const& block, MarkupBlock::Impl& impl,
-                  const html::document& parsed) {
+void impl::build_markup(MarkupBlock const& block, MarkupBlock::Impl& impl,
+                        const html::document& parsed) {
     // Восстановления парсера первыми, в порядке входа; сборщик добавит свои
     // по ходу обхода.
     for (const html::parse_error& error : parsed.errors()) {
-        impl.onError_->invoke(HtmlError{mapped(error.code), error.detail});
+        impl.onError_->invoke(MarkupError{mapped(error.code), error.detail});
     }
 
     builder walk(block, block, impl);
@@ -1088,7 +1088,7 @@ void build_markup(MarkupBlock const& block, MarkupBlock::Impl& impl,
 
 MarkupBlock::MarkupBlock(Impl* impl) noexcept : base_t(impl) {}
 
-void MarkupBlock::theme(HtmlTheme const& value) const {
+void MarkupBlock::theme(MarkupTheme const& value) const {
     static_cast<Impl*>(impl())->theme_ = value;
 }
 

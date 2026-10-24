@@ -23,7 +23,7 @@ using winrt::Windows::Foundation::Collections::IObservableVector;
 using winrt::Windows::Foundation::Collections::IVector;
 using winrt::Windows::Foundation::Collections::IVectorChangedEventArgs;
 using wxl::core::observable_list;
-using wxl::impl::bound_source;
+using wxl::impl::bound_list_watch;
 
 using change_heard = std::pair<CollectionChange, uint32_t>;
 
@@ -43,7 +43,7 @@ int value_of(IInspectable const& element) {
 struct bound_list {
     explicit bound_list(std::vector<int> items) : list(wxl::core::sta_vector<int>(items.begin(), items.end())) {
         observable_list<int const>& seen = list;
-        bound_source source{&seen, list.size(), [&seen](uint32_t at) { return element_of(seen[at]); }};
+        bound_list_watch source{&seen, list.size(), [&seen](uint32_t at) { return element_of(seen[at]); }};
         vector = source.source().as_interface<IObservableVector<IInspectable>>();
         list.watch_for_binding(std::move(source));
         vector.VectorChanged([this](IObservableVector<IInspectable> const&, IVectorChangedEventArgs const& args) {

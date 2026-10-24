@@ -8,10 +8,11 @@
 #include "Announce.h"
 #include <wxl/Microsoft.UI.Xaml.Automation.Peers.Enums.h>
 #include "Box.h"
-#include "ItemBuilder.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include "KeyedIndexList.h"
 #include "Layouts.h"
-#include "ResourceBrush.h"
+#include "Resource.h"
 #include "RepeaterData.h"
 #include <wxl/Microsoft.UI.Dispatching.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.h>

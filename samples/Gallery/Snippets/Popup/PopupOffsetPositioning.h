@@ -16,7 +16,7 @@ model->popup.child(Grid {
     StackPanel {
         spacing = 8,
         TextBlock {fontSize = 16, u"Simple Popup"},
-        Button {content = u"Close", onClick = [model](auto&&...) {
+        Button {content = u"Close", onClick += [model](auto&&...) {
                     if (model->popup.isOpen()) {
                         model->popup.isOpen(false);
                     }
@@ -30,7 +30,7 @@ model->lightDismiss.add_onToggled([model](ToggleSwitch const& self) { model->pop
 auto example = Grid {
     hAlign.left,
     vAlign.top,
-    Button {content = u"Show Popup (using Offset)", onClick = [model](auto&&...) {
+    Button {content = u"Show Popup (using Offset)", onClick += [model](auto&&...) {
                 if (!model->popup.isOpen()) {
                     model->popup.isOpen(true);
                 }

@@ -11,16 +11,16 @@ auto example = StackPanel {
         horizontalAlignment = HorizontalAlignment::Left,
         isItemInvokedEnabled = true,
         itemTemplate = [objects](Object const& item) {
-            auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+            auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
             return ItemContainer {width = 200, height = 140, horizontalAlignment = HorizontalAlignment::Left,
                                   child = Image {Margin {4}, automationAccessibilityView = AccessibilityView::Raw, horizontalAlignment = HorizontalAlignment::Center,
                                          verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
                                          source = object.imageLocation}};
         },
-        itemsSource = indexList(static_cast<int64_t>(objects->size())),
-        onItemInvoked = [objects, output](auto const&, ItemsViewItemInvokedEventArgs& args) {
+        itemsSource = IndexList(static_cast<int64_t>(objects->size())),
+        onItemInvoked += [objects, output](auto const&, ItemsViewItemInvokedEventArgs& args) {
             std::u16string words = u"You invoked ";
-            words += (*objects)[static_cast<size_t>(intOf(args.invokedItem()))].title;
+            words += (*objects)[static_cast<size_t>(unboxValue<int64_t>(args.invokedItem()))].title;
             words += u".";
             output.text(words);
         },

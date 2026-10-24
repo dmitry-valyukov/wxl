@@ -31,18 +31,18 @@ std::wstring assetPath(wchar_t const* name) {
 // Первый кадр файла в формате поверхности: BGRA с умноженной альфой.
 ComPtr<IWICFormatConverter> decoded(wchar_t const* name) {
     ComPtr<IWICImagingFactory> factory;
-    wxl::check_hresult(
+    wxl::impl::check_hresult(
         ::CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)));
 
     ComPtr<IWICBitmapDecoder> decoder;
-    wxl::check_hresult(factory->CreateDecoderFromFilename(assetPath(name).c_str(), nullptr, GENERIC_READ,
+    wxl::impl::check_hresult(factory->CreateDecoderFromFilename(assetPath(name).c_str(), nullptr, GENERIC_READ,
                                                           WICDecodeMetadataCacheOnLoad, &decoder));
     ComPtr<IWICBitmapFrameDecode> frame;
-    wxl::check_hresult(decoder->GetFrame(0, &frame));
+    wxl::impl::check_hresult(decoder->GetFrame(0, &frame));
 
     ComPtr<IWICFormatConverter> converter;
-    wxl::check_hresult(factory->CreateFormatConverter(&converter));
-    wxl::check_hresult(converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone,
+    wxl::impl::check_hresult(factory->CreateFormatConverter(&converter));
+    wxl::impl::check_hresult(converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone,
                                              nullptr, 0.0, WICBitmapPaletteTypeCustom));
     return converter;
 }
@@ -52,13 +52,13 @@ ComPtr<IWICFormatConverter> decoded(wchar_t const* name) {
 lab::Pixels lab::readImage(wchar_t const* name) {
     auto const converter = decoded(name);
     UINT width = 0, height = 0;
-    wxl::check_hresult(converter->GetSize(&width, &height));
+    wxl::impl::check_hresult(converter->GetSize(&width, &height));
 
     Pixels image;
     image.width = static_cast<int>(width);
     image.height = static_cast<int>(height);
     image.pixels.resize(static_cast<std::size_t>(width) * height);
-    wxl::check_hresult(converter->CopyPixels(nullptr, width * 4, width * height * 4,
+    wxl::impl::check_hresult(converter->CopyPixels(nullptr, width * 4, width * height * 4,
                                              reinterpret_cast<BYTE*>(image.pixels.data())));
     return image;
 }
@@ -67,12 +67,12 @@ void lab::loadImage(DrawingSurface& surface, wchar_t const* name) {
     auto const converter = decoded(name);
 
     UINT width = 0, height = 0;
-    wxl::check_hresult(converter->GetSize(&width, &height));
+    wxl::impl::check_hresult(converter->GetSize(&width, &height));
     surface.resize({static_cast<int>(width), static_cast<int>(height)});
 
     surface.draw([&](ID2D1DeviceContext* context) {
         ComPtr<ID2D1Bitmap1> bitmap;
-        wxl::check_hresult(context->CreateBitmapFromWicBitmap(converter.Get(), &bitmap));
+        wxl::impl::check_hresult(context->CreateBitmapFromWicBitmap(converter.Get(), &bitmap));
         // Копией и без сглаживания: в пикселе число, а не цвет.
         context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
         context->DrawBitmap(bitmap.Get(),

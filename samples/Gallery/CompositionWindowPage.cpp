@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "ApplicationFolder.h"
+#include "Application.h"
 #include "CompositionWindow.h"
 #include <d2d1_1.h>
 

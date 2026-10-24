@@ -45,13 +45,13 @@ auto example = StackPanel {
         spacing = 8,
         Button {
             content = u"Show Clipboard Formats",
-            onClick = [model](Button const&) {
+            onClick += [model](Button const&) {
                 model->status.text(Model::formats(Clipboard::getContent(), u"Available formats on the clipboard:", u"The clipboard is empty."));
             },
         },
         Button {
             content = u"Clear Clipboard",
-            onClick = [model](Button const&) {
+            onClick += [model](Button const&) {
                 try {
                     Clipboard::clear();
                     model->status.text(u"Clipboard has been cleared.");

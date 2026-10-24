@@ -14,7 +14,7 @@
 // Every such method has its form with a token beside it, the token taken last, as wxl.async's
 // own operations take one:
 //
-//     if (co_await dialog.showAsync(stop) != ContentDialogResult::Primary) co_return;
+//     if (co_await dialog.showAsync(token) != ContentDialogResult::Primary) co_return;
 //
 // Cancelled while the operation is out, the token posts a turn to the calling thread's queue, and
 // that turn asks the platform to stop it -- a ContentDialog closes, without its Closing, which

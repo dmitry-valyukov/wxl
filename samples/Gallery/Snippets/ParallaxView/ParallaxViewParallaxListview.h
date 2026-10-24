@@ -4,7 +4,7 @@ auto const list = ListView {
     hAlign.stretch,
     vAlign.top,
     background = rgba(0, 0, 0, 0.5),
-    itemTemplate = [](Object const& item) { return TextBlock {foreground = brushes.SystemControl.Foreground.AltHigh, stringOf(item)}; },
+    itemTemplate = [](Object const& item) { return TextBlock {foreground = brushes.SystemControl.Foreground.AltHigh, unboxValue<hstring>(item)}; },
     itemsSource = stringList(titles),
     header = TextBlock {maxWidth = 280, hAlign.center, vAlign.center, fontSize = 28, foreground = colors.white,
                         textWrapping = TextWrapping::WrapWholeWords, u"Scroll the list to see parallaxing of image"},

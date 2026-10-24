@@ -4,6 +4,7 @@
 #include <winrt/Windows.Foundation.h>
 
 #include "coroutine_checks.h"
+#include "dispatcher.h"
 
 #include "../Operation.h"
 
@@ -12,7 +13,7 @@
 // wxl's terms. For the generated wrappers, and for any call of wxl.ui that awaits an operation of
 // the platform.
 //
-// It is an async_op, so a task reads it the way it reads every other operation: is it ready, park
+// It is an async_op, so a task reads it the way it reads every other operation: is it ready, suspend
 // the waiter, take the value or the exception. What is its own:
 //
 //  * Two threads, and only one of them touches it. The call has started the operation already.
@@ -35,69 +36,56 @@
 //    What then stays behind is the platform's own -- its operation, holding the completion
 //    handler, and the handler the link and the queue -- and nothing of the producer's: not the
 //    operation, the token or the queue. The link is the one thing both threads hold, so its count
-//    is std::shared_ptr's atomic one, from the general heap: the runtime may let go of the handler
-//    on any thread.
+//    is refcounted_mt's atomic one, and it comes from the general heap, not the thread's pool: the
+//    runtime may let go of the handler on any thread.
 //  * A queue that refuses the posted call -- shut down, its thread on the way out -- leaves the
 //    coroutine waiting for it as it is: it is not resumed, and the wait is its owner's to end.
-//  * Under a token (start_operation_under, start_action_under, the form with a token of every
-//    generated asynchronous method) it stands in the token's event from the start of the call
-//    until it goes. The token's cancel only posts a turn to the same queue (cut()); asking the
-//    runtime to stop, and answering, are that turn's. Asking is not done inside the cancel because
-//    the platform answers it with events of the application's, synchronously -- a ContentDialog
-//    moves the focus back (GettingFocus, LosingFocus) and, with its popup gone, raises Closed and
-//    completes -- and a cancel resumes nobody. Whichever comes first on the queue answers: the
-//    completion with what happened to the operation, the turn with the cancellation; the other
-//    finds it answered. The turn is what ends the co_await however and whenever the platform ends
-//    the operation, and posted from inside the cancel, while the queue still takes work, it runs
-//    on the thread's loop or in its final drain. Under a token cancelled already the call is not
-//    made at all.
+//  * Under a token (start_cancelable_winrt_operation, start_cancelable_winrt_action, the form with
+//    a token of every generated asynchronous method) it is registered with the token's event from
+//    the start of the call until it goes. The token's cancel only posts a turn to the same queue
+//    (abort()); asking the runtime to stop, and answering, are that turn's. Asking is not done
+//    inside the cancel because the platform answers it with events of the application's,
+//    synchronously -- a ContentDialog moves the focus back (GettingFocus, LosingFocus) and, with
+//    its popup gone, raises Closed and completes -- and a cancel resumes nobody. Whichever comes
+//    first on the queue answers: the completion with what happened to the operation, the turn with
+//    the cancellation; the other finds it answered. The turn is what ends the co_await however and
+//    whenever the platform ends the operation, and posted from inside the cancel, while the queue
+//    still takes work, it runs on the thread's loop or in its final drain. Under a token cancelled
+//    already the call is not made at all.
 //
-// The operation and the queue are template parameters, so that all of this can be tested over a
-// fake of each; start_operation and start_action give it the projection's operation and the
-// queue of the calling thread.
+// The operation and the dispatcher are template parameters, so that all of this can be tested
+// over a fake of each; start_winrt_operation and start_winrt_action give it the projection's
+// operation and a dispatcher over the queue of the calling thread.
 //
 // Private: this header names winrt types, so only wxl's own sources include it.
 
 namespace wxl::impl {
 
-namespace detail {
-
-using winrt::Windows::Foundation::AsyncStatus;
-
 /// One operation of the platform under way, and its answer once it is back. Made, answered and
-/// deleted on the thread that made the call.
-template <class R, class Op, class Convert>
-class producer : public async::async_op_t<R>
+/// deleted on the thread that made the call. The posted calls find it through its weak_link,
+/// which is read on this thread alone; only the link's count crosses threads.
+template <class R, class WinrtOp, class Convert>
+class winrt_operation_producer
+    : public async::async_op_t<R>,
+      public core::weak_linked_mt<winrt_operation_producer<R, WinrtOp, Convert>>
 {
 public:
-    /// Where a posted call finds the producer: the producer while it lives, null once it is gone.
-    /// Written and read on the producer's thread alone; only the count crosses threads.
-    struct link {
-        producer* self;
-    };
-
-    producer(Op operation, Convert convert)
-        : operation_(std::move(operation)),
-          convert_(std::move(convert)),
-          link_(std::make_shared<link>(link{this})) {}
-
-    ~producer() override { link_->self = nullptr; }
-
-    std::shared_ptr<link> const& reach() const noexcept { return link_; }
+    winrt_operation_producer(WinrtOp operation, Convert convert)
+        : operation_(std::move(operation)), convert_(std::move(convert)) {}
 
     /// The operation, the producer's own reference to it: the completion is hooked on this one.
-    Op const& operation() const noexcept { return operation_; }
+    WinrtOp const& operation() const noexcept { return operation_; }
 
     /// The completion's posted call. Answered already -- by the turn of a cancellation -- it does
     /// nothing; otherwise it answers with what happened to the operation and resumes the coroutine
     /// waiting for it. It may be gone on return.
-    void finish(AsyncStatus status) {
+    void on_completed(winrt::Windows::Foundation::AsyncStatus status) {
         if (this->ready()) return;
 
-        if (status == AsyncStatus::Canceled)
+        if (status == winrt::Windows::Foundation::AsyncStatus::Canceled)
             this->answer_canceled();
         else
-            read();
+            capture_results();
 
         this->complete();
     }
@@ -120,13 +108,13 @@ protected:
     /// stopped, so the refusal stops the process here, through std::terminate, whose handler names
     /// the exception.
     void on_cancel() noexcept override {
-        Op const asked = operation_;
-        asked.Cancel();
+        WinrtOp const op = operation_;
+        op.Cancel();
     }
 
     /// Completed, the result; failed, GetResults() throws what the operation failed with, and that
     /// is the answer -- as is whatever `convert` throws.
-    void read() noexcept {
+    void capture_results() noexcept {
         try {
             if constexpr (std::is_void_v<R>)
                 operation_.GetResults();
@@ -138,53 +126,54 @@ protected:
     }
 
 private:
-    Op operation_;
+    WinrtOp operation_;
     Convert convert_;
-    std::shared_ptr<link> link_;
 };
 
-/// The producer in its form with a token: it stands in the token's event while it lives, and the
-/// token's cancel posts the turn that asks the runtime to stop and answers the cancellation.
-template <class R, class Op, class Queue, class Convert>
-class producer_under final
-    : public async::detail::pooled<producer_under<R, Op, Queue, Convert>, producer<R, Op, Convert>>
+/// The producer in its form with a token: it is registered with the token's event while it lives,
+/// and the token's cancel posts the turn that asks the runtime to stop and answers the
+/// cancellation.
+template <class R, class WinrtOp, dispatcher_like Dispatcher, class Convert>
+class winrt_cancelable_operation_producer final
+    : public async::detail::pooled<
+          winrt_cancelable_operation_producer<R, WinrtOp, Dispatcher, Convert>,
+                                   winrt_operation_producer<R, WinrtOp, Convert>>
 {
-    using base = async::detail::pooled<producer_under, producer<R, Op, Convert>>;
-    using cancellation_event = async::detail::cancellation_event;
+    using base = async::detail::pooled<winrt_cancelable_operation_producer,
+                                       winrt_operation_producer<R, WinrtOp, Convert>>;
 
 public:
     /// Made only under a token that has a source and is not cancelled yet.
-    producer_under(Op operation, Convert convert, Queue queue, async::cancellation_token stop)
+    winrt_cancelable_operation_producer(WinrtOp operation, Convert convert, Dispatcher dispatcher,
+                                        async::cancellation_token token)
         : base(std::move(operation), std::move(convert)),
-          queue_(std::move(queue)),
-          stop_(std::move(stop)),
-          node_(*this) {
-        coro_check(!async::detail::cancellation_state_of(stop_)->canceled(),
-                   "producer_under: made under a token cancelled already", async::detail::site::current());
+          dispatcher_(std::move(dispatcher)),
+          token_(std::move(token)),
+          registration_(*this) {
+        coro_check(!async::detail::cancellation_state_of(token_)->canceled(),
+                   "winrt_cancelable_operation_producer: made under a token cancelled already",
+                   async::detail::site::current());
 
-        async::detail::cancellation_state_of(stop_)->event().add(
-            core::as_not_null<cancellation_event::func_t>(&node_));
+        registration_.register_with(*async::detail::cancellation_state_of(token_));
     }
 
-    /// Out of the event before the token goes; once the token has been cancelled, the event the
-    /// node stood in has been fired and is gone, and unlink() finds nothing.
-    ~producer_under() override {
-        async::detail::cancellation_state_of(stop_)->event().unlink(
-            core::cookie_t{static_cast<cancellation_event::func_t*>(&node_)});
+    /// Out of the event before the token goes.
+    ~winrt_cancelable_operation_producer() override {
+        registration_.unregister(*async::detail::cancellation_state_of(token_));
     }
 
     /// The turn the cancellation posted. Answered already -- the completion came first -- it does
     /// nothing; otherwise it asks the runtime to stop the operation, answers the cancellation and
     /// resumes the coroutine waiting for it. Events the platform raises while it is asked come
-    /// here, on the queue's turn. It may be gone on return.
-    void cut() {
+    /// here, on the dispatcher's turn. It may be gone on return.
+    void abort() {
         if (this->ready()) return;
 
         // Held across the asking: a handler of the platform's events may let the task go, and the
         // producer with it.
-        auto const link = this->reach();
+        auto const link = this->weak_link();
         this->cancel();
-        if (!link->self || this->ready()) return;
+        if (!link->get() || this->ready()) return;
 
         this->answer_canceled();
         this->complete();
@@ -192,46 +181,35 @@ public:
 
 private:
     /// The token was cancelled: the turn is posted, and nothing else is done here -- cancelling
-    /// resumes nobody, and asking the runtime raises events of the application's. A queue that
-    /// refuses it is shut down, and refuses the completion as well: the wait then never ends, as it
-    /// would not without a token. A queue that throws stops the process here, through
+    /// resumes nobody, and asking the runtime raises events of the application's. A dispatcher
+    /// that refuses it is closed, and refuses the completion as well: the wait then never ends, as
+    /// it would not without a token. A dispatcher that throws stops the process here, through
     /// std::terminate, rather than leaving a wait nobody will end.
-    void stop_asked() noexcept {
+    void on_stopping() noexcept {
         if (this->ready()) return;
 
         // noexcept: what the turn throws is a terminate the UI thread's handler names, not an
         // HRESULT the projection's delegate hands the queue.
-        queue_.TryEnqueue([link = this->reach()]() noexcept {
-            if (link->self) static_cast<producer_under*>(link->self)->cut();
+        dispatcher_.schedule([link = this->weak_link()]() noexcept {
+            if (link->get())
+                static_cast<winrt_cancelable_operation_producer*>(link->get())->abort();
         });
     }
 
+    Dispatcher dispatcher_;
+    async::cancellation_token token_;
     /// The producer's place in the token's event, built into it.
-    class node final : public cancellation_event::func_t
-    {
-    public:
-        explicit node(producer_under& op) noexcept : op_(op) {}
-
-        void operator()() noexcept override { op_.stop_asked(); }
-
-        /// The producer owns its node.
-        void release() noexcept override {}
-
-    private:
-        producer_under& op_;
-    };
-
-    Queue queue_;
-    async::cancellation_token stop_;
-    node node_;
+    async::cancellation_registration<&winrt_cancelable_operation_producer::on_stopping>
+        registration_;
 };
 
-/// The completion handler: it touches nothing but the queue and the link, which it posts on.
+/// The completion handler: it touches nothing but the dispatcher and the link, which it hands
+/// the turn to.
 ///
 /// It runs on a thread of the runtime's, inside the projection's delegate, which would turn an
 /// exception into an HRESULT for the platform and lose the turn without a word. So what the
-/// posting throws -- the queue's call failing, the delegate it is given not made -- stops the
-/// process here, named: terminate_with_reason() describes the exception being handled and
+/// scheduling throws -- the dispatcher's call failing, the delegate it is given not made -- stops
+/// the process here, named: terminate_with_reason() describes the exception being handled and
 /// aborts, whatever terminate handler the thread has.
 ///
 /// A refusal is not an exception, and it is left as it is: the queue of the calling thread
@@ -241,13 +219,15 @@ private:
 ///
 /// The runtime takes the handler once and calls it once, so the handler hands its link on to the
 /// turn: the link changes hands, and its count, an atomic one, is not touched.
-template <class Producer, class Op, class Queue>
-void post_completion(Op const& operation, Queue const& queue, Producer& made) {
-    operation.Completed([link = made.reach(), queue](auto const&, AsyncStatus status) mutable {
+template <class Producer, class WinrtOp, dispatcher_like Dispatcher>
+void post_winrt_completion(WinrtOp const& operation, Dispatcher const& dispatcher,
+                           Producer& producer) {
+    operation.Completed([link = producer.weak_link(), dispatcher](
+                            auto const&, winrt::Windows::Foundation::AsyncStatus status) mutable {
         try {
-            // The turn is noexcept for the same reason as cut()'s.
-            static_cast<void>(queue.TryEnqueue([link = std::move(link), status]() noexcept {
-                if (link->self) link->self->finish(status);
+            // The turn is noexcept for the same reason as abort()'s.
+            static_cast<void>(dispatcher.schedule([link = std::move(link), status]() noexcept {
+                if (auto* const producer = link->get()) producer->on_completed(status);
             }));
         } catch (...) {
             core::impl::terminate_with_reason();
@@ -255,73 +235,79 @@ void post_completion(Op const& operation, Queue const& queue, Producer& made) {
     });
 }
 
-/// The task of an operation the call has started already, answered on the thread of `queue`, the
-/// calling thread. The operation has one owner, the producer, and the completion is hooked on its
-/// reference, so the hand-over touches no count.
-template <class R, class Op, class Queue, class Convert>
-async::task<R> start(Op operation, Queue const& queue, Convert convert) {
-    auto made =
-        std::make_unique<producer<R, Op, Convert>>(std::move(operation), std::move(convert));
-    post_completion(made->operation(), queue, *made);
-    return async::task<R>(std::move(made));
+/// The task of an operation the call has started already, answered on the thread of
+/// `dispatcher`, the calling thread. The operation has one owner, the producer, and the completion
+/// is hooked on its reference, so the hand-over touches no count.
+template <class R, class WinrtOp, dispatcher_like Dispatcher, class Convert>
+async::task<R> start_winrt_on_dispatcher(WinrtOp operation, Dispatcher const& dispatcher,
+                                         Convert convert) {
+    auto producer = std::make_unique<winrt_operation_producer<R, WinrtOp, Convert>>(
+        std::move(operation), std::move(convert));
+    post_winrt_completion(producer->operation(), dispatcher, *producer);
+    return async::task<R>(std::move(producer));
 }
 
-/// The task of the operation `begin` starts, standing under `stop`; under a token cancelled
+/// The task of the operation `begin` starts, registered with `token`; under a token cancelled
 /// already `begin` is not called, nothing is started, and the task answers the cancellation at
-/// once. Under a token nobody can cancel it is start(): there is nothing to stand under. The
-/// operation `begin` returns goes to the producer, its one owner, and the completion is hooked on
-/// the producer's reference: the operation changes hands without its count being touched.
-template <class R, class Begin, class Queue, class Convert>
-async::task<R> start_under(Begin&& begin, Queue const& queue, Convert convert,
-                           async::cancellation_token stop) {
-    if (!async::detail::cancellation_state_of(stop))
-        return start<R>(begin(), queue, std::move(convert));
-    if (stop.is_canceled()) return async::detail::canceled_task<R>();
+/// once. Under a token nobody can cancel it is start_winrt_on_dispatcher(): there is nothing to
+/// register with.
+/// The operation `begin` returns goes to the producer, its one owner, and the completion is hooked
+/// on the producer's reference: the operation changes hands without its count being touched.
+template <class R, class Begin, dispatcher_like Dispatcher, class Convert>
+async::task<R> start_cancelable_winrt_on_dispatcher(Begin&& begin, Dispatcher const& dispatcher,
+                                                    Convert convert,
+                                                    async::cancellation_token token) {
+    if (!async::detail::cancellation_state_of(token))
+        return start_winrt_on_dispatcher<R>(begin(), dispatcher, std::move(convert));
+    if (token.is_canceled()) return async::detail::canceled_task<R>();
 
     auto operation = begin();
-    using made_t = producer_under<R, std::decay_t<decltype(operation)>, Queue, Convert>;
+    using producer_t = winrt_cancelable_operation_producer<R, std::decay_t<decltype(operation)>,
+                                                           Dispatcher, Convert>;
 
-    auto made =
-        std::make_unique<made_t>(std::move(operation), std::move(convert), queue, std::move(stop));
-    post_completion(made->operation(), queue, *made);
-    return async::task<R>(std::move(made));
+    auto producer = std::make_unique<producer_t>(std::move(operation), std::move(convert),
+                                                 dispatcher, std::move(token));
+    post_winrt_completion(producer->operation(), dispatcher, *producer);
+    return async::task<R>(std::move(producer));
 }
-
-}  // namespace detail
 
 /// An asynchronous operation with a result: `convert` turns what it returns (a projection value)
 /// into `R`, on the calling thread.
-template <class R, class Op, class Convert>
-async::task<R> start_operation(Op operation, Convert convert) {
-    return detail::start<R>(
+template <class R, class WinrtOp, class Convert>
+async::task<R> start_winrt_operation(WinrtOp operation, Convert convert) {
+    return start_winrt_on_dispatcher<R>(
         std::move(operation),
-        winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
+        winrt_dispatcher{winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread()},
         std::move(convert));
 }
 
 /// An asynchronous operation without a result (IAsyncAction, with progress or without).
-template <class Op>
-async::task<> start_action(Op operation) {
-    return detail::start<void>(
+template <class WinrtOp>
+async::task<> start_winrt_action(WinrtOp operation) {
+    return start_winrt_on_dispatcher<void>(
         std::move(operation),
-        winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(), std::identity{});
+        winrt_dispatcher{winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread()},
+        std::identity{});
 }
 
-/// start_operation in the form with a token: `begin` makes the call -- unless the token is
+/// start_winrt_operation in the form with a token: `begin` makes the call -- unless the token is
 /// cancelled already, and then nothing is started.
 template <class R, class Begin, class Convert>
-async::task<R> start_operation_under(Begin&& begin, Convert convert, async::cancellation_token stop) {
-    return detail::start_under<R>(
-        std::forward<Begin>(begin), winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
-        std::move(convert), std::move(stop));
+async::task<R> start_cancelable_winrt_operation(Begin&& begin, Convert convert,
+                                           async::cancellation_token token) {
+    return start_cancelable_winrt_on_dispatcher<R>(
+        std::forward<Begin>(begin),
+        winrt_dispatcher{winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread()},
+        std::move(convert), std::move(token));
 }
 
-/// start_action in the form with a token.
+/// start_winrt_action in the form with a token.
 template <class Begin>
-async::task<> start_action_under(Begin&& begin, async::cancellation_token stop) {
-    return detail::start_under<void>(
-        std::forward<Begin>(begin), winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread(),
-        std::identity{}, std::move(stop));
+async::task<> start_cancelable_winrt_action(Begin&& begin, async::cancellation_token token) {
+    return start_cancelable_winrt_on_dispatcher<void>(
+        std::forward<Begin>(begin),
+        winrt_dispatcher{winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread()},
+        std::identity{}, std::move(token));
 }
 
 }  // namespace wxl::impl

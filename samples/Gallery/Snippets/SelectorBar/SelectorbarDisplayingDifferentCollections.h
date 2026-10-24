@@ -7,7 +7,7 @@ static constexpr int counts[] = {5, 7, 4};
 auto const view = ItemsView {
     layout = StackLayout {orientation.horizontal},
     itemTemplate = [](Object const& item) {
-        auto const kind = intOf(item) / 100;
+        auto const kind = unboxValue<int64_t>(item) / 100;
         return ItemContainer {width = 112, height = 82, Margin {4}, background = kind == 0 ? pink : kind == 1 ? plum : powderBlue};
     },
 };
@@ -16,13 +16,13 @@ auto const show = [view](int kind) {
     for (int i = 0; i < counts[kind]; ++i) {
         tiles.push_back(kind * 100 + i);
     }
-    view.itemsSource(indexList(tiles.data(), tiles.size()));
+    view.itemsSource(IndexList{tiles});
 };
 show(0);
 
 auto const bar = SelectorBar {
     items[SelectorBarItem {text = u"Pink", isSelected = true}, SelectorBarItem {text = u"Plum"}, SelectorBarItem {text = u"PowderBlue"}],
-    onSelectionChanged = [show](SelectorBar const& sender, SelectorBarSelectionChangedEventArgs&) {
+    onSelectionChanged += [show](SelectorBar const& sender, SelectorBarSelectionChangedEventArgs&) {
         auto const selected = sender.selectedItem().text();
         show(selected == u"Pink" ? 0 : selected == u"Plum" ? 1 : 2);
     },

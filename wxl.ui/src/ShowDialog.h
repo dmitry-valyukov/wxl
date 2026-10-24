@@ -3,7 +3,7 @@
 // wxl::showDialog -- a ContentDialog put on screen, and the wait for its answer handed back.
 //
 // ContentDialog has one door, ShowAsync, and its wrapper hands it out as a task to await
-// (dialog.showAsync(stop)). Many dialogs are not awaited, though: a notice, an "about" -- the
+// (dialog.showAsync(token)). Many dialogs are not awaited, though: a notice, an "about" -- the
 // caller shows one and goes on, and the answer, where there is one, comes the way everything
 // else in wxl does -- through the dialog's own events (PrimaryButtonClick, CloseButtonClick,
 // Closed and their neighbours), which are projected already. This is that call: it returns at
@@ -37,7 +37,7 @@
 // One dialog at a time: XAML refuses a second while the first is up, and the
 // refusal is an exception, thrown from this call -- as is the refusal of a
 // dialog with no XamlRoot to show over; nothing is left running then. Whoever
-// opens dialogs from a handler that can fire twice catches it or keeps track
+// opens dialogs from a handler that can be called twice catches it or keeps track
 // itself -- there is nothing here to keep it for them.
 
 #include "Operation.h"
@@ -50,14 +50,14 @@ class Window;
 
 /// Shows `dialog` over `host` and returns at once, with the wait for its
 /// answer -- the dialog stays up until the reader answers it, and what they
-/// answered arrives on the dialog's events, or until `stop` is cancelled or the
+/// answered arrives on the dialog's events, or until `token` is cancelled or the
 /// task dropped, either of which closes it.
 /// \throw the platform's refusal, when the dialog cannot be shown.
 [[nodiscard("the dialog closes with the task: keep it where the dialog's owner keeps its tasks")]]
-async::task<> showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token stop);
+async::task<> showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token token);
 
 /// The same, over the island `host` is in.
 [[nodiscard("the dialog closes with the task: keep it where the dialog's owner keeps its tasks")]]
-async::task<> showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token stop);
+async::task<> showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token token);
 
 }  // namespace wxl
