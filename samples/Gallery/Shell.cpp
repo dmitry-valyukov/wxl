@@ -10,7 +10,7 @@
 #include "Shell.h"
 
 #include "Pages.h"
-#include "StringList.h"
+#include "Box.h"
 
 #include <algorithm>
 #include <memory>
@@ -209,7 +209,7 @@ struct Shell {
         isBackButtonVisible = NavigationViewBackButtonVisible::Collapsed,
         isPaneToggleButtonVisible = false,
         content = host,
-        onSelectionChanged = [](Object const& sender, NavigationViewSelectionChangedEventArgs& args) {
+        onSelectionChanged += [](Object const& sender, NavigationViewSelectionChangedEventArgs& args) {
             onSelected(sender.try_as<NavigationView>(), args.isSettingsSelected());
         },
     };
@@ -220,7 +220,7 @@ struct Shell {
         vAlign.center,
         // Содержимое TitleBar лежит в PART_ContentPresenter с выравниванием по центру, и поле получает ширину по тексту:
         // растягиваем его на всю область содержимого, ширина которой от самого поля не зависит.
-        onLoaded = [](Object const& sender, auto&&...) {
+        onLoaded += [](Object const& sender, auto&&...) {
             auto const box = sender.try_as<AutoSuggestBox>();
             auto const area = VisualTreeHelper::getParent(VisualTreeHelper::getParent(box)).try_as<FrameworkElement>();
             if (!area) {
@@ -231,7 +231,7 @@ struct Shell {
         },
         placeholderText = u"Search controls and samples...",
         queryIcon = SymbolIcon {symbol = FluentSymbol::Search},
-        onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
+        onTextChanged += [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
             // Подсказки даёт только ввод пользователя; выбранная подсказка сама вписывается в текст.
             if (args.reason() != AutoSuggestionBoxTextChangeReason::UserInput) {
                 return;
@@ -242,16 +242,16 @@ struct Shell {
             }
             self.itemsSource(stringList(found));
         },
-        onSuggestionChosen = [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
-            auto const title = stringOf(args.selectedItem());
+        onSuggestionChosen += [](AutoSuggestBox const& self, AutoSuggestBoxSuggestionChosenEventArgs& args) {
+            auto const title = unboxValue<hstring>(args.selectedItem());
             if (title != u"No results found") {
                 self.text(title);
             }
         },
-        onQuerySubmitted = [](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
+        onQuerySubmitted += [](Object const&, AutoSuggestBoxQuerySubmittedEventArgs& args) {
             // Выбранная подсказка ведёт прямо на страницу контрола, набранный текст — на результаты поиска.
             if (args.chosenSuggestion()) {
-                auto const title = stringOf(args.chosenSuggestion());
+                auto const title = unboxValue<hstring>(args.chosenSuggestion());
                 if (auto const* control = gallery::controlByTitle(title)) {
                     navigate({Place::Item, control->uniqueId});
                 }
@@ -265,8 +265,8 @@ struct Shell {
         isBackButtonVisible = false,
         isPaneToggleButtonVisible = true,
         iconSource = ImageIconSource {imageSource = u"Assets/Tiles/GalleryIcon.ico"},
-        onBackRequested = [] { goBack(); },
-        onPaneToggleRequested = [] { togglePane(); },
+        onBackRequested += [] { goBack(); },
+        onPaneToggleRequested += [] { togglePane(); },
         content = search,
     };
     // Пункты панели по порядку и индекс родителя каждого (-1 — верхний
@@ -639,7 +639,7 @@ Window createMainWindow() {
             s.titleBar,
             s.navigation,
             // Боковые кнопки мыши — «назад» и «вперёд», как у оригинала.
-            onPointerPressed = [](Object const& sender, PointerRoutedEventArgs& args) {
+            onPointerPressed += [](Object const& sender, PointerRoutedEventArgs& args) {
                 auto const properties = args.getCurrentPoint(sender.try_as<UIElement>()).properties();
                 if (properties.isXButton1Pressed()) {
                     goBack();
@@ -650,7 +650,7 @@ Window createMainWindow() {
             keyboardAccelerators[KeyboardAccelerator {
                 key = VirtualKey::F,
                 modifiers = VirtualKeyModifiers::Control,
-                onInvoked = [](Object const&, KeyboardAcceleratorInvokedEventArgs& args) {
+                onInvoked += [](Object const&, KeyboardAcceleratorInvokedEventArgs& args) {
                     focusSearch();
                     args.handled(true);
                 },

@@ -20,7 +20,7 @@
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/effect_layer.h"
+#include "impl/effect_helpers.h"
 
 namespace wxl {
 
@@ -29,7 +29,7 @@ namespace canvas = winrt::Microsoft::Graphics::Canvas;
 namespace effects = winrt::Microsoft::Graphics::Canvas::Effects;
 namespace xaml = winrt::Microsoft::UI::Xaml;
 
-struct GaussianBlurEffect::State : core::sta_refcounted {
+struct GaussianBlurEffect::Impl : core::sta_refcounted {
     Color color = rgb(0, 0, 0);
     float blurRadius = 9.0f;
     float opacity = 1.0f;
@@ -37,27 +37,26 @@ struct GaussianBlurEffect::State : core::sta_refcounted {
     int32_t z = -1;
 };
 
-GaussianBlurEffect::GaussianBlurEffect() : state_{new State, /*add_ref=*/false} {}
+GaussianBlurEffect::GaussianBlurEffect() : impl_{new Impl, /*add_ref=*/false} {}
 GaussianBlurEffect::GaussianBlurEffect(GaussianBlurEffect const& other) noexcept = default;
 GaussianBlurEffect& GaussianBlurEffect::operator=(GaussianBlurEffect const& other) noexcept = default;
 GaussianBlurEffect::~GaussianBlurEffect() = default;
 
-void GaussianBlurEffect::color(Color value) const { state_->color = value; }
-void GaussianBlurEffect::blurRadius(double value) const { state_->blurRadius = static_cast<float>(value); }
+void GaussianBlurEffect::color(Color value) const { impl_->color = value; }
+void GaussianBlurEffect::blurRadius(double value) const { impl_->blurRadius = static_cast<float>(value); }
 void GaussianBlurEffect::opacity(double value) const {
-    state_->opacity = static_cast<float>(std::clamp(value, 0.0, 1.0));
+    impl_->opacity = static_cast<float>(std::clamp(value, 0.0, 1.0));
 }
-void GaussianBlurEffect::gamma(double value) const { state_->gamma = static_cast<float>(std::max(value, 0.01)); }
-void GaussianBlurEffect::zIndex(int32_t value) const { state_->z = value; }
+void GaussianBlurEffect::gamma(double value) const { impl_->gamma = static_cast<float>(std::max(value, 0.01)); }
+void GaussianBlurEffect::zIndex(int32_t value) const { impl_->z = value; }
 
 void GaussianBlurEffect::attach(UIElement const& wrapper, std::function<CompositionBrush()> maskOf) const {
-    core::intrusive_ptr<State> const s = state_;
     auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
     auto const host = xaml::Hosting::ElementCompositionPreview::GetElementVisual(element);
 
     // The layer is made once the element is drawn, and the mask is taken
     // then too: before that there are no glyphs to take the alpha of.
-    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf), s](auto const& children) {
+    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf), impl = impl_](auto const& children) {
         auto const compositor = host.Compositor();
         auto const mask = Object::Impl::as<composition::CompositionBrush>(maskOf());
 
@@ -67,19 +66,19 @@ void GaussianBlurEffect::attach(UIElement const& wrapper, std::function<Composit
         // the same reach here.
         effects::GaussianBlurEffect blur;
         blur.Source(composition::CompositionEffectSourceParameter{L"mask"});
-        blur.BlurAmount(s->blurRadius / 3.0f);
+        blur.BlurAmount(impl->blurRadius / 3.0f);
         blur.BorderMode(effects::EffectBorderMode::Soft);
 
         effects::GammaTransferEffect bend;
         bend.Source(blur);
-        bend.AlphaExponent(s->gamma);
+        bend.AlphaExponent(impl->gamma);
         bend.RedDisable(true);
         bend.GreenDisable(true);
         bend.BlueDisable(true);
 
         effects::ColorSourceEffect fill;
-        Color tint = s->color;
-        tint.A = static_cast<uint8_t>(tint.A * s->opacity + 0.5f);
+        Color tint = impl->color;
+        tint.A = static_cast<uint8_t>(tint.A * impl->opacity + 0.5f);
         fill.Color(std::bit_cast<winrt::Windows::UI::Color>(tint));
 
         effects::CompositeEffect glow;
@@ -93,7 +92,7 @@ void GaussianBlurEffect::attach(UIElement const& wrapper, std::function<Composit
         // The glow reaches past the glyphs by the blur, so the layer is the
         // element's size plus that margin all round, and the mask is drawn
         // at its own size in the middle of it.
-        float const margin = s->blurRadius;
+        float const margin = impl->blurRadius;
         if (auto const surface = mask.try_as<composition::CompositionSurfaceBrush>()) {
             surface.Stretch(composition::CompositionStretch::None);
             surface.HorizontalAlignmentRatio(0.5f);
@@ -106,7 +105,7 @@ void GaussianBlurEffect::attach(UIElement const& wrapper, std::function<Composit
         layer.Size({2.0f * margin, 2.0f * margin});
         layer.Offset({-margin, -margin, 0.0f});
 
-        impl::insert_layer(children, layer, s->z);
+        impl::insert_layer(children, layer, impl->z);
     });
 }
 

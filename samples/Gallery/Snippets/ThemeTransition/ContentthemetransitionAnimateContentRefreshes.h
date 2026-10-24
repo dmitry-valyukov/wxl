@@ -11,4 +11,4 @@ auto const fill = [list](bool updated) {
 fill(false);
 
 auto example = Grid {list};
-auto options = StackPanel {Button {content = u"Refresh data", onClick = [fill](auto&&...) { fill(true); }}};
+auto options = StackPanel {Button {content = u"Refresh data", onClick += [fill](auto&&...) { fill(true); }}};

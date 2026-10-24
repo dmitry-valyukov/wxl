@@ -135,7 +135,7 @@ void overlapped_op::finish(DWORD error) noexcept {
         return;
     }
 
-    // Cut short -- by CancelIoEx, or between two calls of a chain -- the operation answers
+    // Aborted -- by CancelIoEx, or between two calls of a chain -- the operation answers
     // the cancellation, whatever part of it went through first.
     if (error == ERROR_OPERATION_ABORTED) {
         answer_canceled();

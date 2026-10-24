@@ -23,7 +23,7 @@ for (int i = 0; i < total; ++i) {
 
 auto example = panel;
 auto options = Slider {minWidth = 150, header = u"Change radius", maximum = 400, minimum = 200,
-                       onValueChanged = [panel](Slider const& self) {
+                       onValueChanged += [panel](Slider const& self) {
                            panel.width(self.value());
                            panel.height(self.value());
                        }};

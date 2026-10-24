@@ -10,6 +10,7 @@
 #include <exception>
 
 #include "hstring_param.h"
+#include "impl/hresult.h"
 
 namespace wxl {
 
@@ -18,7 +19,7 @@ struct Failure {
     hstring message;
 
     /// E_ACCESSDENIED: a camera, a folder or a setting the user has not allowed.
-    bool accessDenied() const noexcept { return hresult == static_cast<int32_t>(0x80070005); }
+    bool accessDenied() const noexcept { return hresult == impl::e_accessdenied; }
 };
 
 /// The failure an exception stands for; an exception that is not the platform's has the HRESULT E_FAIL and its own what().

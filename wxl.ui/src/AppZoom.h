@@ -21,30 +21,41 @@
 
 namespace wxl {
 
-class AppZoom : public core::sta_refcounted {
+class AppZoom final : public core::sta_refcounted {
 public:
     /// Нижняя и верхняя ступени -- пределы и для жеста масштабирования.
     static constexpr double minZoomFactor = 0.5;
     static constexpr double maxZoomFactor = 3.0;
 
+    /// Модель на ступени 100 %.
     static core::intrusive_ptr<AppZoom> make();
 
     /// Множитель масштаба: 1 -- это 100 %.
-    virtual core::observable<double const>& zoomFactor() = 0;
-    virtual core::observable<bool const>& canZoomIn() = 0;
-    virtual core::observable<bool const>& canZoomOut() = 0;
+    core::observable<double const>& zoomFactor() { return zoom_factor_; }
+    core::observable<bool const>& canZoomIn() { return can_zoom_in_; }
+    core::observable<bool const>& canZoomOut() { return can_zoom_out_; }
 
-    virtual void zoomIn() = 0;
-    virtual void zoomOut() = 0;
+    void zoomIn();
+    void zoomOut();
 
     /// Обратно к 100 %.
-    virtual void resetZoom() = 0;
+    void resetZoom();
 
     /// На ступень, ближайшую к множителю, -- так восстанавливают сохранённый
     /// масштаб и так прилипает к ступени жест масштабирования. Ближайшая --
     /// по отношению, а не по разности: масштаб мультипликативный. Ниже
     /// нижней ступени -- нижняя, выше верхней -- верхняя, не число -- 100 %.
-    virtual void setZoomFactor(double factor) = 0;
+    void setZoomFactor(double factor);
+
+private:
+    AppZoom();
+
+    void set_level(uint32_t level);
+
+    uint32_t level_ = 0;
+    core::observable<double> zoom_factor_;
+    core::observable<bool> can_zoom_in_;
+    core::observable<bool> can_zoom_out_;
 };
 
 }  // namespace wxl

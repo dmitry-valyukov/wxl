@@ -18,7 +18,7 @@
 ## Как устроена
 
 - `main.cpp` — приложение на wxl: точка входа и `ListView`, описанный синтаксисом wxl (`itemTemplate`,
-  `itemsSource = indexList(2)`), — без него вопрос (г) был бы о копии, а не о wxl.
+  `itemsSource = IndexList(2)`), — без него вопрос (г) был бы о копии, а не о wxl.
 - `probes.cpp` — всё остальное на проекции cppwinrt напрямую. Источник — свой объект COM на ABI
   (`IObservableVector<Object>`, `IVector<Object>`, `IIterable<Object>`, `IWeakReferenceSource`), элементы — такие же
   объекты-слоты; каждый `QueryInterface`, вызов и `AddRef`/`Release` не из своего потока записываются. Шаблон

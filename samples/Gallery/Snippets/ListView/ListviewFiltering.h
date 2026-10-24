@@ -2,7 +2,7 @@
 // item (the position of a contact in the application's vector) to the element that shows it.
 auto const* people = &gallery::contacts();
 auto const contactOf = [people](Object const& item) {
-    auto const& contact = (*people)[static_cast<size_t>(intOf(item))];
+    auto const& contact = (*people)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Grid {
         rowDefinitions = u"*,*",
         columnDefinitions = u"auto,*",
@@ -38,7 +38,7 @@ struct Model {
         for (size_t index = 0; index < all.size(); ++index) {
             if (contains(all[index].firstName, firstName.text()) && contains(all[index].lastName, lastName.text()) &&
                 contains(all[index].company, company.text())) {
-                items.append(intBox(static_cast<int64_t>(index)));
+                items.append(boxValue(static_cast<int64_t>(index)));
             }
         }
     }
@@ -46,7 +46,7 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 model->list.itemTemplate(contactOf);
-model->list.itemsSource(indexList(static_cast<int64_t>(people->size())));
+model->list.itemsSource(IndexList(static_cast<int64_t>(people->size())));
 
 auto const onChanged = [model, people](auto&&...) { model->filter(*people); };
 model->firstName.add_onTextChanged(onChanged);

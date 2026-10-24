@@ -12,7 +12,7 @@ auto mark = [model](char16_t const* symbolCode, char16_t const* caption, bool Mo
         foreground = themeBrushes.AppBar.Item.Foreground,
         iconSource = FontIconSource {glyph = symbolCode},
         text = caption,
-        onInvoked = [model, flag, on, off](SwipeItem const& self, SwipeItemInvokedEventArgs&) {
+        onInvoked += [model, flag, on, off](SwipeItem const& self, SwipeItemInvokedEventArgs&) {
             model.get()->*flag = !(model.get()->*flag);
             self.text(model.get()->*flag ? on : off);
         },

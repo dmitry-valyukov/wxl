@@ -116,7 +116,7 @@ private:
 };
 
 /// The read at the bottom: waits at the gate, then writes into the buffer in the frame --
-/// unless it was asked to stop meanwhile, and then it comes back cut short, with nothing
+/// unless it was asked to stop meanwhile, and then it comes back aborted, with nothing
 /// written and the cancellation for its answer, as an overlapped read cancelled by
 /// CancelIoEx does.
 class gated_read : public async_op_t<int>
@@ -159,8 +159,8 @@ private:
 };
 
 /// The read, in the form with a token the operations of this module have.
-task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
-    return sta_loop::async_run<gated_read>(std::move(stop), p, into);
+task<int> read(probe& p, std::span<std::byte> into, cancellation_token token) {
+    return sta_loop::async_run<gated_read>(std::move(token), p, into);
 }
 
 /// The operation a level awaits besides its subroutine, answering the level's number, in
@@ -173,17 +173,17 @@ task<int> read(probe& p, std::span<std::byte> into, cancellation_token stop) {
 /// orphanable: one queued behind the read would be waited for by an owner dropping it
 /// before the read is given up, which is what opens the read's gate.
 ///
-/// The one answered inside the call takes no token: it has nothing out to cut short.
-task<int> step(int depth, cancellation_token stop) {
+/// The one answered inside the call takes no token: it has nothing out to abort.
+task<int> step(int depth, cancellation_token token) {
     const int kind = depth % 2 == 1 ? depth % 3 : depth % 4 == 0 ? 0 : 2;
 
     switch (kind) {
         case 0:
             return sta_loop::call_here([depth] { return depth; });
         case 1:
-            return sta_loop::async_call([depth] { return depth; }, std::move(stop));
+            return sta_loop::async_call([depth] { return depth; }, std::move(token));
         default:
-            return sta_loop::async_call(orphanable, [depth] { return depth; }, std::move(stop));
+            return sta_loop::async_call(orphanable, [depth] { return depth; }, std::move(token));
     }
 }
 
@@ -196,20 +196,20 @@ struct drop_wait {
     void await_resume() const noexcept {}
 };
 
-task<int> bottom(chain_state& c, cancellation_token stop) {
+task<int> bottom(chain_state& c, cancellation_token token) {
     const frame_witness witness(c);
 
     if (c.bottom == bottom_kind::read) {
         std::byte buffer[16]{};
         const buffer_witness alive(c.p);
 
-        co_return co_await read(c.p, buffer, std::move(stop));
+        co_return co_await read(c.p, buffer, std::move(token));
     }
 
     if (c.bottom == bottom_kind::worker_failure)
         co_return co_await sta_loop::async_call([]() -> int { throw std::runtime_error("from the worker"); });
 
-    const int value = co_await sta_loop::async_call([] { return 1000; }, stop);
+    const int value = co_await sta_loop::async_call([] { return 1000; }, token);
 
     if (c.bottom == bottom_kind::coroutine_failure) throw std::runtime_error("from the bottom coroutine");
 
@@ -217,27 +217,27 @@ task<int> bottom(chain_state& c, cancellation_token stop) {
 }
 
 /// Level `depth` of the chain: 1 stands on the bottom, and each above calls the one below.
-task<int> level(chain_state& c, int depth, cancellation_token stop) {
+task<int> level(chain_state& c, int depth, cancellation_token token) {
     const frame_witness witness(c);
     int sum = 0;
 
     if (depth == 1) {
-        sum = co_await bottom(c, stop);
+        sum = co_await bottom(c, token);
     } else if (depth == c.drops_at) {
         // Owns its subroutine, and lets it go while it stands on the read at the bottom:
         // from outside its chain, as an owner does.
-        task<int> below = level(c, depth - 1, stop);
+        task<int> below = level(c, depth - 1, token);
 
         co_await drop_wait{c};
         below = {};
 
         sum = depth;
     } else if (depth % 2 == 1) {
-        sum = co_await step(depth, stop);
-        sum += co_await level(c, depth - 1, stop);
+        sum = co_await step(depth, token);
+        sum += co_await level(c, depth - 1, token);
     } else {
-        task<int> below = level(c, depth - 1, stop);
-        sum = co_await step(depth, stop);
+        task<int> below = level(c, depth - 1, token);
+        sum = co_await step(depth, token);
         sum += co_await below;
     }
 
@@ -340,7 +340,7 @@ TEST(TaskDepthTest, AFailureOfTheBottomCoroutineClimbsToTheTop) {
 // down rather than letting the cancellation climb: the read is given up and waited for in
 // place, so it writes nothing. It is deleted as the loop takes it back, and a step's body
 // lying in the channel ahead of it goes first: so what is left alive is counted once
-// everything is back. With no level standing on a step, the read comes back cut short and the
+// everything is back. With no level standing on a step, the read comes back aborted and the
 // cancellation climbs from the bottom. Either way no level ends with a value, and the top ends
 // with the cancellation.
 TEST(TaskDepthTest, ARequestFromTheTopReachesTheBottom) {
@@ -348,13 +348,13 @@ TEST(TaskDepthTest, ARequestFromTheTopReachesTheBottom) {
         SCOPED_TRACE(std::format("depth {}", depth));
         chain_state c;
         c.bottom = bottom_kind::read;
-        cancellation_source stop;
+        cancellation_source source;
 
-        task<int> chain = level(c, depth, stop.token());
+        task<int> chain = level(c, depth, source.token());
         sta_loop::run_until([&] { return c.p.made == 1; });
         c.p.started.wait();
 
-        stop.cancel();
+        source.cancel();
 
         EXPECT_EQ(c.p.canceled, 1);
         EXPECT_FALSE(chain.done()) << "cancel() resumed the chain itself";
@@ -380,10 +380,10 @@ TEST(TaskDepthTest, ARequestBeforeTheStartEndsTheChainAtItsFirstWait) {
         SCOPED_TRACE(std::format("depth {}", depth));
         chain_state c;
         c.bottom = bottom_kind::read;
-        cancellation_source stop;
-        stop.cancel();
+        cancellation_source source;
+        source.cancel();
 
-        task<int> chain = level(c, depth, stop.token());
+        task<int> chain = level(c, depth, source.token());
         sta_loop::run_until([&] { return chain.done(); });
 
         EXPECT_TRUE(ends_cancelled(chain));

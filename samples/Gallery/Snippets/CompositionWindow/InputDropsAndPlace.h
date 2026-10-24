@@ -93,7 +93,7 @@ auto example = StackPanel {
         u"changes its size with the wheel. Throw a file into it to see its path. Close it, and the place it "
         u"was in is kept: the next one opens there.",
     },
-    Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }},
+    Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }},
     model->keyText,
     model->pointerText,
     model->wheelText,

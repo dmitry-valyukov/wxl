@@ -34,7 +34,7 @@
 #include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include <wxl/Microsoft.UI.Xaml.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "WindowHandle.h"
+#include "WindowNative.h"
 #include "TrayIcon.h"
 
 namespace wxl {
@@ -42,17 +42,17 @@ namespace {
 
 /// The shell's message to us: clicks, hovers, menu requests. One message for
 /// all of them, with the event in the low word of lParam.
-constexpr UINT kIconMessage = WM_APP + 1;
+constexpr UINT icon_message = WM_APP + 1;
 
 /// post()'s message. The lParam is a std::function this window owns from the
 /// moment the post succeeds.
 constexpr UINT kRunMessage = WM_APP + 2;
 
 /// The icon's id within this window. One window, one icon, so it never varies.
-constexpr UINT kIconId = 1;
+constexpr UINT icon_id = 1;
 
 /// The subclass id our window procedure is installed under. One per window.
-constexpr UINT_PTR kSubclassId = 1;
+constexpr UINT_PTR subclass_id = 1;
 
 /// Explorer's "I have restarted, add your icons again". Registered once; the
 /// value is the same for every window in the system.
@@ -155,13 +155,13 @@ struct TrayIconAccess {
         NOTIFYICONDATAW data{};
         data.cbSize = sizeof data;
         data.hWnd = reinterpret_cast<HWND>(icon.window_);
-        data.uID = kIconId;
+        data.uID = icon_id;
         data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
-        data.uCallbackMessage = kIconMessage;
+        data.uCallbackMessage = icon_message;
         data.hIcon = reinterpret_cast<HICON>(icon.icon_);
 
         // szTip is the shell's buffer and its size is the shell's rule; a tooltip
-        // longer than it holds is cut rather than refused.
+        // longer than it holds is truncated rather than refused.
         std::size_t const fits = std::min(icon.tooltip_.size(), std::size(data.szTip) - 1);
         zstring_view{icon.tooltip_}.wide().copy(data.szTip, fits);
         data.szTip[fits] = L'\0';
@@ -205,14 +205,14 @@ struct TrayIconAccess {
     }
 
     // noexcept: an exception must not cross a Win32 callback -- unwinding through the frames
-    // of user32 is not supported, and on x64 a call from the kernel may swallow it -- so a
+    // of user32 is not supported, and on x64 a call from the kernel may lose it -- so a
     // failure inside is std::terminate, which names it.
     static LRESULT CALLBACK proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
                                  UINT_PTR, DWORD_PTR ref) noexcept {
         auto* const icon = reinterpret_cast<TrayIcon*>(ref);
 
         if (message == WM_NCDESTROY)
-            ::RemoveWindowSubclass(window, &TrayIconAccess::proc, kSubclassId);
+            ::RemoveWindowSubclass(window, &TrayIconAccess::proc, subclass_id);
 
         if (icon && message == taskbarCreated()) {
             addIcon(*icon);
@@ -221,7 +221,7 @@ struct TrayIconAccess {
 
         if (icon) {
             switch (message) {
-                case kIconMessage:
+                case icon_message:
                     switch (LOWORD(lparam)) {
                         case WM_CONTEXTMENU:
                             showMenu(*icon, POINT{GET_X_LPARAM(wparam), GET_Y_LPARAM(wparam)});
@@ -267,7 +267,7 @@ bool TrayIcon::show(hstring_param const& tooltip) {
     if (!icon_) icon_ = reinterpret_cast<HICON__*>(applicationIcon());
 
     impl_ = std::make_unique<Impl>();
-    HWND const window = window_handle(impl_->window);
+    HWND const window = WindowNative::handle(impl_->window);
     if (!window) {
         impl_.reset();
         return false;
@@ -282,7 +282,7 @@ bool TrayIcon::show(hstring_param const& tooltip) {
     ::SetLayeredWindowAttributes(window, 0, 0, LWA_ALPHA);
 
     // The shell posts to this HWND; the subclass catches those ahead of WinUI.
-    ::SetWindowSubclass(window, &TrayIconAccess::proc, kSubclassId,
+    ::SetWindowSubclass(window, &TrayIconAccess::proc, subclass_id,
                         reinterpret_cast<DWORD_PTR>(this));
 
     // Primed once: activating loads the content and gives it a XamlRoot (which
@@ -305,7 +305,7 @@ void TrayIcon::hide() {
     NOTIFYICONDATAW data{};
     data.cbSize = sizeof data;
     data.hWnd = reinterpret_cast<HWND>(window_);
-    data.uID = kIconId;
+    data.uID = icon_id;
     ::Shell_NotifyIconW(NIM_DELETE, &data);
 
     // Closing destroys the HWND (WM_NCDESTROY removes the subclass); dropping the
@@ -323,7 +323,7 @@ void TrayIcon::tooltip(hstring_param const& text) {
     NOTIFYICONDATAW data{};
     data.cbSize = sizeof data;
     data.hWnd = reinterpret_cast<HWND>(window_);
-    data.uID = kIconId;
+    data.uID = icon_id;
     data.uFlags = NIF_TIP | NIF_SHOWTIP;
 
     std::size_t const fits = std::min(tooltip_.size(), std::size(data.szTip) - 1);
@@ -343,7 +343,7 @@ void TrayIcon::icon(HICON__* icon) {
     NOTIFYICONDATAW data{};
     data.cbSize = sizeof data;
     data.hWnd = reinterpret_cast<HWND>(window_);
-    data.uID = kIconId;
+    data.uID = icon_id;
     data.uFlags = NIF_ICON;
     data.hIcon = reinterpret_cast<HICON>(icon);
     ::Shell_NotifyIconW(NIM_MODIFY, &data);
@@ -363,7 +363,7 @@ Rect TrayIcon::iconRect() const {
     NOTIFYICONIDENTIFIER identifier{};
     identifier.cbSize = sizeof identifier;
     identifier.hWnd = reinterpret_cast<HWND>(window_);
-    identifier.uID = kIconId;
+    identifier.uID = icon_id;
 
     RECT rect{};
     if (::Shell_NotifyIconGetRect(&identifier, &rect) != S_OK) return {};

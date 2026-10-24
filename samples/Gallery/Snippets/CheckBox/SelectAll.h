@@ -31,11 +31,11 @@ auto options = StackPanel {
     CheckBox {
         content = u"Select all",
         isThreeState = true,
-        onChecked = [follow](CheckBox const& self) { follow(self, true); },
-        onUnchecked = [follow](CheckBox const& self) { follow(self, false); },
+        onChecked += [follow](CheckBox const& self) { follow(self, true); },
+        onUnchecked += [follow](CheckBox const& self) { follow(self, false); },
         // Only a program sets the indeterminate state, never the user: a click
         // on a fully checked box lands here, and means "uncheck all".
-        onIndeterminate = [boxes](CheckBox const& self) {
+        onIndeterminate += [boxes](CheckBox const& self) {
             auto const group = boxes(self);
             bool everything = true;
             for (uint32_t i = 1; i < group.size(); ++i) {
@@ -49,21 +49,21 @@ auto options = StackPanel {
     CheckBox {
         Margin {24, 0, 0, 0},
         content = u"Option 1",
-        onLoaded = [refresh](CheckBox const& self) { refresh(self); },
-        onChecked = [refresh](CheckBox const& self) { refresh(self); },
-        onUnchecked = [refresh](CheckBox const& self) { refresh(self); },
+        onLoaded += [refresh](CheckBox const& self) { refresh(self); },
+        onChecked += [refresh](CheckBox const& self) { refresh(self); },
+        onUnchecked += [refresh](CheckBox const& self) { refresh(self); },
     },
     CheckBox {
         Margin {24, 0, 0, 0},
         content = u"Option 2",
         isChecked = true,
-        onChecked = [refresh](CheckBox const& self) { refresh(self); },
-        onUnchecked = [refresh](CheckBox const& self) { refresh(self); },
+        onChecked += [refresh](CheckBox const& self) { refresh(self); },
+        onUnchecked += [refresh](CheckBox const& self) { refresh(self); },
     },
     CheckBox {
         Margin {24, 0, 0, 0},
         content = u"Option 3",
-        onChecked = [refresh](CheckBox const& self) { refresh(self); },
-        onUnchecked = [refresh](CheckBox const& self) { refresh(self); },
+        onChecked += [refresh](CheckBox const& self) { refresh(self); },
+        onUnchecked += [refresh](CheckBox const& self) { refresh(self); },
     },
 };

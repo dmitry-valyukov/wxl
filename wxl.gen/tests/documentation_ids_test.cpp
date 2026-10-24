@@ -106,11 +106,25 @@ TEST(documentation_ids, the_form_with_a_token_keeps_the_methods_id) {
     for (auto&& member : members) {
         bool const takes_placement = !member.params.empty() && member.params.front().name == "placement";
         EXPECT_EQ(member.doc_id, takes_placement ? placed : "M:Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync");
-        if (member.under_token) {
+        if (member.cancelable) {
             EXPECT_EQ(gen::parameter_names(member),
-                      takes_placement ? names({"placement", "stop"}) : names({"stop"}));
+                      takes_placement ? names({"placement", "token"}) : names({"token"}));
         }
     }
+}
+
+// The token of a form with one is `token`; a method that has a parameter `token` of its own --
+// StorageItemAccessList.GetFileAsync -- keeps it, as the projection names it, and the token is
+// `cancellation`. A method with both leaves no name, and the generator stops on it.
+TEST(documentation_ids, the_token_of_a_form_with_one_keeps_out_of_the_methods_names) {
+    auto const param = [](std::string name) { return gen::param_info{std::move(name), {}}; };
+
+    EXPECT_EQ(gen::cancellation_parameter_name({}), "token");
+    EXPECT_EQ(gen::cancellation_parameter_name({param("placement")}), "token");
+    EXPECT_EQ(gen::cancellation_parameter_name({param("token")}), "cancellation");
+    EXPECT_EQ(gen::cancellation_parameter_name({param("token"), param("options")}), "cancellation");
+    EXPECT_THROW(gen::cancellation_parameter_name({param("token"), param("cancellation")}),
+                 std::runtime_error);
 }
 
 // A method handing back its out parameter keeps it in the ID, drops it from

@@ -20,13 +20,13 @@ auto combo = ComboBox {
     isEditable = true,
     [](iterate<sizes> size) { return ComboBoxItem {content = core::to_u16(size)}; },
     selectedIndex = 2,
-    onSelectionChanged = [output](ComboBox const& self) {
+    onSelectionChanged += [output](ComboBox const& self) {
         int const index = self.selectedIndex();
         if (index >= 0) {
             output.fontSize(sizes[index]);
         }
     },
-    onTextSubmitted = [output, model](ComboBox const& self, ComboBoxTextSubmittedEventArgs& args) {
+    onTextSubmitted += [output, model](ComboBox const& self, ComboBoxTextSubmittedEventArgs& args) {
         auto const text = gallery::wide(args.text());
         wchar_t* end = nullptr;
         double const size = std::wcstod(text.c_str(), &end);

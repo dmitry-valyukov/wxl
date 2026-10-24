@@ -28,7 +28,7 @@
 #include "../Uri.h"
 #include "../Thickness.h"
 #include "../CornerRadius.h"
-#include "event_token.h"
+#include "../EventToken.h"
 #include "../geometry.h"
 #include "../hstring_param.h"
 #include "value_box.h"
@@ -119,6 +119,17 @@ inline hstring from_winrt(winrt::hstring const& value) {
 // check alone would let a reordering through.
 inline winrt::Windows::Foundation::Size to_winrt(Size value) {
     return std::bit_cast<winrt::Windows::Foundation::Size>(value);
+}
+
+// wxl's EventToken and the ABI's winrt::event_token: the number crosses as it is. Not a
+// bit_cast of the whole object -- EventToken is not copied, so it is not trivially copyable --
+// and only the machinery makes a token from a number (core::impl::make_event_token).
+inline winrt::event_token to_winrt(EventToken const& token) noexcept {
+    return winrt::event_token{token.value()};
+}
+
+inline EventToken from_winrt(winrt::event_token token) noexcept {
+    return core::impl::make_event_token(token.value);
 }
 
 inline Size from_winrt(winrt::Windows::Foundation::Size const& value) {

@@ -25,8 +25,8 @@
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 
-#include <impl/bootstrap.h>
 #include <impl/hresult.h>
+#include <impl/winrt_helpers.h>
 
 #include <chrono>
 #include <cstdio>
@@ -276,7 +276,7 @@ int main() {
     init_apartment(apartment_type::single_threaded);
     try {
         wxl::impl::ensure_windows_app_runtime_initialized();
-    } catch (wxl::hresult_error const& e) {
+    } catch (wxl::impl::hresult_error const& e) {
         std::printf("ensure_windows_app_runtime_initialized failed: 0x%08X\n", static_cast<unsigned>(e.code()));
         return 1;
     }

@@ -19,10 +19,10 @@ auto example = TabView {
     Margin {-12},
     selectedIndex = 0,
     dsl::resources = ResourceDictionary {
-        themeEntry = ThemeResources {u"Light", {Resource {u"TabViewBackground", SolidColorBrush {color = resourceColor(u"SystemAccentColorLight2")}}}},
-        themeEntry = ThemeResources {u"Dark", {Resource {u"TabViewBackground", SolidColorBrush {color = resourceColor(u"SystemAccentColorDark2")}}}},
+        themeEntry = ThemeDictionary {u"Light", {Resource {u"TabViewBackground", SolidColorBrush {color = resourceColor(u"SystemAccentColorLight2")}}}},
+        themeEntry = ThemeDictionary {u"Dark", {Resource {u"TabViewBackground", SolidColorBrush {color = resourceColor(u"SystemAccentColorDark2")}}}},
     },
-    onAddTabButtonClick = addTab,
-    onTabCloseRequested = closeTab,
-    onLoaded = threeTabs,
+    onAddTabButtonClick += addTab,
+    onTabCloseRequested += closeTab,
+    onLoaded += threeTabs,
 };

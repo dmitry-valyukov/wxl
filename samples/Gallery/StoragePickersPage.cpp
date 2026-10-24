@@ -6,7 +6,7 @@
 #include <wxl/Windows.Storage.h>
 #include <wxl/Windows.Storage.FileProperties.h>
 #include <wxl/Microsoft.Windows.Storage.Pickers.h>
-#include "PickerFileTypes.h"
+#include "FileTypeChoice.h"
 #include <wxl/Microsoft.UI.Content.h>
 
 #include <wxl/Microsoft.UI.Xaml.Media.Imaging.h>

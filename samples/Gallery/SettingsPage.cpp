@@ -25,7 +25,7 @@ FrameworkElement themeChoice() {
         ComboBoxItem {content = u"Dark"},
         ComboBoxItem {content = u"Use system setting"},
         selectedIndex = 2,
-        onSelectionChanged = [](Object const& sender, SelectionChangedEventArgs&) {
+        onSelectionChanged += [](Object const& sender, SelectionChangedEventArgs&) {
             auto const box = sender.try_as<ComboBox>();
             auto const root = box.xamlRoot().content().try_as<FrameworkElement>();
             if (!root) {
@@ -54,7 +54,7 @@ FrameworkElement manageSamples() {
             gallery::appPop(),
             minWidth = 120,
             isEnabled = !gallery::recentlyVisited().empty(),
-            onClick = [](Object const& sender, RoutedEventArgs&) {
+            onClick += [](Object const& sender, RoutedEventArgs&) {
                 gallery::clearRecentlyVisited();
                 sender.try_as<Button>().isEnabled(false);
             },
@@ -64,7 +64,7 @@ FrameworkElement manageSamples() {
             gallery::appPop(),
             minWidth = 120,
             isEnabled = !gallery::favorites().empty(),
-            onClick = [](Object const& sender, RoutedEventArgs&) {
+            onClick += [](Object const& sender, RoutedEventArgs&) {
                 gallery::clearFavorites();
                 sender.try_as<Button>().isEnabled(false);
             },
@@ -99,7 +99,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                         ComboBoxItem {content = u"Left"},
                         ComboBoxItem {content = u"Top"},
                         selectedIndex = gallery::navigationOnTop() ? 1 : 0,
-                        onSelectionChanged = [](Object const& sender, SelectionChangedEventArgs&) {
+                        onSelectionChanged += [](Object const& sender, SelectionChangedEventArgs&) {
                             gallery::setNavigationOnTop(sender.try_as<ComboBox>().selectedIndex() == 1);
                         },
                     },
@@ -115,7 +115,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                     description = u"Controls provide audible feedback",
                     headerIcon = FontIcon {glyph = u"\uEC4F"},
                     ToggleSwitch {
-                        onToggled = [](ToggleSwitch const& self, RoutedEventArgs&) {
+                        onToggled += [](ToggleSwitch const& self, RoutedEventArgs&) {
                             ElementSoundPlayer::state(self.isOn() ? ElementSoundPlayerState::On : ElementSoundPlayerState::Off);
                             if (!self.isOn()) {
                                 ElementSoundPlayer::spatialAudioMode(ElementSpatialAudioMode::Off);
@@ -127,7 +127,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                         description = u"Learn more about enabling sounds in your app on the Sound page",
                         isEnabled = ElementSoundPlayer::state() == ElementSoundPlayerState::On,
                         ToggleSwitch {
-                            onToggled = [](ToggleSwitch const& self, RoutedEventArgs&) {
+                            onToggled += [](ToggleSwitch const& self, RoutedEventArgs&) {
                                 ElementSoundPlayer::spatialAudioMode(self.isOn() ? ElementSpatialAudioMode::On : ElementSpatialAudioMode::Off);
                             },
                         },
@@ -150,7 +150,7 @@ wxl::FrameworkElement gallery::settingsPage() {
                                 foreground = brushes.Text.FillColor.Secondary,
                                 isTextSelectionEnabled = true,
                             },
-                            onClick = [](auto&&...) {
+                            onClick += [](auto&&...) {
                                 auto package = DataPackage {};
                                 package.setText(u"git clone https://github.com/microsoft/WinUI-Gallery");
                                 Clipboard::setContent(package);

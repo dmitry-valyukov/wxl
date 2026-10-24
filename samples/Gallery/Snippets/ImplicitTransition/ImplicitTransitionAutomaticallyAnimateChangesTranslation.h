@@ -27,7 +27,7 @@ model->custom.add_onKeyDown([applyCustom](auto const&, KeyRoutedEventArgs& args)
 });
 
 auto const preset = [apply](char16_t const* title, float distance) {
-    return Button {Margin {5}, hAlign.stretch, content = title, onClick = [apply, distance](auto&&...) { apply(distance); }};
+    return Button {Margin {5}, hAlign.stretch, content = title, onClick += [apply, distance](auto&&...) { apply(distance); }};
 };
 
 auto example = rectangle;
@@ -40,5 +40,5 @@ auto options = StackPanel {
     model->y,
     model->z,
     model->custom,
-    Button {Margin {5}, hAlign.stretch, content = u"Set custom Translation", onClick = applyCustom},
+    Button {Margin {5}, hAlign.stretch, content = u"Set custom Translation", onClick += applyCustom},
 };

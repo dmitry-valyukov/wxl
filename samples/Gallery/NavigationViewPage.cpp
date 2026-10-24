@@ -5,9 +5,9 @@
 #include <string>
 #include <vector>
 #include "Box.h"
-#include "BoundTemplate.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include "NavigationPages.h"
-#include "StringList.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Documents.h>
 

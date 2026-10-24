@@ -21,7 +21,7 @@ auto view = ScrollView {
     horizontalScrollBarVisibility = BindOutput {model->horizontalBar, [](int chosen) { return static_cast<ScrollingScrollBarVisibility>(chosen); }},
     verticalScrollBarVisibility = BindOutput {model->verticalBar, [](int chosen) { return static_cast<ScrollingScrollBarVisibility>(chosen); }},
     // The view starts zoomed in, reaching that with an animation.
-    onLoaded = [](ScrollView const& self) {
+    onLoaded += [](ScrollView const& self) {
         self.zoomTo(4.0f, {}, ScrollingZoomOptions {ScrollingAnimationMode::Enabled, ScrollingSnapPointsMode::Ignore});
     },
     content = Image {
@@ -84,7 +84,7 @@ auto options = Grid {
         spinButtonPlacementMode = NumberBoxSpinButtonPlacementMode::Inline,
         numberFormatter = formatter,
         value = 4.0,
-        onValueChanged = [view](NumberBox const&, NumberBoxValueChangedEventArgs& args) { view.zoomTo(static_cast<float>(args.newValue()), {}); },
+        onValueChanged += [view](NumberBox const&, NumberBoxValueChangedEventArgs& args) { view.zoomTo(static_cast<float>(args.newValue()), {}); },
     },
     caption(u"ScrollMode", 2, true),
     caption(u"Horizontal", 3, false),

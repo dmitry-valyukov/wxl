@@ -49,7 +49,7 @@ auto const navigate = [model, configure, first, second](auto&&...) {
 
 auto example = model->frame.frame();
 auto options = StackPanel {
-    Button {hAlign.stretch, content = u"Navigate", onClick = navigate},
+    Button {hAlign.stretch, content = u"Navigate", onClick += navigate},
     TextBlock {Margin {0, 6}, styles.TextBlock.Base, u"Configurations"},
     model->configurations,
 };

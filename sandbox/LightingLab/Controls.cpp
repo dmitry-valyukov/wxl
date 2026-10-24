@@ -55,8 +55,8 @@ FrameworkElement lab::checkRow(char16_t const* title, core::observable<bool>& fi
     return CheckBox {
         content = title,
         isChecked = field.get(),
-        onChecked = [&field] { field.set(true); },
-        onUnchecked = [&field] { field.set(false); },
+        onChecked += [&field] { field.set(true); },
+        onUnchecked += [&field] { field.set(false); },
     };
 }
 

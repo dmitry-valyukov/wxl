@@ -9,7 +9,7 @@ auto kind = ComboBox {
     ComboBoxItem {content = u"Success"},
     ComboBoxItem {content = u"Critical"},
     selectedIndex = 0,
-    onSelectionChanged = [iconBadge, valueBadge, dotBadge](ComboBox const& self) {
+    onSelectionChanged += [iconBadge, valueBadge, dotBadge](ComboBox const& self) {
         switch (self.selectedIndex()) {
             case 0:
                 iconBadge.style(styles.InfoBadge.AttentionIcon);

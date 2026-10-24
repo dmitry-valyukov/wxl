@@ -129,7 +129,7 @@ std::string file_name(std::filesystem::path const& file) {
 }
 
 // A member list that cannot be read to its end. Taken for a shorter one, a
-// cut-off file would document fewer members and say nothing.
+// truncated file would document fewer members and say nothing.
 [[noreturn]] void broken_member(std::filesystem::path const& file, std::size_t at, std::string_view what) {
     throw std::runtime_error(std::format("{}: documentation member at offset {} {}", file_name(file), at, what));
 }
@@ -213,7 +213,7 @@ documentation_file::documentation_file(std::filesystem::path const& file) : stat
     for (std::size_t at = text.find(open); at != std::string_view::npos; at = text.find(open, at)) {
         std::size_t const tag_end = text.find('>', at);
         if (tag_end == std::string_view::npos) {
-            broken_member(file, at, "is cut off: no '>' closes its start tag");
+            broken_member(file, at, "is truncated: no '>' closes its start tag");
         }
         char const after = text[at + open.size()];
         if (after != ' ' && after != '\t' && after != '\r' && after != '\n') {
@@ -225,12 +225,12 @@ documentation_file::documentation_file(std::filesystem::path const& file) : stat
         if (!tag.ends_with("/>")) {
             std::size_t const closing = text.find(close, tag_end);
             if (closing == std::string_view::npos) {
-                broken_member(file, at, "is cut off: no </member> closes it");
+                broken_member(file, at, "is truncated: no </member> closes it");
             }
             end = closing + close.size();
         }
 
-        // A member with attributes but no name is as broken as a cut-off one:
+        // A member with attributes but no name is as broken as a truncated one:
         // nothing could ever ask for it.
         std::size_t const name = tag.find("name=");
         char const quote = name == std::string_view::npos ? '\0' : tag[name + 5];

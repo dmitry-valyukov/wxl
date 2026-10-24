@@ -11,7 +11,12 @@ using namespace wxl::async;
 
 namespace {
 
-typedef std::shared_ptr<semaphore> semaphore_ptr;
+// Held by the test and by the thread it is handed to, and let go on either: the count is atomic.
+struct shared_semaphore final : refcounted_mt, semaphore {
+    shared_semaphore() : semaphore(0) {}
+};
+
+typedef intrusive_ptr<shared_semaphore> semaphore_ptr;
 typedef std::vector<semaphore_ptr> semaphores;
 
 void test_thread(countdown_event * event, semaphore_ptr sema)
@@ -23,7 +28,7 @@ void test_thread(countdown_event * event, semaphore_ptr sema)
 
 void launch_one_thread(thread_group * manager, countdown_event * event, semaphores & handles)
 {
-    semaphore_ptr sema = std::make_shared<semaphore>(0);
+    semaphore_ptr sema = make_refcounted<shared_semaphore>();
     manager->spawn(test_thread, event, sema);
     handles.push_back(sema);
 }

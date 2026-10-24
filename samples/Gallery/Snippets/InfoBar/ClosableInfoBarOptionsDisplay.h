@@ -11,7 +11,7 @@ auto bar = InfoBar {
     isIconVisible = BindOutput {model->iconVisible},
     isOpen = BindOutput {model->open},
     message = u"Essential app message for your users to be informed of, acknowledge, or take action on.",
-    onClosed = [model](InfoBar const&, InfoBarClosedEventArgs&) { model->open.set(false); },
+    onClosed += [model](InfoBar const&, InfoBarClosedEventArgs&) { model->open.set(false); },
 };
 
 auto isOpen = CheckBox {content = u"Is Open", isChecked = Bind {model->open}};

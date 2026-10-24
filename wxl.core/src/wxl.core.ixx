@@ -48,4 +48,5 @@ export import :time;
 export import :timeout_timer;
 export import :traceable;
 export import :unicode;
+export import :weak_link;
 export import :zstring_view;

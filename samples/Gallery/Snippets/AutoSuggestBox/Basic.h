@@ -2,7 +2,7 @@ auto output = TextBlock {Margin {8, 0, 0, 0}, vAlign.center};
 
 auto box = AutoSuggestBox {
     width = 300,
-    onTextChanged = [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
+    onTextChanged += [](AutoSuggestBox const& self, AutoSuggestBoxTextChangedEventArgs& args) {
         // Choosing a suggestion changes the text too: only typing is a query.
         if (args.reason() != AutoSuggestionBoxTextChangeReason::UserInput) {
             return;
@@ -18,7 +18,7 @@ auto box = AutoSuggestBox {
         }
         self.itemsSource(stringList(found));
     },
-    onSuggestionChosen = [output](Object const&, AutoSuggestBoxSuggestionChosenEventArgs& args) {
-        output.text(stringOf(args.selectedItem()));
+    onSuggestionChosen += [output](Object const&, AutoSuggestBoxSuggestionChosenEventArgs& args) {
+        output.text(unboxValue<hstring>(args.selectedItem()));
     },
 };

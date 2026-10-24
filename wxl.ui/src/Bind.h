@@ -74,7 +74,7 @@ namespace impl {
 
 // What the three spellings share: the field by address, and the direction,
 // applied to whatever control the braces are building.
-template <class T, bind_direction way, class Fn = identity_fn>
+template <class T, bind_direction way, class Fn = std::identity>
 struct bound_field {
     static constexpr bind_direction direction = way;
 
@@ -82,14 +82,14 @@ struct bound_field {
     [[no_unique_address]] Fn fn;
 
     explicit bound_field(core::observable<T>& field) noexcept
-        requires std::is_same_v<Fn, identity_fn>
+        requires std::is_same_v<Fn, std::identity>
         : model(&field) {}
 
     bound_field(core::observable<T>& field, Fn function) : model(&field), fn(std::move(function)) {}
 
     template <class Control>
     void operator()(Control const& control) const {
-        if constexpr (std::is_same_v<Fn, identity_fn>) {
+        if constexpr (std::is_same_v<Fn, std::identity>) {
             apply_bind(control, *model, direction);
         } else if constexpr (direction == bind_direction::both) {
             bind_mirrored(*model, fn, [&](core::observable<T>& mirror) {
@@ -154,7 +154,7 @@ BindOutput(core::observable<T>&, Fn) -> BindOutput<T, Fn>;
 //     ListView {
 //         isItemClickEnabled = true,
 //         itemsSource = BindOutput {search.hits(), [](Hit const& hit) { return TextBlock {hit.context}; }},
-//         onItemClick = [&hits = search.hits()](ListView const&, ItemClickEventArgs& args) {
+//         onItemClick += [&hits = search.hits()](ListView const&, ItemClickEventArgs& args) {
 //             if (Hit const* hit = boundItem(hits, args.clickedItem())) goTo(hit->offset);
 //         },
 //     }
@@ -174,7 +174,7 @@ BindOutput(core::observable<T>&, Fn) -> BindOutput<T, Fn>;
 // Bind and BindInput take no list: a list control never writes its items back.
 template <class T, class Build>
 struct BindOutput<core::observable_list<T const>, Build> {
-    static_assert(!std::is_same_v<Build, impl::identity_fn>,
+    static_assert(!std::is_same_v<Build, std::identity>,
                   "wxl: a list is shown through the function that builds the element of each item: "
                   "BindOutput{list, [](T const& item) { return ...; }}.");
 

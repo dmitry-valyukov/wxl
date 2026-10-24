@@ -177,7 +177,7 @@ TEST(IntrusiveListTest, ClearUnlinksEveryNode) {
     EXPECT_FALSE(b.linked());
 }
 
-TEST(IntrusiveListTest, NodesMoveBetweenListsWithoutACookie) {
+TEST(IntrusiveListTest, NodesMoveBetweenListsWithoutAToken) {
     intrusive_list<Item> from, to;
     Item a(1), b(2);
 

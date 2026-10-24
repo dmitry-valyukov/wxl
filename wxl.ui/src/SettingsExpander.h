@@ -49,9 +49,9 @@ public:
     void isExpanded(bool value) const;
 
     EventToken add_onExpanding(EventHandler<Object> const& handler) const;
-    void remove_onExpanding(EventToken token) const;
+    void remove_onExpanding(EventToken& token) const;
     EventToken add_onCollapsed(EventHandler<Object> const& handler) const;
-    void remove_onCollapsed(EventToken token) const;
+    void remove_onCollapsed(EventToken& token) const;
 
     void setPositional(UIElement const& element) const { content(element); }
 

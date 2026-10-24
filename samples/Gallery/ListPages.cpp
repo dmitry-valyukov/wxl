@@ -155,7 +155,7 @@ wxl::FrameworkElement gallery::searchResultsPage(std::wstring_view query) {
         isSettingsVisible = false,
         paneDisplayMode = NavigationViewPaneDisplayMode::Top,
         content = host,
-        onSelectionChanged = [show, results](Object const& sender, NavigationViewSelectionChangedEventArgs&) {
+        onSelectionChanged += [show, results](Object const& sender, NavigationViewSelectionChangedEventArgs&) {
             auto const selected = sender.try_as<NavigationView>().selectedItem().try_as<FrameworkElement>();
             if (!selected) {
                 return;

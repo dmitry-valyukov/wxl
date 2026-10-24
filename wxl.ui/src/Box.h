@@ -1,41 +1,48 @@
 #pragma once
 
-// An integer as an object, and the way back -- what an item of ItemsSource is when the application
-// keeps its data in a vector of its own and hands the control the position of each (see ItemBuilder).
-// The same pair for strings is stringBox / stringOf in StringList.h.
+// Boxed values and their vectors: a number or a string as an object, and the way back, and a vector
+// of boxed values as the object a control's ItemsSource takes -- what an item of ItemsSource or of
+// ItemsControl.Items is when the application keeps its data in a vector of its own and hands the
+// control the position of each (see ItemTemplate.h, IndexList), or when the item is just text; and
+// what a content that is just text is. The words are cppwinrt's: winrt::box_value and
+// winrt::unbox_value.
 
 #include <cstdint>
+#include <span>
+#include <string>
 
 #include "Object.h"
+#include "hstring_param.h"
 
 namespace wxl {
 
-/// The number as an object: `list.items().append(intBox(index))`.
-Object intBox(int64_t value);
+/// The number as an object: `list.items().append(boxValue(index))`.
+Object boxValue(int64_t value);
 
-/// The numbers 0 ... count - 1 as the object an ItemsSource takes: one item per position of the
-/// application's own vector, which the item template reads back with intOf.
-Object indexList(int64_t count);
+/// The text as an object: `list.items().append(boxValue(u"text"))`.
+Object boxValue(hstring_param const& text);
 
-/// The same for the positions the application picks: the items of a filtered or sorted view of its own vector.
-Object indexList(int64_t const* positions, size_t count);
+/// What a box made by boxValue holds, read back as `T`: int64_t or hstring. An object that is
+/// anything else reads as the type's nothing, as winrt::unbox_value_or answers -- -1 for a
+/// number, an empty string for text.
+template <class T>
+T unboxValue(Object const& boxed);
 
-/// The number in a box made by intBox; -1 for an object that is anything else.
-int64_t intOf(Object const& boxed);
+/// The number in the box; -1 for an object that is anything else.
+template <>
+int64_t unboxValue<int64_t>(Object const& boxed);
 
-/// An empty list of positions that the control follows as it changes: what is appended or removed
-/// shows at once. Appended and removed with the functions below, read by the control as indexList is.
-Object observableIndexList();
+/// The text of a boxed string, as the very HSTRING the box holds -- one reference more and no
+/// copy; empty for an object that is anything else.
+template <>
+hstring unboxValue<hstring>(Object const& boxed);
 
-void indexListAppend(Object const& list, int64_t value);
-void indexListRemoveAt(Object const& list, uint32_t index);
+/// The strings as an object: a vector of boxed strings, a fresh one on every call, so a control
+/// given it keeps a list nobody changes under it.
+Object stringList(std::span<std::u16string const> items);
 
-/// Puts a number in at a place, and reads the number at one -- what moving an item of the list takes.
-void indexListInsertAt(Object const& list, uint32_t index, int64_t value);
-int64_t indexListAt(Object const& list, uint32_t index);
-
-/// The boxed object itself at a place: what a control compares by identity when it is told which item is selected.
-Object indexListObject(Object const& list, uint32_t index);
-uint32_t indexListSize(Object const& list);
+/// Any objects as the object an ItemsSource takes: a vector of them, a fresh one on every call
+/// (TreeViewItem with its children below it, a list of elements).
+Object objectList(std::span<Object const> items);
 
 }  // namespace wxl

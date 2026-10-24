@@ -6,7 +6,7 @@
 // InteractiveExperiences package, and that header cannot be included: its
 // first line pulls in the ABI header Microsoft.ui.composition.h, which the
 // package does not carry (the same trap Microsoft.UI.Interop.h sets, see
-// WindowPlacement.cpp). Everything it would give us is three vtables and
+// WindowNative.cpp). Everything it would give us is three vtables and
 // three IIDs, so they are restated here, copied from that header.
 //
 // Two of the types those signatures name are left as raw IInspectable**:

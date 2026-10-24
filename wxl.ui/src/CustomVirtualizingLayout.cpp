@@ -16,8 +16,8 @@ namespace {
 
 // The WinUI object of the layout: a VirtualizingLayout by aggregation, both overrides
 // hand the work to the functions the wrapper brought.
-struct CustomVirtualizingLayoutObject : xaml::Controls::VirtualizingLayoutT<CustomVirtualizingLayoutObject> {
-    CustomVirtualizingLayoutObject(CustomVirtualizingLayout::Measure measure, CustomVirtualizingLayout::Arrange arrange,
+struct CustomVirtualizingLayoutCore : xaml::Controls::VirtualizingLayoutT<CustomVirtualizingLayoutCore> {
+    CustomVirtualizingLayoutCore(CustomVirtualizingLayout::Measure measure, CustomVirtualizingLayout::Arrange arrange,
                                   CustomVirtualizingLayout::ItemsChanged itemsChanged)
         : measure_(std::move(measure)), arrange_(std::move(arrange)), itemsChanged_(std::move(itemsChanged)) {}
 
@@ -55,22 +55,22 @@ private:
 
 class CustomVirtualizingLayout::Impl : public base_t::Impl {
 public:
-    explicit Impl(winrt::com_ptr<CustomVirtualizingLayoutObject> const& object)
+    explicit Impl(winrt::com_ptr<CustomVirtualizingLayoutCore> const& object)
         : base_t::Impl(object.as<xaml::Controls::Layout>()), object_(object.get()) {}
 
-    static CustomVirtualizingLayoutObject& of(Object::Impl* impl) { return *static_cast<Impl*>(impl)->object_; }
+    static CustomVirtualizingLayoutCore& of(Object::Impl* impl) { return *static_cast<Impl*>(impl)->object_; }
 
 private:
     // The object itself is held by the inspectable_ of the base; this is its implementation,
     // which the projection cannot reach.
-    CustomVirtualizingLayoutObject* object_;
+    CustomVirtualizingLayoutCore* object_;
 };
 
 CustomVirtualizingLayout::CustomVirtualizingLayout(Measure measure, Arrange arrange)
     : CustomVirtualizingLayout(std::move(measure), std::move(arrange), ItemsChanged{}) {}
 
 CustomVirtualizingLayout::CustomVirtualizingLayout(Measure measure, Arrange arrange, ItemsChanged itemsChanged)
-    : base_t(new Impl {winrt::make_self<CustomVirtualizingLayoutObject>(std::move(measure), std::move(arrange), std::move(itemsChanged))}) {}
+    : base_t(new Impl {winrt::make_self<CustomVirtualizingLayoutCore>(std::move(measure), std::move(arrange), std::move(itemsChanged))}) {}
 
 CustomVirtualizingLayout::CustomVirtualizingLayout(Impl* impl) noexcept : base_t(impl) {}
 

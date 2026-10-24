@@ -22,7 +22,7 @@ auto example = StackPanel {
     vAlign.stretch,
     TextBlock {Margin {0, 0, 0, 12}, styles.TextBlock.Body, u"Hover over the button to animate its scale."},
     Button {width = 100, height = 50, content = u"Item",
-            onPointerEntered = [run](Button const& self) { run(self, 1.5f); },
-            onPointerExited = [run](Button const& self) { run(self, 1.0f); }},
+            onPointerEntered += [run](Button const& self) { run(self, 1.5f); },
+            onPointerExited += [run](Button const& self) { run(self, 1.0f); }},
 };
 auto options = StackPanel {model->damping, model->period};

@@ -4,7 +4,7 @@ auto const presenter = ContentPresenter {width = 50, height = 50, Margin {45, 5,
 auto const blue = std::make_shared<bool>(true);
 
 auto example = presenter;
-auto options = Button {content = u"Change Background Color", onClick = [presenter, blue](auto&&...) {
+auto options = Button {content = u"Change Background Color", onClick += [presenter, blue](auto&&...) {
                            *blue = !*blue;
                            presenter.background(SolidColorBrush {*blue ? colors.blue : rgb(255, 255, 0)});
                        }};

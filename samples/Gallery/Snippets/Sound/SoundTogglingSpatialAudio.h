@@ -4,12 +4,12 @@ auto example = StackPanel {
               isEnabled = ElementSoundPlayer::state() == ElementSoundPlayerState::On,
               isChecked = ElementSoundPlayer::spatialAudioMode() == ElementSpatialAudioMode::On &&
                           ElementSoundPlayer::state() == ElementSoundPlayerState::On,
-              onChecked = [](auto&&...) {
+              onChecked += [](auto&&...) {
                   if (ElementSoundPlayer::state() == ElementSoundPlayerState::On) {
                       ElementSoundPlayer::spatialAudioMode(ElementSpatialAudioMode::On);
                   }
               },
-              onUnchecked = [](auto&&...) {
+              onUnchecked += [](auto&&...) {
                   if (ElementSoundPlayer::state() == ElementSoundPlayerState::On) {
                       ElementSoundPlayer::spatialAudioMode(ElementSpatialAudioMode::Off);
                   }

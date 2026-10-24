@@ -4,5 +4,5 @@ auto button = AppBarButton {
     icon = SymbolIcon {symbol = Symbol::Save},
     label = u"Save",
     keyboardAccelerators[KeyboardAccelerator {key = VirtualKey::S, modifiers = VirtualKeyModifiers::Control}],
-    onClick = [output](AppBarButton const&) { output.text(u"You clicked: Button5"); },
+    onClick += [output](AppBarButton const&) { output.text(u"You clicked: Button5"); },
 };

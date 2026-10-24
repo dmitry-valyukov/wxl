@@ -17,8 +17,8 @@ namespace {
 
 // Объект WinUI раскладки: наследник NonVirtualizingLayout через агрегацию,
 // обе перегрузки отдают работу функциям, которые принесла обёртка.
-struct CustomLayoutObject : xaml::Controls::NonVirtualizingLayoutT<CustomLayoutObject> {
-    CustomLayoutObject(CustomLayout::Measure measure, CustomLayout::Arrange arrange)
+struct CustomLayoutCore : xaml::Controls::NonVirtualizingLayoutT<CustomLayoutCore> {
+    CustomLayoutCore(CustomLayout::Measure measure, CustomLayout::Arrange arrange)
         : measure_(std::move(measure)), arrange_(std::move(arrange)) {}
 
     // Имя для дерева элементов (Live Visual Tree).
@@ -49,19 +49,19 @@ private:
 
 class CustomLayout::Impl : public base_t::Impl {
 public:
-    explicit Impl(winrt::com_ptr<CustomLayoutObject> const& object)
+    explicit Impl(winrt::com_ptr<CustomLayoutCore> const& object)
         : base_t::Impl(object.as<xaml::Controls::Layout>()), object_(object.get()) {}
 
-    static CustomLayoutObject& of(Object::Impl* impl) { return *static_cast<Impl*>(impl)->object_; }
+    static CustomLayoutCore& of(Object::Impl* impl) { return *static_cast<Impl*>(impl)->object_; }
 
 private:
     // Сам объект держит inspectable_ базы; здесь -- его реализация, до
     // которой из проекции не дотянуться.
-    CustomLayoutObject* object_;
+    CustomLayoutCore* object_;
 };
 
 CustomLayout::CustomLayout(Measure measure, Arrange arrange)
-    : base_t(new Impl {winrt::make_self<CustomLayoutObject>(std::move(measure), std::move(arrange))}) {}
+    : base_t(new Impl {winrt::make_self<CustomLayoutCore>(std::move(measure), std::move(arrange))}) {}
 
 CustomLayout::CustomLayout(Impl* impl) noexcept : base_t(impl) {}
 

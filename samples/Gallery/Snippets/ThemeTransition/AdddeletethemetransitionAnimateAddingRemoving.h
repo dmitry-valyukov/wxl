@@ -16,9 +16,9 @@ auto const remove = [list](auto&&...) {
 
 auto example = Grid {list};
 auto options = StackPanel {
-    Button {hAlign.stretch, content = u"Add", onClick = add},
-    Button {hAlign.stretch, content = u"Delete", onClick = remove},
-    Button {hAlign.stretch, content = u"Add and Del", onClick = [add, remove](auto&&...) {
+    Button {hAlign.stretch, content = u"Add", onClick += add},
+    Button {hAlign.stretch, content = u"Delete", onClick += remove},
+    Button {hAlign.stretch, content = u"Add and Del", onClick += [add, remove](auto&&...) {
                 add();
                 remove();
             }},

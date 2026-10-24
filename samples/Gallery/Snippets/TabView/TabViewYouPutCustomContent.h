@@ -21,15 +21,15 @@ auto example = StackPanel {
 
     TabView {
         // Raised when the width mode is SizeToContent or Compact; handled here to keep the page from scrolling by itself as it loads.
-        onBringIntoViewRequested = [](auto const&, BringIntoViewRequestedEventArgs& args) { args.handled(true); },
+        onBringIntoViewRequested += [](auto const&, BringIntoViewRequestedEventArgs& args) { args.handled(true); },
         minHeight = 475,
         Margin {-12},
         selectedIndex = 0,
         tabWidthMode = TabViewWidthMode::SizeToContent,
         tabStripHeader = TextBlock {Margin {8, 6}, vAlign.center, styles.TextBlock.Base, u"TabStripHeader Content"},
         tabStripFooter = TextBlock {Margin {6}, hAlign.right, vAlign.center, styles.TextBlock.Base, u"TabStripFooter Content"},
-        onAddTabButtonClick = addTab,
-        onTabCloseRequested = closeTab,
-        onLoaded = threeTabs,
+        onAddTabButtonClick += addTab,
+        onTabCloseRequested += closeTab,
+        onLoaded += threeTabs,
     },
 };

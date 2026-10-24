@@ -11,7 +11,7 @@ namespace probe {
 /// Принимает список, пока жива обёртка wxl, которая его сделала: указатель одолжен на время вызова.
 using ListTaker = void (*)(::IInspectable* list, void* context);
 
-/// Строит ListView синтаксисом wxl -- `itemTemplate` (impl/item_template.cpp) и `itemsSource = indexList(2)`; каждый
+/// Строит ListView синтаксисом wxl -- `itemTemplate` (impl/item_template.cpp) и `itemsSource = IndexList(2)`; каждый
 /// вызов строителя прибавляет единицу к *builds. Список отдаётся take и умирает вместе с обёрткой, если take его не
 /// удержал.
 using WxlListMaker = void (*)(int* builds, ListTaker take, void* context);

@@ -3,9 +3,9 @@
 //
 // No dispatcher and no runtime. The operation is a fake one with the three calls the producer
 // makes -- Completed, GetResults, Cancel -- and the test ends it, on this thread or another. The
-// queue is a fake one that keeps what is posted to it until the test runs it, on this thread,
-// which stands for the thread that made the call. Whether the producer is gone is read off the
-// operation: the producer holds a reference to it until it is deleted.
+// dispatcher is a fake one that keeps what is scheduled on it until the test runs it, on this
+// thread, which stands for the thread that made the call. Whether the producer is gone is read off
+// the operation: the producer holds a reference to it until it is deleted.
 //
 // showDialog's two halves (impl/show_dialog.h) are tested here too, over a dialog whose showAsync
 // is made of the same fakes the way a generated wrapper makes its form with a token: the call
@@ -19,7 +19,6 @@
 #include <exception>
 #include <format>
 #include <functional>
-#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -42,9 +41,9 @@ using wxl::async::cancellation_token;
 using wxl::async::live_frames;
 using wxl::async::operation_canceled_exception;
 using wxl::async::task;
-using wxl::impl::detail::start;
-using wxl::impl::detail::start_under;
-using wxl::impl::show_under;
+using wxl::impl::show_dialog;
+using wxl::impl::start_cancelable_winrt_on_dispatcher;
+using wxl::impl::start_winrt_on_dispatcher;
 
 /// What the platform throws for an operation that failed: the code, as winrt::hresult_error
 /// carries it.
@@ -115,7 +114,7 @@ public:
     int reads() const { return state_->reads; }
 
     /// References to the operation: the test's own, and the producer's while it lives.
-    long held() const { return state_.use_count(); }
+    long held() const { return static_cast<long>(state_->references()); }
 
 private:
     /// As the projection's delegate calls the handler: what it throws becomes an HRESULT for the
@@ -127,7 +126,10 @@ private:
         }
     }
 
-    struct state {
+    /// A copy goes with the handler on whichever thread ends the operation: the count is atomic.
+    struct state final : wxl::core::refcounted_mt {
+        std::size_t references() const noexcept { return ref_count(); }
+
         AsyncStatus status = AsyncStatus::Started;
         handler_t handler;
         std::optional<std::conditional_t<std::is_void_v<T>, int, T>> result;
@@ -138,15 +140,15 @@ private:
         std::function<void()> when_cancelled;
     };
 
-    std::shared_ptr<state> state_ = std::make_shared<state>();
+    wxl::core::intrusive_ptr<state> state_ = wxl::core::make_refcounted<state>();
 };
 
-/// The queue of the thread that made the call: posted to from any thread, run by the test on its
-/// own.
-class fake_queue {
+/// The dispatcher of the thread that made the call: scheduled on from any thread, run by the test
+/// on its own.
+class fake_dispatcher {
 public:
     template <class Fn>
-    bool TryEnqueue(Fn&& fn) const {
+    bool schedule(Fn&& fn) const {
         std::lock_guard const lock(state_->mutex);
         state_->posted.emplace_back(std::forward<Fn>(fn));
         return true;
@@ -169,12 +171,14 @@ public:
     }
 
 private:
-    struct state {
+    /// A copy goes with the completion handler to the thread that ends the operation: the count
+    /// is atomic.
+    struct state final : wxl::core::refcounted_mt {
         std::mutex mutex;
         std::vector<std::function<void()>> posted;
     };
 
-    std::shared_ptr<state> state_ = std::make_shared<state>();
+    wxl::core::intrusive_ptr<state> state_ = wxl::core::make_refcounted<state>();
 };
 
 /// What `convert` is for a generated wrapper: the projection's value into wxl's. Counts its calls.
@@ -220,21 +224,22 @@ task<> awaits(task<> pending, log_t& log) {
 
 TEST(OperationTaskTest, AnswersWithTheResultConvertedOnTheQueue) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     log_t log;
 
     {
-        auto const waiting = awaits(start<std::string>(op, queue, counted(converted)), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted)), log);
         EXPECT_FALSE(waiting.done());
 
         // The completion only posts: nothing is read or resumed on its thread.
         op.complete(7);
-        EXPECT_EQ(queue.posted(), 1u);
+        EXPECT_EQ(dispatcher.posted(), 1u);
         EXPECT_EQ(converted, 0);
         EXPECT_TRUE(log.empty());
 
-        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_EQ(dispatcher.run(), 1u);
         EXPECT_TRUE(waiting.done());
         EXPECT_EQ(log, (log_t{"value 7"}));
         EXPECT_EQ(converted, 1);
@@ -246,13 +251,14 @@ TEST(OperationTaskTest, AnswersWithTheResultConvertedOnTheQueue) {
 
 TEST(OperationTaskTest, AnActionAnswersWithNothing) {
     fake_operation<void> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     log_t log;
 
     {
-        auto const waiting = awaits(start<void>(op, queue, std::identity{}), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<void>(op, dispatcher, std::identity{}), log);
         op.complete();
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(waiting.done());
     }
 
@@ -263,14 +269,15 @@ TEST(OperationTaskTest, AnActionAnswersWithNothing) {
 
 TEST(OperationTaskTest, AFailedOperationAnswersWhatGetResultsThrows) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     log_t log;
 
     {
-        auto const waiting = awaits(start<std::string>(op, queue, counted(converted)), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted)), log);
         op.fail(0x80070005);
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(waiting.done());
     }
 
@@ -281,13 +288,14 @@ TEST(OperationTaskTest, AFailedOperationAnswersWhatGetResultsThrows) {
 
 TEST(OperationTaskTest, AFailedActionAnswersWhatGetResultsThrows) {
     fake_operation<void> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     log_t log;
 
     {
-        auto const waiting = awaits(start<void>(op, queue, std::identity{}), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<void>(op, dispatcher, std::identity{}), log);
         op.fail(0x80004005);
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(waiting.done());
     }
 
@@ -296,14 +304,15 @@ TEST(OperationTaskTest, AFailedActionAnswersWhatGetResultsThrows) {
 
 TEST(OperationTaskTest, ACancelledOperationAnswersOperationCanceledException) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     log_t log;
 
     {
-        auto const waiting = awaits(start<std::string>(op, queue, counted(converted)), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted)), log);
         op.end(AsyncStatus::Canceled);
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(waiting.done());
     }
 
@@ -315,13 +324,14 @@ TEST(OperationTaskTest, ACancelledOperationAnswersOperationCanceledException) {
 
 TEST(OperationTaskTest, ACancelledActionAnswersOperationCanceledException) {
     fake_operation<void> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     log_t log;
 
     {
-        auto const waiting = awaits(start<void>(op, queue, std::identity{}), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<void>(op, dispatcher, std::identity{}), log);
         op.end(AsyncStatus::Canceled);
-        queue.run();
+        dispatcher.run();
     }
 
     EXPECT_EQ(log, (log_t{"cancelled"}));
@@ -329,14 +339,15 @@ TEST(OperationTaskTest, ACancelledActionAnswersOperationCanceledException) {
 
 TEST(OperationTaskTest, WhatConvertThrowsIsTheAnswer) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     log_t log;
 
     {
         auto const throws = [](int) -> std::string { throw platform_failure{1}; };
-        auto const waiting = awaits(start<std::string>(op, queue, throws), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<std::string>(op, dispatcher, throws), log);
         op.complete(7);
-        queue.run();
+        dispatcher.run();
     }
 
     EXPECT_EQ(log, (log_t{"failed 0x1"}));
@@ -344,46 +355,47 @@ TEST(OperationTaskTest, WhatConvertThrowsIsTheAnswer) {
 
 TEST(OperationTaskTest, AnAnswerHereBeforeTheCoAwaitIsTakenWithoutSuspending) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     log_t log;
 
-    auto pending = start<std::string>(op, queue, counted(converted));
+    auto pending = start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted));
     op.complete(7);
-    queue.run();
+    dispatcher.run();
     EXPECT_TRUE(pending.done());
 
     // Nothing is left to resume the coroutine: one that suspended would not end.
     auto const waiting = awaits(std::move(pending), log);
     EXPECT_TRUE(waiting.done());
     EXPECT_EQ(log, (log_t{"value 7"}));
-    EXPECT_EQ(queue.posted(), 0u);
+    EXPECT_EQ(dispatcher.posted(), 0u);
 }
 
 TEST(OperationTaskTest, AnOperationOverAlreadyIsAnsweredThroughTheQueueAsWell) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
 
     op.complete(7);
 
-    auto pending = start<std::string>(op, queue, counted(converted));
+    auto pending = start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted));
     EXPECT_FALSE(pending.done());
-    EXPECT_EQ(queue.posted(), 1u);
+    EXPECT_EQ(dispatcher.posted(), 1u);
 
-    queue.run();
+    dispatcher.run();
     EXPECT_TRUE(pending.done());
     EXPECT_EQ(pending.result(), "7");
 }
 
 TEST(OperationTaskTest, LettingTheTaskGoCancelsTheOperationAndDeletesTheProducerAtOnce) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     log_t log;
 
     {
-        auto const waiting = awaits(start<std::string>(op, queue, counted(converted)), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted)), log);
         EXPECT_EQ(op.cancels(), 0);
     }  // the coroutine's frame goes, and the task it awaits with it
 
@@ -392,7 +404,7 @@ TEST(OperationTaskTest, LettingTheTaskGoCancelsTheOperationAndDeletesTheProducer
 
     // The completion still comes, and finds nobody: nothing is read, nobody resumed.
     op.end(AsyncStatus::Canceled);
-    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_EQ(dispatcher.run(), 1u);
     EXPECT_EQ(op.held(), 1);
     EXPECT_TRUE(log.empty());
     EXPECT_EQ(converted, 0);
@@ -400,17 +412,18 @@ TEST(OperationTaskTest, LettingTheTaskGoCancelsTheOperationAndDeletesTheProducer
 
 TEST(OperationTaskTest, AGivenUpOperationThatCompletedAnywayIsNotRead) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     log_t log;
 
     {
-        auto const waiting = awaits(start<std::string>(op, queue, counted(converted)), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted)), log);
     }
 
     // Finished before the request to stop reached it: the result is nobody's.
     op.complete(7);
-    queue.run();
+    dispatcher.run();
 
     EXPECT_EQ(op.held(), 1);
     EXPECT_EQ(op.reads(), 0);
@@ -420,31 +433,33 @@ TEST(OperationTaskTest, AGivenUpOperationThatCompletedAnywayIsNotRead) {
 
 TEST(OperationTaskTest, ATaskLetGoWhileItsAnswerIsPostedGoesAndThePostedCallFindsNobody) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
 
-    auto pending = start<std::string>(op, queue, counted(converted));
+    auto pending = start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted));
     op.complete(7);
 
-    // Not ready until the queue's turn: the task asks the operation to stop, which costs nothing.
+    // Not ready until the dispatcher's turn: the task asks the operation to stop, which costs
+    // nothing.
     { auto const gone = std::move(pending); }
     EXPECT_EQ(op.cancels(), 1);
     EXPECT_EQ(op.held(), 1);
 
-    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_EQ(dispatcher.run(), 1u);
     EXPECT_EQ(op.held(), 1);
     EXPECT_EQ(converted, 0);
 }
 
 TEST(OperationTaskTest, ATaskLetGoAfterItsAnswerCancelsNothing) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
 
     {
-        auto const pending = start<std::string>(op, queue, counted(converted));
+        auto const pending =
+            start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted));
         op.complete(7);
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(pending.done());
     }
 
@@ -454,18 +469,19 @@ TEST(OperationTaskTest, ATaskLetGoAfterItsAnswerCancelsNothing) {
 
 TEST(OperationTaskTest, TheCompletionOnAnotherThreadOnlyPosts) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     log_t log;
 
     {
-        auto const waiting = awaits(start<std::string>(op, queue, counted(converted)), log);
+        auto const waiting =
+            awaits(start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted)), log);
 
         std::thread([op] { op.complete(9); }).join();
         EXPECT_FALSE(waiting.done());
         EXPECT_EQ(converted, 0);
 
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(waiting.done());
     }
 
@@ -475,17 +491,17 @@ TEST(OperationTaskTest, TheCompletionOnAnotherThreadOnlyPosts) {
 
 TEST(OperationTaskTest, ATaskMoves) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
 
     {
-        auto first = start<std::string>(op, queue, counted(converted));
+        auto first = start_winrt_on_dispatcher<std::string>(op, dispatcher, counted(converted));
         auto second = std::move(first);
         task<std::string> third{std::move(second)};
         first = std::move(third);
 
         op.complete(7);
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(first.done());
         EXPECT_EQ(first.result(), "7");
     }
@@ -499,7 +515,7 @@ TEST(OperationTaskTest, ATaskMoves) {
 
 TEST(OperationUnderTokenTest, NobodyCancellingItTheAnswerIsTheOperationsOwn) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     cancellation_source source;
     int converted = 0;
     int made = 0;
@@ -507,11 +523,13 @@ TEST(OperationUnderTokenTest, NobodyCancellingItTheAnswerIsTheOperationsOwn) {
 
     {
         auto const waiting =
-            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+            awaits(start_cancelable_winrt_on_dispatcher<std::string>(
+                       begins(op, made), dispatcher, counted(converted), source.token()),
+                   log);
         EXPECT_EQ(made, 1);
 
         op.complete(7);
-        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_EQ(dispatcher.run(), 1u);
         EXPECT_TRUE(waiting.done());
     }
 
@@ -521,13 +539,13 @@ TEST(OperationUnderTokenTest, NobodyCancellingItTheAnswerIsTheOperationsOwn) {
 
     // Gone, the producer has left the token's event: cancelling reaches nobody.
     source.cancel();
-    EXPECT_EQ(queue.posted(), 0u);
+    EXPECT_EQ(dispatcher.posted(), 0u);
     EXPECT_EQ(op.cancels(), 0);
 }
 
 TEST(OperationUnderTokenTest, CancellingPostsATurnThatAsksTheOperationToStopAndEndsTheWait) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     cancellation_source source;
     int converted = 0;
     int made = 0;
@@ -535,15 +553,17 @@ TEST(OperationUnderTokenTest, CancellingPostsATurnThatAsksTheOperationToStopAndE
 
     {
         auto const waiting =
-            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+            awaits(start_cancelable_winrt_on_dispatcher<std::string>(
+                       begins(op, made), dispatcher, counted(converted), source.token()),
+                   log);
 
         source.cancel();
         EXPECT_EQ(op.cancels(), 0) << "the runtime is not asked inside the cancel";
         EXPECT_TRUE(log.empty()) << "cancelling resumes nobody";
-        EXPECT_EQ(queue.posted(), 1u) << "the turn that asks and answers";
+        EXPECT_EQ(dispatcher.posted(), 1u) << "the turn that asks and answers";
 
         // The platform has not answered, and need not: the turn ends the wait.
-        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_EQ(dispatcher.run(), 1u);
         EXPECT_EQ(op.cancels(), 1);
         EXPECT_TRUE(waiting.done());
         EXPECT_EQ(log, (log_t{"cancelled"}));
@@ -553,7 +573,7 @@ TEST(OperationUnderTokenTest, CancellingPostsATurnThatAsksTheOperationToStopAndE
     EXPECT_EQ(op.held(), 1) << "the producer does not wait for the platform";
 
     op.end(AsyncStatus::Canceled);
-    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_EQ(dispatcher.run(), 1u);
     EXPECT_EQ(op.held(), 1);
     EXPECT_EQ(op.reads(), 0);
     EXPECT_EQ(converted, 0);
@@ -561,7 +581,7 @@ TEST(OperationUnderTokenTest, CancellingPostsATurnThatAsksTheOperationToStopAndE
 
 TEST(OperationUnderTokenTest, ACompletionPostedBeforeTheCancellationIsTheAnswer) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     cancellation_source source;
     int converted = 0;
     int made = 0;
@@ -569,14 +589,16 @@ TEST(OperationUnderTokenTest, ACompletionPostedBeforeTheCancellationIsTheAnswer)
 
     {
         auto const waiting =
-            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+            awaits(start_cancelable_winrt_on_dispatcher<std::string>(
+                       begins(op, made), dispatcher, counted(converted), source.token()),
+                   log);
 
         // Answered on the platform's side, not yet on this thread's.
         op.complete(7);
         source.cancel();
-        EXPECT_EQ(queue.posted(), 2u);
+        EXPECT_EQ(dispatcher.posted(), 2u);
 
-        EXPECT_EQ(queue.run(), 2u);
+        EXPECT_EQ(dispatcher.run(), 2u);
         EXPECT_TRUE(waiting.done());
     }
 
@@ -589,7 +611,7 @@ TEST(OperationUnderTokenTest, ACompletionPostedBeforeTheCancellationIsTheAnswer)
 
 TEST(OperationUnderTokenTest, AnOperationThatEndsInsideCancelIsAnsweredOnce) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     cancellation_source source;
     int converted = 0;
     int made = 0;
@@ -599,16 +621,18 @@ TEST(OperationUnderTokenTest, AnOperationThatEndsInsideCancelIsAnsweredOnce) {
 
     {
         auto const waiting =
-            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+            awaits(start_cancelable_winrt_on_dispatcher<std::string>(
+                       begins(op, made), dispatcher, counted(converted), source.token()),
+                   log);
 
         source.cancel();
-        EXPECT_EQ(queue.posted(), 1u) << "the turn alone: nothing is asked inside the cancel";
+        EXPECT_EQ(dispatcher.posted(), 1u) << "the turn alone: nothing is asked inside the cancel";
 
         // The turn asks, the platform ends inside the asking and posts its completion, and the
         // turn answers; the completion then finds it answered.
-        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_EQ(dispatcher.run(), 1u);
         EXPECT_TRUE(waiting.done());
-        EXPECT_EQ(queue.run(), 1u);
+        EXPECT_EQ(dispatcher.run(), 1u);
     }
 
     EXPECT_EQ(log, (log_t{"cancelled"}));
@@ -618,7 +642,7 @@ TEST(OperationUnderTokenTest, AnOperationThatEndsInsideCancelIsAnsweredOnce) {
 
 TEST(OperationUnderTokenTest, UnderATokenCancelledAlreadyNothingIsStarted) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     cancellation_source source;
     int converted = 0;
     int made = 0;
@@ -626,29 +650,32 @@ TEST(OperationUnderTokenTest, UnderATokenCancelledAlreadyNothingIsStarted) {
 
     source.cancel();
 
-    auto pending = start_under<std::string>(begins(op, made), queue, counted(converted), source.token());
+    auto pending = start_cancelable_winrt_on_dispatcher<std::string>(
+        begins(op, made), dispatcher, counted(converted), source.token());
     EXPECT_EQ(made, 0) << "the call is not made";
     EXPECT_TRUE(pending.done());
 
     auto const waiting = awaits(std::move(pending), log);
     EXPECT_TRUE(waiting.done());
     EXPECT_EQ(log, (log_t{"cancelled"}));
-    EXPECT_EQ(queue.posted(), 0u);
+    EXPECT_EQ(dispatcher.posted(), 0u);
     EXPECT_EQ(op.cancels(), 0);
 }
 
 TEST(OperationUnderTokenTest, UnderATokenOfNobodyItIsTheFormWithoutOne) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     int converted = 0;
     int made = 0;
     log_t log;
 
     {
         auto const waiting =
-            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), cancellation_token{}), log);
+            awaits(start_cancelable_winrt_on_dispatcher<std::string>(
+                       begins(op, made), dispatcher, counted(converted), cancellation_token{}),
+                   log);
         op.complete(7);
-        queue.run();
+        dispatcher.run();
         EXPECT_TRUE(waiting.done());
     }
 
@@ -659,7 +686,7 @@ TEST(OperationUnderTokenTest, UnderATokenOfNobodyItIsTheFormWithoutOne) {
 
 TEST(OperationUnderTokenTest, ATaskLetGoUnderATokenGoesAndTheTokenReachesItNoMore) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     cancellation_source source;
     int converted = 0;
     int made = 0;
@@ -667,7 +694,9 @@ TEST(OperationUnderTokenTest, ATaskLetGoUnderATokenGoesAndTheTokenReachesItNoMor
 
     {
         auto const waiting =
-            awaits(start_under<std::string>(begins(op, made), queue, counted(converted), source.token()), log);
+            awaits(start_cancelable_winrt_on_dispatcher<std::string>(
+                       begins(op, made), dispatcher, counted(converted), source.token()),
+                   log);
     }
 
     EXPECT_EQ(op.cancels(), 1);
@@ -675,31 +704,31 @@ TEST(OperationUnderTokenTest, ATaskLetGoUnderATokenGoesAndTheTokenReachesItNoMor
 
     // Gone, it has left the token's event: the cancel posts nothing.
     source.cancel();
-    EXPECT_EQ(queue.posted(), 0u);
+    EXPECT_EQ(dispatcher.posted(), 0u);
     EXPECT_EQ(op.cancels(), 1);
 
     op.end(AsyncStatus::Canceled);
-    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_EQ(dispatcher.run(), 1u);
     EXPECT_EQ(op.held(), 1);
     EXPECT_TRUE(log.empty());
 }
 
 TEST(OperationUnderTokenTest, ATaskLetGoWhileTheTurnAsksIsNotTouchedAfterwards) {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     cancellation_source source;
     int converted = 0;
     int made = 0;
 
-    std::optional<task<std::string>> pending{
-        start_under<std::string>(begins(op, made), queue, counted(converted), source.token())};
+    std::optional<task<std::string>> pending{start_cancelable_winrt_on_dispatcher<std::string>(
+        begins(op, made), dispatcher, counted(converted), source.token())};
 
     // An event the platform raises while it is asked -- a Closed handler of the application's --
     // lets the task go, and the producer with it, inside the turn.
     op.when_cancelled([&pending] { pending.reset(); });
 
     source.cancel();
-    EXPECT_EQ(queue.run(), 1u);
+    EXPECT_EQ(dispatcher.run(), 1u);
     EXPECT_FALSE(pending.has_value());
     EXPECT_EQ(op.cancels(), 1);
     EXPECT_EQ(op.held(), 1);
@@ -711,22 +740,23 @@ TEST(OperationUnderTokenTest, ATaskLetGoWhileTheTurnAsksIsNotTouchedAfterwards) 
 constexpr uint32_t refused_code = 0x80000019;
 
 /// A ContentDialog as showDialog has it: showAsync in its form with a token, made as a generated
-/// wrapper makes it -- the platform's call as a lambda, through start_under -- over the fake
-/// operation and the fake queue. One that refuses throws from that call, as ShowAsync does.
+/// wrapper makes it -- the platform's call as a lambda, through
+/// start_cancelable_winrt_on_dispatcher -- over the fake operation and the fake dispatcher. One
+/// that refuses throws from that call, as ShowAsync does.
 struct fake_dialog {
     fake_operation<int> op;
-    fake_queue queue;
+    fake_dispatcher dispatcher;
     bool refuses = false;
     mutable int shown = 0;   ///< calls of the platform's ShowAsync
 
-    task<int> showAsync(cancellation_token stop) const {
-        return start_under<int>(
+    task<int> showAsync(cancellation_token token) const {
+        return start_cancelable_winrt_on_dispatcher<int>(
             [this] {
                 ++shown;
                 if (refuses) throw platform_failure{refused_code};
                 return op;
             },
-            queue, std::identity{}, std::move(stop));
+            dispatcher, std::identity{}, std::move(token));
     }
 };
 
@@ -736,7 +766,7 @@ TEST(ShowDialogTest, TheWaitForTheAnswerIsAFrameUnderWayUntilTheAnswerComes) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    task<> waiting = show_under(dialog, source.token());
+    task<> waiting = show_dialog(dialog, source.token());
     EXPECT_EQ(dialog.shown, 1);
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before + 1) << "the call has returned, and the wait is under way";
@@ -748,7 +778,7 @@ TEST(ShowDialogTest, TheWaitForTheAnswerIsAFrameUnderWayUntilTheAnswerComes) {
         EXPECT_EQ(live_frames(), before + 1);
     }
 
-    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.dispatcher.run(), 1u);
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before);
     }
@@ -757,9 +787,9 @@ TEST(ShowDialogTest, TheWaitForTheAnswerIsAFrameUnderWayUntilTheAnswerComes) {
     EXPECT_EQ(dialog.op.reads(), 1);
     EXPECT_EQ(dialog.op.held(), 1) << "the producer went with the frame";
 
-    // Gone, the wait stands under the token no more.
+    // Gone, the wait is registered with the token no more.
     source.cancel();
-    EXPECT_EQ(dialog.queue.posted(), 0u);
+    EXPECT_EQ(dialog.dispatcher.posted(), 0u);
     EXPECT_EQ(dialog.op.cancels(), 0);
 }
 
@@ -769,7 +799,7 @@ TEST(ShowDialogTest, CancellingTheTokenClosesTheDialogAndTheFrameEndsOnTheNextTu
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    task<> waiting = show_under(dialog, source.token());
+    task<> waiting = show_dialog(dialog, source.token());
 
     source.cancel();
     EXPECT_EQ(dialog.op.cancels(), 0) << "cancelling only posts the turn";
@@ -779,7 +809,7 @@ TEST(ShowDialogTest, CancellingTheTokenClosesTheDialogAndTheFrameEndsOnTheNextTu
 
     // The turn asks the dialog to close and ends the frame: the platform has not answered, and
     // need not.
-    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.dispatcher.run(), 1u);
     EXPECT_EQ(dialog.op.cancels(), 1);
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before);
@@ -790,7 +820,7 @@ TEST(ShowDialogTest, CancellingTheTokenClosesTheDialogAndTheFrameEndsOnTheNextTu
 
     // The dialog's completion, when it comes after its closing, finds nobody.
     dialog.op.end(AsyncStatus::Canceled);
-    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.dispatcher.run(), 1u);
     EXPECT_EQ(dialog.op.reads(), 0);
     EXPECT_EQ(dialog.op.cancels(), 1) << "the runtime is asked once";
 }
@@ -803,7 +833,7 @@ TEST(ShowDialogTest, DroppingTheWaitClosesTheDialog) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    task<> waiting = show_under(dialog, source.token());
+    task<> waiting = show_dialog(dialog, source.token());
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before + 1);
     }
@@ -816,7 +846,7 @@ TEST(ShowDialogTest, DroppingTheWaitClosesTheDialog) {
     EXPECT_EQ(dialog.op.held(), 1);
 
     dialog.op.end(AsyncStatus::Canceled);
-    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.dispatcher.run(), 1u);
     EXPECT_EQ(dialog.op.reads(), 0);
 }
 
@@ -827,16 +857,16 @@ TEST(ShowDialogTest, ADialogThatCompletesInsideItsCancelEndsTheFrameOnce) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    task<> waiting = show_under(dialog, source.token());
+    task<> waiting = show_dialog(dialog, source.token());
     source.cancel();
 
     // The turn asks; the completion the asking raises is posted behind it, and finds the frame
     // gone.
-    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.dispatcher.run(), 1u);
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before);
     }
-    EXPECT_EQ(dialog.queue.run(), 1u);
+    EXPECT_EQ(dialog.dispatcher.run(), 1u);
     EXPECT_EQ(dialog.op.reads(), 0);
     EXPECT_EQ(dialog.op.held(), 1);
 }
@@ -849,7 +879,7 @@ TEST(ShowDialogTest, ARefusalIsThrownToTheCallerAndLeavesNothingRunning) {
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
     try {
-        task<> waiting = show_under(dialog, source.token());
+        task<> waiting = show_dialog(dialog, source.token());
         ADD_FAILURE() << "the refusal did not reach the caller";
     } catch (platform_failure const& refusal) {
         EXPECT_EQ(refusal.code, refused_code);
@@ -861,9 +891,9 @@ TEST(ShowDialogTest, ARefusalIsThrownToTheCallerAndLeavesNothingRunning) {
     }
     EXPECT_EQ(dialog.op.held(), 1) << "no producer either";
 
-    // Nothing stands under the token.
+    // Nothing is registered with the token.
     source.cancel();
-    EXPECT_EQ(dialog.queue.posted(), 0u);
+    EXPECT_EQ(dialog.dispatcher.posted(), 0u);
     EXPECT_EQ(dialog.op.cancels(), 0);
 }
 
@@ -874,14 +904,14 @@ TEST(ShowDialogTest, UnderATokenCancelledAlreadyTheDialogIsNotShownAndNothingIsL
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
     source.cancel();
-    task<> waiting = show_under(dialog, source.token());
+    task<> waiting = show_dialog(dialog, source.token());
 
     EXPECT_EQ(dialog.shown, 0) << "the call is not made";
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before) << "the frame ended where it began";
     }
     EXPECT_TRUE(waiting.done());
-    EXPECT_EQ(dialog.queue.posted(), 0u);
+    EXPECT_EQ(dialog.dispatcher.posted(), 0u);
     EXPECT_EQ(dialog.op.held(), 1);
 }
 
@@ -893,7 +923,7 @@ void without_a_dialog() {
 
 void show_under_a_token_of_nobody(fake_dialog const& dialog) {
     without_a_dialog();
-    task<> waiting = show_under(dialog, cancellation_token{});
+    task<> waiting = show_dialog(dialog, cancellation_token{});
 }
 
 TEST(ShowDialogDeathTest, UnderATokenNobodyCanCancelTheCallStops) {
@@ -902,20 +932,21 @@ TEST(ShowDialogDeathTest, UnderATokenNobodyCanCancelTheCallStops) {
     EXPECT_EQ(dialog.shown, 0);
 }
 
-/// The queue of the calling thread whose call fails: the projection's TryEnqueue throws when the
-/// call into the queue fails, or the delegate for it cannot be made.
-struct throwing_queue {
+/// The dispatcher of the calling thread whose call fails: the projection's TryEnqueue throws when
+/// the call into the queue fails, or the delegate for it cannot be made.
+struct throwing_dispatcher {
     template <class Fn>
-    bool TryEnqueue(Fn&&) const {
-        throw std::runtime_error("the queue failed to take the call");
+    bool schedule(Fn&&) const {
+        throw std::runtime_error("the dispatcher failed to take the call");
     }
 };
 
-void complete_into_a_throwing_queue() {
+void complete_into_a_throwing_dispatcher() {
     without_a_dialog();
     fake_operation<int> op;
     int converted = 0;
-    auto const pending = start<std::string>(op, throwing_queue{}, counted(converted));
+    auto const pending =
+        start_winrt_on_dispatcher<std::string>(op, throwing_dispatcher{}, counted(converted));
     std::thread{[&op] { op.complete(7); }}.join();
 }
 
@@ -923,8 +954,8 @@ void complete_into_a_throwing_queue() {
 // turn the exception into an HRESULT for the platform and lose the turn: it stops the process
 // there instead, and the report names the exception.
 TEST(OperationTaskDeathTest, AQueueThatThrowsInTheCompletionStopsTheProcessNamingIt) {
-    EXPECT_DEATH(complete_into_a_throwing_queue(),
-                 "wxl: unhandled exception: the queue failed to take the call");
+    EXPECT_DEATH(complete_into_a_throwing_dispatcher(),
+                 "wxl: unhandled exception: the dispatcher failed to take the call");
 }
 
 }  // namespace

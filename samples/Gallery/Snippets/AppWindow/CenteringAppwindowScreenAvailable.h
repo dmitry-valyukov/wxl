@@ -1,6 +1,6 @@
 auto example = Button {
     content = u"Show centered sample window",
-    onClick = [](Button const&) {
+    onClick += [](Button const&) {
         Window window {
             systemBackdrop = MicaBackdrop {},
             content = StackPanel {

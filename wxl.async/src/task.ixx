@@ -574,7 +574,7 @@ public:
     }
 
     /// \return `true` if the body ended with an exception -- its own, a failure of the work it
-    ///         stood for, or the cancellation that cut it short.
+    ///         stood for, or the cancellation that aborted it.
     /// \param where the caller's line, for a strict build's report; left to its default.
     inline bool has_exception(detail::site where = detail::site::current()) const noexcept {
         check_answered(where);

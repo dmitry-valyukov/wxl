@@ -1,84 +1,124 @@
 #pragma once
 
-// The watch behind wxl::RenderingDeviceWatch (DrawingSurface.h), over any handle that has
-// the pair of calls a watch subscribes through. The application's handle is a Compositor
-// and its pair is impl::rendering_device_replaced (DrawingSurface.cpp); a test hands in a
-// fake of each, since a real device is replaced only when a real GPU is lost. No Windows
-// header here: the public header carries this one.
+// impl::rendering_device -- the rendering device every graphics device of wxl draws through, one
+// for the process: which answers name it lost, how much it draws at once, its replacement as an
+// owner of foreign things on it follows it, and the graphics devices of the one part of wxl that
+// composes on the system compositor. Static members alone, over the one store DrawingSurface.cpp
+// keeps (impl::rendering_devices). Private to the build of wxl and its tests -- the public headers
+// say only what an owner does about it (DrawingSurface::throwIfDeviceLost, RenderingDeviceWatch,
+// VirtualDrawingSurface::maxUpdateSide).
+//
+// After the Windows headers, which bring IUnknown and IInspectable, and after the standard ones:
+// the watch below brings wxl.core in.
 
-#include <memory>
-#include <type_traits>
+#include "platform.h"
 
-#include "../events.h"
+#include <d3dcommon.h>
+
+#include <cstdint>
+#include <functional>
+
+#include "event_watch.h"
+
+struct ID2D1DeviceContext;
 
 namespace wxl::impl {
 
-// A member a RenderingDeviceWatch can call: it takes nothing -- that the device was
-// replaced is all there is to say -- returns nothing, and does not throw: the replacement
-// runs from a turn of the UI thread's queue, which has nobody to hand an exception to.
-template <auto Listener, class Owner>
-concept device_listener = requires(Owner& owner) {
-    { (owner.*Listener)() } noexcept -> std::same_as<void>;
+/// A system compositor (Windows.UI.Composition), by the IUnknown its QueryInterface answers -- the
+/// same pointer through whichever interface it is reached. WindowShade's flight goes outside any
+/// window, on a DesktopWindowTarget of a bare HWND, so it composes there rather than on WinUI's;
+/// the system projection is the caller's, so nothing of it is parsed here.
+struct system_compositor {
+    ::IUnknown* identity;
 };
 
-// `Handle` is copied by value and names whose devices are watched; `Events` is the pair of
-// calls: add(handle, handler) gives a token, remove(handle, token) answers whether the
-// token was there.
-template <class Handle, class Events, auto Listener>
-class device_watch {
-    using owner_t = typename core::impl::member_owner<decltype(Listener)>::type;
-
+class rendering_device {
 public:
-    /// A watch on nothing yet: see attach().
-    device_watch() noexcept {}
+    rendering_device() = delete;
 
-    /// A watch on `handle` from the start, calling `owner`.
-    device_watch(Handle const& handle, owner_t& owner) { attach(handle, owner); }
-
-    device_watch(device_watch const&) = delete;
-    device_watch& operator=(device_watch const&) = delete;
-
-    /// Takes the handler off, if it is on. An answer that the token was not there --
-    /// somebody took the handler off by it -- stops the process.
-    ~device_watch() {
-        if (!token_) return;
-        bool const removed = Events::remove(handle_, token_);
-        std::destroy_at(&handle_);
-        if (!removed) core::abort("wxl: a RenderingDeviceWatch is no longer on its compositor");
+    /// Whether a drawing call's answer names a lost device: DXGI's removal and reset, and
+    /// Direct2D's "recreate the target", which is how Direct2D says either. The one list of them
+    /// -- the surface's BeginDraw and EndDraw read it, and so does every Direct2D call an
+    /// application makes inside a paint, through DrawingSurface::throwIfDeviceLost.
+    ///
+    /// A code alone is not a lost device: DrawingSurface.cpp takes it as one only when the device
+    /// itself says it was removed (GetDeviceRemovedReason), and a lost-device code from a device
+    /// that is not lost stops the process.
+    static constexpr bool is_device_loss_code(std::int32_t result) noexcept {
+        return result == DXGI_ERROR_DEVICE_REMOVED || result == DXGI_ERROR_DEVICE_RESET ||
+               result == D2DERR_RECREATE_TARGET;
     }
 
-    /// Puts the watch on `handle`: from now on each time the device under its surfaces is
-    /// replaced it calls the listener on `owner`. Once -- a second attach stops the process.
-    void attach(Handle const& handle, owner_t& owner) {
-        // Checked here and not in the class: the watch is declared inside its owner, which
-        // is not complete there.
-        static_assert(device_listener<Listener, owner_t>,
-                      "wxl: a RenderingDeviceWatch calls a member of its owner with nothing, from "
-                      "a turn of the UI thread's queue, which has nobody to hand an exception "
-                      "to -- name a noexcept member that takes nothing and returns nothing");
-        // The handle is copied once the handler stands, and the copy does not throw: a
-        // handler left on without the token to take it off is what the watch rules out.
-        static_assert(std::is_nothrow_copy_constructible_v<Handle>);
-
-        if (token_) core::abort("wxl: a RenderingDeviceWatch is attached twice");
-        auto const call = [target = &owner](Object const&, EventArgsRef<Object>) noexcept {
-            (target->*Listener)();
-        };
-        EventToken const token = Events::add(handle, EventHandler<Object>{call});
-        std::construct_at(&handle_, handle);
-        token_ = token;
+    /// The longest side of a 2D texture at a Direct3D feature level, from the table of
+    /// "Direct3D feature levels" (Max Texture Dimension): 16384 from 11_0 up, 8192 at 10_0 and
+    /// 10_1, 4096 at 9_3, 2048 at 9_1 and 9_2.
+    static constexpr std::int32_t max_texture_side(D3D_FEATURE_LEVEL level) noexcept {
+        if (level >= D3D_FEATURE_LEVEL_11_0) return 16384;
+        if (level >= D3D_FEATURE_LEVEL_10_0) return 8192;
+        if (level >= D3D_FEATURE_LEVEL_9_3) return 4096;
+        return 2048;
     }
 
-    /// Whether the watch is on.
-    bool attached() const noexcept { return static_cast<bool>(token_); }
+    /// The pixels an allocation of a composition surface is padded with in its texture: two of
+    /// gutters and one "white pixel". So WinUI says of its own surfaces, taking them off the
+    /// texture side (DCompTreeHost::GetMaxTextureSize; CCoreServices::GetMaxTextureSize answers
+    /// 2048 - 3 when it cannot ask), and Microsoft's VirtualSurfaces sample, composition without
+    /// XAML, clamps every BeginDraw update to 2048 - 3 ("3 is the buffer").
+    static constexpr std::int32_t composition_padding = 3;
 
-private:
-    // The handle lives while the token is set, as the window of a WindowWatch does; the
-    // tokens count from one, so a subscription is never the empty token.
-    union {
-        Handle handle_;
-    };
-    EventToken token_;
+    /// The longest side of one update of a composition surface: an update is drawn into one
+    /// texture of the device (BeginDraw hands out one target at one offset), and composition
+    /// keeps composition_padding of its side.
+    static constexpr std::int32_t max_update_side(D3D_FEATURE_LEVEL level) noexcept {
+        return max_texture_side(level) - composition_padding;
+    }
+
+    /// Sets the event the device sets when it is removed: the replacement then runs as after a
+    /// real loss, from the system's thread pool to the UI thread -- a new device, every graphics
+    /// device moved onto it, every RenderingDeviceWatch called. For a device under wxl's surfaces
+    /// that wxl does not watch, found lost by its owner -- Win2D's, under TextureCache -- and for
+    /// seeing an application redraw on a machine, from a debugger's immediate window or a key of
+    /// a debug build; on the UI thread. What it cannot pretend is the old device failing: drawing
+    /// on it goes on succeeding until the replacement. Stops the process if no surface has been
+    /// made yet: there is no device to lose. Once the UI thread's queue has begun to shut down it
+    /// does nothing: the device is no longer replaced.
+    static void signal_removed();
+
+    /// How many times the device has been replaced. What a holder of things made on another
+    /// device under wxl's surfaces -- Win2D's, under TextureCache -- compares, to learn that its
+    /// things are empty and it has to follow.
+    static std::uint64_t replacements() noexcept;
+
+    /// Makes the device if there is none yet, so that a loss of the adapter under it is heard:
+    /// for TextureCache, whose own device wxl does not watch. On the UI thread.
+    static void ensure();
+
+    /// The system compositor's graphics device on the device in use, made the first time it is
+    /// asked for and kept: wxl holds it for good and moves it onto every new device. Borrowed --
+    /// the caller takes a reference of its own.
+    static ::IInspectable* system_graphics_device(system_compositor compositor);
+
+    /// DrawingSurface::draw for a surface of that graphics device, given as its IUnknown: false
+    /// when nothing was drawn -- no paint, or the device is lost or new and its watches not called
+    /// yet, and system_device_watch is called once the new one stands -- and any other failure
+    /// thrown.
+    static bool draw_system_surface(::IUnknown* surface,
+                                    std::function<void(ID2D1DeviceContext*)> const& paint);
 };
+
+/// The pair of calls a system_device_watch subscribes through, as rendering_device_replaced
+/// (DrawingSurface.h) is for a RenderingDeviceWatch.
+struct system_rendering_device_replaced {
+    template <class>
+    using args_t = Object;
+
+    static EventToken add(system_compositor compositor, EventHandler<Object> handler);
+    static bool remove(system_compositor compositor, EventToken& token);
+};
+
+/// RenderingDeviceWatch for an owner of surfaces on a system compositor.
+template <auto Listener>
+using system_device_watch =
+    event_watch<system_compositor, system_rendering_device_replaced, Listener>;
 
 }  // namespace wxl::impl

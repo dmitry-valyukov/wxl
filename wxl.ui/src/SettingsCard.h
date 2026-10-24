@@ -12,7 +12,7 @@
 //
 // A ContentControl that wxl derives from -- the first control of the library to carry state of its own. The header,
 // the description, the icons live in the object, and the template that shows them is part of it. The derivation is COM
-// aggregation (impl/settings_card.h), and a handler that names SettingsCard as its sender reaches the same object.
+// aggregation (impl/SettingsCardCore.h), and a handler that names SettingsCard as its sender reaches the same object.
 //
 //   content            what stands right of the text (or under it, see contentAlignment); the unnamed child
 //   header             the name of the setting: text, or an element
@@ -27,7 +27,7 @@
 //
 // The tags are written qualified inside a subclass -- `dsl::header` -- for the reason Card.h gives.
 
-#include "SettingsCardAlignment.h"
+#include "SettingsCardContentAlignment.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Members.h>
 
@@ -59,7 +59,7 @@ public:
     void contentAlignment(SettingsCardContentAlignment value) const;
 
     EventToken add_onClick(EventHandler<RoutedEventArgs> const& handler) const;
-    void remove_onClick(EventToken token) const;
+    void remove_onClick(EventToken& token) const;
 
     using ContentControl::setPositional;
     void setPositional(UIElement const& element) const { content(element); }

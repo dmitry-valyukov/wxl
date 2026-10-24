@@ -142,12 +142,11 @@ add_library(wxl.ui STATIC
     src/GaussianBlurEffect.cpp
     src/GlassEffect.h
     src/GlassEffect.cpp
-    src/impl/scene.h
-    src/impl/effect_layer.h
-    src/impl/effect_layer.cpp
+    src/impl/effect_helpers.h
+    src/impl/effect_helpers.cpp
     src/impl/key_relief.h
     src/impl/key_relief.cpp
-    src/impl/pointer_lamp.h
+    src/impl/pointer_spot_light.h
     src/MagnifyEffect.h
     src/MagnifyEffect.cpp
     src/FocusEffect.h
@@ -174,56 +173,41 @@ add_library(wxl.ui STATIC
     src/FontFamily.h
     src/ImageSource.h
     src/ImageSource.cpp
-    src/StringList.h
-    src/StringList.cpp
     src/launch.h
     src/launch.cpp
-    src/impl/application_loop.h
-    src/impl/terminate_reason.h
-    src/impl/terminate_reason.cpp
+    src/Application.h
+    src/Application.cpp
 
     # Hand-written plumbing the generated code leans on.
-    src/event_token.h
+    src/EventToken.h
+    src/impl/activator.h
     src/impl/activation_factory.h
-    src/impl/statics.h
-    src/impl/statics.cpp
+    src/impl/activation_factory.cpp
     src/impl/runtime_class_name.h
-    src/impl/com_ptr.h
-    src/impl/release_only_ptr.h
-    src/impl/event_token.h
+    src/impl/element_helpers.h
+    src/impl/element_helpers.cpp
+    src/impl/window_helpers.h
+    src/impl/window_helpers.cpp
+    src/impl/items_helpers.h
+    src/impl/items_helpers.cpp
+    src/impl/layout_helpers.h
+    src/impl/layout_helpers.cpp
+    src/impl/winrt_helpers.h
+    src/impl/winrt_helpers.cpp
+    src/impl/bootstrap.cpp
     src/impl/abi_layout.cpp
     src/impl/hresult.h
     src/impl/hresult.cpp
     src/impl/member.h
     src/impl/member.cpp
+    src/impl/member_function_traits.h
     src/geometry.h
-    src/impl/app_icon.h
-    src/impl/app_icon.cpp
-    src/impl/bootstrap.h
-    src/impl/bootstrap.cpp
-    src/impl/window_constraints.h
-    src/impl/window_constraints.cpp
-    src/impl/fluent_symbol.h
-    src/impl/fluent_symbol.cpp
-    src/impl/cursor.h
-    src/impl/cursor.cpp
-    src/ApplicationFolder.h
-    src/impl/application_folder.h
-    src/impl/application_folder.cpp
-    src/FileDrop.h
-    src/FileDrop.cpp
-    src/WindowHandle.h
-    src/WindowPlacement.h
-    src/impl/window_placement.h
+    src/WindowNative.h
+    src/WindowNative.cpp
     src/impl/window_frame.cpp
-    src/impl/window_frame.h
-    src/WindowPlacement.cpp
-    src/WindowBackdrop.h
-    src/WindowBackdrop.cpp
     src/TrayIcon.h
     src/TrayIcon.cpp
-    src/style_lookup.h
-    src/brush_lookup.h
+    src/resource_lookup.h
     src/resource_lookup.cpp
     src/Bind.h
     src/Card.h
@@ -240,37 +224,23 @@ add_library(wxl.ui STATIC
     src/CustomVirtualizingLayout.cpp
     src/Navigation.h
     src/Navigation.cpp
-    src/ItemElement.h
-    src/ItemElement.cpp
     src/Announce.h
     src/Announce.cpp
-    src/ResourceBrush.h
-    src/ResourceBrush.cpp
     src/KeyedIndexList.h
     src/KeyedIndexList.cpp
-    src/BoundTemplate.h
-    src/BoundTemplate.cpp
     src/FrameSource.h
     src/FrameSource.cpp
     src/Failure.h
     src/Failure.cpp
-    src/LoadXaml.h
-    src/LoadXaml.cpp
     src/SettingsCard.h
     src/SettingsCard.cpp
-    src/SettingsCardAlignment.h
+    src/SettingsCardContentAlignment.h
+    src/SizeToContent.h
     src/HeaderedContentControl.h
     src/HeaderedContentControl.cpp
-    src/impl/headered_content_control.h
-    src/impl/headered_content_control.cpp
     src/SettingsExpander.h
     src/SettingsExpander.cpp
-    src/impl/settings_expander.h
-    src/impl/settings_expander.cpp
-    src/impl/settings_card.h
-    src/impl/settings_card.cpp
-    src/impl/navigation_view_search.h
-    src/impl/navigation_view_search.cpp
+    src/impl/SettingsCardCore.h
     src/impl/automation_properties.h
     src/impl/automation_properties.cpp
     src/AppZoom.h
@@ -279,28 +249,21 @@ add_library(wxl.ui STATIC
     src/ZoomEffect.cpp
     src/impl/binding.h
     src/impl/state_pair.h
-    src/binding.cpp
+    src/impl/binding.cpp
     src/WindowShade.h
     src/WindowShade.cpp
-    src/WindowFit.h
-    src/WindowFit.cpp
     src/ShowDialog.h
     src/ShowDialog.cpp
     src/impl/show_dialog.h
     src/ThemeBrush.h
     src/ThemeBrush.cpp
-    src/WindowModal.h
-    src/WindowModal.cpp
     src/DrawingSurface.h
+    src/impl/event_watch.h
     src/impl/rendering_device.h
-    src/impl/device_limits.h
-    src/impl/device_loss.h
-    src/impl/device_replacement.h
-    src/impl/system_drawing.h
+    src/impl/rendering_devices.h
     src/impl/composition_interop.h
     src/DrawingSurface.cpp
     src/CompositionWindow.h
-    src/impl/window_watch.h
     src/impl/handler_list.h
     src/impl/background_load.h
     src/CompositionWindow.cpp
@@ -316,7 +279,7 @@ add_library(wxl.ui STATIC
     src/FormattedBlock.cpp
     src/MarkupBlock.h
     src/MarkupBlock.impl.h
-    src/markup_build.h
+    src/impl/markup_build.h
     src/MarkupBlock.cpp
     src/HtmlBlock.h
     src/HtmlBlock.impl.h
@@ -327,22 +290,10 @@ add_library(wxl.ui STATIC
     src/RsdnBlock.h
     src/RsdnBlock.impl.h
     src/RsdnBlock.cpp
-    src/impl/grid_definitions.h
-    src/impl/grid_definitions.cpp
-    src/impl/tool_tip.h
-    src/impl/tool_tip.cpp
-    src/impl/resource.h
-    src/impl/resource.cpp
-    src/impl/picker_file_types.h
-    src/impl/picker_file_types.cpp
     src/impl/file_uri.h
     src/impl/file_uri.cpp
-    src/impl/file_stream_reference.h
-    src/impl/file_stream_reference.cpp
-    src/PickerFileTypes.h
-    src/impl/item_factory.h
+    src/FileTypeChoice.h
     src/impl/item_factory.cpp
-    src/impl/item_template.h
     src/impl/item_template.cpp
     src/impl/sta_com.h
     src/impl/element_scope.h
@@ -350,38 +301,21 @@ add_library(wxl.ui STATIC
     src/impl/bound_list.h
     src/impl/bound_items_source.h
     src/impl/bound_items_source.cpp
-    src/ItemBuilder.h
+    src/ItemTemplate.h
+    src/ItemTemplate.cpp
     src/ItemContainerPreset.h
     src/Box.h
     src/Box.cpp
-    src/impl/element_items.h
-    src/impl/element_items.cpp
-    src/impl/items_panel.h
-    src/impl/items_panel.cpp
-    src/impl/title_bar_drag.h
-    src/impl/title_bar_drag.cpp
-    src/impl/backdrop_controller.h
-    src/impl/backdrop_controller.cpp
-    src/Packaged.h
+    src/IndexList.h
+    src/IndexList.cpp
     src/Operation.h
     src/impl/operation.h
-    src/Packaged.cpp
+    src/impl/dispatcher.h
     src/Resource.h
-    src/impl/geometry_from_text.h
-    src/impl/geometry_from_text.cpp
-    src/impl/points_from_text.h
-    src/impl/points_from_text.cpp
-    src/impl/scroll_controller.h
-    src/impl/scroll_controller.cpp
-    src/impl/swipe_items_mode.h
-    src/impl/swipe_items_mode.cpp
-    src/impl/wheel_to_parent.h
-    src/impl/wheel_to_parent.cpp
-    src/impl/automation_name.h
-    src/impl/automation_name.cpp
+    src/Resource.cpp
     src/impl/value_box.h
     src/impl/value_box.cpp
-    src/impl/activation_factory.cpp
+    src/impl/activator.cpp
 )
 add_library(wxl::ui ALIAS wxl.ui)
 
@@ -442,16 +376,16 @@ target_link_libraries(wxl.ui
         d3d11.lib
         d2d1.lib
         dxgi.lib
-        # WIC, decoding the backdrop image -- see WindowBackdrop.cpp.
+        # WIC, decoding the backdrop image -- see WindowNative.cpp.
         windowscodecs.lib
         # The shell, twice over: files dropped on a window (DragAcceptFiles,
-        # DragQueryFileW in FileDrop.cpp, with the window subclass that
+        # DragQueryFileW in WindowNative.cpp, with the window subclass that
         # catches the message they arrive in) and the notification area
         # (Shell_NotifyIconW in TrayIcon.cpp).
         shell32.lib
         comctl32.lib
         # Painting the redirection surface behind the island -- the one
-        # spot where GDI is the right tool; see WindowBackdrop.cpp.
+        # spot where GDI is the right tool; see WindowNative.cpp.
         gdi32.lib
         # CreateDispatcherQueueController, for the system compositor a
         # WindowShade hosts on its own overlay window -- see WindowShade.cpp.
@@ -631,10 +565,11 @@ if(BUILD_TESTING)
             test/operation_test.cpp
             test/background_load_test.cpp
             test/window_watch_test.cpp
+            test/event_token_test.cpp
             test/rendering_device_test.cpp
             test/terminate_reason_test.cpp
             src/Object.cpp
-            src/impl/terminate_reason.cpp
+            src/Application.cpp
             src/impl/bound_items_source.cpp
         DEPS
             Microsoft::CppWinRT
@@ -704,7 +639,7 @@ if(BUILD_TESTING)
     # streams, no WinUI. Not linked with wxl.ui, whose entry point would take main() away;
     # the two sources it tests are built into it.
     add_executable(wxl.ui.stream-reference-test test/stream_reference_test.cpp
-        src/impl/file_stream_reference.cpp src/impl/file_uri.cpp)
+        src/impl/winrt_helpers.cpp src/impl/file_uri.cpp)
     target_link_libraries(wxl.ui.stream-reference-test PRIVATE wxl::core Microsoft::CppWinRT runtimeobject.lib)
     target_include_directories(wxl.ui.stream-reference-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     set_target_properties(wxl.ui.stream-reference-test PROPERTIES

@@ -11,7 +11,7 @@ auto button = Button {
     automationName = u"Standard XAML",
     content = u"Standard button",
     isEnabled = BindOutput {model->enabled},
-    onClick = [output] { output.text(u"You clicked: Button1"); },
+    onClick += [output] { output.text(u"You clicked: Button1"); },
 };
 
 auto disable = CheckBox {

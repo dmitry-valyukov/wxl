@@ -1,6 +1,6 @@
 #include "Catalog.h"
 
-#include "ApplicationFolder.h"
+#include "Application.h"
 
 #include <string>
 
@@ -52,7 +52,7 @@ Catalog load() {
     Catalog result;
     try {
         wxl::json::document document;
-        auto const& root = document.load_file(wxl::applicationFolder() / L"Assets" / L"Data" /
+        auto const& root = document.load_file(wxl::Application::folder() / L"Assets" / L"Data" /
                                               L"ControlInfoData.json");
         for (auto const& node : root["Groups"].elements()) {
             ControlGroup group;

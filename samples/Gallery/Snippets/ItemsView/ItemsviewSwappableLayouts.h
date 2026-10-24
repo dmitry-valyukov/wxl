@@ -3,7 +3,7 @@
 auto const* objects = &gallery::dataObjects(true);
 
 auto const imageOf = [objects](Object const& item) {
-    auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+    auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return ItemContainer {width = 200, height = 140, horizontalAlignment = HorizontalAlignment::Left,
                           child = Image {Margin {4}, automationAccessibilityView = AccessibilityView::Raw, horizontalAlignment = HorizontalAlignment::Center,
                                  verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
@@ -36,14 +36,14 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 auto const linedTemplate = [objects, strip](Object const& item) {
-    auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+    auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return ItemContainer {child = Grid {Image {minWidth = 70, horizontalAlignment = HorizontalAlignment::Center,
                                        verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
                                        source = object.imageLocation},
                                 strip(object)}};
 };
 auto const stackTemplate = [objects](Object const& item) {
-    auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+    auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
     auto picture = Image {width = 24, height = 16, Margin {0, 4, 0, 0}, alignLeftWithPanel = true, alignTopWithPanel = true,
                           stretch = Stretch::UniformToFill, source = object.imageLocation};
     auto caption = TextBlock {styles.TextBlock.Base, Margin {8, 0, 0, 0}, alignTopWithPanel = true, rightOf = picture, object.title};
@@ -53,7 +53,7 @@ auto const stackTemplate = [objects](Object const& item) {
                                                     object.description}}};
 };
 auto const gridTemplate = [objects, strip](Object const& item) {
-    auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+    auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return ItemContainer {child = Grid {width = 150, Image {horizontalAlignment = HorizontalAlignment::Center,
                                                     verticalAlignment = VerticalAlignment::Center,
                                                     stretch = Stretch::UniformToFill, source = object.imageLocation},
@@ -66,7 +66,7 @@ model->view.itemTemplate(linedTemplate);
 // changes the width of an item while the view has no viewport yet.
 model->view.add_onLoaded([model, objects](auto&&...) {
     DispatcherQueue::getForCurrentThread().tryEnqueue(DispatcherQueuePriority::Low, [model, objects] {
-        model->view.itemsSource(indexList(static_cast<int64_t>(objects->size())));
+        model->view.itemsSource(IndexList(static_cast<int64_t>(objects->size())));
     });
 });
 
@@ -87,7 +87,7 @@ model->linedOptions.children().append(RadioButtons {
     RadioButton {content = u"Small"},
     RadioButton {content = u"Large"},
     selectedIndex = 1,
-    onSelectionChanged = [model](RadioButtons const& self) { if (self.selectedIndex() >= 0) model->lined.lineHeight(self.selectedIndex() == 0 ? 80.0 : 160.0); },
+    onSelectionChanged += [model](RadioButtons const& self) { if (self.selectedIndex() >= 0) model->lined.lineHeight(self.selectedIndex() == 0 ? 80.0 : 160.0); },
 });
 model->stackOptions.children().append(heading(u"StackLayout settings"));
 model->stackOptions.children().append(number(u"Space between rows", 0, 100, 5, [model](double v) { model->stack.spacing(v); }));
@@ -111,7 +111,7 @@ auto options = StackPanel {
         RadioButton {content = u"UniformGridLayout", FontWeight {400}},
         RadioButton {content = u"StackLayout", FontWeight {400}},
         selectedIndex = 0,
-        onSelectionChanged = [=](RadioButtons const& self) {
+        onSelectionChanged += [=](RadioButtons const& self) {
             auto const choice = self.selectedIndex();
             if (choice < 0) return;
             if (choice == 0) { model->view.layout(model->lined); model->view.itemTemplate(linedTemplate); }

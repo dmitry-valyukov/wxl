@@ -56,7 +56,7 @@ struct member_documentation {
 class documentation_file {
 public:
     // Throws std::runtime_error naming the file and the offset of the member
-    // when a member is cut off or has attributes but no name.
+    // when a member is truncated or has attributes but no name.
     explicit documentation_file(std::filesystem::path const& file);
     documentation_file(documentation_file&&) noexcept;
     documentation_file& operator=(documentation_file&&) noexcept;

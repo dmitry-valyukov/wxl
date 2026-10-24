@@ -38,13 +38,13 @@ auto listButton = ToggleSplitButton {
     vAlign.top,
     automationName = u"Bullets",
     content = icon,
-    onIsCheckedChanged = [richBox, marker](ToggleSplitButton const& self) {
+    onIsCheckedChanged += [richBox, marker](ToggleSplitButton const& self) {
         richBox.document().selection().paragraphFormat().listType(
             self.isChecked() ? *marker : MarkerType::None);
     },
     flyout = Flyout {
         placement = FlyoutPlacementMode::Bottom,
-        onOpened = [model, choose, richBox, icon, marker](Object const& sender) {
+        onOpened += [model, choose, richBox, icon, marker](Object const& sender) {
             auto const flyout = sender.try_as<Flyout>();
             auto const buttons = flyout.content().try_as<StackPanel>().children();
             model->choosing.clear();

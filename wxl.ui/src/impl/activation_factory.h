@@ -1,17 +1,17 @@
 #pragma once
 
-// winrt/base.h is the same narrow exception activation_factory.h makes: only
+// winrt/base.h is the same narrow exception activator.h makes: only
 // winrt::impl::guid_v<I> is wanted here, as the address of an IID the slot
 // keeps -- never a projection header.
 #include <winrt/base.h>
 
-#include "activation_factory.h"
+#include "activator.h"
 #include "runtime_class_name.h"
 
 namespace wxl::impl {
 
 // One interface's entire statics cost, and all of it data: three words, no
-// code generated per interface. Resolving is written once, in statics.cpp,
+// code generated per interface. Resolving is written once, in activation_factory.cpp,
 // and shared by every I<Name>Statics and I<Name>Factory interface the
 // activation-factory object of a class implements.
 //
@@ -40,12 +40,12 @@ struct statics_slot {
     void* arg2_;
 };
 
-// Usage: Statics<IOverlappedPresenterStatics>->Create() -- `Statics<I>` names
-// a global, stateless, zero-size instance (a variable template, not the class
-// template itself: operator-> cannot be static, so this has to be an *object*
-// for that call syntax to work at all).
+// Usage: activation_factory<IOverlappedPresenterStatics>->Create() --
+// `activation_factory<I>` names a global, stateless, zero-size instance (a
+// variable template, not the class template itself: operator-> cannot be
+// static, so this has to be an *object* for that call syntax to work at all).
 template <typename I>
-class StaticsProxy {
+class activation_factory_proxy {
 public:
     // The projection type is one pointer and nothing else, so the raw pointer
     // in the slot *is* the object: viewing it as one hands generated code the
@@ -66,12 +66,12 @@ private:
 // winrt::guid_of<I>() would return anyway: MSVC does not accept that call as a
 // constant expression, and the constinit above is what says why it matters.
 template <typename I>
-inline constinit statics_slot StaticsProxy<I>::slot_{
+inline constinit statics_slot activation_factory_proxy<I>::slot_{
     &statics_slot::init,
     const_cast<wchar_t*>(runtime_class_name_of<I>::value),
     const_cast<winrt::guid*>(&winrt::impl::guid_v<I>)};
 
 template <typename I>
-inline constexpr StaticsProxy<I> Statics{};
+inline constexpr activation_factory_proxy<I> activation_factory{};
 
 } // namespace wxl::impl

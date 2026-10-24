@@ -58,8 +58,8 @@ VirtualTree::VirtualTree() {
     Apply {rows_,
         vAlign.top,
         background = brushes.SubtleFillColor.Transparent,
-        onPointerWheelChanged = [this](StackPanel const& panel, PointerRoutedEventArgs& args) { wheel(panel, args); },
-        onLayoutUpdated = [this] { measureWidth(); },
+        onPointerWheelChanged += [this](StackPanel const& panel, PointerRoutedEventArgs& args) { wheel(panel, args); },
+        onLayoutUpdated += [this] { measureWidth(); },
     };
 
     Apply {bar_,
@@ -68,7 +68,7 @@ VirtualTree::VirtualTree() {
         indicatorMode = ScrollingIndicatorMode::MouseIndicator,
         minimum = 0.0,
         smallChange = 1.0,
-        onValueChanged = [this](ScrollBar const& bar, RangeBaseValueChangedEventArgs&) {
+        onValueChanged += [this](ScrollBar const& bar, RangeBaseValueChangedEventArgs&) {
             scrollTo(static_cast<uint32_t>(std::lround(bar.value())));
         },
     };
@@ -79,19 +79,19 @@ VirtualTree::VirtualTree() {
         columnDefinitions = u"*,auto",
         background = brushes.SubtleFillColor.Transparent,
         isTabStop = true,
-        onKeyDown = [this](Grid const&, KeyRoutedEventArgs& args) { key(args); },
-        onCharacterReceived = [this](Grid const&, CharacterReceivedRoutedEventArgs& args) {
+        onKeyDown += [this](Grid const&, KeyRoutedEventArgs& args) { key(args); },
+        onCharacterReceived += [this](Grid const&, CharacterReceivedRoutedEventArgs& args) {
             if (typeAhead(args.character())) {
                 args.handled(true);
             }
         },
-        onGotFocus = [this](Grid const&, RoutedEventArgs&) { focus(true); },
-        onLostFocus = [this](Grid const&, RoutedEventArgs&) { focus(false); },
-        onSizeChanged = [this](Grid const&, SizeChangedEventArgs& args) {
+        onGotFocus += [this](Grid const&, RoutedEventArgs&) { focus(true); },
+        onLostFocus += [this](Grid const&, RoutedEventArgs&) { focus(false); },
+        onSizeChanged += [this](Grid const&, SizeChangedEventArgs& args) {
             resize(args.newSize().height);
         },
         // Колесо над полосой.
-        onPointerWheelChanged = [this](Grid const& grid, PointerRoutedEventArgs& args) { wheel(grid, args); },
+        onPointerWheelChanged += [this](Grid const& grid, PointerRoutedEventArgs& args) { wheel(grid, args); },
         ScrollViewer {
             column = 0,
             horizontalScrollBarVisibility = ScrollBarVisibility::Auto,
@@ -115,7 +115,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         fontSize = 10.0,
         textAlignment.center,
         vAlign.center,
-        onTapped = [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
+        onTapped += [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
             takeFocus();
             if (model_) {
                 model_->toggleExpanded(first() + slot);
@@ -126,7 +126,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         },
         // Второй щелчок двойного по шеврону и по отметке — такой же щелчок, а
         // не двойной по строке.
-        onDoubleTapped = [this, slot](TextBlock const&, DoubleTappedRoutedEventArgs& args) {
+        onDoubleTapped += [this, slot](TextBlock const&, DoubleTappedRoutedEventArgs& args) {
             if (model_) {
                 model_->toggleExpanded(first() + slot);
                 updateBar();
@@ -145,7 +145,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         textAlignment.center,
         vAlign.center,
         Margin {2, 0, 0, 0},
-        onTapped = [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
+        onTapped += [this, slot](TextBlock const&, TappedRoutedEventArgs& args) {
             takeFocus();
             if (model_) {
                 model_->toggleChecked(first() + slot);
@@ -153,7 +153,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
             }
             args.handled(true);
         },
-        onDoubleTapped = [this, slot](TextBlock const&, DoubleTappedRoutedEventArgs& args) {
+        onDoubleTapped += [this, slot](TextBlock const&, DoubleTappedRoutedEventArgs& args) {
             if (model_) {
                 model_->toggleChecked(first() + slot);
                 render();
@@ -212,7 +212,7 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
         background = brushes.SubtleFillColor.Transparent,
         // Второй щелчок двойного приходит как DoubleTapped, а не Tapped:
         // узел переключается один раз.
-        onTapped = [this, slot](StackPanel const&, TappedRoutedEventArgs&) {
+        onTapped += [this, slot](StackPanel const&, TappedRoutedEventArgs&) {
             takeFocus();
             if (model_) {
                 uint32_t const index = first() + slot;
@@ -224,18 +224,18 @@ VirtualTree::Row VirtualTree::makeRow(uint32_t slot) {
                 render();
             }
         },
-        onDoubleTapped = [this, slot](StackPanel const&, DoubleTappedRoutedEventArgs&) {
+        onDoubleTapped += [this, slot](StackPanel const&, DoubleTappedRoutedEventArgs&) {
             if (model_) {
                 model_->activate(first() + slot);
                 render();
             }
         },
-        onPointerEntered = [this, slot](StackPanel const&, PointerRoutedEventArgs&) {
+        onPointerEntered += [this, slot](StackPanel const&, PointerRoutedEventArgs&) {
             hovered_ = slot;
             paint(slot);
         },
         // Выход из одной ячейки может прийти и после входа в соседнюю.
-        onPointerExited = [this, slot](StackPanel const&, PointerRoutedEventArgs&) {
+        onPointerExited += [this, slot](StackPanel const&, PointerRoutedEventArgs&) {
             if (hovered_ == slot) {
                 hovered_.reset();
                 paint(slot);

@@ -25,7 +25,7 @@ FrameworkElement gallery::copyNameButton(std::u16string name) {
         automationName = u"Copy to clipboard",
         toolTip = u"Copy to clipboard",
         content = FontIcon {glyph = u"", fontSize = 14},
-        onClick = [name](auto&&...) {
+        onClick += [name](auto&&...) {
             auto package = DataPackage {};
             package.setText(name);
             Clipboard::setContent(package);

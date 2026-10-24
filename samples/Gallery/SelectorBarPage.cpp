@@ -4,6 +4,7 @@
 #include "Shell.h"
 #include <vector>
 #include "Box.h"
+#include "IndexList.h"
 #include "NavigationPages.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Media.Animation.h>

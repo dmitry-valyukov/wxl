@@ -512,24 +512,24 @@ task<> asks_whether_exists(path file_path, bool& out) {
     out = co_await async_file::exists(file_path);
 }
 
-task<> reads_whole_under(path file_path, cancellation_token stop, std::string& out, bool& cancelled) {
+task<> cancelable_reads_whole(path file_path, cancellation_token token, std::string& out, bool& cancelled) {
     try {
-        out = co_await async_file::read_all(file_path, stop);
+        out = co_await async_file::read_all(file_path, token);
     } catch (const operation_canceled_exception&) {
         cancelled = true;
     }
 }
 
-task<> writes_whole_under(path file_path, std::string bytes, cancellation_token stop, bool& cancelled) {
+task<> cancelable_writes_whole(path file_path, std::string bytes, cancellation_token token, bool& cancelled) {
     try {
-        co_await async_file::write_all(file_path, std::move(bytes), stop);
+        co_await async_file::write_all(file_path, std::move(bytes), token);
     } catch (const operation_canceled_exception&) {
         cancelled = true;
     }
 }
 
-task<> asks_whether_exists_under(path file_path, cancellation_token stop, bool& out) {
-    out = co_await async_file::exists(file_path, stop);
+task<> cancelable_asks_whether_exists(path file_path, cancellation_token token, bool& out) {
+    out = co_await async_file::exists(file_path, token);
 }
 
 /// What is on the disk under this name, read the plain way: the check of a write.
@@ -638,19 +638,19 @@ TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
 
     given_a_file(L"book.bin", content);
 
-    cancellation_source stop;
+    cancellation_source source;
     std::string got;
     bool cancelled = false;
 
-    sta_loop::run_until(reads_whole_under(root_ / L"book.bin", stop.token(), got, cancelled));
+    sta_loop::run_until(cancelable_reads_whole(root_ / L"book.bin", source.token(), got, cancelled));
 
     EXPECT_EQ(got, content);
     EXPECT_FALSE(cancelled);
 
-    stop.cancel();
+    source.cancel();
 
     std::string again;
-    task<> asked = reads_whole_under(root_ / L"book.bin", stop.token(), again, cancelled);
+    task<> asked = cancelable_reads_whole(root_ / L"book.bin", source.token(), again, cancelled);
 
     EXPECT_TRUE(asked.done()) << "an operation was started under a cancelled token";
     sta_loop::run_until(asked);
@@ -662,12 +662,12 @@ TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
 TEST_F(AsyncFileTest, WriteAllUnderACancelledTokenLeavesTheFileAsItWas) {
     given_a_file(L"state.txt", "the old state");
 
-    cancellation_source stop;
-    stop.cancel();
+    cancellation_source source;
+    source.cancel();
 
     bool cancelled = false;
 
-    sta_loop::run_until(writes_whole_under(root_ / L"state.txt", "new", stop.token(), cancelled));
+    sta_loop::run_until(cancelable_writes_whole(root_ / L"state.txt", "new", source.token(), cancelled));
 
     EXPECT_TRUE(cancelled);
     EXPECT_EQ(on_disk(root_ / L"state.txt"), "the old state");
@@ -688,11 +688,11 @@ TEST_F(AsyncFileTest, WriteAllCancelledThenRepeatedNeverMeetsTheFirstWrite) {
     for (int round = 0; round < 8; ++round) {
         SCOPED_TRACE(std::format("round {}", round));
 
-        cancellation_source stop;
+        cancellation_source source;
         bool cancelled = false;
 
-        task<> writing = writes_whole_under(root_ / L"state.txt", first, stop.token(), cancelled);
-        stop.cancel();
+        task<> writing = cancelable_writes_whole(root_ / L"state.txt", first, source.token(), cancelled);
+        source.cancel();
         sta_loop::run_until(writing);
 
         // The answer came after the body let go: nothing of the first write is still out.
@@ -716,13 +716,13 @@ TEST_F(AsyncFileTest, AReadCancelledHoldingItsFileIsWaitedForBeforeTheNextSave) 
 
     const path name = root_ / L"state.txt";
     hevent opened{true}, gate{true};
-    cancellation_source stop;
+    cancellation_source source;
     const orphans_drained_on_exit drained(gate);
 
     task<std::string> reading = detail::async_call_waiting_for_body(
         orphanable,
         [name, &opened, &gate](const orphan_state& state) {
-            file source = file::open_read(name.c_str());
+            file held = file::open_read(name.c_str());
 
             opened.set();
             gate.wait();
@@ -730,13 +730,13 @@ TEST_F(AsyncFileTest, AReadCancelledHoldingItsFileIsWaitedForBeforeTheNextSave) 
             if (state.stop_requested()) throw operation_canceled_exception();
 
             std::string bytes(64, '\0');
-            bytes.resize(source.read(std::as_writable_bytes(std::span(bytes))));
+            bytes.resize(held.read(std::as_writable_bytes(std::span(bytes))));
             return bytes;
         },
-        stop.token());
+        source.token());
 
     opened.wait();
-    stop.cancel();
+    source.cancel();
     sta_loop::run_pending();
 
     EXPECT_FALSE(reading.done()) << "the wait did not wait for the body holding the file";
@@ -754,12 +754,12 @@ TEST_F(AsyncFileTest, AReadCancelledHoldingItsFileIsWaitedForBeforeTheNextSave) 
 TEST_F(AsyncFileTest, ExistsUnderATokenAnswersLikeThePlainOne) {
     given_a_file(L"here.bin", "x");
 
-    cancellation_source stop;
+    cancellation_source source;
     bool is_file = false, is_nothing = true;
 
-    sta_loop::run_until(asks_whether_exists_under(root_ / L"here.bin", stop.token(), is_file));
+    sta_loop::run_until(cancelable_asks_whether_exists(root_ / L"here.bin", source.token(), is_file));
     sta_loop::run_until(
-        asks_whether_exists_under(root_ / L"nowhere.bin", stop.token(), is_nothing));
+        cancelable_asks_whether_exists(root_ / L"nowhere.bin", source.token(), is_nothing));
 
     EXPECT_TRUE(is_file);
     EXPECT_FALSE(is_nothing);

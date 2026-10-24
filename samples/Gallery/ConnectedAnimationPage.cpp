@@ -5,12 +5,11 @@
 #include <memory>
 #include <vector>
 #include "Box.h"
-#include "ItemBuilder.h"
-#include "ItemElement.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include <wxl/Microsoft.UI.Dispatching.h>
 #include "MotionPages.h"
 #include "PagedFrame.h"
-#include "ResourceBrush.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Media.Animation.h>
 #include <wxl/Microsoft.UI.Xaml.h>

@@ -22,7 +22,7 @@ struct probe {
 
 // The case a scope is for: an element is built, its bindings are collected, and when the
 // element is given back the scope takes them off the fields, which stay.
-TEST(BindingScope, cuts_the_binding_watches_made_inside_it) {
+TEST(BindingScope, unbinds_the_binding_watches_made_inside_it) {
     observable<int> number{0};
     observable<bool> flag{false};
     int seen = -1;
@@ -39,7 +39,7 @@ TEST(BindingScope, cuts_the_binding_watches_made_inside_it) {
     number.set(1);
     EXPECT_EQ(seen, 1);  // a collected watch is a watch like any other
 
-    scope.cut();
+    scope.unbind();
     EXPECT_TRUE(scope.empty());
     EXPECT_EQ(owned, 2);  // what the watches held went with them, at once
 
@@ -68,7 +68,7 @@ TEST(BindingScope, a_build_that_throws_closes_the_scope_all_the_same) {
 }
 
 // Only binding watches made while it is open: one made before, and the application's own
-// watches made inside, stay where they are when the scope is cut.
+// watches made inside, stay where they are when the scope is unbound.
 TEST(BindingScope, collects_only_binding_watches_made_while_open) {
     observable<int> number{0};
     int before = 0;
@@ -82,7 +82,7 @@ TEST(BindingScope, collects_only_binding_watches_made_while_open) {
         number.watch_for_binding([&inside](int const&) noexcept { ++inside; });
     });
 
-    scope.cut();
+    scope.unbind();
     number.set(1);
     EXPECT_EQ(before, 1);
     EXPECT_EQ(app, 1);
@@ -90,8 +90,8 @@ TEST(BindingScope, collects_only_binding_watches_made_while_open) {
 }
 
 // The field goes first -- an item model dropped from the list while its element is still
-// shown. Its watches leave the scope as they die; the scope has nothing left to cut.
-TEST(BindingScope, a_field_dying_first_leaves_the_scope_nothing_to_cut) {
+// shown. Its watches leave the scope as they die; the scope has nothing left to unbind.
+TEST(BindingScope, a_field_dying_first_leaves_the_scope_nothing_to_unbind) {
     int owned = 0;
     binding_scope scope;
     {
@@ -103,7 +103,7 @@ TEST(BindingScope, a_field_dying_first_leaves_the_scope_nothing_to_cut) {
     }
     EXPECT_EQ(owned, 1);
     EXPECT_TRUE(scope.empty());
-    scope.cut();  // and cutting it now touches nothing that is gone
+    scope.unbind();  // and unbinding it now touches nothing that is gone
 }
 
 // The scope goes first: its watches come off the field with it, and the field goes on
@@ -156,25 +156,25 @@ TEST(BindingScope, nested_scopes_collect_apart) {
     });
     EXPECT_EQ(binding_scope::current(), nullptr);
 
-    outer.cut();
+    outer.unbind();
     EXPECT_FALSE(inner.empty());
     number.set(1);
     EXPECT_EQ(heard, (std::vector<char>{'b'}));
 
-    inner.cut();
+    inner.unbind();
     number.set(2);
     EXPECT_EQ(heard, (std::vector<char>{'b'}));
 }
 
-// Cut and opened again: the scope of a container that shows one item, then another.
-TEST(BindingScope, collects_again_after_a_cut) {
+// Unbound and opened again: the scope of a container that shows one item, then another.
+TEST(BindingScope, collects_again_after_unbinding) {
     observable<int> number{0};
     int first = 0;
     int second = 0;
 
     binding_scope scope;
     scope.collect([&] { number.watch_for_binding([&first](int const&) noexcept { ++first; }); });
-    scope.cut();
+    scope.unbind();
     scope.collect([&] { number.watch_for_binding([&second](int const&) noexcept { ++second; }); });
 
     number.set(1);
@@ -183,9 +183,9 @@ TEST(BindingScope, collects_again_after_a_cut) {
 }
 
 // A list rebuilt from inside a watcher of the very field its elements are bound to: the
-// scope is cut while that field fires. The watches it takes off are not called by the fire
+// scope is unbound while that field fires. The watches it takes off are not called by the fire
 // under way, and the walk goes on to the end.
-TEST(BindingScope, cut_while_the_field_fires) {
+TEST(BindingScope, unbind_while_the_field_fires) {
     observable<int> number{0};
     binding_scope scope;
     std::vector<char> heard;
@@ -193,7 +193,7 @@ TEST(BindingScope, cut_while_the_field_fires) {
 
     number.watch_for_binding([&](int const&) noexcept {
         heard.push_back('r');  // the list's own watch: it rebuilds
-        scope.cut();
+        scope.unbind();
     });
     scope.collect([&] {
         number.watch_for_binding([&heard, p = probe{owned}](int const&) noexcept { heard.push_back('e'); });
@@ -207,9 +207,9 @@ TEST(BindingScope, cut_while_the_field_fires) {
     EXPECT_TRUE(scope.empty());
 }
 
-// A collected watch that cuts its own scope from inside its call: it finishes the call, is
+// A collected watch that unbinds its own scope from inside its call: it finishes the call, is
 // freed when it returns, and the watch after it is not called.
-TEST(BindingScope, a_watch_cutting_its_own_scope) {
+TEST(BindingScope, a_watch_unbinding_its_own_scope) {
     observable<int> number{0};
     binding_scope scope;
     std::vector<char> heard;
@@ -219,7 +219,7 @@ TEST(BindingScope, a_watch_cutting_its_own_scope) {
     scope.collect([&] {
         number.watch_for_binding([&, p = probe{owned}](int const&) noexcept {
             heard.push_back('1');
-            scope.cut();
+            scope.unbind();
             ownedWhileRunning = owned;
         });
         number.watch_for_binding([&heard, p = probe{owned}](int const&) noexcept { heard.push_back('2'); });
@@ -245,7 +245,7 @@ TEST(BindingScope, collects_the_watches_of_a_list) {
     numbers.push_back(1);
     EXPECT_EQ(heard, 2);
 
-    scope.cut();
+    scope.unbind();
     numbers.push_back(2);
     EXPECT_EQ(heard, 2);
 }

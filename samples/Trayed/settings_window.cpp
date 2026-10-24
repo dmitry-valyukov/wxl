@@ -20,7 +20,6 @@
 #include "ui.h"
 
 #include "Bind.h"
-#include "WindowFit.h"
 #include "settings_window.h"
 
 using namespace wxl;
@@ -31,7 +30,7 @@ namespace {
 
 // The width the form is given, in DIPs: a vertical stack of text fields has no
 // width of its own -- the fields would collapse to their minimum -- so one is
-// set, and fitToContent sizes the window to it.
+// set, and sizeToContent sizes the window to it.
 constexpr double kFormWidth = 460.0;
 
 // A ComboBox filled from a runtime list and bound to the index of the chosen
@@ -57,8 +56,9 @@ Window buildSettingsWindow(Settings& settings) {
     Window window{
         title = L"Настройки Trayed",
         // A floor well under the fitted size, so it only stops the user shrinking
-        // the window into nothing -- the fit below sets the size it opens at.
+        // the window into nothing -- sizeToContent sets the size it opens at.
         minSize = {360, 320},
+        sizeToContent = SizeToContent::WidthAndHeight,
         StackPanel{
             width = kFormWidth,
             Padding{24},
@@ -81,8 +81,6 @@ Window buildSettingsWindow(Settings& settings) {
             labeledCombo(L"Цветовая тема", themeNames(), settings.theme),
         },
     };
-
-    fitToContent(window);
     return window;
 }
 

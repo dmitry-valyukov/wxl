@@ -498,7 +498,7 @@ struct Material {
                 spot.targets().add(root);
                 break;
             default: {
-                // Лампа стоит под азимутом и высотой, как у relief_helper: 0 --
+                // Лампа стоит под азимутом и высотой, как у Relief: 0 --
                 // справа, 90 -- сверху экрана. Свет идёт от неё, то есть обратно.
                 double const a = azimuth.get() * 3.14159265358979 / 180.0;
                 double const e = elevation.get() * 3.14159265358979 / 180.0;

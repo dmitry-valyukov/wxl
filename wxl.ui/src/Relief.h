@@ -1,8 +1,8 @@
 #pragma once
 
-// wxl::relief_helper -- the colours of a drawn solid: what a raised or sunken
+// wxl::Relief -- the colours of a drawn solid: what a raised or sunken
 // surface of one colour looks like under one lamp, and what a flat panel
-// looks like under a lamp that hangs over it. Built on color_helper, constexpr
+// looks like under a lamp that hangs over it. Built on ColorHelper, constexpr
 // like it (read by the compiler in a constant, computed at run time from an
 // effect's tags, out-of-range arguments failing the build in the one case and
 // clamped in the other), and meant to be what a pseudo-3D control computes
@@ -11,7 +11,7 @@
 // press is a change of light, not a second palette.
 //
 //     constexpr Light lamp {Direction::from_angles(120, 50), rgb(255, 246, 232), rgb(140, 146, 168)};
-//     constexpr auto edges = relief_helper::raised(plastic, lamp);
+//     constexpr auto edges = Relief::raised(plastic, lamp);
 //     BevelEffect {edges.nearLamp, edges.farFromLamp}
 //
 // The lamp is a direction and two colours; every face of a relief is that
@@ -33,10 +33,7 @@ consteval void relief_lamp_height_must_be_positive();
 consteval void relief_distance_must_not_be_negative();
 }  // namespace error
 
-struct relief_helper {
-    using Direction = ::wxl::Direction;
-    using Light = ::wxl::Light;
-
+struct Relief {
     /// The two sloping faces of a relief, named by where they are and not by
     /// how they look: the one on the lamp's side and the one away from it.
     /// This is the order a BevelEffect takes them in when the lamp stands
@@ -156,7 +153,7 @@ struct relief_helper {
     /// distance, the ambient reaches everywhere alike: the tones of a lit
     /// panel, for a radial gradient whose origin is the lamp's foot.
     static constexpr Color under(Color albedo, Light const& lamp, double distance, double height) {
-        Light const here {{0.0, 0.0, 1.0}, color_helper::shade(lamp.key, falloff(distance, height)),
+        Light const here {{0.0, 0.0, 1.0}, ColorHelper::shade(lamp.key, falloff(distance, height)),
                           lamp.ambient};
         return Light::illuminate(albedo, here, {0.0, 0.0, 1.0});
     }

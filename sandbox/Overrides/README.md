@@ -24,7 +24,7 @@ COM-подделки.
 `DependencyObject`/`Object` и объявлений `wxl::abi::Microsoft::UI::Xaml::`
 `IUIElement`/`IUIElementProtected`/`IUIElementOverrides`. Это прототип раннего
 устройства wxl, в публичное дерево он не переносился; от него здесь
-`wxl::release_only_ptr` (`wxl.ui/src/impl/release_only_ptr.h`) и есть.
+был `wxl::release_only_ptr` из wxl.ui -- теперь рецепт держит этот тип у себя, в `main.cpp`.
 
 Поэтому у папки нет своего `CMakeLists.txt`: сборка её не видит, а рецепт
 читается. Чтобы он снова запускался, эти типы надо написать заново — нынешняя

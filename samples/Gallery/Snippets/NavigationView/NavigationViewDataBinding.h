@@ -7,7 +7,7 @@ struct Category {
 };
 struct Model {
     Frame frame;
-    Object source = indexList(4);
+    IndexList source{4};
     std::vector<Category> categories {
         {u"Category 1", Symbol::Home, u"This is category 1"},
         {u"Category 2", Symbol::Keyboard, u"This is category 2"},
@@ -16,7 +16,7 @@ struct Model {
     };
 };
 auto const model = gallery::hold<Model>();
-auto const category = [model](Object const& item) -> Category const& { return model->categories[static_cast<size_t>(intOf(item))]; };
+auto const category = [model](Object const& item) -> Category const& { return model->categories[static_cast<size_t>(unboxValue<int64_t>(item))]; };
 
 auto const view = NavigationView {
     row = 2,
@@ -24,11 +24,11 @@ auto const view = NavigationView {
     isTabStop = false,
     menuItemsSource = model->source,
     menuItemTemplate = boundTemplate(u"NavigationViewItem",
-                                     {{u"Content", [category](Object const& item) { return stringBox(category(item).name); }},
+                                     {{u"Content", [category](Object const& item) { return boxValue(category(item).name); }},
                                       {u"Icon", [category](Object const& item) { return SymbolIcon {symbol = category(item).glyph}; }},
-                                      {u"ToolTipService.ToolTip", [category](Object const& item) { return stringBox(category(item).tooltip); }}}),
+                                      {u"ToolTipService.ToolTip", [category](Object const& item) { return boxValue(category(item).tooltip); }}}),
     content = StackPanel {model->frame},
-    onSelectionChanged = [model, category](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
+    onSelectionChanged += [model, category](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
         if (args.isSettingsSelected()) {
             gallery::showSettings(model->frame);
             return;
@@ -38,7 +38,7 @@ auto const view = NavigationView {
         gallery::showSample(model->frame, 1);
     },
 };
-view.add_onLoaded([view, model](auto&&...) { view.selectedItem(indexListObject(model->source, 0)); });
+view.add_onLoaded([view, model](auto&&...) { view.selectedItem(model->source.objectAt(0)); });
 
 auto example = Grid {
     rowDefinitions = u"*,auto",

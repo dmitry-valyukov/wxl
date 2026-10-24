@@ -49,7 +49,7 @@ FrameworkElement gallery::colorPage() {
         automationName = u"PageSelector",
         items[SelectorBarItem {text = u"Text", isSelected = true}, SelectorBarItem {text = u"Fill"}, SelectorBarItem {text = u"Stroke"},
               SelectorBarItem {text = u"Background"}, SelectorBarItem {text = u"Signal"}, SelectorBarItem {text = u"High Contrast"}],
-        onSelectionChanged = [model](SelectorBar const& sender, SelectorBarSelectionChangedEventArgs&) {
+        onSelectionChanged += [model](SelectorBar const& sender, SelectorBarSelectionChangedEventArgs&) {
             auto const selected = sender.selectedItem();
             auto const items = sender.items();
             int current = 0;

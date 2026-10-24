@@ -63,9 +63,9 @@ wxl::Teardown wxl_launched() {
         StackPanel{
             orientation.horizontal,
             spacing = 8.0,
-            Button{L"Крупнее", onClick = [zoom] { zoom->factor.set(zoom->factor.get() * 1.25); }},
-            Button{L"Мельче", onClick = [zoom] { zoom->factor.set(zoom->factor.get() / 1.25); }},
-            Button{L"100 %", onClick = [zoom] { zoom->factor.set(1.0); }},
+            Button{L"Крупнее", onClick += [zoom] { zoom->factor.set(zoom->factor.get() * 1.25); }},
+            Button{L"Мельче", onClick += [zoom] { zoom->factor.set(zoom->factor.get() / 1.25); }},
+            Button{L"100 %", onClick += [zoom] { zoom->factor.set(1.0); }},
             TextBlock{vAlign.center, Margin{12, 0, 0, 0}, text = BindOutput{zoom->caption}},
         },
     });

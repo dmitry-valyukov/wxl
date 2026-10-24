@@ -13,7 +13,7 @@
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Windows.Foundation.h>
 
-#include "../SettingsCardAlignment.h"
+#include "../SettingsCardContentAlignment.h"
 
 namespace wxl::impl {
 

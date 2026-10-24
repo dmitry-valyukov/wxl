@@ -28,8 +28,8 @@
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.XamlTypeInfo.h>
 
-#include <impl/bootstrap.h>
 #include <impl/hresult.h>
+#include <impl/winrt_helpers.h>
 
 #include <cstdarg>
 #include <cstdint>
@@ -184,7 +184,7 @@ int main() {
     winrt::init_apartment(winrt::apartment_type::single_threaded);
     try {
         wxl::impl::ensure_windows_app_runtime_initialized();
-    } catch (wxl::hresult_error const& error) {
+    } catch (wxl::impl::hresult_error const& error) {
         say(strf("(e) %s -- the Windows App Runtime did not come up: 0x%08X -- not answered [SURPRISE]", question,
                  static_cast<uint32_t>(error.code())));
         return 1;

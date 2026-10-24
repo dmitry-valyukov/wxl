@@ -14,9 +14,9 @@ Failure failureOf(std::exception_ptr error) {
         return {static_cast<int32_t>(failure.code()), impl::from_winrt(failure.message())};
     } catch (std::exception const& failure) {
         std::string const what = failure.what();
-        return {static_cast<int32_t>(0x80004005), impl::from_winrt(winrt::to_hstring(what))};
+        return {impl::e_fail, impl::from_winrt(winrt::to_hstring(what))};
     } catch (...) {
-        return {static_cast<int32_t>(0x80004005), {}};
+        return {impl::e_fail, {}};
     }
 }
 

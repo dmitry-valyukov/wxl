@@ -17,7 +17,7 @@
 //     }
 //
 // Made separately rather than asked of the element for three reasons. The
-// generator emits nothing for it -- EventAdder is the vocabulary already
+// generator emits nothing for it -- event_adder is the vocabulary already
 // written for the builder syntax, so every event in the profile, and every
 // one added to it later, is awaitable the moment it exists. The subscription
 // becomes an object with a place, so how long it lasts is written down rather
@@ -59,10 +59,10 @@
 // cancellation token it was put under -- given last, as the operations of
 // wxl.async take one:
 //
-//     auto keys = wxl::on_event<EventKey::KeyDown>(keypad, stop);
-//     co_await onClick(button, stop);
+//     auto keys = wxl::on_event<EventKey::KeyDown>(keypad, token);
+//     co_await onClick(button, token);
 //
-// Every wait on such a proxy stands under the token: once it is cancelled, the
+// Every wait on such a proxy is registered with the token: once it is cancelled, the
 // wait in progress ends, and every later one ends at once, the throwing form
 // with async::operation_canceled_exception and the answering form with an
 // empty error. Asking resumes nobody: the coroutine is resumed by the thread's
@@ -75,11 +75,11 @@
 // sender and no element -- is awaited the same way, one wait per co_await, and
 // only under a token: no element leaves the tree to end it, so its owner does.
 //
-//     int const pages = co_await wxl::on_event(model.paginated, stop);
+//     int const pages = co_await wxl::on_event(model.paginated, token);
 //
 // What comes back is the arguments, one as it is, several as a tuple, none as
 // nothing -- and as values: one the event passes by value is moved, one by
-// reference to const copied, since a reference would die with the call and the
+// reference to const copied, since a reference would dangle once the call is over and the
 // coroutine may keep it past its next suspension. Only a reference to non-const
 // stays one: it is how the coroutine answers the raiser, and it is valid until the
 // coroutine next suspends (impl/core_event_wait.h).
@@ -106,12 +106,10 @@ concept unloadable_source = requires(Source const& source) {
 };
 
 // Unloaded, named through the source: the generated vocabulary specialises
-// EventAdder for it, and a header that names the wait may come before that
+// event_adder for it, and a header that names the wait may come before that
 // vocabulary -- so the adder is looked up where a wait is made, not here.
 template <typename Source>
 inline constexpr EventKey unloaded_key = EventKey::Unloaded;
-
-}  // namespace impl
 
 // The subscription, and the thing a coroutine awaits.
 //
@@ -119,7 +117,7 @@ inline constexpr EventKey unloaded_key = EventKey::Unloaded;
 // element captures it by address. Made by on_event() below, which returns it
 // as a prvalue -- so a variable can still be initialised from the call.
 template <typename Source>
-class event_awaitable : public impl::waiting_event
+class event_awaitable : public event_wait
 {
 public:
     // Whatever the source says it hands over: read off the signature of the
@@ -163,7 +161,7 @@ public:
                 args_ = &args;
 
                 // Resumes, and touches nothing of ours afterwards -- see
-                // waiting_event::deliver.
+                // event_wait::deliver.
                 deliver();
         }});
 
@@ -175,7 +173,7 @@ public:
         // Nothing of ours is touched after end(): it may have run the
         // coroutine to its end, and this object with it.
         if constexpr (impl::unloadable_source<Source>) {
-            unloaded_ = impl::EventAdder<impl::unloaded_key<Source>>::add(source_.object, [this] {
+            unloaded_ = impl::event_adder<impl::unloaded_key<Source>>::add(source_.object, [this] {
                 if (!source_.object.isLoaded()) end();
             });
         }
@@ -192,10 +190,10 @@ public:
     // CompositionWindow says whether the token was there, and checked_remove
     // stops the process on a no. A destructor is noexcept: a remove that
     // throws one day ends in std::terminate, which names the exception,
-    // instead of being swallowed here.
+    // instead of being lost here.
     ~event_awaitable() {
         if constexpr (impl::unloadable_source<Source>) {
-            impl::EventAdder<impl::unloaded_key<Source>>::remove(source_.object, unloaded_);
+            impl::event_adder<impl::unloaded_key<Source>>::remove(source_.object, unloaded_);
         }
 
         source_.remove(token_);
@@ -233,7 +231,7 @@ public:
         // emptied. Which is also what keeps a coroutine that catches
         // cancellation and waits again from being ended over and over. Nor
         // does a wait cancelled before it began.
-        bool await_ready() const noexcept { return canceled_ || impl::events_closing(); }
+        bool await_ready() const noexcept { return canceled_ || impl::event_wait::closing(); }
 
         // Each hook that checks how it is used is declared twice, as task's
         // are: a strict build's takes the place of the co_await, any other
@@ -267,7 +265,7 @@ public:
         }
 
         // Cancelled by the token of the form with one
-        // (async::detail::cancellable_awaiter): a wait that is
+        // (async::detail::cancelable_awaiter): a wait that is
         // suspended is resumed by the queue's next turn, or by the event if it
         // comes first -- never by cancel() itself; one that has not begun never
         // suspends. Either way the args are not asked for.
@@ -286,7 +284,7 @@ public:
     private:
         // Ended while suspended, or never suspended because it was already
         // too late.
-        bool over() const noexcept { return event_->ended() || impl::events_closing(); }
+        bool over() const noexcept { return event_->ended() || impl::event_wait::closing(); }
 
         event_awaitable* event_;
 
@@ -330,9 +328,9 @@ private:
 };
 
 // The same subscription under a cancellation token: what on_event() and the
-// tags make when they are given one last -- `co_await onClick(button, stop)`.
+// tags make when they are given one last -- `co_await onClick(button, token)`.
 //
-// Every wait on it stands under the token (impl::event_wait_under): the wait in
+// Every wait on it is registered with the token (impl::cancelable_event_wait): the wait in
 // progress when the token is cancelled ends, and every later one ends at once,
 // the throwing form with async::operation_canceled_exception and the answering
 // form with an empty error. The token is held here and lent to each wait, which
@@ -340,7 +338,7 @@ private:
 // type rather than a field of the plain one: a wait made without a token keeps
 // every byte and every instruction it had.
 template <typename Source>
-class cancellable_event_awaitable
+class cancelable_event_awaitable
 {
     using event_t = event_awaitable<Source>;
 
@@ -350,20 +348,20 @@ public:
     using args_value_t = typename event_t::args_value_t;
     using next_result_t = typename event_t::next_result_t;
 
-    cancellable_event_awaitable(Source source, async::cancellation_token stop)
-        : event_{std::move(source)}, stop_{std::move(stop)} {}
+    cancelable_event_awaitable(Source source, async::cancellation_token token)
+        : event_{std::move(source)}, token_{std::move(token)} {}
 
-    cancellable_event_awaitable(cancellable_event_awaitable const&) = delete;
-    cancellable_event_awaitable& operator=(cancellable_event_awaitable const&) = delete;
+    cancelable_event_awaitable(cancelable_event_awaitable const&) = delete;
+    cancelable_event_awaitable& operator=(cancelable_event_awaitable const&) = delete;
 
     template <bool Throwing>
-    using awaiter_t = impl::event_wait_under<typename event_t::template awaiter_t<Throwing>,
+    using awaiter_t = impl::cancelable_event_wait<typename event_t::template awaiter_t<Throwing>,
                                              async::detail::cancellation_state*>;
 
     using awaiter = awaiter_t<true>;
 
     awaiter operator co_await() noexcept {
-        return awaiter{async::detail::cancellation_state_of(stop_), event_};
+        return awaiter{async::detail::cancellation_state_of(token_), event_};
     }
 
     // As on the plain proxy: waiting writes down who is waiting.
@@ -372,15 +370,13 @@ public:
     /// The answering form under the token: a cancelled wait answers with an
     /// empty error rather than throwing.
     awaiter_t<false> next() noexcept {
-        return awaiter_t<false>{async::detail::cancellation_state_of(stop_), event_};
+        return awaiter_t<false>{async::detail::cancellation_state_of(token_), event_};
     }
 
 private:
     event_t event_;
-    async::cancellation_token stop_;
+    async::cancellation_token token_;
 };
-
-namespace impl {
 
 // Where a wait gets its event from. Three of them, and they differ only in
 // how the pair of calls is reached -- which is why the wait itself knows
@@ -389,16 +385,16 @@ namespace impl {
 // Named by its key, on an object: `on_event<EventKey::Click>(button)`.
 template <EventKey key, typename Obj>
 struct keyed_event {
-    using args_t = typename EventAdder<key>::template args_t<Obj>;
+    using args_t = typename event_adder<key>::template args_t<Obj>;
 
     Obj object;
 
     EventToken add(EventHandler<args_t> const& handler) const {
-        return EventAdder<key>::add(object, handler);
+        return event_adder<key>::add(object, handler);
     }
 
-    void remove(EventToken token) const {
-        checked_remove([&] { return EventAdder<key>::remove(object, token); });
+    void remove(EventToken& token) const {
+        checked_remove([&] { return event_adder<key>::remove(object, token); });
     }
 };
 
@@ -416,7 +412,7 @@ struct member_event {
         return (object.*adder)(handler);
     }
 
-    void remove(EventToken token) const {
+    void remove(EventToken& token) const {
         checked_remove([&] { return (object.*remover)(token); });
     }
 };
@@ -437,24 +433,24 @@ struct type_event {
 
     EventToken add(EventHandler<args_t> const& handler) const { return adder(handler); }
 
-    void remove(EventToken token) const { remover(token); }
+    void remove(EventToken& token) const { remover(token); }
 };
 
 }  // namespace impl
 
 /// A wait on an event of this object, named as the builder syntax names it:
-/// `on_event<EventKey::Click>(button)` beside `onClick = handler`.
+/// `on_event<EventKey::Click>(button)` beside `onClick += handler`.
 template <EventKey key, typename Obj>
-event_awaitable<impl::keyed_event<key, Obj>> on_event(Obj const& source) {
-    return event_awaitable<impl::keyed_event<key, Obj>>{{source}};
+impl::event_awaitable<impl::keyed_event<key, Obj>> on_event(Obj const& source) {
+    return impl::event_awaitable<impl::keyed_event<key, Obj>>{{source}};
 }
 
 /// A wait on an event this object has but the generated vocabulary does not
 /// name, given by its own two members.
 template <typename Obj, typename Add, typename Remove>
-event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(Obj const& source, Add add,
-                                                              Remove remove) {
-    return event_awaitable<impl::member_event<Obj, Add, Remove>>{{source, add, remove}};
+impl::event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(Obj const& source, Add add,
+                                                                     Remove remove) {
+    return impl::event_awaitable<impl::member_event<Obj, Add, Remove>>{{source, add, remove}};
 }
 
 /// And a wait on an event of the type itself, which has no object to be
@@ -462,49 +458,51 @@ event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(Obj const& source
 /// pointers, so that an object handed in their place, a core::event among
 /// them, finds the form meant for it or none.
 template <impl::function_pointer Add, impl::function_pointer Remove>
-event_awaitable<impl::type_event<Add, Remove>> on_event(Add add, Remove remove) {
-    return event_awaitable<impl::type_event<Add, Remove>>{{add, remove}};
+impl::event_awaitable<impl::type_event<Add, Remove>> on_event(Add add, Remove remove) {
+    return impl::event_awaitable<impl::type_event<Add, Remove>>{{add, remove}};
 }
 
 /// Each of the three under a cancellation token, given last:
-/// `on_event<EventKey::Click>(button, stop)`.
+/// `on_event<EventKey::Click>(button, token)`.
 template <EventKey key, typename Obj>
-cancellable_event_awaitable<impl::keyed_event<key, Obj>> on_event(Obj const& source,
-                                                                  async::cancellation_token stop) {
-    return cancellable_event_awaitable<impl::keyed_event<key, Obj>>{{source}, std::move(stop)};
+impl::cancelable_event_awaitable<impl::keyed_event<key, Obj>> on_event(
+    Obj const& source, async::cancellation_token token) {
+    return impl::cancelable_event_awaitable<impl::keyed_event<key, Obj>>{{source},
+                                                                         std::move(token)};
 }
 
 template <typename Obj, typename Add, typename Remove>
-cancellable_event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(
-    Obj const& source, Add add, Remove remove, async::cancellation_token stop) {
-    return cancellable_event_awaitable<impl::member_event<Obj, Add, Remove>>{{source, add, remove},
-                                                                             std::move(stop)};
+impl::cancelable_event_awaitable<impl::member_event<Obj, Add, Remove>> on_event(
+    Obj const& source, Add add, Remove remove, async::cancellation_token token) {
+    return impl::cancelable_event_awaitable<impl::member_event<Obj, Add, Remove>>{
+        {source, add, remove}, std::move(token)};
 }
 
 template <impl::function_pointer Add, impl::function_pointer Remove>
-cancellable_event_awaitable<impl::type_event<Add, Remove>> on_event(Add add, Remove remove,
-                                                                    async::cancellation_token stop) {
-    return cancellable_event_awaitable<impl::type_event<Add, Remove>>{{add, remove}, std::move(stop)};
+impl::cancelable_event_awaitable<impl::type_event<Add, Remove>> on_event(
+    Add add, Remove remove, async::cancellation_token token) {
+    return impl::cancelable_event_awaitable<impl::type_event<Add, Remove>>{{add, remove},
+                                                                           std::move(token)};
 }
 
 /// A wait on the next invocation of an event of the application's own, under a
 /// cancellation token. An event cleared or ended while the coroutine waits ends the wait,
 /// on the queue's next turn, as one whose event will not come.
 template <typename... Args>
-impl::event_wait_under<impl::core_event_wait<core::event<void(Args...)>, Args...>,
-                       async::cancellation_token>
-on_event(core::event<void(Args...)>& event, async::cancellation_token stop) {
-    return impl::event_wait_under<impl::core_event_wait<core::event<void(Args...)>, Args...>,
-                                  async::cancellation_token>{std::move(stop), event};
+impl::cancelable_event_wait<impl::core_event_wait<core::event<void(Args...)>, Args...>,
+                            async::cancellation_token>
+on_event(core::event<void(Args...)>& event, async::cancellation_token token) {
+    return impl::cancelable_event_wait<impl::core_event_wait<core::event<void(Args...)>, Args...>,
+                                       async::cancellation_token>{std::move(token), event};
 }
 
 /// The same for the signature spelled noexcept.
 template <typename... Args>
-impl::event_wait_under<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
-                       async::cancellation_token>
-on_event(core::event<void(Args...) noexcept>& event, async::cancellation_token stop) {
-    return impl::event_wait_under<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
-                                  async::cancellation_token>{std::move(stop), event};
+impl::cancelable_event_wait<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
+                            async::cancellation_token>
+on_event(core::event<void(Args...) noexcept>& event, async::cancellation_token token) {
+    return impl::cancelable_event_wait<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
+                                  async::cancellation_token>{std::move(token), event};
 }
 
 /// The keyed wait through its tag: `onClick(button)` is `on_event<EventKey::Click>(button)`.
@@ -513,22 +511,22 @@ on_event(core::event<void(Args...) noexcept>& event, async::cancellation_token s
 template <EventKey key, typename Owner>
 template <typename Obj>
     requires std::derived_from<Obj, Object>
-auto Event<key, Owner>::operator()(Obj const& source) const {
+auto impl::event_tag<key, Owner>::operator()(Obj const& source) const {
     impl::check_owner<Owner, Obj>();
 
     return on_event<key>(source);
 }
 
-/// And under a token: `onClick(button, stop)`.
+/// And under a token: `onClick(button, token)`.
 template <EventKey key, typename Owner>
-template <typename Obj, typename Stop>
+template <typename Obj, typename Token>
     requires std::derived_from<Obj, Object>
-auto Event<key, Owner>::operator()(Obj const& source, Stop stop) const {
-    static_assert(std::is_same_v<Stop, async::cancellation_token>,
+auto impl::event_tag<key, Owner>::operator()(Obj const& source, Token token) const {
+    static_assert(std::is_same_v<Token, async::cancellation_token>,
                   "wxl: an event is awaited under an async::cancellation_token");
     impl::check_owner<Owner, Obj>();
 
-    return on_event<key>(source, std::move(stop));
+    return on_event<key>(source, std::move(token));
 }
 
 }  // namespace wxl

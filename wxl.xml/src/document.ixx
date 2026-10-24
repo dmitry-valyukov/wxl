@@ -50,7 +50,7 @@ public:
     /// Reads the stream to its end and parses it as UTF-8.
     ///
     /// @throw exception when the stream fails before it ends, naming the byte
-    /// it got to -- a document cut short would otherwise be reported as a
+    /// it got to -- a read aborted midway would otherwise be reported as a
     /// broken one, which sends its reader looking in the wrong place.
     /// @throw parsing_exception
     const node& load(std::istream& source, std::string_view file_name = {});

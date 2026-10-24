@@ -174,10 +174,11 @@ int main() {
 
         offset.set(900.0);
         check(viewer.jumps == 1 && viewer.going == 500.0 && offset.get() == 500.0,
-              "past the extent: cut to it, and the viewer asked once");
+              "past the extent: clamped to it, and the viewer asked once");
         bool never_past = true;
         for (double const value : heard) never_past = never_past && value == 500.0;
-        check(!heard.empty() && never_past, "past the extent: the application hears the cut value");
+        check(!heard.empty() && never_past,
+              "past the extent: the application hears the clamped value");
         viewer.arrive(offset);
 
         offset.set(-20.0);

@@ -80,7 +80,7 @@ P2 — 30, P3 — 21, вне каталога 5.
 | INF-09 | Источники света | `AmbientLight`, `PointLight`, `SpotLight`, `DistantLight` с `Targets`; блик — `SceneLightingEffect` | MAT-10, LGT-13, INT-15, MAT-14 | P2 |
 | INF-10 | Фигуры композитора | `ShapeVisual`, `CompositionSpriteShape`, `CompositionPathGeometry`, `PathKeyFrameAnimation`, `TrimStart` / `TrimEnd` | MOT-14, ADV-02, ADV-07, STA-08 | P2 |
 | INF-11 | Потеря устройства у `DrawingSurface` | Задача уже запланирована: событие `RenderingDeviceReplaced` в профиле есть, но на него никто не подписан. Её нужно решить до первого эффекта на Direct2D | Все эффекты на Direct2D | P2 |
-| INF-12 | `wxl::impl::EventAdder` для событий типа | Задача уже запланирована: `on_event<EventKey::Rendering, CompositionTarget>()` вместо членов; именно так `HaloEffect` ожидает кадр | Эффекты, ожидающие кадр | P2 |
+| INF-12 | `wxl::impl::event_adder` для событий типа | Задача уже запланирована: `on_event<EventKey::Rendering, CompositionTarget>()` вместо членов; именно так `HaloEffect` ожидает кадр | Эффекты, ожидающие кадр | P2 |
 | INF-13 | Слой Direct3D с собственными шейдерами | Цепочка обмена (swap chain) как поверхность композитора (`ICompositorInterop::CreateCompositionSurfaceForSwapChain`) и HLSL; для статичного изображения — собственный эффект Direct2D в `DrawingSurface`. Единственный путь к собственным шейдерам | MAT-08, MAT-09, ADV-09…ADV-12, LGT-03 (конический) | P3 |
 
 ## P1 — минимальный уровень паритета
@@ -137,7 +137,7 @@ DSL.
 | INT-07 | Перетаскивание с подъёмом | В списках — `ListView.CanReorderItems`; в собственных элементах — `Translation` с подъёмом по Z и `ThemeShadow` | INF-08 |
 | INT-09 | Свайп с учётом скорости | `InteractionTracker` с упорами; кандидат на применение — листание страниц жестом | INF-08 |
 | INT-13 | Магнитная кнопка | Выражение по позиции указателя с затуханием по расстоянию, возврат пружиной | INF-04, INF-05 |
-| INT-14 | Собственный курсор и следящий элемент | `ProtectedCursor` (в **wxl** есть `cursor.h`) и визуал-«хвост», который следует на пружине за позицией указателя | INF-04, INF-05 |
+| INT-14 | Собственный курсор и следящий элемент | `ProtectedCursor` (в **wxl** есть `impl::set_cursor`, `element_helpers.h`) и визуал-«хвост», который следует на пружине за позицией указателя | INF-04, INF-05 |
 | INT-15 | 3D-наклон с бликом | `RotationAxis` и перспектива в `TransformMatrix` родителя, вычисляемые от позиции указателя; блик — MAT-10 | INF-05, INF-09 |
 | SCR-05 | Прогресс чтения | `Scale.X` полосы из выражения от прокрутки | INF-05 |
 | SCR-06 | Схлопывание крупного заголовка | То же выражение, что в SCR-02, по `Scale` и `Offset` заголовка | INF-05 |
@@ -246,7 +246,7 @@ DSL.
 
 **Код wxl:** `wxl.ui/src` — `HaloEffect.h`, `BevelEffect.h`, `Card.h`,
 `CompositionWindow.h`, `DrawingSurface.h`, `TextureCache.h`, `WindowShade.h`,
-`WindowBackdrop.h`; профили `base`, `extended`, `rich`; `samples/Quadratic`.
+`WindowNative.h`; профили `base`, `extended`, `rich`; `samples/Quadratic`.
 
 **Microsoft Learn:**
 

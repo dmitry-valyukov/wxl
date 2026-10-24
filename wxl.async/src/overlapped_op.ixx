@@ -89,8 +89,8 @@ private:
     ///         the call brought all it was asked for; less is the end of the file.
     bool advance(DWORD transferred) noexcept;
 
-    /// Ends the operation: with what has been transferred, or with the error -- and, cut
-    /// short, with the cancellation.
+    /// Ends the operation: with what has been transferred, or with the error -- and, aborted,
+    /// with the cancellation.
     void finish(DWORD error) noexcept;
 
     OVERLAPPED overlapped_{};

@@ -47,7 +47,7 @@ auto options = StackPanel {
         smallChange = 0.001,
         stepFrequency = 0.001,
         value = 0.8,
-        onValueChanged = [brush](Slider const& self) { brush.tintOpacity(self.value()); },
+        onValueChanged += [brush](Slider const& self) { brush.tintOpacity(self.value()); },
     },
     TextBlock {Margin {0, 12}, u"Tint Color :"},
     ComboBox {
@@ -56,7 +56,7 @@ auto options = StackPanel {
         swatch(colors.red, u"#FFFF0000"),
         swatch(colors.blue, u"#FF0000FF"),
         selectedIndex = 0,
-        onSelectionChanged = [brush](ComboBox const& self) {
+        onSelectionChanged += [brush](ComboBox const& self) {
             static constexpr Color tints[] = {colors.black, colors.red, colors.blue};
             brush.tintColor(tints[self.selectedIndex()]);
         },
@@ -67,7 +67,7 @@ auto options = StackPanel {
         swatch(colors.green, u"#FF008000"),
         swatch(rgb(255, 255, 0), u"#FFFFFF00"),
         selectedIndex = 0,
-        onSelectionChanged = [brush](ComboBox const& self) {
+        onSelectionChanged += [brush](ComboBox const& self) {
             static constexpr Color fallbacks[] = {colors.green, rgb(255, 255, 0)};
             brush.fallbackColor(fallbacks[self.selectedIndex()]);
         },

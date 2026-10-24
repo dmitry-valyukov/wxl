@@ -7,7 +7,7 @@
 
 #include <wxl/Microsoft.UI.Composition.h>
 
-#include "impl/rendering_device.h"
+#include "impl/event_watch.h"
 
 // wxl::DrawingSurface -- a rectangle of pixels the application draws itself
 // and the compositor shows.
@@ -183,20 +183,20 @@ public:
     /// device is replaced: read it again in the RenderingDeviceWatch listener.
     std::int32_t maxUpdateSide() const;
 
-    /// Draws one part of the surface, `updatePixels` cut to the surface's boundaries.
+    /// Draws one part of the surface, `updatePixels` clamped to the surface's boundaries.
     ///
     /// The context arrives cleared to transparent within the part, clipped to it, and with
     /// its transform set so that the paint draws in the coordinates of the whole surface:
     /// a line at y = 40000 is drawn at y = 40000, whatever part of the texture the
     /// compositor handed out for it.
     ///
-    /// The part, once cut, must be no longer than maxUpdateSide() on either side; a longer
+    /// The part, once clamped, must be no longer than maxUpdateSide() on either side; a longer
     /// one stops the process. The limit is the caller's to keep -- splitting the part here
     /// would hide a caller who thinks the device draws more at once than it does. On a new
     /// device whose watches have not been called yet the drawing answers false before the
-    /// limit is asked: the owner's parts were cut by the old device's.
+    /// limit is asked: the owner's parts were split by the old device's.
     ///
-    /// False when nothing was drawn: the part is empty once cut, there is no paint, or the
+    /// False when nothing was drawn: the part is empty once clamped, there is no paint, or the
     /// device is lost or new and its watches have not been called yet -- as
     /// DrawingSurface::draw says. Any other failure throws.
     bool draw(RectInt32 updatePixels, std::function<void(ID2D1DeviceContext*)> const& paint) const;
@@ -220,11 +220,14 @@ namespace impl {
 /// The pair of calls a RenderingDeviceWatch subscribes through: the handlers of one
 /// compositor's graphics device -- the one every DrawingSurface on it is allocated from.
 /// wxl calls them itself once every graphics device has the new rendering device. Tokens
-/// come from the counter the window's events share, and remove() answers whether the token
-/// was there.
+/// come from the counter the window's events share, and remove() empties the caller's token and
+/// answers whether it was there.
 struct rendering_device_replaced {
+    template <class>
+    using args_t = Object;
+
     static EventToken add(Compositor const& compositor, EventHandler<Object> handler);
-    static bool remove(Compositor const& compositor, EventToken token);
+    static bool remove(Compositor const& compositor, EventToken& token);
 };
 
 }  // namespace impl
@@ -237,6 +240,7 @@ struct rendering_device_replaced {
 /// with the compositor and the owner from the start or by attach() once, taken off by its
 /// own end. Not copied, not moved.
 template <auto Listener>
-using RenderingDeviceWatch = impl::device_watch<Compositor, impl::rendering_device_replaced, Listener>;
+using RenderingDeviceWatch =
+    impl::event_watch<Compositor, impl::rendering_device_replaced, Listener>;
 
 }  // namespace wxl

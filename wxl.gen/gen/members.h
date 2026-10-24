@@ -102,10 +102,10 @@ struct member_info {
     // the profile -- which is what lets the tag build one from braces.
     bool braced = false;
 
-    // The form with a token of an asynchronous method: its last parameter, `stop`, is wxl's and
+    // The form with a token of an asynchronous method: its last parameter, the token, is wxl's and
     // not the projection's -- the call is made without it, and the operation stands under it
-    // (result.from_winrt is the operation's from_winrt_under).
-    bool under_token = false;
+    // (result.from_winrt is the operation's from_winrt_cancelable).
+    bool cancelable = false;
 
     // The member's .NET documentation ID, on the type the documentation files
     // key it on (see documentation.h); empty for a member the metadata does not
@@ -117,6 +117,11 @@ struct member_info {
 // The parameters the projection's call is handed: all of them, but the token of a form with
 // one.
 std::size_t projection_arity(member_info const& member);
+
+// The name of the token a form with one takes last: `token`, and `cancellation` where the
+// method has a parameter `token` of its own -- a name of the projection's, which is not wxl's to
+// change. Throws when the method has both.
+std::string cancellation_parameter_name(std::vector<param_info> const& params);
 
 // What a member cannot be generated for, so the trimming stays visible
 // instead of a member simply not being there.

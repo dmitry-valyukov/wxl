@@ -117,7 +117,7 @@ auto example = StackPanel {
         automationId = u"WindowingOpenConfiguredWindow",
         automationName = u"Open a window with the configured client size and constraints",
         content = u"Open configured window",
-        onClick = [model](Button const&) { model->open(); },
+        onClick += [model](Button const&) { model->open(); },
     },
 };
 

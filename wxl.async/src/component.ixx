@@ -87,17 +87,17 @@ public:
     /// what that std::function parameter did for free, and it names the shape it wants:
     /// `void()` here, `void(const stop_reason &)` there.
     ///
-    /// \return the cookie unsubscribe_on_started() cancels this subscription by.
+    /// \return the token unsubscribe_on_started() cancels this subscription by.
     template <core::invocable<void() noexcept> F>
-    core::cookie_t subscribe_on_started(F && callback) {
+    core::event_token subscribe_on_started(F && callback) {
         return subscribe_on_started(on_started_callback::create(std::forward<F>(callback)));
     }
 
-    /// Cancels a subscription made by subscribe_on_started().
-    /// \return false if the component has no such subscription: the cookie belongs to
-    ///         another event, or was cancelled already, or the callbacks have been called
-    ///         and dropped.
-    bool unsubscribe_on_started(core::cookie_t cookie);
+    /// Cancels a subscription made by subscribe_on_started(), and empties the token; an empty
+    /// one -- cancelled already, or never given -- stops the process.
+    /// \return false if the component has no such subscription: the token belongs to
+    ///         another event, or the callbacks have been called and dropped.
+    bool unsubscribe_on_started(core::event_token & token);
 
     /// Requests the component to stop.
     ///
@@ -133,15 +133,15 @@ public:
     ///          subscribe_on_started(): an exception out of a noexcept callback ends
     ///          the process.
     /// \note Called under the sync_root mutex, as with subscribe_on_started().
-    /// \return the cookie unsubscribe_on_stopped() cancels this subscription by.
+    /// \return the token unsubscribe_on_stopped() cancels this subscription by.
     template <core::invocable<void(const stop_reason &) noexcept> F>
-    core::cookie_t subscribe_on_stopped(F && callback) {
+    core::event_token subscribe_on_stopped(F && callback) {
         return subscribe_on_stopped(on_stopped_callback::create(std::forward<F>(callback)));
     }
 
     /// Cancels a subscription made by subscribe_on_stopped().
     /// \return false if the component has no such subscription, see unsubscribe_on_started().
-    bool unsubscribe_on_stopped(core::cookie_t cookie);
+    bool unsubscribe_on_stopped(core::event_token & token);
 
 protected:
     /// \param name Name of the component; can be used in diagnostics, can be empty.
@@ -276,9 +276,9 @@ private:
     /// under the lock. Private, so that the way in stays the templates, which build the
     /// callback themselves and cannot be handed a pointer to something else.
     ///@{
-    core::cookie_t subscribe_on_started(core::not_null<on_started_callback> callback);
+    core::event_token subscribe_on_started(core::not_null<on_started_callback> callback);
 
-    core::cookie_t subscribe_on_stopped(core::not_null<on_stopped_callback> callback);
+    core::event_token subscribe_on_stopped(core::not_null<on_stopped_callback> callback);
     ///@}
 
     /// The shared state of the component, and its only field: everything a component keeps

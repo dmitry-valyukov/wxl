@@ -136,10 +136,10 @@ void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
                       bind_direction direction = bind_direction::both);
 
 /// ScrollViewer.verticalOffset <-> observable<double>, under ViewChanged once the
-/// view has settled. A value scrolls the viewer there without animation, cut to
-/// the content's extent; a viewer out of the tree is scrolled when it is
+/// view has settled. A value scrolls the viewer there without animation, clamped
+/// to the content's extent; a viewer out of the tree is scrolled when it is
 /// loaded. The field says where the viewer is, or is going: the offset it was
-/// cut to, or the one it stays at when the viewer refuses.
+/// clamped to, or the one it stays at when the viewer refuses.
 void apply_bind_vertical_offset(ScrollViewer const& control, core::observable<double>& model,
                                 bind_direction direction = bind_direction::both);
 
@@ -150,7 +150,7 @@ void apply_bind_vertical_offset(ScrollViewer const& control, core::observable<do
 // takes BindOutput alone.
 
 template <>
-struct PropertyBinder<PropertyKey::IsOn, ToggleSwitch> {
+struct property_binder<PropertyKey::IsOn, ToggleSwitch> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ToggleSwitch const& control, core::observable<bool>& model,
                      bind_direction asked) {
@@ -159,7 +159,7 @@ struct PropertyBinder<PropertyKey::IsOn, ToggleSwitch> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::IsChecked, ToggleButton> {
+struct property_binder<PropertyKey::IsChecked, ToggleButton> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ToggleButton const& control, core::observable<bool>& model,
                      bind_direction asked) {
@@ -171,7 +171,7 @@ struct PropertyBinder<PropertyKey::IsChecked, ToggleButton> {
 // base needs the CheckBox complete, and this header only declares it. The body
 // is compiled where the binding is written, which has the whole class.
 template <>
-struct PropertyBinder<PropertyKey::IsChecked, CheckBox> {
+struct property_binder<PropertyKey::IsChecked, CheckBox> {
     static constexpr bind_direction direction = bind_direction::both;
     template <class Control>
     static void bind(Control const& control, core::observable<bool>& model,
@@ -186,7 +186,7 @@ struct PropertyBinder<PropertyKey::IsChecked, CheckBox> {
 // control's whole class.
 template <class Control>
     requires std::derived_from<Control, Selector>
-struct PropertyBinder<PropertyKey::SelectedIndex, Control> {
+struct property_binder<PropertyKey::SelectedIndex, Control> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(Selector const& control, core::observable<int>& model,
                      bind_direction asked) {
@@ -195,7 +195,7 @@ struct PropertyBinder<PropertyKey::SelectedIndex, Control> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::Value, NumberBox> {
+struct property_binder<PropertyKey::Value, NumberBox> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(NumberBox const& control, core::observable<int>& model,
                      bind_direction asked) {
@@ -208,7 +208,7 @@ struct PropertyBinder<PropertyKey::Value, NumberBox> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::SelectedIndex, RadioButtons> {
+struct property_binder<PropertyKey::SelectedIndex, RadioButtons> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(RadioButtons const& control, core::observable<int>& model,
                      bind_direction asked) {
@@ -217,7 +217,7 @@ struct PropertyBinder<PropertyKey::SelectedIndex, RadioButtons> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::Value, Slider> {
+struct property_binder<PropertyKey::Value, Slider> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(Slider const& control, core::observable<double>& model,
                      bind_direction asked) {
@@ -226,7 +226,7 @@ struct PropertyBinder<PropertyKey::Value, Slider> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::Value, RatingControl> {
+struct property_binder<PropertyKey::Value, RatingControl> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(RatingControl const& control, core::observable<double>& model,
                      bind_direction asked) {
@@ -235,7 +235,7 @@ struct PropertyBinder<PropertyKey::Value, RatingControl> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::Color, ColorPicker> {
+struct property_binder<PropertyKey::Color, ColorPicker> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ColorPicker const& control, core::observable<Color>& model,
                      bind_direction asked) {
@@ -244,7 +244,7 @@ struct PropertyBinder<PropertyKey::Color, ColorPicker> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::IsChecked, ToggleMenuFlyoutItem> {
+struct property_binder<PropertyKey::IsChecked, ToggleMenuFlyoutItem> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
                      bind_direction asked) {
@@ -253,7 +253,7 @@ struct PropertyBinder<PropertyKey::IsChecked, ToggleMenuFlyoutItem> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
+struct property_binder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
                      bind_direction asked) {
@@ -262,7 +262,7 @@ struct PropertyBinder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::SelectedPageIndex, PipsPager> {
+struct property_binder<PropertyKey::SelectedPageIndex, PipsPager> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(PipsPager const& control, core::observable<int>& model,
                      bind_direction asked) {
@@ -271,7 +271,7 @@ struct PropertyBinder<PropertyKey::SelectedPageIndex, PipsPager> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::SelectedPageIndex, PagerControl> {
+struct property_binder<PropertyKey::SelectedPageIndex, PagerControl> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(PagerControl const& control, core::observable<int>& model,
                      bind_direction asked) {
@@ -280,7 +280,7 @@ struct PropertyBinder<PropertyKey::SelectedPageIndex, PagerControl> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::IntermediateValue, NumberBox> {
+struct property_binder<PropertyKey::IntermediateValue, NumberBox> {
     static constexpr bind_direction direction = bind_direction::input;
     static void bind(NumberBox const& control, core::observable<double>& model, bind_direction) {
         apply_bind_intermediate_value(control, model);
@@ -293,7 +293,7 @@ struct PropertyBinder<PropertyKey::IntermediateValue, NumberBox> {
 // conversion to UIElement happens there too.
 template <class Element>
     requires std::derived_from<Element, UIElement>
-struct PropertyBinder<PropertyKey::IsFocused, Element> {
+struct property_binder<PropertyKey::IsFocused, Element> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(UIElement const& control, core::observable<bool>& model,
                      bind_direction asked) {
@@ -302,7 +302,7 @@ struct PropertyBinder<PropertyKey::IsFocused, Element> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::VerticalOffset, ScrollViewer> {
+struct property_binder<PropertyKey::VerticalOffset, ScrollViewer> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(ScrollViewer const& control, core::observable<double>& model,
                      bind_direction asked) {
@@ -311,7 +311,7 @@ struct PropertyBinder<PropertyKey::VerticalOffset, ScrollViewer> {
 };
 
 template <>
-struct PropertyBinder<PropertyKey::Text, TextBox> {
+struct property_binder<PropertyKey::Text, TextBox> {
     static constexpr bind_direction direction = bind_direction::both;
     static void bind(TextBox const& control, core::observable<core::u16_text>& model,
                      bind_direction asked) {

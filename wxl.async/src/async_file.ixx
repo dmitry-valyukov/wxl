@@ -45,13 +45,13 @@ export namespace wxl::async {
 /// **Which loop is not asked and cannot be told**: there is one, it is the STA
 /// thread's, and `sta_loop` is static from top to bottom.
 ///
-/// **Asking an operation to end.** What can be cut short has a second form, with a
-/// `cancellation_token` as its last argument, and the operation stands under the token
-/// while it lives. Asked, an operation not started is never started, a read or a write the
+/// **Asking an operation to end.** What can be aborted has a second form, with a
+/// `cancellation_token` as its last argument, and the operation is registered with the
+/// token while it lives. Asked, an operation not started is never started, a read or a write the
 /// kernel holds is let go by CancelIoEx, and an opening or a file by name standing in the
 /// system has the synchronous call it stands in cancelled, where the system can cancel it;
 /// read_all() and write_all() stop between their steps. The cancellation is the answer of an
-/// operation cut short or never started; one that got there first answers with its own
+/// operation aborted or never started; one that got there first answers with its own
 /// result or its own failure -- a file written whole and renamed is written, whenever the
 /// request came, and the co_await says so. Either way the co_await ends once the operation
 /// has let go -- of the frame, and of the file: an operation by name is waited for too,
@@ -59,7 +59,7 @@ export namespace wxl::async {
 /// meets it still holding the file. Under a token cancelled already nothing is started at
 /// all, and the co_await ends with operation_canceled_exception at once. The form without
 /// a token is the same operation and costs what it always did. size(), flush() and close()
-/// have no such form: there is nothing in them to cut short, and a flush cut short is a
+/// have no such form: there is nothing in them to abort, and an aborted flush is a
 /// file that does not survive a power cut.
 ///
 /// **Giving an operation up.** Opening and creating own everything they touch,
@@ -177,25 +177,26 @@ public:
     /// The operations above under a token, its last argument; see "Asking an operation
     /// to end" above. Each returns the same task as its form without a token.
     ///@{
-    static task<async_file> open_read(const core::path& path, cancellation_token stop);
+    static task<async_file> open_read(const core::path& path, cancellation_token token);
 
-    static task<async_file> create(const core::path& path, cancellation_token stop);
+    static task<async_file> create(const core::path& path, cancellation_token token);
 
-    [[nodiscard]] static task<std::string> read_all(const core::path& path, cancellation_token stop);
+    [[nodiscard]] static task<std::string> read_all(const core::path& path, cancellation_token token);
 
-    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes, cancellation_token stop);
+    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes, cancellation_token token);
 
-    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token stop);
+    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token token);
 
-    [[nodiscard]] task<std::size_t> read(std::span<std::byte> into, cancellation_token stop);
+    [[nodiscard]] task<std::size_t> read(std::span<std::byte> into, cancellation_token token);
 
     template <class T, std::size_t N>
         requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
-    [[nodiscard]] task<std::size_t> read(T (&into)[N], cancellation_token stop) {
-        return read(std::as_writable_bytes(std::span{into}), std::move(stop));
+    [[nodiscard]] task<std::size_t> read(T (&into)[N], cancellation_token token) {
+        return read(std::as_writable_bytes(std::span{into}), std::move(token));
     }
 
-    [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from, cancellation_token stop);
+    [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from,
+                                          cancellation_token token);
     ///@}
 
     inline bool opened() const noexcept { return file_.opened(); }

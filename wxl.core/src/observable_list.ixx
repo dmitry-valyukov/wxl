@@ -87,14 +87,18 @@ public:
     /// have heard of the change and before its application watches do.
     observable<uint32_t const>& count() noexcept { return count_; }
 
-    /// Watches for changes; the returned cookie removes the watch. Called after the
+    /// Watches for changes; the returned token removes the watch. Called after the
     /// bindings, with the change already made.
     template <class F>
-    cookie_t on_change(F&& callback) {
+    event_token on_change(F&& callback) {
         return changed_.add(std::forward<F>(callback));
     }
 
-    bool remove_change(cookie_t cookie) { return changed_.remove(cookie); }
+    /// Takes the watch off and empties the token (event::remove).
+    bool remove_change(event_token& token) { return changed_.remove(token); }
+
+    /// The same for a watch built into its subscriber, by its node: a change_watch.
+    bool remove_change(typename changed_event::func_t& node) { return changed_.remove(node); }
 
     /// Watches for changes on behalf of a binding -- a view mirroring the list -- the list
     /// keeping the watch, as observable::watch_for_binding does, and a binding_scope open
@@ -104,7 +108,7 @@ public:
         impl::add_binding_watch(bound_, std::forward<F>(callback));
     }
 
-    /// Cuts every binding watch, leaving the application's alone; see observable::unbind.
+    /// Drops every binding watch, leaving the application's alone; see observable::unbind.
     void unbind() { bound_.clear(); }
 
 protected:

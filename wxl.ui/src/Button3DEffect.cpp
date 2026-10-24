@@ -20,7 +20,6 @@
 #include <bit>
 #include <chrono>
 #include <cmath>
-#include <memory>
 #include <vector>
 
 #include "Button3DEffect.h"
@@ -33,9 +32,9 @@
 #include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
 #include <wxl/Microsoft.UI.Xaml.Media.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/effect_layer.h"
+#include "impl/effect_helpers.h"
 #include "impl/key_relief.h"
-#include "impl/pointer_lamp.h"
+#include "impl/pointer_spot_light.h"
 
 namespace wxl {
 
@@ -120,8 +119,8 @@ struct Maps {
 
 }  // namespace
 
-struct Button3DEffect::State : core::sta_refcounted {
-    struct Patch;
+struct Button3DEffect::Impl : core::sta_refcounted {
+    struct Attachment;
 
     Color ink = rgb(237, 239, 242);
     Color albedo = rgb(68, 72, 79);
@@ -159,9 +158,9 @@ struct Button3DEffect::State : core::sta_refcounted {
 
     std::vector<Scene> scenes;
     std::vector<Maps> maps;
-    // The keys attached and on screen, by bare pointer: a patch leaves the
+    // The keys attached and on screen, by bare pointer: an attachment leaves the
     // list before it goes.
-    std::vector<Patch*> patches;
+    std::vector<Attachment*> attachments;
     composition::CompositionColorBrush base{nullptr};
     composition::CompositionColorBrush shadowBrush{nullptr};
     // The glyphs of a pressed key: one brush for every key of the effect,
@@ -215,8 +214,8 @@ struct Button3DEffect::State : core::sta_refcounted {
 
     // --- the pictures
 
-    impl::KeyRelief relief_of(float width, float height, float corner, bool pressedKey) const {
-        impl::KeyRelief key;
+    impl::key_relief relief_of(float width, float height, float corner, bool pressedKey) const {
+        impl::key_relief key;
         key.width = width;
         key.height = height;
         key.corner = corner;
@@ -232,8 +231,8 @@ struct Button3DEffect::State : core::sta_refcounted {
         return key;
     }
 
-    impl::HoleShadow hole() const {
-        impl::HoleShadow shadowOfEdge;
+    impl::hole_shadow hole() const {
+        impl::hole_shadow shadowOfEdge;
         shadowOfEdge.depth = travel - rise;
         shadowOfEdge.azimuth = azimuth;
         shadowOfEdge.elevation = elevation;
@@ -363,12 +362,12 @@ struct Button3DEffect::State : core::sta_refcounted {
         return static_cast<int>(maps.size() - 1);
     }
 
-    // The pictures of a size nobody wears any more go; the patches that
+    // The pictures of a size nobody wears any more go; the attachments that
     // wear later ones move down with them.
     void release_maps(int index);
 
     // The glyphs of a pressed key keep 1 - labelShade of their colour.
-    Color pressedInkColor() const { return color_helper::shade(ink, 1.0 - labelShade); }
+    Color pressedInkColor() const { return ColorHelper::shade(ink, 1.0 - labelShade); }
 
     void redye() const {
         if (pressedInk) pressedInk->color(pressedInkColor());
@@ -384,9 +383,11 @@ struct Button3DEffect::State : core::sta_refcounted {
 };
 
 // One attached key: its body, made on Loaded, taken off on Unloaded. The
-// element's own events hold the handlers that hold this.
-struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
-    core::intrusive_ptr<State> state;
+// element's own events hold the handlers that hold this; the handlers of a
+// frame, a size and a press reach it through its weak_link. All of them are
+// the UI thread's.
+struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_linked<Attachment> {
+    core::intrusive_ptr<Impl> impl;
     winrt::weak_ref<xaml::FrameworkElement> element;
     winrt::weak_ref<xaml::UIElement> root;
     // Bottom up: the panel, a clear sprite wider than the key that takes
@@ -450,17 +451,17 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
         shade.Clip(compositor.CreateGeometricClip(shadeShape));
 
         bodyCorner = std::max(impl::corner_of(fe) - outlineWidth, 0.0f);
-        state->patches.push_back(this);
+        impl->attachments.push_back(this);
         fit(static_cast<float>(fe.ActualWidth()), static_cast<float>(fe.ActualHeight()));
 
-        // Aimed at before they are shown: see impl::Lamp::shining.
-        Scene const& scene = state->scene_of(island);
+        // Aimed at before they are shown: see impl::island_spot_light::shining.
+        Scene const& scene = impl->scene_of(island);
         for (auto const& sprite : {rim, face}) {
             scene.ambient.Targets().Add(sprite);
             scene.distant.Targets().Add(sprite);
         }
-        state->hover.beam().light_up(island, face);
-        state->border.beam().light_up(island, rim);
+        impl->hover.spot_light().light_up(island, face);
+        impl->border.spot_light().light_up(island, rim);
 
         // The shadow on the panel: from the distant lamp, cast by the rim --
         // it is the whole key. One shadow per key: of one shadow's casters the
@@ -472,13 +473,13 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
         cast.Receivers().Add(receiver);
         caster = compositor.CreateProjectedShadowCaster();
         caster.CastingVisual(rim);
-        caster.Brush(state->shadowBrush);
+        caster.Brush(impl->shadowBrush);
         cast.Casters().InsertAtTop(caster);
         blur();
 
         impl::when_drawn(host.as<composition::ContainerVisual>(),
-                         [weak = weak_from_this(), layer = outline](auto const& children) {
-                             auto const self = weak.lock();
+                         [link = weak_link(), layer = outline](auto const& children) {
+                             core::intrusive_ptr<Attachment> const self = link->get();
                              // Unloaded before the frame came: nothing to put there.
                              if (!self || self->outline != layer) return;
                              impl::insert_layer(children, self->panel, panelZ);
@@ -487,16 +488,16 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
                              }
                          });
 
-        sized = fe.SizeChanged(winrt::auto_revoke, [weak = weak_from_this()](auto&&, auto const& args) {
-            if (auto const self = weak.lock()) {
+        sized = fe.SizeChanged(winrt::auto_revoke, [link = weak_link()](auto&&, auto const& args) {
+            if (core::intrusive_ptr<Attachment> const self = link->get()) {
                 auto const size = args.NewSize();
                 self->fit(static_cast<float>(size.Width), static_cast<float>(size.Height));
             }
         });
         pressedToken = fe.RegisterPropertyChangedCallback(
             xaml::Controls::Primitives::ButtonBase::IsPressedProperty(),
-            [weak = weak_from_this()](xaml::DependencyObject const& sender, auto&&) {
-                if (auto const self = weak.lock()) {
+            [link = weak_link()](xaml::DependencyObject const& sender, auto&&) {
+                if (core::intrusive_ptr<Attachment> const self = link->get()) {
                     self->set_pressed(sender.as<xaml::Controls::Primitives::ButtonBase>().IsPressed());
                 }
             });
@@ -512,7 +513,7 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
         outline.Size({width, height});
         outlineShape.Size({width, height});
         outlineShape.CornerRadius({bodyCorner + outlineWidth, bodyCorner + outlineWidth});
-        float const inner = outlineWidth + (pressed && state->pressMovesLabel ? pressShift : 0.0f);
+        float const inner = outlineWidth + (pressed && impl->pressMovesLabel ? pressShift : 0.0f);
         for (auto const& sprite : {rim, shade}) {
             sprite.Size({bodyWidth, bodyHeight});
             sprite.Offset({outlineWidth, outlineWidth, sprite == rim ? standing() : 0.0f});
@@ -524,32 +525,32 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
 
         int const pixelsWide = static_cast<int>(std::lround(bodyWidth * density));
         int const pixelsHigh = static_cast<int>(std::lround(bodyHeight * density));
-        if (mapsIndex >= 0 && state->maps[mapsIndex].width == pixelsWide &&
-            state->maps[mapsIndex].height == pixelsHigh) {
+        if (mapsIndex >= 0 && impl->maps[mapsIndex].width == pixelsWide &&
+            impl->maps[mapsIndex].height == pixelsHigh) {
             return;
         }
         int const was = mapsIndex;
         mapsIndex = -1;
-        state->release_maps(was);
+        impl->release_maps(was);
         bool const fresh = std::ranges::none_of(
-            state->maps, [&](Maps const& made) { return made.width == pixelsWide && made.height == pixelsHigh; });
-        mapsIndex = state->maps_for(compositor(), pixelsWide, pixelsHigh);
-        // Drawn after the patch wears it: the drawing reads the rounding off
-        // the patches of that size.
-        if (fresh) state->draw(state->maps[mapsIndex]);
+            impl->maps, [&](Maps const& made) { return made.width == pixelsWide && made.height == pixelsHigh; });
+        mapsIndex = impl->maps_for(compositor(), pixelsWide, pixelsHigh);
+        // Drawn after the attachment wears it: the drawing reads the rounding off
+        // the attachments of that size.
+        if (fresh) impl->draw(impl->maps[mapsIndex]);
         wear();
     }
 
     void wear() const {
         if (mapsIndex < 0) return;
-        Maps const& made = state->maps[mapsIndex];
+        Maps const& made = impl->maps[mapsIndex];
         rim.Brush(pressed ? made.pressedRim : made.rim);
         face.Brush(made.face);
     }
 
     void blur() const {
         if (!cast) return;
-        cast.BlurRadiusMultiplier(static_cast<float>(state->castBlur));
+        cast.BlurRadiusMultiplier(static_cast<float>(impl->castBlur));
         cast.MinBlurRadius(0.0f);
         cast.MaxBlurRadius(8.0f);
     }
@@ -558,7 +559,7 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
     // by its travel but not below the panel -- what is below casts no shadow
     // onto it.
     float standing() const {
-        return static_cast<float>(pressed ? std::max(state->rise - state->travel, 0.0) : state->rise);
+        return static_cast<float>(pressed ? std::max(impl->rise - impl->travel, 0.0) : impl->rise);
     }
 
     void set_pressed(bool down) {
@@ -566,17 +567,16 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
         pressed = down;
         auto const time = down ? pressTime : releaseTime;
         auto const compositor = this->compositor();
-        State const& s = *state;
 
         wear();
         rim.StartAnimation(L"Offset.Z", toward(compositor, standing(), time));
 
         // The release puts back everything a press could have touched,
         // whatever the flags say now.
-        if (!down || s.pressShades) {
-            shade.StartAnimation(L"Opacity", toward(compositor, down ? static_cast<float>(s.shadeAmount) : 0.0f, time));
+        if (!down || impl->pressShades) {
+            shade.StartAnimation(L"Opacity", toward(compositor, down ? static_cast<float>(impl->shadeAmount) : 0.0f, time));
         }
-        if (!down || s.pressMovesLabel) {
+        if (!down || impl->pressMovesLabel) {
             float const by = down ? pressShift : 0.0f;
             face.Offset({outlineWidth + by, outlineWidth + by, 0.0f});
             if (auto const fe = element.get()) {
@@ -588,30 +588,32 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
             }
         }
 
-        // The spot's lamp: lowered and brightened by the dive, flashed by the
-        // flash; the pointer's own fading is the beam's business.
+        // The spot's light: lowered and brightened by the dive, flashed by the
+        // flash; the pointer's own fading is the pointer spot light's business.
         auto const island = root.get();
-        impl::Beam& beam = s.hover.beam();
-        impl::Lamp const* const lamp = island ? beam.lamp_of(island) : nullptr;
-        if (!lamp) return;
-        bool const dives = down && s.pressDivesLamp;
-        float const height = beam.height * (dives ? static_cast<float>(s.diveDepth) : 1.0f);
-        if (!down || s.pressDivesLamp) {
-            lamp->light.Properties().StartAnimation(impl::lampHeightProperty, toward(compositor, height, time));
+        impl::pointer_spot_light& spot_light = impl->hover.spot_light();
+        impl::island_spot_light const* const island_light =
+            island ? spot_light.island_light_of(island) : nullptr;
+        if (!island_light) return;
+        bool const dives = down && impl->pressDivesLamp;
+        float const height = spot_light.height * (dives ? static_cast<float>(impl->diveDepth) : 1.0f);
+        if (!down || impl->pressDivesLamp) {
+            island_light->light.Properties().StartAnimation(
+                impl::pointer_spot_light::height_property, toward(compositor, height, time));
         }
-        if (!lamp->shining) return;
-        float const intensity = beam.intensity * (dives ? static_cast<float>(s.diveGain) : 1.0f);
-        if (down && s.pressFlashes) {
+        if (!island_light->shining) return;
+        float const intensity = spot_light.intensity * (dives ? static_cast<float>(impl->diveGain) : 1.0f);
+        if (down && impl->pressFlashes) {
             auto const pulse = compositor.CreateScalarKeyFrameAnimation();
-            pulse.InsertKeyFrame(0.0f, intensity * impl::lampFlashGain);
+            pulse.InsertKeyFrame(0.0f, intensity * impl::pointer_spot_light::flash_gain);
             pulse.InsertKeyFrame(1.0f, intensity);
-            pulse.Duration(impl::lampFlashTime);
-            lamp->light.StartAnimation(L"InnerConeIntensity", pulse);
-            lamp->light.StartAnimation(L"OuterConeIntensity", pulse);
+            pulse.Duration(impl::pointer_spot_light::flash_time);
+            island_light->light.StartAnimation(L"InnerConeIntensity", pulse);
+            island_light->light.StartAnimation(L"OuterConeIntensity", pulse);
         } else {
             auto const to = toward(compositor, intensity, time);
-            lamp->light.StartAnimation(L"InnerConeIntensity", to);
-            lamp->light.StartAnimation(L"OuterConeIntensity", to);
+            island_light->light.StartAnimation(L"InnerConeIntensity", to);
+            island_light->light.StartAnimation(L"OuterConeIntensity", to);
         }
     }
 
@@ -626,21 +628,21 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
             if (auto const parent = sprite.Parent()) parent.Children().Remove(sprite);
         }
         if (auto const island = root.get()) {
-            state->hover.beam().leave(island, face);
-            state->border.beam().leave(island, rim);
-            for (Scene& scene : state->scenes) {
+            impl->hover.spot_light().leave(island, face);
+            impl->border.spot_light().leave(island, rim);
+            for (Scene& scene : impl->scenes) {
                 if (scene.root.get() != island) continue;
                 for (auto const& sprite : {rim, face}) {
                     scene.ambient.Targets().Remove(sprite);
                     scene.distant.Targets().Remove(sprite);
                 }
             }
-            std::erase_if(state->scenes, [](Scene const& scene) { return scene.ambient.Targets().Count() == 0; });
+            std::erase_if(impl->scenes, [](Scene const& scene) { return scene.ambient.Targets().Count() == 0; });
         }
-        std::erase(state->patches, this);
+        std::erase(impl->attachments, this);
         int const was = mapsIndex;
         mapsIndex = -1;
-        state->release_maps(was);
+        impl->release_maps(was);
         cast = nullptr;
         caster = nullptr;
         panel = nullptr;
@@ -651,49 +653,49 @@ struct Button3DEffect::State::Patch : std::enable_shared_from_this<Patch> {
         pressed = false;
     }
 
-    ~Patch() { remove(); }
+    ~Attachment() { remove(); }
 };
 
-float Button3DEffect::State::corner_of(Maps const& made) const {
-    for (Patch const* patch : patches) {
-        if (patch->mapsIndex >= 0 && &maps[patch->mapsIndex] == &made) return patch->bodyCorner;
+float Button3DEffect::Impl::corner_of(Maps const& made) const {
+    for (Attachment const* attachment : attachments) {
+        if (attachment->mapsIndex >= 0 && &maps[attachment->mapsIndex] == &made) return attachment->bodyCorner;
     }
     return 0.0f;
 }
 
-void Button3DEffect::State::release_maps(int index) {
+void Button3DEffect::Impl::release_maps(int index) {
     if (index < 0 || --maps[index].users > 0) return;
     maps.erase(maps.begin() + index);
-    for (Patch* patch : patches) {
-        if (patch->mapsIndex > index) --patch->mapsIndex;
+    for (Attachment* attachment : attachments) {
+        if (attachment->mapsIndex > index) --attachment->mapsIndex;
     }
 }
 
-void Button3DEffect::State::reshape() {
+void Button3DEffect::Impl::reshape() {
     for (Maps const& made : maps) draw(made);
 }
 
-void Button3DEffect::State::repaint() {
+void Button3DEffect::Impl::repaint() {
     if (!base) return;
     base.Color(std::bit_cast<winrt::Windows::UI::Color>(albedo));
     make_factories(base.Compositor());
     for (Maps& made : maps) dress(made);
-    for (Patch const* patch : patches) patch->wear();
+    for (Attachment const* attachment : attachments) attachment->wear();
 }
 
-void Button3DEffect::State::reblur() {
-    for (Patch const* patch : patches) patch->blur();
+void Button3DEffect::Impl::reblur() {
+    for (Attachment const* attachment : attachments) attachment->blur();
 }
 
-void Button3DEffect::State::refit() {
-    for (Patch* patch : patches) {
-        if (auto const fe = patch->element.get()) {
-            patch->fit(static_cast<float>(fe.ActualWidth()), static_cast<float>(fe.ActualHeight()));
+void Button3DEffect::Impl::refit() {
+    for (Attachment* attachment : attachments) {
+        if (auto const fe = attachment->element.get()) {
+            attachment->fit(static_cast<float>(fe.ActualWidth()), static_cast<float>(fe.ActualHeight()));
         }
     }
 }
 
-Button3DEffect::Button3DEffect() : state_{new State, /*add_ref=*/false} {}
+Button3DEffect::Button3DEffect() : impl_{new Impl, /*add_ref=*/false} {}
 Button3DEffect::Button3DEffect(Button3DEffect const& other) noexcept = default;
 Button3DEffect& Button3DEffect::operator=(Button3DEffect const& other) noexcept = default;
 Button3DEffect::~Button3DEffect() = default;
@@ -701,111 +703,110 @@ Button3DEffect::~Button3DEffect() = default;
 // The material: the colour of the glyphs is written on the button when the
 // effect is attached; the rest reaches the keys already attached.
 void Button3DEffect::foreground(Color value) const {
-    state_->ink = value;
-    state_->redye();
+    impl_->ink = value;
+    impl_->redye();
 }
 void Button3DEffect::background(Color value) const {
-    state_->albedo = value;
-    state_->repaint();
+    impl_->albedo = value;
+    impl_->repaint();
 }
 void Button3DEffect::specularAmount(double value) const {
-    state_->specularAmount = std::max(value, 0.0);
-    state_->repaint();
+    impl_->specularAmount = std::max(value, 0.0);
+    impl_->repaint();
 }
 void Button3DEffect::specularShine(double value) const {
-    state_->specularShine = std::max(value, 1.0);
-    state_->repaint();
+    impl_->specularShine = std::max(value, 1.0);
+    impl_->repaint();
 }
 
 // The shape: the pictures are drawn anew.
 void Button3DEffect::emboss(double value) const {
-    state_->emboss = std::clamp(value, -1.0, 1.0);
-    state_->reshape();
+    impl_->emboss = std::clamp(value, -1.0, 1.0);
+    impl_->reshape();
 }
 void Button3DEffect::rim(double value) const {
-    state_->rim = std::max(value, 0.0);
-    state_->reshape();
+    impl_->rim = std::max(value, 0.0);
+    impl_->reshape();
 }
 void Button3DEffect::slope(double value) const {
-    state_->slope = std::max(value, 0.0);
-    state_->reshape();
+    impl_->slope = std::max(value, 0.0);
+    impl_->reshape();
 }
 void Button3DEffect::rounded(bool value) const {
-    state_->rounded = value;
-    state_->reshape();
+    impl_->rounded = value;
+    impl_->reshape();
 }
 void Button3DEffect::smooth(double value) const {
-    state_->smooth = std::max(value, 0.0);
-    state_->reshape();
+    impl_->smooth = std::max(value, 0.0);
+    impl_->reshape();
 }
 void Button3DEffect::rise(double value) const {
-    state_->rise = std::max(value, 0.0);
-    state_->reshade();
-    state_->refit();
+    impl_->rise = std::max(value, 0.0);
+    impl_->reshade();
+    impl_->refit();
 }
 void Button3DEffect::travel(double value) const {
-    state_->travel = std::max(value, 0.0);
-    state_->reshade();
-    state_->refit();
+    impl_->travel = std::max(value, 0.0);
+    impl_->reshade();
+    impl_->refit();
 }
 
 // The light.
 void Button3DEffect::shadow(double value) const {
-    state_->shadow = std::clamp(value, 0.0, 1.0);
-    state_->relight();
+    impl_->shadow = std::clamp(value, 0.0, 1.0);
+    impl_->relight();
 }
 void Button3DEffect::azimuth(double value) const {
-    state_->azimuth = value;
-    state_->relight();
+    impl_->azimuth = value;
+    impl_->relight();
 }
 void Button3DEffect::elevation(double value) const {
-    state_->elevation = std::clamp(value, 1.0, 90.0);
-    state_->relight();
+    impl_->elevation = std::clamp(value, 1.0, 90.0);
+    impl_->relight();
 }
 void Button3DEffect::lampColor(Color value) const {
-    state_->lampColor = value;
-    state_->relight();
+    impl_->lampColor = value;
+    impl_->relight();
 }
 void Button3DEffect::ambientColor(Color value) const {
-    state_->ambientColor = value;
-    state_->relight();
+    impl_->ambientColor = value;
+    impl_->relight();
 }
 void Button3DEffect::castBlur(double value) const {
-    state_->castBlur = std::max(value, 0.0);
-    state_->reblur();
+    impl_->castBlur = std::max(value, 0.0);
+    impl_->reblur();
 }
 void Button3DEffect::holeShadow(double value) const {
-    state_->holeShadow = std::clamp(value, 0.0, 1.0);
-    state_->reshade();
+    impl_->holeShadow = std::clamp(value, 0.0, 1.0);
+    impl_->reshade();
 }
 void Button3DEffect::holeSoftness(double value) const {
-    state_->holeSoftness = std::max(value, 0.0);
-    state_->reshade();
+    impl_->holeSoftness = std::max(value, 0.0);
+    impl_->reshade();
 }
 
 // The press: read when a key is pressed, except the shift, which is drawn
 // into the pressed key's pictures.
-void Button3DEffect::pressDivesLamp(bool value) const { state_->pressDivesLamp = value; }
-void Button3DEffect::pressFlashes(bool value) const { state_->pressFlashes = value; }
+void Button3DEffect::pressDivesLamp(bool value) const { impl_->pressDivesLamp = value; }
+void Button3DEffect::pressFlashes(bool value) const { impl_->pressFlashes = value; }
 void Button3DEffect::pressMovesLabel(bool value) const {
-    state_->pressMovesLabel = value;
-    state_->reshape();
+    impl_->pressMovesLabel = value;
+    impl_->reshape();
 }
-void Button3DEffect::pressShades(bool value) const { state_->pressShades = value; }
-void Button3DEffect::diveDepth(double value) const { state_->diveDepth = std::clamp(value, 0.0, 1.0); }
-void Button3DEffect::diveGain(double value) const { state_->diveGain = std::max(value, 0.0); }
-void Button3DEffect::shadeAmount(double value) const { state_->shadeAmount = std::clamp(value, 0.0, 1.0); }
+void Button3DEffect::pressShades(bool value) const { impl_->pressShades = value; }
+void Button3DEffect::diveDepth(double value) const { impl_->diveDepth = std::clamp(value, 0.0, 1.0); }
+void Button3DEffect::diveGain(double value) const { impl_->diveGain = std::max(value, 0.0); }
+void Button3DEffect::shadeAmount(double value) const { impl_->shadeAmount = std::clamp(value, 0.0, 1.0); }
 void Button3DEffect::labelShade(double value) const {
-    state_->labelShade = std::clamp(value, 0.0, 1.0);
-    state_->redye();
+    impl_->labelShade = std::clamp(value, 0.0, 1.0);
+    impl_->redye();
 }
 
-void Button3DEffect::setPositional(HoverLight const& value) const { state_->hover = value; }
-void Button3DEffect::setPositional(BorderLight const& value) const { state_->border = value; }
+void Button3DEffect::setPositional(HoverLight const& value) const { impl_->hover = value; }
+void Button3DEffect::setPositional(BorderLight const& value) const { impl_->border = value; }
 
 void Button3DEffect::attach(Button const& button) const {
-    State& s = *state_;
-    if (!s.pressedInk) s.pressedInk = SolidColorBrush{s.pressedInkColor()};
+    if (!impl_->pressedInk) impl_->pressedInk = SolidColorBrush{impl_->pressedInkColor()};
 
     // The button draws its glyphs and nothing else: the body is the
     // effect's, under them, and the outline is drawn with it. A clear
@@ -814,12 +815,12 @@ void Button3DEffect::attach(Button const& button) const {
     SolidColorBrush const clear{rgba(0, 0, 0, 0.0)};
     Apply{
         button,
-        dsl::foreground = SolidColorBrush{s.ink},
+        dsl::foreground = SolidColorBrush{impl_->ink},
         dsl::background = clear,
         ThemeBrush{u"ButtonBackgroundPointerOver", clear},
         ThemeBrush{u"ButtonBackgroundPressed", clear},
-        ThemeBrush{u"ButtonForegroundPointerOver", SolidColorBrush{s.ink}},
-        ThemeBrush{u"ButtonForegroundPressed", *s.pressedInk},
+        ThemeBrush{u"ButtonForegroundPointerOver", SolidColorBrush{impl_->ink}},
+        ThemeBrush{u"ButtonForegroundPressed", *impl_->pressedInk},
         ThemeBrush{u"ButtonBorderBrushPointerOver", clear},
         ThemeBrush{u"ButtonBorderBrushPressed", clear},
         dsl::borderBrush = clear,
@@ -827,13 +828,9 @@ void Button3DEffect::attach(Button const& button) const {
     };
 
     auto const element = Object::Impl::as<xaml::FrameworkElement>(button);
-    auto const patch = std::make_shared<State::Patch>();
-    patch->state = state_;
-    element.Loaded([patch](auto const& sender, auto&&) {
-        patch->place(sender.template as<xaml::FrameworkElement>());
-    });
-    element.Unloaded([patch](auto&&, auto&&) { patch->remove(); });
-    if (element.IsLoaded()) patch->place(element);
+    auto const attachment = core::make_refcounted<Impl::Attachment>();
+    attachment->impl = impl_;
+    impl::attach_while_loaded(element, attachment);
 }
 
 }  // namespace wxl

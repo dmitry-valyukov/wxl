@@ -33,7 +33,7 @@ struct Model {
                     background = colors.red,
                     iconSource = FontIconSource {glyph = u"\uE74D"},
                     text = u"Delete",
-                    onInvoked = [this](SwipeItem const&, SwipeItemInvokedEventArgs& args) {
+                    onInvoked += [this](SwipeItem const&, SwipeItemInvokedEventArgs& args) {
                         auto const shown = args.swipeControl().content().try_as<TextBlock>().text();
                         std::erase_if(names, [&](auto const& name) { return shown == std::u16string_view {name}; });
                         fill();

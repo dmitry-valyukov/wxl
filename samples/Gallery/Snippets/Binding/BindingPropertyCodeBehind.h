@@ -8,5 +8,5 @@ auto* const greeting = &model->greeting;
 auto example = StackPanel {
     spacing = 8.0,
     TextBlock {hAlign.center, vAlign.center, fontSize = 24, text = BindOutput {model->greeting}},
-    Button {hAlign.center, content = u"Say it again", onClick = [greeting](auto&&...) { greeting->set(core::u16_text {u"Hello again!"}); }},
+    Button {hAlign.center, content = u"Say it again", onClick += [greeting](auto&&...) { greeting->set(core::u16_text {u"Hello again!"}); }},
 };

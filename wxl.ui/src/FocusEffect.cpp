@@ -16,7 +16,7 @@
 #include "FocusEffect.h"
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/effect_layer.h"
+#include "impl/effect_helpers.h"
 
 namespace wxl {
 
@@ -39,7 +39,7 @@ bool has(composition::CompositionPropertySet const& set, wchar_t const* name) {
 
 }  // namespace
 
-struct FocusEffect::State : core::sta_refcounted {
+struct FocusEffect::Impl : core::sta_refcounted {
     FocusLook look = FocusLook::Lift;
 
     winrt::event_token got{};
@@ -65,13 +65,13 @@ struct FocusEffect::State : core::sta_refcounted {
     // An element fitted once, held weakly -- the element, since a composition
     // visual gives no weak reference -- and the shadow whose colour and motion
     // follow the look of each focus.
-    struct Fitted {
+    struct Attachment {
         winrt::weak_ref<xaml::UIElement> element;
         composition::DropShadow shadow{nullptr};
     };
-    std::vector<Fitted> fitted;
+    std::vector<Attachment> attachments;
 
-    ~State() {
+    ~Impl() {
         if (got) {
             xaml::Input::FocusManager::GotFocus(got);
         }
@@ -113,15 +113,15 @@ struct FocusEffect::State : core::sta_refcounted {
         scaleDown = motion(1.0f, curve, 160);
     }
 
-    Fitted* find(xaml::UIElement const& element) {
-        std::erase_if(fitted, [](Fitted const& each) { return !each.element.get(); });
-        auto const found = std::ranges::find_if(fitted, [&element](Fitted const& each) { return each.element.get() == element; });
-        return found == fitted.end() ? nullptr : &*found;
+    Attachment* find(xaml::UIElement const& element) {
+        std::erase_if(attachments, [](Attachment const& each) { return !each.element.get(); });
+        auto const found = std::ranges::find_if(attachments, [&element](Attachment const& each) { return each.element.get() == element; });
+        return found == attachments.end() ? nullptr : &*found;
     }
 
     // The first focus from the keyboard: the element's own level and scale,
     // the plate and the shadow under it.
-    Fitted& fit(xaml::UIElement const& element, composition::Visual const& visual) {
+    Attachment& fit(xaml::UIElement const& element, composition::Visual const& visual) {
         auto const own = visual.Properties();
         own.InsertScalar(L"FocusLevel", 0.0f);
         own.InsertScalar(L"FocusRise", 0.0f);
@@ -167,7 +167,7 @@ struct FocusEffect::State : core::sta_refcounted {
             impl::insert_layer(children, plate, -1);
         });
 
-        return fitted.emplace_back(Fitted{winrt::make_weak(element), shadow});
+        return attachments.emplace_back(Attachment{winrt::make_weak(element), shadow});
     }
 
     void focused(xaml::UIElement const& element) {
@@ -195,7 +195,7 @@ struct FocusEffect::State : core::sta_refcounted {
             return;
         }
         prepare(visual.Compositor());
-        Fitted* entry = find(element);
+        Attachment* entry = find(element);
         if (!entry) {
             entry = &fit(element, visual);
         }
@@ -234,7 +234,7 @@ struct FocusEffect::State : core::sta_refcounted {
     }
 };
 
-FocusEffect::FocusEffect() : state_{new State, /*add_ref=*/false} {}
+FocusEffect::FocusEffect() : impl_{new Impl, /*add_ref=*/false} {}
 
 FocusEffect::FocusEffect(FocusLook look) : FocusEffect() {
     this->look(look);
@@ -245,24 +245,23 @@ FocusEffect& FocusEffect::operator=(FocusEffect const& other) noexcept = default
 FocusEffect::~FocusEffect() = default;
 
 void FocusEffect::look(FocusLook value) const {
-    state_->look = value;
+    impl_->look = value;
 }
 
 void FocusEffect::operator()(CompositionWindow const&) const {
-    State& state = *state_;
-    if (state.got) {
+    if (impl_->got) {
         return;
     }
     // The handlers hold the state by address: the state revokes them when the
     // last copy of the effect goes.
-    state.got = xaml::Input::FocusManager::GotFocus([self = &state](auto&&, xaml::Input::FocusManagerGotFocusEventArgs const& args) {
+    impl_->got = xaml::Input::FocusManager::GotFocus([impl = impl_.get()](auto&&, xaml::Input::FocusManagerGotFocusEventArgs const& args) {
         if (auto const element = args.NewFocusedElement().try_as<xaml::UIElement>()) {
-            self->focused(element);
+            impl->focused(element);
         }
     });
-    state.lost = xaml::Input::FocusManager::LostFocus([self = &state](auto&&, xaml::Input::FocusManagerLostFocusEventArgs const& args) {
+    impl_->lost = xaml::Input::FocusManager::LostFocus([impl = impl_.get()](auto&&, xaml::Input::FocusManagerLostFocusEventArgs const& args) {
         if (auto const element = args.OldFocusedElement().try_as<xaml::UIElement>()) {
-            self->unfocused(element);
+            impl->unfocused(element);
         }
     });
 }

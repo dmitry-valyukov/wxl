@@ -111,7 +111,7 @@ class func_body;
 // inside the node. It is spelled out here rather than hidden because the two
 // things built on it need different halves: `function` next door needs a
 // value with a reference count, an `event` needs a node it can link into a
-// list and let go of by cookie. `Base` is where they differ and all they
+// list and let go of by token. `Base` is where they differ and all they
 // differ in.
 template <typename R, typename... T, bool NX, template <class> class Base>
 class func_body<R(T...) noexcept(NX), Base>

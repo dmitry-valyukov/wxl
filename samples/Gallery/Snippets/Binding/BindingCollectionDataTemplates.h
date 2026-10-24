@@ -37,13 +37,13 @@ auto example = Grid {
         borderBrush = brushes.Card.StrokeColorDefault,
         BorderThickness {1},
         cornerRadius = CornerRadius {4},
-        itemsSource = indexList(4),
+        itemsSource = IndexList(4),
         itemTemplate = [](Object const& item) {
-            auto const& at = items[static_cast<size_t>(intOf(item))];
+            auto const& at = items[static_cast<size_t>(unboxValue<int64_t>(item))];
             return StackPanel {Padding {4}, spacing = 2.0, TextBlock {FontWeight {600}, at.title},
                                TextBlock {foreground = brushes.Text.FillColor.Secondary, styles.TextBlock.Caption, at.created}};
         },
-        onSelectionChanged = [selected](ListView const& list, SelectionChangedEventArgs&) {
+        onSelectionChanged += [selected](ListView const& list, SelectionChangedEventArgs&) {
             if (list.selectedIndex() >= 0) {
                 selected->set(list.selectedIndex());
             }

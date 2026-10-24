@@ -25,8 +25,8 @@
 #include <wxl/Microsoft.UI.Xaml.Media.h>
 #include <wxl/Microsoft.UI.Dispatching.h>
 #include <wxl/brushes.h>
-#include "LoadXaml.h"
-#include "StringList.h"
+#include "Resource.h"
+#include "Box.h"
 
 import std;
 
@@ -130,9 +130,9 @@ FrameworkElement dslStack() {
             L"<ControlTemplate TargetType='ContentControl'><ContentPresenter TextWrapping='WrapWholeWords' FontSize='12'/>"
             L"</ControlTemplate></ContentControl.Template></ContentControl>").try_as<ContentControl>();
         if (has("cc")) {
-            control.content(stringBox(u""));
+            control.content(boxValue(u""));
         } else {
-            control.add_onLoaded([control](auto&&...) { control.content(stringBox(u"")); });
+            control.add_onLoaded([control](auto&&...) { control.content(boxValue(u"")); });
         }
         s.children().append(control);
         return s;
@@ -141,13 +141,13 @@ FrameworkElement dslStack() {
         // ContentPresenter из XAML со свойствами из шаблона SettingsCard; пустая строка кладётся в Content из C++.
         std::wstring attrs = has("cp2") ? L" TextWrapping='WrapWholeWords'" : has("cp3") ? L" FontSize='12'" : L" TextWrapping='WrapWholeWords' FontSize='12' Foreground='{ThemeResource TextFillColorSecondaryBrush}'";
         auto const presenter = loadXaml(L"<ContentPresenter xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'" + attrs + L"/>").try_as<ContentPresenter>();
-        presenter.content(stringBox(u""));
+        presenter.content(boxValue(u""));
         s.children().append(presenter);
         return s;
     }
     if (has("cp")) {
         // Голый ContentPresenter с пустой строкой в Content, как у SettingsCard с description = u"".
-        s.children().append(ContentPresenter {content = stringBox(u"")});
+        s.children().append(ContentPresenter {content = boxValue(u"")});
         return s;
     }
     for (int i = 0; i < 4; ++i) s.children().append(card(u"Setting " + std::u16string(1, char16_t(u'0' + i)), u"Some description of the setting"));

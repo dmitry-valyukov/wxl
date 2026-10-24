@@ -87,7 +87,7 @@ void blit(DrawingSurface const& surface, std::vector<std::uint32_t> const& pixel
         D2D1_BITMAP_PROPERTIES1 const properties = D2D1::BitmapProperties1(
             D2D1_BITMAP_OPTIONS_NONE, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
         ComPtr<ID2D1Bitmap1> bitmap;
-        wxl::check_hresult(context->CreateBitmap(D2D1::SizeU(static_cast<UINT32>(width), static_cast<UINT32>(height)),
+        wxl::impl::check_hresult(context->CreateBitmap(D2D1::SizeU(static_cast<UINT32>(width), static_cast<UINT32>(height)),
                                                  pixels.data(), static_cast<UINT32>(width) * 4, &properties,
                                                  &bitmap));
         // Копией и без сглаживания: в пикселе число, а не цвет.
@@ -171,7 +171,7 @@ void lab::drawSolid(DrawingSurface const& surface, Color color) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {
         ComPtr<ID2D1SolidColorBrush> fill;
-        wxl::check_hresult(context->CreateSolidColorBrush(
+        wxl::impl::check_hresult(context->CreateSolidColorBrush(
             D2D1::ColorF(color.R / 255.0f, color.G / 255.0f, color.B / 255.0f, color.A / 255.0f), &fill));
         context->FillRectangle(D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height)),
                                fill.Get());

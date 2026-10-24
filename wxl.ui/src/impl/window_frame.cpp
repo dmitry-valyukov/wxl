@@ -3,9 +3,9 @@
 #undef NOGDI
 #include "platform.h"
 
-#include "window_frame.h"
-
 #include <dwmapi.h>
+
+#include "window_helpers.h"
 
 namespace wxl::impl {
 

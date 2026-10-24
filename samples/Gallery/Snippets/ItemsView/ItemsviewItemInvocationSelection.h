@@ -3,7 +3,7 @@
 auto const* objects = &gallery::dataObjects(true);
 
 auto const imageOf = [objects](Object const& item) {
-    auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+    auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return ItemContainer {width = 200, height = 140, horizontalAlignment = HorizontalAlignment::Left,
                           child = Image {Margin {4}, automationAccessibilityView = AccessibilityView::Raw, horizontalAlignment = HorizontalAlignment::Center,
                                  verticalAlignment = VerticalAlignment::Center, stretch = Stretch::UniformToFill,
@@ -37,10 +37,10 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 model->view.itemTemplate(imageOf);
-model->view.itemsSource(indexList(static_cast<int64_t>(objects->size())));
+model->view.itemsSource(IndexList(static_cast<int64_t>(objects->size())));
 model->view.add_onItemInvoked([model, objects](auto const&, ItemsViewItemInvokedEventArgs& args) {
     std::u16string words = u"You invoked ";
-    words += (*objects)[static_cast<size_t>(intOf(args.invokedItem()))].title;
+    words += (*objects)[static_cast<size_t>(unboxValue<int64_t>(args.invokedItem()))].title;
     words += u".";
     model->invoked.text(words);
 });
@@ -48,7 +48,7 @@ model->view.add_onSelectionChanged([model, objects](auto const&, auto&&...) {
     auto const item = model->view.selectedItem();
     std::u16string words = item ? u"You have selected " : u"You have selected nothing.";
     if (item) {
-        words += (*objects)[static_cast<size_t>(intOf(item))].title;
+        words += (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))].title;
         words += u".";
     }
     model->selected.text(words);

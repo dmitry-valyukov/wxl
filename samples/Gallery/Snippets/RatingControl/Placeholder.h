@@ -6,5 +6,5 @@ auto slider = Slider {
     minimum = 0.0,
     smallChange = 0.5,
     stepFrequency = 0.5,
-    onValueChanged = [rating](Slider const& self) { rating.placeholderValue(self.value()); },
+    onValueChanged += [rating](Slider const& self) { rating.placeholderValue(self.value()); },
 };

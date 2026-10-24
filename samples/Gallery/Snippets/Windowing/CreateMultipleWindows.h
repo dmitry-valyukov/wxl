@@ -8,7 +8,7 @@ auto example = StackPanel {
         automationId = u"WindowingCreateWindow",
         automationName = u"Create a top-level window",
         content = u"Create new Window",
-        onClick = [](Button const& self) {
+        onClick += [](Button const& self) {
             Window childWindow {
                 extendsContentIntoTitleBar = true,
                 systemBackdrop = MicaBackdrop {},

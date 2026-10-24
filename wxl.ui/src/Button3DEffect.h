@@ -134,8 +134,8 @@ public:
 private:
     void attach(Button const& button) const;
 
-    struct State;
-    core::intrusive_ptr<State> state_;
+    struct Impl;
+    core::intrusive_ptr<Impl> impl_;
 };
 
 }  // namespace wxl

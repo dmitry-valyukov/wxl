@@ -5,7 +5,7 @@ auto const recipes = std::make_shared<std::vector<gallery::Recipe>>(gallery::mak
 auto const colors = &gallery::namedColors();
 
 auto const recipeTemplate = [recipes, colors](Object const& item) {
-    auto const& recipe = (*recipes)[static_cast<size_t>(intOf(item))];
+    auto const& recipe = (*recipes)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return StackPanel {
         Margin {5},
         background = brushes.SystemControl.Background.Base.Low,
@@ -21,12 +21,12 @@ struct Model {
     ItemsRepeater repeater;
     TextBox filter {header = u"Filter by ingredient...", width = 200, Margin {0, 0, 0, 20}, hAlign.left, vAlign.top};
     bool descending = false;
-    Object shown = keyedIndexList();  // the positions of the recipes on show; the items of the repeater
+    KeyedIndexList shown;  // the positions of the recipes on show; the items of the repeater
 };
 auto const model = gallery::hold<Model>();
 
 // Every item has a key, its position: the repeater finds again the one it showed at the top when the list is replaced.
-auto const show = [model](std::vector<int64_t> const& positions) { keyedIndexListReset(model->shown, positions.data(), positions.size()); };
+auto const show = [model](std::vector<int64_t> const& positions) { model->shown.reset(positions); };
 
 auto const update = [model, recipes, show] {
     // The recipes whose ingredients hold what was typed, in the order of the number of ingredients (least to most by default).
@@ -66,14 +66,14 @@ auto example = Grid {
         model->filter,
         TextBlock {Margin {0, 0, 0, 10}, text = u"Sort by number of ingredients"},
         Button {Margin {0, 0, 0, 5}, content = u"Least to most",
-                onClick = [model, update](auto&&...) {
+                onClick += [model, update](auto&&...) {
                     if (model->descending) {
                         model->descending = false;
                         update();
                     }
                 }},
         Button {content = u"Most to least",
-                onClick = [model, update](auto&&...) {
+                onClick += [model, update](auto&&...) {
                     if (!model->descending) {
                         model->descending = true;
                         update();

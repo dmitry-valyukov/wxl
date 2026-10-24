@@ -4,7 +4,7 @@ auto output = TextBlock {};
 auto item = [output](char16_t const* caption) {
     return MenuFlyoutItem {
         text = caption,
-        onClick = [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
+        onClick += [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
     };
 };
 

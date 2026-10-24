@@ -23,9 +23,9 @@ auto viewer = ScrollViewer {
     verticalScrollMode = BindOutput {model->verticalMode, [](int chosen) { return static_cast<ScrollMode>(chosen); }},
     horizontalScrollBarVisibility = BindOutput {model->horizontalBar, [](int chosen) { return static_cast<ScrollBarVisibility>(chosen); }},
     verticalScrollBarVisibility = BindOutput {model->verticalBar, [](int chosen) { return static_cast<ScrollBarVisibility>(chosen); }},
-    onLoaded = [model](ScrollViewer const& self) { self.changeView({}, {}, static_cast<float>(model->zoom.get())); },
+    onLoaded += [model](ScrollViewer const& self) { self.changeView({}, {}, static_cast<float>(model->zoom.get())); },
     // The zoom made with the wheel or a pinch is the zoom of the slider.
-    onViewChanged = [model](ScrollViewer const& self, ScrollViewerViewChangedEventArgs& args) {
+    onViewChanged += [model](ScrollViewer const& self, ScrollViewerViewChangedEventArgs& args) {
         if (!args.isIntermediate()) {
             model->zoom.set(self.zoomFactor());
         }
@@ -76,7 +76,7 @@ auto options = Grid {
         maximum = 10.0,
         isEnabled = BindOutput {model->zoomMode, [](int chosen) { return chosen == 1; }},
         value = Bind {model->zoom},
-        onValueChanged = [viewer](Slider const& self) { viewer.changeView({}, {}, static_cast<float>(self.value())); },
+        onValueChanged += [viewer](Slider const& self) { viewer.changeView({}, {}, static_cast<float>(self.value())); },
     },
     caption(u"ScrollMode", 2, Thickness {0, 12}, true),
     caption(u"Horizontal", 3, Thickness {0, 0, 10, 0}, false),

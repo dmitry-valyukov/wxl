@@ -1,6 +1,6 @@
 auto const soundButton = [](char16_t const* label, ElementSoundKind kind) {
     return Button {content = std::u16string {u"\u25B6 "} + label, elementSoundMode = ElementSoundMode::Off, automationName = label,
-                   onClick = [kind](auto&&...) { ElementSoundPlayer::play(kind); }};
+                   onClick += [kind](auto&&...) { ElementSoundPlayer::play(kind); }};
 };
 
 auto example = StackPanel {

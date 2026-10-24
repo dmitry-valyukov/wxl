@@ -43,7 +43,7 @@ UIElement tabContent(std::u16string const& page) {
         TextBlock {styles.TextBlock.Body, textWrapping = TextWrapping::Wrap,
                    u"Notice that the state of the Tab is maintained in the new window. For example, if you toggle the ToggleSwitch ON, it will "
                    u"remain ON in the new window."},
-        ToggleSwitch {Margin {0, 8}, header = u"Turn on ProgressRing", onToggled = [ring](ToggleSwitch const& self) { ring.isActive(self.isOn()); }},
+        ToggleSwitch {Margin {0, 8}, header = u"Turn on ProgressRing", onToggled += [ring](ToggleSwitch const& self) { ring.isActive(self.isOn()); }},
         ring,
     };
 }
@@ -87,19 +87,19 @@ std::shared_ptr<TabWindow> makeWindow() {
         canTearOutTabs = true,
         tabStripHeader = Grid {background = colors.transparent},
         tabStripFooter = dragRegion,
-        onAddTabButtonClick = [](TabView const& sender) { sender.tabItems().append(tab(u"New Item", u"New Item")); },
-        onTabCloseRequested = [](TabView const& sender, TabViewTabCloseRequestedEventArgs& args) {
+        onAddTabButtonClick += [](TabView const& sender) { sender.tabItems().append(tab(u"New Item", u"New Item")); },
+        onTabCloseRequested += [](TabView const& sender, TabViewTabCloseRequestedEventArgs& args) {
             sender.tabItems().remove(args.tab());
             closeWindowIfEmpty(sender);
         },
         // A tab is dragged out of the strip: the window it lands in is made now and named to the TabView.
-        onTabTearOutWindowRequested = [weak](TabView const&, TabViewTabTearOutWindowRequestedEventArgs& args) {
+        onTabTearOutWindowRequested += [weak](TabView const&, TabViewTabTearOutWindowRequestedEventArgs& args) {
             if (auto const self = weak.lock()) {
                 self->tearOutWindow = makeWindow();
                 args.newWindowId(self->tearOutWindow->window.appWindow().id());
             }
         },
-        onTabTearOutRequested = [weak](TabView const& sender, TabViewTabTearOutRequestedEventArgs& args) {
+        onTabTearOutRequested += [weak](TabView const& sender, TabViewTabTearOutRequestedEventArgs& args) {
             auto const self = weak.lock();
             if (!self || !self->tearOutWindow) {
                 return;
@@ -114,8 +114,8 @@ std::shared_ptr<TabWindow> makeWindow() {
             self->tearOutWindow.reset();
             closeWindowIfEmpty(sender);
         },
-        onExternalTornOutTabsDropping = [](TabView const&, TabViewExternalTornOutTabsDroppingEventArgs& args) { args.allowDrop(true); },
-        onExternalTornOutTabsDropped = [](TabView const& sender, TabViewExternalTornOutTabsDroppedEventArgs& args) {
+        onExternalTornOutTabsDropping += [](TabView const&, TabViewExternalTornOutTabsDroppingEventArgs& args) { args.allowDrop(true); },
+        onExternalTornOutTabsDropped += [](TabView const& sender, TabViewExternalTornOutTabsDroppedEventArgs& args) {
             int position = 0;
             for (auto const& torn : args.tabs()) {
                 auto const source = parentTabView(torn);

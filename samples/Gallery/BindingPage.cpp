@@ -5,7 +5,8 @@
 #include "Shell.h"
 #include "Bind.h"
 #include "Box.h"
-#include "ItemBuilder.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Documents.h>

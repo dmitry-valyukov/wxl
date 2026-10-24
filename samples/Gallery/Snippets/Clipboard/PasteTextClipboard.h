@@ -17,7 +17,7 @@ auto const paste = [](Model* model) -> async::task<> {
 
 auto example = StackPanel {
     verticalAlignment = VerticalAlignment::Top,
-    Button {Margin {0, 0, 0, 10}, content = u"Paste Text from the Clipboard", onClick = [model, paste](Button const&) { model->pasting = paste(model.get()); }},
+    Button {Margin {0, 0, 0, 10}, content = u"Paste Text from the Clipboard", onClick += [model, paste](Button const&) { model->pasting = paste(model.get()); }},
     TextBlock {Padding {5, 5, 0, 0}, Underline {Run {u"Clipboard:"}}},
     model->pasted,
 };

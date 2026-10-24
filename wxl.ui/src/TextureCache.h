@@ -3,7 +3,6 @@
 #include <wxl/Microsoft.UI.Composition.h>
 
 #include <filesystem>
-#include <memory>
 
 #include "Operation.h"
 
@@ -46,12 +45,13 @@
 // Win2D на другом адаптере, потерянное, пока ничего не грузится, не слышит никто
 // до первой загрузки, которой оно откажет.
 //
-// Обёртка, не владелец видеопамяти: копия -- второй handle на тот же кэш; сам
-// кэш живёт, пока жив любой его handle или незавершённый запрос к нему.
+// Не копируется и не перемещается: пустого кэша не бывает. У кэша один владелец,
+// и сам кэш живёт, пока жив он или незавершённый запрос, который держит его
+// состояние.
 
 namespace wxl {
 
-class TextureCache {
+class TextureCache : core::noncopyable {
 public:
     /// Кэш поверх этого композитора: в его поверхности рисуются текстуры, его
     /// же кистями они попадают на визуалы. Микрософт-UI-композитор -- тот
@@ -59,13 +59,8 @@ public:
     explicit TextureCache(Compositor const& compositor);
     ~TextureCache();
 
-    TextureCache(TextureCache&&) noexcept;
-    TextureCache& operator=(TextureCache&&) noexcept;
-    TextureCache(TextureCache const&) = delete;
-    TextureCache& operator=(TextureCache const&) = delete;
-
     /// Поверхность с картинкой из файла: из кэша, если уже грузили (задача
-    /// готова сразу), иначе загрузкой в видеопамять под токеном `stop`. Его
+    /// готова сразу), иначе загрузкой в видеопамять под токеном `token`. Его
     /// отмена просит платформу остановить загрузку и кончает ожидание
     /// async::operation_canceled_exception, как у всякой операции платформы с
     /// токеном; под отменённым токеном ничего не начинается и задача сразу
@@ -73,17 +68,18 @@ public:
     /// оборвало потерянное устройство, кончается DrawingSurface::DeviceLost:
     /// просить снова -- когда позовут RenderingDeviceWatch. Путь абсолютный.
     async::task<CompositionDrawingSurface> getAsync(std::filesystem::path const& image,
-                                                    async::cancellation_token stop);
+                                                    async::cancellation_token token);
 
     /// Забыть всё: следующий getAsync грузит заново. Видеопамять освобождается,
     /// когда её перестают держать и кэш, и кисти на визуалах.
     void clear();
 
 private:
-    // shared: незавершённая загрузка держит его тоже, чтобы устройство и карта
-    // пережили запрос, даже если сам кэш-обёртку выронили.
+    // Со счётчиком: незавершённая загрузка держит его тоже, чтобы устройство и
+    // карта пережили запрос, даже если владелец кэша ушёл. Счётчик одного
+    // потока: кэш и кадры загрузки трогает только UI-поток.
     struct Impl;
-    std::shared_ptr<Impl> impl_;
+    core::intrusive_ptr<Impl> const impl_;
 };
 
 }  // namespace wxl

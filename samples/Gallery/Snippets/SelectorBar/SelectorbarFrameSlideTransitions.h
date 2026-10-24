@@ -7,7 +7,7 @@ auto const model = gallery::hold<Model>();
 auto const bar = SelectorBar {
     items[SelectorBarItem {text = u"Page1", isSelected = true}, SelectorBarItem {text = u"Page2"}, SelectorBarItem {text = u"Page3"},
           SelectorBarItem {text = u"Page4"}, SelectorBarItem {text = u"Page5"}],
-    onSelectionChanged = [model](SelectorBar const& sender, SelectorBarSelectionChangedEventArgs&) {
+    onSelectionChanged += [model](SelectorBar const& sender, SelectorBarSelectionChangedEventArgs&) {
         auto const selected = sender.selectedItem();
         auto const items = sender.items();
         int current = 0;

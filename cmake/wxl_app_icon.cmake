@@ -18,7 +18,7 @@ include_guard(GLOBAL)
 # The icon takes resource id 1 on purpose. The shell shows the icon with the
 # lowest id, wxl::TrayIcon looks that id up when an application hands it no icon
 # of its own, and wxl puts the same one on windows that carry none (see
-# wxl.ui/src/impl/app_icon.h). One call, and the executable, the windows and the
+# wxl::Application::apply_icon() in wxl.ui/src/Application.h). One call, and the executable, the windows and the
 # tray show the same picture.
 function(wxl_target_icon target icon)
     if(NOT WIN32)

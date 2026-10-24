@@ -56,8 +56,8 @@ auto options = StackPanel {
     width = 240,
     spacing = 8,
     model->count,
-    Button {automationName = u"Save drawing", content = u"Save drawing", onClick = [model, save](auto&&...) { model->saving = save(model.get()); }},
-    Button {automationName = u"Clear saved drawing canvas", content = u"Clear canvas", onClick = [model](auto&&...) {
+    Button {automationName = u"Save drawing", content = u"Save drawing", onClick += [model, save](auto&&...) { model->saving = save(model.get()); }},
+    Button {automationName = u"Clear saved drawing canvas", content = u"Clear canvas", onClick += [model](auto&&...) {
                 model->sheet.inkPresenter().strokeContainer().clear();
                 model->updateCount();
                 model->status.text(model->saved ? gallery::numberText(model->savedCount) + u" saved stroke(s) are ready to restore."

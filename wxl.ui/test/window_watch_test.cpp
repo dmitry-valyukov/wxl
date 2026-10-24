@@ -10,7 +10,6 @@
 
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <new>
 #include <optional>
 #include <type_traits>
@@ -19,16 +18,16 @@
 // The list first: it reaches the projection, whose standard headers have to come before
 // the wxl.core import the watch's header carries.
 #include "impl/handler_list.h"
-#include "impl/window_watch.h"
+#include "impl/event_watch.h"
 
 namespace {
 
-using wxl::EventArgsBase;
+using wxl::EventArgs;
 using wxl::EventHandler;
 using wxl::EventToken;
 using wxl::Object;
 using wxl::impl::handler_list;
-using wxl::impl::window_watch;
+using wxl::impl::event_watch;
 
 /// What a resize hands over: a plain value, by const reference, as ClientSize is.
 struct size_args {
@@ -36,18 +35,25 @@ struct size_args {
 };
 
 /// What a request to close hands over: args a listener answers through, as Closing's are.
-struct close_args : EventArgsBase {
-    close_args() noexcept : EventArgsBase(nullptr) {}
+struct close_args : EventArgs {
+    close_args() noexcept : EventArgs(nullptr) {}
 
     bool cancel = false;
 };
 
 /// The window's side of three events: their handler lists, and the token it gave last, for a
-/// test that takes a handler off behind the back of whoever put it there.
-struct window_state {
+/// test that takes a handler off behind the back of whoever put it there. One thread.
+struct window_state final : wxl::core::refcounted,
+                            wxl::core::weak_linked<window_state, wxl::core::refcounted> {
+    // A token is not copied: the one kept here is made from the number of the one given --
+    // the machinery's factory, for a test that plays someone else holding the same subscription.
     EventToken lastGiven;
 
-    EventToken give() noexcept { return lastGiven = wxl::impl::next_event_token(); }
+    EventToken give() noexcept {
+        EventToken given = wxl::impl::next_event_token();
+        lastGiven = wxl::core::impl::make_event_token(given.value());
+        return given;
+    }
 
     handler_list<Object> moved;
     handler_list<size_args> resized;
@@ -57,25 +63,25 @@ struct window_state {
 /// A window as a watch has it: a handle to shared state, copied by value, with the pair of
 /// calls per event the real one has.
 struct fake_window {
-    std::shared_ptr<window_state> state = std::make_shared<window_state>();
+    wxl::core::intrusive_ptr<window_state> state = wxl::core::make_refcounted<window_state>();
 
     EventToken add_onMoved(EventHandler<Object> const& handler) const {
         return state->moved.add(state->give(), handler);
     }
-    bool remove_onMoved(EventToken token) const { return state->moved.remove(token); }
+    bool remove_onMoved(EventToken& token) const { return state->moved.remove(token); }
 
     EventToken add_onResized(EventHandler<size_args> const& handler) const {
         return state->resized.add(state->give(), handler);
     }
-    bool remove_onResized(EventToken token) const { return state->resized.remove(token); }
+    bool remove_onResized(EventToken& token) const { return state->resized.remove(token); }
 
     EventToken add_onClosing(EventHandler<close_args> const& handler) const {
         return state->closing.add(state->give(), handler);
     }
-    bool remove_onClosing(EventToken token) const { return state->closing.remove(token); }
+    bool remove_onClosing(EventToken& token) const { return state->closing.remove(token); }
 };
 
-/// The pair of calls for one event, as the generated EventAdder has it -- the members named
+/// The pair of calls for one event, as the generated event_adder has it -- the members named
 /// by pointer here rather than by the event's name in a specialisation.
 template <auto Add, auto Remove, class Args>
 struct adder {
@@ -85,7 +91,7 @@ struct adder {
     }
 
     template <typename Window>
-    static auto remove(Window const& window, EventToken token) {
+    static auto remove(Window const& window, EventToken& token) {
         return (window.*Remove)(token);
     }
 
@@ -98,11 +104,11 @@ using resized = adder<&fake_window::add_onResized, &fake_window::remove_onResize
 using closing = adder<&fake_window::add_onClosing, &fake_window::remove_onClosing, close_args>;
 
 void raise_moved(fake_window const& window) {
-    window.state->moved.fire(Object::Impl::empty<Object>());
+    window.state->moved.raise(Object::Impl::empty<Object>());
 }
 
 void raise_resized(fake_window const& window, int width) {
-    window.state->resized.fire(size_args{width});
+    window.state->resized.raise(size_args{width});
 }
 
 /// An owner as an application has one: it keeps its watches as members and hears each event
@@ -117,9 +123,9 @@ struct Page {
     void closing(close_args& args) noexcept { args.cancel = refuses; }
 };
 
-using move_watch = window_watch<fake_window, moved, &Page::windowMoved>;
-using size_watch = window_watch<fake_window, resized, &Page::sizeChanged>;
-using close_watch = window_watch<fake_window, closing, &Page::closing>;
+using move_watch = event_watch<fake_window, moved, &Page::windowMoved>;
+using size_watch = event_watch<fake_window, resized, &Page::sizeChanged>;
+using close_watch = event_watch<fake_window, closing, &Page::closing>;
 
 // The handler calls the owner the watch was put on with, so there is nowhere to copy or move
 // the watch to.
@@ -157,12 +163,12 @@ TEST(WindowWatch, a_listener_answers_through_the_args) {
     close_watch watch{window, page};
 
     close_args asked;
-    window.state->closing.fire(asked);
+    window.state->closing.raise(asked);
     EXPECT_FALSE(asked.cancel);
 
     page.refuses = true;
     close_args refused;
-    window.state->closing.fire(refused);
+    window.state->closing.raise(refused);
     EXPECT_TRUE(refused.cancel);
 }
 
@@ -224,14 +230,14 @@ TEST(WindowWatch, two_watches_on_one_event) {
 // window's state lives while the watch is on it, and is let go with the watch.
 TEST(WindowWatch, holds_the_window_while_it_is_on_it) {
     fake_window window;
-    std::weak_ptr<window_state> const state = window.state;
+    auto const state = window.state->weak_link();
     Page page;
     {
         move_watch watch{fake_window{window}, page};
         window = fake_window{};
-        EXPECT_FALSE(state.expired());
+        EXPECT_NE(state->get(), nullptr);
     }
-    EXPECT_TRUE(state.expired());
+    EXPECT_EQ(state->get(), nullptr);
 }
 
 // An owner that destroys its watch from inside the call that reached it: the window calls a
@@ -245,7 +251,7 @@ struct SelfRemoving {
     }
 
     int moves = 0;
-    std::optional<window_watch<fake_window, moved, &SelfRemoving::windowMoved>> watch;
+    std::optional<event_watch<fake_window, moved, &SelfRemoving::windowMoved>> watch;
 };
 
 TEST(WindowWatch, goes_from_inside_its_own_call) {
@@ -269,7 +275,7 @@ struct refusing {
     }
 
     template <typename Window>
-    static bool remove(Window const&, EventToken) {
+    static bool remove(Window const&, EventToken&) {
         return false;
     }
 
@@ -279,47 +285,53 @@ struct refusing {
 
 TEST(WindowWatch, a_failed_attach_leaves_it_empty) {
     fake_window window;
-    std::weak_ptr<window_state> const state = window.state;
+    auto const state = window.state->weak_link();
     Page page;
-    window_watch<fake_window, refusing, &Page::windowMoved> watch;
+    event_watch<fake_window, refusing, &Page::windowMoved> watch;
 
     EXPECT_THROW(watch.attach(window, page), std::bad_alloc);
     EXPECT_FALSE(watch.attached());
     window = fake_window{};
-    EXPECT_TRUE(state.expired());
+    EXPECT_EQ(state->get(), nullptr);
 }
 
-// The window's answer, which the watch checks: true for a handler that was there, false for
-// one taken off already, one never given, and no token at all.
+// The window's answer, which the watch checks: true for a handler that was there, false for a
+// token it never gave. The removal empties the token either way; an empty one stops the process
+// (CheckedRemoveDeathTest below).
 TEST(HandlerList, remove_answers_whether_the_token_was_there) {
+    using wxl::core::impl::make_event_token;
     handler_list<size_args> list;
     int heard = 0;
-    EventToken const first = list.add(EventToken{1}, [&heard] { ++heard; });
-    EventToken const second = list.add(EventToken{2}, [&heard] { ++heard; });
+    EventToken first = list.add(make_event_token(1), [&heard] { ++heard; });
+    EventToken const second = list.add(make_event_token(2), [&heard] { ++heard; });
 
     EXPECT_TRUE(list.remove(first));
-    EXPECT_FALSE(list.remove(first));
-    EXPECT_FALSE(list.remove(EventToken{second.value + 1}));
-    EXPECT_FALSE(list.remove(EventToken{}));
+    EXPECT_FALSE(static_cast<bool>(first));
+    EventToken never = make_event_token(second.value() + 1);
+    EXPECT_FALSE(list.remove(never));
+    EXPECT_FALSE(static_cast<bool>(never));
 
-    list.fire(size_args{});
+    list.raise(size_args{});
     EXPECT_EQ(heard, 1);
 }
 
-// Taken off from inside its own call, a handler answers once: its place, kept until the call
-// is over, keeps no token -- not even the empty one.
+// Taken off from inside its own call, a handler answers once: the removal empties the token, and
+// its place, kept until the call is over, answers to no token -- not even one of the same number.
 TEST(HandlerList, a_handler_taken_off_inside_a_call_answers_once) {
+    using wxl::core::impl::make_event_token;
     handler_list<size_args> list;
     std::vector<bool> answers;
     EventToken self;
-    self = list.add(EventToken{1}, [&] {
+    self = list.add(make_event_token(1), [&] {
+        std::int64_t const number = self.value();
         answers.push_back(list.remove(self));
-        answers.push_back(list.remove(self));
-        answers.push_back(list.remove(EventToken{}));
+        answers.push_back(static_cast<bool>(self));
+        EventToken same = make_event_token(number);
+        answers.push_back(list.remove(same));
     });
 
-    list.fire(size_args{});
-    list.fire(size_args{});
+    list.raise(size_args{});
+    list.raise(size_args{});
     EXPECT_EQ(answers, (std::vector<bool>{true, false, false}));
 }
 
@@ -329,8 +341,8 @@ TEST(HandlerList, a_token_of_another_event_names_nothing) {
     fake_window window;
     int moves = 0;
     int resizes = 0;
-    EventToken const moved = window.add_onMoved([&moves] { ++moves; });
-    EventToken const resized = window.add_onResized([&resizes] { ++resizes; });
+    EventToken moved = window.add_onMoved([&moves] { ++moves; });
+    EventToken resized = window.add_onResized([&resizes] { ++resizes; });
 
     EXPECT_FALSE(window.remove_onMoved(resized));
     EXPECT_FALSE(window.remove_onResized(moved));
@@ -347,7 +359,7 @@ TEST(HandlerList, a_token_of_another_window_names_nothing) {
     fake_window second;
     int firstMoves = 0;
     int secondMoves = 0;
-    EventToken const token = first.add_onMoved([&firstMoves] { ++firstMoves; });
+    EventToken token = first.add_onMoved([&firstMoves] { ++firstMoves; });
     second.add_onMoved([&secondMoves] { ++secondMoves; });
 
     EXPECT_FALSE(second.remove_onMoved(token));
@@ -363,7 +375,7 @@ TEST(HandlerList, a_token_of_another_window_names_nothing) {
 TEST(CheckedRemove, reads_the_answer_when_there_is_one) {
     fake_window window;
     int moves = 0;
-    EventToken const token = window.add_onMoved([&moves] { ++moves; });
+    EventToken token = window.add_onMoved([&moves] { ++moves; });
     wxl::impl::checked_remove([&] { return window.remove_onMoved(token); });
     raise_moved(window);
     EXPECT_EQ(moves, 0);
@@ -390,7 +402,7 @@ void attach_twice() {
 }
 
 TEST(WindowWatchDeathTest, attaching_twice_stops) {
-    EXPECT_DEATH(attach_twice(), "a WindowWatch is attached twice");
+    EXPECT_DEATH(attach_twice(), "an event watch is attached twice");
 }
 
 // The token is the watch's: whoever takes the handler off by it takes away what the watch's
@@ -404,20 +416,34 @@ void take_off_by_someone_else() {
 }
 
 TEST(WindowWatchDeathTest, taken_off_by_someone_else_stops) {
-    EXPECT_DEATH(take_off_by_someone_else(), "a WindowWatch is no longer on its window");
+    EXPECT_DEATH(take_off_by_someone_else(), "an event watch is no longer on its source");
 }
 
-// A token taken off twice: the second removal finds nothing, and says so.
+// A token taken off twice: the first removal emptied it, and the second stops on the empty token
+// rather than take off whatever subscription got its number next.
 void remove_twice() {
     without_a_dialog();
     fake_window window;
-    EventToken const token = window.add_onMoved([] {});
+    EventToken token = window.add_onMoved([] {});
     wxl::impl::checked_remove([&] { return window.remove_onMoved(token); });
     wxl::impl::checked_remove([&] { return window.remove_onMoved(token); });
 }
 
+TEST(CheckedRemoveDeathTest, a_second_removal_through_one_token_stops) {
+    EXPECT_DEATH(remove_twice(), "empty token");
+}
+
+// A token the window never gave: the removal finds nothing, and says so.
+void remove_a_token_never_given() {
+    without_a_dialog();
+    fake_window window;
+    EventToken given = window.add_onMoved([] {});
+    EventToken never = wxl::core::impl::make_event_token(given.value() + 1);
+    wxl::impl::checked_remove([&] { return window.remove_onMoved(never); });
+}
+
 TEST(CheckedRemoveDeathTest, a_token_that_names_nothing_stops) {
-    EXPECT_DEATH(remove_twice(), "a handler taken off by its token was not there");
+    EXPECT_DEATH(remove_a_token_never_given(), "a handler taken off by its token was not there");
 }
 
 }  // namespace

@@ -39,8 +39,8 @@ std::wstring snippetText(gallery::Snippet bytes) {
 
 // Код на плоском фоне, как в SampleCodePresenter: подложку карточки,
 // отступы и подъём, которые тема даёт `<pre>`, здесь убираем.
-HtmlTheme flatCode() {
-    HtmlTheme theme;
+MarkupTheme flatCode() {
+    MarkupTheme theme;
     theme.preMargin = Thickness {0};
     theme.prePadding = Thickness {0};
     theme.preRadius = 0;
@@ -62,7 +62,7 @@ FrameworkElement copyButton(std::wstring text) {
         gallery::appPop(),
         toolTip = u"Copy code",
         content = FontIcon {glyph = u"", fontSize = 16},
-        onClick = [text = std::move(text)](Button const& self) {
+        onClick += [text = std::move(text)](Button const& self) {
             auto package = DataPackage {};
             package.requestedOperation(DataPackageOperation::Copy);
             package.setText(text);
@@ -70,7 +70,7 @@ FrameworkElement copyButton(std::wstring text) {
             self.content(FontIcon {glyph = u"", fontSize = 16});
             self.toolTip(u"Copied to clipboard");
         },
-        onPointerExited = [](Button const& self) {
+        onPointerExited += [](Button const& self) {
             self.content(FontIcon {glyph = u"", fontSize = 16});
             self.toolTip(u"Copy code");
         },

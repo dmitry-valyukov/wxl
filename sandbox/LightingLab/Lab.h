@@ -113,16 +113,16 @@ void drawNormalMap(wxl::DrawingSurface const& surface, Relief relief, ReliefShap
 // Клавиша Button3DEffect формой и её тени -- то, чем рисует сам эффект
 // (wxl.ui/src/impl/key_relief.h): стенд берёт формулу оттуда, чтобы
 // показывать ровно то, что получит кнопка.
-using KeyRelief = wxl::impl::KeyRelief;
-using HoleShadow = wxl::impl::HoleShadow;
+using key_relief = wxl::impl::key_relief;
+using hole_shadow = wxl::impl::hole_shadow;
 
-inline void drawKeyMap(wxl::DrawingSurface const& surface, KeyRelief const& key) {
+inline void drawKeyMap(wxl::DrawingSurface const& surface, key_relief const& key) {
     wxl::impl::draw_key_map(surface, key);
 }
-inline void drawFaceMask(wxl::DrawingSurface const& surface, KeyRelief const& key) {
+inline void drawFaceMask(wxl::DrawingSurface const& surface, key_relief const& key) {
     wxl::impl::draw_face_mask(surface, key);
 }
-inline void drawHoleShadow(wxl::DrawingSurface const& surface, KeyRelief const& key, HoleShadow const& shadow) {
+inline void drawHoleShadow(wxl::DrawingSurface const& surface, key_relief const& key, hole_shadow const& shadow) {
     wxl::impl::draw_hole_shadow(surface, key, shadow);
 }
 

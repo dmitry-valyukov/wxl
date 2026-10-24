@@ -53,8 +53,8 @@ private:
 };
 
 /* ------------------------------------------------------ */
-/// not_null specialization for `const void`: an opaque, non-dereferenceable handle
-/// (e.g. wxl::core::cookie_t). T& operator*() cannot exist for a void type, so it's omitted here.
+/// not_null specialization for `const void`: an opaque, non-dereferenceable handle.
+/// T& operator*() cannot exist for a void type, so it's omitted here.
 template <>
 class not_null<const void>
 {
@@ -163,44 +163,6 @@ public:
     /// By reference, and only here: a release_only_ptr cannot be copied, so
     /// this is the one specialization whose conversion cannot hand out a copy.
     operator const SmartPtr&() const noexcept { return ptr_; }
-
-private:
-    SmartPtr ptr_;
-};
-
-/* ------------------------------------------------------ */
-/// not_null specialization for shared_ptr
-template <class T>
-class not_null<std::shared_ptr<T>>
-{
-public:
-    using SmartPtr = std::shared_ptr<T>;
-
-    explicit not_null(T* ptr) : ptr_(ptr) { ensure(ptr && "not_null was given a null pointer"); }
-
-    template <class T2>
-    // Through the arrow, which every wrapper answers with the element pointer
-    // whatever it holds -- so one line serves a plain source and a smart one.
-    not_null(const not_null<T2>& ptr) : ptr_(ptr.operator->()) {}
-
-    template <class T2>
-    explicit not_null(const std::shared_ptr<T2>& ptr) : ptr_(ptr) {
-        ensure(ptr && "not_null was given a null shared_ptr");
-    }
-
-    [[nodiscard]] not_null<T> get() const noexcept {
-        T* tmp = ptr_.get();
-        assume(tmp);
-        return not_null<T>(tmp);
-    }
-
-    [[nodiscard]] T* operator->() const noexcept {
-        T* tmp = ptr_.get();
-        assume(tmp);
-        return tmp;
-    }
-
-    operator SmartPtr() const { return ptr_; }
 
 private:
     SmartPtr ptr_;

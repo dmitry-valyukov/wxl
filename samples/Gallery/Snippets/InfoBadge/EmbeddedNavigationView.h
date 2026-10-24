@@ -5,7 +5,7 @@ auto navigation = NavigationView {height = 300, paneDisplayMode = NavigationView
 auto opacity = ToggleSwitch {
     header = u"InfoBadge Opacity",
     isOn = true,
-    onToggled = [badge](ToggleSwitch const& self) { badge.opacity(self.isOn() ? 1.0 : 0.0); },
+    onToggled += [badge](ToggleSwitch const& self) { badge.opacity(self.isOn() ? 1.0 : 0.0); },
 };
 
 auto displayMode = ComboBox {
@@ -14,7 +14,7 @@ auto displayMode = ComboBox {
     ComboBoxItem {content = u"LeftCompact"},
     ComboBoxItem {content = u"Top"},
     selectedIndex = 0,
-    onSelectionChanged = [navigation](ComboBox const& self) {
+    onSelectionChanged += [navigation](ComboBox const& self) {
         switch (self.selectedIndex()) {
             case 0:
                 navigation.paneDisplayMode(NavigationViewPaneDisplayMode::Left);

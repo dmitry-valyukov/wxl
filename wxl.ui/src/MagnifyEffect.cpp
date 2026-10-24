@@ -62,12 +62,12 @@ double back_amplitude(double past) {
 }
 } // namespace
 
-struct MagnifyEffect::State : core::sta_refcounted {
+struct MagnifyEffect::Impl : core::sta_refcounted {
     // ---- The settings ----
     Size scale{1.2f, 1.2f};
-    std::optional<double> maximum;
-    std::optional<double> minimum;
-    std::optional<core::duration> duration;
+    core::nullable<double> maximum;
+    core::nullable<double> minimum;
+    core::nullable<core::duration> duration;
     core::duration delay{};
     MagnifyTarget target = MagnifyTarget::Element;  // read when an element is attached
 
@@ -173,7 +173,7 @@ struct MagnifyEffect::State : core::sta_refcounted {
     }
 };
 
-MagnifyEffect::MagnifyEffect() : state_{new State, /*add_ref=*/false} {}
+MagnifyEffect::MagnifyEffect() : impl_{new Impl, /*add_ref=*/false} {}
 
 MagnifyEffect::MagnifyEffect(double scale) : MagnifyEffect() {
     this->scale(scale);
@@ -184,38 +184,38 @@ MagnifyEffect& MagnifyEffect::operator=(MagnifyEffect const& other) noexcept = d
 MagnifyEffect::~MagnifyEffect() = default;
 
 void MagnifyEffect::scale(Size value) const {
-    state_->scale = value;
-    state_->changed();
+    impl_->scale = value;
+    impl_->changed();
 }
 
 void MagnifyEffect::maximum(double value) const {
-    state_->maximum = value;
-    state_->changed();
+    impl_->maximum = value;
+    impl_->changed();
 }
 
 void MagnifyEffect::minimum(double value) const {
-    state_->minimum = value;
-    state_->changed();
+    impl_->minimum = value;
+    impl_->changed();
 }
 
 void MagnifyEffect::duration(core::duration value) const {
-    state_->duration = value;
-    state_->changed();
+    impl_->duration = value;
+    impl_->changed();
 }
 
 void MagnifyEffect::delayTime(core::duration value) const {
-    state_->delay = value;
-    state_->changed();
+    impl_->delay = value;
+    impl_->changed();
 }
 
 void MagnifyEffect::target(MagnifyTarget value) const {
-    state_->target = value;
+    impl_->target = value;
 }
 
 namespace {
 // One attached element: the progress on its own visual's property set, and
 // the transform XAML draws what grows at -- that element or its content.
-struct Attached : core::sta_refcounted {
+struct Attachment : core::sta_refcounted {
     composition::CompositionPropertySet own{nullptr};
     xaml::Media::ScaleTransform base{nullptr};
 
@@ -267,27 +267,27 @@ xaml::UIElement content_of(xaml::UIElement const& element) {
 void MagnifyEffect::operator()(UIElement const& wrapper) const {
     auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
     auto const visual = xaml::Hosting::ElementCompositionPreview::GetElementVisual(element);
-    state_->prepare(visual.Compositor());
+    impl_->prepare(visual.Compositor());
 
-    core::intrusive_ptr<Attached> const attached{new Attached, /*add_ref=*/false};
-    attached->own = visual.Properties();
-    attached->own.InsertScalar(L"MagnifyProgress", 0.0f);
-    attached->own.InsertScalar(L"MagnifyBaseX", 1.0f);
-    attached->own.InsertScalar(L"MagnifyBaseY", 1.0f);
-    attached->own.InsertScalar(L"FocusScale", 1.0f);
+    core::intrusive_ptr<Attachment> const attachment{new Attachment, /*add_ref=*/false};
+    attachment->own = visual.Properties();
+    attachment->own.InsertScalar(L"MagnifyProgress", 0.0f);
+    attachment->own.InsertScalar(L"MagnifyBaseX", 1.0f);
+    attachment->own.InsertScalar(L"MagnifyBaseY", 1.0f);
+    attachment->own.InsertScalar(L"FocusScale", 1.0f);
 
     // The content is there once the element is loaded -- the template applied,
     // the content placed -- and is found from the event's sender: the handlers
     // hold no element. The first PointerEntered finds it too, should it come
     // first; until then the element has nothing to grow.
-    bool const content = state_->target == MagnifyTarget::Content;
+    bool const content = impl_->target == MagnifyTarget::Content;
     if (!content) {
-        attached->fit(element, state_->centre, state_->shown);
+        attachment->fit(element, impl_->centre, impl_->shown);
     } else if (auto const framework = element.try_as<xaml::FrameworkElement>()) {
-        framework.Loaded([state = state_, attached](auto&& sender, auto&&) {
-            if (!attached->base) {
+        framework.Loaded([impl = impl_, attachment](auto&& sender, auto&&) {
+            if (!attachment->base) {
                 if (auto const grows = content_of(sender.template as<xaml::UIElement>())) {
-                    attached->fit(grows, state->centre, state->shown);
+                    attachment->fit(grows, impl->centre, impl->shown);
                 }
             }
         });
@@ -295,25 +295,25 @@ void MagnifyEffect::operator()(UIElement const& wrapper) const {
 
     // The state is held by the handlers, not the element: it owns no element,
     // so nothing here is a cycle.
-    element.PointerEntered([state = state_, attached](auto&& sender, auto&&) {
-        if (!attached->base) {
+    element.PointerEntered([impl = impl_, attachment](auto&& sender, auto&&) {
+        if (!attachment->base) {
             auto const grows = content_of(sender.template as<xaml::UIElement>());
             if (!grows) {
                 return;
             }
-            attached->fit(grows, state->centre, state->shown);
+            attachment->fit(grows, impl->centre, impl->shown);
         }
-        state->prepare(state->compositor);
-        attached->rebase(state->scale.width, state->scale.height);
-        attached->own.StartAnimation(L"MagnifyProgress", state->grow);
+        impl->prepare(impl->compositor);
+        attachment->rebase(impl->scale.width, impl->scale.height);
+        attachment->own.StartAnimation(L"MagnifyProgress", impl->grow);
     });
-    element.PointerExited([state = state_, attached](auto&&, auto&&) {
-        if (!attached->base) {
+    element.PointerExited([impl = impl_, attachment](auto&&, auto&&) {
+        if (!attachment->base) {
             return;
         }
-        state->prepare(state->compositor);
-        attached->rebase(1.0f, 1.0f);
-        attached->own.StartAnimation(L"MagnifyProgress", state->shrink);
+        impl->prepare(impl->compositor);
+        attachment->rebase(1.0f, 1.0f);
+        attachment->own.StartAnimation(L"MagnifyProgress", impl->shrink);
     });
 }
 

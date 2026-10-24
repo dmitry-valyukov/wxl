@@ -3,7 +3,8 @@
 #include "Pages.h"
 #include "Shell.h"
 #include "Box.h"
-#include "ItemBuilder.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include "CustomDataObject.h"
 #include <wxl/Microsoft.UI.Dispatching.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.h>

@@ -4,7 +4,7 @@ struct Model {
         areTransportControlsEnabled = true,
         autoPlay = false,
         source = MediaSource::createFromUri(u"Assets/SampleMedia/ladybug.wmv"),
-        onUnloaded = [](MediaPlayerElement const& self) { self.mediaPlayer().pause(); },
+        onUnloaded += [](MediaPlayerElement const& self) { self.mediaPlayer().pause(); },
     };
 
     // Last: it goes first, and stops what it runs before anything it touches.
@@ -24,4 +24,4 @@ auto const open = [](Model* model, Button button) -> async::task<> {
 };
 
 auto example = model->player;
-auto options = Button {content = u"Open a file", onClick = [model, open](Button const& self) { model->opening = open(model.get(), self); }};
+auto options = Button {content = u"Open a file", onClick += [model, open](Button const& self) { model->opening = open(model.get(), self); }};

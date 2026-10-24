@@ -115,7 +115,7 @@ auto options = StackPanel {
         stepFrequency = 2.0,
         tickFrequency = 2.0,
         value = Bind {model->spacing},
-        onValueChanged = [featured](Object const&, RangeBaseValueChangedEventArgs&) { featured.invalidate(); },
+        onValueChanged += [featured](Object const&, RangeBaseValueChangedEventArgs&) { featured.invalidate(); },
     },
     TextBlock {
         u"LayoutPanel also applies its BorderBrush, BorderThickness, CornerRadius, and Padding around the layout.",

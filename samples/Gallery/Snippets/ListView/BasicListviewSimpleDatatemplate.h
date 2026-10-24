@@ -11,8 +11,8 @@ auto example = StackPanel {
         borderBrush = brushes.Control.Strong.StrokeColorDefault,
         borderThickness = 1,
         itemTemplate = [people](Object const& item) {
-            return TextBlock {Margin {0, 5, 0, 5}, (*people)[static_cast<size_t>(intOf(item))].name()};
+            return TextBlock {Margin {0, 5, 0, 5}, (*people)[static_cast<size_t>(unboxValue<int64_t>(item))].name()};
         },
-        itemsSource = indexList(static_cast<int64_t>(people->size())),
+        itemsSource = IndexList(static_cast<int64_t>(people->size())),
     },
 };

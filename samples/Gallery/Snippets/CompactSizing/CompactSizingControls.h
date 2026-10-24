@@ -60,6 +60,6 @@ auto options = RadioButtons {
     RadioButton {content = u"Standard"},
     RadioButton {content = u"Compact"},
     selectedIndex = 0,
-    onSelectionChanged = [model](RadioButtons const& self) { model->show(self.selectedIndex() == 1); },
-    onLoaded = [model](RadioButtons const&) { model->show(false); },
+    onSelectionChanged += [model](RadioButtons const& self) { model->show(self.selectedIndex() == 1); },
+    onLoaded += [model](RadioButtons const&) { model->show(false); },
 };

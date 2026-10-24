@@ -153,8 +153,8 @@ public:
     void operator()(UIElement const& element) const;
 
 private:
-    struct State;
-    core::intrusive_ptr<State> state_;
+    struct Impl;
+    core::intrusive_ptr<Impl> impl_;
 };
 
 }  // namespace wxl

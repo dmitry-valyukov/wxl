@@ -15,14 +15,14 @@
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/effect_layer.h"
+#include "impl/effect_helpers.h"
 
 namespace wxl {
 
 namespace composition = winrt::Microsoft::UI::Composition;
 namespace xaml = winrt::Microsoft::UI::Xaml;
 
-struct HaloEffect::State : core::sta_refcounted {
+struct HaloEffect::Impl : core::sta_refcounted {
     Color color = rgb(0, 0, 0);
     float blurRadius = 9.0f;
     float opacity = 1.0f;
@@ -30,33 +30,32 @@ struct HaloEffect::State : core::sta_refcounted {
     int32_t z = -1;
 };
 
-HaloEffect::HaloEffect() : state_{new State, /*add_ref=*/false} {}
+HaloEffect::HaloEffect() : impl_{new Impl, /*add_ref=*/false} {}
 HaloEffect::HaloEffect(HaloEffect const& other) noexcept = default;
 HaloEffect& HaloEffect::operator=(HaloEffect const& other) noexcept = default;
 HaloEffect::~HaloEffect() = default;
 
-void HaloEffect::color(Color value) const { state_->color = value; }
-void HaloEffect::blurRadius(double value) const { state_->blurRadius = static_cast<float>(value); }
-void HaloEffect::opacity(double value) const { state_->opacity = static_cast<float>(value); }
-void HaloEffect::offset(Vector3 value) const { state_->offset = value; }
-void HaloEffect::zIndex(int32_t value) const { state_->z = value; }
+void HaloEffect::color(Color value) const { impl_->color = value; }
+void HaloEffect::blurRadius(double value) const { impl_->blurRadius = static_cast<float>(value); }
+void HaloEffect::opacity(double value) const { impl_->opacity = static_cast<float>(value); }
+void HaloEffect::offset(Vector3 value) const { impl_->offset = value; }
+void HaloEffect::zIndex(int32_t value) const { impl_->z = value; }
 
 void HaloEffect::attach(UIElement const& wrapper, std::function<CompositionBrush()> maskOf) const {
-    core::intrusive_ptr<State> const s = state_;
     auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
     auto const host = xaml::Hosting::ElementCompositionPreview::GetElementVisual(element);
 
     // The layer is made once the element is drawn, from the compositor the
     // element's own visual was made by, and the mask is taken then too.
-    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf), s](auto const& children) {
+    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf), impl = impl_](auto const& children) {
         auto const compositor = host.Compositor();
         auto const mask = Object::Impl::as<composition::CompositionBrush>(maskOf());
 
         auto const glow = compositor.CreateDropShadow();
-        glow.Color(std::bit_cast<winrt::Windows::UI::Color>(s->color));
-        glow.BlurRadius(s->blurRadius);
-        glow.Opacity(s->opacity);
-        glow.Offset({s->offset.x, s->offset.y, s->offset.z});
+        glow.Color(std::bit_cast<winrt::Windows::UI::Color>(impl->color));
+        glow.BlurRadius(impl->blurRadius);
+        glow.Opacity(impl->opacity);
+        glow.Offset({impl->offset.x, impl->offset.y, impl->offset.z});
         glow.Mask(mask);
 
         auto const halo = compositor.CreateSpriteVisual();
@@ -67,7 +66,7 @@ void HaloEffect::attach(UIElement const& wrapper, std::function<CompositionBrush
         // adjustment of one says "the same".
         halo.RelativeSizeAdjustment({1.0f, 1.0f});
 
-        impl::insert_layer(children, halo, s->z);
+        impl::insert_layer(children, halo, impl->z);
     });
 }
 

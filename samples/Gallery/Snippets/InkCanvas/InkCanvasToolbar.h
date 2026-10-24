@@ -140,5 +140,5 @@ auto options = StackPanel {
     model->showEraser,
     model->activeTool,
     model->flyoutPlacement,
-    Button {automationName = u"Clear toolbar drawing", content = u"Clear drawing", onClick = [model](auto&&...) { model->sheet.inkPresenter().strokeContainer().clear(); }},
+    Button {automationName = u"Clear toolbar drawing", content = u"Clear drawing", onClick += [model](auto&&...) { model->sheet.inkPresenter().strokeContainer().clear(); }},
 };

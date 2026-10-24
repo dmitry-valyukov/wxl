@@ -9,7 +9,7 @@ auto example = StackPanel {
     Button {
         Margin {0, 8, 0, 0},
         content = u"Show modal window",
-        onClick = [](Button const&) {
+        onClick += [](Button const&) {
             Button okButton {width = 80, styles.Button.Accent, content = u"OK"};
             Button cancelButton {width = 80, content = u"Cancel"};
             Window window {
@@ -43,7 +43,7 @@ auto example = StackPanel {
 
             // The window is the dialog of the main one: its owner is set, and the owner is
             // disabled until the dialog closes.
-            makeModalDialog(window, gallery::mainWindow());
+            WindowNative::makeModal(window, gallery::mainWindow());
             gallery::trackWindow(window);
             window.activate();
         },

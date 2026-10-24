@@ -68,7 +68,9 @@ FUTURE_T_TEST_CASE(create_wait_and_dispose)
 
 namespace {
 struct continuation {
-    struct state {
+    // A copy goes wherever the future keeps its continuations, and the future is let go of on
+    // any thread: the count is atomic.
+    struct state final : refcounted_mt {
         bool volatile * run_flag_;
         bool volatile * delete_flag_;
 
@@ -77,20 +79,17 @@ struct continuation {
             , delete_flag_(delete_flag)
         {}
 
-        ~state() {
-            *delete_flag_ = true;
-        }
+        ~state() override { *delete_flag_ = true; }
     };
 
-    continuation(bool volatile * run_flag, bool volatile * delete_flag)
-        : state_(std::make_shared<state>(run_flag, delete_flag))
-    {}
+    continuation(bool volatile* run_flag, bool volatile* delete_flag)
+        : state_(make_refcounted<state>(run_flag, delete_flag)) {}
 
     void operator()() noexcept {
         *state_->run_flag_ = true;
     }
 
-    std::shared_ptr<state> state_;
+    intrusive_ptr<state> state_;
 };
 }
 

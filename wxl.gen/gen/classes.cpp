@@ -41,7 +41,7 @@ import std;
 // are declared by the interfaces it implements, so each generated member
 // reaches its interface through get<&Impl::field>() -- one real
 // QueryInterface on first use, a cached pointer read afterwards. A static
-// member goes through impl::Statics<I>, the cached activation factory. Every
+// member goes through impl::activation_factory<I>, the cached activation factory. Every
 // type a member names crosses the public boundary through gen/types.h, and a
 // member naming a type that has no wxl equivalent yet is skipped and
 // counted rather than emitted broken.
@@ -503,7 +503,7 @@ public_header_needs public_needs(std::string_view ns, std::vector<class_info> co
 // an instance cannot be made, so a wrapper for one would be a smart
 // pointer that is always null over an Impl field that is never
 // filled. The static members reach their factory through
-// impl::Statics<>, keyed on the interface rather than on any object,
+// impl::activation_factory<>, keyed on the interface rather than on any object,
 // and touch none of it.
 //
 // What it derives from instead is wxl::Statics, hand-written beside
@@ -861,10 +861,10 @@ factory_use factory_use_of(std::vector<class_info> const& classes) {
 std::set<std::string> source_includes(std::vector<class_info> const& classes, factory_use use) {
     std::set<std::string> includes;
     if (use.activation) {
-        includes.insert("../impl/activation_factory.h");
+        includes.insert("../impl/activator.h");
     }
     if (use.statics || use.constructors) {
-        includes.insert("../impl/statics.h");
+        includes.insert("../impl/activation_factory.h");
     }
     for (auto&& info : classes) {
         for (auto&& iface : info.statics) {
@@ -945,7 +945,7 @@ struct runtime_class_name_of<{}> {{
 void write_constructor_bodies(std::ostream& out, class_info const& info) {
     // A statics-only class has no Impl to be constructed from -- only
     // the member bodies, which reach their factory through
-    // impl::Statics<> and never touch an object.
+    // impl::activation_factory<> and never touch an object.
     if (!info.statics_only) {
         std::print(out, "\n{}::{}(Impl* impl) noexcept : base_t(impl) {{}}\n", info.name,
                    info.name);
@@ -966,7 +966,7 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
             // no extra AddRef/Release on the way.
             std::print(out, R"(
 {}::{}() : base_t(new Impl{{}}) {{
-    impl::ActivationFactory<{}>::activate(put_abi());
+    impl::activator<{}>::activate(put_abi());
 }}
 )",
                        info.name, info.name, info.name);
@@ -979,7 +979,7 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
             // for.
             std::print(out, R"(
 {}::{}() : base_t(new Impl{{}}) {{
-    impl::ComposableFactory<{}, {}>::activate(put_abi());
+    impl::composable_activator<{}, {}>::activate(put_abi());
 }}
 )",
                        info.name, info.name, info.name, winrt_type_name(info.composable_factory));
@@ -1016,7 +1016,7 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
                        arguments);
             continue;
         }
-        std::print(out, "\n{}::{}({})\n    : base_t(new Impl{{impl::Statics<{}>->{}({})}}) {{}}\n",
+        std::print(out, "\n{}::{}({})\n    : base_t(new Impl{{impl::activation_factory<{}>->{}({})}}) {{}}\n",
                    info.name, info.name, parameter_list(ctor.method), ctor.statics_interface,
                    ctor.method.winrt_name, arguments);
     }
@@ -1039,7 +1039,7 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
 // come out empty.
 void write_event_add_body(std::ostream& out, std::string_view signature, member_info const& member) {
     auto const raise = member.is_static
-                           ? std::format("impl::Statics<{}>->{}", member.statics_interface,
+                           ? std::format("impl::activation_factory<{}>->{}", member.statics_interface,
                                          member.winrt_name)
                            : std::format("get<&Impl::{}>().{}", member.field, member.winrt_name);
 
@@ -1094,7 +1094,7 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
         }
         switch (member.kind) {
             case member_info::kind_t::EventRemove:
-                arguments += std::format("impl::to_winrt({})", param.name);
+                arguments += std::format("impl::to_winrt(impl::take_token({}))", param.name);
                 break;
             case member_info::kind_t::BoxedString:
                 arguments += std::format("impl::box_text({})", param.name);
@@ -1122,8 +1122,8 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
         !member.replaced_call.empty()
             ? std::format("{}({})", member.replaced_call, arguments)
         : member.is_static
-            ? std::format("impl::Statics<{}>->{}({})", member.statics_interface, member.winrt_name,
-                          arguments)
+            ? std::format("impl::activation_factory<{}>->{}({})", member.statics_interface,
+                          member.winrt_name, arguments)
             : std::format("get<&Impl::{}>().{}({})", member.field,
                           member.method_call.empty() ? member.winrt_name : member.method_call,
                           arguments);

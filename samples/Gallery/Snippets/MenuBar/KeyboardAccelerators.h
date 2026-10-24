@@ -4,7 +4,7 @@ auto item = [output](char16_t const* caption, VirtualKey pressed) {
     return MenuFlyoutItem {
         text = caption,
         keyboardAccelerators[KeyboardAccelerator {key = pressed, modifiers = VirtualKeyModifiers::Control}],
-        onClick = [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
+        onClick += [output, caption](MenuFlyoutItem const&) { output.text(std::u16string {u"You clicked: "} + caption); },
     };
 };
 

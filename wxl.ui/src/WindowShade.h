@@ -47,16 +47,16 @@ public:
     /// Hides the window and flies its snapshot down to `screenPoint` (screen
     /// pixels), shrinking and fading. `whenDone` runs once the flight is over;
     /// it may be empty. A collapse or an expand given while a flight is still
-    /// under way -- from a `whenDone` too -- cuts it short: that flight ends
+    /// under way -- from a `whenDone` too -- aborts it: that flight ends
     /// doing nothing, its `whenDone` does not run, and the last command
     /// decides what is shown. A window hidden already, its snapshot still
-    /// worn -- an expand cut short -- is not captured again: the collapse
+    /// worn -- an expand aborted -- is not captured again: the collapse
     /// flies that snapshot.
     void collapseTo(Point screenPoint, std::function<void()> whenDone = {}) const;
 
     /// Flies the snapshot up from `screenPoint` back to the window's place and
     /// shows the window. `whenDone` runs once it is back and shown -- where a
-    /// caller brings it to the front; it may be empty. Cut short by a later
+    /// caller brings it to the front; it may be empty. Aborted by a later
     /// command, as collapseTo says.
     void expandFrom(Point screenPoint, std::function<void()> whenDone = {}) const;
 

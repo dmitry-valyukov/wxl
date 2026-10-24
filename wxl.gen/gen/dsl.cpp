@@ -9,7 +9,7 @@ import wxl.core;
 //
 // Two things per member, and nothing per class. A tag object (`content`,
 // `onClick`) is what the DSL writes on the left of the `=`; behind it, one
-// PropertySetter / EventAdder specialisation says which member of the
+// property_setter / event_adder specialisation says which member of the
 // object the assignment reaches. Both halves of the dispatch are templates
 // on the object type, so a single specialisation serves every class that
 // declares that member -- which is the whole reason the key enums are flat
@@ -53,7 +53,7 @@ void write_dispatch(std::ostream& file, dsl const& d) {
     for (auto&& [name, value_type] : d.property_value_type) {
         std::print(file, R"(
 template <>
-struct PropertySetter<PropertyKey::{0}> {{
+struct property_setter<PropertyKey::{0}> {{
     template <typename Obj, typename T>
         requires requires(Obj const& object, T const& value) {{ object.{1}(value); }}
     static void set(Obj const& object, T const& value) {{
@@ -96,7 +96,7 @@ struct PropertySetter<PropertyKey::{0}> {{
         }
         std::print(file, R"(
 template <>
-struct PropertySetter<PropertyKey::{0}> {{
+struct property_setter<PropertyKey::{0}> {{
     template <typename Obj, typename T>
     static void set(Obj const& object, T const& value) {{
         if constexpr (requires {{ object.{1}(value); }}) {{
@@ -115,7 +115,7 @@ struct PropertySetter<PropertyKey::{0}> {{
     for (auto&& [name, element] : d.collection_element) {
         std::print(file, R"(
 template <>
-struct CollectionSetter<PropertyKey::{0}> {{
+struct collection_setter<PropertyKey::{0}> {{
     template <typename Obj, typename... Items>
     static void set(Obj const& object, Items const&... items) {{
         auto const collection = object.{1}();
@@ -128,18 +128,19 @@ struct CollectionSetter<PropertyKey::{0}> {{
 
     // remove passes on whatever the class's remove_on... answers: nothing from a generated
     // wrapper, whose WinRT event does not say, and whether the token was there from
-    // CompositionWindow, whose WindowWatch checks it.
+    // CompositionWindow, whose WindowWatch checks it. The token is the caller's own, by
+    // reference: remove_on... empties it.
     for (auto&& name : d.events) {
         std::print(file, R"(
 template <>
-struct EventAdder<EventKey::{0}> {{
+struct event_adder<EventKey::{0}> {{
     template <typename Obj, typename Fn>
     static EventToken add(Obj const& object, Fn const& handler) {{
         return object.add_on{0}(handler);
     }}
 
     template <typename Obj>
-    static auto remove(Obj const& object, EventToken token) {{
+    static auto remove(Obj const& object, EventToken& token) {{
         return object.remove_on{0}(token);
     }}
 
@@ -159,7 +160,7 @@ void write_property_tag(std::ostream& file, dsl const& d, std::string const& nam
     // `rowDefinitions[a, b]` and `rowDefinitions = L"2*,*"` are the same
     // property said two ways -- so the tag carries both.
     if (d.collection_element.count(name)) {
-        std::print(file, "inline constexpr AssignableCollectionProperty<PropertyKey::{}, {}> {};\n",
+        std::print(file, "inline constexpr impl::assignable_collection_tag<PropertyKey::{}, {}> {};\n",
                    name, value_type.empty() ? "void" : value_type, member_name(name));
         return;
     }
@@ -168,7 +169,7 @@ void write_property_tag(std::ostream& file, dsl const& d, std::string const& nam
     // `titleBar = { leftHeader = ..., content = ... }`. Only with a
     // definite type -- a disagreement leaves nothing to build.
     if (d.braced.count(name) && !value_type.empty()) {
-        std::print(file, "inline constexpr BracedProperty<PropertyKey::{}, {}> {};\n", name,
+        std::print(file, "inline constexpr impl::braced_property_tag<PropertyKey::{}, {}> {};\n", name,
                    value_type, member_name(name));
         return;
     }
@@ -178,7 +179,7 @@ void write_property_tag(std::ostream& file, dsl const& d, std::string const& nam
     // the deduced assignment. An enum-typed property is written the same
     // way: the values it accepts come with its type (impl::enum_values), so
     // `orientation.horizontal` needs no enum name.
-    std::print(file, "inline constexpr Property<PropertyKey::{}, {}> {};\n", name,
+    std::print(file, "inline constexpr impl::property_tag<PropertyKey::{}, {}> {};\n", name,
                value_type.empty() ? "void" : value_type, member_name(name));
 }
 
@@ -192,7 +193,7 @@ void write_tag_objects(std::ostream& file, dsl const& d) {
     if (!d.attached.empty()) {
         std::print(file, "\n");
         for (auto&& [name, owners] : d.attached) {
-            std::print(file, "inline constexpr Property<PropertyKey::{}, {}> {};\n", name,
+            std::print(file, "inline constexpr impl::property_tag<PropertyKey::{}, {}> {};\n", name,
                        owners.front().value_type, member_name(name));
         }
     }
@@ -203,14 +204,14 @@ void write_tag_objects(std::ostream& file, dsl const& d) {
             if (d.property_value_type.count(name)) {
                 continue;  // already written above, carrying both forms
             }
-            std::print(file, "inline constexpr CollectionProperty<PropertyKey::{}> {};\n", name,
+            std::print(file, "inline constexpr impl::collection_tag<PropertyKey::{}> {};\n", name,
                        member_name(name));
         }
     }
 
     std::print(file, "\n");
     for (auto&& name : d.events) {
-        std::print(file, "inline constexpr Event<EventKey::{}> on{};\n", name, name);
+        std::print(file, "inline constexpr impl::event_tag<EventKey::{}> on{};\n", name, name);
     }
 }
 
@@ -234,7 +235,7 @@ void write_dsl(output const& out, dsl const& d, emitted& em) {
 
     std::print(file, "\nnamespace wxl {{\n\nnamespace impl {{\n");
     // Ahead of everything below: a specialisation has to precede the first
-    // Property over its enumeration.
+    // property_tag over its enumeration.
     write_enum_values(file, d);
     write_dispatch(file, d);
 

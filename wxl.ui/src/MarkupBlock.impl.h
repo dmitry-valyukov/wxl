@@ -1,7 +1,7 @@
 #pragma once
 
 // Приватная сторона wxl::MarkupBlock: состояние, которое читает общий
-// сборщик разметки (markup_build.cpp). Заголовок, а не деталь .cpp, по той
+// сборщик разметки (impl::build_markup, MarkupBlock.cpp). Заголовок, а не деталь .cpp, по той
 // же причине, что все *.impl.h: наследники (HtmlBlock, BbBlock, RsdnBlock)
 // наследуют и этот Impl.
 
@@ -21,12 +21,12 @@ public:
     // регистрация повторяется на каждый блок.
     struct named_style {
         hstring name;
-        HtmlStyle style;
+        MarkupStyle style;
     };
 
     std::vector<named_style, core::sta_allocator<named_style>> namedStyles_;
 
-    const HtmlStyle* findStyle(std::u16string_view name) const noexcept {
+    const MarkupStyle* findStyle(std::u16string_view name) const noexcept {
         for (const named_style& candidate : namedStyles_) {
             if (candidate.name == name) return &candidate.style;
         }
@@ -34,7 +34,7 @@ public:
     }
 
     // Вид тегов; сборщик читает при каждом наполнении.
-    HtmlTheme theme_;
+    MarkupTheme theme_;
 
     // База голых относительных <img src>; пусто — рабочий каталог процесса.
     hstring baseDirectory_;

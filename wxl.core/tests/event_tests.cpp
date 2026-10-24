@@ -10,8 +10,8 @@ import wxl.core;
 namespace {
 
 using wxl::core::as_not_null;
-using wxl::core::cookie_t;
 using wxl::core::event;
+using wxl::core::event_token;
 using wxl::core::event_mt;
 
 struct Widget {
@@ -64,15 +64,15 @@ TEST(EventTest, ACallbackMadeOutsideIsTakenOverAsAnyOther) {
     std::vector<int> seen;
 
     using callback = event<void(Widget&)>::func_t;
-    const cookie_t cookie =
+    event_token token =
         e.add(callback::create([&seen](Widget& w) noexcept { seen.push_back(w.value); }));
 
     Widget w{7};
     e(w);
     EXPECT_EQ(seen, (std::vector<int>{7}));
 
-    // And the cookie names it just the same, so the event owns it and frees it.
-    EXPECT_TRUE(e.remove(cookie));
+    // And the token names it just the same, so the event owns it and frees it.
+    EXPECT_TRUE(e.remove(token));
     e(w);
     EXPECT_EQ(seen, (std::vector<int>{7}));
 }
@@ -91,15 +91,16 @@ TEST(EventTest, AMoveOnlyCallableCanBeAdded) {
     EXPECT_EQ(2, *seen);
 }
 
-TEST(EventTest, RemoveStopsFutureFiresAndReportsWhetherItWasFound) {
+TEST(EventTest, RemoveStopsFutureFiresAndEmptiesTheToken) {
     event<void(Widget&)> e;
     std::vector<int> calls;
 
-    auto cookie = e.add([&calls](Widget&) noexcept { calls.push_back(1); });
+    auto token = e.add([&calls](Widget&) noexcept { calls.push_back(1); });
     e.add([&calls](Widget&) noexcept { calls.push_back(2); });
 
-    EXPECT_TRUE(e.remove(cookie));
-    EXPECT_FALSE(e.remove(cookie));  // already removed
+    EXPECT_TRUE(static_cast<bool>(token));
+    EXPECT_TRUE(e.remove(token));
+    EXPECT_FALSE(static_cast<bool>(token));  // a second removal through it would stop the process
 
     Widget w;
     e(w);
@@ -156,26 +157,26 @@ TEST(EventTest, ClearRemovesEveryCallback) {
     event<void()> e;
     int calls = 0;
 
-    const cookie_t cookie = e.add([&calls]() noexcept { ++calls; });
+    event_token token = e.add([&calls]() noexcept { ++calls; });
     e.add([&calls]() noexcept { ++calls; });
 
     e.clear();
 
     EXPECT_FALSE(static_cast<bool>(e));
-    EXPECT_FALSE(e.remove(cookie));  // gone with the rest
+    EXPECT_FALSE(e.remove(token));  // gone with the rest
 
     e();
 
     EXPECT_EQ(calls, 0);
 }
 
-TEST(EventTest, SwapExchangesTheCallbacksAndTheirCookies) {
+TEST(EventTest, SwapExchangesTheCallbacksAndTheirTokens) {
     event<void()> one;
     event<void()> two;
     int from_one = 0;
     int from_two = 0;
 
-    const cookie_t cookie = one.add([&from_one]() noexcept { ++from_one; });
+    event_token token = one.add([&from_one]() noexcept { ++from_one; });
     two.add([&from_two]() noexcept { ++from_two; });
 
     one.swap(two);
@@ -184,9 +185,12 @@ TEST(EventTest, SwapExchangesTheCallbacksAndTheirCookies) {
     EXPECT_EQ(from_one, 0);
     EXPECT_EQ(from_two, 1);
 
-    // The cookie went with its callback: it means nothing here now, and cancels there.
-    EXPECT_FALSE(one.remove(cookie));
-    EXPECT_TRUE(two.remove(cookie));
+    // The token went with its callback: it means nothing here now, and cancels there. A token
+    // is not copied, so the one asked of `one` is made from the same number -- the machinery's
+    // factory, which only a test reaches for.
+    event_token same = wxl::core::impl::make_event_token(token.value());
+    EXPECT_FALSE(one.remove(same));
+    EXPECT_TRUE(two.remove(token));
 
     two();
 
@@ -200,13 +204,13 @@ TEST(EventTest, TheSignatureMayCarryNoexcept) {
     event<void(int) noexcept> e;
     std::vector<int> seen;
 
-    const cookie_t cookie = e.add([&seen](int n) noexcept { seen.push_back(n); });
+    event_token token = e.add([&seen](int n) noexcept { seen.push_back(n); });
     e.add([&seen](int n) noexcept { seen.push_back(n * 10); });
 
     e(4);
     EXPECT_EQ(seen, (std::vector<int>{4, 40}));
 
-    EXPECT_TRUE(e.remove(cookie));
+    EXPECT_TRUE(e.remove(token));
     e(1);
     EXPECT_EQ(seen, (std::vector<int>{4, 40, 10}));
 }
@@ -237,10 +241,13 @@ TEST(EventTest, DestructorFreesCallbacksThatWereNeverExplicitlyRemoved) {
 }
 
 // What the tests below share: a callback that records its number, and a slot to keep the
-// cookie of one that has to find itself. A cookie names a node and is not assignable, so it
-// is emplaced once it exists.
+// token of one that has to find itself -- empty until the token exists, moved in by keep().
 using order_t = std::vector<int>;
-using slot_t = std::optional<cookie_t>;
+using slot_t = event_token;
+
+void keep(slot_t& slot, event_token token) noexcept {
+    slot = std::move(token);
+}
 
 // Counts its own deaths, once per object: a moved-from one dies silently. Captured by a
 // callback, it tells when the event let go of that callback.
@@ -274,9 +281,9 @@ TEST(EventTest, ACallbackRemovingItselfDuringFireLetsTheWalkFinish) {
     slot_t self;
 
     e.add([&order]() noexcept { order.push_back(1); });
-    self.emplace(e.add([&order, &e, &self]() noexcept {
+    keep(self, e.add([&order, &e, &self]() noexcept {
         order.push_back(2);
-        EXPECT_TRUE(e.remove(*self));
+        EXPECT_TRUE(e.remove(self));
         order.push_back(20);  // still running, on a node that is not freed under it
     }));
     e.add([&order]() noexcept { order.push_back(3); });
@@ -287,7 +294,7 @@ TEST(EventTest, ACallbackRemovingItselfDuringFireLetsTheWalkFinish) {
     order.clear();
     e();
     EXPECT_EQ(order, (order_t{1, 3}));
-    EXPECT_FALSE(e.remove(*self));
+    EXPECT_FALSE(static_cast<bool>(self));  // emptied by its removal
 }
 
 // What a removed callback held goes when it returns from the call that removed it -- not
@@ -306,8 +313,8 @@ TEST(EventTest, ACallbackRemovedDuringItsOwnCallIsDestroyedWhenItReturns) {
     int deaths = 0;
     int seenInside = -1;
     slot_t self;
-    self.emplace(e.add([&e, &self, &deaths, &seenInside, p = probe{deaths}]() noexcept {
-        static_cast<void>(e.remove(*self));
+    keep(self, e.add([&e, &self, &deaths, &seenInside, p = probe{deaths}]() noexcept {
+        static_cast<void>(e.remove(self));
         seenInside = deaths;
     }));
 
@@ -326,10 +333,10 @@ TEST(EventTest, ACallbackRemovedBeforeItsTurnIsNotCalled) {
 
     e.add([&order, &e, &third]() noexcept {
         order.push_back(1);
-        EXPECT_TRUE(e.remove(*third));
+        EXPECT_TRUE(e.remove(third));
     });
     e.add([&order]() noexcept { order.push_back(2); });
-    third.emplace(e.add([&order]() noexcept { order.push_back(3); }));
+    keep(third, e.add([&order]() noexcept { order.push_back(3); }));
 
     e();
     EXPECT_EQ(order, (order_t{1, 2}));
@@ -345,12 +352,12 @@ TEST(EventTest, RemovingTheNextAndTheLastCallbackDuringFire) {
 
     e.add([&]() noexcept {
         order.push_back(1);
-        static_cast<void>(e.remove(*second));
-        static_cast<void>(e.remove(*last));
+        static_cast<void>(e.remove(second));
+        static_cast<void>(e.remove(last));
     });
-    second.emplace(e.add([&order]() noexcept { order.push_back(2); }));
+    keep(second, e.add([&order]() noexcept { order.push_back(2); }));
     e.add([&order]() noexcept { order.push_back(3); });
-    last.emplace(e.add([&order]() noexcept { order.push_back(4); }));
+    keep(last, e.add([&order]() noexcept { order.push_back(4); }));
 
     e();
     EXPECT_EQ(order, (order_t{1, 3}));
@@ -362,10 +369,11 @@ TEST(EventTest, RemovingAnEarlierCallbackDuringFireLeavesTheWalkAlone) {
     order_t order;
     slot_t first;
 
-    first.emplace(e.add([&order]() noexcept { order.push_back(1); }));
+    keep(first, e.add([&order]() noexcept { order.push_back(1); }));
     e.add([&order, &e, &first]() noexcept {
         order.push_back(2);
-        static_cast<void>(e.remove(*first));
+        // Once: the removal empties the token, and a second one through it would stop.
+        if (first) static_cast<void>(e.remove(first));
     });
     e.add([&order]() noexcept { order.push_back(3); });
 
@@ -389,9 +397,9 @@ TEST(EventTest, ACallbackAddedDuringFireWaitsForTheNextOne) {
         order.push_back(1);
         if (added) return;
         added = true;
-        gone.emplace(e.add([&order]() noexcept { order.push_back(98); }));
+        keep(gone, e.add([&order]() noexcept { order.push_back(98); }));
         e.add([&order]() noexcept { order.push_back(4); });
-        static_cast<void>(e.remove(*gone));
+        static_cast<void>(e.remove(gone));
         e.add([&order]() noexcept { order.push_back(5); });
     });
     e.add([&order]() noexcept { order.push_back(2); });
@@ -454,10 +462,10 @@ TEST(EventTest, AFireInsideAFireSeesTheListAsItIsThen) {
         if (depth == 0) {
             e(1);
         } else {
-            static_cast<void>(e.remove(*victim));
+            static_cast<void>(e.remove(victim));
         }
     });
-    victim.emplace(e.add([&calls](int d) noexcept { calls.emplace_back(d, 3); }));
+    keep(victim, e.add([&calls](int d) noexcept { calls.emplace_back(d, 3); }));
 
     e(0);
     EXPECT_EQ(calls, (std::vector<std::pair<int, int>>{{0, 1}, {0, 2}, {1, 1}, {1, 2}, {1, 9}}));
@@ -470,20 +478,20 @@ TEST(EventTest, ACallbackRemovingItselfInAnInnerFireIsFreedByTheOuterOne) {
     order_t order;
     slot_t self;
 
-    self.emplace(e.add([&](int depth) noexcept {
+    keep(self, e.add([&](int depth) noexcept {
         order.push_back(depth);
         if (depth == 0) {
             e(1);
             order.push_back(10);
         } else {
-            EXPECT_TRUE(e.remove(*self));
+            EXPECT_TRUE(e.remove(self));
         }
     }));
     e.add([&order](int depth) noexcept { order.push_back(100 + depth); });
 
     e(0);
     EXPECT_EQ(order, (order_t{0, 1, 101, 10, 100}));
-    EXPECT_FALSE(e.remove(*self));
+    EXPECT_FALSE(static_cast<bool>(self));  // emptied by its removal
 }
 
 // The same callback is current in three walks and removes itself in the innermost: it is
@@ -495,14 +503,14 @@ TEST(EventTest, ACallbackCurrentInThreeWalksIsFreedOnceByTheOutermost) {
     slot_t self;
     int deaths = 0;
 
-    self.emplace(e.add([&, p = death_probe{deaths}](int depth) noexcept {
+    keep(self, e.add([&, p = death_probe{deaths}](int depth) noexcept {
         order.push_back(depth);
         if (depth < 2) {
             e(depth + 1);
             order.push_back(10 + depth);
             EXPECT_EQ(deaths, 0) << "freed while its call at depth " << depth << " ran";
         } else {
-            EXPECT_TRUE(e.remove(*self));
+            EXPECT_TRUE(e.remove(self));
         }
     }));
     e.add([&order](int depth) noexcept { order.push_back(100 + depth); });
@@ -510,7 +518,7 @@ TEST(EventTest, ACallbackCurrentInThreeWalksIsFreedOnceByTheOutermost) {
     e(0);
     EXPECT_EQ(order, (order_t{0, 1, 2, 102, 11, 101, 10, 100}));
     EXPECT_EQ(deaths, 1);
-    EXPECT_FALSE(e.remove(*self));
+    EXPECT_FALSE(static_cast<bool>(self));  // emptied by its removal
 }
 
 // A callback current in an outer and an inner walk is removed by a *third* one in the inner
@@ -521,7 +529,7 @@ TEST(EventTest, ACallbackCurrentInTwoWalksRemovedByAThirdIsFreedAfterItsOuterCal
     slot_t a;
     int deaths = 0;
 
-    a.emplace(e.add([&, p = death_probe{deaths}](int depth) noexcept {
+    keep(a, e.add([&, p = death_probe{deaths}](int depth) noexcept {
         order.push_back(depth);
         if (depth == 0) {
             e(1);
@@ -532,7 +540,7 @@ TEST(EventTest, ACallbackCurrentInTwoWalksRemovedByAThirdIsFreedAfterItsOuterCal
     e.add([&](int depth) noexcept {
         order.push_back(100 + depth);
         if (depth == 1)
-            EXPECT_TRUE(e.remove(*a));
+            EXPECT_TRUE(e.remove(a));
         else
             EXPECT_EQ(deaths, 1) << "the outer call returned, so it is gone by now";
     });
@@ -553,13 +561,13 @@ TEST(EventTest, TheEndOfAnOuterWalkRemovedByAnInnerOneMovesOn) {
     e.add([&](int depth) noexcept {
         order.push_back(depth);
         if (depth != 0) return;
-        x.emplace(e.add([&order](int d) noexcept { order.push_back(70 + d); }));
+        keep(x, e.add([&order](int d) noexcept { order.push_back(70 + d); }));
         e(1);
         e.add([&order](int d) noexcept { order.push_back(80 + d); });
     });
     e.add([&](int depth) noexcept {
         order.push_back(100 + depth);
-        if (depth == 1) EXPECT_TRUE(e.remove(*x));
+        if (depth == 1) EXPECT_TRUE(e.remove(x));
     });
 
     e(0);
@@ -660,16 +668,17 @@ TEST(EventTest, RemovingTheNodeTheWalkWouldBothReachAndStopAt) {
     order_t order;
     slot_t b;
     slot_t x;
+    bool done = false;
 
     e.add([&]() noexcept {
         order.push_back(1);
-        if (x) return;
-        x.emplace(e.add([&order]() noexcept { order.push_back(9); }));
-        EXPECT_TRUE(e.remove(*b));
-        EXPECT_TRUE(e.remove(*x));
+        if (std::exchange(done, true)) return;
+        keep(x, e.add([&order]() noexcept { order.push_back(9); }));
+        EXPECT_TRUE(e.remove(b));
+        EXPECT_TRUE(e.remove(x));
         e.add([&order]() noexcept { order.push_back(4); });
     });
-    b.emplace(e.add([&order]() noexcept { order.push_back(2); }));
+    keep(b, e.add([&order]() noexcept { order.push_back(2); }));
 
     e();
     EXPECT_EQ(order, (order_t{1}));
@@ -702,11 +711,11 @@ TEST(EventTest, ANodeBuiltIntoItsSubscriberIsAddedFiredAndRemovedWithoutBeingDes
     event<void() noexcept> e;
     built_in node;
 
-    const cookie_t cookie = e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
+    e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
     e();
     EXPECT_EQ(node.calls, 1);
 
-    EXPECT_TRUE(e.remove(cookie));
+    EXPECT_TRUE(e.remove(node));
     EXPECT_EQ(node.released, 1);
     EXPECT_FALSE(static_cast<bool>(e));
 
@@ -717,7 +726,7 @@ TEST(EventTest, ANodeBuiltIntoItsSubscriberIsAddedFiredAndRemovedWithoutBeingDes
     e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
     e();
     EXPECT_EQ(node.calls, 2);
-    EXPECT_TRUE(e.remove(cookie));
+    EXPECT_TRUE(e.remove(node));
     EXPECT_EQ(node.released, 2);
 }
 
@@ -728,11 +737,11 @@ TEST(EventTest, ANodeBuiltIntoItsSubscriberMayLeaveFromItsOwnCall) {
     built_in node;
     int after = 0;
 
-    const cookie_t cookie = e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
+    e.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&node));
     e.add([&after]() noexcept { ++after; });
 
     node.body = [&] {
-        EXPECT_TRUE(e.remove(cookie));
+        EXPECT_TRUE(e.remove(node));
         EXPECT_EQ(node.released, 0) << "let go of while its own call ran";
     };
 
@@ -779,8 +788,7 @@ TEST(EventTest, AOneTimeFireThroughALocalEventLetsGoOfBuiltInNodes) {
     event<void() noexcept> state;
     built_in first, second;
 
-    const cookie_t first_cookie =
-        state.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&first));
+    state.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&first));
     state.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&second));
 
     {
@@ -794,13 +802,13 @@ TEST(EventTest, AOneTimeFireThroughALocalEventLetsGoOfBuiltInNodes) {
     EXPECT_EQ(first.released, 1);
     EXPECT_EQ(second.released, 1);
     EXPECT_FALSE(static_cast<bool>(state));
-    EXPECT_FALSE(state.remove(first_cookie));
+    EXPECT_FALSE(state.remove(first));
 
     state.add(wxl::core::as_not_null<event<void() noexcept>::func_t>(&first));
     state();
     EXPECT_EQ(first.calls, 2);
     EXPECT_EQ(second.calls, 1);
-    EXPECT_TRUE(state.remove(first_cookie));
+    EXPECT_TRUE(state.remove(first));
 }
 
 // A built-in node takes itself out from inside its own call and stands again before the
@@ -814,10 +822,10 @@ void stand_again_from_inside_the_call() {
 
     event<void() noexcept> e;
     built_in node;
-    const cookie_t cookie = e.add(as_not_null<noexcept_callback>(&node));
+    e.add(as_not_null<noexcept_callback>(&node));
 
     node.body = [&] {
-        EXPECT_TRUE(e.remove(cookie));
+        EXPECT_TRUE(e.remove(node));
         e.add(as_not_null<noexcept_callback>(&node));
     };
     e();
@@ -851,19 +859,19 @@ TEST(EventTest, AnOwnedNodeUnlinkedOutsideAWalkIsTheSubscribersAtOnce) {
     {
         event<void() noexcept> e;
         auto node = std::make_unique<owned_node>(calls, released);
-        const cookie_t cookie = e.add(as_not_null<noexcept_callback>(node.get()));
+        e.add(as_not_null<noexcept_callback>(node.get()));
         e.add([&others]() noexcept { ++others; });
 
         e();
         EXPECT_EQ(calls, 1);
 
-        EXPECT_TRUE(e.unlink(cookie));
+        EXPECT_TRUE(e.unlink(*node));
         EXPECT_EQ(released, 0);
-        EXPECT_FALSE(e.unlink(cookie));
+        EXPECT_FALSE(e.unlink(*node));
 
         // Its link was cleared, so it may stand again, here or anywhere.
         e.add(as_not_null<noexcept_callback>(node.get()));
-        EXPECT_TRUE(e.unlink(cookie));
+        EXPECT_TRUE(e.unlink(*node));
         node.reset();
 
         e();
@@ -881,12 +889,11 @@ TEST(EventTest, AnOwnedNodeUnlinkedAsTheWalksNextIsSteppedPast) {
     order_t order;
     int calls = 0, released = 0;
     auto node = std::make_unique<owned_node>(calls, released);
-    const cookie_t cookie = as_not_null<noexcept_callback>(node.get());
 
     e.add([&]() noexcept {
         order.push_back(1);
         if (!node) return;
-        EXPECT_TRUE(e.unlink(cookie));
+        EXPECT_TRUE(e.unlink(*node));
         node.reset();
     });
     e.add(as_not_null<noexcept_callback>(node.get()));
@@ -911,9 +918,9 @@ void unlink_from_inside_its_own_call() {
 
     event<void() noexcept> e;
     built_in node;
-    const cookie_t cookie = e.add(as_not_null<noexcept_callback>(&node));
+    e.add(as_not_null<noexcept_callback>(&node));
 
-    node.body = [&] { e.unlink(cookie); };
+    node.body = [&] { e.unlink(node); };
     e();
 }
 
@@ -928,16 +935,15 @@ TEST(EventDeathTest, AnOwnedNodeMayNotBeUnlinkedWhileTheWalkStandsOnIt) {
 TEST(EventTest, DuringClearRemoveSaysGoneBeforeTheNodeIsLetGoOf) {
     event<void() noexcept> e;
     built_in second;
-    slot_t second_cookie;
     int released_when_asked = -1;
     bool answer = true;
 
     std::function<void()> reach_back = [&] {
-        answer = e.remove(*second_cookie);
+        answer = e.remove(second);
         released_when_asked = second.released;
     };
     e.add([r = on_death{reach_back}]() noexcept {});
-    second_cookie.emplace(e.add(as_not_null<noexcept_callback>(&second)));
+    e.add(as_not_null<noexcept_callback>(&second));
 
     e.clear();
     EXPECT_FALSE(answer);
@@ -972,13 +978,13 @@ public:
 
     void operator()() noexcept override {
         ++calls;
-        if (calls == 1) (void)owner->remove(cookie_t{static_cast<noexcept_callback*>(this)});
+        if (calls == 1) (void)owner->remove(static_cast<noexcept_callback&>(*this));
     }
 
     void release() noexcept override {
         if (++released != 1) return;
         owner->add(as_not_null<noexcept_callback>(this));
-        (void)owner->remove(cookie_t{static_cast<noexcept_callback*>(this)});
+        (void)owner->remove(static_cast<noexcept_callback&>(*this));
     }
 };
 
@@ -1009,9 +1015,9 @@ TEST(EventTest, EventMtWalksLikeEvent) {
     order_t order;
     slot_t self;
 
-    self.emplace(e.add([&](int n) noexcept {
+    keep(self, e.add([&](int n) noexcept {
         order.push_back(n);
-        EXPECT_TRUE(e.remove(*self));
+        EXPECT_TRUE(e.remove(self));
         e.add([&order](int m) noexcept { order.push_back(m * 10); });
     }));
     e.add([&order](int n) noexcept { order.push_back(n + 1); });
@@ -1081,6 +1087,47 @@ TEST(EventTest, AnEventMayEndFromInsideAnInnerWalkOfItsOwn) {
     EXPECT_EQ(order, (order_t{0, 1, 101, 10}));
     EXPECT_EQ(deathsA, 1);
     EXPECT_EQ(deathsB, 1);
+}
+
+// A token is the one handle of its subscription: not copied, and moving it leaves the source
+// empty, so no second variable can ever name the same subscription.
+static_assert(!std::is_copy_constructible_v<event_token>);
+static_assert(!std::is_copy_assignable_v<event_token>);
+static_assert(std::is_nothrow_move_constructible_v<event_token>);
+
+TEST(EventTokenTest, MovingATokenEmptiesTheSource) {
+    event<void()> e;
+    int calls = 0;
+
+    event_token first = e.add([&calls]() noexcept { ++calls; });
+    EXPECT_TRUE(static_cast<bool>(first));
+
+    event_token moved = std::move(first);
+    EXPECT_FALSE(static_cast<bool>(first));
+    EXPECT_TRUE(static_cast<bool>(moved));
+
+    event_token assigned;
+    assigned = std::move(moved);
+    EXPECT_FALSE(static_cast<bool>(moved));
+    EXPECT_TRUE(e.remove(assigned));
+    EXPECT_FALSE(static_cast<bool>(assigned));
+
+    e();
+    EXPECT_EQ(calls, 0);
+}
+
+// The second removal through the same variable: the token is empty, and the event stops the
+// process rather than take off whatever subscription has taken the address since.
+void remove_twice_through_one_token() {
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    event<void()> e;
+    event_token token = e.add([]() noexcept {});
+    static_cast<void>(e.remove(token));
+    static_cast<void>(e.remove(token));
+}
+
+TEST(EventTokenDeathTest, ASecondRemovalThroughTheSameTokenStops) {
+    EXPECT_DEATH(remove_twice_through_one_token(), "empty token");
 }
 
 }  // namespace
