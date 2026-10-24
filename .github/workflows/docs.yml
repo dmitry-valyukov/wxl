@@ -19,6 +19,7 @@ name: docs
 
 on:
   pull_request:
+  merge_group:
   workflow_dispatch:
     inputs:
       release:
@@ -37,7 +38,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

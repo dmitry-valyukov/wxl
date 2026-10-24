@@ -16,8 +16,11 @@
 # profile, configure again and build everything.
 name: ci
 
+# merge_group: the merge queue's candidate branch, main plus the queued pull
+# requests, checked before it becomes main.
 on:
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
