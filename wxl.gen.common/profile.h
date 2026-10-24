@@ -1,6 +1,5 @@
 #pragma once
 
-#include <exception>
 #include <filesystem>
 #include <map>
 #include <set>
@@ -308,10 +307,3 @@ struct symbol {
 // malformed JSON, on a code point that is not four hex digits, and on a name
 // or a code point used twice.
 std::vector<symbol> load_symbol_names(std::filesystem::path const& path);
-
-// An error as a person reads it, in UTF-8: what the generator prints and the
-// editor shows. A file system error is rebuilt from its paths and the
-// system's words for its code, since its own what() spells both through the
-// ANSI code page. Any other error is its what(), with U+FFFD where that is not
-// UTF-8: nothing of it is dropped on the way to the screen.
-std::string error_message(std::exception const& error);

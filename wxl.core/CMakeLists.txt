@@ -58,12 +58,15 @@ option(WXL_INSTALL "Generate install and export rules for wxl." ${WXL_CORE_STAND
 
 # Refresh .vscode/c_cpp_properties.json after building, so that the editor sees
 # the module interfaces of the configuration just built (see tools/
-# gen-intellisense-config.ps1 and docs/editor.md). The post-build step is a no-op
-# unless the build was started from an IDE, and it is off entirely when wxl is
-# somebody else's subproject: its editor configuration is none of our business.
+# gen-intellisense-config.ps1 and docs/editor.md). Off unless asked for: the step
+# rewrites a file in the source tree, which a build does only on request. It is
+# for wxl.core configured on its own: the script path and the build directory it
+# reads are taken from PROJECT_SOURCE_DIR and PROJECT_BINARY_DIR, which are
+# wxl.core's only when wxl.core is the project. Even then the step is a no-op
+# unless the build was started from an IDE.
 option(WXL_UPDATE_INTELLISENSE
     "Refresh .vscode/c_cpp_properties.json after an IDE-driven build."
-    ${WXL_CORE_STANDALONE})
+    OFF)
 
 if(BUILD_TESTING)
     enable_testing()
@@ -85,8 +88,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(winmd)
 
 include(${WXL_CMAKE_SCRIPT_DIR}/config.cmake)
-
-option(WXL_BACKEND "Backend to be used for WXL." "WinUI3")
 
 # The top-level project defines the same target when this is a subproject.
 if(NOT TARGET winmd_reader)

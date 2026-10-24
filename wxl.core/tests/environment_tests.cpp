@@ -47,3 +47,26 @@ TEST(EnvironmentTest, ErrorExplanationIsTheSystemsPhrase) {
 TEST(EnvironmentTest, AnUnknownCodeHasNoErrorExplanation) {
     EXPECT_TRUE(environment::error_explanation(0x1FFFFFFF).empty());
 }
+
+// A file system error as a person reads it: the path as written, then the system's own
+// words for the code -- all of it UTF-8, whatever the ANSI code page of the machine.
+TEST(EnvironmentTest, ErrorMessageOfAFileSystemErrorIsItsPathAndTheSystemsWords) {
+    // "справка", spelled out so that the source's own encoding does not matter.
+    const std::filesystem::path file{L"C:\\wxl\\\u0441\u043F\u0440\u0430\u0432\u043A\u0430.xml"};
+    constexpr int access_denied = 5;  // ERROR_ACCESS_DENIED
+    const std::filesystem::filesystem_error error{"exists", file,
+                                                  std::error_code{access_denied, std::system_category()}};
+
+    const auto message = environment::error_message(error);
+
+    const std::string_view name = "C:\\wxl\\\xD1\x81\xD0\xBF\xD1\x80\xD0\xB0\xD0\xB2\xD0\xBA\xD0\xB0.xml: ";
+    ASSERT_TRUE(message.chars().starts_with(name)) << message.chars();
+    EXPECT_EQ(message.chars().substr(name.size()), environment::error_explanation(access_denied).chars());
+    EXPECT_GT(message.chars().size(), name.size()) << message.chars();
+}
+
+// Any other error is its own text, and what of it is not UTF-8 comes out marked, not lost.
+TEST(EnvironmentTest, ErrorMessageKeepsWhatIsNotUtf8Marked) {
+    EXPECT_EQ(environment::error_message(std::runtime_error{"cannot read \xC2\xA0" "file \xFF here"}).chars(),
+              "cannot read \xC2\xA0" "file \xEF\xBF\xBD here");
+}
