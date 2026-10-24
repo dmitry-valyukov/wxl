@@ -23,7 +23,7 @@ namespace {
 
 /// What an application hands the pool: bytes of its own, moved into the body, and work of
 /// many steps that asks its state between them.
-task<std::size_t> counts_letters(std::string bytes, cancellation_token stop) {
+task<std::size_t> counts_letters(std::string bytes, cancellation_token token) {
     co_return co_await sta_loop::async_call(
         orphanable,
         [bytes = std::move(bytes)](const orphan_state& state) {
@@ -36,7 +36,7 @@ task<std::size_t> counts_letters(std::string bytes, cancellation_token stop) {
 
             return letters;
         },
-        std::move(stop));
+        std::move(token));
 }
 
 /// A result that counts its living copies, to see one thrown away.
@@ -64,11 +64,11 @@ void until_nothing_is_out() {
 TEST(OrphanUnderTokenTest, AnswersWhatTheBodyMadeUnderALiveToken) {
     ASSERT_EQ(sta_loop::outstanding(), 0u);
 
-    cancellation_source stop;
+    cancellation_source source;
 
-    EXPECT_EQ(sta_loop::run_until(counts_letters("a page", stop.token())), 5u);
+    EXPECT_EQ(sta_loop::run_until(counts_letters("a page", source.token())), 5u);
 
-    task<int> plain = sta_loop::async_call(orphanable, [] { return 7; }, stop.token());
+    task<int> plain = sta_loop::async_call(orphanable, [] { return 7; }, source.token());
     EXPECT_EQ(sta_loop::run_until(plain), 7);
 
     EXPECT_EQ(sta_loop::outstanding(), 0u);
@@ -110,7 +110,7 @@ TEST(OrphanUnderTokenTest, CancelledWhileItRunsTheWaitEndsWithoutTheBody) {
     hevent started{true}, gate{true};
     std::atomic<bool> saw_stop_requested{false};
     std::atomic<bool> finished{false};
-    cancellation_source stop;
+    cancellation_source source;
     const orphans_drained_on_exit drained(gate);
 
     task<int> held = sta_loop::async_call(
@@ -126,10 +126,10 @@ TEST(OrphanUnderTokenTest, CancelledWhileItRunsTheWaitEndsWithoutTheBody) {
 
             return 1;
         },
-        stop.token());
+        source.token());
 
     started.wait();
-    stop.cancel();
+    source.cancel();
 
     // The turn the cancel gave the loop, taken without waiting for anything.
     sta_loop::run_pending();
@@ -154,7 +154,7 @@ TEST(OrphanUnderTokenTest, ABodyThatDoesNotAskStillAnswersTheCancellation) {
     hevent started{true}, gate{true};
     std::atomic<int> alive{0};
     std::atomic<bool> finished{false};
-    cancellation_source stop;
+    cancellation_source source;
     const orphans_drained_on_exit drained(gate);
 
     task<counted> held = sta_loop::async_call(
@@ -167,10 +167,10 @@ TEST(OrphanUnderTokenTest, ABodyThatDoesNotAskStillAnswersTheCancellation) {
             finished = true;
             return made;
         },
-        stop.token());
+        source.token());
 
     started.wait();
-    stop.cancel();
+    source.cancel();
     sta_loop::run_pending();
 
     ASSERT_TRUE(held.done());
@@ -192,7 +192,7 @@ TEST(OrphanUnderTokenTest, WhetherTheLoopHasTakenTheBodyBackSettlesTheRace) {
 
     std::atomic<int> alive{0};
     hevent made_it{true};
-    cancellation_source stop;
+    cancellation_source source;
     const orphans_drained_on_exit drained;
 
     task<counted> late = sta_loop::async_call(
@@ -202,11 +202,11 @@ TEST(OrphanUnderTokenTest, WhetherTheLoopHasTakenTheBodyBackSettlesTheRace) {
             made_it.set();
             return made;
         },
-        stop.token());
+        source.token());
 
     // Waited for without turning the loop, so that the body cannot be taken back.
     made_it.wait();
-    stop.cancel();
+    source.cancel();
     sta_loop::run_pending();
 
     ASSERT_TRUE(late.done());
@@ -237,7 +237,7 @@ TEST(OrphanUnderTokenTest, ATaskDroppedLeavesTheBodyAnOrphan) {
         hevent started{true}, gate{true};
         std::atomic<bool> saw_stop_requested{false};
         std::atomic<bool> finished{false};
-        cancellation_source stop;
+        cancellation_source source;
         const orphans_drained_on_exit drained(gate);
 
         {
@@ -252,11 +252,11 @@ TEST(OrphanUnderTokenTest, ATaskDroppedLeavesTheBodyAnOrphan) {
 
                     return 1;
                 },
-                stop.token());
+                source.token());
 
             started.wait();
 
-            if (cancelled_first) stop.cancel();
+            if (cancelled_first) source.cancel();
         }
 
         // The body, and for a task dropped after the request the turn the loop still owes.
@@ -266,7 +266,7 @@ TEST(OrphanUnderTokenTest, ATaskDroppedLeavesTheBodyAnOrphan) {
         EXPECT_EQ(sta_loop::outstanding(), 1u);
         EXPECT_FALSE(finished);
 
-        stop.cancel();
+        source.cancel();
         gate.set();
         until_nothing_is_out();
 
@@ -286,7 +286,7 @@ TEST(OrphanUnderTokenTest, TheFormThatWaitsForTheBodyEndsWithTheBody) {
         ASSERT_EQ(sta_loop::outstanding(), 0u);
 
         hevent started{true}, gate{true};
-        cancellation_source stop;
+        cancellation_source source;
         const orphans_drained_on_exit drained(gate);
 
         task<int> held = detail::async_call_waiting_for_body(
@@ -299,10 +299,10 @@ TEST(OrphanUnderTokenTest, TheFormThatWaitsForTheBodyEndsWithTheBody) {
 
                 return 1;
             },
-            stop.token());
+            source.token());
 
         started.wait();
-        stop.cancel();
+        source.cancel();
         sta_loop::run_pending();
 
         EXPECT_FALSE(held.done()) << "the wait did not wait for the body";

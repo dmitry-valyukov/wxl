@@ -8,7 +8,7 @@ auto example = ListView {
     borderBrush = brushes.Control.Strong.StrokeColorDefault,
     borderThickness = 1,
     itemTemplate = [objects](Object const& item) {
-        auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+        auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
         return StackPanel {
             orientation.horizontal,
             spacing = 12,
@@ -18,5 +18,5 @@ auto example = ListView {
                         TextBlock {styles.TextBlock.Caption, object.views + u" Views"}},
         };
     },
-    itemsSource = indexList(static_cast<int64_t>(objects->size())),
+    itemsSource = IndexList(static_cast<int64_t>(objects->size())),
 };

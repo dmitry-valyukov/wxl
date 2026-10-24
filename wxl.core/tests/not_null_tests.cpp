@@ -76,15 +76,14 @@ TEST(NotNullTest, compares_by_address) {
     EXPECT_EQ(by_pointer.at(b), 2);
 }
 
-// cookie_t, which is how intrusive_slist names a node it handed out: an address
-// and nothing else, so there is no operator* to dereference it with.
+// Over `const void`: an address and nothing else, so there is no operator* to dereference
+// it with.
 TEST(NotNullTest, an_opaque_handle_over_const_void) {
     Thing thing;
-    const cookie_t cookie{&thing};
+    const not_null<const void> handle{&thing};
 
-    EXPECT_EQ(cookie.get(), static_cast<const void*>(&thing));
-    EXPECT_EQ(cookie, cookie_t{&thing});
-    static_assert(std::is_same_v<cookie_t, not_null<const void>>);
+    EXPECT_EQ(handle.get(), static_cast<const void*>(&thing));
+    EXPECT_EQ(handle, not_null<const void>{&thing});
 }
 
 // The intrusive_ptr specialization adopts the reference the object is born
@@ -99,19 +98,6 @@ TEST(NotNullTest, over_an_intrusive_ptr_it_adopts_the_first_reference) {
 
     EXPECT_EQ(p->ref_count(), 2u);
     EXPECT_EQ(shared.get(), p.get().get());
-}
-
-TEST(NotNullTest, over_a_shared_ptr) {
-    const not_null<std::shared_ptr<Thing>> p{new Thing};
-
-    EXPECT_EQ(p->value, 7);
-
-    // The conversion is the way to the shared_ptr, and it is a copy -- which
-    // is what the second share the count reports afterwards is.
-    const std::shared_ptr<Thing> shared = p;
-
-    EXPECT_EQ(shared.get(), p.get().get());
-    EXPECT_EQ(shared.use_count(), 2);
 }
 
 // A null pointer here is a bug in the caller, not input to be reported back,

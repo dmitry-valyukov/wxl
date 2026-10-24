@@ -9,7 +9,7 @@ auto example = StackPanel {
     },
     Button {
         content = u"Show window (Fullscreen mode)",
-        onClick = [](Button const&) {
+        onClick += [](Button const&) {
             Button closeButton {
                 width = 200,
                 hAlign.center,

@@ -43,7 +43,7 @@ public:
     int32_t __stdcall get_Current(void** item) noexcept final try {
         if (at_ >= source_->size()) {
             *item = nullptr;
-            return com_out_of_bounds;
+            return e_bounds;
         }
         *item = source_->slot(at_).add_ref_abi();
         return 0;
@@ -78,7 +78,7 @@ private:
 
 }  // namespace
 
-bound_items_source::bound_items_source(void const* followed, uint32_t count, bound_source::item_builder build)
+bound_items_source::bound_items_source(void const* followed, uint32_t count, bound_list_watch::indexed_item_builder build)
     : list_(followed), build_(std::move(build)), slots_(count, nullptr) {}
 
 bound_items_source::~bound_items_source() {
@@ -165,7 +165,7 @@ void bound_items_source::reset(uint32_t count) {
 void bound_items_source::raise(CollectionChange change, uint32_t index) noexcept {
     if (handlers_.empty()) return;
     try {
-        com_ptr<vector_change> const args{new vector_change{change, index}};
+        core::intrusive_ptr<vector_change> const args{new vector_change{change, index}, /*add_ref=*/false};
         core::sta_vector<handler_abi*> called;
         called.reserve(handlers_.size());
         for (handler const& each : handlers_) {
@@ -187,7 +187,7 @@ void bound_items_source::raise(CollectionChange change, uint32_t index) noexcept
 int32_t __stdcall bound_items_source::GetAt(uint32_t index, void** item) noexcept try {
     if (index >= size()) {
         *item = nullptr;
-        return com_out_of_bounds;
+        return e_bounds;
     }
     *item = slot(index).add_ref_abi();
     return 0;
@@ -271,21 +271,21 @@ winrt::Windows::Foundation::IInspectable bound_element(winrt::Windows::Foundatio
     return made;
 }
 
-// ---- bound_source: the side an application's header sees ----
+// ---- bound_list_watch: the side an application's header sees ----
 
-bound_source::bound_source(void const* list, uint32_t size, item_builder build)
+bound_list_watch::bound_list_watch(void const* list, uint32_t size, indexed_item_builder build)
     : source_(new bound_items_source{list, size, std::move(build)}) {}
 
-bound_source::bound_source(bound_source&& other) noexcept : source_(std::exchange(other.source_, nullptr)) {}
+bound_list_watch::bound_list_watch(bound_list_watch&& other) noexcept : source_(std::exchange(other.source_, nullptr)) {}
 
-bound_source::~bound_source() {
+bound_list_watch::~bound_list_watch() {
     if (source_) {
         source_->disarm();
         source_->Release();
     }
 }
 
-void bound_source::operator()(core::list_change const& change) const noexcept {
+void bound_list_watch::operator()(core::list_change const& change) const noexcept {
     source_->apply(change);
 }
 

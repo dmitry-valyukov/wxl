@@ -46,6 +46,7 @@ wxl_add_module_library(wxl.core STATIC
         timeout_timer.ixx
         traceable.ixx
         unicode.ixx
+        weak_link.ixx
         zstring_view.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are

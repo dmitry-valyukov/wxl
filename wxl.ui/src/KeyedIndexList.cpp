@@ -114,11 +114,9 @@ struct KeyedList : winrt::implements<KeyedList, interop::IBindableVector, intero
         return -1;
     }
 
-    void reset(int64_t const* positions, size_t count) {
+    void reset(std::span<int64_t const> positions) {
         items_.clear();
-        for (size_t i = 0; i < count; ++i) {
-            items_.push_back(winrt::box_value(positions[i]));
-        }
+        for (int64_t const position : positions) items_.push_back(winrt::box_value(position));
         changed_(*this, interop::NotifyCollectionChangedEventArgs{interop::NotifyCollectionChangedAction::Reset, nullptr, nullptr, -1, -1});
     }
 
@@ -127,17 +125,19 @@ private:
     winrt::event<interop::NotifyCollectionChangedEventHandler> changed_;
 };
 
-}  // namespace
-
-Object keyedIndexList() {
+Object made() {
     IInspectable list = winrt::make<KeyedList>();
     return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(list)));
 }
 
-void keyedIndexListReset(Object const& list, int64_t const* positions, size_t count) {
+}  // namespace
+
+KeyedIndexList::KeyedIndexList() : Object(made()) {}
+
+void KeyedIndexList::reset(std::span<int64_t const> positions) const {
     IInspectable native{nullptr};
-    winrt::copy_from_abi(native, list.get_abi());
-    winrt::get_self<KeyedList>(native.as<interop::IBindableVector>())->reset(positions, count);
+    winrt::copy_from_abi(native, get_abi());
+    winrt::get_self<KeyedList>(native.as<interop::IBindableVector>())->reset(positions);
 }
 
 }  // namespace wxl

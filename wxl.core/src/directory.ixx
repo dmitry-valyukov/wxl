@@ -153,7 +153,7 @@ public:
     /// Makes the whole chain, parents first.
     ///
     /// \param p writable, and left exactly as it was found: the chain is
-    ///        walked by cutting the path short at each separator in turn and
+    ///        walked by truncating the path at each separator in turn and
     ///        putting the character back afterwards. That is the whole reason
     ///        this one takes a `path&` rather than characters -- the alternative
     ///        is a fresh string per level, and this runs where allocating is

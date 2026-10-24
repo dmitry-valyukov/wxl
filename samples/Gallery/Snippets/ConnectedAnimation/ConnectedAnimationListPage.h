@@ -2,7 +2,7 @@
 // application, and what is clicked is that position, boxed: the same boxes serve as the items of the list again when the
 // list page is made anew, which is how the animation back finds the item.
 auto const objects = &gallery::dataObjects();
-auto const items = indexList(static_cast<int64_t>(objects->size()));
+auto const items = IndexList(static_cast<int64_t>(objects->size()));
 
 // The picture of an item: the first child of the grid the function made for it. ListView has a method for an element of its
 // template by name; for one made by a function the way is wxl::itemElement.
@@ -26,7 +26,7 @@ auto const listPage = [model, objects, items, connectedImage] {
         isItemClickEnabled = true,
         selectionMode = ListViewSelectionMode::None,
         itemTemplate = [objects](Object const& item) {
-            auto const& object = (*objects)[static_cast<size_t>(intOf(item))];
+            auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
             return Grid {Margin {0, 12, 0, 12},
                          columnDefinitions = u"auto,*",
                          Image {name = u"connectedElement", maxHeight = 100, minWidth = 150, stretch = Stretch::Fill, source = object.imageLocation},
@@ -43,7 +43,7 @@ auto const listPage = [model, objects, items, connectedImage] {
                                                             textWrapping = TextWrapping::Wrap, object.description}}}};
         },
         itemsSource = items,
-        onLoaded = [model, connectedImage](auto&&...) {
+        onLoaded += [model, connectedImage](auto&&...) {
             if (!model->stored) {
                 return;
             }
@@ -60,7 +60,7 @@ auto const listPage = [model, objects, items, connectedImage] {
                 model->list.focus(FocusState::Programmatic);
             });
         },
-        onItemClick = [model, connectedImage](auto const&, ItemClickEventArgs& args) {
+        onItemClick += [model, connectedImage](auto const&, ItemClickEventArgs& args) {
             model->stored = args.clickedItem();
             // Prepared with the picture of the item; the animation starts on the detail page.
             if (auto const image = connectedImage(model->list, *model->stored)) {
@@ -68,7 +68,7 @@ auto const listPage = [model, objects, items, connectedImage] {
             }
             model->frame.forward(
                 [model] {
-                    auto const& object = gallery::dataObjects()[static_cast<size_t>(intOf(*model->stored))];
+                    auto const& object = gallery::dataObjects()[static_cast<size_t>(unboxValue<int64_t>(*model->stored))];
                     model->detail = gallery::detailedInfoPage(object);
                     model->detail.goBack.add_onClick([model](auto&&...) {
                         ConnectedAnimationService::getForCurrentView().prepareToAnimate(u"BackConnectedAnimation", model->detail.image);

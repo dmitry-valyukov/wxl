@@ -16,7 +16,7 @@ auto options = StackPanel {
         ComboBoxItem {content = u"Mica"},
         ComboBoxItem {content = u"Mica Alt"},
         selectedIndex = 0,
-        onSelectionChanged = [host](ComboBox const& self) {
+        onSelectionChanged += [host](ComboBox const& self) {
             switch (self.selectedIndex()) {
                 case 0: host.systemBackdrop(DesktopAcrylicBackdrop {}); break;
                 case 1: host.systemBackdrop(MicaBackdrop {kind = MicaKind::Base}); break;
@@ -30,6 +30,6 @@ auto options = StackPanel {
         maximum = 50.0,
         stepFrequency = 1.0,
         value = 8.0,
-        onValueChanged = [host](Slider const& self) { host.cornerRadius(CornerRadius {self.value()}); },
+        onValueChanged += [host](Slider const& self) { host.cornerRadius(CornerRadius {self.value()}); },
     },
 };

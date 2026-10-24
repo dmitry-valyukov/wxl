@@ -8,15 +8,15 @@
 // Несёт import модуля, поэтому включается в .cpp последним — после
 // системных и всех остальных заголовков (правило импорта MSVC).
 
-#include "MarkupBlock.impl.h"
+#include "../MarkupBlock.impl.h"
 
 import wxl.html;
 
-namespace wxl {
+namespace wxl::impl {
 
 // Сливает восстановления парсера в onError и обходит дерево примитивами
-// FormattedBlock. Реализация — markup_build.cpp.
+// FormattedBlock. Реализация — MarkupBlock.cpp.
 void build_markup(MarkupBlock const& block, MarkupBlock::Impl& impl,
                   const html::document& parsed);
 
-}  // namespace wxl
+}  // namespace wxl::impl

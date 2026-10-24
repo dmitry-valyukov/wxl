@@ -17,7 +17,7 @@ namespace {
 
 // Объект WinUI раскладки: наследник NonVirtualizingLayout через агрегацию. Поля модели держит по адресу и не владеет
 // ими -- адрес снимает страж привязки, когда поле уходит (см. bind ниже).
-struct AvailableSizeLayoutObject : xaml::Controls::NonVirtualizingLayoutT<AvailableSizeLayoutObject> {
+struct AvailableSizeLayoutCore : xaml::Controls::NonVirtualizingLayoutT<AvailableSizeLayoutCore> {
     // Имя для дерева элементов (Live Visual Tree).
     winrt::hstring GetRuntimeClassName() const { return L"wxl.AvailableSizeLayout"; }
 
@@ -55,11 +55,11 @@ struct AvailableSizeLayoutObject : xaml::Controls::NonVirtualizingLayoutT<Availa
 // То, что привязка оставляет на раскладке: адрес поля. Стража держит только наблюдение самого поля, так что адрес
 // снимается, когда поле уходит или его привязки обрывает unbind(), -- раньше, чем он повиснет.
 struct field_guard : core::sta_refcounted {
-    winrt::com_ptr<AvailableSizeLayoutObject> object;
-    core::observable<double>* AvailableSizeLayoutObject::* slot;
+    winrt::com_ptr<AvailableSizeLayoutCore> object;
+    core::observable<double>* AvailableSizeLayoutCore::* slot;
     core::observable<double>* field;
 
-    field_guard(winrt::com_ptr<AvailableSizeLayoutObject> o, core::observable<double>* AvailableSizeLayoutObject::* s, core::observable<double>* f)
+    field_guard(winrt::com_ptr<AvailableSizeLayoutCore> o, core::observable<double>* AvailableSizeLayoutCore::* s, core::observable<double>* f)
         : object(std::move(o)), slot(s), field(f) {}
 
     // Свойство могли привязать заново к другому полю: тогда адрес уже не этого стража.
@@ -74,13 +74,13 @@ struct field_guard : core::sta_refcounted {
 
 class AvailableSizeLayout::Impl : public base_t::Impl {
 public:
-    explicit Impl(winrt::com_ptr<AvailableSizeLayoutObject> const& object)
+    explicit Impl(winrt::com_ptr<AvailableSizeLayoutCore> const& object)
         : base_t::Impl(object.as<xaml::Controls::Layout>()), object_(object) {}
 
-    static winrt::com_ptr<AvailableSizeLayoutObject> const& of(Object::Impl* impl) { return static_cast<Impl*>(impl)->object_; }
+    static winrt::com_ptr<AvailableSizeLayoutCore> const& of(Object::Impl* impl) { return static_cast<Impl*>(impl)->object_; }
 
     static void bind(AvailableSizeLayout const& layout, core::observable<double>& field,
-                     core::observable<double>* AvailableSizeLayoutObject::* slot) {
+                     core::observable<double>* AvailableSizeLayoutCore::* slot) {
         auto const& object = of(layout.impl());
         (*object).*slot = &field;
         core::intrusive_ptr<field_guard> guard {new field_guard {object, slot, &field}, /*add_ref=*/false};
@@ -89,19 +89,19 @@ public:
 
 private:
     // Сам объект держит inspectable_ базы; здесь -- его реализация, до которой из проекции не дотянуться.
-    winrt::com_ptr<AvailableSizeLayoutObject> object_;
+    winrt::com_ptr<AvailableSizeLayoutCore> object_;
 };
 
-AvailableSizeLayout::AvailableSizeLayout() : base_t(new Impl {winrt::make_self<AvailableSizeLayoutObject>()}) {}
+AvailableSizeLayout::AvailableSizeLayout() : base_t(new Impl {winrt::make_self<AvailableSizeLayoutCore>()}) {}
 
 AvailableSizeLayout::AvailableSizeLayout(Impl* impl) noexcept : base_t(impl) {}
 
 void AvailableSizeLayout::bind_width(AvailableSizeLayout const& layout, core::observable<double>& field) {
-    Impl::bind(layout, field, &AvailableSizeLayoutObject::width);
+    Impl::bind(layout, field, &AvailableSizeLayoutCore::width);
 }
 
 void AvailableSizeLayout::bind_height(AvailableSizeLayout const& layout, core::observable<double>& field) {
-    Impl::bind(layout, field, &AvailableSizeLayoutObject::height);
+    Impl::bind(layout, field, &AvailableSizeLayoutCore::height);
 }
 
 }  // namespace wxl

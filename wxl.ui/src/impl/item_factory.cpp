@@ -1,4 +1,4 @@
-#include "item_factory.h"
+#include "items_helpers.h"
 
 #include <winrt/Windows.Foundation.h>
 
@@ -16,7 +16,6 @@ namespace xaml = winrt::Microsoft::UI::Xaml;
 using winrt::Windows::Foundation::IInspectable;
 
 // The element of an item, as the control is given it: an item of ItemsSource in, the element to show it out.
-using item_maker = core::function<IInspectable(IInspectable const& item)>;
 
 // The factory: an element made by the function for each item the control asks one for, inside a binding_scope kept
 // until the element is given back. An element given back is not kept for another item -- the function is a closure
@@ -28,18 +27,18 @@ class element_factory final : public sta_com_object<element_factory, xaml::IElem
 {
 public:
     // `containers`: the factory of an ItemsView, which takes an ItemContainer for each item and nothing else.
-    element_factory(item_maker make, bool containers) : make_(std::move(make)), containers_(containers) {}
+    element_factory(winrt_item_builder make, bool containers) : make_(std::move(make)), containers_(containers) {}
 
     ~element_factory() { take_out_given_back(); }
 
     int32_t __stdcall GetElement(void* args, void** result) noexcept final try {
         take_out_given_back();
         auto const& asked = *reinterpret_cast<xaml::ElementFactoryGetArgs const*>(&args);
-        com_ptr<element_scope> scope{new element_scope()};
+        core::intrusive_ptr<element_scope> scope{new element_scope(), /*add_ref=*/false};
         xaml::UIElement element = scope->bindings.collect([&] { return make_(asked.Data()); }).try_as<xaml::UIElement>();
         if (!element) element = blank();
-        // A stale entry at the same address -- an element that went without being given back -- is cut as it is
-        // replaced.
+        // A stale entry at the same address -- an element that went without being given back -- is
+        // unbound as it is replaced.
         scopes_[identity_of(element)] = std::move(scope);
         *result = winrt::detach_abi(element);
         return 0;
@@ -98,18 +97,19 @@ private:
         return xaml::Controls::Border{};
     }
 
-    item_maker make_;
+    winrt_item_builder make_;
     bool containers_;
-    core::sta_unordered_map<void*, com_ptr<element_scope>> scopes_;
+    core::sta_unordered_map<void*, core::intrusive_ptr<element_scope>> scopes_;
     core::sta_vector<given_back> given_back_;
 };
 
-xaml::IElementFactory factory_of(item_maker make, bool containers) {
-    com_ptr<element_factory> const made{new element_factory{std::move(make), containers}};
+xaml::IElementFactory factory_of(winrt_item_builder make, bool containers) {
+    core::intrusive_ptr<element_factory> const made{new element_factory{std::move(make), containers},
+                                                    /*add_ref=*/false};
     return made->as_interface<xaml::IElementFactory>();
 }
 
-item_maker maker_of(ItemBuilder const& build) {
+winrt_item_builder maker_of(ItemBuilder const& build) {
     return [build](IInspectable const& item) -> IInspectable {
         return Object::Impl::as<xaml::UIElement>(build(Object::Impl::wrap<Object>(item)));
     };
@@ -126,13 +126,13 @@ void set_items_view_template(xaml::Controls::ItemsView const& view, ItemBuilder 
 }
 
 // The template first, so that the first elements the source brings are made by it.
-void attach_items(ItemsView const& control, bound_source const& source) {
+void attach_items(ItemsView const& control, bound_list_watch const& source) {
     xaml::Controls::ItemsView const& view = *Object::Impl::get_typed<ItemsView>(control);
     view.ItemTemplate(factory_of(&bound_element, true));
     view.ItemsSource(source.source().as_inspectable());
 }
 
-void attach_items(ItemsRepeater const& control, bound_source const& source) {
+void attach_items(ItemsRepeater const& control, bound_list_watch const& source) {
     xaml::Controls::ItemsRepeater const& repeater = *Object::Impl::get_typed<ItemsRepeater>(control);
     repeater.ItemTemplate(factory_of(&bound_element, false));
     repeater.ItemsSource(source.source().as_inspectable());

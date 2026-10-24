@@ -6,7 +6,7 @@
 // README.md рядом.
 
 #include "ui.h"
-#include "Box.h"
+#include "IndexList.h"
 #include "launch.h"
 #include "probe.h"
 
@@ -25,7 +25,7 @@ void makeList(int* builds, probe::ListTaker take, void* context) {
             ++*builds;
             return TextBlock {u"item"};
         },
-        itemsSource = indexList(2),
+        itemsSource = IndexList(2),
     };
     take(list.get_abi(), context);
 }

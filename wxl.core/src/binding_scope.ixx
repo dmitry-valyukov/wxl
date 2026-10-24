@@ -21,7 +21,7 @@ namespace impl {
  * A binding's watch as the scope it was made in sees it. The link lives inside the watch,
  * in the node of the field's event, so the two go together: when the field lets the watch
  * go -- dying, unbind(), a remove -- the link leaves its scope on the way out, and a scope
- * never holds anything dead. From the scope's side, cut() takes the watch off its field,
+ * never holds anything dead. From the scope's side, unbind() takes the watch off its field,
  * which destroys both.
  */
 class binding_link : public intrusive_list_node<binding_link>
@@ -30,22 +30,22 @@ public:
     /// Takes the watch off its field. The link leaves its scope first: a watch that is
     /// being called right now outlives its removal until it returns, and the scope must
     /// not meet it again meanwhile.
-    inline void cut() noexcept {
+    inline void unbind() noexcept {
         intrusive_list<binding_link>::remove(as_not_null(this));
-        cut_(*this);
+        unbind_(*this);
     }
 
 protected:
     // How the watch around this link takes itself off its field, whatever the field's
     // event: the watch is typed on it, the scope is not.
-    using cut_fn = void (*)(binding_link&) noexcept;
+    using unbind_fn = void (*)(binding_link&) noexcept;
 
-    inline binding_link(binding_scope& scope, cut_fn cut) noexcept;
+    inline binding_link(binding_scope& scope, unbind_fn unbind_fn) noexcept;
 
     inline ~binding_link() { intrusive_list<binding_link>::remove(as_not_null(this)); }
 
 private:
-    cut_fn cut_;
+    unbind_fn unbind_;
 };
 
 /// A binding's watch made while a scope was open: the callback and its link in one node
@@ -68,14 +68,14 @@ class linked_watch<Event, Fn, func_body<void(Args...) noexcept, Base>> final
 public:
     template <class F>
     linked_watch(Event& source, binding_scope& scope, F&& fn)
-        : binding_link(scope, &cut_from_source), source_(source), fn_(std::forward<F>(fn)) {}
+        : binding_link(scope, &unbind_from_source), source_(source), fn_(std::forward<F>(fn)) {}
 
     void operator()(Args... args) noexcept override { fn_(std::forward<Args>(args)...); }
 
 private:
-    static void cut_from_source(binding_link& link) noexcept {
+    static void unbind_from_source(binding_link& link) noexcept {
         auto& self = static_cast<linked_watch&>(link);
-        static_cast<void>(self.source_.remove(cookie_t{static_cast<body_t*>(&self)}));
+        static_cast<void>(self.source_.remove(static_cast<body_t&>(self)));
     }
 
     Event& source_;
@@ -85,7 +85,7 @@ private:
 }  // namespace impl
 
 /**
- * The bindings made while something is built, cut at once when that something goes.
+ * The bindings made while something is built, unbound at once when that something goes.
  *
  * A binding's watch is kept by its field, and it owns the control it writes to; it goes
  * with the field or with unbind(). That is right for a window, which lives as long as its
@@ -94,12 +94,12 @@ private:
  * an element the list has long given back. A scope is how such a builder's watches are
  * counted. Opened around the build with collect(), it gathers every binding watch made
  * meanwhile, on any field; kept by whatever knows when the element goes, it takes them
- * all off their fields with cut(), or with itself.
+ * all off their fields with unbind(), or with itself.
  *
  *     binding_scope scope;
  *     auto element = scope.collect([&] { return build(item); });
  *     ...
- *     scope.cut();   // the element was given back: its bindings go, the fields stay
+ *     scope.unbind();   // the element was given back: its bindings go, the fields stay
  *
  * The field may go first -- an item model dropped from the list -- and then its watches
  * leave the scope as they die, so neither side outlives the other. Only binding watches
@@ -114,8 +114,8 @@ class binding_scope : noncopyable
 public:
     binding_scope() noexcept = default;
 
-    /// Cuts every watch still collected.
-    inline ~binding_scope() { cut(); }
+    /// Unbinds every watch still collected.
+    inline ~binding_scope() { unbind(); }
 
     /// Runs `build` with this scope open and returns what it returns. Every binding watch
     /// made meanwhile is collected here as well as kept by its field. Scopes nest: one
@@ -134,13 +134,13 @@ public:
     /// the controls it wrote to, the handlers it put on them. The scope stays, empty, and
     /// can collect again. A field firing right now may be among them: the watch it is
     /// calling is called no more and goes when its call returns.
-    inline void cut() noexcept {
+    inline void unbind() noexcept {
         while (impl::binding_link* const link = links_.front()) {
-            link->cut();
+            link->unbind();
         }
     }
 
-    /// Nothing collected, or nothing left: every watch went with its field or was cut.
+    /// Nothing collected, or nothing left: every watch went with its field or was unbound.
     inline bool empty() const noexcept { return links_.empty(); }
 
     /// The scope open now, or null when no scope is.
@@ -176,7 +176,8 @@ void add_binding_watch(Event& bound, F&& callback) {
 namespace wxl::core::impl {
 
 // Out of the class, because the link joins the list of a scope declared after it.
-inline binding_link::binding_link(binding_scope& scope, cut_fn cut) noexcept : cut_(cut) {
+inline binding_link::binding_link(binding_scope& scope, unbind_fn unbind_fn) noexcept
+    : unbind_(unbind_fn) {
     scope.links_.push_back(as_not_null(this));
 }
 

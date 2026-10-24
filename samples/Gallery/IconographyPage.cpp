@@ -8,7 +8,8 @@
 #include "Shell.h"
 #include "Announce.h"
 #include "Box.h"
-#include "ItemBuilder.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 
@@ -98,7 +99,7 @@ struct Model {
                 tags.push_back(tag);
             }
         }
-        tagView.itemsSource(indexList(static_cast<int64_t>(tags.size())));
+        tagView.itemsSource(IndexList(static_cast<int64_t>(tags.size())));
         tagView.visibility(tags.empty() ? Visibility::Collapsed : Visibility::Visible);
         noTags.visibility(tags.empty() ? Visibility::Visible : Visibility::Collapsed);
     }
@@ -112,7 +113,7 @@ struct Model {
                 shown.push_back(i);
             }
         }
-        view.itemsSource(indexList(static_cast<int64_t>(shown.size())));
+        view.itemsSource(IndexList(static_cast<int64_t>(shown.size())));
         std::u16string outcome = u"No icons found.";
         if (!shown.empty()) {
             show(all[shown.front()]);
@@ -126,7 +127,7 @@ struct Model {
 
 FrameworkElement iconTile(std::weak_ptr<Model> weak, Object const& item) {
     auto const model = weak.lock();
-    auto const& icon = gallery::icons()[model->shown[static_cast<size_t>(intOf(item))]];
+    auto const& icon = gallery::icons()[model->shown[static_cast<size_t>(unboxValue<int64_t>(item))]];
     return ItemContainer {
         width = 96,
         height = 96,
@@ -147,7 +148,7 @@ FrameworkElement iconTile(std::weak_ptr<Model> weak, Object const& item) {
 
 FrameworkElement tagTile(std::weak_ptr<Model> weak, Object const& item) {
     auto const model = weak.lock();
-    auto const& tag = model->tags[static_cast<size_t>(intOf(item))];
+    auto const& tag = model->tags[static_cast<size_t>(unboxValue<int64_t>(item))];
     return ItemContainer {
         hAlign.left,
         automationName = tag,
@@ -179,13 +180,13 @@ FrameworkElement gallery::iconographyPage() {
             return;
         }
         if (auto const item = self->view.selectedItem()) {
-            self->show(gallery::icons()[self->shown[static_cast<size_t>(intOf(item))]]);
+            self->show(gallery::icons()[self->shown[static_cast<size_t>(unboxValue<int64_t>(item))]]);
         }
     });
     model->tagView.add_onItemInvoked([weak](auto const&, ItemsViewItemInvokedEventArgs& args) {
         auto const self = weak.lock();
         if (self) {
-            self->box.text(self->tags[static_cast<size_t>(intOf(args.invokedItem()))]);
+            self->box.text(self->tags[static_cast<size_t>(unboxValue<int64_t>(args.invokedItem()))]);
         }
     });
     model->box.add_onTextChanged([weak](AutoSuggestBox const& sender, AutoSuggestBoxTextChangedEventArgs&) {

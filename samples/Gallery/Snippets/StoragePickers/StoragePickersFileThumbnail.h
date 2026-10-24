@@ -73,7 +73,7 @@ auto example = StackPanel {
     spacing = 8,
     StackPanel {
         spacing = 8,
-        Button {content = u"Pick a file", onClick = [model, pick](Button const& button) { model->picking = pick(model.get(), button); }},
+        Button {content = u"Pick a file", onClick += [model, pick](Button const& button) { model->picking = pick(model.get(), button); }},
         model->details,
     },
     Border {width = 160, height = 160, CornerRadius {4}, horizontalAlignment = HorizontalAlignment::Left,

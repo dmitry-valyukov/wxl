@@ -2,7 +2,7 @@
 // item (the position of a contact in the application's vector) to the element that shows it.
 auto const* people = &gallery::contacts();
 auto const contactOf = [people](Object const& item) {
-    auto const& contact = (*people)[static_cast<size_t>(intOf(item))];
+    auto const& contact = (*people)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Grid {
         rowDefinitions = u"*,*",
         columnDefinitions = u"auto,*",
@@ -24,7 +24,7 @@ struct Model {
     static std::optional<uint32_t> find(ListView const& list, int64_t contact) {
         auto const items = list.items();
         for (uint32_t at = 0; at < items.size(); ++at) {
-            if (intOf(items.getAt(at)) == contact) return at;
+            if (unboxValue<int64_t>(items.getAt(at)) == contact) return at;
         }
         return std::nullopt;
     }
@@ -51,7 +51,7 @@ struct Model {
             // Within the list the items are reordered by the list itself; from the other list they are moved here.
             if (find(target, contact)) continue;
             auto const index = std::min(index_at(target, e), target.items().size());
-            target.items().insertAt(index, intBox(contact));
+            target.items().insertAt(index, boxValue(contact));
             if (auto const at = find(other, contact)) other.items().removeAt(*at);
         }
         e.acceptedOperation(DataPackageOperation::Move);
@@ -64,12 +64,12 @@ for (auto const& list : {model->left, model->right}) {
     list.itemTemplate(contactOf);
 }
 // The first six contacts on the left, the next three on the right.
-for (int64_t index = 0; index < 6; ++index) model->left.items().append(intBox(index));
-for (int64_t index = 6; index < 9; ++index) model->right.items().append(intBox(index));
+for (int64_t index = 0; index < 6; ++index) model->left.items().append(boxValue(index));
+for (int64_t index = 6; index < 9; ++index) model->right.items().append(boxValue(index));
 
 auto const start = [model](auto const&, DragItemsStartingEventArgs& args) {
     model->dragged.clear();
-    for (uint32_t at = 0; at < args.items().size(); ++at) model->dragged.push_back(intOf(args.items().getAt(at)));
+    for (uint32_t at = 0; at < args.items().size(); ++at) model->dragged.push_back(unboxValue<int64_t>(args.items().getAt(at)));
     args.data().requestedOperation(DataPackageOperation::Move);
 };
 auto const over = [](auto const&, DragEventArgs& e) { e.acceptedOperation(DataPackageOperation::Move); };

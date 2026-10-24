@@ -110,7 +110,7 @@ public:
  * The list does not own its nodes. It is the natural shape for a registry
  * that objects put themselves into and take themselves out of -- the node
  * lives inside the object, and leaving is something the object can do on its
- * own, without asking the list or remembering a cookie.
+ * own, without asking the list or remembering a token.
  */
 template <class Node>
 class intrusive_list : intrusive_list_node<Node>

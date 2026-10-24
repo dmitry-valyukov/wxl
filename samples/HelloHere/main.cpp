@@ -63,7 +63,7 @@ void updateTheme(Button const& themeButton) {
 wxl::Teardown wxl_launched() {
     auto themeButton = Button {
         Margin {16, 0},
-        onClick = [&](Button const& self) {
+        onClick += [&](Button const& self) {
             currentTheme = nextTheme(currentTheme);
             updateTheme(self);
         },
@@ -151,7 +151,7 @@ wxl::Teardown wxl_launched() {
                 row = 2,
                 Margin {0, 12},
                 content = L"Click",
-                onClick = {content = L"Thank You!"},
+                onClick += [](Button const& self) { self.content(L"Thank You!"); },
                 hAlign.center,
             },
         },

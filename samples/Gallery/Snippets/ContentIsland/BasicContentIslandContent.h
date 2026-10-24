@@ -63,7 +63,7 @@ struct Model {
             matrix.m42 = static_cast<float>(point.y);
             link.localToParentTransformMatrix(matrix);
         };
-        auto const token = host.add_onLayoutUpdated([follow](Object const&, Object const&) { follow(); });
+        auto token = host.add_onLayoutUpdated([follow](Object const&, Object const&) { follow(); });
         follow();
 
         placement.size(size);
@@ -71,7 +71,7 @@ struct Model {
 
         auto const island = scene(placement.compositor(), size);
         link.connect(island);
-        entries.push_back(Entry {link, island, host, token});
+        entries.push_back(Entry {link, island, host, std::move(token)});
     }
 
     // The page is left: the handlers are taken off and the islands closed, the link last.
@@ -89,8 +89,8 @@ auto const model = gallery::hold<Model>();
 auto example = Grid {
     rowSpacing = 8,
     rowDefinitions = u"auto,auto,*",
-    onUnloaded = [model](auto&&...) { model->unload(); },
+    onUnloaded += [model](auto&&...) { model->unload(); },
     model->hint,
-    Button {row = 1, styles.Button.Accent, content = u"Load model", onClick = [model](Button const&) { model->load(); }},
+    Button {row = 1, styles.Button.Accent, content = u"Load model", onClick += [model](Button const&) { model->load(); }},
     Border {row = 2, model->panel},
 };

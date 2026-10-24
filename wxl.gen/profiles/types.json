@@ -188,7 +188,7 @@
             { "property": "ActionIcon", "value": "IconElement" },
             { "property": "IsActionIconVisible", "value": "bool" },
             { "property": "IsClickEnabled", "value": "bool" },
-            { "property": "ContentAlignment", "value": "SettingsCardContentAlignment", "include": "../SettingsCardAlignment.h" }
+            { "property": "ContentAlignment", "value": "SettingsCardContentAlignment", "include": "../SettingsCardContentAlignment.h" }
         ],
         "events": ["ClientSizeChanged", "Closing", "GeometryChanged"],
 

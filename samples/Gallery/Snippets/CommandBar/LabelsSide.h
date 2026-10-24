@@ -12,7 +12,7 @@ auto command = [selected](Symbol which, char16_t const* caption, VirtualKey pres
         icon = SymbolIcon {symbol = which},
         label = caption,
         keyboardAccelerators[KeyboardAccelerator {key = pressed, modifiers = held}],
-        onClick = [selected, caption](AppBarButton const&) { selected.text(std::u16string {u"You clicked: "} + caption); },
+        onClick += [selected, caption](AppBarButton const&) { selected.text(std::u16string {u"You clicked: "} + caption); },
     };
 };
 
@@ -21,8 +21,8 @@ auto bar = CommandBar {
     defaultLabelPosition = CommandBarDefaultLabelPosition::Right,
     isOpen = BindOutput {model->open},
     isSticky = BindOutput {model->open},
-    onOpened = [model] { model->open.set(true); },
-    onClosed = [model] { model->open.set(false); },
+    onOpened += [model] { model->open.set(true); },
+    onClosed += [model] { model->open.set(false); },
     primaryCommands[
         command(Symbol::Add, u"Add", VirtualKey::A, VirtualKeyModifiers::Control),
         command(Symbol::Edit, u"Edit", VirtualKey::E, VirtualKeyModifiers::Control),
@@ -42,7 +42,7 @@ auto addSecondary = [bar, selected]() {
             icon = SymbolIcon {symbol = which},
             label = caption,
             keyboardAccelerators[KeyboardAccelerator {key = pressed, modifiers = held}],
-            onClick = [selected, caption](AppBarButton const&) { selected.text(std::u16string {u"You clicked: "} + caption); },
+            onClick += [selected, caption](AppBarButton const&) { selected.text(std::u16string {u"You clicked: "} + caption); },
         });
     };
     append(Symbol::Add, u"Button 1", VirtualKey::N, VirtualKeyModifiers::Control);
@@ -63,9 +63,9 @@ auto example = StackPanel {bar, selected};
 
 auto options = StackPanel {
     TextBlock {u"Show or hide"},
-    Button {Margin {0, 12, 0, 0}, content = u"Open command bar", onClick = [model] { model->open.set(true); }},
-    Button {Margin {0, 12, 0, 0}, content = u"Close command bar", onClick = [model] { model->open.set(false); }},
+    Button {Margin {0, 12, 0, 0}, content = u"Open command bar", onClick += [model] { model->open.set(true); }},
+    Button {Margin {0, 12, 0, 0}, content = u"Close command bar", onClick += [model] { model->open.set(false); }},
     TextBlock {Margin {0, 16, 0, 0}, u"Modify content"},
-    Button {Margin {0, 12, 0, 0}, content = u"Add secondary commands", onClick = [addSecondary] { addSecondary(); }},
-    Button {Margin {0, 12, 0, 0}, content = u"Remove secondary commands", onClick = [removeSecondary] { removeSecondary(); }},
+    Button {Margin {0, 12, 0, 0}, content = u"Add secondary commands", onClick += [addSecondary] { addSecondary(); }},
+    Button {Margin {0, 12, 0, 0}, content = u"Remove secondary commands", onClick += [removeSecondary] { removeSecondary(); }},
 };

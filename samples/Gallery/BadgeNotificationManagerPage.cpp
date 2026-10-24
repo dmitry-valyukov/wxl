@@ -1,7 +1,7 @@
 // Страница BadgeNotificationManager -- BadgeNotificationManagerPage оригинала.
 
 #include "Pages.h"
-#include "Packaged.h"
+#include "Application.h"
 #include <wxl/Microsoft.Windows.BadgeNotifications.h>
 #include "Shell.h"
 

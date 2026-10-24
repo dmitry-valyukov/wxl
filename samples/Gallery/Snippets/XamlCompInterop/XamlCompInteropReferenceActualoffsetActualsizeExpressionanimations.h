@@ -38,6 +38,6 @@ auto example = StackPanel {
     TextBlock {styles.TextBlock.Body, textWrapping = TextWrapping::WrapWholeWords,
                u"This sample positions a popup relative to a block of text that has variable layout size based on font size. Use the "
                u"sliders to move and resize the text."},
-    Grid {Margin {0, 12, 0, 0}, hAlign.left, model->target, model->popup, onLoaded = open},
+    Grid {Margin {0, 12, 0, 0}, hAlign.left, model->target, model->popup, onLoaded += open},
 };
 auto options = StackPanel {minWidth = 150, model->fontSize, model->margin};

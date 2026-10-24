@@ -15,7 +15,7 @@ import wxl.core;
 // They are deliberately *not* shaped like the class wrappers: an args
 // object belongs to the runtime and lives only for the duration of the
 // callback, so its wrapper is a non-owning view of the ABI pointer
-// (wxl::EventArgsBase) rather than a reference-counted Impl chain. That
+// (wxl::EventArgs) rather than a reference-counted Impl chain. That
 // keeps an event that fires on every mouse move free of an allocation and
 // a reference count it would gain nothing from, and non-copyability is what
 // makes "valid only inside the handler" a compiler rule.
@@ -47,7 +47,7 @@ bool is_event_args_class(TypeDef const& type) {
 namespace {
 
 // An args class as analysis sees it: its TypeDef, its base among the args
-// classes (empty for a root, which derives from EventArgsBase), and the
+// classes (empty for a root, which derives from EventArgs), and the
 // event_args_info a writer gets.
 struct args_source {
     TypeDef type;
@@ -60,7 +60,7 @@ struct args_source {
 // wrappers for -- a base outside that set (typically just IInspectable
 // by way of no Extends() at all) makes this class a root.
 args_source read_event_args(TypeDef const& type, std::set<TypeDef> const& candidates) {
-    args_source source{type, {}, {std::string{type.TypeName()}, "EventArgsBase", {}}};
+    args_source source{type, {}, {std::string{type.TypeName()}, "EventArgs", {}}};
     if (auto const base = type.Extends()) {
         if (auto const resolved = md::find(base);
             resolved && candidates.count(resolved)) {
@@ -322,7 +322,7 @@ void analyze_event_args(type_kinds const& kinds, closure const& cl, type_index c
         file.ns = ns;
         if (file.source_includes.empty()) {
             file.source_includes = {"../Object.impl.h", "../impl/conversions.h",
-                                    "../impl/event_args.h"};
+                                    "../impl/winrt_helpers.h"};
         }
 
         if (c.base) {

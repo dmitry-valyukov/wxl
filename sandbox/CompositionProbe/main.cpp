@@ -31,7 +31,7 @@ wxl::Teardown wxl_launched() {
             BorderThickness {1},
             Button {
                 content = L"Своё окно на композиторе",
-                onClick = {content = L"Ввод дошёл!"},
+                onClick += [](Button const& self) { self.content(L"Ввод дошёл!"); },
             },
         },
     };

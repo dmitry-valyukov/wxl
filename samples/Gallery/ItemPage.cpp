@@ -5,7 +5,7 @@
 // Введение оригинал даёт статичным TextBlock; здесь это HtmlBlock.
 
 #include "Pages.h"
-#include "StringList.h"
+#include "Box.h"
 #include "Shell.h"
 
 using namespace wxl;
@@ -158,7 +158,7 @@ FrameworkElement themeButton() {
         toolTip = u"Toggle theme",
         automationName = u"Toggle theme",
         content = FontIcon {glyph = u"", fontSize = 16},
-        onClick = [](Object const& sender, RoutedEventArgs&) {
+        onClick += [](Object const& sender, RoutedEventArgs&) {
             auto const button = sender.try_as<Button>();
             if (auto const root = button.xamlRoot().content().try_as<FrameworkElement>()) {
                 auto const light = root.actualTheme() == ElementTheme::Light;
@@ -178,7 +178,7 @@ FrameworkElement favoriteButton(std::wstring id) {
         automationName = u"Favorite sample",
         toolTip = on ? u"Remove from favorites" : u"Add to favorites",
         content = FontIcon {glyph = on ? u"" : u"", fontSize = 16},
-        onClick = [id](Object const& sender, RoutedEventArgs&) {
+        onClick += [id](Object const& sender, RoutedEventArgs&) {
             auto const button = sender.try_as<ToggleButton>();
             bool const checked = button.isChecked().value_or(false);
             gallery::setFavorite(id, checked);

@@ -5,7 +5,8 @@
 #include <algorithm>
 #include <cwctype>
 #include "Box.h"
-#include "ItemBuilder.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include "Contact.h"
 #include <wxl/Windows.ApplicationModel.DataTransfer.h>
 #include "CustomDataObject.h"

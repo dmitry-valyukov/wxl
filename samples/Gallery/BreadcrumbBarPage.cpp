@@ -6,8 +6,8 @@
 #include <vector>
 #include "Announce.h"
 #include "Box.h"
-#include "BoundTemplate.h"
-#include "StringList.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 

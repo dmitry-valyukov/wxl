@@ -15,7 +15,7 @@
 #include "events.h"
 #include "hstring_param.h"
 #include "impl/member.h"
-#include "impl/window_watch.h"
+#include "impl/event_watch.h"
 
 #include <filesystem>
 #include <functional>
@@ -53,7 +53,7 @@
 //         minSize = {820, 560},
 //         extendsContentIntoTitleBar = true,
 //         titleBar = {leftHeader = ..., content = ..., rightHeader = ...},
-//         onClosed = [] { ... },
+//         onClosed += [] { ... },
 //         page,
 //     };
 //
@@ -78,12 +78,17 @@
 // Объявлено, не включено: держится хэндл окна, а вызывающему, которому нужно
 // лишь его открыть, незачем разбирать заголовок Windows. Так же у WindowShade.
 struct HWND__;
+struct HINSTANCE__;
+
+int __stdcall wWinMain(HINSTANCE__*, HINSTANCE__*, wchar_t*, int);
 
 namespace wxl {
 
-// Общее состояние окна: HWND, острова, визуалы сцены, обработчики. Определено в
-// CompositionWindow.cpp; окно смотрит в него и делит его с копиями.
-struct WindowState;
+namespace impl {
+
+struct App;
+
+}  // namespace impl
 
 class AppZoom;
 class ZoomEffect;
@@ -101,9 +106,9 @@ struct ClientSize {
 /// по порядку подписки, и каждый видит ответ тех, кто был до него: решает
 /// последний сказавший. Живёт, пока идёт вызов, как всякие аргументы события;
 /// объекта WinRT за ней нет -- просьба своя, окна.
-class WindowClosingEventArgs : public EventArgsBase {
+class WindowClosingEventArgs : public EventArgs {
 public:
-    WindowClosingEventArgs() noexcept : EventArgsBase(nullptr) {}
+    WindowClosingEventArgs() noexcept : EventArgs(nullptr) {}
 
     /// true -- отклонить: окно остаётся как было, ни Closed, ни разрушения;
     /// false -- снять отказ, сказанный раньше.
@@ -205,17 +210,17 @@ public:
     /// синхронный background(path). Возвращается сразу, а ожидание картинки --
     /// задача, которую окно держит при загрузке; пока она ждёт, её ждёт и выход
     /// приложения: отсюда токен, и формы без него нет. Загрузка идёт под
-    /// источником окна, дочерним от `stop`, -- токена общего источника
+    /// источником окна, дочерним от `token`, -- токена общего источника
     /// приложения или сделанного под ним: его отменяет фон, поставленный позже
-    /// (он и остаётся), и отмена `stop`. Отказ загрузки -- файла нет -- кончает
+    /// (он и остаётся), и отмена `token`. Отказ загрузки -- файла нет -- кончает
     /// ожидание, и фон не меняется.
     /// Потерянное устройство уносит и картинку: на его замену окно грузит её
-    /// снова, под тем же `stop`, если фон с тех пор не сменили иначе. Под
-    /// отменённым `stop` вызов не делает ничего. Конец окна (WM_DESTROY) отменяет
+    /// снова, под тем же `token`, если фон с тех пор не сменили иначе. Под
+    /// отменённым `token` вызов не делает ничего. Конец окна (WM_DESTROY) отменяет
     /// загрузку и забывает её, а уничтоженное окно загрузку не начинает:
     /// winrt::hresult_error RO_E_CLOSED.
-    void backgroundAsync(BackgroundImage const& image, async::cancellation_token stop) const;
-    void backgroundAsync(std::filesystem::path const& image, async::cancellation_token stop) const;
+    void backgroundAsync(BackgroundImage const& image, async::cancellation_token token) const;
+    void backgroundAsync(std::filesystem::path const& image, async::cancellation_token token) const;
 
     /// Куда приложение цепляет визуалы страницы -- над задним фоном, под
     /// островом. Контейнер во всё окно, ресайзится вместе с ним.
@@ -398,14 +403,15 @@ public:
     // ---- События ----
     //
     // Пары add_on.../remove_on..., как у генерируемых обёрток: в скобках окна
-    // они пишутся тегами (`onClosed = ...`), а on_event<EventKey::...>(window)
+    // они пишутся тегами (`onClosed += ...`), а on_event<EventKey::...>(window)
     // делает каждое ожидаемым в корутине. Отправитель -- пустой Object: окно не
     // объект WinRT; обработчик без аргументов или с одними аргументами события
     // его не видит. Все зовутся на интерфейсном потоке.
     //
-    // remove_on... отвечает, стоял ли обработчик: false -- токен не называет
-    // обработчика этого события (снят раньше или выдан другому событию либо
-    // окну).
+    // remove_on... берёт токен вызывающего по ссылке и опустошает его; пустой
+    // токен (снят раньше или не выдан) останавливает процесс. Отвечает, стоял
+    // ли обработчик: false -- токен не называет обработчика этого события
+    // (выдан другому событию либо окну).
     // Снятие, которое делает сам wxl, -- `-=` в скобках, конец ожидания
     // on_event -- ответ проверяет: false там останавливает процесс. Подписку
     // члена, которая снимается сама вместе с владельцем, держит WindowWatch
@@ -418,17 +424,17 @@ public:
     /// спрашивает его снова, а close() изнутри обработчика -- следующая
     /// просьба, после этой. Сколько отклонять, решает приложение.
     EventToken add_onClosing(EventHandler<WindowClosingEventArgs> const& handler) const;
-    bool remove_onClosing(EventToken token) const;
+    bool remove_onClosing(EventToken& token) const;
 
     /// Закрытие окна: приложению есть что сохранить по дороге (место чтения,
     /// геометрию). Зовётся до разрушения, если Closing просьбу не отклонил.
     EventToken add_onClosed(EventHandler<Object> const& handler) const;
-    bool remove_onClosed(EventToken token) const;
+    bool remove_onClosed(EventToken& token) const;
 
     /// Место окна сменилось -- двигали, растягивали, максимизировали или
     /// восстановили. Под отложенное сохранение места.
     EventToken add_onGeometryChanged(EventHandler<Object> const& handler) const;
-    bool remove_onGeometryChanged(EventToken token) const;
+    bool remove_onGeometryChanged(EventToken& token) const;
 
     /// Клиентская область сменила размер или масштаб (ClientSize).
     ///
@@ -439,7 +445,7 @@ public:
     /// уже изнутри прохода вёрстки, а править дерево оттуда нельзя. Смена
     /// увеличения (`zoomFactor`) зовёт его тоже: логическая ширина от неё меняется.
     EventToken add_onClientSizeChanged(EventHandler<ClientSize> const& handler) const;
-    bool remove_onClientSizeChanged(EventToken token) const;
+    bool remove_onClientSizeChanged(EventToken& token) const;
 
     // Ввод со сцены (режим чтения, XAML-острова нет). У чистой сцены ввод
     // расщеплён: указатель перехватывает InputSite острова (верхний WndProc
@@ -447,15 +453,15 @@ public:
     // доходит до WndProc (WM_KEYDOWN). Окно сводит оба в эти события; они
     // приносят те же обёртки, что раздаёт XAML (VirtualKey, PointerPoint).
     EventToken add_onKeyDown(EventHandler<VirtualKey> const& handler) const;
-    bool remove_onKeyDown(EventToken token) const;
+    bool remove_onKeyDown(EventToken& token) const;
     EventToken add_onPointerPressed(EventHandler<PointerPoint> const& handler) const;
-    bool remove_onPointerPressed(EventToken token) const;
+    bool remove_onPointerPressed(EventToken& token) const;
     EventToken add_onPointerMoved(EventHandler<PointerPoint> const& handler) const;
-    bool remove_onPointerMoved(EventToken token) const;
+    bool remove_onPointerMoved(EventToken& token) const;
     EventToken add_onPointerReleased(EventHandler<PointerPoint> const& handler) const;
-    bool remove_onPointerReleased(EventToken token) const;
+    bool remove_onPointerReleased(EventToken& token) const;
     EventToken add_onPointerWheelChanged(EventHandler<PointerPoint> const& handler) const;
-    bool remove_onPointerWheelChanged(EventToken token) const;
+    bool remove_onPointerWheelChanged(EventToken& token) const;
 
     // Те же события одним вызовом, как их подписывали до тегов: обработчик
     // добавляется и остаётся до конца жизни окна.
@@ -468,13 +474,39 @@ public:
     void onPointerReleased(std::function<void(PointerPoint const&)> handler) const;
     void onPointerWheel(std::function<void(PointerPoint const&)> handler) const;
 
+    // The state behind the handle: the HWND, the islands, the scene's visuals, the handlers --
+    // shared by the copies of the window. Declared, and defined in CompositionWindow.cpp. Public,
+    // as Object::Impl is: the window's procedure and impl::scene_of there are free functions that
+    // read it, and the name gives a consumer nothing without the definition.
+    struct Impl;
+
 private:
     // Масштаб, который присоединяет ZoomEffect: окно ведёт модель клавишами и
     // колесом своего острова и следует за её масштабом.
     friend class ZoomEffect;
     void attachZoom(core::intrusive_ptr<AppZoom> zoom) const;
 
-    core::intrusive_ptr<WindowState> state_;
+    // The way out, which launch.cpp takes: XAML counts only its own windows, and with
+    // DispatcherShutdownMode::OnLastWindowClose, which Application::Start sets, its loop ends
+    // when the last XAML Window closes -- a CompositionWindow still open is no window of XAML's
+    // to wait for. XAML does not outlive its loop: still inside Start it shuts its own queue down
+    // and takes itself apart in that queue's FrameworkShutdownStarting. The queue's
+    // ShutdownStarting comes before, with XAML alive -- the last moment a window can be closed
+    // the way it is meant to be.
+    friend struct impl::App;
+    friend int __stdcall ::wWinMain(HINSTANCE__*, HINSTANCE__*, wchar_t*, int);
+
+    /// Closes every window still open, while XAML lives -- in ShutdownStarting of the queue of
+    /// XAML: each is sent WM_CLOSE, so that Closing and Closed run and the owners let go of what
+    /// they hold, and one that refuses to close is destroyed regardless -- on the way out a
+    /// refusal has nothing left to keep the window for. Windows a handler opens in the meantime
+    /// are closed with the rest.
+    static void close_all_at_exit() noexcept;
+
+    /// Whether no window is alive.
+    static bool all_closed() noexcept;
+
+    core::intrusive_ptr<Impl> impl_;
 };
 
 /// Подписка члена владельца на событие окна, которую держит член того же
@@ -512,6 +544,6 @@ private:
 /// перемещается: обработчик зовёт владельца, с которым держатель поставлен, и
 /// в другом месте держатель звал бы чужого.
 template <EventKey key, auto Listener>
-using WindowWatch = impl::window_watch<CompositionWindow, impl::EventAdder<key>, Listener>;
+using WindowWatch = impl::event_watch<CompositionWindow, impl::event_adder<key>, Listener>;
 
 }  // namespace wxl

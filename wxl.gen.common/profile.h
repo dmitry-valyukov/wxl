@@ -236,7 +236,7 @@ struct type_map {
     std::vector<tag> tags;
 
     // The same for events -- CompositionWindow's ClientSizeChanged: a key, an
-    // `on...` tag, and an EventAdder calling the class's add_on.../remove_on....
+    // `on...` tag, and an event_adder calling the class's add_on.../remove_on....
     std::vector<hand_written_property> hand_written_properties;
     std::set<std::string> hand_written_events;
     std::vector<bound_member> bound_members;

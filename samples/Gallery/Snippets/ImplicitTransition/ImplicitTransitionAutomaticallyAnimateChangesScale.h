@@ -28,7 +28,7 @@ model->custom.add_onKeyDown([applyCustom](auto const&, KeyRoutedEventArgs& args)
 });
 
 auto const preset = [apply](char16_t const* title, float scale) {
-    return Button {Margin {5}, hAlign.stretch, content = title, onClick = [apply, scale](auto&&...) { apply(scale); }};
+    return Button {Margin {5}, hAlign.stretch, content = title, onClick += [apply, scale](auto&&...) { apply(scale); }};
 };
 
 auto example = rectangle;
@@ -41,5 +41,5 @@ auto options = StackPanel {
     model->y,
     model->z,
     model->custom,
-    Button {Margin {5}, hAlign.stretch, content = u"Set custom scale", onClick = applyCustom},
+    Button {Margin {5}, hAlign.stretch, content = u"Set custom scale", onClick += applyCustom},
 };

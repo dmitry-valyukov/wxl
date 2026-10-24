@@ -78,7 +78,7 @@ bool UiThread::post(std::function<void()> work) const {
 
 UiThread::Idle::~Idle() {
     if (self_) {
-        *self_ = nullptr;
+        self_->wait = nullptr;
     }
     if (waiting()) {
         disarm();
@@ -86,17 +86,18 @@ UiThread::Idle::~Idle() {
 }
 
 bool UiThread::Idle::await_suspend(std::coroutine_handle<> waiter) {
-    self_ = std::make_shared<Idle*>(this);
+    self_ = core::make_refcounted<impl::idle_link>(this);
     arm(waiter);
 
     // Low: everything the queue holds at normal priority -- input among it --
     // runs before the coroutine does.
     auto const queue = queue_t::GetForCurrentThread();
-    if (queue && queue.TryEnqueue(winrt::Microsoft::UI::Dispatching::DispatcherQueuePriority::Low, [self = self_] {
-            if (Idle* const wait = *self) {
-                wait->deliver();
-            }
-        })) {
+    if (queue && queue.TryEnqueue(winrt::Microsoft::UI::Dispatching::DispatcherQueuePriority::Low,
+                                  [self = self_] {
+                                      if (Idle* const wait = self->wait) {
+                                          wait->deliver();
+                                      }
+                                  })) {
         return true;
     }
 
@@ -108,11 +109,11 @@ bool UiThread::Idle::await_suspend(std::coroutine_handle<> waiter) {
 // At normal priority, the one an event comes at: a cancelled wait ends as
 // soon as what was already in the queue has run, not once the thread is idle.
 // A queue that throws or refuses is one going down, and the waits are ended
-// with the rest by close_event_waits().
-bool impl::post_canceled_waits() noexcept {
+// with the rest by event_wait::close_all().
+bool impl::event_wait::post_canceled() noexcept {
     try {
         auto const queue = queue_t::GetForCurrentThread();
-        return queue && queue.TryEnqueue([] { impl::resume_canceled_waits(); });
+        return queue && queue.TryEnqueue([] { impl::event_wait::resume_canceled(); });
     } catch (...) {
         return false;
     }

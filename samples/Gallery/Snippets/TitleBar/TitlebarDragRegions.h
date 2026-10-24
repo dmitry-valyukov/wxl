@@ -18,7 +18,7 @@ struct Model {
         content = u"Status",
         // Only fires when IsDragRegion is not true; otherwise the framework consumes the
         // pointer for window dragging.
-        onClick = [this](Button const&) { status.text(u"Status badge clicked"); },
+        onClick += [this](Button const&) { status.text(u"Status badge clicked"); },
     };
     Button extraButton {vAlign.center, content = u"Extra"};
     bool hasExtraButton = false;
@@ -83,7 +83,7 @@ struct Model {
                     RadioButton {content = u"True (always draggable \u2014 overrides the framework default)"},
                     RadioButton {content = u"False (always clickable)"},
                     selectedIndex = 0,
-                    onSelectionChanged = [this](RadioButtons const& self) {
+                    onSelectionChanged += [this](RadioButtons const& self) {
                         switch (self.selectedIndex()) {
                             case 0: statusBadge.isDragRegion(core::nullable<bool> {}); break;
                             case 1: statusBadge.isDragRegion(true); break;
@@ -103,7 +103,7 @@ struct Model {
                     spacing = 8,
                     Button {
                         content = u"Toggle extra title bar button",
-                        onClick = [this](Button const&) {
+                        onClick += [this](Button const&) {
                             if (!hasExtraButton) {
                                 rightHeader.children().insertAt(0, extraButton);
                                 status.text(u"Added a Button to TitleBar.Content. Call RecomputeDragRegions() to refresh drag regions.");
@@ -116,7 +116,7 @@ struct Model {
                     },
                     Button {
                         content = u"RecomputeDragRegions()",
-                        onClick = [this](Button const&) {
+                        onClick += [this](Button const&) {
                             titleBar.recomputeDragRegions();
                             status.text(u"RecomputeDragRegions() called.");
                         },
@@ -153,5 +153,5 @@ auto example = StackPanel {
         u"you can toggle TitleBar.IsDragRegion on a status badge and call RecomputeDragRegions() after dynamic content "
         u"changes.",
     },
-    Button {hAlign.center, styles.Button.Accent, content = u"Show window", onClick = [openWindow](Button const&) { openWindow(); }},
+    Button {hAlign.center, styles.Button.Accent, content = u"Show window", onClick += [openWindow](Button const&) { openWindow(); }},
 };

@@ -4,8 +4,8 @@
 //
 // No window, no dispatcher, no runtime. The timer is a fake with the four calls the wait
 // subscribes and drives through, and the test ticks it. The queue is the one event_cancel_test
-// stands for: the turn a cancelled wait asks for is impl::resume_canceled_waits(), called when
-// the test says, and the definition of impl::post_canceled_waits() is that test's, shared in
+// stands for: the turn a cancelled wait asks for is impl::event_wait::resume_canceled(), called when
+// the test says, and the definition of impl::event_wait::post_canceled() is that test's, shared in
 // this binary.
 #include <gtest/gtest.h>
 
@@ -14,6 +14,8 @@
 #include <vector>
 
 #include "impl/waitable_timer.h"
+
+#include "event_wait_test.h"
 
 namespace {
 
@@ -41,12 +43,14 @@ struct fake_timer {
     EventToken add(Handler&& handler) const {
         state->tick = std::forward<Handler>(handler);
         ++state->subscribed;
-        return EventToken{1};
+        return wxl::core::impl::make_event_token(1);
     }
 
-    void remove(EventToken) const {
+    // As every removal of wxl does, it empties the caller's token.
+    void remove(EventToken& token) const {
         state->tick = {};
         ++state->unsubscribed;
+        token = EventToken{};
     }
 
     void start() const {
@@ -71,11 +75,11 @@ void tick(timer_state& state) {
 
 /// Waits on the timer over and over, counting how often it was let through, until the token
 /// says to stop -- read after the wait, as a loop that writes between waits reads it.
-task<> keeps_waiting(timer_wait& timer, cancellation_token stop, int& woken) {
+task<> keeps_waiting(timer_wait& timer, cancellation_token token, int& woken) {
     do {
         co_await timer;
         ++woken;
-    } while (!stop.is_canceled());
+    } while (!token.is_canceled());
 }
 
 /// Between two waits on the timer, waits on something else -- so that whatever the timer
@@ -116,16 +120,16 @@ class WaitableTimerTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        ASSERT_TRUE(wxl::impl::event_waits_drained());
-        ASSERT_FALSE(wxl::impl::canceled_waits_posted());
+        ASSERT_TRUE(wxl::impl::event_wait::all_drained());
+        ASSERT_FALSE(wxl::impl::event_wait_test::canceled_posted());
     }
 
     void TearDown() override {
-        EXPECT_TRUE(wxl::impl::event_waits_drained()) << "a wait was left in a list";
-        EXPECT_FALSE(wxl::impl::canceled_waits_posted()) << "a turn was left in the queue";
+        EXPECT_TRUE(wxl::impl::event_wait::all_drained()) << "a wait was left in a list";
+        EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted()) << "a turn was left in the queue";
 
-        wxl::impl::events_closing() = false;
-        wxl::impl::canceled_waits_posted() = false;
+        wxl::impl::event_wait_test::set_closing(false);
+        wxl::impl::event_wait_test::set_canceled_posted(false);
     }
 };
 
@@ -244,22 +248,22 @@ TEST_F(WaitableTimerTest, ARestartForgetsATickNotYetTaken) {
 // cancel() resumes nobody, the coroutine goes round once more and reads the token.
 TEST_F(WaitableTimerTest, TheTokensCancellationEndsTheWaitLikeATickOnTheQueuesTurn) {
     timer_state state;
-    cancellation_source stop;
-    timer_wait timer{fake_timer{&state}, stop.token()};
+    cancellation_source source;
+    timer_wait timer{fake_timer{&state}, source.token()};
     int woken = 0;
 
-    task<> work = keeps_waiting(timer, stop.token(), woken);
+    task<> work = keeps_waiting(timer, source.token(), woken);
 
     timer.restart();
     tick(state);
     EXPECT_EQ(woken, 1);
 
-    stop.cancel();
+    source.cancel();
     EXPECT_FALSE(work.done()) << "cancel() resumed the coroutine itself";
     EXPECT_EQ(woken, 1);
-    EXPECT_TRUE(wxl::impl::canceled_waits_posted());
+    EXPECT_TRUE(wxl::impl::event_wait_test::canceled_posted());
 
-    wxl::impl::resume_canceled_waits();
+    wxl::impl::event_wait::resume_canceled();
 
     ASSERT_TRUE(work.done());
     EXPECT_NO_THROW(work.result());
@@ -270,31 +274,31 @@ TEST_F(WaitableTimerTest, TheTokensCancellationEndsTheWaitLikeATickOnTheQueuesTu
 // queue to do.
 TEST_F(WaitableTimerTest, UnderATokenCancelledAlreadyAWaitEndsAtOnce) {
     timer_state state;
-    cancellation_source stop;
-    stop.cancel();
+    cancellation_source source;
+    source.cancel();
 
-    timer_wait timer{fake_timer{&state}, stop.token()};
+    timer_wait timer{fake_timer{&state}, source.token()};
     int woken = 0;
 
-    task<> work = keeps_waiting(timer, stop.token(), woken);
+    task<> work = keeps_waiting(timer, source.token(), woken);
 
     ASSERT_TRUE(work.done());
     EXPECT_NO_THROW(work.result());
     EXPECT_EQ(woken, 1);
-    EXPECT_FALSE(wxl::impl::canceled_waits_posted());
+    EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted());
 }
 
 // A tick before the turn ends a cancelled wait itself, and the turn then finds nobody.
 TEST_F(WaitableTimerTest, ATickBeforeTheTurnEndsACancelledWait) {
     timer_state state;
-    cancellation_source stop;
-    timer_wait timer{fake_timer{&state}, stop.token()};
+    cancellation_source source;
+    timer_wait timer{fake_timer{&state}, source.token()};
     int woken = 0;
 
-    task<> work = keeps_waiting(timer, stop.token(), woken);
+    task<> work = keeps_waiting(timer, source.token(), woken);
 
     timer.restart();
-    stop.cancel();
+    source.cancel();
     EXPECT_FALSE(work.done());
 
     tick(state);
@@ -302,7 +306,7 @@ TEST_F(WaitableTimerTest, ATickBeforeTheTurnEndsACancelledWait) {
     EXPECT_NO_THROW(work.result());
     EXPECT_EQ(woken, 1);
 
-    wxl::impl::resume_canceled_waits();
+    wxl::impl::event_wait::resume_canceled();
 }
 
 // The one end that differs: the application going down ends the wait with the cancellation
@@ -315,7 +319,7 @@ TEST_F(WaitableTimerTest, GoingDownEndsTheWaitWithTheCancellationException) {
     task<> work = waits_once(timer, ended);
     EXPECT_FALSE(work.done());
 
-    wxl::impl::close_event_waits();
+    wxl::impl::event_wait::close_all();
 
     ASSERT_TRUE(work.done());
     EXPECT_EQ(ended, "cancelled");
@@ -334,7 +338,7 @@ TEST_F(WaitableTimerTest, ASignalStandingOnTheWayDownIsTakenOnce) {
     timer_wait timer{fake_timer{&state}};
 
     timer.signal();
-    wxl::impl::close_event_waits();
+    wxl::impl::event_wait::close_all();
 
     std::string first, second;
     task<> a = waits_once(timer, first);
@@ -357,7 +361,7 @@ TEST_F(WaitableTimerTest, AFrameDestroyedWhileWaitingLeavesTheTimer) {
             timer.restart();
         }
 
-        EXPECT_TRUE(wxl::impl::event_waits_drained());
+        EXPECT_TRUE(wxl::impl::event_wait::all_drained());
 
         tick(state);
         EXPECT_EQ(woken, 0);
@@ -369,4 +373,4 @@ TEST_F(WaitableTimerTest, AFrameDestroyedWhileWaitingLeavesTheTimer) {
 
 // The wait answers a token's request as every wait of wxl does, and the timer is as narrow as
 // the wait needs: the fake, a token and a subscription token, and the latch.
-static_assert(wxl::async::detail::cancellable_awaiter<timer_wait::Wait>);
+static_assert(wxl::async::detail::cancelable_awaiter<timer_wait::wait>);

@@ -7,7 +7,7 @@ struct Model {
     std::vector<std::u16string> names;
     StandardUICommand deleteCommand {
         kind = StandardUICommandKind::Delete,
-        onExecuteRequested = [this](XamlUICommand const&, ExecuteRequestedEventArgs& args) {
+        onExecuteRequested += [this](XamlUICommand const&, ExecuteRequestedEventArgs& args) {
             // From a swipe item or a button: the row named. From the menu, which has no row in
             // hand: the row selected.
             if (args.parameter() && args.parameter().is_text()) {
@@ -33,13 +33,13 @@ struct Model {
     // swiped left it deletes, and so does a right click on the menu.
     FrameworkElement row(std::u16string const& name) const {
         return Grid {
-            onPointerEntered = [](Grid const& self, PointerRoutedEventArgs& args) {
+            onPointerEntered += [](Grid const& self, PointerRoutedEventArgs& args) {
                 auto const pointer = args.pointer().pointerDeviceType();
                 if (pointer == PointerDeviceType::Mouse || pointer == PointerDeviceType::Pen) {
                     self.children()[0].try_as<SwipeControl>().content().try_as<Grid>().children()[1].visibility(Visibility::Visible);
                 }
             },
-            onPointerExited = [](Grid const& self) {
+            onPointerExited += [](Grid const& self) {
                 self.children()[0].try_as<SwipeControl>().content().try_as<Grid>().children()[1].visibility(Visibility::Collapsed);
             },
             SwipeControl {

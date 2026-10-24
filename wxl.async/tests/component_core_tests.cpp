@@ -144,17 +144,17 @@ TEST(ComponentTest, EveryStopSubscriberIsGivenTheReason) {
     EXPECT_EQ(due_to_error, (std::vector<bool>{true, true}));
 }
 
-TEST(ComponentTest, ASubscriptionIsCancelledByItsCookie) {
+TEST(ComponentTest, ASubscriptionIsCancelledByItsToken) {
     simple_component c;
     bool started_cb = false;
     bool stopped_cb = false;
 
-    const cookie_t started_cookie = c.subscribe_on_started([&]() noexcept { started_cb = true; });
-    const cookie_t stopped_cookie = c.subscribe_on_stopped([&](const stop_reason &) noexcept { stopped_cb = true; });
+    event_token started_token = c.subscribe_on_started([&]() noexcept { started_cb = true; });
+    event_token stopped_token = c.subscribe_on_stopped([&](const stop_reason &) noexcept { stopped_cb = true; });
 
-    EXPECT_TRUE(c.unsubscribe_on_started(started_cookie));
-    EXPECT_FALSE(c.unsubscribe_on_started(started_cookie));  // already cancelled
-    EXPECT_TRUE(c.unsubscribe_on_stopped(stopped_cookie));
+    EXPECT_TRUE(c.unsubscribe_on_started(started_token));
+    EXPECT_FALSE(static_cast<bool>(started_token));  // emptied by the cancellation
+    EXPECT_TRUE(c.unsubscribe_on_stopped(stopped_token));
 
     c.start_async().get();
     c.stop_async().get();
@@ -171,14 +171,14 @@ TEST(ComponentTest, SubscriptionsAreGoneOnceTheyHaveBeenCalled) {
     simple_component c;
     int started_calls = 0;
 
-    const cookie_t cookie = c.subscribe_on_started([&started_calls]() noexcept { ++started_calls; });
+    event_token token = c.subscribe_on_started([&started_calls]() noexcept { ++started_calls; });
 
     c.start_async().get();
 
     EXPECT_EQ(started_calls, 1);
 
-    // Called once and dropped, so there is nothing left for the cookie to cancel.
-    EXPECT_FALSE(c.unsubscribe_on_started(cookie));
+    // Called once and dropped, so there is nothing left for the token to cancel.
+    EXPECT_FALSE(c.unsubscribe_on_started(token));
 
     c.stop_async().get();
 

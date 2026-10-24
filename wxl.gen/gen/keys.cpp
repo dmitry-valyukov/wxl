@@ -9,7 +9,7 @@ import wxl.core;
 // PropertyKey.h / EventKey.h: one flat enum of every property (resp.
 // event) name that survived the profile filter, under its metadata name.
 // Each key stands behind one tag of the declarative syntax -- `content = ...`
-// is Property<PropertyKey::Content>, `onClick = ...` Event<EventKey::Click>
+// is impl::property_tag<PropertyKey::Content>, `onClick += ...` impl::event_tag<EventKey::Click>
 // -- so a narrow profile means a correspondingly narrow enum.
 
 namespace gen {

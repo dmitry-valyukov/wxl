@@ -59,9 +59,9 @@ public:
     // with -- the registry is read at parse time, not live. One name per
     // attribute, by decision -- foreign markup's real CSS in style="..."
     // simply never finds a match.
-    void registerStyle(hstring_param const& name, HtmlStyle const& style) const;
+    void registerStyle(hstring_param const& name, MarkupStyle const& style) const;
     void registerStyles(
-        std::initializer_list<std::pair<zstring_view, HtmlStyle>> styles) const;
+        std::initializer_list<std::pair<zstring_view, MarkupStyle>> styles) const;
 
     // A bare string in the declarative form is the markup:
     // HtmlBlock{ u"Привет, <b>мир</b>!" }.

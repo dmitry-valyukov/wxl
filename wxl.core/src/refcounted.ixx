@@ -211,7 +211,7 @@ using refcounted_ptr = intrusive_ptr<impl::refcounted_object<T>>;
  * not exist yet when the handler is written.
  *
  * ```cpp
- * auto const token = core::make_refcounted<EventToken>();
+ * auto const token = core::make_refcounted<core::event_token>();
  * *token = element.add_onLayoutUpdated([element, token] {
  *     element.remove_onLayoutUpdated(*token);
  * });

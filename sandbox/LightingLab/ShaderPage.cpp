@@ -231,10 +231,10 @@ struct Shaded {
                 ComPtr<ID2D1Device> drawing;
                 context->GetDevice(&drawing);
                 ComPtr<ID2D1Device2> drawing2;
-                wxl::check_hresult(drawing.As(&drawing2));
+                wxl::impl::check_hresult(drawing.As(&drawing2));
                 ComPtr<IDXGIDevice> dxgi;
-                wxl::check_hresult(drawing2->GetDxgiDevice(&dxgi));
-                wxl::check_hresult(dxgi.As(&device));
+                wxl::impl::check_hresult(drawing2->GetDxgiDevice(&dxgi));
+                wxl::impl::check_hresult(dxgi.As(&device));
             });
             device->GetImmediateContext(&immediate);
         }
@@ -245,16 +245,16 @@ struct Shaded {
             if (!compile("drawVertex", "vs_4_0", vertexCode) || !compile("drawPixel", "ps_4_0", pixelCode)) {
                 return false;
             }
-            wxl::check_hresult(device->CreateVertexShader(vertexCode->GetBufferPointer(), vertexCode->GetBufferSize(),
+            wxl::impl::check_hresult(device->CreateVertexShader(vertexCode->GetBufferPointer(), vertexCode->GetBufferSize(),
                                                           nullptr, &vertexShader));
-            wxl::check_hresult(device->CreatePixelShader(pixelCode->GetBufferPointer(), pixelCode->GetBufferSize(),
+            wxl::impl::check_hresult(device->CreatePixelShader(pixelCode->GetBufferPointer(), pixelCode->GetBufferSize(),
                                                          nullptr, &pixelShader));
 
             D3D11_BUFFER_DESC description {};
             description.ByteWidth = sizeof(Parameters);
             description.Usage = D3D11_USAGE_DEFAULT;
             description.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-            wxl::check_hresult(device->CreateBuffer(&description, nullptr, &constants));
+            wxl::impl::check_hresult(device->CreateBuffer(&description, nullptr, &constants));
         }
 
         if (!texture) {
@@ -268,8 +268,8 @@ struct Shaded {
             description.SampleDesc.Count = 1;
             description.Usage = D3D11_USAGE_DEFAULT;
             description.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-            wxl::check_hresult(device->CreateTexture2D(&description, nullptr, &texture));
-            wxl::check_hresult(device->CreateRenderTargetView(texture.Get(), nullptr, &view));
+            wxl::impl::check_hresult(device->CreateTexture2D(&description, nullptr, &texture));
+            wxl::impl::check_hresult(device->CreateRenderTargetView(texture.Get(), nullptr, &view));
             bitmap.Reset();
         }
         return true;
@@ -362,11 +362,11 @@ struct Shaded {
         SizeInt32 const size = surface.size();
         if (!bitmap) {
             ComPtr<IDXGISurface> dxgi;
-            wxl::check_hresult(texture.As(&dxgi));
+            wxl::impl::check_hresult(texture.As(&dxgi));
             D2D1_BITMAP_PROPERTIES1 const properties = D2D1::BitmapProperties1(
                 D2D1_BITMAP_OPTIONS_NONE,
                 D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
-            wxl::check_hresult(context->CreateBitmapFromDxgiSurface(dxgi.Get(), &properties, &bitmap));
+            wxl::impl::check_hresult(context->CreateBitmapFromDxgiSurface(dxgi.Get(), &properties, &bitmap));
         }
         context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
         context->DrawBitmap(bitmap.Get(),
@@ -388,8 +388,8 @@ lab::Experiment lab::shaderPage() {
         vAlign.center,
         background = SolidColorBrush {color = rgb(24, 25, 28)},
         [model](Border const& host) { ElementCompositionPreview::setElementChildVisual(host, model->sprite); },
-        onLoaded = [model](Border const& self) { model->loaded(self.xamlRoot().rasterizationScale()); },
-        onPointerMoved =
+        onLoaded += [model](Border const& self) { model->loaded(self.xamlRoot().rasterizationScale()); },
+        onPointerMoved +=
             [model](Border const& self, PointerRoutedEventArgs& args) {
                 Point const place = args.getCurrentPoint(self).position();
                 model->lightAt(place.x, place.y);

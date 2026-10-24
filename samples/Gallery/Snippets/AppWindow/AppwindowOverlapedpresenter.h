@@ -115,7 +115,7 @@ auto example = StackPanel {
             },
         },
     },
-    Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }},
+    Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }},
 };
 
 auto options = StackPanel {

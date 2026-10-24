@@ -140,7 +140,7 @@ wxl::Teardown wxl_launched() {
                         input,
                         placeholderText = u"a",
                         intermediateValue = BindInput {eq.a},
-                        onLoaded = [](NumberBox const& control) {
+                        onLoaded += [](NumberBox const& control) {
                             control.focus(FocusState::Programmatic);
                         },
                     },

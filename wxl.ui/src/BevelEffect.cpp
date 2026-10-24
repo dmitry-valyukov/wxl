@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <bit>
-#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -19,14 +18,14 @@
 #include "BevelEffect.h"
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/effect_layer.h"
+#include "impl/effect_helpers.h"
 
 namespace wxl {
 
 namespace composition = winrt::Microsoft::UI::Composition;
 namespace xaml = winrt::Microsoft::UI::Xaml;
 
-struct BevelEffect::State : core::sta_refcounted {
+struct BevelEffect::Impl : core::sta_refcounted {
     Color light = rgba(255, 255, 255, 0.27);
     Color dark = rgba(0, 0, 0, 0.38);
     int colours = 0;
@@ -40,37 +39,36 @@ struct BevelEffect::State : core::sta_refcounted {
     core::nullable<float> corner;
 };
 
-BevelEffect::BevelEffect() : state_{new State, /*add_ref=*/false} {}
+BevelEffect::BevelEffect() : impl_{new Impl, /*add_ref=*/false} {}
 BevelEffect::BevelEffect(BevelEffect const& other) noexcept = default;
 BevelEffect& BevelEffect::operator=(BevelEffect const& other) noexcept = default;
 BevelEffect::~BevelEffect() = default;
 
 void BevelEffect::setPositional(Color value) const {
-    (state_->colours++ == 0 ? state_->light : state_->dark) = value;
+    (impl_->colours++ == 0 ? impl_->light : impl_->dark) = value;
 }
 
-void BevelEffect::setPositional(relief_helper::Edges ring) const {
-    state_->rings.emplace_back(ring.nearLamp, ring.farFromLamp);
+void BevelEffect::setPositional(Relief::Edges ring) const {
+    impl_->rings.emplace_back(ring.nearLamp, ring.farFromLamp);
 }
 
-void BevelEffect::strokeThickness(double value) const { state_->thickness = static_cast<float>(value); }
-void BevelEffect::blurRadius(double value) const { state_->softness = static_cast<float>(value); }
-void BevelEffect::offset(double value) const { state_->past = static_cast<float>(value); }
-void BevelEffect::margin(Thickness value) const { state_->margin = value; }
+void BevelEffect::strokeThickness(double value) const { impl_->thickness = static_cast<float>(value); }
+void BevelEffect::blurRadius(double value) const { impl_->softness = static_cast<float>(value); }
+void BevelEffect::offset(double value) const { impl_->past = static_cast<float>(value); }
+void BevelEffect::margin(Thickness value) const { impl_->margin = value; }
 void BevelEffect::cornerRadius(CornerRadius value) const {
-    state_->corner = static_cast<float>(value.topLeft);
+    impl_->corner = static_cast<float>(value.topLeft);
 }
 
 void BevelEffect::operator()(UIElement const& wrapper) const {
-    State const& s = *state_;
     auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
     auto const host = xaml::Hosting::ElementCompositionPreview::GetElementVisual(element);
     auto const compositor = host.Compositor();
 
-    float const left = static_cast<float>(s.margin.left);
-    float const top = static_cast<float>(s.margin.top);
-    float const right = static_cast<float>(s.margin.right);
-    float const bottom = static_cast<float>(s.margin.bottom);
+    float const left = static_cast<float>(impl_->margin.left);
+    float const top = static_cast<float>(impl_->margin.top);
+    float const right = static_cast<float>(impl_->margin.right);
+    float const bottom = static_cast<float>(impl_->margin.bottom);
 
     // A negative margin puts the rim outside the element; the ShapeVisual clips
     // to its own bounds, so it grows by as much on that side.
@@ -88,8 +86,8 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
     // stroke of its own along a path inset by the rings before it. One pair
     // of colours is one ring: the plain rim.
     std::vector<std::pair<Color, Color>> const rings =
-        s.rings.empty() ? std::vector<std::pair<Color, Color>>{{s.light, s.dark}} : s.rings;
-    float const width = s.thickness / static_cast<float>(rings.size());
+        impl_->rings.empty() ? std::vector<std::pair<Color, Color>>{{impl_->light, impl_->dark}} : impl_->rings;
+    float const width = impl_->thickness / static_cast<float>(rings.size());
 
     // Every ring's geometry, with how far its path lies inside the margin, so
     // the element's rounding can be handed to all of them once it is known.
@@ -109,8 +107,8 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
             auto const expression = compositor.CreateExpressionAnimation(formula);
             expression.SetReferenceParameter(L"h", host);
             expression.SetVector2Parameter(L"k", {left + right + 2 * inset, top + bottom + 2 * inset});
-            expression.SetScalarParameter(L"a", s.past);
-            expression.SetScalarParameter(L"s", s.softness);
+            expression.SetScalarParameter(L"a", impl_->past);
+            expression.SetScalarParameter(L"s", impl_->softness);
             return expression;
         };
 
@@ -159,8 +157,8 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
             geometry.CornerRadius({r, r});
         }
     };
-    if (s.corner) {
-        round(*s.corner);
+    if (impl_->corner) {
+        round(*impl_->corner);
     } else if (auto const fe = element.try_as<xaml::FrameworkElement>()) {
         // The element's rounding is read once it is loaded: in its braces it
         // may be written after the effect.
@@ -178,7 +176,7 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
         children.InsertAtTop(rim);
         return;
     }
-    auto const waiting = std::make_shared<winrt::event_token>();
+    auto const waiting = core::make_refcounted<winrt::event_token>();
     *waiting = xaml::Media::CompositionTarget::Rendering([children, rim, waiting](auto&&, auto&&) {
         if (children.Count() == 0) return;
         children.InsertAtTop(rim);

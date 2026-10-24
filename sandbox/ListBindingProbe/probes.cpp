@@ -279,7 +279,7 @@ struct weak_source_vtable : unknown_abi {
 };
 
 // cppwinrt зовёт каждую таблицу ABI `type`; два базовых класса одного имени MSVC не примет -- поэтому слой с именем на
-// каждый интерфейс (как interface_vtable в impl/value_box.h).
+// каждый интерфейс (как interface_vtable в impl/sta_com.h).
 template <typename Interface>
 struct vtable_of : winrt::impl::abi_t<Interface> {};
 

@@ -14,13 +14,11 @@
 
 #include <algorithm>
 #include <bit>
-#include <memory>
 
 #include "GlassEffect.h"
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/effect_layer.h"
-#include "impl/scene.h"
+#include "impl/effect_helpers.h"
 
 namespace wxl {
 
@@ -30,21 +28,21 @@ namespace effects = winrt::Microsoft::Graphics::Canvas::Effects;
 namespace xaml = winrt::Microsoft::UI::Xaml;
 using winrt::Windows::Foundation::Numerics::float2;
 
-struct GlassEffect::State : core::sta_refcounted {
+struct GlassEffect::Impl : core::sta_refcounted {
     Color color = rgba(255, 255, 255, 0.0);
     float blurRadius = 24.0f;
     float opacity = 1.0f;
 };
 
-GlassEffect::GlassEffect() : state_{new State, /*add_ref=*/false} {}
+GlassEffect::GlassEffect() : impl_{new Impl, /*add_ref=*/false} {}
 GlassEffect::GlassEffect(GlassEffect const& other) noexcept = default;
 GlassEffect& GlassEffect::operator=(GlassEffect const& other) noexcept = default;
 GlassEffect::~GlassEffect() = default;
 
-void GlassEffect::color(Color value) const { state_->color = value; }
-void GlassEffect::blurRadius(double value) const { state_->blurRadius = static_cast<float>(std::max(value, 0.0)); }
+void GlassEffect::color(Color value) const { impl_->color = value; }
+void GlassEffect::blurRadius(double value) const { impl_->blurRadius = static_cast<float>(std::max(value, 0.0)); }
 void GlassEffect::opacity(double value) const {
-    state_->opacity = static_cast<float>(std::clamp(value, 0.0, 1.0));
+    impl_->opacity = static_cast<float>(std::clamp(value, 0.0, 1.0));
 }
 
 namespace {
@@ -128,7 +126,10 @@ constexpr int paneZ = -1;
 // The scene pane sits over the window's backdrop under the element's
 // rectangle, the island pane sits among the element's own layers under
 // its pixels, and where the island draws nothing it stays clear.
-struct Pane : std::enable_shared_from_this<Pane> {
+//
+// The handlers of a frame and of a layout reach the panes through their
+// weak_link. All of the handlers are the UI thread's.
+struct Attachment : core::sta_refcounted, core::sta_weak_linked<Attachment> {
     Color color{};
     float blurRadius{};
     float opacity{};
@@ -152,8 +153,8 @@ struct Pane : std::enable_shared_from_this<Pane> {
 
         auto const host = xaml::Hosting::ElementCompositionPreview::GetElementVisual(fe);
         impl::when_drawn(host.as<composition::ContainerVisual>(),
-                         [weak = weak_from_this(), host](auto const& children) {
-                             auto const self = weak.lock();
+                         [link = weak_link(), host](auto const& children) {
+                             core::intrusive_ptr<Attachment> const self = link->get();
                              if (!self || self->inIsland.layer) return;
                              self->inIsland.make(host.Compositor(), self->color, self->blurRadius, self->opacity);
                              if (auto const fe = self->element.get()) self->follow(fe);
@@ -161,8 +162,8 @@ struct Pane : std::enable_shared_from_this<Pane> {
                          });
 
         follow(fe);
-        layoutUpdated = fe.LayoutUpdated([weak = weak_from_this()](auto&&, auto&&) {
-            auto const self = weak.lock();
+        layoutUpdated = fe.LayoutUpdated([link = weak_link()](auto&&, auto&&) {
+            core::intrusive_ptr<Attachment> const self = link->get();
             if (!self) return;
             if (auto const fe = self->element.get()) self->follow(fe);
         });
@@ -201,19 +202,12 @@ struct Pane : std::enable_shared_from_this<Pane> {
 
 void GlassEffect::attach(FrameworkElement const& wrapper) const {
     auto const element = Object::Impl::as<xaml::FrameworkElement>(wrapper);
-    auto const pane = std::make_shared<Pane>();
-    pane->color = state_->color;
-    pane->blurRadius = state_->blurRadius;
-    pane->opacity = state_->opacity;
-    pane->element = element;
-
-    element.Loaded([pane](auto const& sender, auto&&) {
-        pane->place(sender.template as<xaml::FrameworkElement>());
-    });
-    element.Unloaded([pane](auto const& sender, auto&&) {
-        pane->remove(sender.template as<xaml::FrameworkElement>());
-    });
-    if (element.IsLoaded()) pane->place(element);
+    auto const attachment = core::make_refcounted<Attachment>();
+    attachment->color = impl_->color;
+    attachment->blurRadius = impl_->blurRadius;
+    attachment->opacity = impl_->opacity;
+    attachment->element = element;
+    impl::attach_while_loaded(element, attachment);
 }
 
 }  // namespace wxl

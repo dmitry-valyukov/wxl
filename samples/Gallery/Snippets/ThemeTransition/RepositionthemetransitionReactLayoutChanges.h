@@ -8,6 +8,6 @@ auto example = Grid {
     Rectangle {column = 2, width = 75, height = 75, Margin {5}, fill = colors.blue, transitions[RepositionThemeTransition {}]},
 };
 
-auto options = StackPanel {Button {content = u"Reposition", onClick = [middle](auto&&...) {
+auto options = StackPanel {Button {content = u"Reposition", onClick += [middle](auto&&...) {
                                        middle.visibility(middle.visibility() == Visibility::Visible ? Visibility::Collapsed : Visibility::Visible);
                                    }}};

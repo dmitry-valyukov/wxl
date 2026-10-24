@@ -30,7 +30,7 @@ TEST(EnvironmentTest, CommandLineStartsWithTheProgram) {
     EXPECT_EQ(program.parent_path(), environment::application_folder()) << program;
 }
 
-// The system's words for a code it knows: a phrase, its line break cut off --
+// The system's words for a code it knows: a phrase, its line break trimmed --
 // nor one inside it for this code -- and UTF-8 whatever the language.
 TEST(EnvironmentTest, ErrorExplanationIsTheSystemsPhrase) {
     constexpr std::uint32_t file_not_found = 2;  // ERROR_FILE_NOT_FOUND

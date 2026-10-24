@@ -8,7 +8,7 @@ struct Model {
 
     static ItemBuilder templateOf(Kind kind, std::vector<gallery::CustomDataObject> const* data) {
         return [kind, data](Object const& item) -> UIElement {
-            auto const& object = (*data)[static_cast<size_t>(intOf(item))];
+            auto const& object = (*data)[static_cast<size_t>(unboxValue<int64_t>(item))];
             switch (kind) {
             case Kind::Image:
                 return Image {width = 190, height = 130, stretch = Stretch::UniformToFill, source = object.imageLocation};
@@ -52,11 +52,11 @@ auto const model = gallery::hold<Model>();
 
 auto const* data = &gallery::dataObjects();
 model->grid.itemTemplate(Model::templateOf(Kind::Image, data));
-model->grid.itemsSource(indexList(static_cast<int64_t>(data->size())));
+model->grid.itemsSource(IndexList(static_cast<int64_t>(data->size())));
 
 model->grid.add_onItemClick([model, data](auto const&, ItemClickEventArgs& args) {
     std::u16string words = u"You clicked ";
-    words += (*data)[static_cast<size_t>(intOf(args.clickedItem()))].title;
+    words += (*data)[static_cast<size_t>(unboxValue<int64_t>(args.clickedItem()))].title;
     words += u".";
     model->clicked.text(words);
 });
@@ -90,7 +90,7 @@ auto options = StackPanel {
         RadioButton {content = u"Image/Text"},
         RadioButton {content = u"Text"},
         selectedIndex = 0,
-        onSelectionChanged = [model, data](RadioButtons const& self) {
+        onSelectionChanged += [model, data](RadioButtons const& self) {
             static constexpr Kind kinds[] = {Kind::Image, Kind::IconText, Kind::ImageText, Kind::Text};
             if (self.selectedIndex() >= 0) model->grid.itemTemplate(Model::templateOf(kinds[self.selectedIndex()], data));
         },
@@ -103,7 +103,7 @@ auto options = StackPanel {
         ComboBoxItem {content = u"Multiple"},
         ComboBoxItem {content = u"Extended"},
         selectedIndex = 0,
-        onSelectionChanged = [model](ComboBox const& self) {
+        onSelectionChanged += [model](ComboBox const& self) {
             static constexpr ListViewSelectionMode modes[] = {ListViewSelectionMode::None, ListViewSelectionMode::Single,
                                                               ListViewSelectionMode::Multiple, ListViewSelectionMode::Extended};
             if (self.selectedIndex() >= 0) model->grid.selectionMode(modes[self.selectedIndex()]);

@@ -29,7 +29,7 @@ struct Model {
             Margin {24},
             spacing = 12,
             TextBlock {u"The caption buttons are drawn by the window, at the height of the bar."},
-            Button {u"Close", onClick = [window](Button const&) { window.close(); }},
+            Button {u"Close", onClick += [window](Button const&) { window.close(); }},
         });
         window.background(rgb(243, 243, 243));
         window.darkFrame(darkFrameBox.isOn());
@@ -48,7 +48,7 @@ auto example = StackPanel {
         u"The window is made without a redirection surface, so the white of the window class's brush cannot show "
         u"through while the corner is dragged: its pixels are laid down by the compositor.",
     },
-    Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }},
+    Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }},
 };
 
 auto options = StackPanel {

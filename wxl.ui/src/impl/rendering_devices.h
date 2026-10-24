@@ -131,16 +131,18 @@ public:
         return *entries_[index_of(owner, api)].replaced;
     }
 
-    /// Takes the holder `token` names off the compositor `owner` names; false when it was not
-    /// there -- the compositor has no entry, or the token is not of its list. An entry left with
-    /// neither a graphics device nor a holder goes here, or once the holders' calls are over.
-    bool remove(owner_t owner, EventToken token) {
+    /// Takes the holder `token` names off the compositor `owner` names, and empties the caller's
+    /// token; false when it was not there -- the compositor has no entry, or the token is not of
+    /// its list. An empty token stops the process (impl::take_token). An entry left with neither a
+    /// graphics device nor a holder goes here, or once the holders' calls are over.
+    bool remove(owner_t owner, EventToken& token) {
         for (entry& each : entries_) {
             if (each.owner != owner) continue;
             bool const removed = each.replaced->remove(token);
             if (removed && calling_ == 0) sweep();
             return removed;
         }
+        static_cast<void>(take_token(token));
         return false;
     }
 
@@ -216,7 +218,7 @@ private:
         told_ = generation_;
         ++calling_;
         std::size_t const known = entries_.size();
-        for (std::size_t at = 0; at < known; ++at) entries_[at].replaced->fire(Object::Impl::empty<Object>());
+        for (std::size_t at = 0; at < known; ++at) entries_[at].replaced->raise(Object::Impl::empty<Object>());
         if (--calling_ == 0) sweep();
     }
 

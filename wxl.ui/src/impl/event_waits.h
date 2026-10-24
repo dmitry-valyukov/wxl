@@ -21,7 +21,7 @@
 // close the turnstile, then let what is inside finish.
 //
 // A wait can also be asked to end, through a cancellation token it was put
-// under (`co_await onClick(button, stop)`). Asking resumes nobody -- whoever
+// under (`co_await onClick(button, token)`). Asking resumes nobody -- whoever
 // cancels the token is not re-entered by the coroutines it asked -- so a wait
 // that is cancelled moves to a second list, of waits cancelled and not yet
 // resumed, and the thread's queue resumes them on its next turn: the road the
@@ -41,47 +41,10 @@ import wxl.async;
 
 namespace wxl::impl {
 
-class waiting_event;
-
-/// Every wait suspended right now. A function-local static rather than an
-/// object at namespace scope: the nodes live inside coroutine frames, so the
-/// list allocates nothing and only has to outlive them.
-inline core::intrusive_list<waiting_event>& waiting_events() noexcept {
-    static core::intrusive_list<waiting_event> all;
-    return all;
-}
-
-/// The waits that were cancelled and are still suspended, until the queue's
-/// turn resumes them.
-inline core::intrusive_list<waiting_event>& canceled_waits() noexcept {
-    static core::intrusive_list<waiting_event> canceled;
-    return canceled;
-}
-
-/// Whether a turn that resumes the cancelled waits is in the queue already: one
-/// turn serves every wait cancelled before it comes.
-inline bool& canceled_waits_posted() noexcept {
-    static bool posted = false;
-    return posted;
-}
-
-/// Asks the thread's queue for a turn that calls resume_canceled_waits(), at
-/// the priority an event comes at. False: the queue takes nothing more -- the
-/// application is going down, and close_event_waits() ends the cancelled waits
-/// with the rest. Defined beside the queue, in UiThread.cpp.
-bool post_canceled_waits() noexcept;
-
-/// Set once the application has begun going down. After that a wait does not
-/// suspend at all -- it ends where it stands, which is what keeps a coroutine
-/// that catches cancellation and waits again from being ended forever.
-inline bool& events_closing() noexcept {
-    static bool closing = false;
-    return closing;
-}
-
-/// The part of an event proxy that does not depend on the event: who is
-/// waiting, and how the wait ended if it was not by the event happening.
-class waiting_event : public core::intrusive_list_node<waiting_event>
+/// The part of an event proxy that does not depend on the event: who is waiting, and how the
+/// wait ended if it was not by the event happening. The waits of this thread are counted here
+/// too, as the state of the class: the two lists and the two-phase ending above.
+class event_wait : public core::intrusive_list_node<event_wait>
 {
 public:
     /// Resumes the coroutine and tells it that what it waited for will not
@@ -102,6 +65,44 @@ public:
         std::exchange(waiter_, {}).resume();
     }
 
+    /// Set once the application has begun going down. After that a wait does not
+    /// suspend at all -- it ends where it stands, which is what keeps a coroutine
+    /// that catches cancellation and waits again from being ended forever.
+    static bool closing() noexcept { return closing_; }
+
+    /// The queue's turn: every wait cancelled since the last one is resumed, each
+    /// taken off the list first, and ends as cancelled. A coroutine resumed here
+    /// may cancel more; they are resumed in the same turn.
+    static void resume_canceled() noexcept {
+        canceled_posted_ = false;
+
+        auto& canceled = canceled_waits();
+        while (event_wait* const wait = canceled.front()) {
+            wait->end();
+        }
+    }
+
+    /// Phase one of going down: no wait suspends from here on, and every wait
+    /// suspended right now is told so -- the cancelled ones that the queue has not
+    /// resumed yet among them, since it will not. What each coroutine does about
+    /// it -- roll back, close, save -- runs from here, which is why this happens
+    /// while the message loop is still turning.
+    static void close_all() noexcept {
+        closing_ = true;
+
+        for (auto* const list : {&canceled_waits(), &suspended_waits()}) {
+            while (event_wait* const wait = list->front()) {
+                wait->end();
+            }
+        }
+    }
+
+    /// Phase two: whether everything that was told has finished. The loop keeps
+    /// turning until this is true or the caller runs out of patience.
+    static bool all_drained() noexcept {
+        return suspended_waits().empty() && canceled_waits().empty();
+    }
+
 protected:
     /// \param where the co_await, which a build that checks coroutines names
     ///        when the wait breaks the rule.
@@ -112,7 +113,7 @@ protected:
         waiter_ = waiter;
         ended_ = false;
         error_ = {};
-        waiting_events().push_back(core::as_not_null(this));
+        suspended_waits().push_back(core::as_not_null(this));
     }
 
     void disarm() noexcept {
@@ -143,10 +144,10 @@ protected:
         unlink();
         canceled_waits().push_back(core::as_not_null(this));
 
-        if (!canceled_waits_posted()) canceled_waits_posted() = post_canceled_waits();
+        if (!canceled_posted_) canceled_posted_ = post_canceled();
     }
 
-    ~waiting_event() {
+    ~event_wait() {
         // A waiter still here means a coroutine is suspended on a
         // subscription that is going away, and there is nothing sound to
         // resume it with. It cannot happen where a proxy belongs -- in the
@@ -167,85 +168,81 @@ protected:
     }
 
 private:
-    void unlink() noexcept { core::intrusive_list<waiting_event>::remove(core::as_not_null(this)); }
+    /// The tests' view of the state: read between tests, and put back.
+    friend struct event_wait_test;
+
+    /// Every wait suspended right now. A function-local static rather than an
+    /// object at namespace scope: the nodes live inside coroutine frames, so the
+    /// list allocates nothing and only has to outlive them.
+    static core::intrusive_list<event_wait>& suspended_waits() noexcept {
+        static core::intrusive_list<event_wait> all;
+        return all;
+    }
+
+    /// The waits that were cancelled and are still suspended, until the queue's
+    /// turn resumes them.
+    static core::intrusive_list<event_wait>& canceled_waits() noexcept {
+        static core::intrusive_list<event_wait> canceled;
+        return canceled;
+    }
+
+    /// Asks the thread's queue for a turn that calls resume_canceled(), at the
+    /// priority an event comes at. False: the queue takes nothing more -- the
+    /// application is going down, and close_all() ends the cancelled waits with
+    /// the rest. Defined beside the queue, in UiThread.cpp.
+    static bool post_canceled() noexcept;
+
+    void unlink() noexcept { core::intrusive_list<event_wait>::remove(core::as_not_null(this)); }
+
+    /// Whether a turn that resumes the cancelled waits is in the queue already: one
+    /// turn serves every wait cancelled before it comes.
+    static inline bool canceled_posted_ = false;
+
+    static inline bool closing_ = false;
 
     std::coroutine_handle<> waiter_;
     bool ended_ = false;
     core::nullable<std::exception_ptr> error_;
 };
 
-/// The queue's turn: every wait cancelled since the last one is resumed, each
-/// taken off the list first, and ends as cancelled. A coroutine resumed here
-/// may cancel more; they are resumed in the same turn.
-inline void resume_canceled_waits() noexcept {
-    canceled_waits_posted() = false;
-
-    auto& canceled = canceled_waits();
-    while (waiting_event* const waiting = canceled.front()) {
-        waiting->end();
-    }
-}
-
-/// Phase one of going down: no wait suspends from here on, and every wait
-/// suspended right now is told so -- the cancelled ones that the queue has not
-/// resumed yet among them, since it will not. What each coroutine does about
-/// it -- roll back, close, save -- runs from here, which is why this happens
-/// while the message loop is still turning.
-inline void close_event_waits() noexcept {
-    events_closing() = true;
-
-    for (auto* const list : {&canceled_waits(), &waiting_events()}) {
-        while (waiting_event* const waiting = list->front()) {
-            waiting->end();
-        }
-    }
-}
-
-/// Phase two: whether everything that was told has finished. The loop keeps
-/// turning until this is true or the caller runs out of patience.
-inline bool event_waits_drained() noexcept {
-    return waiting_events().empty() && canceled_waits().empty();
-}
-
-/// A wait of this thread under a cancellation token: the awaiter made in place,
-/// what async::detail::cancellable_wait does with it -- the wait stands in
-/// the token's event while it is suspended, by a node built into it. `Stop` is how
-/// the token is had -- held (`async::cancellation_token`), for a wait made by a
-/// call that was handed the token, or borrowed as its state, for the wait of a
-/// proxy that holds the token and outlives the co_await.
+/// A wait of this thread under a cancellation token: the awaiter made in place, what
+/// async::detail::cancelable_wait does with it -- the wait is registered with the token's event
+/// while it is suspended, by a registration built into it. `Token` is how the token is had -- held
+/// (`async::cancellation_token`), for a wait made by a call that was handed the token, or borrowed
+/// as its state, for the wait of a proxy that holds the token and outlives the co_await.
 ///
 /// Neither copied nor moved, like the awaiter: it is co_awaited where it is made.
-template <typename Awaiter, typename Stop>
-class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] event_wait_under
-    : public async::detail::cancellable_wait<event_wait_under<Awaiter, Stop>>
+template <typename Awaiter, typename Token>
+class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] cancelable_event_wait
+    : public async::detail::cancelable_wait<cancelable_event_wait<Awaiter, Token>>
 {
-    using base = async::detail::cancellable_wait<event_wait_under>;
+    using base = async::detail::cancelable_wait<cancelable_event_wait>;
 
     friend base;
 
 public:
     template <typename... Args>
-    explicit event_wait_under(Stop stop, Args&&... args) noexcept
-        : stop_(std::move(stop)), awaiter_(std::forward<Args>(args)...) {}
+    explicit cancelable_event_wait(Token token, Args&&... args) noexcept
+        : token_(std::move(token)), awaiter_(std::forward<Args>(args)...) {}
 
-    event_wait_under(event_wait_under const&) = delete;
-    event_wait_under& operator=(event_wait_under const&) = delete;
+    cancelable_event_wait(cancelable_event_wait const&) = delete;
+    cancelable_event_wait& operator=(cancelable_event_wait const&) = delete;
 
-    /// A frame destroyed while it stands here takes the wait out of the token's
+    /// A frame destroyed while it is registered takes the wait out of the token's
     /// event before the token it may hold goes.
-    ~event_wait_under() { this->leave_token_event(); }
+    ~cancelable_event_wait() { this->unregister_from_token(); }
 
 private:
     Awaiter& awaiter() noexcept { return awaiter_; }
 
     async::detail::cancellation_state* state() const noexcept {
-        if constexpr (std::is_same_v<Stop, async::cancellation_token>)
-            return async::detail::cancellation_state_of(stop_);
+        if constexpr (std::is_same_v<Token, async::cancellation_token>)
+            return async::detail::cancellation_state_of(token_);
         else
-            return stop_;
+            return token_;
     }
 
-    Stop stop_;
+    Token token_;
     Awaiter awaiter_;
 };
 

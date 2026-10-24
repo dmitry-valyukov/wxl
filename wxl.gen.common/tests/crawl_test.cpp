@@ -56,6 +56,6 @@ TEST(profile, a_replaced_call_reaches_the_merged_profiles) {
     auto const call = type->second.find("CreateFromUri");
     ASSERT_NE(call, type->second.end());
     EXPECT_EQ(call->second.function, "impl::stream_reference_from_uri");
-    EXPECT_EQ(call->second.include, "../impl/file_stream_reference.h");
+    EXPECT_EQ(call->second.include, "../impl/winrt_helpers.h");
     EXPECT_EQ(type->second.size(), 1u);
 }

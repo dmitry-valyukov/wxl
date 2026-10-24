@@ -5,7 +5,7 @@
 #include "Pages.h"
 #include "Shell.h"
 #include "Failure.h"
-#include "LoadXaml.h"
+#include "Resource.h"
 
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Input.h>
@@ -107,10 +107,10 @@ FrameworkElement gallery::scratchPadPage() {
                 vAlign.top,
                 spacing = 8.0,
                 minWidth = 168,
-                Button {hAlign.stretch, styles.Button.Accent, content = u"Load", onClick = [weak](auto&&...) {
+                Button {hAlign.stretch, styles.Button.Accent, content = u"Load", onClick += [weak](auto&&...) {
                             if (auto const self = weak.lock()) { self->load(); }
                         }},
-                Button {hAlign.stretch, content = u"Reset", toolTip = u"Resets to the default scratch pad content", onClick = [weak](auto&&...) {
+                Button {hAlign.stretch, content = u"Reset", toolTip = u"Resets to the default scratch pad content", onClick += [weak](auto&&...) {
                             if (auto const self = weak.lock()) { self->reset(); }
                         }},
             },

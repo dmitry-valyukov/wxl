@@ -29,24 +29,24 @@
 
 namespace wxl::impl {
 
-/// The wait for the answer: holds the operation already started until it answers or is cut
-/// short. The answer is dropped -- the dialog's events have given it; the cancellation or a
+/// The wait for the answer: holds the operation already started until it answers or is
+/// aborted. The answer is dropped -- the dialog's events have given it; the cancellation or a
 /// failure is the end the task keeps, for its owner to read or not.
 template <class R>
 async::task<> await_answer(async::task<R> answer) {
     co_await std::move(answer);
 }
 
-/// Shows `dialog` under `stop` and returns the wait for its answer. A refusal is thrown from
+/// Shows `dialog` under `token` and returns the wait for its answer. A refusal is thrown from
 /// here, before any frame is made; under a token cancelled already the dialog is not shown,
 /// and the wait ends at once.
 template <class Dialog>
-[[nodiscard]] async::task<> show_under(Dialog const& dialog, async::cancellation_token stop) {
-    if (!async::detail::cancellation_state_of(stop))
+[[nodiscard]] async::task<> show_dialog(Dialog const& dialog, async::cancellation_token token) {
+    if (!async::detail::cancellation_state_of(token))
         core::abort("wxl: showDialog under a token nobody can cancel -- a dialog only the reader "
                     "can close would keep its wait alive at the exit");
 
-    return await_answer(dialog.showAsync(std::move(stop)));
+    return await_answer(dialog.showAsync(std::move(token)));
 }
 
 }  // namespace wxl::impl

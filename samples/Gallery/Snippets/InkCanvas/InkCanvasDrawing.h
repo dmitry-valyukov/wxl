@@ -49,5 +49,5 @@ auto options = StackPanel {
     model->color,
     model->width,
     model->enabled,
-    Button {automationName = u"Clear drawing", content = u"Clear drawing", onClick = [presenter](auto&&...) { presenter.strokeContainer().clear(); }},
+    Button {automationName = u"Clear drawing", content = u"Clear drawing", onClick += [presenter](auto&&...) { presenter.strokeContainer().clear(); }},
 };

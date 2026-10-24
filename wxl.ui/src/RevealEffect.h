@@ -65,7 +65,7 @@ class RevealEffect;
 class Button3DEffect;
 
 namespace impl {
-struct Beam;
+struct pointer_spot_light;
 }
 
 /// The narrow lamp of a RevealEffect: the spot on the face under the pointer.
@@ -99,12 +99,12 @@ private:
     friend class RevealEffect;
     friend class Button3DEffect;
 
-    // The lamp behind the settings, for an effect that aims it at layers of
+    // The spot light behind the settings, for an effect that aims it at layers of
     // its own.
-    impl::Beam& beam() const;
+    impl::pointer_spot_light& spot_light() const;
 
-    struct State;
-    core::intrusive_ptr<State> state_;
+    struct Impl;
+    core::intrusive_ptr<Impl> impl_;
 };
 
 /// The wide lamp of a RevealEffect: the glow along the edges around the pointer.
@@ -144,10 +144,10 @@ private:
     friend class RevealEffect;
     friend class Button3DEffect;
 
-    impl::Beam& beam() const;
+    impl::pointer_spot_light& spot_light() const;
 
-    struct State;
-    core::intrusive_ptr<State> state_;
+    struct Impl;
+    core::intrusive_ptr<Impl> impl_;
 };
 
 class RevealEffect {
@@ -182,8 +182,8 @@ public:
 private:
     void attach(FrameworkElement const& element) const;
 
-    struct State;
-    core::intrusive_ptr<State> state_;
+    struct Impl;
+    core::intrusive_ptr<Impl> impl_;
 };
 
 }  // namespace wxl

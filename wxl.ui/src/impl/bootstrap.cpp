@@ -1,12 +1,10 @@
 #include "platform.h"
 
-#include "bootstrap.h"
-
-#include "hresult.h"
-
 #include <mutex>
 
 #include <MddBootstrap.h>
+
+#include "winrt_helpers.h"
 
 namespace wxl::impl {
 

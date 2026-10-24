@@ -30,8 +30,8 @@ auto example = StackPanel {
         automationName = u"AnimatedIcon Example",
         content = searchIcon,
         // The button does not move the icon through its states by itself: the page says when.
-        onPointerEntered = [searchIcon](Object const&, PointerRoutedEventArgs&) { AnimatedIcon::setState(searchIcon, u"PointerOver"); },
-        onPointerExited = [searchIcon](Object const&, PointerRoutedEventArgs&) { AnimatedIcon::setState(searchIcon, u"Normal"); },
+        onPointerEntered += [searchIcon](Object const&, PointerRoutedEventArgs&) { AnimatedIcon::setState(searchIcon, u"PointerOver"); },
+        onPointerExited += [searchIcon](Object const&, PointerRoutedEventArgs&) { AnimatedIcon::setState(searchIcon, u"Normal"); },
     },
 };
 
@@ -47,5 +47,5 @@ auto options = ComboBox {
     ComboBoxItem {content = u"AnimatedGlobalNavigationButtonVisualSource"},
     ComboBoxItem {content = u"AnimatedSettingsVisualSource"},
     selectedIndex = 4,
-    onSelectionChanged = [searchIcon, makeSource](ComboBox const& self) { searchIcon.source(makeSource(self.selectedIndex())); },
+    onSelectionChanged += [searchIcon, makeSource](ComboBox const& self) { searchIcon.source(makeSource(self.selectedIndex())); },
 };

@@ -20,13 +20,13 @@ auto const model = gallery::hold<Model>();
 
 auto const* people = &gallery::contacts();
 model->list.itemTemplate([people](Object const& item) {
-    auto const position = static_cast<size_t>(intOf(item));
+    auto const position = static_cast<size_t>(unboxValue<int64_t>(item));
     std::u16string text = core::to_u16(static_cast<int>(position) + 1).plain();
     text += u". ";
     text += (*people)[position].name();
     return TextBlock {Margin {0, 5, 0, 5}, text};
 });
-model->list.itemsSource(indexList(static_cast<int64_t>(people->size())));
+model->list.itemsSource(IndexList(static_cast<int64_t>(people->size())));
 model->restore.add_onClick([model](auto&&...) { model->bring(); });
 
 auto example = StackPanel {
@@ -35,7 +35,7 @@ auto example = StackPanel {
         orientation.horizontal,
         spacing = 8,
         Margin {0, 8, 0, 0},
-        Button {content = u"Save position", onClick = [model](Button const&) { model->save(); }},
+        Button {content = u"Save position", onClick += [model](Button const&) { model->save(); }},
         model->restore,
     },
 };

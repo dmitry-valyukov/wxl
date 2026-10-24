@@ -71,7 +71,7 @@ wxl::FrameworkElement gallery::appWindowTitleBarPage() {
             Paragraph {
                 Run {u"For the default title bar and basic scenarios, use the "},
                 Hyperlink {
-                    onClick = [](Object const&, HyperlinkClickEventArgs&) { navigate({Place::Item, L"TitleBar"}); },
+                    onClick += [](Object const&, HyperlinkClickEventArgs&) { navigate({Place::Item, L"TitleBar"}); },
                     Run {u"TitleBar"},
                 },
                 Run {u" control."},

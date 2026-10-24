@@ -2,74 +2,57 @@
 #include <winrt/Windows.Foundation.h>
 
 #include "Box.h"
+#include "impl/conversions.h"
 
 namespace wxl {
 
-Object intBox(int64_t value) {
+Object boxValue(int64_t value) {
     auto const box = winrt::box_value(value);
     return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(box)));
 }
 
-Object indexList(int64_t count) {
-    auto list = winrt::single_threaded_vector<winrt::Windows::Foundation::IInspectable>();
-    for (int64_t index = 0; index < count; ++index) {
-        list.Append(winrt::box_value(index));
-    }
-    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(list)));
+Object boxValue(hstring_param const& text) {
+    auto const box = impl::box_text(text);
+    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(box)));
 }
 
-Object indexList(int64_t const* positions, size_t count) {
-    auto list = winrt::single_threaded_vector<winrt::Windows::Foundation::IInspectable>();
-    for (size_t i = 0; i < count; ++i) {
-        list.Append(winrt::box_value(positions[i]));
-    }
-    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(list)));
-}
-
-int64_t intOf(Object const& boxed) {
+template <>
+int64_t unboxValue<int64_t>(Object const& boxed) {
     winrt::Windows::Foundation::IInspectable value{nullptr};
     winrt::copy_from_abi(value, boxed.get_abi());
     return winrt::unbox_value_or<int64_t>(value, -1);
 }
 
-Object observableIndexList() {
-    auto list = winrt::single_threaded_observable_vector<winrt::Windows::Foundation::IInspectable>();
+template <>
+hstring unboxValue<hstring>(Object const& boxed) {
+    winrt::Windows::Foundation::IInspectable value{nullptr};
+    winrt::copy_from_abi(value, boxed.get_abi());
+    return impl::from_winrt(winrt::unbox_value_or<winrt::hstring>(value, winrt::hstring{}));
+}
+
+Object stringList(std::span<std::u16string const> items) {
+    using winrt::Windows::Foundation::IInspectable;
+
+    auto list = winrt::single_threaded_vector<IInspectable>();
+    for (auto const& item : items) {
+        // The box keeps a string of its own, so the text is copied once, into
+        // it -- from a header over the caller's characters, not through an
+        // hstring made first.
+        list.Append(impl::box_text(item));
+    }
     return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(list)));
 }
 
-namespace {
+Object objectList(std::span<Object const> items) {
+    using winrt::Windows::Foundation::IInspectable;
 
-winrt::Windows::Foundation::Collections::IVector<winrt::Windows::Foundation::IInspectable> vector_of(Object const& list) {
-    winrt::Windows::Foundation::IInspectable value{nullptr};
-    winrt::copy_from_abi(value, list.get_abi());
-    return value.as<winrt::Windows::Foundation::Collections::IVector<winrt::Windows::Foundation::IInspectable>>();
-}
-
-}  // namespace
-
-void indexListAppend(Object const& list, int64_t value) {
-    vector_of(list).Append(winrt::box_value(value));
-}
-
-void indexListRemoveAt(Object const& list, uint32_t index) {
-    vector_of(list).RemoveAt(index);
-}
-
-void indexListInsertAt(Object const& list, uint32_t index, int64_t value) {
-    vector_of(list).InsertAt(index, winrt::box_value(value));
-}
-
-Object indexListObject(Object const& list, uint32_t index) {
-    auto const item = vector_of(list).GetAt(index);
-    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(item)));
-}
-
-int64_t indexListAt(Object const& list, uint32_t index) {
-    return winrt::unbox_value<int64_t>(vector_of(list).GetAt(index));
-}
-
-uint32_t indexListSize(Object const& list) {
-    return vector_of(list).Size();
+    auto list = winrt::single_threaded_vector<IInspectable>();
+    for (auto const& item : items) {
+        IInspectable value{nullptr};
+        winrt::copy_from_abi(value, item.get_abi());
+        list.Append(value);
+    }
+    return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(list)));
 }
 
 }  // namespace wxl

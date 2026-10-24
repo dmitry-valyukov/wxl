@@ -8,7 +8,7 @@
 #include <wxl/Windows.Media.Core.h>
 #include <wxl/Windows.Media.Playback.h>
 #include <wxl/Windows.Storage.h>
-#include "PickerFileTypes.h"
+#include "FileTypeChoice.h"
 
 import wxl.async;
 

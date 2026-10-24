@@ -2,9 +2,9 @@
 
 // wxl::MarkupBlock -- общий этаж контролов разметки между FormattedBlock и
 // парсерами: HtmlBlock, BbBlock и RsdnBlock стоят на нём. Здесь живёт то,
-// что у них одинаково и не зависит от записи тегов: тема вида (HtmlTheme),
+// что у них одинаково и не зависит от записи тегов: тема вида (MarkupTheme),
 // базовый каталог картинок, реестр именованных стилей и — внутри, в
-// markup_build.cpp, — сборщик, который обходит дерево семейства wxl.html и
+// MarkupBlock.cpp, — сборщик, который обходит дерево семейства wxl.html и
 // говорит его содержимое примитивами FormattedBlock.
 //
 // Своих дверей разбора у MarkupBlock нет: какую разметку контрол читает --
@@ -20,7 +20,7 @@ namespace wxl {
 // Именованный стиль: строчные грани плюс блочные. Блочный тег носит обе,
 // строчный — только текстовую. Регистрирует их HtmlBlock (style="имя" —
 // дверь HTML-разметки), а хранятся они здесь: читает реестр общий сборщик.
-struct HtmlStyle {
+struct MarkupStyle {
     TextStyle text;
     BlockStyle block;
 };
@@ -30,8 +30,8 @@ struct HtmlStyle {
 // Умолчания — вид первой очереди как есть; заданная theme() тема действует
 // на всё, что строится после. Масштабы — множители кегля самого блока,
 // поэтому смену кегля тема переживает нетронутой. Имя — по первому и
-// главному потребителю, как у HtmlError: BB и RSDN носят ту же тему.
-struct HtmlTheme {
+// главному потребителю, как у MarkupError: BB и RSDN носят ту же тему.
+struct MarkupTheme {
     Thickness paragraphMargin{0, 0, 0, 8};   // <p>
     Thickness headingMargin{0, 12, 0, 6};    // <h1>..<h3>
     Thickness quoteMargin{24, 4, 0, 4};      // <blockquote>
@@ -51,7 +51,7 @@ struct HtmlTheme {
     //
     // Всё пусто — ресурс темы TextFillColorSecondaryBrush, разрешаемый при
     // постройке: тёмная и светлая тема получают каждая свой серый.
-    std::optional<Color> quoteColor[3];
+    core::nullable<Color> quoteColor[3];
 
     // <code> и <pre>.
     FontFamily monospace{u"Consolas"};
@@ -67,8 +67,8 @@ struct HtmlTheme {
     Thickness prePadding{10, 6, 10, 6};
     double preRadius = 4;
     double preElevation = 16;
-    std::optional<Color> preBackground;
-    std::optional<Color> preBorderColor;
+    core::nullable<Color> preBackground;
+    core::nullable<Color> preBorderColor;
 
     double listIndent = 24;  // на уровень вложенности <ul>/<ol>
 
@@ -86,19 +86,19 @@ struct HtmlTheme {
     // комментарий, имена RsdnFormatter. Пустое поле — палитра по теме
     // окна, светлой или тёмной, выбираемая при постройке; зарегистрированный
     // стиль с тем же именем сильнее темы.
-    std::optional<Color> keywordColor;
-    std::optional<Color> stringColor;
-    std::optional<Color> commentColor;
+    core::nullable<Color> keywordColor;
+    core::nullable<Color> stringColor;
+    core::nullable<Color> commentColor;
 
     // Вторая очередь: линейка <hr>, таблица и раскрывающийся <details>.
     // Пустой цвет линий — разделитель темы окна (DividerStrokeColorDefault),
     // свой у светлой и у тёмной.
     Thickness ruleMargin{0, 8, 0, 8};
     double ruleThickness = 1;
-    std::optional<Color> ruleColor;
+    core::nullable<Color> ruleColor;
     Thickness tableMargin{0, 8, 0, 8};
     Thickness cellPadding{6, 2, 6, 2};
-    std::optional<Color> tableBorderColor;
+    core::nullable<Color> tableBorderColor;
     Thickness detailsMargin{0, 8, 0, 8};
 };
 
@@ -110,7 +110,7 @@ public:
 
     // Вид тегов для всего, что строится с этого момента; уже построенное
     // хранит вид, которым строилось, — как и именованные стили.
-    void theme(HtmlTheme const& value) const;
+    void theme(MarkupTheme const& value) const;
 
     // Каталог, от которого разрешается голый относительный <img src>: для
     // разметки из файла — каталог этого файла. Пустой (умолчание) —

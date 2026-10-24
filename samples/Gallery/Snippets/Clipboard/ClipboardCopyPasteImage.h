@@ -14,7 +14,7 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 // The picture is read from where it is: the reference holds the address, the clipboard fetches the file when asked.
-std::u16string address = u"file:///" + (applicationFolder() / L"Assets" / L"SampleMedia" / L"rainier.jpg").generic_u16string();
+std::u16string address = u"file:///" + (Application::folder() / L"Assets" / L"SampleMedia" / L"rainier.jpg").generic_u16string();
 
 auto const copy = [](Model* model, std::u16string address) {
     try {
@@ -60,9 +60,9 @@ auto example = StackPanel {
         spacing = 8,
         Button {
             content = u"Copy Image to Clipboard",
-            onClick = [model, copy, address](Button const&) { copy(model.get(), address); },
+            onClick += [model, copy, address](Button const&) { copy(model.get(), address); },
         },
-        Button {content = u"Paste Image from Clipboard", onClick = [model, paste](Button const&) { model->pasting = paste(model.get()); }},
+        Button {content = u"Paste Image from Clipboard", onClick += [model, paste](Button const&) { model->pasting = paste(model.get()); }},
     },
     model->status,
     model->pasted,

@@ -510,8 +510,8 @@ struct Keys {
 
     // Форма клавиши по настройкам; у нажатой внутренняя часть сдвинута, если
     // отмечено.
-    lab::KeyRelief reliefOf(Form const& form, bool pressedKey) const {
-        lab::KeyRelief key;
+    lab::key_relief reliefOf(Form const& form, bool pressedKey) const {
+        lab::key_relief key;
         key.width = form.width;
         key.height = form.height;
         key.corner = corner.get();
@@ -550,7 +550,7 @@ struct Keys {
     // travel - rise; пока ход меньше высоты, тени нет.
     void reshade() noexcept {
         lab::attempt(mapStatus, u"Тень края отверстия", [this] {
-            lab::HoleShadow hole;
+            lab::hole_shadow hole;
             hole.depth = travel.get() - rise.get();
             hole.azimuth = azimuth.get();
             hole.elevation = elevation.get();
@@ -873,19 +873,19 @@ lab::Experiment lab::keyPage() {
             // Лампы зажигает движение, а не вход: сцена, вставшая под неподвижный
             // указатель, получает вход раньше, чем набор свойств узнаёт его место,
             // и лампы загорались бы в углу сцены.
-            onPointerMoved = [model] { model->shine(true); },
-            onPointerExited =
+            onPointerMoved += [model] { model->shine(true); },
+            onPointerExited +=
                 [model] {
                     model->pointerReleased();
                     model->shine(false);
                 },
-            onPointerPressed =
+            onPointerPressed +=
                 [model](Object const& sender, PointerRoutedEventArgs& args) {
                     auto const at = args.getCurrentPoint(sender.try_as<Border>()).position();
                     model->pointerPressed(static_cast<float>(at.x), static_cast<float>(at.y));
                 },
-            onPointerReleased = [model] { model->pointerReleased(); },
-            onPointerCaptureLost = [model] { model->pointerReleased(); },
+            onPointerReleased += [model] { model->pointerReleased(); },
+            onPointerCaptureLost += [model] { model->pointerReleased(); },
             [model](Border const& host) { model->attach(host); },
         },
     };

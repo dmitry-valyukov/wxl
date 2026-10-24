@@ -36,11 +36,6 @@ namespace wxl {
 // there is nothing to inherit for: an instance cannot be made, so an Object
 // wrapper for one would be a smart pointer that is always null over an Impl
 // field that is never filled.
-//
-// Not to be confused with impl::Statics<I>, the cached activation-factory
-// proxy a static member's body calls through. That one is private, is a
-// template, and is about reaching the factory; this one is about saying
-// what the class is.
 class Statics {
 public:
     Statics() = delete;
@@ -49,27 +44,6 @@ public:
     Statics& operator=(Statics const&) = delete;
     Statics& operator=(Statics&&) = delete;
 };
-
-// Extracts the (Impl level, interface) pair out of a pointer-to-data-member
-// used as a non-type template argument: &Button::Impl::button_ has type
-// `winrt::...::IButton Button::Impl::*`, so impl_t = Button::Impl and
-// interface_t = winrt::...::IButton. The specialization re-declares
-// `member` at the specific type `T C::*` purely so its C/T become nameable
-// -- the standard "recover the pieces of a pointer-to-member NTTP" idiom.
-template <auto member>
-struct ImplTraits;
-
-template <typename C, typename T, T C::*member>
-struct ImplTraits<member> {
-    using class_t = C;
-    using member_t = T;
-};
-
-template <auto member>
-using class_type = typename ImplTraits<member>::class_t;
-
-template <auto member>
-using member_type = typename ImplTraits<member>::member_t;
 
 // The root of the public wrapper hierarchy. Holds exactly one data member,
 // the intrusive pointer to the Impl chain -- and it is the *only* level in
@@ -123,12 +97,16 @@ public:
     // Const because every member of every wrapper is: a wrapper is a smart
     // pointer to its Impl chain, so its own constness says nothing about
     // the object behind it.
+    //
+    // `member` is a pointer to the Impl field: &Button::Impl::button_ is a
+    // `winrt::...::IButton Button::Impl::*`, so the level is Button::Impl and
+    // the interface winrt::...::IButton (core::impl::member_owner).
     template <auto member>
-    const member_type<member>& get() const;
+    const typename core::impl::member_owner<decltype(member)>::member_t& get() const;
 
     // This wrapper as another wrapper type, when the object really is one: a
     // QueryInterface, wrapped. An event hands its handler the sender as a bare
-    // Object; try_as recovers the control that fired -- `try_as<ToggleSwitch>()`
+    // Object; try_as recovers the control that raised it -- `try_as<ToggleSwitch>()`
     // -- so the handler reads it from the sender instead of capturing it, which
     // a wxl handler must not do (a control is a temporary in the description
     // tree; a captured wrapper would keep a dead one alive, a captured pointer

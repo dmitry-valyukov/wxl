@@ -10,7 +10,7 @@ auto output = TextBlock {Margin {8, 0, 0, 0}, vAlign.center};
 auto button = RepeatButton {
     content = u"Click and hold",
     isEnabled = BindOutput {model->enabled},
-    onClick = [output, clicks = std::make_shared<int>(0)] {
+    onClick += [output, clicks = std::make_shared<int>(0)] {
         output.text(L"Number of clicks: " + std::to_wstring(++*clicks));
     },
 };

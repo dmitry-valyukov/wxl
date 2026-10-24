@@ -25,7 +25,7 @@ SystemBackdropElement backdropHost(gallery::ColorBackdrop backdrop) {
 }
 
 Hyperlink linkTo(char16_t const* title, wchar_t const* id) {
-    return Hyperlink {onClick = [id](auto&&...) { gallery::navigate({gallery::Place::Item, id}); }, Run {title}};
+    return Hyperlink {onClick += [id](auto&&...) { gallery::navigate({gallery::Place::Item, id}); }, Run {title}};
 }
 
 }  // namespace
@@ -62,7 +62,7 @@ gallery::ColorTileParts gallery::makeColorTile(ColorTileInfo const& info) {
             automationName = u"Copy brush name",
             toolTip = u"Copy brush name",
             content = parts.copyIcon,
-            onClick = [name = std::u16string {info.key}](auto&&...) {
+            onClick += [name = std::u16string {info.key}](auto&&...) {
                 auto package = DataPackage {};
                 package.setText(name);
                 Clipboard::setContent(package);

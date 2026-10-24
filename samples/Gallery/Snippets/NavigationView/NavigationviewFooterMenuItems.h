@@ -17,7 +17,7 @@ auto const view = NavigationView {
                     NavigationViewItem {content = u"Your Cart", icon = SymbolIcon {symbol = Symbol::Shop}, tag = u"SamplePage5"},
                     NavigationViewItem {content = u"Help", icon = SymbolIcon {symbol = Symbol::Help}, tag = u"SamplePage5"}],
     content = model->frame,
-    onSelectionChanged = [model](NavigationView const&, NavigationViewSelectionChangedEventArgs& args) {
+    onSelectionChanged += [model](NavigationView const&, NavigationViewSelectionChangedEventArgs& args) {
         gallery::showSample(model->frame, gallery::sampleNumber(args.selectedItem().try_as<NavigationViewItem>().tag()),
                             args.recommendedNavigationTransitionInfo());
     },
@@ -27,11 +27,11 @@ view.selectedItem(view.menuItems()[0]);
 auto options = StackPanel {RadioButtons {
     header = u"Pane position:",
     selectedIndex = 0,
-    RadioButton {content = u"Left mode", onChecked = [view](auto&&...) {
+    RadioButton {content = u"Left mode", onChecked += [view](auto&&...) {
                      view.paneDisplayMode(NavigationViewPaneDisplayMode::Left);
                      view.isPaneOpen(true);
                  }},
-    RadioButton {content = u"Top mode", onChecked = [view](auto&&...) {
+    RadioButton {content = u"Top mode", onChecked += [view](auto&&...) {
                      view.paneDisplayMode(NavigationViewPaneDisplayMode::Top);
                      view.isPaneOpen(false);
                  }},

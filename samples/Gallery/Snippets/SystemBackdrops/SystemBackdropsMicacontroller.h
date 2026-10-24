@@ -130,7 +130,7 @@ auto example = StackPanel {
     Button {
         Margin {0, 10, 0, 0},
         content = u"Show window",
-        onClick = [](Button const&) {
+        onClick += [](Button const&) {
             auto model = std::make_shared<Model>();
             gallery::trackWindow(model->window, model);
             model->window.activate();

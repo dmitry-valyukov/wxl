@@ -7,11 +7,11 @@
 // whose items are slots, one per item of the list, each knowing its place. The list's
 // watch mirrors every change of the list into the source, which tells the control. The
 // control asks for the element of an item when the item comes into view, and the machinery
-// behind the control's item template (impl/item_template.h, impl/item_factory.h) asks the
+// behind the control's item template (impl/items_helpers.h) asks the
 // slot's source, which calls `build` with the item -- inside a binding_scope the machinery
 // keeps until the control gives the element back.
 //
-// Who owns what. The list owns its watch; the watch owns the source (bound_source) and,
+// Who owns what. The list owns its watch; the watch owns the source (bound_list_watch) and,
 // going, disarms it: the source forgets the list and the builder, so a control that
 // outlives the list builds nothing from it. The control owns the source too, as its
 // ItemsSource. Nothing holds the control but its parent.
@@ -34,21 +34,21 @@ class bound_items_source;
 /// reference, moved and never copied. It is the watch itself -- called with each change of
 /// the list, it mirrors the change into the source -- and when the watch goes it disarms
 /// the source before letting go of it.
-class bound_source
+class bound_list_watch
 {
 public:
     /// The element of the item at a position, built by the application's function.
-    using item_builder = core::function<Object(uint32_t at)>;
+    using indexed_item_builder = core::function<Object(uint32_t at)>;
 
     /// A source of `size` items over the list at `list` -- its address, by which boundItem
     /// knows a box of this list from one of another.
-    bound_source(void const* list, uint32_t size, item_builder build);
+    bound_list_watch(void const* list, uint32_t size, indexed_item_builder build);
 
-    bound_source(bound_source&& other) noexcept;
-    bound_source(bound_source const&) = delete;
-    bound_source& operator=(bound_source const&) = delete;
-    bound_source& operator=(bound_source&&) = delete;
-    ~bound_source();
+    bound_list_watch(bound_list_watch&& other) noexcept;
+    bound_list_watch(bound_list_watch const&) = delete;
+    bound_list_watch& operator=(bound_list_watch const&) = delete;
+    bound_list_watch& operator=(bound_list_watch&&) = delete;
+    ~bound_list_watch();
 
     /// One change of the list, mirrored into the source and told to the control.
     void operator()(core::list_change const& change) const noexcept;
@@ -61,16 +61,16 @@ private:
 
 /// The source and the machinery of its elements, given to a control: its ItemsSource, and
 /// the item template that asks the source for the element of each item.
-void attach_items(ListViewBase const& control, bound_source const& source);
-void attach_items(ItemsView const& control, bound_source const& source);
-void attach_items(ItemsRepeater const& control, bound_source const& source);
+void attach_items(ListViewBase const& control, bound_list_watch const& source);
+void attach_items(ItemsView const& control, bound_list_watch const& source);
+void attach_items(ItemsRepeater const& control, bound_list_watch const& source);
 
 /// Where the item a control handed out (clickedItem, selectedItem) stands in the list at
 /// `list`, or -1: the box is no slot, a slot of another list, or of an item that is gone.
 int64_t bound_position(void const* list, Object const& box) noexcept;
 
 template <class Control>
-concept bound_items_control = requires(Control const& control, bound_source const& source) { attach_items(control, source); };
+concept bound_items_control = requires(Control const& control, bound_list_watch const& source) { attach_items(control, source); };
 
 /// `itemsSource = BindOutput{list, build}`, applied to the control being built.
 template <class Control, class T, class Build>
@@ -89,7 +89,7 @@ void bind_items(Control const& control, core::observable_list<T const>& list, Bu
                       "`ItemContainer {child = ...}`.");
     }
 
-    bound_source source{&list, list.size(), [&list, build](uint32_t at) -> Object { return build(list[at]); }};
+    bound_list_watch source{&list, list.size(), [&list, build](uint32_t at) -> Object { return build(list[at]); }};
     attach_items(control, source);
     list.watch_for_binding(std::move(source));
 }

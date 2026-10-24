@@ -25,7 +25,7 @@ export namespace wxl::core {
 /// time -- for something it is going to hand to `CreateFileW` and forget.
 ///
 /// So this one is `sta_wstring` and a handful of operations, and the handful is
-/// not a first cut: it is what a whole reader actually asks of a path. c_str()
+/// not a first version: it is what a whole reader actually asks of a path. c_str()
 /// for every call into the system, joining a directory with a name, the text
 /// itself for storing and showing, and -- one call site each -- filename() and
 /// parent_path(). Nothing here normalizes, resolves, compares case-insensitively
@@ -70,9 +70,9 @@ public:
     /// The characters, writable, still null-terminated.
     ///
     /// For the one thing that cannot be done to a path from the outside without
-    /// them: walking it and cutting it short at each separator in turn, which is
+    /// them: walking it and truncating it at each separator in turn, which is
     /// how a chain of directories gets created without allocating a string per
-    /// level. See `directory::create_all()`, which puts back what it cut.
+    /// level. See `directory::create_all()`, which puts back what it truncated.
     inline wchar_t* data() noexcept { return text_.data(); }
 
     inline bool empty() const noexcept { return text_.empty(); }

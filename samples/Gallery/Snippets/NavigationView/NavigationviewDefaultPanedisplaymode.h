@@ -14,7 +14,7 @@ auto const view = NavigationView {
               NavigationViewItem {content = u"Menu Item3", icon = SymbolIcon {symbol = Symbol::Refresh}, tag = u"SamplePage3"},
               NavigationViewItem {content = u"Menu Item4", icon = SymbolIcon {symbol = Symbol::Download}, tag = u"SamplePage4"}],
     content = model->frame,
-    onSelectionChanged = [model](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
+    onSelectionChanged += [model](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
         if (args.isSettingsSelected()) {
             gallery::showSettings(model->frame);
             return;

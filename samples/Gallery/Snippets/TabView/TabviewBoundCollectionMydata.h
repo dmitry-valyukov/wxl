@@ -6,14 +6,14 @@ struct MyData {
 };
 struct Model {
     std::vector<MyData> datas;
-    Object order = observableIndexList();
+    IndexList order = IndexList::observable();
 
     void add() {
         auto const index = static_cast<int>(datas.size());
         MyData data {u"MyData Doc " + gallery::numberText(index), Frame {}};
         gallery::showSample(data.content, index % 3 + 1);
         datas.push_back(std::move(data));
-        indexListAppend(order, index);
+        order.append(index);
     }
 };
 auto const model = gallery::hold<Model>();
@@ -21,7 +21,7 @@ for (int i = 0; i < 3; ++i) {
     model->add();
 }
 
-auto const data = [model](Object const& item) -> MyData const& { return model->datas[static_cast<size_t>(intOf(item))]; };
+auto const data = [model](Object const& item) -> MyData const& { return model->datas[static_cast<size_t>(unboxValue<int64_t>(item))]; };
 
 auto example = TabView {
     minHeight = 475,
@@ -30,13 +30,13 @@ auto example = TabView {
     tabItemsSource = model->order,
     tabItemTemplate = boundTemplate(u"TabViewItem",
                                     {{u"Content", [data](Object const& item) { return data(item).content; }},
-                                     {u"Header", [data](Object const& item) { return stringBox(data(item).header); }},
+                                     {u"Header", [data](Object const& item) { return boxValue(data(item).header); }},
                                      {u"IconSource", [](Object const&) { return SymbolIconSource {symbol = Symbol::Placeholder}; }}}),
-    onAddTabButtonClick = [model](TabView const&) { model->add(); },
-    onTabCloseRequested = [model](TabView const&, TabViewTabCloseRequestedEventArgs& args) {
-        for (uint32_t i = 0; i < indexListSize(model->order); ++i) {
-            if (indexListAt(model->order, i) == intOf(args.item())) {
-                indexListRemoveAt(model->order, i);
+    onAddTabButtonClick += [model](TabView const&) { model->add(); },
+    onTabCloseRequested += [model](TabView const&, TabViewTabCloseRequestedEventArgs& args) {
+        for (uint32_t i = 0; i < model->order.size(); ++i) {
+            if (model->order.getAt(i) == unboxValue<int64_t>(args.item())) {
+                model->order.removeAt(i);
                 break;
             }
         }

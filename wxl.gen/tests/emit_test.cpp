@@ -63,10 +63,10 @@ TEST(write_doc, escapes_what_doxygen_would_read) {
 TEST(write_doc, documents_only_what_the_declaration_has) {
     member_documentation const doc{.summary = "Sets it.",
                                    .params = {{"element", "The element."}, {"value", "The value."},
-                                              {"inner", "The inner one."}, {"stop", ""}},
+                                              {"inner", "The inner one."}, {"token", ""}},
                                    .returns = "Nothing.",
                                    .deprecated = "Use another."};
-    EXPECT_EQ(doc_of(doc, {"element", "value", "stop"}),
+    EXPECT_EQ(doc_of(doc, {"element", "value", "token"}),
               "    /// Sets it.\n"
               "    ///\n"
               "    /// @deprecated Use another.\n"

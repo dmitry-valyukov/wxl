@@ -47,8 +47,7 @@
 #include "Settings.h"
 #include "TrayIcon.h"
 #include "UiThread.h"
-#include "WindowHandle.h"
-#include "WindowModal.h"
+#include "WindowNative.h"
 #include "WindowShade.h"
 #include "launch.h"
 #include "settings_window.h"
@@ -446,7 +445,7 @@ private:
     void createHost() {
         mainWindow_.emplace();
         mainWindow_->title(settings_.windowTitle.get());
-        host_ = reinterpret_cast<HWND>(wxl::window_handle(*mainWindow_));
+        host_ = reinterpret_cast<HWND>(wxl::WindowNative::handle(*mainWindow_));
         if (!host_) return;
 
         ::SetWindowSubclass(host_, &Trayed::hostSubclass, 0, reinterpret_cast<DWORD_PTR>(this));
@@ -671,7 +670,7 @@ private:
     void openSettings() {
         if (settingsWindow_) {
             // Already open -- raise it rather than build a second one.
-            if (HWND const hwnd = reinterpret_cast<HWND>(wxl::window_handle(*settingsWindow_))) {
+            if (HWND const hwnd = reinterpret_cast<HWND>(wxl::WindowNative::handle(*settingsWindow_))) {
                 ::SetForegroundWindow(hwnd);
             }
             return;
@@ -689,7 +688,7 @@ private:
         // A modal dialog of the main window: it disables the main window while
         // open and keeps itself off the taskbar. Still a real second window --
         // its own HWND and XamlRoot -- so the multi-window scenario stands.
-        if (mainWindow_) wxl::makeModalDialog(*settingsWindow_, *mainWindow_);
+        if (mainWindow_) wxl::WindowNative::makeModal(*settingsWindow_, *mainWindow_);
 
         settingsWindow_->add_onClosed([this](wxl::Object const&, auto&) {
             wxl::core::unsubscribe_all(settings_.minimizeOnClose, settings_.fontFamily,

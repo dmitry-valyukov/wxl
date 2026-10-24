@@ -36,8 +36,8 @@ import wxl.core;
 // list of keys behind them -- and those are all this file emits, into
 // `styles.h` / `style_names.h` and `brushes.h` / `brush_names.h`. The lookup
 // itself, the cache and its teardown are ordinary code that never varies with
-// the input, so they are hand-written in wxl.ui: src/style_lookup.h,
-// src/brush_lookup.h and src/resource_lookup.cpp. Constant text has no
+// the input, so they are hand-written in wxl.ui: src/resource_lookup.h
+// and src/resource_lookup.cpp. Constant text has no
 // business inside a generator, where nobody can read it under the escaped
 // braces.
 
@@ -307,7 +307,7 @@ void write_brush_node(std::ostream& header, brush_node const& node, std::string_
                    group);
     }
     for (auto&& [leaf, key] : node.leaves) {
-        std::print(header, "    static constexpr resources::BrushOf<{}> {}{{}};  // {}\n", index++,
+        std::print(header, "    static constexpr impl::brush_of<{}> {}{{}};  // {}\n", index++,
                    leaf, key);
         names.push_back(key);
     }
@@ -334,12 +334,12 @@ void write_brush_paths(std::ostream& header, std::string_view group_suffix,
 void write_name_table(output const& out, emitted& em, std::string_view file,
                       std::string_view array, std::vector<std::string> const& names) {
     auto table = open_output(out.dir / file);
-    std::print(table, "{}#pragma once\n\nnamespace wxl::resources {{\n\n", banner);
+    std::print(table, "{}#pragma once\n\nnamespace wxl::impl {{\n\n", banner);
     std::print(table, "inline constexpr wchar_t const* {}[] = {{\n", array);
     for (auto&& name : names) {
         std::print(table, "    L\"{}\",\n", name);
     }
-    std::print(table, "}};\n\n}}  // namespace wxl::resources\n");
+    std::print(table, "}};\n\n}}  // namespace wxl::impl\n");
     em.add(file);
 }
 
@@ -408,13 +408,13 @@ void write_styles(output const& out, model const& m, emitted& em) {
 
     {
         auto header = open_output(out.dir / "styles.h");
-        std::print(header, "{}#pragma once\n\n#include \"style_lookup.h\"\n\nnamespace wxl::dsl {{\n",
+        std::print(header, "{}#pragma once\n\n#include \"resource_lookup.h\"\n\nnamespace wxl::dsl {{\n",
                    banner);
 
         for (auto&& [target, members] : groups) {
             std::print(header, "\nstruct {}Styles {{\n", target);
             for (auto&& [member, key] : members) {
-                std::print(header, "    static constexpr resources::StyleOf<{}> {}{{}};  // {}\n",
+                std::print(header, "    static constexpr impl::style_of<{}> {}{{}};  // {}\n",
                            indices[target][member], member, key);
             }
             std::print(header, "}};\n");
@@ -493,7 +493,7 @@ void write_brushes(output const& out, model const& m, emitted& em) {
     std::vector<std::string> names;
     {
         auto header = open_output(out.dir / "brushes.h");
-        std::print(header, "{}#pragma once\n\n#include \"brush_lookup.h\"\n\nnamespace wxl::dsl {{\n",
+        std::print(header, "{}#pragma once\n\n#include \"resource_lookup.h\"\n\nnamespace wxl::dsl {{\n",
                    banner);
         // One index space over both roots, in the order they are written, so
         // a single name table serves them.

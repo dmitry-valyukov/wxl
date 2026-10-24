@@ -14,13 +14,13 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 auto const colorButton = [model, colors](Object const& item) {
-    auto const& entry = (*colors)[static_cast<size_t>(intOf(item))];
+    auto const& entry = (*colors)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Button {
         hAlign.stretch,
         background = entry.color,
         foreground = brushes.Text.FillColor.Inverse,
         content = entry.name,
-        onClick = [model, name = entry.name](Button const& self) {
+        onClick += [model, name = entry.name](Button const& self) {
             model->swatch.fill(self.background());
             announce(self, std::u16string {u"Rectangle color set to "} + name, u"RectangleChangedNotificationActivityId");
             // The button of the color chosen is named so for a screen reader, the one before it by its own words again.
@@ -31,7 +31,7 @@ auto const colorButton = [model, colors](Object const& item) {
             model->selected = self;
             model->selectedName = name;
         },
-        onGotFocus = [model](Button const& self) {
+        onGotFocus += [model](Button const& self) {
             // Remember the index, so focus lands on it again when it leaves the repeater and comes back.
             model->previouslyFocusedIndex = model->repeater.getElementIndex(self);
             BringIntoViewOptions options;
@@ -44,15 +44,15 @@ auto const colorButton = [model, colors](Object const& item) {
 
 model->repeater = ItemsRepeater {
     itemTemplate = colorButton,
-    itemsSource = indexList(static_cast<int64_t>(colors->size())),
-    onGettingFocus = [model](auto const&, GettingFocusEventArgs& args) {
+    itemsSource = IndexList(static_cast<int64_t>(colors->size())),
+    onGettingFocus += [model](auto const&, GettingFocusEventArgs& args) {
         // Focus coming into the repeater from outside goes to the item that had it last.
         auto const lastFocus = args.oldFocusedElement().try_as<UIElement>();
         if (model->previouslyFocusedIndex != -1 && lastFocus && model->repeater.getElementIndex(lastFocus) == -1) {
             args.newFocusedElement(model->repeater.tryGetElement(model->previouslyFocusedIndex));
         }
     },
-    onKeyDown = [model](auto const&, KeyRoutedEventArgs& args) {
+    onKeyDown += [model](auto const&, KeyRoutedEventArgs& args) {
         if (args.handled()) {
             return;
         }
@@ -73,7 +73,7 @@ model->repeater = ItemsRepeater {
         }
     },
     // Each element, as it is made ready, scales with its distance from the middle of the viewport.
-    onElementPrepared = [model](auto const&, ItemsRepeaterElementPreparedEventArgs& args) {
+    onElementPrepared += [model](auto const&, ItemsRepeaterElementPreparedEventArgs& args) {
         auto const item = ElementCompositionPreview::getElementVisual(args.element());
         auto const viewport = ElementCompositionPreview::getElementVisual(model->scroll);
         auto const scrollProperties = ElementCompositionPreview::getScrollViewerManipulationPropertySet(model->scroll);

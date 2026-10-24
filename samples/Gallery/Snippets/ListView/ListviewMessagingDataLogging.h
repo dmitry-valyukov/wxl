@@ -7,14 +7,14 @@ struct Model {
         std::u16string text = u"Message ";
         text += core::to_u16(static_cast<int>(messages.size()) + 1).plain();
         messages.emplace_back(text, ours);
-        log.items().append(intBox(static_cast<int64_t>(messages.size()) - 1));
+        log.items().append(boxValue(static_cast<int64_t>(messages.size()) - 1));
     }
 };
 auto const model = gallery::hold<Model>();
 
 model->log.itemTemplate([weak = std::weak_ptr<Model>(model)](Object const& item) {
     auto const model = weak.lock();
-    auto const& message = model->messages[static_cast<size_t>(intOf(item))];
+    auto const& message = model->messages[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Grid {
         Margin {4},
         horizontalAlignment = message.second ? HorizontalAlignment::Right : HorizontalAlignment::Left,
@@ -49,7 +49,7 @@ auto example = StackPanel {
         orientation.horizontal,
         spacing = 8,
         Margin {0, 8, 0, 0},
-        Button {content = u"Add message", onClick = [model](Button const&) { model->add(true); }},
-        Button {content = u"Message received", onClick = [model](Button const&) { model->add(false); }},
+        Button {content = u"Add message", onClick += [model](Button const&) { model->add(true); }},
+        Button {content = u"Message received", onClick += [model](Button const&) { model->add(false); }},
     },
 };

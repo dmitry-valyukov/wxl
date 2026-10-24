@@ -45,7 +45,7 @@ bool orphan_state::end() noexcept {
 
     for (;;) {
         switch (found) {
-        // Whoever cancelled the operation or gave it up may be cutting short the call
+        // Whoever cancelled the operation or gave it up may be aborting the call
         // this thread stood in. Until that is over the thread stays here: the next call it
         // makes is somebody else's.
         case stage::cancelling_io:
@@ -74,8 +74,8 @@ bool orphan_state::abandon() noexcept {
             if (stage_.compare_exchange_strong(found, stage::abandoned)) return false;
             break;
 
-        // Cancelled before, its call has been cut short once; the body may have gone on to
-        // another since, which is cut short the same way.
+        // Cancelled before, its call has been aborted once; the body may have gone on to
+        // another since, which is aborted the same way.
         case stage::running:
         case stage::canceled:
             if (!stage_.compare_exchange_strong(found, stage::cancelling_io)) break;
@@ -125,7 +125,7 @@ void orphan_state::cancel() noexcept {
 
 void orphan_state::cancel_synchronous_io() noexcept {
     // The body is held inside the operation from here until the stage moves on, so what is
-    // cut short can only be a call of its own.
+    // aborted can only be a call of its own.
     if (const HANDLE thread = ::OpenThread(THREAD_TERMINATE, FALSE, thread_)) {
         ::CancelSynchronousIo(thread);
         ::CloseHandle(thread);

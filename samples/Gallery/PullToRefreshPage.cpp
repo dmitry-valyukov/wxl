@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "StringList.h"
+#include "Box.h"
 #include <wxl/Windows.Foundation.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 

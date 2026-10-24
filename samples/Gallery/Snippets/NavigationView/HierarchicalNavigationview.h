@@ -25,7 +25,7 @@ auto const view = NavigationView {
                                             NavigationViewItem {content = u"Upload file", icon = SymbolIcon {symbol = Symbol::OpenLocal}, tag = u"SamplePage6",
                                                                 toolTip = u"Upload file"}]}],
     content = model->frame,
-    onSelectionChanged = [model](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
+    onSelectionChanged += [model](NavigationView const& sender, NavigationViewSelectionChangedEventArgs& args) {
         if (args.isSettingsSelected()) {
             gallery::showSettings(model->frame);
             return;
@@ -45,9 +45,9 @@ auto const mode = [view](NavigationViewPaneDisplayMode display, bool open) {
 };
 auto options = StackPanel {
     TextBlock {Margin {0, 12, 0, 0}, u"PanePosition:"},
-    RadioButton {content = u"Left mode", groupName = u"hierachicalGroup", isChecked = true, onChecked = mode(NavigationViewPaneDisplayMode::Left, true)},
-    RadioButton {content = u"Top mode", groupName = u"hierachicalGroup", onChecked = mode(NavigationViewPaneDisplayMode::Top, false)},
-    RadioButton {content = u"LeftCompact mode", groupName = u"hierachicalGroup", onChecked = mode(NavigationViewPaneDisplayMode::LeftCompact, false)},
+    RadioButton {content = u"Left mode", groupName = u"hierachicalGroup", isChecked = true, onChecked += mode(NavigationViewPaneDisplayMode::Left, true)},
+    RadioButton {content = u"Top mode", groupName = u"hierachicalGroup", onChecked += mode(NavigationViewPaneDisplayMode::Top, false)},
+    RadioButton {content = u"LeftCompact mode", groupName = u"hierachicalGroup", onChecked += mode(NavigationViewPaneDisplayMode::LeftCompact, false)},
 };
 
 auto example = Grid {

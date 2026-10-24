@@ -1,4 +1,4 @@
-// wxl::RevealEffect -- the lamps and the layers behind it; see RevealEffect.h.
+// wxl::RevealEffect -- the spot lights and the layers behind it; see RevealEffect.h.
 //
 // The projection and the Windows headers come first, and with them every
 // standard header they need: the wxl headers below carry the wxl.core import.
@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <memory>
 #include <vector>
 
 #include "RevealEffect.h"
@@ -27,8 +26,8 @@
 #include "Object.impl.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 #include <wxl/Microsoft.UI.Xaml.impl.h>
-#include "impl/effect_layer.h"
-#include "impl/pointer_lamp.h"
+#include "impl/effect_helpers.h"
+#include "impl/pointer_spot_light.h"
 
 namespace wxl {
 
@@ -78,14 +77,13 @@ effects::ColorMatrixEffect glow(float diffuse, float gain) {
     return toAlpha;
 }
 
-using impl::Beam;
-using impl::Lamp;
+using impl::pointer_spot_light;
 
-// The narrow light: the lamp, and the one brush every face it lights wears.
-struct FaceLight : Beam {
+// The narrow light: the spot light, and the one brush every face it lights wears.
+struct FaceLight : pointer_spot_light {
     composition::CompositionEffectBrush brush{nullptr};
 
-    FaceLight() : Beam{140.0f, 0.69f} {}
+    FaceLight() : pointer_spot_light{140.0f, 0.69f} {}
 
     composition::CompositionBrush face(composition::Compositor const& compositor) {
         if (!brush) {
@@ -141,15 +139,15 @@ struct Edge {
     float radius;
 };
 
-// The wide light: the lamp, the edges it lights and the rings they wear.
-struct EdgeLight : Beam {
+// The wide light: the spot light, the edges it lights and the rings they wear.
+struct EdgeLight : pointer_spot_light {
     float thickness = 1.5f;
     core::nullable<float> corner;
     composition::CompositionEffectFactory factory{nullptr};
     std::vector<Ring> rings;
     std::vector<Edge> edges;
 
-    EdgeLight() : Beam{340.0f, 1.24f} {}
+    EdgeLight() : pointer_spot_light{340.0f, 1.24f} {}
 
     Ring& ring_of(composition::Compositor const& compositor, float radius) {
         for (Ring& ring : rings) {
@@ -227,8 +225,9 @@ struct EdgeLight : Beam {
 };
 
 // One attached element's two layers: made on Loaded, taken off on Unloaded.
-// The element's own events hold the handlers that hold this.
-struct Patch : std::enable_shared_from_this<Patch> {
+// The element's own events hold the handlers that hold this; the handler of
+// the frame reaches it through its weak_link. All of them are the UI thread's.
+struct Attachment : core::sta_refcounted, core::sta_weak_linked<Attachment> {
     core::intrusive_ptr<FaceLight> hover;
     core::intrusive_ptr<EdgeLight> border;
     int z{};
@@ -263,13 +262,13 @@ struct Patch : std::enable_shared_from_this<Patch> {
         edge.RelativeSizeAdjustment({1.0f, 1.0f});
         border->add(edge, outline, impl::corner_of(fe));
 
-        // Aimed at before they are shown: see Lamp::shining.
+        // Aimed at before they are shown: see impl::island_spot_light::shining.
         hover->light_up(island, face);
         border->light_up(island, edge);
 
         impl::when_drawn(host.as<composition::ContainerVisual>(),
-                         [weak = weak_from_this(), layer = face](auto const& children) {
-                             auto const self = weak.lock();
+                         [link = weak_link(), layer = face](auto const& children) {
+                             core::intrusive_ptr<Attachment> const self = link->get();
                              // Unloaded before the frame came: nothing to put there.
                              if (!self || self->face != layer) return;
                              impl::insert_layer(children, self->face, self->z);
@@ -298,75 +297,71 @@ struct Patch : std::enable_shared_from_this<Patch> {
 
 }  // namespace
 
-struct HoverLight::State final : FaceLight {};
+struct HoverLight::Impl final : FaceLight {};
 
-impl::Beam& HoverLight::beam() const { return *state_; }
+impl::pointer_spot_light& HoverLight::spot_light() const { return *impl_; }
 
-HoverLight::HoverLight() : state_{new State, /*add_ref=*/false} {}
+HoverLight::HoverLight() : impl_{new Impl, /*add_ref=*/false} {}
 HoverLight::HoverLight(HoverLight const& other) noexcept = default;
 HoverLight& HoverLight::operator=(HoverLight const& other) noexcept = default;
 HoverLight::~HoverLight() = default;
 
-void HoverLight::size(double value) const { state_->set_size(value); }
-void HoverLight::fullSize(double value) const { state_->set_full(value); }
-void HoverLight::height(double value) const { state_->set_height(value); }
-void HoverLight::intensity(double value) const { state_->set_intensity(value); }
-void HoverLight::diffuseAmount(double value) const { state_->set_diffuse(value); }
-void HoverLight::color(Color value) const { state_->set_color(value); }
-void HoverLight::constantAttenuation(double value) const { state_->set_constant_attenuation(value); }
-void HoverLight::linearAttenuation(double value) const { state_->set_linear_attenuation(value); }
+void HoverLight::size(double value) const { impl_->set_size(value); }
+void HoverLight::fullSize(double value) const { impl_->set_full(value); }
+void HoverLight::height(double value) const { impl_->set_height(value); }
+void HoverLight::intensity(double value) const { impl_->set_intensity(value); }
+void HoverLight::diffuseAmount(double value) const { impl_->set_diffuse(value); }
+void HoverLight::color(Color value) const { impl_->set_color(value); }
+void HoverLight::constantAttenuation(double value) const { impl_->set_constant_attenuation(value); }
+void HoverLight::linearAttenuation(double value) const { impl_->set_linear_attenuation(value); }
 
-struct BorderLight::State final : EdgeLight {};
+struct BorderLight::Impl final : EdgeLight {};
 
-impl::Beam& BorderLight::beam() const { return *state_; }
+impl::pointer_spot_light& BorderLight::spot_light() const { return *impl_; }
 
-BorderLight::BorderLight() : state_{new State, /*add_ref=*/false} {}
+BorderLight::BorderLight() : impl_{new Impl, /*add_ref=*/false} {}
 BorderLight::BorderLight(BorderLight const& other) noexcept = default;
 BorderLight& BorderLight::operator=(BorderLight const& other) noexcept = default;
 BorderLight::~BorderLight() = default;
 
-void BorderLight::size(double value) const { state_->set_size(value); }
-void BorderLight::fullSize(double value) const { state_->set_full(value); }
-void BorderLight::height(double value) const { state_->set_height(value); }
-void BorderLight::intensity(double value) const { state_->set_intensity(value); }
-void BorderLight::diffuseAmount(double value) const { state_->set_diffuse(value); }
-void BorderLight::color(Color value) const { state_->set_color(value); }
-void BorderLight::constantAttenuation(double value) const { state_->set_constant_attenuation(value); }
-void BorderLight::linearAttenuation(double value) const { state_->set_linear_attenuation(value); }
-void BorderLight::strokeThickness(double value) const { state_->set_thickness(value); }
-void BorderLight::cornerRadius(CornerRadius value) const { state_->set_corner(static_cast<float>(value.topLeft)); }
+void BorderLight::size(double value) const { impl_->set_size(value); }
+void BorderLight::fullSize(double value) const { impl_->set_full(value); }
+void BorderLight::height(double value) const { impl_->set_height(value); }
+void BorderLight::intensity(double value) const { impl_->set_intensity(value); }
+void BorderLight::diffuseAmount(double value) const { impl_->set_diffuse(value); }
+void BorderLight::color(Color value) const { impl_->set_color(value); }
+void BorderLight::constantAttenuation(double value) const { impl_->set_constant_attenuation(value); }
+void BorderLight::linearAttenuation(double value) const { impl_->set_linear_attenuation(value); }
+void BorderLight::strokeThickness(double value) const { impl_->set_thickness(value); }
+void BorderLight::cornerRadius(CornerRadius value) const { impl_->set_corner(static_cast<float>(value.topLeft)); }
 
-struct RevealEffect::State : core::sta_refcounted {
+struct RevealEffect::Impl : core::sta_refcounted {
     HoverLight hover;
     BorderLight border;
     int32_t z = 1;
 };
 
-RevealEffect::RevealEffect() : state_{new State, /*add_ref=*/false} {}
+RevealEffect::RevealEffect() : impl_{new Impl, /*add_ref=*/false} {}
 RevealEffect::RevealEffect(RevealEffect const& other) noexcept = default;
 RevealEffect& RevealEffect::operator=(RevealEffect const& other) noexcept = default;
 RevealEffect::~RevealEffect() = default;
 
-void RevealEffect::setPositional(HoverLight const& value) const { state_->hover = value; }
-void RevealEffect::setPositional(BorderLight const& value) const { state_->border = value; }
-void RevealEffect::zIndex(int32_t value) const { state_->z = value; }
+void RevealEffect::setPositional(HoverLight const& value) const { impl_->hover = value; }
+void RevealEffect::setPositional(BorderLight const& value) const { impl_->border = value; }
+void RevealEffect::zIndex(int32_t value) const { impl_->z = value; }
 
 void RevealEffect::attach(FrameworkElement const& wrapper) const {
     auto const element = Object::Impl::as<xaml::FrameworkElement>(wrapper);
-    auto const patch = std::make_shared<Patch>();
-    patch->hover = state_->hover.state_;
-    patch->border = state_->border.state_;
-    patch->z = state_->z;
+    auto const attachment = core::make_refcounted<Attachment>();
+    attachment->hover = impl_->hover.impl_;
+    attachment->border = impl_->border.impl_;
+    attachment->z = impl_->z;
 
-    element.Loaded([patch](auto const& sender, auto&&) {
-        patch->place(sender.template as<xaml::FrameworkElement>());
-    });
-    element.Unloaded([patch](auto&&, auto&&) { patch->remove(); });
+    impl::attach_while_loaded(element, attachment);
     // A button marks its own press handled; the flash takes it anyway.
     element.AddHandler(xaml::UIElement::PointerPressedEvent(),
-                       winrt::box_value(xaml::Input::PointerEventHandler{[patch](auto&&, auto&&) { patch->press(); }}),
+                       winrt::box_value(xaml::Input::PointerEventHandler{[attachment](auto&&, auto&&) { attachment->press(); }}),
                        true);
-    if (element.IsLoaded()) patch->place(element);
 }
 
 }  // namespace wxl

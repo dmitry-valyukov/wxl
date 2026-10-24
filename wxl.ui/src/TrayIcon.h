@@ -85,7 +85,7 @@ public:
     void hide();
 
     /// The text the shell shows on hover. Up to 127 characters, which is the
-    /// shell's limit rather than ours; longer text is cut.
+    /// shell's limit rather than ours; longer text is truncated.
     void tooltip(hstring_param const& text);
 
     /// What builds the menu for a right-click. Without one, a right-click does

@@ -9,7 +9,7 @@ import wxl.core;
 
 // The node itself: one virtual call over a capture, owned by whoever asked for
 // it. `function` next door is one way to own it; an event, which links it into
-// a list and deletes it by cookie, is the other.
+// a list and deletes it by token, is the other.
 namespace {
 
 using wxl::core::impl::func_body;

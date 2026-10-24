@@ -3,8 +3,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "LoadXaml.h"
-#include "ResourceBrush.h"
+#include "Resource.h"
 
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Documents.h>
@@ -74,7 +73,7 @@ FrameworkElement gallery::xamlResourcesPage() {
         StackPanel {
             spacing = 12.0,
             RichTextBlock {Paragraph {Run {u"WinUI 3 includes built-in theme resources for commonly used colors. See all brushes on the "},
-                                      Hyperlink {onClick = [](auto&&...) { gallery::navigate({gallery::Place::Item, L"Color"}); }, Run {u"Color page"}},
+                                      Hyperlink {onClick += [](auto&&...) { gallery::navigate({gallery::Place::Item, L"Color"}); }, Run {u"Color page"}},
                                       Run {u"."}}},
             RichTextBlock {
                 Paragraph {Run {u"• A path of "}, Run {fontWeight = FontWeight {600}, u"brushes"},

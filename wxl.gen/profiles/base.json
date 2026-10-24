@@ -26,13 +26,20 @@
                 "MinSize": {
                     "type": "Windows.Graphics.SizeInt32",
                     "function": "impl::set_minimum_size",
-                    "include": "../impl/window_constraints.h"
+                    "include": "../impl/window_helpers.h"
+                },
+                "SizeToContent": {
+                    "comment": "Which sides of the window follow its content, as WPF's Window.SizeToContent says it: Manual, Width, Height, WidthAndHeight. WinUI3 has none -- a Flyout sizes to its content, a Window opens at a large default. The content is read when the window first activates, so the tag may stand before the content in the braces; the window is resized once, when the content has been laid out, to what the content wanted.",
+                    "cppType": "SizeToContent",
+                    "cppInclude": "../SizeToContent.h",
+                    "function": "impl::set_size_to_content",
+                    "include": "../impl/window_helpers.h"
                 },
                 "Placement": {
-                    "comment": "Where the window was last time and how: ordinary, maximized or full-screen, plus the rectangle it returns to. WinUI3 has none of it -- AppWindow gives Position and Size, and a window closed maximized reports the size of the screen, so remembering that hands the reader a monitor-sized window the moment they leave the maximized state. What has to be kept is Win32's restore rectangle. The value is text because that is what an application writes to its settings and hands back unread; reading it back is wxl::window_placement(), a free function, since a property tag is a way of setting and there is no braced form of asking.",
+                    "comment": "Where the window was last time and how: ordinary, maximized or full-screen, plus the rectangle it returns to. WinUI3 has none of it -- AppWindow gives Position and Size, and a window closed maximized reports the size of the screen, so remembering that hands the reader a monitor-sized window the moment they leave the maximized state. What has to be kept is Win32's restore rectangle. The value is text because that is what an application writes to its settings and hands back unread; reading it back is wxl::WindowNative::placement(), since a property tag is a way of setting and there is no braced form of asking.",
                     "type": "String",
-                    "function": "impl::set_window_placement",
-                    "include": "../impl/window_placement.h"
+                    "function": "impl::window_placement_setter::set",
+                    "include": "../impl/window_helpers.h"
                 }
             }
         },
@@ -63,19 +70,19 @@
                     "comment": "One text, two homes: ToolTipService's hover hint and AutomationProperties.Name, the name a screen reader speaks. Set together deliberately -- the property exists for controls whose face is a glyph rather than a word, and such a control needs naming in both places or it is nameless in one of them.",
                     "type": "String",
                     "function": "impl::set_tool_tip",
-                    "include": "../impl/tool_tip.h"
+                    "include": "../impl/element_helpers.h"
                 },
                 "AutomationName": {
                     "comment": "The name a screen reader speaks, and nothing else -- the half of ToolTip that carries no hover hint. What needs it is the element whose face is already words but not text: a list row built out of a panel says nothing at all to automation, because a Button's accessible name comes from its content only when that content is a string. A hint on such a row would be noise, so the two are separate properties rather than one.",
                     "type": "String",
-                    "function": "impl::set_automation_name",
-                    "include": "../impl/automation_name.h"
+                    "function": "impl::automation_properties::set_name",
+                    "include": "../impl/automation_properties.h"
                 },
                 "Cursor": {
                     "comment": "The pointer's shape over the element. WinUI keeps it on UIElement.ProtectedCursor, which the metadata marks protected -- but protected is a word for projections, not for the ABI: IUIElementProtected is an ordinary interface any element's object answers QueryInterface for, so the wrapper sets it on a plain Border with no subclass in between. The value is the metadata's own InputSystemCursorShape; a second vocabulary for Arrow, Hand and SizeWestEast would name nothing new.",
                     "type": "Microsoft.UI.Input.InputSystemCursorShape",
                     "function": "impl::set_cursor",
-                    "include": "../impl/cursor.h"
+                    "include": "../impl/element_helpers.h"
                 }
             }
         },
@@ -228,12 +235,12 @@
                 "RowDefinitions": {
                     "type": "String",
                     "function": "impl::set_row_definitions",
-                    "include": "../impl/grid_definitions.h"
+                    "include": "../impl/layout_helpers.h"
                 },
                 "ColumnDefinitions": {
                     "type": "String",
                     "function": "impl::set_column_definitions",
-                    "include": "../impl/grid_definitions.h"
+                    "include": "../impl/layout_helpers.h"
                 }
             },
             "members": [
@@ -631,7 +638,7 @@
                     "cppType": "FluentSymbol",
                     "cppInclude": "FluentSymbol.h",
                     "function": "impl::set_fluent_symbol",
-                    "include": "../impl/fluent_symbol.h"
+                    "include": "../impl/element_helpers.h"
                 }
             }
         },

@@ -9,6 +9,6 @@ auto const tip = TeachingTip {
 };
 
 auto example = Grid {
-    Button {content = u"Show TeachingTip", onClick = [tip](auto&&...) { tip.isOpen(true); }},
+    Button {content = u"Show TeachingTip", onClick += [tip](auto&&...) { tip.isOpen(true); }},
     tip,
 };

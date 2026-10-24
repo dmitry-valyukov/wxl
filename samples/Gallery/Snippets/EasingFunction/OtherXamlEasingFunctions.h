@@ -36,7 +36,7 @@ for (auto const& each : *functions) {
 auto example = Grid {
     minWidth = 420,
     columnDefinitions = u"auto,*",
-    Button {content = u"Animate", automationName = u"Animate rectangle using an Easing Function", onClick = [model, functions](auto&&...) {
+    Button {content = u"Animate", automationName = u"Animate rectangle using an Easing Function", onClick += [model, functions](auto&&...) {
                 if (model->choice.selectedIndex() < 0) {
                     return;
                 }
@@ -54,5 +54,5 @@ auto example = Grid {
 auto options = StackPanel {
     model->choice,
     RadioButtons {RadioButton {content = u"EaseOut"}, RadioButton {content = u"EaseIn"}, RadioButton {content = u"EaseInOut"},
-                  selectedIndex = 0, onSelectionChanged = [model](RadioButtons const& self) { model->mode = std::max(self.selectedIndex(), 0); }},
+                  selectedIndex = 0, onSelectionChanged += [model](RadioButtons const& self) { model->mode = std::max(self.selectedIndex(), 0); }},
 };

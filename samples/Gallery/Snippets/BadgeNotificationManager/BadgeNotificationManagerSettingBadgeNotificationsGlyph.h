@@ -26,7 +26,7 @@ struct Model {
 };
 auto const model = gallery::hold<Model>();
 model->glyphBox.add_onSelectionChanged([weak = std::weak_ptr<Model>(model)](auto&&...) {
-    if (auto const model = weak.lock(); model && model->badgeSet && is_packaged()) {
+    if (auto const model = weak.lock(); model && model->badgeSet && Application::isPackaged()) {
         BadgeNotificationManager::current().setBadgeAsGlyph(model->selectedGlyph());
     }
 });
@@ -36,8 +36,8 @@ auto example = StackPanel {
     Button {
         content = u"Set badge glyph",
         width = 160,
-        onClick = [model](Button const&) {
-            if (is_packaged()) {
+        onClick += [model](Button const&) {
+            if (Application::isPackaged()) {
                 BadgeNotificationManager::current().setBadgeAsGlyph(model->selectedGlyph());
                 model->badgeSet = true;
             }
@@ -46,8 +46,8 @@ auto example = StackPanel {
     Button {
         content = u"Clear badge",
         width = 160,
-        onClick = [](Button const&) {
-            if (is_packaged()) {
+        onClick += [](Button const&) {
+            if (Application::isPackaged()) {
                 BadgeNotificationManager::current().clearBadge();
             }
         },

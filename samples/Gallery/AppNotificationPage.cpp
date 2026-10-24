@@ -2,7 +2,7 @@
 
 #include "Pages.h"
 #include "Shell.h"
-#include "ApplicationFolder.h"
+#include "Application.h"
 #include <wxl/Microsoft.Windows.AppNotifications.h>
 #include <wxl/Microsoft.Windows.AppNotifications.Builder.h>
 

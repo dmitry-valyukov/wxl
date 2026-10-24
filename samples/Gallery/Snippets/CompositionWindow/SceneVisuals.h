@@ -59,5 +59,5 @@ auto example = StackPanel {
         u"The window has two layers and says so: the scene (a background and a page of composition visuals "
         u"that the application draws) and the island of XAML above it, transparent, over the whole window.",
     },
-    Button {content = u"Show window", onClick = [model](Button const&) { model->open(); }},
+    Button {content = u"Show window", onClick += [model](Button const&) { model->open(); }},
 };

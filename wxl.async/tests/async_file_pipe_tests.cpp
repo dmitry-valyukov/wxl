@@ -160,7 +160,7 @@ task<> reads_and_is_dropped(path pipe_name, bool& reading) {
 /// Reads from the pipe under a token, and says what came of it: the frame stays, and
 /// the read ends with an answer -- the bytes, or the cancellation. The read is the form
 /// with a token, kept before it is awaited, or awaited as the call returns it.
-task<> reads_under_a_token(path pipe_name, cancellation_token stop, bool kept, bool& reading,
+task<> reads_under_a_token(path pipe_name, cancellation_token token, bool kept, bool& reading,
                            std::string& outcome) {
     async_file in = co_await async_file::open_read(pipe_name);
 
@@ -168,12 +168,12 @@ task<> reads_under_a_token(path pipe_name, cancellation_token stop, bool kept, b
 
     try {
         if (kept) {
-            auto read = in.read(buffer, stop);
+            auto read = in.read(buffer, token);
             reading = true;
             co_await read;
         } else {
             reading = true;
-            co_await in.read(buffer, stop);
+            co_await in.read(buffer, token);
         }
 
         outcome = "read";
@@ -183,7 +183,7 @@ task<> reads_under_a_token(path pipe_name, cancellation_token stop, bool kept, b
 }
 
 /// A pipe whose far end takes a little and then no more: a write of more than it holds
-/// stays inside the call until somebody reads, or until the call is cut short.
+/// stays inside the call until somebody reads, or until the call is aborted.
 class narrow_pipe
 {
 public:
@@ -275,7 +275,7 @@ private:
 
 /// Gives an orphan up the moment it is started, over and over, and between the orphans
 /// awaits a blocking read carried out where they are -- which has to come through every
-/// time: cutting short is for the call of the operation given up, and no other. The orphan
+/// time: aborting is for the call of the operation given up, and no other. The orphan
 /// given up asks what async_directory::exists() asks, and counts itself as it is deleted.
 task<> reads_among_orphans_given_up(path file_path, int rounds, int& aborted, int& read,
                                     std::atomic<int>& given_up_deleted) {
@@ -374,14 +374,14 @@ TEST_F(AsyncFilePipeTest, AReadTheKernelHoldsEndsWithTheCancellationWhenAsked) {
         rescue watchdog(pipe);
         bool reading = false;
         std::string outcome;
-        cancellation_source stop;
+        cancellation_source source;
 
-        task<> work = reads_under_a_token(pipe.name(), stop.token(), kept, reading, outcome);
+        task<> work = reads_under_a_token(pipe.name(), source.token(), kept, reading, outcome);
 
         wait_until([&] { return reading; });
         EXPECT_FALSE(work.done());
 
-        stop.cancel();
+        source.cancel();
         EXPECT_FALSE(work.done()) << "the read was answered in place";
 
         EXPECT_NO_THROW(sta_loop::run_until(work));
@@ -419,7 +419,7 @@ TEST(OrphanTest, GivingUpAnOrphanCutsShortTheCallItStandsIn) {
     hevent left{true};
 
     // Lets the write through after a while unless told not to, so that a write which
-    // was to be cut short and was not fails the test instead of hanging the binary.
+    // was to be aborted and was not fails the test instead of hanging the binary.
     std::binary_semaphore done{0};
     std::jthread rescue([&] {
         if (!done.try_acquire_for(std::chrono::seconds(10))) pipe.drain();
@@ -471,7 +471,7 @@ TEST(OrphanTest, CancellingAnOrphanCancelsTheCallItStandsInAndItsWaitEndsAtOnce)
         if (!done.try_acquire_for(std::chrono::seconds(10))) pipe.drain();
     });
 
-    cancellation_source stop;
+    cancellation_source source;
     std::atomic<DWORD> outcome{ERROR_SUCCESS};
     const orphans_drained_on_exit drained;
 
@@ -486,13 +486,13 @@ TEST(OrphanTest, CancellingAnOrphanCancelsTheCallItStandsInAndItsWaitEndsAtOnce)
                              nullptr))
                 outcome = ::GetLastError();
         },
-        stop.token());
+        source.token());
 
     // A byte of the megabyte has come through, so the body is inside its write, and the
     // pipe holds too little for it to leave.
     ASSERT_TRUE(pipe.take_one());
 
-    stop.cancel();
+    source.cancel();
 
     wait_until([&] { return writing.done(); });
     EXPECT_THROW(writing.result(), operation_canceled_exception);

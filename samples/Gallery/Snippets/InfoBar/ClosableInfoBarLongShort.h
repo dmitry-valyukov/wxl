@@ -13,7 +13,7 @@ auto bar = InfoBar {
                             u"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin dapibus dolor vitae justo rutrum, "
                             u"ut lobortis nibh mattis. Aenean id elit commodo, semper felis nec.";
     }},
-    onClosed = [model](InfoBar const&, InfoBarClosedEventArgs&) { model->open.set(false); },
+    onClosed += [model](InfoBar const&, InfoBarClosedEventArgs&) { model->open.set(false); },
 };
 
 auto isOpen = CheckBox {content = u"Is Open", isChecked = Bind {model->open}};
@@ -33,7 +33,7 @@ auto actionButton = ComboBox {
     ComboBoxItem {content = u"Button"},
     ComboBoxItem {content = u"Hyperlink"},
     selectedIndex = 0,
-    onSelectionChanged = [bar](ComboBox const& self) {
+    onSelectionChanged += [bar](ComboBox const& self) {
         switch (self.selectedIndex()) {
             case 0:
                 // A wrapper is never empty, so "no button" is a button that is not shown.

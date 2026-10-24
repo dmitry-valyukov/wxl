@@ -16,6 +16,6 @@ auto const grid = Grid {
 };
 
 auto example = grid;
-auto options = Button {vAlign.top, content = u"Change Theme", onClick = [grid](auto&&...) {
+auto options = Button {vAlign.top, content = u"Change Theme", onClick += [grid](auto&&...) {
                            grid.requestedTheme(grid.requestedTheme() == ElementTheme::Dark ? ElementTheme::Light : ElementTheme::Dark);
                        }};

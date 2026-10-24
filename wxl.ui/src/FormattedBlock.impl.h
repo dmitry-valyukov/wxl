@@ -16,11 +16,13 @@
 
 namespace wxl {
 
+namespace impl {
+
 // The box a WinRT-side closure shares with the Impl: it holds the current
 // handler, the closures hold the box -- a Hyperlink's Click, an Image's
 // ImageFailed. Reference-counted without interlocked operations and
 // allocated from the STA pool, both on the same single-main-STA-thread
-// guarantee as Object::Impl itself -- closures die with their elements, on
+// guarantee as Object::Impl itself -- closures are destroyed with their elements, on
 // that one thread. One template for every handler the block hands out this
 // way: onLink and onError share the mechanics.
 template <typename Handler>
@@ -60,6 +62,8 @@ public:
     double area = 0;  // the text area width the entries were last fitted to
 };
 
+}  // namespace impl
+
 class FormattedBlock::Impl : public base_t::Impl {
 public:
     using base_t::Impl::Impl;
@@ -86,14 +90,14 @@ public:
     // XAML tree owns the control, not us) still finds the handler, and no
     // closure ever points back at this Impl to keep it alive in a cycle.
     // Adopted, not add-ref'd: refcounted starts at one.
-    core::intrusive_ptr<handler_box<LinkHandler>> onLink_{new handler_box<LinkHandler>,
-                                                          /*add_ref=*/false};
-    core::intrusive_ptr<handler_box<ErrorHandler>> onError_{new handler_box<ErrorHandler>,
-                                                            /*add_ref=*/false};
+    core::intrusive_ptr<impl::handler_box<LinkHandler>> onLink_{
+        new impl::handler_box<LinkHandler>, /*add_ref=*/false};
+    core::intrusive_ptr<impl::handler_box<ErrorHandler>> onError_{
+        new impl::handler_box<ErrorHandler>, /*add_ref=*/false};
 
     // The wide elements, and whether the LayoutUpdated that refits them is
     // subscribed yet -- once, on the first of them.
-    core::intrusive_ptr<wide_elements> wide_{new wide_elements, /*add_ref=*/false};
+    core::intrusive_ptr<impl::wide_elements> wide_{new impl::wide_elements, /*add_ref=*/false};
     bool wideHooked_ = false;
 
     // The folds being built, innermost last: the toggle and the block count

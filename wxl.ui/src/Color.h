@@ -57,7 +57,7 @@ consteval Color rgba(int red, int green, int blue, double alpha) {
 
 namespace impl {
 
-// The arithmetic behind color_helper: constexpr, so that a palette written
+// The arithmetic behind ColorHelper: constexpr, so that a palette written
 // as a constant is computed by the compiler and an effect's tags, which
 // arrive at run time, are computed then, by the same code. <cmath> is not
 // needed either way -- the fractional powers of the sRGB curve, the cube
@@ -96,18 +96,18 @@ constexpr uint8_t encoded(double linear) {
 
 // OKLab (Bjorn Ottosson, 2020): L is perceptual lightness in 0..1, a and b
 // carry chroma and hue. Equal steps in L look equal at any brightness, which
-// is what makes a palette derived by color_helper::lightness() hang together.
-struct Oklab {
+// is what makes a palette derived by ColorHelper::lightness() hang together.
+struct oklab_color {
     double L, a, b;
 };
 
 // Light as the display emits it, each channel 0..1 and proportional to
 // photons: the space where shading is a product and a highlight a sum.
-struct LinearRgb {
+struct linear_rgb {
     double r, g, b;
 };
 
-constexpr LinearRgb linear(Color c) { return {linear(c.R), linear(c.G), linear(c.B)}; }
+constexpr linear_rgb linear(Color c) { return {linear(c.R), linear(c.G), linear(c.B)}; }
 
 // Angles, for directions written in degrees. The series converge fast for
 // the quarter turn they are asked about, and arcsine is a bisection on sine:
@@ -144,11 +144,11 @@ constexpr double arcsine(double value) {
     return (low + high) * 0.5;
 }
 
-constexpr Color encoded(LinearRgb c, uint8_t alpha) {
+constexpr Color encoded(linear_rgb c, uint8_t alpha) {
     return {alpha, encoded(c.r), encoded(c.g), encoded(c.b)};
 }
 
-constexpr Oklab oklab(Color c) {
+constexpr oklab_color oklab(Color c) {
     double const r = linear(c.R), g = linear(c.G), b = linear(c.B);
     double const l = root(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b, 3);
     double const m = root(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b, 3);
@@ -158,7 +158,7 @@ constexpr Oklab oklab(Color c) {
             0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s};
 }
 
-constexpr LinearRgb linearRgb(Oklab lab) {
+constexpr linear_rgb linearRgb(oklab_color lab) {
     double const l_ = lab.L + 0.3963377774 * lab.a + 0.2158037573 * lab.b;
     double const m_ = lab.L - 0.1055613458 * lab.a - 0.0638541728 * lab.b;
     double const s_ = lab.L - 0.0894841775 * lab.a - 1.2914855480 * lab.b;
@@ -168,7 +168,7 @@ constexpr LinearRgb linearRgb(Oklab lab) {
             -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s};
 }
 
-constexpr bool displayable(LinearRgb c) {
+constexpr bool displayable(linear_rgb c) {
     constexpr double slack = 1e-6;
     return c.r >= -slack && c.r <= 1.0 + slack && c.g >= -slack && c.g <= 1.0 + slack
         && c.b >= -slack && c.b <= 1.0 + slack;
@@ -178,8 +178,8 @@ constexpr bool displayable(LinearRgb c) {
 // hue and lightness and gives up chroma instead, found by bisection -- the
 // gamut mapping CSS Color 4 prescribes, minus the just-noticeable-difference
 // refinements it does not need at byte precision.
-constexpr Color srgb(Oklab lab, uint8_t alpha) {
-    LinearRgb rgb = linearRgb(lab);
+constexpr Color srgb(oklab_color lab, uint8_t alpha) {
+    linear_rgb rgb = linearRgb(lab);
     if (!displayable(rgb)) {
         double fits = 0.0, clips = 1.0;
         for (int step = 0; step < 24; ++step) {
@@ -246,7 +246,7 @@ struct Light {
     static constexpr Color illuminate(Color albedo, Light const& light, Direction normal) {
         double const between = Direction::cosineBetween(normal, light.direction);
         double const facing = between < 0.0 ? 0.0 : between;
-        impl::LinearRgb const a = impl::linear(albedo), key = impl::linear(light.key),
+        impl::linear_rgb const a = impl::linear(albedo), key = impl::linear(light.key),
                                  ambient = impl::linear(light.ambient);
         return impl::encoded({a.r * (ambient.r + key.r * facing), a.g * (ambient.g + key.g * facing),
                               a.b * (ambient.b + key.b * facing)},
@@ -263,7 +263,7 @@ struct Light {
 /// it is read by the compiler, and an argument out of range fails the build;
 /// reached at run time -- from an effect's tags -- the argument is clamped
 /// into range instead.
-struct color_helper {
+struct ColorHelper {
 
     /// The colour moved along perceptual lightness: lightness(graphite, 0.1)
     /// is a step lighter, lightness(graphite, -0.1) the same step darker, and
@@ -279,7 +279,7 @@ struct color_helper {
                 delta = delta < -1.0 ? -1.0 : 1.0;
             }
         }
-        impl::Oklab lab = impl::oklab(color);
+        impl::oklab_color lab = impl::oklab(color);
         lab.L += delta;
         lab.L = lab.L < 0.0 ? 0.0 : lab.L > 1.0 ? 1.0 : lab.L;
         return impl::srgb(lab, color.A);
@@ -299,7 +299,7 @@ struct color_helper {
                 factor = 0.0;
             }
         }
-        impl::LinearRgb const c = impl::linear(albedo);
+        impl::linear_rgb const c = impl::linear(albedo);
         return impl::encoded({c.r * factor, c.g * factor, c.b * factor}, albedo.A);
     }
 
@@ -317,7 +317,7 @@ struct color_helper {
                 amount = amount < 0.0 ? 0.0 : 1.0;
             }
         }
-        impl::LinearRgb const c = impl::linear(albedo), l = impl::linear(light);
+        impl::linear_rgb const c = impl::linear(albedo), l = impl::linear(light);
         return impl::encoded({c.r + l.r * amount, c.g + l.g * amount, c.b + l.b * amount}, albedo.A);
     }
 };

@@ -17,7 +17,7 @@ auto example = TabView {
     minHeight = 475,
     Margin {-12},
     selectedIndex = 0,
-    onAddTabButtonClick = addTab,
-    onTabCloseRequested = closeTab,
-    onLoaded = threeTabs,
+    onAddTabButtonClick += addTab,
+    onTabCloseRequested += closeTab,
+    onLoaded += threeTabs,
 };

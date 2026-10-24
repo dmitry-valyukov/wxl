@@ -263,7 +263,7 @@ struct dsl {
 
     // Collection-valued property name -> the wxl type of its elements. These
     // get a subscript tag (`children[a, b, c]`) rather than an assignable
-    // one, and a CollectionSetter that receives the whole run at once.
+    // one, and a collection_setter that receives the whole run at once.
     std::map<std::string, std::string> collection_element;
 
     // Attached properties, by the name the *child* writes: `row = 1` on a
@@ -369,7 +369,7 @@ struct args_member {
 
 struct event_args_info {
     std::string name;
-    std::string base;  // "EventArgsBase" for a root
+    std::string base;  // "EventArgs" for a root
     std::vector<args_member> members;
     member_documentation doc;
 };

@@ -7,7 +7,7 @@ auto const model = gallery::hold<Model>();
 
 // A jump list belongs to a packaged application: unpackaged, there is nothing to load or save.
 auto const addTasks = []() -> async::task<> {
-    if (!is_packaged()) co_return;
+    if (!Application::isPackaged()) co_return;
 
     auto jumpList = co_await JumpList::loadCurrentAsync();
 
@@ -26,7 +26,7 @@ auto const addTasks = []() -> async::task<> {
 };
 
 auto const clearTasks = []() -> async::task<> {
-    if (!is_packaged()) co_return;
+    if (!Application::isPackaged()) co_return;
 
     auto jumpList = co_await JumpList::loadCurrentAsync();
     jumpList.items().clear();
@@ -42,7 +42,7 @@ auto example = StackPanel {
     StackPanel {
         orientation.horizontal,
         spacing = 8,
-        Button {styles.Button.Accent, content = u"Add sample tasks", onClick = [model, addTasks] { model->adding = addTasks(); }},
-        Button {content = u"Clear all items", onClick = [model, clearTasks] { model->clearing = clearTasks(); }},
+        Button {styles.Button.Accent, content = u"Add sample tasks", onClick += [model, addTasks] { model->adding = addTasks(); }},
+        Button {content = u"Clear all items", onClick += [model, clearTasks] { model->clearing = clearTasks(); }},
     },
 };

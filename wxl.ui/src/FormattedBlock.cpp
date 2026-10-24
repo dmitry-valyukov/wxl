@@ -21,9 +21,9 @@
 
 #include "FormattedBlock.impl.h"
 #include "Object.impl.h"
-#include "impl/activation_factory.h"
+#include "impl/activator.h"
 #include "impl/conversions.h"
-#include "impl/tool_tip.h"
+#include "impl/element_helpers.h"
 
 namespace wxl {
 
@@ -126,7 +126,7 @@ winrt::Windows::Foundation::Uri to_uri(winrt::hstring const& source) {
 FormattedBlock::FormattedBlock(Impl* impl) noexcept : base_t(impl) {}
 
 FormattedBlock::FormattedBlock() : base_t(new Impl{}) {
-    impl::ActivationFactory<FormattedBlock>::activate(put_abi());
+    impl::activator<FormattedBlock>::activate(put_abi());
 }
 
 void FormattedBlock::clear() const {
@@ -227,7 +227,7 @@ void FormattedBlock::pushLink(hstring_param const& target) const {
             winrt::Windows::System::Launcher::LaunchUriAsync(
                 winrt::Windows::Foundation::Uri{impl::to_winrt(target)});
         } else {
-            errors->invoke(HtmlError{HtmlErrorKind::BlockedLink, zstring_view{target}});
+            errors->invoke(MarkupError{MarkupErrorKind::BlockedLink, zstring_view{target}});
         }
     });
 
@@ -298,7 +298,7 @@ void FormattedBlock::appendImage(hstring_param const& source, Size size,
     image.ImageFailed([box = self->onError_, file = hstring{source}](
                           winrt::Windows::Foundation::IInspectable const&,
                           winrt::Microsoft::UI::Xaml::ExceptionRoutedEventArgs const&) {
-        box->invoke(HtmlError{HtmlErrorKind::ImageFailed, zstring_view{file}});
+        box->invoke(MarkupError{MarkupErrorKind::ImageFailed, zstring_view{file}});
     });
 
     docs::InlineUIContainer container;
@@ -335,11 +335,11 @@ double text_area(xaml::Controls::RichTextBlock const& block) {
 // Without wrapping the width goes back to "auto": an InlineUIContainer
 // arranges its child at the child's desired size, and that natural width is
 // exactly what an unwrapped line has.
-void refit(xaml::Controls::RichTextBlock const& block, wide_elements& wide) {
+void refit(xaml::Controls::RichTextBlock const& block, impl::wide_elements& wide) {
     const bool wrapping = block.TextWrapping() != xaml::TextWrapping::NoWrap;
     const double area = text_area(block);
     wide.area = area;
-    for (wide_elements::entry const& entry : wide.entries) {
+    for (impl::wide_elements::entry const& entry : wide.entries) {
         if (!wrapping && entry.width == WideWidth::WhileWrapping) {
             entry.element.Width(std::numeric_limits<double>::quiet_NaN());
         } else if (area > 0) {

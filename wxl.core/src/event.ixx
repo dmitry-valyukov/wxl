@@ -4,11 +4,81 @@ module;
 
 export module wxl.core:event;
 
+import :checks;
 import :function;
 import :intrusive_slist;
 import :noncopyable;
 import :not_null;
 import std;
+
+export namespace wxl::core {
+
+class event_token;
+
+namespace impl {
+
+/// The one way to make a token from a number: for the machinery that gives subscriptions --
+/// `event`, the boundary with cppwinrt in wxl.ui, the counter of wxl.ui's own events. An
+/// application gets a token only from a subscription.
+event_token make_event_token(std::int64_t value) noexcept;
+
+}  // namespace impl
+
+/**
+ * The token a subscription gives, and the one way back to that subscription -- of an
+ * `event`, of a WinRT event through wxl.ui's wrappers (wxl::EventToken is this type), of any
+ * list that hands out subscriptions.
+ *
+ * It names the subscription by a number the event chose: for `event` the address of the
+ * callback's node, for cppwinrt's events the address of the delegate. Either is handed out
+ * again once it is freed -- the STA pool gives a freed node out first -- so a token is not
+ * copied: a subscription has exactly one, moving it empties the source, and taking the
+ * subscription off takes the token by reference and empties it. A second removal through the
+ * same variable, which would take off whatever subscription got the number next, is an empty
+ * token, and stops the process. Zero is no subscription.
+ *
+ * Only the machinery makes one from a number (impl::make_event_token): an application cannot
+ * write a token of its own. The number is read with value(), for the boundary that hands it on.
+ */
+class event_token {
+public:
+    /// No subscription: what a field holds before its subscription and after taking it off.
+    event_token() noexcept = default;
+
+    event_token(event_token&& other) noexcept : value_(std::exchange(other.value_, 0)) {}
+
+    event_token& operator=(event_token&& other) noexcept {
+        value_ = std::exchange(other.value_, 0);
+        return *this;
+    }
+
+    event_token(event_token const&) = delete;
+    event_token& operator=(event_token const&) = delete;
+
+    explicit operator bool() const noexcept { return value_ != 0; }
+
+    /// The number the event gave, for the boundary that hands it back to the event.
+    std::int64_t value() const noexcept { return value_; }
+
+    friend bool operator==(event_token const&, event_token const&) noexcept = default;
+
+private:
+    friend event_token impl::make_event_token(std::int64_t value) noexcept;
+
+    explicit event_token(std::int64_t value) noexcept : value_(value) {}
+
+    std::int64_t value_ = 0;
+};
+
+namespace impl {
+
+inline event_token make_event_token(std::int64_t value) noexcept {
+    return event_token{value};
+}
+
+}  // namespace impl
+
+}  // namespace wxl::core
 
 namespace wxl::core {
 
@@ -21,7 +91,7 @@ namespace wxl::core {
  * linked into the list by, and with it where the node is allocated: the STA pool for an
  * `event`, the ordinary heap for an `event_mt`.
  *
- * Neither copied nor moved: a cookie names a node of this list, and an invocation under
+ * Neither copied nor moved: a token names a node of this list, and an invocation under
  * way names this object. Callbacks change hands through swap() alone.
  */
 template <template <class> class Base, class R, class... Args>
@@ -87,9 +157,9 @@ public:
     }
 
     /// Adds a callback to the end of the list.
-    /// \return the cookie naming it, for remove().
+    /// \return the token naming it, for remove().
     template <invocable<R(Args...) noexcept> F>
-    cookie_t add(F&& fn) {
+    event_token add(F&& fn) {
         return add(func_t::create(std::forward<F>(fn)));
     }
 
@@ -102,9 +172,10 @@ public:
     ///
     /// The node must not stand in a list already, this event's or another's, and one that
     /// took itself out from inside its own call stands again only once that call has
-    /// returned and the event has let go of it. The cookie names the node by the address of
-    /// its `func_t` subobject, and that is what remove() or unlink() has to be handed back.
-    cookie_t add(not_null<func_t> fn) noexcept {
+    /// returned and the event has let go of it. The token names the node by the address of
+    /// its `func_t` subobject. A node built into its subscriber needs no token: it takes itself
+    /// off by itself, remove(func_t&) or unlink(func_t&).
+    event_token add(not_null<func_t> fn) noexcept {
         for (invocation* i = invocation_; i; i = i->outer) {
             // Removed from inside its call, which is still running: the walk lets go of it,
             // and clears its link, only when the call returns.
@@ -112,21 +183,35 @@ public:
                    "wxl: a callback removed from inside its call stands again before it returned");
             if (!i->end) i->end = fn.get();
         }
-        return callbacks_.push_back(fn);
+        callbacks_.push_back(fn);
+        return impl::make_event_token(address_of(fn.get()));
     }
 
-    /// Removes the callback named by `cookie` and lets go of it -- at once, or, when it is
-    /// the one being called, as soon as it returns. Either way it is called no more.
-    /// \return false if this event has no such callback -- it was never added here, it
-    ///         went with the callbacks swap() handed to another, or it is gone already.
+    /// Removes the callback named by `token` and lets go of it -- at once, or, when it is
+    /// the one being called, as soon as it returns. Either way it is called no more, and
+    /// `token` is empty from here on. The token is compared by the address it carries, and a
+    /// new callback of this event may take the address of one gone -- the STA pool hands a
+    /// freed node out first; emptying the token is what keeps a second removal through the
+    /// same variable from taking that one off. An empty token was taken off already or never
+    /// given, and stops the process.
+    /// \return false if this event has no such callback -- it was never added here, or it
+    ///         went with the callbacks swap() handed to another, or it is gone with clear().
     ///         Gone from the list, that is, not necessarily let go of: during clear() a
-    ///         callback still to be released answers false as well. And a cookie kept past
-    ///         its callback is compared by address only: once a new callback of this event
-    ///         takes the same address -- the STA pool hands a freed node out first -- the
-    ///         cookie names that one. Whoever keeps a cookie longer than its callback rules
-    ///         that out, as a cancellation does by taking no subscriber once cancelled.
-    bool remove(cookie_t cookie) noexcept {
-        func_t* const fn = callbacks_.remove(cookie);
+    ///         callback still to be released answers false as well.
+    bool remove(event_token& token) noexcept {
+        if (!token) abort("wxl: a callback taken off by an empty token -- taken off already, or never given");
+        func_t const* const node = node_of(std::exchange(token, event_token{}));
+        func_t* const fn = callbacks_.remove(node);
+        if (!fn) return false;
+        step_past(fn);
+        release(fn);
+        return true;
+    }
+
+    /// The same for a node built into its subscriber, by the node itself: the subscriber
+    /// keeps no token, and takes itself off by its own address.
+    bool remove(func_t& node) noexcept {
+        func_t* const fn = callbacks_.remove(&node);
         if (!fn) return false;
         step_past(fn);
         release(fn);
@@ -143,9 +228,9 @@ public:
     /// own call has to be freed only once that call returns.
     /// \return false if this event has no such node, as remove() answers; a node that left
     ///         by swap() or clear() is still held there until its release().
-    bool unlink(cookie_t cookie) noexcept {
-        assert(!in_call(cookie.get()) && "wxl: a node is unlinked while a walk is inside its call");
-        func_t* const fn = callbacks_.remove(cookie);
+    bool unlink(func_t& node) noexcept {
+        assert(!in_call(&node) && "wxl: a node is unlinked while a walk is inside its call");
+        func_t* const fn = callbacks_.remove(&node);
         if (!fn) return false;
         step_past(fn);
         fn->next_ = nullptr;
@@ -173,7 +258,7 @@ public:
         }
     }
 
-    /// Exchanges the callbacks of two events; a cookie follows its callback into the other
+    /// Exchanges the callbacks of two events; a token follows its callback into the other
     /// one. This is how a notification that happens once is fired: empty the event into a
     /// local one and call that, so that a callback unsubscribing from inside the call finds
     /// nothing left to unsubscribe from. Neither event may be inside an invocation.
@@ -229,6 +314,16 @@ private:
             if (i->next == fn) i->next = fn->next_;
             if (i->end == fn) i->end = fn->next_;
         }
+    }
+
+    // The number a token carries for a node: its address. And back: the address a token names,
+    // compared and never read through until the list has found it.
+    static std::int64_t address_of(func_t const* fn) noexcept {
+        return static_cast<std::int64_t>(reinterpret_cast<std::intptr_t>(fn));
+    }
+
+    static func_t const* node_of(event_token const& token) noexcept {
+        return reinterpret_cast<func_t const*>(static_cast<std::intptr_t>(token.value()));
     }
 
     // Whether a walk is inside the call of the node at `node`.
@@ -288,16 +383,17 @@ export namespace wxl::core {
  * `observable`'s change event does; the two spellings name the same event.
  *
  * Each callback lives in a node of its own, linked into an `intrusive_slist`, and `add`
- * returns the `cookie_t` naming that node. The cookie is the only way back to that one
- * callback -- `remove` is what it is for -- and it stays valid until that callback goes,
- * by `remove`, by `clear`, or with the event itself. In all three cases the event lets go
+ * returns the `event_token` naming that node. The token is the only way back to that one
+ * callback -- `remove` is what it is for, and it empties the token -- and it names the
+ * callback until that callback goes, by `remove`, by `clear`, or with the event itself. In all three cases the event lets go
  * of the node through its `release()`: one the event made out of what `add` was given --
  * or one made by `func_t::create()` and handed over -- belongs to the event and is
  * destroyed; a node built into its subscriber (a member deriving from `func_t`, whose
  * `release()` does nothing) belongs to the subscriber. Such a subscriber allocates
- * nothing to subscribe, and in return keeps three rules. It stays alive until its
- * `release()` comes or `unlink` takes the node out, not only while `unlink` would still
- * find it: `clear` and the event's end let go of what they emptied one by one, and an
+ * nothing to subscribe and keeps no token -- it takes itself off by its own node,
+ * `remove(func_t&)` or `unlink(func_t&)` -- and in return keeps three rules. It stays alive
+ * until its `release()` comes or `unlink` takes the node out, not only while `unlink` would
+ * still find it: `clear` and the event's end let go of what they emptied one by one, and an
  * `unlink` or `remove` answered false in the meantime is not a `release()`. It does not go
  * away from inside a call that reaches it. And a node that took itself out from inside its
  * own call stands again only once that call has returned. Going away, it leaves by `unlink`

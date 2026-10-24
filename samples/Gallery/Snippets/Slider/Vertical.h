@@ -9,7 +9,7 @@ auto slider = Slider {
     orientation.vertical,
     tickFrequency = 10.0,
     tickPlacement = TickPlacement::Outside,
-    onValueChanged = [output](Slider const& self) {
+    onValueChanged += [output](Slider const& self) {
         output.text(core::to_u16(self.value(), std::chars_format::fixed, 0));
     },
 };

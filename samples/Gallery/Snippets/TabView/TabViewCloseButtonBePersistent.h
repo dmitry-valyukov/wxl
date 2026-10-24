@@ -26,5 +26,5 @@ auto options = ComboBox {
     ComboBoxItem {content = u"Always"},
     ComboBoxItem {content = u"OnHover"},
     selectedIndex = 1,
-    onSelectionChanged = [overlay](ComboBox const& self) { overlay(self.selectedIndex()); },
+    onSelectionChanged += [overlay](ComboBox const& self) { overlay(self.selectedIndex()); },
 };

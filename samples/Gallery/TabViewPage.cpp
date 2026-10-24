@@ -6,11 +6,11 @@
 #include <string>
 #include <vector>
 #include "Box.h"
-#include "BoundTemplate.h"
+#include "IndexList.h"
+#include "ItemTemplate.h"
 #include "NavigationPages.h"
 #include "RepeaterData.h"
-#include "ResourceBrush.h"
-#include "StringList.h"
+#include "Resource.h"
 #include "TabViewWindowing.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Input.h>

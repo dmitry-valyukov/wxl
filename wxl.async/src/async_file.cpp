@@ -35,8 +35,8 @@ auto reading_whole(const core::path& path) {
 
         std::string bytes(static_cast<std::size_t>(*length), '\0');
 
-        // In pieces, so that a body cut short between two of them leaves: the
-        // call under way is not cut short, a file read whole is not a pipe, and
+        // In pieces, so that a body aborted between two of them leaves: the
+        // call under way is not aborted, a file read whole is not a pipe, and
         // a piece is as long as the body is uninterruptible. A body that leaves
         // has read part of the file, which is no answer: it answers the
         // cancellation. The end of the file is reached early only if the file
@@ -109,7 +109,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
 
         if (!out.opened()) throw last_error("CreateFileW");
 
-        // A temporary left behind by a body cut short or failed is deleted,
+        // A temporary left behind by a body aborted or failed is deleted,
         // best effort: the next save would overwrite it anyway, and nothing
         // reads it.
         const auto drop = [&] {
@@ -157,7 +157,7 @@ auto writing_whole(const core::path& path, std::string bytes) {
 
 auto asking_exists(const core::path& path) {
     return [path] {
-        // `false` is the system's answer, or a call cut short, which answers the
+        // `false` is the system's answer, or an aborted call, which answers the
         // cancellation: the code tells them apart, cleared first, since a call
         // that succeeds leaves the last one's.
         ::SetLastError(ERROR_SUCCESS);
@@ -197,41 +197,41 @@ task<async_file> async_file::open_read(const core::path& path) {
     return sta_loop::async_call(orphanable, opening(path));
 }
 
-task<async_file> async_file::open_read(const core::path& path, cancellation_token stop) {
-    return detail::async_call_waiting_for_body(orphanable, opening(path), std::move(stop));
+task<async_file> async_file::open_read(const core::path& path, cancellation_token token) {
+    return detail::async_call_waiting_for_body(orphanable, opening(path), std::move(token));
 }
 
 task<async_file> async_file::create(const core::path& path) {
     return sta_loop::async_call(orphanable, creating(path));
 }
 
-task<async_file> async_file::create(const core::path& path, cancellation_token stop) {
-    return detail::async_call_waiting_for_body(orphanable, creating(path), std::move(stop));
+task<async_file> async_file::create(const core::path& path, cancellation_token token) {
+    return detail::async_call_waiting_for_body(orphanable, creating(path), std::move(token));
 }
 
 task<std::string> async_file::read_all(const core::path& path) {
     return sta_loop::async_call(orphanable, reading_whole(path));
 }
 
-task<std::string> async_file::read_all(const core::path& path, cancellation_token stop) {
-    return detail::async_call_waiting_for_body(orphanable, reading_whole(path), std::move(stop));
+task<std::string> async_file::read_all(const core::path& path, cancellation_token token) {
+    return detail::async_call_waiting_for_body(orphanable, reading_whole(path), std::move(token));
 }
 
 task<> async_file::write_all(const core::path& path, std::string bytes) {
     return sta_loop::async_call(orphanable, writing_whole(path, std::move(bytes)));
 }
 
-task<> async_file::write_all(const core::path& path, std::string bytes, cancellation_token stop) {
+task<> async_file::write_all(const core::path& path, std::string bytes, cancellation_token token) {
     return detail::async_call_waiting_for_body(orphanable, writing_whole(path, std::move(bytes)),
-                                               std::move(stop));
+                                               std::move(token));
 }
 
 task<bool> async_file::exists(const core::path& path) {
     return sta_loop::async_call(orphanable, asking_exists(path));
 }
 
-task<bool> async_file::exists(const core::path& path, cancellation_token stop) {
-    return detail::async_call_waiting_for_body(orphanable, asking_exists(path), std::move(stop));
+task<bool> async_file::exists(const core::path& path, cancellation_token token) {
+    return detail::async_call_waiting_for_body(orphanable, asking_exists(path), std::move(token));
 }
 
 task<std::size_t> async_file::read(std::span<std::byte> into) {
@@ -249,17 +249,17 @@ task<std::size_t> async_file::read(std::span<std::byte> into) {
     return sta_loop::async_start(std::move(op));
 }
 
-task<std::size_t> async_file::read(std::span<std::byte> into, cancellation_token stop) {
-    if (!detail::cancellation_state_of(stop)) return read(into);
+task<std::size_t> async_file::read(std::span<std::byte> into, cancellation_token token) {
+    if (!detail::cancellation_state_of(token)) return read(into);
 
     ensure(file_.opened() && "async_file: no file was opened");
 
     // Not made, and the position not moved on: nothing was read.
-    if (stop.is_canceled()) return detail::canceled_task<std::size_t>();
+    if (token.is_canceled()) return detail::canceled_task<std::size_t>();
 
-    std::unique_ptr<overlapped_op> op(new detail::cancellable_operation<overlapped_op>(
-        std::move(stop), overlapped_op::kind::read, file_.native_handle(), into.data(), into.size(),
-        position_, skips_port_));
+    std::unique_ptr<overlapped_op> op(new detail::cancelable_operation<overlapped_op>(
+        std::move(token), overlapped_op::kind::read, file_.native_handle(), into.data(),
+        into.size(), position_, skips_port_));
 
     position_ += into.size();
 
@@ -281,15 +281,15 @@ task<std::size_t> async_file::write(std::span<const std::byte> from) {
     return sta_loop::async_run(std::move(op));
 }
 
-task<std::size_t> async_file::write(std::span<const std::byte> from, cancellation_token stop) {
-    if (!detail::cancellation_state_of(stop)) return write(from);
+task<std::size_t> async_file::write(std::span<const std::byte> from, cancellation_token token) {
+    if (!detail::cancellation_state_of(token)) return write(from);
 
     ensure(file_.opened() && "async_file: no file was opened");
 
-    if (stop.is_canceled()) return detail::canceled_task<std::size_t>();
+    if (token.is_canceled()) return detail::canceled_task<std::size_t>();
 
-    std::unique_ptr<async_op_t<std::size_t>> op(new detail::cancellable_operation<overlapped_op>(
-        std::move(stop), overlapped_op::kind::write, file_.native_handle(),
+    std::unique_ptr<async_op_t<std::size_t>> op(new detail::cancelable_operation<overlapped_op>(
+        std::move(token), overlapped_op::kind::write, file_.native_handle(),
         const_cast<std::byte*>(from.data()), from.size(), position_, skips_port_));
 
     position_ += from.size();

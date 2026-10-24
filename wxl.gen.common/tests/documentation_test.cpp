@@ -239,10 +239,10 @@ TEST(documentation_source, keeps_the_error_of_a_file) {
     throws_naming_the_file(parsed, "T:Windows.UI.Colors");
 }
 
-// A file that cannot be opened -- here one cut off mid-member -- stops the
+// A file that cannot be opened -- here one truncated mid-member -- stops the
 // documentation of its types as well, with the file's own error: the file
 // named once, and the offset of the member that broke it.
-TEST(documentation_source, keeps_the_error_of_a_file_cut_off) {
+TEST(documentation_source, keeps_the_error_of_a_file_truncated) {
     char const* const root = std::getenv("SystemRoot");
     ASSERT_TRUE(root);
     auto const winmd = std::filesystem::path{root} / "System32" / "WinMetadata" / "Windows.UI.winmd";
@@ -265,7 +265,7 @@ TEST(documentation_source, keeps_the_error_of_a_file_cut_off) {
             std::string const name = utf8(file);
             EXPECT_TRUE(what.starts_with(name)) << what;
             EXPECT_EQ(what.find(name), what.rfind(name)) << what;
-            EXPECT_TRUE(what.contains("documentation member at offset 14 is cut off")) << what;
+            EXPECT_TRUE(what.contains("documentation member at offset 14 is truncated")) << what;
         }
     }
     EXPECT_FALSE(docs.parsing());

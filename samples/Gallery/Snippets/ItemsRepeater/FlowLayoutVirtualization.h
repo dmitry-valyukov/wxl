@@ -44,7 +44,7 @@ auto const queueCountUpdate = [model] {
 
 auto const flowItem = [](Object const& item) {
     std::u16string label = u"Item ";
-    label += gallery::numberText(static_cast<int>(intOf(item)) + 1);
+    label += gallery::numberText(static_cast<int>(unboxValue<int64_t>(item)) + 1);
     return Border {width = 96,
                    height = 64,
                    background = brushes.Control.FillColor.Default,
@@ -59,12 +59,12 @@ model->scroll.content(ItemsRepeater {
     verticalCacheLength = 0,
     layout = model->flow,
     itemTemplate = flowItem,
-    itemsSource = indexList(500),
-    onElementPrepared = [model, queueCountUpdate](auto const&, ItemsRepeaterElementPreparedEventArgs& args) {
+    itemsSource = IndexList(500),
+    onElementPrepared += [model, queueCountUpdate](auto const&, ItemsRepeaterElementPreparedEventArgs& args) {
         model->realized.push_back(args.element());
         queueCountUpdate();
     },
-    onElementClearing = [model, queueCountUpdate](auto const&, ItemsRepeaterElementClearingEventArgs& args) {
+    onElementClearing += [model, queueCountUpdate](auto const&, ItemsRepeaterElementClearingEventArgs& args) {
         std::erase_if(model->realized, [&](UIElement const& each) { return each.is_same_object(args.element()); });
         queueCountUpdate();
     },

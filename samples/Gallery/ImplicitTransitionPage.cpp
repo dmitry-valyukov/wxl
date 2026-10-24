@@ -5,7 +5,7 @@
 #include <cmath>
 #include <memory>
 #include "MotionPages.h"
-#include "ResourceBrush.h"
+#include "Resource.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Input.h>
 #include <wxl/Microsoft.UI.Xaml.Media.h>

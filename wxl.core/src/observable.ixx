@@ -50,27 +50,31 @@ public:
     /// The value now.
     T const& get() const noexcept { return value_; }
 
-    /// Watches for changes; the returned cookie removes the watch. The callback
+    /// Watches for changes; the returned token removes the watch. The callback
     /// is `event`'s, so it has to be noexcept -- add() below says so.
     ///
-    /// The cookie is the caller's: an application watching the model to react
+    /// The token is the caller's: an application watching the model to react
     /// removes the watch when it likes, or lets it go with the model. A watch
     /// that a member keeps for its owner, and that comes off with it, is a
-    /// change_watch and needs no cookie. A binding's own watch is a different
+    /// change_watch and needs no token. A binding's own watch is a different
     /// thing -- see watch_for_binding.
     template <class F>
-    cookie_t on_change(F&& callback) {
+    event_token on_change(F&& callback) {
         return changed_.add(std::forward<F>(callback));
     }
 
-    bool remove_change(cookie_t cookie) { return changed_.remove(cookie); }
+    /// Takes the watch off and empties the token (event::remove).
+    bool remove_change(event_token& token) { return changed_.remove(token); }
+
+    /// The same for a watch built into its subscriber, by its node: a change_watch.
+    bool remove_change(typename changed_event::func_t& node) { return changed_.remove(node); }
 
     /// Watches for changes on behalf of a binding, the field keeping the watch
-    /// rather than handing a cookie back. This is not a convenience over
+    /// rather than handing a token back. This is not a convenience over
     /// on_change: a binding's model->control watch *owns the control* -- it
     /// must, to write to it, and a borrowed pointer would dangle, the control
     /// being a temporary in the description tree. Kept on a list of their own
-    /// so that unbind() can cut them without touching the application's.
+    /// so that unbind() can drop them without touching the application's.
     ///
     /// Made while a binding_scope is open, the watch is collected by it as
     /// well, and the scope can take it off again -- the way a list drops the
@@ -80,7 +84,7 @@ public:
         impl::add_binding_watch(bound_, std::forward<F>(callback));
     }
 
-    /// Cuts every binding watch (see watch_for_binding), letting go of whatever
+    /// Drops every binding watch (see watch_for_binding), letting go of whatever
     /// they held -- the bound controls. Watches added through on_change are the
     /// caller's and are left where they are.
     ///
@@ -135,7 +139,7 @@ using readonly_observable = observable<T const>;
  * allocation, however many fields it announces.
  *
  * The watchers are an `event`, so each is `noexcept` and each is removed by the
- * cookie `on_change` returns. A binding's watches are kept apart (see
+ * token `on_change` returns. A binding's watches are kept apart (see
  * watch_for_binding), and all of them go with the field: destroying the model
  * destroys every watch, and what a watch owned -- the control it wrote to --
  * is let go with it.
@@ -200,21 +204,21 @@ public:
 
 namespace impl {
 
-// A field a binding can be cut from: an observable, an observable_list.
+// A field a binding can be unbound from: an observable, an observable_list.
 template <class Model>
 concept unbindable = requires(Model& model) { model.unbind(); };
 
 }  // namespace impl
 
 /**
- * Cuts the binding watches of every model named -- the teardown a window does
+ * Unbinds the binding watches of every model named -- the teardown a window does
  * from its Closed handler when the models it bound to will outlive it:
  *
  *     unsubscribe_all(settings.minimizeOnClose, settings.theme);
  *
  * Each model lets go of the controls its watches held, so the controls, and
  * the window that held them, are freed. Naming the models is the whole of it:
- * a binding leaves no cookie for the caller to keep, on purpose -- the model
+ * a binding leaves no token for the caller to keep, on purpose -- the model
  * remembers it, and this is where it is spent. A model is any field a binding
  * watches: an observable or an observable_list.
  */
@@ -225,13 +229,15 @@ void unsubscribe_all(Models&... models) {
 
 namespace impl {
 
-// The class a pointer to member names: the owner whose member a change_watch calls.
+// The class a pointer to member names: the owner whose member a change_watch calls, the Impl
+// level whose interface field Object::get() reads (wxl.ui). And the member's own type.
 template <class Member>
 struct member_owner {};
 
-template <class Fn, class Owner>
-struct member_owner<Fn Owner::*> {
+template <class T, class Owner>
+struct member_owner<T Owner::*> {
     using type = Owner;
+    using member_t = T;
 };
 
 // What a change event hands each of its watchers -- the value of an observable, the
@@ -269,7 +275,7 @@ concept change_listener = requires(Owner& owner, Argument change) {
  *     Panel::Panel(Settings& settings) : fontSizeWatch_{settings.fontSize, *this} {}
  *
  * The watch is itself the node in the field's event, so standing there allocates
- * nothing and leaves no cookie to keep: the destructor takes the node off by its own
+ * nothing and leaves no token to keep: the destructor takes the node off by its own
  * address. One made empty stands nowhere until attach() puts it on a field, once.
  *
  * The rules are those of any node built into its subscriber, and each one broken
@@ -299,7 +305,7 @@ public:
         Observed* const field = std::exchange(field_, nullptr);
         if (!field) return;
 
-        if (!field->remove_change(cookie_t{static_cast<func_t*>(this)}))
+        if (!field->remove_change(static_cast<func_t&>(*this)))
             abort("wxl: a change_watch is no longer on its field");
         // The event lets go of a removed node at once, unless that node's call is under
         // way: then only once the call returns -- into a watch that is gone by then.

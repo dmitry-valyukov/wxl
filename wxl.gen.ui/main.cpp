@@ -392,7 +392,7 @@ wxl::Teardown wxl_launched() {
         isPaneToggleButtonVisible = false,
         isPaneOpen = false,
         isSettingsVisible = false,
-        onSelectionChanged = [left, document, host, editorView, settingsPage, places = history.get()](
+        onSelectionChanged += [left, document, host, editorView, settingsPage, places = history.get()](
                                  Object const& sender, NavigationViewSelectionChangedEventArgs&) {
             auto const item = sender.try_as<NavigationView>().selectedItem().try_as<FrameworkElement>();
             if (item && std::u16string_view {item.name()} == settingsName) {
@@ -541,9 +541,9 @@ wxl::Teardown wxl_launched() {
             // неактивна.
             isBackButtonVisible = true,
             isBackButtonEnabled = BindOutput {history->canGoBack},
-            onBackRequested = [goBack] { goBack(); },
+            onBackRequested += [goBack] { goBack(); },
             isPaneToggleButtonVisible = true,
-            onPaneToggleRequested = [navigation] { navigation.isPaneOpen(!navigation.isPaneOpen()); },
+            onPaneToggleRequested += [navigation] { navigation.isPaneOpen(!navigation.isPaneOpen()); },
             rightHeader = StackPanel {
                 orientation.horizontal,
                 spacing = 4,
@@ -553,21 +553,21 @@ wxl::Teardown wxl_launched() {
                     toolButton,
                     toolTip = u"Уменьшить масштаб",
                     isEnabled = BindOutput {zoom.model().canZoomOut()},
-                    onClick = [zoom] { zoom.model().zoomOut(); },
+                    onClick += [zoom] { zoom.model().zoomOut(); },
                     content = FontIcon {toolGlyph, glyph = glyphs::zoomOut},
                 },
                 Button {
                     toolButton,
                     width = 64.0,
                     toolTip = u"Масштаб 100 %",
-                    onClick = [zoom] { zoom.model().resetZoom(); },
+                    onClick += [zoom] { zoom.model().resetZoom(); },
                     content = TextBlock {text = BindOutput {label->text}},
                 },
                 Button {
                     toolButton,
                     toolTip = u"Увеличить масштаб",
                     isEnabled = BindOutput {zoom.model().canZoomIn()},
-                    onClick = [zoom] { zoom.model().zoomIn(); },
+                    onClick += [zoom] { zoom.model().zoomIn(); },
                     content = FontIcon {toolGlyph, glyph = glyphs::zoomIn},
                 },
             },
