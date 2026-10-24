@@ -31,7 +31,23 @@ function Get-Package([string]$id, [string]$version) {
     $url = "$flat/$low/$version/$low.$version.nupkg"
     $file = Join-Path ([IO.Path]::GetTempPath()) "$low.$version.nupkg"
     "fetch   $id $version  <- $url"
-    Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing
+    # nuget.org occasionally terminates a response before the file is complete
+    # ("The response ended prematurely"). Every CI job runs this step, so a single
+    # truncated response would fail the job before the build. Up to three attempts
+    # with increasing pauses; each attempt downloads the file anew after removing
+    # the partial one.
+    $pauses = 5, 15
+    for ($attempt = 1; ; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing
+            break
+        } catch {
+            Remove-Item $file -ErrorAction SilentlyContinue
+            if ($attempt -gt $pauses.Count) { throw "$id $version not fetched from $url after $attempt attempts: $($_.Exception.Message)" }
+            "retry   $id $version in $($pauses[$attempt - 1]) s: $($_.Exception.Message)"
+            Start-Sleep -Seconds $pauses[$attempt - 1]
+        }
+    }
     try {
         New-Item -ItemType Directory -Force $dir | Out-Null
         Expand-Archive -LiteralPath $file -DestinationPath $dir -Force
