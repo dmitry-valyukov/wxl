@@ -125,9 +125,8 @@ winrt::Windows::Foundation::Uri to_uri(winrt::hstring const& source) {
 
 FormattedBlock::FormattedBlock(Impl* impl) noexcept : base_t(impl) {}
 
-FormattedBlock::FormattedBlock() : base_t(new Impl{}) {
-    impl::activator<FormattedBlock>::activate(put_abi());
-}
+FormattedBlock::FormattedBlock()
+    : base_t(new Impl{impl::activation<impl::activator<FormattedBlock>>{}}) {}
 
 void FormattedBlock::clear() const {
     get<&Impl::richTextBlock_>().Blocks().Clear();

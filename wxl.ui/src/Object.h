@@ -198,11 +198,6 @@ public:
 protected:
     explicit Object(Impl* impl) noexcept;
 
-    // Where the activation factory writes: the raw slot of the root's
-    // wrapped IInspectable, so a generated constructor activates straight
-    // into it with no temporary smart pointer and no extra AddRef.
-    ::IInspectable** put_abi() noexcept;
-
     Impl* impl() const noexcept { return impl_.get(); }
 
 private:

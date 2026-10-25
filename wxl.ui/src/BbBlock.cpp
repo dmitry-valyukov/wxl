@@ -26,7 +26,7 @@ struct runtime_class_name_of<BbBlock> {
 
 BbBlock::BbBlock(Impl* impl) noexcept : base_t(impl) {}
 
-BbBlock::BbBlock() : base_t(new Impl{}) { impl::activator<BbBlock>::activate(put_abi()); }
+BbBlock::BbBlock() : base_t(new Impl{impl::activation<impl::activator<BbBlock>>{}}) {}
 
 void BbBlock::bb(hstring_param const& markup) const {
     clear();
