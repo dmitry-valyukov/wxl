@@ -15,7 +15,9 @@
 struct HINSTANCE__;
 struct _GUID;
 
-int __stdcall wWinMain(HINSTANCE__*, HINSTANCE__*, wchar_t*, int);
+// With the linkage winbase.h gives it, so that this declaration and that one agree whichever comes
+// first in a translation unit.
+extern "C" int __stdcall wWinMain(HINSTANCE__*, HINSTANCE__*, wchar_t*, int);
 
 namespace wxl {
 

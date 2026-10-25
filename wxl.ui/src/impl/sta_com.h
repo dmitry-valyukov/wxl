@@ -104,7 +104,7 @@ private:
 /// are the interfaces it implements, `First` being the one that stands for its identity
 /// (IUnknown, IInspectable). An object implementing IInspectable alone names it as `First`.
 /// It is made with `new` at a count of one, which its first holder adopts --
-/// `core::intrusive_ptr<T>{new T{...}, /*add_ref=*/false}`.
+/// `core::intrusive_ptr<T>{new T{...}, false}`, the `false` saying not to add a reference.
 template <class Derived, class First, class... Rest>
 class sta_com_object : public interface_vtable<First>, public interface_vtable<Rest>..., public weak_reference_source_abi
 {
