@@ -80,7 +80,9 @@
 struct HWND__;
 struct HINSTANCE__;
 
-int __stdcall wWinMain(HINSTANCE__*, HINSTANCE__*, wchar_t*, int);
+// С той же связью, что у winbase.h: это объявление и то сходятся, какое бы ни шло
+// в единице трансляции первым.
+extern "C" int __stdcall wWinMain(HINSTANCE__*, HINSTANCE__*, wchar_t*, int);
 
 namespace wxl {
 
