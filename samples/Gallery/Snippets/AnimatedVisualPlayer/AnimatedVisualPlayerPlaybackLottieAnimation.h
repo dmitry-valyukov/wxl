@@ -43,7 +43,7 @@ auto example = StackPanel {
         Margin {12},
         vAlign.center,
         columnSpacing = 8,
-        columnDefinitions = u"*,*,*,*",
+        ColumnDefinitions<u"*,*,*,*">,
         Button {column = 0, hAlign.stretch, automationName = u"Play", toolTip = u"Play", content = SymbolIcon {symbol = Symbol::Play},
                 onClick += [model](auto&&...) {
                     model->player.playbackRate(1);

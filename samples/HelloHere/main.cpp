@@ -110,7 +110,7 @@ wxl::Teardown wxl_launched() {
         Padding {0},
         background = brushes.SolidBackgroundFillColor.Secondary,
         Grid {
-            rowDefinitions = L"auto,*,auto",
+            RowDefinitions<u"auto,*,auto">,
             StackPanel {
                 row = 0,
                 orientation.horizontal,
@@ -161,7 +161,7 @@ wxl::Teardown wxl_launched() {
         title = L"Hello from WXL",
         minSize = {500, 420},
         Grid {
-            rowDefinitions = L"auto,*,auto",
+            RowDefinitions<u"auto,*,auto">,
             background = brushes.SolidBackgroundFillColor.Base,
             topBar,
             card,

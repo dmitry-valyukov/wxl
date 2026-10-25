@@ -76,7 +76,7 @@ FrameworkElement manageSamples() {
 
 wxl::FrameworkElement gallery::settingsPage() {
     return Grid {
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         TextBlock {u"Settings", Margin {36, 24, 36, 0}, maxWidth = 1064, styles.TextBlock.Title},
         ScrollView {
             row = 1,

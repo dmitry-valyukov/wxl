@@ -74,7 +74,7 @@ auto openWindow = [] {
     Window window {
         systemBackdrop = MicaBackdrop {},
         extendsContentIntoTitleBar = true,
-        content = Grid {rowDefinitions = u"auto,*", model->titleBar, model->navView},
+        content = Grid {RowDefinitions<u"auto,*">, model->titleBar, model->navView},
     };
     window.appWindow().titleBar().preferredHeightOption(TitleBarHeightOption::Tall);
     window.setTitleBar(model->titleBar);

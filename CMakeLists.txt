@@ -125,6 +125,11 @@ if(BUILD_TESTING)
     add_subdirectory(test-support)
 endif()
 
+# Helpers for the tests and the benchmarks alike (wxl.test/CMakeLists.txt).
+if(BUILD_TESTING OR WXL_BUILD_BENCHMARKS)
+    add_subdirectory(wxl.test)
+endif()
+
 # The text buffer and builder over fmt. Beside wxl.core and not inside it, so
 # that the core keeps depending on the std module alone; the names stay in
 # wxl::core, only the import differs.

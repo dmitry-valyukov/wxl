@@ -4,8 +4,8 @@ auto const* people = &gallery::contacts();
 auto const contactOf = [people](Object const& item) {
     auto const& contact = (*people)[static_cast<size_t>(unboxValue<int64_t>(item))];
     return Grid {
-        rowDefinitions = u"*,*",
-        columnDefinitions = u"auto,*",
+        RowDefinitions<u"*,*">,
+        ColumnDefinitions<u"auto,*">,
         Ellipse {rowSpan = 2, width = 32, height = 32, Margin {6}, horizontalAlignment = HorizontalAlignment::Center,
                  verticalAlignment = VerticalAlignment::Center, fill = brushes.Control.Strong.FillColorDefault},
         TextBlock {column = 1, Margin {12, 6, 0, 0}, styles.TextBlock.Base, contact.name()},

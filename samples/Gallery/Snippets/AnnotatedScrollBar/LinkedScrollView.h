@@ -80,7 +80,7 @@ struct Model {
 auto const model = gallery::hold<Model>();
 
 auto example = Grid {
-    columnDefinitions = u"*,auto",
+    ColumnDefinitions<u"*,auto">,
     ScrollView {
         maxWidth = 800,
         maxHeight = 500,
@@ -97,7 +97,7 @@ auto example = Grid {
 
 auto options = Grid {
     minWidth = 200,
-    rowDefinitions = u"auto,auto",
+    RowDefinitions<u"auto,auto">,
     TextBlock {vAlign.center, u"Changing the AnnotatedScrollBar height refreshes its Labels layout."},
     Slider {
         row = 1,

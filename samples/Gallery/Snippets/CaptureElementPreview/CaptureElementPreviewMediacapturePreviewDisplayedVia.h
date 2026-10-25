@@ -127,9 +127,9 @@ auto const fill = CustomLayout {
 auto example = Grid {
     minWidth = 400,
     minHeight = 300,
-    columnDefinitions = u"*,100",
+    ColumnDefinitions<u"*,100">,
     columnSpacing = 4,
-    rowDefinitions = u"auto,*",
+    RowDefinitions<u"auto,*">,
     rowSpacing = 10,
     model->sourceName,
     Grid {row = 1, model->preview},

@@ -124,8 +124,8 @@ auto example = StackPanel {
 auto options = Grid {
     columnSpacing = 12,
     rowSpacing = 12,
-    columnDefinitions = u"*,*",
-    rowDefinitions = u"auto,auto,auto",
+    ColumnDefinitions<u"*,*">,
+    RowDefinitions<u"auto,auto,auto">,
     model->clientWidth,
     model->clientHeight,
     model->minimumWidth,

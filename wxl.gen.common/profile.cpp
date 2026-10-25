@@ -197,6 +197,7 @@ std::vector<synthetic_member> read_synthetic_members(value const& entry,
         }
 
         synthetic_member member{name, {}, field("function"), field("include")};
+        member.positional = bool_or(definition, source, "positional", false);
         if (from_metadata) {
             member.type = field("type");
         } else {

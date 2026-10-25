@@ -190,7 +190,7 @@ FrameworkElement favoriteButton(std::wstring id) {
 
 FrameworkElement pageHeader(gallery::ControlInfo const& item) {
     return Grid {
-        rowDefinitions = u"auto,auto",
+        RowDefinitions<u"auto,auto">,
         // NarrowLayout оригинала: ниже 641 поля страницы уже.
         margin = BindOutput {gallery::pageSize().wide, [](bool room) { return room ? Thickness {36, 24, 36, 0} : Thickness {16, 12, 16, 0}; }},
         StackPanel {
@@ -232,7 +232,7 @@ wxl::FrameworkElement gallery::itemPage(ControlInfo const& item) {
     auto const description = gallery::htmlEscape(item.description);
 
     auto body = Grid {
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         padding = BindOutput {gallery::pageSize().wide, [](bool room) { return room ? Thickness {36, 0, 36, 36} : Thickness {16, 0, 16, 16}; }},
     };
     if (!description.empty()) {
@@ -248,7 +248,7 @@ wxl::FrameworkElement gallery::itemPage(ControlInfo const& item) {
         body.children().append(Border {row = 1, page()});
     }
 
-    auto root = Grid {rowDefinitions = u"auto,auto,*"};
+    auto root = Grid {RowDefinitions<u"auto,auto,*">};
     if (item.isExperimental) {
         root.children().append(InfoBar {
             isClosable = false,

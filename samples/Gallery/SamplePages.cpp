@@ -45,8 +45,8 @@ template <typename... Children>
 ScrollViewer tilesPage(Children&&... children) {
     return ScrollViewer {
         content = Grid {
-            columnDefinitions = u"*,*,4*",
-            rowDefinitions = u"auto,auto,auto,auto",
+            ColumnDefinitions<u"*,*,4*">,
+            RowDefinitions<u"auto,auto,auto,auto">,
             std::forward<Children>(children)...,
             Grid {row = 3, columnSpan = 3, Margin {5}, TextBlock {textWrapping = TextWrapping::WrapWholeWords, loremText()}},
         },
@@ -60,8 +60,8 @@ FrameworkElement gallery::samplePage(int number) {
         case 1:
             return ScrollViewer {
                 content = Grid {
-                    columnDefinitions = u"auto,*,*",
-                    rowDefinitions = u"auto,auto,auto,*",
+                    ColumnDefinitions<u"auto,*,*">,
+                    RowDefinitions<u"auto,auto,auto,*">,
                     tile(darkGray, 1, 1),
                     tile(lightGray, 1, 2),
                     tile(lightGray, 2, 1),
@@ -73,8 +73,8 @@ FrameworkElement gallery::samplePage(int number) {
         case 2:
             return ScrollViewer {
                 content = Grid {
-                    columnDefinitions = u"auto,*",
-                    rowDefinitions = u"auto,auto",
+                    ColumnDefinitions<u"auto,*">,
+                    RowDefinitions<u"auto,auto">,
                     accentTile(1),
                     tile(lightGray, 1, 1),
                 },
@@ -82,8 +82,8 @@ FrameworkElement gallery::samplePage(int number) {
         case 3:
             return ScrollViewer {
                 content = Grid {
-                    columnDefinitions = u"2*,*,*",
-                    rowDefinitions = u"auto,auto,auto,*",
+                    ColumnDefinitions<u"2*,*,*">,
+                    RowDefinitions<u"auto,auto,auto,*">,
                     tile(darkGray, 1, 0),
                     tile(lightGray, 1, 1),
                     tile(darkGray, 1, 2),
@@ -109,8 +109,8 @@ FrameworkElement gallery::samplePage(int number) {
         default:
             return ScrollViewer {
                 content = Grid {
-                    columnDefinitions = u"2*,*,*",
-                    rowDefinitions = u"auto",
+                    ColumnDefinitions<u"2*,*,*">,
+                    RowDefinitions<u"auto">,
                     tile(darkGray, 0, 0),
                     tile(lightGray, 0, 1),
                     tile(darkGray, 0, 2),

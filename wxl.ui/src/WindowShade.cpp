@@ -36,6 +36,7 @@
 #include <memory>
 #include <vector>
 
+#include "impl/window_helpers.h"
 #include "WindowShade.h"
 #include "DrawingSurface.h"
 #include "impl/rendering_device.h"
@@ -154,14 +155,17 @@ constexpr float kLandedPixels = 24.0f;
 // shade destroyed mid-flight. Which thread the compositor lets go of that delegate on is not
 // established, so the link is counted atomically until a probe settles it.
 struct WindowShade::Impl : core::weak_linked_mt<WindowShade::Impl> {
-    HWND window = nullptr;
-    HWND overlay = nullptr;
+    // The window the shade flies: not the shade's, so held by its handle alone.
+    HWND const window;
+    impl::owned_window const overlay;
 
-    comp::Compositor compositor{nullptr};
-    desktop::DesktopWindowTarget target{nullptr};
+    comp::Compositor const compositor;
+    desktop::DesktopWindowTarget const target;
+    // Made with the first snapshot: a shade that never flies makes none.
     comp::CompositionGraphicsDevice graphics{nullptr};
-    comp::ContainerVisual root{nullptr};
-    comp::SpriteVisual sprite{nullptr};
+    comp::ContainerVisual const root;
+    comp::SpriteVisual const sprite;
+    // The flight under way, if one is.
     comp::CompositionScopedBatch batch{nullptr};
 
     // The snapshot the flight carries, kept between collapse and expand: the
@@ -178,49 +182,42 @@ struct WindowShade::Impl : core::weak_linked_mt<WindowShade::Impl> {
     std::uint64_t command = 0;
     POINT overlayOrigin{};
 
-    // A failure to build is thrown on, with the overlay made before it taken
-    // down: the destructor of an Impl that was never made does not run.
-    explicit Impl(HWND w) : window(w) {
-        try {
-            build();
-        } catch (...) {
-            if (overlay) ::DestroyWindow(overlay);
-            throw;
-        }
+    // Built whole in order: the overlay, its compositor and target, the visuals, the watch on the
+    // device. A failure on the way unwinds what was made -- the overlay included, by its owner.
+    // The compositor needs a Windows.System dispatcher on the thread, and the thread has one: the
+    // I/O loop started in launch.cpp made it.
+    explicit Impl(HWND w)
+        : window(w),
+          overlay(make_overlay()),
+          compositor{},
+          target{target_of(compositor, overlay.get())},
+          root{compositor.CreateContainerVisual()},
+          sprite{compositor.CreateSpriteVisual()},
+          deviceWatch{identity(), *this} {
+        target.Root(root);
+        root.Children().InsertAtTop(sprite);
     }
 
-    ~Impl() {
-        if (overlay) ::DestroyWindow(overlay);
-    }
-
-    void build() {
+    // Created tiny and moved to the flight's rectangle before each show (placeOverlay): it is
+    // never a full-screen window, so it never trips Focus Assist -- see flightBounds.
+    static HWND make_overlay() {
         if (!overlayClass()) winrt::throw_last_error();
+        HWND const made = ::CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | WS_EX_TRANSPARENT |
+                                                WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+                                            kOverlayClass, L"", WS_POPUP, 0, 0, 1, 1, nullptr, nullptr,
+                                            ::GetModuleHandleW(nullptr), nullptr);
+        if (!made) winrt::throw_last_error();
+        return made;
+    }
 
-        // Created tiny and moved to the flight's rectangle before each show
-        // (placeOverlay): it is never a full-screen window, so it never trips
-        // Focus Assist -- see flightBounds.
-        overlay = ::CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | WS_EX_TRANSPARENT |
-                                        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-                                    kOverlayClass, L"", WS_POPUP, 0, 0, 1, 1, nullptr, nullptr,
-                                    ::GetModuleHandleW(nullptr), nullptr);
-        if (!overlay) winrt::throw_last_error();
-
-        // The compositor needs a Windows.System dispatcher on the thread, and the
-        // thread has one: the I/O loop started in launch.cpp made it.
-        compositor = comp::Compositor{};
-
+    static desktop::DesktopWindowTarget target_of(comp::Compositor const& compositor, HWND overlay) {
         auto const interop = compositor.as<ABI::Windows::UI::Composition::Desktop::
                                                ICompositorDesktopInterop>();
         ABI::Windows::UI::Composition::Desktop::IDesktopWindowTarget* raw = nullptr;
         winrt::check_hresult(interop->CreateDesktopWindowTarget(overlay, true, &raw));
-        winrt::attach_abi(target, raw);
-
-        root = compositor.CreateContainerVisual();
-        target.Root(root);
-        sprite = compositor.CreateSpriteVisual();
-        root.Children().InsertAtTop(sprite);
-
-        deviceWatch.attach(identity(), *this);
+        desktop::DesktopWindowTarget made{nullptr};
+        winrt::attach_abi(made, raw);
+        return made;
     }
 
     impl::system_compositor identity() const {
@@ -291,7 +288,7 @@ struct WindowShade::Impl : core::weak_linked_mt<WindowShade::Impl> {
     /// Moves the overlay to where the flight needs it, and remembers its
     /// origin so screen points map into its composition coordinates.
     void placeOverlay(RECT bounds) {
-        ::MoveWindow(overlay, bounds.left, bounds.top, bounds.right - bounds.left,
+        ::MoveWindow(overlay.get(), bounds.left, bounds.top, bounds.right - bounds.left,
                      bounds.bottom - bounds.top, FALSE);
         overlayOrigin = {bounds.left, bounds.top};
     }
@@ -317,7 +314,7 @@ struct WindowShade::Impl : core::weak_linked_mt<WindowShade::Impl> {
         if (given != command) return;
         if (done) done();
         if (given != command) return;
-        ::ShowWindow(overlay, SW_HIDE);
+        ::ShowWindow(overlay.get(), SW_HIDE);
     }
 
     /// Flies the sprite from one placement to another with a fade, for command
@@ -380,7 +377,7 @@ void WindowShade::collapseTo(Point screenPoint, std::function<void()> whenDone) 
         if (shot.width <= 0) {
             // Nothing to snapshot: hide and be done -- the overlay too, which
             // a flight this command aborted leaves up.
-            ::ShowWindow(impl_->overlay, SW_HIDE);
+            ::ShowWindow(impl_->overlay.get(), SW_HIDE);
             ::ShowWindow(impl_->window, SW_HIDE);
             if (whenDone) whenDone();
             return;
@@ -397,7 +394,7 @@ void WindowShade::collapseTo(Point screenPoint, std::function<void()> whenDone) 
     // shows.
     impl_->placeOverlay(flightBounds(rect, screenPoint));
     numerics::float3 const from = impl_->overlayPoint(float(rect.left), float(rect.top));
-    ::ShowWindow(impl_->overlay, SW_SHOWNOACTIVATE);
+    ::ShowWindow(impl_->overlay.get(), SW_SHOWNOACTIVATE);
     ::ShowWindow(impl_->window, SW_HIDE);
 
     float const scale = kLandedPixels / width;
@@ -409,7 +406,7 @@ void WindowShade::expandFrom(Point screenPoint, std::function<void()> whenDone) 
     std::uint64_t const given = ++impl_->command;
 
     if (!impl_->hasSnapshot) {
-        ::ShowWindow(impl_->overlay, SW_HIDE);
+        ::ShowWindow(impl_->overlay.get(), SW_HIDE);
         ::ShowWindow(impl_->window, SW_SHOW);
         if (whenDone) whenDone();
         return;
@@ -423,7 +420,7 @@ void WindowShade::expandFrom(Point screenPoint, std::function<void()> whenDone) 
     numerics::float3 const from = impl_->overlayPoint(screenPoint.x, screenPoint.y);
     numerics::float3 const to = impl_->overlayPoint(float(rect.left), float(rect.top));
 
-    ::ShowWindow(impl_->overlay, SW_SHOWNOACTIVATE);
+    ::ShowWindow(impl_->overlay.get(), SW_SHOWNOACTIVATE);
     // The window is shown under the snapshot only once the flight lands, so it
     // does not flash at full size before the animation has grown to it.
     // Asked again after SW_SHOW: the messages it sends may give a command,

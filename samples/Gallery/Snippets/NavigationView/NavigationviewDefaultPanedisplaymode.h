@@ -27,7 +27,7 @@ auto const view = NavigationView {
 view.selectedItem(view.menuItems()[0]);
 
 auto example = Grid {
-    rowDefinitions = u"auto,auto",
+    RowDefinitions<u"auto,auto">,
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"If you have five or more equally important navigation categories that should prominently appear on larger window widths, consider "
                u"using a left navigation pane."},

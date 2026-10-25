@@ -49,7 +49,7 @@ model->destination = Grid {
     borderBrush = brushes.Card.StrokeColorDefault,
     BorderThickness {1},
     CornerRadius {8},
-    rowDefinitions = u"*,auto",
+    RowDefinitions<u"*,auto">,
     model->image,
     Button {width = 36, height = 36, Margin {8}, hAlign.right, vAlign.top, toolTip = u"Close", onClick += back,
             content = FontIcon {fontSize = 14, glyph = u"\xE711"}},

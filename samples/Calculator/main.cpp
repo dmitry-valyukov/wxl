@@ -146,8 +146,8 @@ wxl::Teardown wxl_launched() {
             Padding {16},
             rowSpacing = 12,
             columnSpacing = 12,
-            rowDefinitions = u"auto,*,*,*,*,*",
-            columnDefinitions = u"*,*,*,*",
+            RowDefinitions<u"auto,*,*,*,*,*">,
+            ColumnDefinitions<u"*,*,*,*">,
 
             // Перехват текстового ввода символов
             onCharacterReceived += [calc](Object const&, CharacterReceivedRoutedEventArgs& args) {
@@ -180,7 +180,7 @@ wxl::Teardown wxl_launched() {
                 Margin {0, 4, 0, 12},
 
                 Grid {
-                    rowDefinitions = u"auto,*",
+                    RowDefinitions<u"auto,*">,
 
                     // Верхняя строка: текущее выражение (формула)
                     TextBlock {

@@ -65,9 +65,9 @@ auto formatter = DecimalFormatter {
 
 auto options = Grid {
     minWidth = 200,
-    columnDefinitions = u"auto,*",
+    ColumnDefinitions<u"auto,*">,
     columnSpacing = 12.0,
-    rowDefinitions = u"auto,auto,auto,auto,auto,auto,auto,auto",
+    RowDefinitions<u"auto,auto,auto,auto,auto,auto,auto,auto">,
     rowSpacing = 16.0,
     caption(u"ZoomMode", 0, false),
     choice(0, u"zoom mode", {u"Enabled", u"Disabled"}, model->zoomMode),

@@ -166,7 +166,7 @@ std::vector<SpecialSection> const& specialSections() {
 // (NavigationItemContentTemplate оригинала).
 FrameworkElement itemContent(ControlInfo const& item) {
     auto content = Grid {
-        columnDefinitions = u"*,auto",
+        ColumnDefinitions<u"*,auto">,
         columnSpacing = 8.0,
         hAlign.stretch,
         TextBlock {
@@ -635,7 +635,7 @@ Window createMainWindow() {
         systemBackdrop = MicaBackdrop {},
         extendsContentIntoTitleBar = true,
         content = Grid {
-            rowDefinitions = u"auto,*",
+            RowDefinitions<u"auto,*">,
             s.titleBar,
             s.navigation,
             // Боковые кнопки мыши — «назад» и «вперёд», как у оригинала.

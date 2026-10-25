@@ -7,7 +7,6 @@
 // (DrawingSurface.cpp). A test hands in a source of its own, since the real ones cannot be raised
 // without WinUI or a lost GPU. No Windows header here: the public headers carry this one.
 
-#include <memory>
 #include <type_traits>
 
 #include "../events.h"
@@ -36,34 +35,32 @@ concept event_listener =
 //
 // Neither Source's nor Adder's members are named at class scope: the type of a watch may be
 // named before the generated vocabulary is included, as a wait's may (event_awaitable.h), and
-// the event's args are read only where the watch is attached.
+// the event's args are read only where the watch is made.
+//
+// There is no watch on nothing: one is made on its source, from the start of its owner's life
+// -- a member built in the owner's initializer list -- and is on it until it goes. A watch that
+// has to wait for its source is a part of its owner that appears then, built whole.
 template <class Source, class Adder, auto Listener>
 class event_watch {
     using owner_t = typename core::impl::member_owner<decltype(Listener)>::type;
 
 public:
-    /// A watch on no source yet: see attach().
-    event_watch() noexcept {}
-
-    /// A watch on `source` from the start, calling `owner`.
-    event_watch(Source const& source, owner_t& owner) { attach(source, owner); }
+    /// A watch on `source`, calling the listener on `owner` each time the event is raised. The
+    /// source is copied first and the handler put on it after: a subscription that throws
+    /// leaves no handler behind, and the copy goes with the half-made watch.
+    event_watch(Source const& source, owner_t& owner) : source_(source), token_(subscribe(owner)) {}
 
     event_watch(event_watch const&) = delete;
     event_watch& operator=(event_watch const&) = delete;
 
-    /// Takes the handler off the source, if it is on one. The source answering that the token
-    /// was not there -- somebody took the handler off by it -- stops the process.
+    /// Takes the handler off the source. The source answering that the token was not there --
+    /// somebody took the handler off by it -- stops the process.
     ~event_watch() {
-        if (!token_) return;
-        bool const removed = Adder::remove(source_, token_);
-        std::destroy_at(&source_);
-        if (!removed) core::abort("wxl: an event watch is no longer on its source");
+        if (!Adder::remove(source_, token_)) core::abort("wxl: an event watch is no longer on its source");
     }
 
-    /// Puts the watch on `source`: from now on each time the event is raised it calls the
-    /// listener on `owner`. Once -- a second attach stops the process rather than leave the
-    /// first source calling the owner or move the watch behind the back of whoever put it there.
-    void attach(Source const& source, owner_t& owner) {
+private:
+    EventToken subscribe(owner_t& owner) {
         using args_t = typename Adder::template args_t<Source>;
         // Checked here and not in the class: the watch is declared inside its owner, which is
         // not complete there, and a member cannot be called on it yet.
@@ -72,12 +69,6 @@ public:
                       "with nothing, from where the source raises it, which has nobody to hand an "
                       "exception to -- name a noexcept member that takes one of the two and "
                       "returns nothing");
-        // The source is copied once its handler stands, and the copy does not throw: a handler
-        // left on the source without the token to take it off is the one thing the watch exists
-        // to rule out.
-        static_assert(std::is_nothrow_copy_constructible_v<Source>);
-
-        if (token_) core::abort("wxl: an event watch is attached twice");
         auto const call = [target = &owner](Object const&,
                                             [[maybe_unused]] EventArgsRef<args_t> args) noexcept {
             if constexpr (std::is_invocable_v<decltype(Listener), owner_t&, EventArgsRef<args_t>>)
@@ -85,21 +76,10 @@ public:
             else
                 (target->*Listener)();
         };
-        EventToken token = Adder::add(source, EventHandler<args_t>{call});
-        std::construct_at(&source_, source);
-        token_ = std::move(token);
+        return Adder::add(source_, EventHandler<args_t>{call});
     }
 
-    /// Whether the watch is on a source.
-    bool attached() const noexcept { return static_cast<bool>(token_); }
-
-private:
-    // The source lives while the token is set: CompositionWindow has no empty value -- made
-    // without arguments, it makes a window -- and a flag beside the token would say the same
-    // thing twice. The tokens count from one, so a subscription is never the empty token.
-    union {
-        Source source_;
-    };
+    Source const source_;
     EventToken token_;
 };
 

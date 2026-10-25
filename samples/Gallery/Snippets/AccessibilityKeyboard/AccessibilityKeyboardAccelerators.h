@@ -8,8 +8,8 @@ auto const paint = [swatch](Color shade) {
 auto example = Grid {
     columnSpacing = 8.0,
     rowSpacing = 8.0,
-    rowDefinitions = u"auto,auto,auto",
-    columnDefinitions = u"auto,auto,auto,*",
+    RowDefinitions<u"auto,auto,auto">,
+    ColumnDefinitions<u"auto,auto,auto,*">,
     swatch,
     Button {
         row = 1,

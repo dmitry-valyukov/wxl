@@ -77,9 +77,9 @@ auto example = StackPanel {
 
 auto options = Grid {
     minWidth = 320,
-    columnDefinitions = u"auto,*",
+    ColumnDefinitions<u"auto,*">,
     columnSpacing = 12.0,
-    rowDefinitions = u"auto,auto,auto",
+    RowDefinitions<u"auto,auto,auto">,
     rowSpacing = 16.0,
     TextBlock {vAlign.center, u"Scroll with animation"},
     ComboBox {

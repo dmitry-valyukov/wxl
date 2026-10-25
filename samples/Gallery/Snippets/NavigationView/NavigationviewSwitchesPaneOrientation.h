@@ -32,7 +32,7 @@ Apply {view, paneDisplayMode = BindOutput {model->top, [](bool top) {
              }}};
 
 auto example = Grid {
-    rowDefinitions = u"auto,auto",
+    RowDefinitions<u"auto,auto">,
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"If you have equally important navigation categories and limited app content space, consider using a top navigation pane on larger "
                u"window widths and a minimal left navigation pane on smaller window widths."},
