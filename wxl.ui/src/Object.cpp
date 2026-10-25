@@ -59,16 +59,16 @@ hstring Object::text() const {
 // there is something behind it.
 Object Object::copy_from_abi(::IInspectable* object) noexcept {
     if (!object) return Impl::empty<Object>();
-    auto impl = new Impl{};
-    winrt::copy_from_abi(impl->inspectable_, object);
-    return Object{impl};
+    winrt::Windows::Foundation::IInspectable copied{nullptr};
+    winrt::copy_from_abi(copied, object);
+    return Object{new Impl{std::move(copied)}};
 }
 
 Object Object::attach_abi(::IInspectable* object) noexcept {
     if (!object) return Impl::empty<Object>();
-    auto impl = new Impl{};
-    winrt::attach_abi(impl->inspectable_, object);
-    return Object{impl};
+    winrt::Windows::Foundation::IInspectable attached{nullptr};
+    winrt::attach_abi(attached, object);
+    return Object{new Impl{std::move(attached)}};
 }
 
 DependencyObject::DependencyObject(Impl* impl) noexcept : base_t(impl) {}

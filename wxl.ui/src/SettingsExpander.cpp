@@ -145,10 +145,9 @@ impl::SettingsExpanderCore* core_of(winrt::Microsoft::UI::Xaml::Controls::Conten
 
 }  // namespace
 
-SettingsExpander::SettingsExpander() : ContentControl(new Impl{}) {
-    auto inspectable = winrt::make_self<impl::SettingsExpanderCore>().as<winrt::Windows::Foundation::IInspectable>();
-    *put_abi() = static_cast<::IInspectable*>(winrt::detach_abi(inspectable));
-}
+// The derived class itself, made here and handed to the Impl it stands for.
+SettingsExpander::SettingsExpander()
+    : ContentControl(new Impl{winrt::make_self<impl::SettingsExpanderCore>().as<winrt::Windows::Foundation::IInspectable>()}) {}
 
 // The setting is the content of the head, not of the expander: a ContentControl without a presenter in its template would take
 // the element for a child of its own, and the head could no longer have it.

@@ -77,10 +77,9 @@ impl::HeaderedContentControlCore* core_of(winrt::Microsoft::UI::Xaml::Controls::
 
 }  // namespace
 
-HeaderedContentControl::HeaderedContentControl() : ContentControl(new Impl{}) {
-    auto inspectable = winrt::make_self<impl::HeaderedContentControlCore>().as<winrt::Windows::Foundation::IInspectable>();
-    *put_abi() = static_cast<::IInspectable*>(winrt::detach_abi(inspectable));
-}
+// The derived class itself, made here and handed to the Impl it stands for.
+HeaderedContentControl::HeaderedContentControl()
+    : ContentControl(new Impl{winrt::make_self<impl::HeaderedContentControlCore>().as<winrt::Windows::Foundation::IInspectable>()}) {}
 
 void HeaderedContentControl::header(Object const& value) const {
     core_of(get<&Impl::contentControl_>())->header(*Object::Impl::get_typed<Object>(value));

@@ -92,10 +92,11 @@ struct composable_slot : activation_slot {
 };
 
 // Activates instances of Obj, handing back the raw IInspectable* the
-// activation ABI produces without adapting it to any particular interface: a
-// generated constructor writes it straight into its own object's IInspectable
-// field, with no temporary smart pointer and no extra AddRef/Release on the
-// way, and queries every other interface lazily off that field later.
+// activation ABI produces without adapting it to any particular interface: the
+// activating constructor of Object::Impl, given the activator's type as a tag
+// (impl::activation), writes it straight into its own IInspectable field, with
+// no temporary smart pointer and no extra AddRef/Release on the way, and every
+// other interface is queried lazily off that field later.
 //
 // wxl activates through this rather than cppwinrt's winrt::make<T>() for the
 // same reason it avoids winrt::implements<>: a single-threaded, STA-tuned path

@@ -280,10 +280,9 @@ impl::SettingsCardCore* core_of(winrt::Microsoft::UI::Xaml::Controls::ContentCon
 
 }  // namespace
 
-SettingsCard::SettingsCard() : ContentControl(new Impl{}) {
-    auto inspectable = winrt::make_self<impl::SettingsCardCore>().as<winrt::Windows::Foundation::IInspectable>();
-    *put_abi() = static_cast<::IInspectable*>(winrt::detach_abi(inspectable));
-}
+// The derived class itself, made here and handed to the Impl it stands for.
+SettingsCard::SettingsCard()
+    : ContentControl(new Impl{winrt::make_self<impl::SettingsCardCore>().as<winrt::Windows::Foundation::IInspectable>()}) {}
 
 void SettingsCard::header(Object const& value) const {
     core_of(get<&Impl::contentControl_>())->header(*Object::Impl::get_typed<Object>(value));
