@@ -93,7 +93,7 @@ wxl::Teardown wxl_launched() {
                 themeButton,
                 HyperlinkButton {
                     content = L" Github Project Repository ",
-                    navigateUri = L"https://github.com/dmitry-valyukov/wxl",
+                    navigateUri = L"https://github.com/wxl-project/wxl",
                     styles.ButtonBase.TextBlockButton,
                     Padding {3},
                 },

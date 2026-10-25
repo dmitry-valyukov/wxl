@@ -16,18 +16,18 @@
 ## Документация
 
 Полная документация доступна как в виде
-[онлайн-справочника](https://dmitry-valyukov.github.io/wxl/index.html), так и
+[онлайн-справочника](https://wxl-project.github.io/wxl/index.html), так и
 локально в каталоге `docs/`:
 
 - **Архитектура и слои:** обоснование инженерных решений и разбор
   структуры — [`docs/index.md`](docs/index.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/index.html)
+  [Web](https://wxl-project.github.io/wxl/index.html)
 - **Развёртывание:** инструкции по сборке и интеграции библиотеки в сторонние
   проекты — [`docs/building.md`](docs/building.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2building.html)
+  [Web](https://wxl-project.github.io/wxl/md_docs_2building.html)
 - **Статьи:** цикл подробных технических публикаций на Хабре —
   [`docs/articles.md`](docs/articles.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2articles.html)
+  [Web](https://wxl-project.github.io/wxl/md_docs_2articles.html)
 
 ## Архитектурный манифест
 

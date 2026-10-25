@@ -15,19 +15,19 @@ with no prior deployment step.
 ## Documentation
 
 The full documentation is available both as an
-[online reference](https://dmitry-valyukov.github.io/wxl/index.html) and
+[online reference](https://wxl-project.github.io/wxl/index.html) and
 locally in the `docs/` directory:
 
 - **Architecture and layers:** the rationale behind the engineering
   decisions and a walkthrough of the structure —
   [`docs/index.md`](docs/index.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/index.html)
+  [Web](https://wxl-project.github.io/wxl/index.html)
 - **Setup:** instructions for building the library and integrating it into
   other projects — [`docs/building.md`](docs/building.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2building.html)
+  [Web](https://wxl-project.github.io/wxl/md_docs_2building.html)
 - **Media:** a series of in-depth technical publications on Habr (in
   Russian) — [`docs/articles.md`](docs/articles.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2articles.html)
+  [Web](https://wxl-project.github.io/wxl/md_docs_2articles.html)
 
 ## Architectural manifesto
 
