@@ -66,9 +66,6 @@ public:
     template <typename Activator>
     explicit Impl(impl::activation<Activator>) : inspectable_(activated<Activator>()) {}
 
-    // Empty: what a wrapper of a class with no public constructor makes (ProtectedOnly).
-    Impl() noexcept = default;
-
     // The wrapped WinRT object itself. Every interface field further down
     // the chain is a QueryInterface of exactly this.
     winrt::Windows::Foundation::IInspectable inspectable_;
