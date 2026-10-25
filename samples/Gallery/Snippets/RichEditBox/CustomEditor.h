@@ -37,7 +37,7 @@ auto const pick = [](Flyout flyout, Button swatch, RichEditBox editor,
 const Preset cell {Padding {0}, minWidth = 0, minHeight = 0, Margin {6}};
 
 auto toolbar = Grid {
-    columnDefinitions = u"auto,auto,*,auto",
+    ColumnDefinitions<u"auto,auto,*,auto">,
     Button {
         tool,
         gallery::appPop(),

@@ -86,8 +86,8 @@ wxl::FrameworkElement gallery::controlExample(ExampleParts const& parts) {
     // Показ, «Output:» и параметры: три колонки одной полосы. Показ и
     // «Output:» на фоне окна, параметры — на карточке, отделённые чертой.
     auto strip = Grid {
-        columnDefinitions = u"*,auto,auto",
-        rowDefinitions = u"auto,auto",
+        ColumnDefinitions<u"*,auto,auto">,
+        RowDefinitions<u"auto,auto">,
         Border {
             column = 0,
             Padding {12},

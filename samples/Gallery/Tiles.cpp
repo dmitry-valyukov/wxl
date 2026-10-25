@@ -22,7 +22,7 @@ wxl::FrameworkElement gallery::controlTile(ControlInfo const& item) {
 
     auto tile = Grid {
         Grid {
-            columnDefinitions = u"auto,*",
+            ColumnDefinitions<u"auto,*">,
             Image {
                 width = 32,
                 Margin {8, 12, 16, 0},

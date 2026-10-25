@@ -3,8 +3,8 @@
 auto example = Grid {
     columnSpacing = 8.0,
     rowSpacing = 8.0,
-    rowDefinitions = u"auto,auto,auto",
-    columnDefinitions = u"auto,auto,auto",
+    RowDefinitions<u"auto,auto,auto">,
+    ColumnDefinitions<u"auto,auto,auto">,
     TextBlock {column = 1, hAlign.center, u"Column 1"},
     TextBlock {column = 2, hAlign.center, u"Column 2"},
     TextBlock {row = 1, vAlign.center, u"Row 1"},

@@ -107,7 +107,7 @@ wxl::Teardown wxl_launched() {
         title = u"wxl — стенд освещения",
         minSize = {1100, 640},
         Grid {
-            columnDefinitions = u"*,380",
+            ColumnDefinitions<u"*,380">,
             background = brushes.SolidBackgroundFillColor.Base,
 
             Border {
@@ -127,7 +127,7 @@ wxl::Teardown wxl_launched() {
                 BorderThickness {1, 0, 0, 0},
                 background = brushes.SolidBackgroundFillColor.Secondary,
                 Grid {
-                    rowDefinitions = u"auto,*",
+                    RowDefinitions<u"auto,*">,
                     StackPanel {
                         row = 0,
                         spacing = 8.0,

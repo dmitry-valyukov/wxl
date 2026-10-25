@@ -10,6 +10,7 @@
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Xaml.Shapes.h>
 
+#include "../GridLengths.h"
 #include "../hstring_param.h"
 
 namespace wxl {
@@ -18,17 +19,14 @@ class AnnotatedScrollBar;
 
 namespace wxl::impl {
 
-// A Grid's rows and columns written as text, "2*,*,*,auto,120", where WinUI 3 takes one
+// A Grid's rows and columns written as RowDefinitions<u"2*,*,auto,120">, where WinUI 3 takes one
 // RowDefinition object per row; wxl declares the property itself (the profile's
-// syntheticMembers). `*` takes a share of what is left, `N*` takes N shares, `auto` is as large as
-// the content needs, a bare number is that many pixels. Whitespace around an entry is ignored, and
-// an entry that parses as none of these is skipped rather than thrown -- a malformed layout string
-// must not take the window down.
+// syntheticMembers). The text was parsed when the code was compiled (GridLengths.h): what arrives
+// is GridLength values, and building the rows has nothing left to refuse.
 
-void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                         hstring_param const& spec);
+void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid, RowLengths const& rows);
 void set_column_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                            hstring_param const& spec);
+                            ColumnLengths const& columns);
 
 // `verticalScrollController = annotatedBar` on a ScrollView. The view scrolls through a
 // ScrollPresenter, which takes a scroll controller for each direction; an AnnotatedScrollBar is

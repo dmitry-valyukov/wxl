@@ -11,7 +11,7 @@ auto example = FlipView {
 for (auto const& group : gallery::catalog().groups | std::views::take(3)) {
     for (auto const& item : group.items) {
         example.items().append(Grid {
-            rowDefinitions = u"*,auto",
+            RowDefinitions<u"*,auto">,
             Image {width = 36, verticalAlignment = VerticalAlignment::Center, stretch = Stretch::Uniform,
                    source = gallery::assetPath(item.imagePath)},
             Border {row = 1, height = 60, background = rgba(255, 255, 255, 0.65),

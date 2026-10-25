@@ -10,8 +10,8 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <new>
-#include <optional>
 #include <type_traits>
 #include <vector>
 
@@ -19,6 +19,7 @@
 // the wxl.core import the watch's header carries.
 #include "impl/handler_list.h"
 #include "impl/event_watch.h"
+#include "sta_box.h"
 
 namespace {
 
@@ -138,7 +139,6 @@ TEST(WindowWatch, calls_its_owner_each_time_the_event_is_raised) {
     fake_window window;
     Page page;
     size_watch watch{window, page};
-    EXPECT_TRUE(watch.attached());
 
     raise_resized(window, 800);
     raise_resized(window, 640);
@@ -172,26 +172,9 @@ TEST(WindowWatch, a_listener_answers_through_the_args) {
     EXPECT_TRUE(refused.cancel);
 }
 
-// An empty watch stands nowhere: the event is raised unheard until the watch is attached.
-TEST(WindowWatch, starts_empty_and_is_attached_later) {
-    fake_window window;
-    Page page;
-    move_watch watch;
-    EXPECT_FALSE(watch.attached());
-
-    raise_moved(window);
-    EXPECT_EQ(page.moves, 0);
-
-    watch.attach(window, page);
-    EXPECT_TRUE(watch.attached());
-    raise_moved(window);
-    EXPECT_EQ(page.moves, 1);
-}
-
-// An empty watch has nothing to take off.
-TEST(WindowWatch, an_empty_watch_goes_quietly) {
-    { move_watch watch; }
-    SUCCEED();
+// A watch is made on its source, and there is none without one.
+TEST(WindowWatch, has_no_empty_state) {
+    static_assert(!std::is_default_constructible_v<move_watch>);
 }
 
 // The watch comes off with its end, and the window, living on, calls the owner no more --
@@ -251,16 +234,17 @@ struct SelfRemoving {
     }
 
     int moves = 0;
-    std::optional<event_watch<fake_window, moved, &SelfRemoving::windowMoved>> watch;
+    using watch_box = wxl::test::sta_box<event_watch<fake_window, moved, &SelfRemoving::windowMoved>>;
+    std::unique_ptr<watch_box> watch;
 };
 
 TEST(WindowWatch, goes_from_inside_its_own_call) {
     fake_window window;
     SelfRemoving owner;
-    owner.watch.emplace(window, owner);
+    owner.watch = std::make_unique<SelfRemoving::watch_box>(window, owner);
 
     raise_moved(window);
-    EXPECT_FALSE(owner.watch.has_value());
+    EXPECT_EQ(owner.watch, nullptr);
     raise_moved(window);
     EXPECT_EQ(owner.moves, 1);
 }
@@ -283,14 +267,13 @@ struct refusing {
     using args_t = Object;
 };
 
-TEST(WindowWatch, a_failed_attach_leaves_it_empty) {
+TEST(WindowWatch, a_failed_subscription_keeps_nothing) {
     fake_window window;
     auto const state = window.state->weak_link();
     Page page;
-    event_watch<fake_window, refusing, &Page::windowMoved> watch;
+    using refused_watch = event_watch<fake_window, refusing, &Page::windowMoved>;
 
-    EXPECT_THROW(watch.attach(window, page), std::bad_alloc);
-    EXPECT_FALSE(watch.attached());
+    EXPECT_THROW((refused_watch{window, page}), std::bad_alloc);
     window = fake_window{};
     EXPECT_EQ(state->get(), nullptr);
 }
@@ -390,19 +373,6 @@ TEST(CheckedRemove, reads_the_answer_when_there_is_one) {
 // goes to stderr rather than to a dialog that would hang the run.
 void without_a_dialog() {
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-}
-
-void attach_twice() {
-    without_a_dialog();
-    fake_window first;
-    fake_window second;
-    Page page;
-    move_watch watch{first, page};
-    watch.attach(second, page);
-}
-
-TEST(WindowWatchDeathTest, attaching_twice_stops) {
-    EXPECT_DEATH(attach_twice(), "an event watch is attached twice");
 }
 
 // The token is the watch's: whoever takes the handler off by it takes away what the watch's

@@ -58,7 +58,7 @@ model->filter.add_onTextChanged([update](auto&&...) { update(); });
 
 auto example = Grid {
     height = 600,
-    columnDefinitions = u"*,*",
+    ColumnDefinitions<u"*,*">,
     ScrollViewer {content = model->repeater},
     StackPanel {
         column = 1,

@@ -198,7 +198,7 @@ wxl::Teardown wxl_launched() {
         title = L"wxl.html — смотрелка",
         minSize = {480, 360},
         Grid {
-            rowDefinitions = L"auto,auto,*",
+            RowDefinitions<u"auto,auto,*">,
             background = brushes.SolidBackgroundFillColor.Base,
             bar,
             status,

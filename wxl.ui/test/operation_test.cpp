@@ -19,8 +19,8 @@
 #include <exception>
 #include <format>
 #include <functional>
+#include <memory>
 #include <mutex>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -32,6 +32,7 @@
 
 #include "impl/operation.h"
 #include "impl/show_dialog.h"
+#include "sta_box.h"
 
 namespace {
 
@@ -53,6 +54,16 @@ struct platform_failure {
 
 /// The code the platform reports for an operation that was cancelled, if its results are asked.
 constexpr uint32_t canceled_code = 0x800704C7;
+
+/// The result a fake operation keeps, read only once its status says it completed; an operation
+/// without a result keeps none.
+template <class T>
+struct fake_result {
+    T result{};
+};
+
+template <>
+struct fake_result<void> {};
 
 /// An operation of the platform: a reference to one object, which its copies share.
 template <class T>
@@ -79,7 +90,7 @@ public:
         if constexpr (std::is_void_v<T>)
             return;
         else
-            return *state_->result;
+            return state_->result;
     }
 
     /// Counted. What the platform does inside the call happens here: events of the application's
@@ -101,7 +112,7 @@ public:
 
     template <class... Value>
     void complete(Value... value) const {
-        if constexpr (sizeof...(Value) != 0) state_->result.emplace(value...);
+        if constexpr (sizeof...(Value) != 0) state_->result = T{value...};
         end(AsyncStatus::Completed);
     }
 
@@ -127,12 +138,11 @@ private:
     }
 
     /// A copy goes with the handler on whichever thread ends the operation: the count is atomic.
-    struct state final : wxl::core::refcounted_mt {
+    struct state final : wxl::core::refcounted_mt, fake_result<T> {
         std::size_t references() const noexcept { return ref_count(); }
 
         AsyncStatus status = AsyncStatus::Started;
         handler_t handler;
-        std::optional<std::conditional_t<std::is_void_v<T>, int, T>> result;
         uint32_t code = 0;
         int cancels = 0;
         int reads = 0;
@@ -720,8 +730,8 @@ TEST(OperationUnderTokenTest, ATaskLetGoWhileTheTurnAsksIsNotTouchedAfterwards) 
     int converted = 0;
     int made = 0;
 
-    std::optional<task<std::string>> pending{start_cancelable_winrt_on_dispatcher<std::string>(
-        begins(op, made), dispatcher, counted(converted), source.token())};
+    auto pending = std::make_unique<wxl::test::sta_box<task<std::string>>>(start_cancelable_winrt_on_dispatcher<std::string>(
+        begins(op, made), dispatcher, counted(converted), source.token()));
 
     // An event the platform raises while it is asked -- a Closed handler of the application's --
     // lets the task go, and the producer with it, inside the turn.
@@ -729,7 +739,7 @@ TEST(OperationUnderTokenTest, ATaskLetGoWhileTheTurnAsksIsNotTouchedAfterwards) 
 
     source.cancel();
     EXPECT_EQ(dispatcher.run(), 1u);
-    EXPECT_FALSE(pending.has_value());
+    EXPECT_EQ(pending, nullptr);
     EXPECT_EQ(op.cancels(), 1);
     EXPECT_EQ(op.held(), 1);
 }

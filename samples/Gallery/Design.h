@@ -50,7 +50,7 @@ wxl::FrameworkElement typographyRow(char16_t const* example, Style style, char16
     name.fontFamily(u"Consolas");
     auto row = designRow(shaded);
     row.padding(Thickness {0, 12, 0, 12});
-    row.columnDefinitions(u"272,136,112,194,auto");
+    row.columnDefinitions(ColumnDefinitions<u"272,136,112,194,auto">);
     row.children().append(TextBlock {Margin {16, 0, 0, 0}, vAlign.center, style, example});
     row.children().append(cell(font, 1));
     row.children().append(cell(size, 2));

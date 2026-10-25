@@ -60,8 +60,8 @@ Grid {
     Padding {18},
     rowSpacing = 10,
     columnSpacing = 10,
-    rowDefinitions = u"auto,64,64",
-    columnDefinitions = u"*,*",
+    RowDefinitions<u"auto,64,64">,
+    ColumnDefinitions<u"*,*">,
 
     // Табло вдавлено: цвета канта в обратном порядке.
     Border {

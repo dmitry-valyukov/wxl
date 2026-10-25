@@ -46,7 +46,7 @@ FrameworkElement searchBox() {
 
     return gallery::controlExample({
         .header = gallery::snippet(searchHeader),
-        .example = Grid {rowDefinitions = u"auto,auto", box, Border {row = 1, details}},
+        .example = Grid {RowDefinitions<u"auto,auto">, box, Border {row = 1, details}},
         .code = gallery::snippet(searchCode),
     });
 }

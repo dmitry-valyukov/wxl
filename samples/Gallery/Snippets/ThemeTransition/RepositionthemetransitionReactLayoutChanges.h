@@ -2,7 +2,7 @@
 auto const middle = Rectangle {column = 1, width = 75, height = 75, Margin {5}, fill = colors.green};
 
 auto example = Grid {
-    columnDefinitions = u"auto,auto,auto",
+    ColumnDefinitions<u"auto,auto,auto">,
     Rectangle {width = 75, height = 75, Margin {5}, fill = colors.red},
     middle,
     Rectangle {column = 2, width = 75, height = 75, Margin {5}, fill = colors.blue, transitions[RepositionThemeTransition {}]},

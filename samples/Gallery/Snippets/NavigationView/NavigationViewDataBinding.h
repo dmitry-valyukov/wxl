@@ -41,7 +41,7 @@ auto const view = NavigationView {
 view.add_onLoaded([view, model](auto&&...) { view.selectedItem(model->source.objectAt(0)); });
 
 auto example = Grid {
-    rowDefinitions = u"*,auto",
+    RowDefinitions<u"*,auto">,
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"When data binding, use the MenuItemsSource property to bind to an observable collection of items, and do not set the MenuItems "
                u"property. In addition, set the MenuItemTemplate property and use a NavigationViewItem as the data template. If you wish to bind "

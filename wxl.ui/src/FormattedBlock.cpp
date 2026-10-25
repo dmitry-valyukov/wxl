@@ -64,7 +64,7 @@ TextStyle merged(std::span<const TextStyle> styles) {
     for (TextStyle const& style : styles) {
         if (style.color) result.color = style.color;
         if (style.fontSize) result.fontSize = style.fontSize;
-        if (style.fontFamily) result.fontFamily = style.fontFamily;
+        if (!style.fontFamily.empty()) result.fontFamily = style.fontFamily;
         if (style.bold) result.bold = style.bold;
         if (style.italic) result.italic = style.italic;
         if (style.underline) result.underline = style.underline;
@@ -98,8 +98,8 @@ void apply(docs::TextElement const& element, TextStyle const& style) {
     if (style.fontSize) {
         element.FontSize(*style.fontSize);
     }
-    if (style.fontFamily) {
-        element.FontFamily(impl::to_winrt(*style.fontFamily));
+    if (!style.fontFamily.empty()) {
+        element.FontFamily(impl::to_winrt(style.fontFamily));
     }
     if (style.color) {
         element.Foreground(media::SolidColorBrush{impl::to_winrt(*style.color)});
@@ -256,8 +256,8 @@ void FormattedBlock::appendScript(hstring_param const& text, double scale, doubl
     if (style.italic.value_or(false)) {
         script.FontStyle(winrt::Windows::UI::Text::FontStyle::Italic);
     }
-    if (style.fontFamily) {
-        script.FontFamily(impl::to_winrt(*style.fontFamily));
+    if (!style.fontFamily.empty()) {
+        script.FontFamily(impl::to_winrt(style.fontFamily));
     }
     if (style.color) {
         script.Foreground(media::SolidColorBrush{impl::to_winrt(*style.color)});

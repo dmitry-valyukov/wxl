@@ -48,7 +48,7 @@ FrameworkElement customEditor() {
 
     return gallery::controlExample({
         .header = gallery::snippet(customHeader),
-        .example = Grid {rowDefinitions = u"auto,*,auto", toolbar, Border {row = 1, editor}, Border {row = 2, findBar}},
+        .example = Grid {RowDefinitions<u"auto,*,auto">, toolbar, Border {row = 1, editor}, Border {row = 2, findBar}},
         .code = gallery::snippet(customCode),
     });
 }

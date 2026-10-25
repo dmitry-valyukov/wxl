@@ -230,17 +230,21 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.Grid": {
-            "comment": "Rows and columns are also written as text -- rowDefinitions = \"2*,*,auto,120\" -- which is what every other framework's grid is written as and what WinUI3 has no property for. The name is the framework's own: the collection stays subscriptable, and the string form is an assignment to the same tag.",
+            "comment": "Rows and columns are also written as text -- Grid {RowDefinitions<u\"2*,*,auto,120\">, ColumnDefinitions<u\"*,*\">} -- which is what every other framework's grid is written as and what WinUI3 has no property for. The text is a template argument, parsed and checked when the code is compiled into a static array of GridLength (GridLengths.h); the value is a view on it, of a type of its own for rows and for columns, and written unnamed in the Grid's braces. Lengths a program computes go to the named tag as GridLength values. The names are the framework's own: the collection stays subscriptable.",
             "syntheticMembers": {
                 "RowDefinitions": {
-                    "type": "String",
+                    "cppType": "RowLengths",
+                    "cppInclude": "../GridLengths.h",
                     "function": "impl::set_row_definitions",
-                    "include": "../impl/layout_helpers.h"
+                    "include": "../impl/layout_helpers.h",
+                    "positional": true
                 },
                 "ColumnDefinitions": {
-                    "type": "String",
+                    "cppType": "ColumnLengths",
+                    "cppInclude": "../GridLengths.h",
                     "function": "impl::set_column_definitions",
-                    "include": "../impl/layout_helpers.h"
+                    "include": "../impl/layout_helpers.h",
+                    "positional": true
                 }
             },
             "members": [

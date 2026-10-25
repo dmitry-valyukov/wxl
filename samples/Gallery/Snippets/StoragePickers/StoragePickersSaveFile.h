@@ -92,7 +92,7 @@ auto options = StackPanel {
     model->commit,
     choice(u"Suggested start location", locationNames, model->location),
     Grid {
-        columnDefinitions = u"*,auto",
+        ColumnDefinitions<u"*,auto">,
         model->folder,
         Button {
             column = 1,

@@ -73,6 +73,12 @@ struct synthetic_member {
     // Exactly one of `type` and `cpp_type` is given.
     std::string cpp_type;     // "FluentSymbol"
     std::string cpp_include;  // "FluentSymbol.h"
+
+    // The value is also written unnamed in the class's braces. A property claims that route
+    // by itself only when its type carries its own name (Margin); a wxl type that cannot --
+    // RowLengths behind RowDefinitions, whose name is taken by the value written --
+    // says so here.
+    bool positional = false;
 };
 
 // A method WinRT declares that is a setter in all but name: one argument, no

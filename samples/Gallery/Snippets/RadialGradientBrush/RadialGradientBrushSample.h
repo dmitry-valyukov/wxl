@@ -60,8 +60,8 @@ auto example = StackPanel {
 };
 
 auto options = Grid {
-    rowDefinitions = u"auto,auto,auto,auto,auto",
-    columnDefinitions = u"*,*",
+    RowDefinitions<u"auto,auto,auto,auto,auto">,
+    ColumnDefinitions<u"*,*">,
     ComboBox {
         columnSpan = 2,
         header = u"MappingMode",

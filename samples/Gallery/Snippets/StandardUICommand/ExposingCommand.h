@@ -78,7 +78,7 @@ auto example = [&] {
 
     return Grid {
         hAlign.stretch,
-        rowDefinitions = u"auto,auto,*",
+        RowDefinitions<u"auto,auto,*">,
         TextBlock {
             Margin {0, 0, 0, 12},
             textWrapping = TextWrapping::Wrap,

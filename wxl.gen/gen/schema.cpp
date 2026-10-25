@@ -110,7 +110,7 @@ std::string event_anchor(std::string_view key, std::string_view owner) {
 }
 
 // The same property said two ways -- `rowDefinitions[a, b]` and
-// `rowDefinitions = L"2*,*"` -- so the anchor carries both.
+// `rowDefinitions = lengths` -- so the anchor carries both.
 std::string assignable_collection_anchor(std::string_view key, std::string_view value_type,
                                          std::string_view owner) {
     return std::format("::wxl::impl::assignable_collection_tag<::wxl::PropertyKey::{}, {}, ::wxl::{}>",

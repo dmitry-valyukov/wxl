@@ -236,9 +236,9 @@ struct rendering_device_replaced {
 /// DrawingSurface of one compositor draws through: the listener -- a noexcept member that
 /// takes nothing -- is called once the new device stands, and is where the owner drops
 /// every bitmap, brush, effect and context it made from the old one and draws its
-/// surfaces again. A member of the owner, after what the listener touches; attached
-/// with the compositor and the owner from the start or by attach() once, taken off by its
-/// own end. Not copied, not moved.
+/// surfaces again. A member of the owner, after what the listener touches, built with the
+/// compositor and the owner in the owner's initializer list and taken off by its own end;
+/// there is no empty one. Not copied, not moved.
 template <auto Listener>
 using RenderingDeviceWatch =
     impl::event_watch<Compositor, impl::rendering_device_replaced, Listener>;

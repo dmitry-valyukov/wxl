@@ -95,4 +95,4 @@ model->repeater = ItemsRepeater {
 };
 model->scroll.content(model->repeater);
 
-auto example = Grid {columnDefinitions = u"*,*", model->scroll, model->swatch};
+auto example = Grid {ColumnDefinitions<u"*,*">, model->scroll, model->swatch};
