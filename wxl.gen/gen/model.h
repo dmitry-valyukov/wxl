@@ -102,7 +102,7 @@ struct struct_file {
 
 // How the real WinRT class is created, which is also how its constructor is
 // declared -- the C# view of it (dotPeek) is `public extern Button()` against
-// `protected extern Control()`, and wxl mirrors that access exactly.
+// `protected extern Control()`, and wxl mirrors the public side exactly.
 //
 //   ActivatableAttribute, bare      -> public, plain activation
 //   ActivatableAttribute(factory)   -> public, but no default constructor:
@@ -115,9 +115,10 @@ struct struct_file {
 //                                      the attribute names: an instance with
 //                                      no outer object, which is what a class
 //                                      nobody derives from is
-//   ComposableAttribute(.., Protected) -> protected, and no factory at all:
-//                                      nobody can create one directly, so
-//                                      there is nothing to activate
+//   ComposableAttribute(.., Protected) -> no default constructor, and no
+//                                      factory: nobody creates one directly,
+//                                      so a derived type builds its own Impl,
+//                                      whole, and hands it to `X(Impl*)`
 //   neither                         -> no default constructor
 //
 // The composable path is not an optimisation to skip: a composable class is

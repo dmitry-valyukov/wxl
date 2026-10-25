@@ -665,15 +665,10 @@ public:
                    "    {}(Object const& object);\n",
                    info.name, info.name);
     }
+    // `protected extern X()` of the real class has no mirror here: an
+    // Impl it made would be empty, a wrapper of nothing. A deriving type
+    // builds its own Impl, whole, and hands it to the constructor below.
     std::print(out, "\nprotected:\n");
-    if (info.construction == construction_t::ProtectedOnly) {
-        // Mirrors `protected extern X()` in the real class: only a type
-        // deriving from it can construct one, so there is no activation
-        // to do here.
-        write_doc(out, "    ", info.constructor_doc);
-        std::print(out, "    {}();\n\n", info.name);
-    }
-
     std::print(out, R"(    explicit {}(Impl* impl) noexcept;
 
     friend class Object::Impl;
@@ -982,10 +977,6 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
                        info.name, info.name, info.name, winrt_type_name(info.composable_factory));
             break;
         case construction_t::ProtectedOnly:
-            // No activation: the real class has no public constructor,
-            // so an instance can only come from a derived type.
-            std::print(out, "\n{}::{}() : base_t(new Impl{{}}) {{}}\n", info.name, info.name);
-            break;
         case construction_t::PublicFactory:
         case construction_t::None:
             break;
