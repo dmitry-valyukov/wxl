@@ -10,6 +10,10 @@
 #include <oleauto.h>
 #include <restrictederrorinfo.h>
 
+// rpcndr.h, which these bring in, defines `small` as `char`, and Icons below has a field of that
+// name. Nothing here uses the macro, so it goes for the rest of this file.
+#undef small
+
 #include <winrt/base.h>
 
 #include "Application.h"

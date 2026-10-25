@@ -21,8 +21,10 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <format>
+#include <functional>
 #include <latch>
 #include <mutex>
 #include <optional>
@@ -32,11 +34,16 @@
 #include <utility>
 #include <vector>
 
-// The classification and the limit first: impl/rendering_device.h reaches windows.h before the
-// wxl.core import the watch's header carries, and after the standard headers.
+// The Windows headers impl/rendering_device.h wants, before anything of wxl. Then the list: it
+// reaches the projection, whose standard headers have to come before the wxl.core import the
+// watch's header carries, as in the other tests of the lists.
+#include "platform.h"
+
+#include <d3dcommon.h>
+
+#include "impl/handler_list.h"
 #include "impl/rendering_device.h"
 #include "impl/rendering_devices.h"
-#include "impl/handler_list.h"
 #include "impl/event_watch.h"
 
 namespace {
