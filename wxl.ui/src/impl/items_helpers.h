@@ -17,10 +17,9 @@
 #include "../Thickness.h"
 #include "../hstring_param.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.Enums.h>
-
-namespace wxl {
-class AutoSuggestBox;
-}
+// AutoSuggestBox complete: core::nullable of an incomplete class picks the raw-pointer form and
+// keeps it for the rest of the translation unit.
+#include <wxl/Microsoft.UI.Xaml.Controls.h>
 
 namespace wxl::impl {
 
