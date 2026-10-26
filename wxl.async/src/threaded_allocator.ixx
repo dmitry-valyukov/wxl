@@ -42,8 +42,11 @@ struct deferred_mem_block : core::intrusive_slist_node<deferred_mem_block> {
 class threaded_allocator : public core::refcounted_mt
 {
 public:
-    inline static constexpr uint32_t MaxBlockSize = 1u << 15;  // 32k, matches sta_memory_pool
-    inline static constexpr uint32_t DefaultPageSize = 1024 * 1024;  // 1M
+    /// The largest allocation size, in bytes: 32 KiB, the same as
+    /// `wxl::core::sta_memory_pool::MaxBlockSize`.
+    inline static constexpr uint32_t MaxBlockSize = 1u << 15;
+    /// The default page size, in bytes: 1 MiB.
+    inline static constexpr uint32_t DefaultPageSize = 1024 * 1024;
 
     /// Creates and binds a new threaded_allocator to the calling thread. May be called only
     /// once per thread (aborts otherwise), and only from a thread thread_group can register

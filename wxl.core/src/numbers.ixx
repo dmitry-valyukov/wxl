@@ -84,6 +84,7 @@ bool try_parse(std::string_view text, T& result) noexcept {
 /// version needs, where the unit is glued to the digits.
 template <typename T>
 struct number_prefix {
+    /// The number read from the start of the text.
     T value;
 
     /// The text left over, starting at the first character the number did not
@@ -190,6 +191,7 @@ std::string to_string(T value, Format... format) {
     return result;
 }
 
+/// Returns the number as a `std::wstring`, in whatever format `std::to_chars` is given.
 template <typename T, typename... Format>
 std::wstring to_wstring(T value, Format... format) {
     std::wstring result;
@@ -209,7 +211,9 @@ enum class byte_unit { bytes, kilobytes, megabytes, gigabytes, terabytes, petaby
 
 /// A byte count and the unit it is worth saying out loud in.
 struct scaled_bytes {
+    /// The byte count, expressed in `unit`.
     double value;
+    /// The unit that `value` is expressed in.
     byte_unit unit;
 };
 

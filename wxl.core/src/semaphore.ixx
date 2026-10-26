@@ -39,6 +39,8 @@ public:
     /// Non-blocking acquire: returns false immediately if not currently signaled.
     inline bool try_acquire() { return ::WaitForSingleObject(handle_, 0) == WAIT_OBJECT_0; }
 
+    /// Gets the handle of the semaphore object. The object retains ownership and closes the
+    /// handle on destruction.
     inline HANDLE handle() const noexcept { return handle_; }
 };
 

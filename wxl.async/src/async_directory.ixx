@@ -36,20 +36,24 @@ export namespace wxl::async {
 class async_directory
 {
 public:
+    /// The type of one entry of the enumeration: `wxl::core::directory::entry`, whose name is
+    /// a view into the listing.
     using entry = core::directory::entry;
 
     /// What list() brings back: an `entry` that owns its name, since the listing
     /// it was read from is gone by the time anybody looks.
     struct listed_entry {
-        std::wstring name;
-        bool is_directory = false;
-        std::uint64_t size = 0;
-        std::chrono::file_clock::time_point last_write{};
+        std::wstring name;                                  ///< The name of the file or directory.
+        bool is_directory = false;                          ///< Whether the entry is a directory.
+        std::uint64_t size = 0;                             ///< The file size, in bytes.
+        std::chrono::file_clock::time_point last_write{};   ///< The time of the last write.
     };
 
     async_directory() = default;
 
+    /// Constructs the object by moving the enumeration of another.
     async_directory(async_directory&&) noexcept = default;
+    /// Moves the enumeration of another object into this one.
     async_directory& operator=(async_directory&&) noexcept = default;
 
     /// Starts an enumeration.
@@ -85,6 +89,7 @@ public:
     /// when it dies -- but that death happens on the STA thread.
     [[nodiscard]] task<> close();
 
+    /// Tests whether the object holds an open enumeration.
     inline bool opened() const noexcept { return directory_.opened(); }
 
     /// \return whether there is a directory at this path.
@@ -110,14 +115,22 @@ public:
     ///@{
     static task<async_directory> open(const core::path& pattern, cancellation_token token);
 
+    /// Lists everything that \p pattern matches; the operation can be canceled through \p token.
     [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern, cancellation_token token);
 
+    /// Returns the next entry, or `std::nullopt` when the enumeration is over; the operation can
+    /// be canceled through \p token.
     [[nodiscard]] task<std::optional<entry>> next(cancellation_token token);
 
+    /// Tests whether a directory exists at \p path; the operation can be canceled through
+    /// \p token.
     [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token token);
 
+    /// Creates the whole chain of directories of \p p; the operation can be canceled through
+    /// \p token.
     [[nodiscard]] static task<> create_all(const core::path& p, cancellation_token token);
 
+    /// Removes the empty directory at \p path; the operation can be canceled through \p token.
     [[nodiscard]] static task<> remove(const core::path& path, cancellation_token token);
     ///@}
 

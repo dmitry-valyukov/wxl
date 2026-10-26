@@ -32,8 +32,11 @@ public:
     /// copies it. That is what makes walking a directory cost no allocations at
     /// all.
     struct entry {
+        /// The name of the file or directory, without the directory that holds it.
         std::wstring_view name;
+        /// `true` if the entry is a directory; otherwise, `false`.
         bool is_directory = false;
+        /// The size of the file, in bytes.
         std::uint64_t size = 0;
 
         /// When the file was last written, from the same `WIN32_FIND_DATAW` as
@@ -45,11 +48,14 @@ public:
 
     directory() = default;
 
+    /// Constructs an enumeration that takes over the one of \p other, which is left closed.
     inline directory(directory&& other) noexcept
         : handle_(std::exchange(other.handle_, INVALID_HANDLE_VALUE)),
           found_(other.found_),
           pending_(std::exchange(other.pending_, false)) {}
 
+    /// Exchanges the enumerations of this object and \p other and returns a reference to this
+    /// object.
     inline directory& operator=(directory&& other) noexcept {
         std::swap(handle_, other.handle_);
         std::swap(found_, other.found_);
@@ -85,6 +91,7 @@ public:
         return result;
     }
 
+    /// Tests whether the enumeration is open.
     inline bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
 
     /// The next name, or `false` when there are none left.
@@ -124,6 +131,7 @@ public:
         return false;
     }
 
+    /// Closes the enumeration; does nothing when it is not open.
     inline void close() noexcept {
         if (opened()) ::FindClose(std::exchange(handle_, INVALID_HANDLE_VALUE));
 

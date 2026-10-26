@@ -23,7 +23,9 @@ export namespace wxl::core {
  */
 template <class Node>
 struct intrusive_list_node : public noncopyable {
+    /// The next link in the ring; this node itself while the node is unlinked.
     intrusive_list_node* next_ = this;
+    /// The previous link in the ring; this node itself while the node is unlinked.
     intrusive_list_node* prev_ = this;
 
     /// `true` while this node is in some list.
@@ -59,40 +61,53 @@ class intrusive_list_iterator
 
 public:
     intrusive_list_iterator() = default;
+    /// Constructs an iterator that refers to \p link.
     explicit intrusive_list_iterator(link_t* link) noexcept : link_(link) {}
 
+    /// The type of the node that the iterator refers to.
     using value_type = Node;
+    /// The type of a reference to the node.
     using reference = Node&;
+    /// The type of a pointer to the node.
     using pointer = Node*;
+    /// The type that represents the distance between two iterators.
     using difference_type = std::ptrdiff_t;
+    /// The iterator category: bidirectional.
     using iterator_category = std::bidirectional_iterator_tag;
 
+    /// Returns a reference to the node that the iterator refers to.
     reference operator*() const { return *static_cast<Node*>(link_); }
+    /// Returns a pointer to the node that the iterator refers to.
     pointer operator->() const { return static_cast<Node*>(link_); }
 
+    /// Moves the iterator to the next link and returns a reference to the iterator.
     intrusive_list_iterator& operator++() {
         link_ = link_->next_;
         return *this;
     }
 
+    /// Moves the iterator to the next link and returns its previous value.
     intrusive_list_iterator operator++(int) {
         intrusive_list_iterator tmp = *this;
         link_ = link_->next_;
         return tmp;
     }
 
+    /// Moves the iterator to the previous link and returns a reference to the iterator.
     intrusive_list_iterator& operator--() {
         link_ = link_->prev_;
         return *this;
     }
 
+    /// Moves the iterator to the previous link and returns its previous value.
     intrusive_list_iterator operator--(int) {
         intrusive_list_iterator tmp = *this;
         link_ = link_->prev_;
         return tmp;
     }
 
-    // operator!= is synthesized from this by the compiler.
+    /// Tests whether two iterators refer to the same link. The compiler synthesizes
+    /// `operator!=` from this operator.
     friend bool operator==(intrusive_list_iterator, intrusive_list_iterator) = default;
 };
 
@@ -118,7 +133,9 @@ class intrusive_list : intrusive_list_node<Node>
     using link_t = intrusive_list_node<Node>;
 
 public:
+    /// The type that iterates over the nodes of the list.
     using iterator = intrusive_list_iterator<Node>;
+    /// The type that iterates over the nodes of the list as `const`.
     using const_iterator = intrusive_list_iterator<const Node>;
 
     /// Links `node` in at the head. `node` must not already be linked.
@@ -151,6 +168,7 @@ public:
         }
     }
 
+    /// Tests whether the list contains no nodes.
     bool empty() const noexcept { return this->next_ == this; }
 
     /// The first node, or null when there is none.
@@ -159,12 +177,16 @@ public:
     /// The last node, or null when there is none.
     Node* back() const noexcept { return empty() ? nullptr : as_node(this->prev_); }
 
+    /// Returns an iterator to the first node.
     iterator begin() noexcept { return iterator{this->next_}; }
 
+    /// Returns a `const` iterator to the first node.
     const_iterator begin() const noexcept { return const_iterator{mutable_self()->next_}; }
 
+    /// Returns an iterator past the last node; it refers to the link of the list itself.
     iterator end() noexcept { return iterator{this}; }
 
+    /// Returns a `const` iterator past the last node; it refers to the link of the list itself.
     const_iterator end() const noexcept { return const_iterator{mutable_self()}; }
 
 private:

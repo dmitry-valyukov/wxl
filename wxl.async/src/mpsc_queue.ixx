@@ -34,6 +34,8 @@ public:
     /// Safe to call from reader thread only
     bool empty() const noexcept { return (reader_node_ == nullptr) && stack_.empty(); }
 
+    /// Pushes \p element onto the queue, publishing it with release ordering. Safe to call
+    /// from many threads.
     void push_one(Node* element) noexcept { stack_.push(element); }
 
     /// Publishes the element with seq_cst instead of release, for a writer that reads

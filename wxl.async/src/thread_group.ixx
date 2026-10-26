@@ -19,6 +19,7 @@ using thread_group_ptr = core::intrusive_ptr<thread_group>;
 class thread_group : public core::refcounted_mt
 {
 public:
+    /// The type of a thread body: a callable that takes no arguments and returns nothing.
     using thread_proc = std::function<void()>;
 
     /// thread_group can be created only on the heap and its lifetime should be managed by
@@ -37,6 +38,9 @@ public:
         at_thread_exit_impl(cleanup_func, nullptr, nullptr);
     }
 
+    /// Registers \p cleanup_func to be called with \p arg when the current thread exits.
+    /// \throw std::logic_error if the current thread is neither the main thread nor one
+    ///        started by `wxl::async::thread_group`.
     template <typename t_arg>
     static void at_thread_exit(void (*cleanup_func)(void*), t_arg* arg) {
         at_thread_exit_impl(nullptr, cleanup_func, arg);
@@ -70,6 +74,7 @@ public:
         return spawn_detached_named({}, thread_proc);
     }
 
+    /// Starts a new detached thread named \p thread_name, with \p thread_proc as its entry.
     static future<void> spawn_detached_named(core::u8_view thread_name,
                                              const thread_proc& thread_proc);
     /// @}
@@ -116,6 +121,7 @@ public:
                                       std::forward<t_args>(args)...));
     }
 
+    /// Starts a new thread named \p thread_name that calls \p func with the bound arguments.
     template <typename t_func, typename t_arg, typename... t_args>
         requires std::invocable<t_func&, t_arg&, t_args&...>
     future<void> spawn_named(core::u8_view thread_name, t_func&& func, t_arg&& arg,
@@ -135,6 +141,8 @@ public:
                                                std::forward<t_args>(args)...));
     }
 
+    /// Starts a new detached thread named \p thread_name that calls \p func with the bound
+    /// arguments.
     template <typename t_func, typename t_arg, typename... t_args>
         requires std::invocable<t_func&, t_arg&, t_args&...>
     static future<void> spawn_detached_named(core::u8_view thread_name, t_func&& func,
@@ -145,7 +153,9 @@ public:
     }
     /// @}
 
+    /// The type of a cleanup function that takes no argument.
     using cleanup_func = void (*)();
+    /// The type of a cleanup function that takes one pointer argument.
     using cleanup_func1 = void (*)(void*);
 
 protected:
@@ -167,16 +177,20 @@ private:
 class thread_scope : public core::noncopyable
 {
 public:
+    /// The type of a thread body; the same as `wxl::async::thread_group::thread_proc`.
     using thread_proc = thread_group::thread_proc;
 
     inline thread_scope() : group_(thread_group::create()) {}
 
     ~thread_scope();
 
+    /// Gets the group that the scope owns.
     inline thread_group* get() { return group_.get(); }
 
+    /// Provides member access to the group that the scope owns.
     inline thread_group* operator->() { return group_.get(); }
 
+    /// Converts the scope to a pointer to the group that it owns.
     inline operator thread_group*() { return group_.get(); }
 
 private:
@@ -188,6 +202,7 @@ private:
 class joining_thread : public core::noncopyable
 {
 public:
+    /// Starts the thread, which calls \p func with the bound arguments \p args.
     template <typename t_func, typename... t_args>
         requires std::invocable<t_func&, t_args&...>
     explicit joining_thread(t_func&& func, t_args&&... args)

@@ -213,6 +213,9 @@ std::size_t next_grapheme_boundary(const std::wstring_view text, const std::size
     return next_boundary(text, at);
 }
 
+/// Returns the start of the grapheme cluster after the one that starts at \p at, or the end of
+/// the text; the overload for `std::u16string_view`, with the behavior of the overload for
+/// `std::wstring_view`.
 std::size_t next_grapheme_boundary(const std::u16string_view text, const std::size_t at) noexcept {
     return next_boundary(text, at);
 }
@@ -221,6 +224,8 @@ std::size_t floor_grapheme_boundary(const std::wstring_view text, const std::siz
     return floor_boundary(text, at);
 }
 
+/// Returns the nearest grapheme cluster boundary at or before \p at; the overload for
+/// `std::u16string_view`, with the behavior of the overload for `std::wstring_view`.
 std::size_t floor_grapheme_boundary(const std::u16string_view text, const std::size_t at) noexcept {
     return floor_boundary(text, at);
 }

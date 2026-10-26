@@ -95,7 +95,9 @@ public:
 
     async_file() = default;
 
+    /// Constructs the object by moving the file and the position of another.
     async_file(async_file&&) noexcept = default;
+    /// Moves the file and the position of another object into this one.
     async_file& operator=(async_file&&) noexcept = default;
 
     /// Opens an existing file for reading.
@@ -179,26 +181,39 @@ public:
     ///@{
     static task<async_file> open_read(const core::path& path, cancellation_token token);
 
+    /// Creates a file for writing, emptying one that is already there; the operation can be
+    /// canceled through \p token.
     static task<async_file> create(const core::path& path, cancellation_token token);
 
+    /// Reads the whole of the file at \p path; the operation can be canceled through \p token.
     [[nodiscard]] static task<std::string> read_all(const core::path& path, cancellation_token token);
 
+    /// Replaces a file with \p bytes, whole or not at all; the operation can be canceled
+    /// through \p token.
     [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes, cancellation_token token);
 
+    /// Tests whether a file exists at \p path; the operation can be canceled through \p token.
     [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token token);
 
+    /// Reads into the caller's buffer \p into and returns the number of bytes read;
+    /// the operation can be canceled through \p token.
     [[nodiscard]] task<std::size_t> read(std::span<std::byte> into, cancellation_token token);
 
+    /// Reads into an array of byte-sized elements and returns the number of bytes read;
+    /// the operation can be canceled through \p token.
     template <class T, std::size_t N>
         requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
     [[nodiscard]] task<std::size_t> read(T (&into)[N], cancellation_token token) {
         return read(std::as_writable_bytes(std::span{into}), std::move(token));
     }
 
+    /// Writes \p from at the current position and returns the number of bytes written;
+    /// the operation can be canceled through \p token.
     [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from,
                                           cancellation_token token);
     ///@}
 
+    /// Tests whether the object holds an open file.
     inline bool opened() const noexcept { return file_.opened(); }
 
 private:

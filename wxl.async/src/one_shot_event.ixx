@@ -20,6 +20,8 @@ export namespace wxl::async {
 class one_shot_event : public core::noncopyable
 {
 public:
+    /// Constructs the event, signaled if \p initial_state is `true`; no kernel object is
+    /// created here.
     inline explicit one_shot_event(bool initial_state = false) noexcept
         : state_(initial_state), event_obj_(nullptr) {}
 

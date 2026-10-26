@@ -8,8 +8,10 @@ export namespace wxl::core {
 class traceable
 {
 public:
+    /// Constructs a component with the name \p name.
     inline explicit traceable(std::string_view name) noexcept : name_(name) {}
 
+    /// Gets the name of the component.
     inline const std::string& name() const noexcept { return name_; }
 
 private:

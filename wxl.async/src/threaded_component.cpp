@@ -18,6 +18,8 @@ class threaded_component::impl_t : public component::impl_t
     using base = component::impl_t;
 
 public:
+    /// Constructs the state that synchronizes on \p sync_root_arg, for a thread of \p group,
+    /// or for a detached thread if \p group is null.
     impl_t(core::sync_root_holder sync_root_arg, thread_group* group)
         : base(sync_root_arg), group_(group) {}
 
@@ -33,13 +35,20 @@ public:
     void thread_proc(task_tree_handle thread_starting_task,
                      task_tree_handle thread_running_task);
 
+    /// Completes the start on the component's thread: opens the handle that `dispose()` waits
+    /// on, tests whether the start has been canceled or a stop requested, and waits for the
+    /// call to `on_starting()` to complete.
+    /// \return `false` if the start has failed; \p thread_starting_task is then failed.
     bool complete_start(task_tree_handle thread_starting_task);
 
     /// The component's disposal, and then the wait for its thread to exit.
     void dispose() override;
 
+    /// The group of the component's thread, or null for a detached thread.
     const thread_group_ptr group_;
 
+    /// The identifier of the component's thread while the thread runs the component;
+    /// otherwise 0.
     std::atomic<core::thread_id> thread_id_{0};
 
     /// The component's thread, opened by that thread as its first step and closed by

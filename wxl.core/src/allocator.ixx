@@ -12,24 +12,33 @@ export namespace wxl::core {
 template <typename Al>
 concept sized_free = requires(void* p, size_t n) { Al::free(p, n); };
 
+/// Provides a standard allocator of `T` over the static functions `Al::alloc` and `Al::free`.
+/// The allocator holds no state.
 template <typename T, typename Al>
 class allocator
 {
 public:
+    /// The type of the allocated objects.
     using value_type = T;
 
+    /// Provides the allocator of another object type over the same backend.
     template <typename U>
     struct rebind {
+        /// The type of the allocator of `U` over `Al`.
         using other = allocator<U, Al>;
     };
 
     allocator() noexcept = default;
 
+    /// Constructs an allocator from an allocator of another object type over the same backend.
     template <typename U>
     constexpr allocator(const allocator<U, Al>&) noexcept {}
 
+    /// Allocates storage for \p n objects of type `T` from `Al`.
     [[nodiscard]] T* allocate(size_t n) { return static_cast<T*>(Al::alloc(n * sizeof(T))); }
 
+    /// Releases the storage for \p n objects at \p p to `Al`, passing the size in bytes when
+    /// `Al::free` accepts one. A null \p p or a zero \p n is ignored.
     void deallocate(T* p, size_t n) noexcept {
         if (p == nullptr || n == 0) [[unlikely]]
             return;
@@ -41,6 +50,7 @@ public:
     }
 };
 
+/// Tests whether two allocators over the same backend are equal; they always are.
 template <typename T, typename U, typename Al>
 bool operator==(const allocator<T, Al>&, const allocator<U, Al>&) noexcept {
     return true;

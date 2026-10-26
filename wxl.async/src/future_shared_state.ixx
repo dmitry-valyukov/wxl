@@ -31,11 +31,14 @@ enum class future_status
               ///< this yet.
 };
 
+/// Returns the name of \p status: `ready`, `timeout` or `deferred`.
 const char* to_string(future_status status);
 
+/// Writes the name of \p status, as `to_string` returns it, to \p stream.
 std::ostream& operator<<(std::ostream& stream, future_status status);
 
 class future_shared_state;
+/// The type that holds a counted reference to a `wxl::async::future_shared_state`.
 using future_shared_state_ptr = core::intrusive_ptr<future_shared_state>;
 
 namespace detail {
@@ -314,14 +317,18 @@ class future_shared_state : public core::refcounted_mt
     using state_id = detail::state_id;
 
 public:
+    /// The tag type of the constructor that creates a state already counting one promise.
     enum init_promise_tag
     {
         init_promise
     };
 
+    /// Constructs a shared state that holds the result \p state, or a pending one if \p state
+    /// is `nullptr`. No promise refers to it.
     inline explicit future_shared_state(detail::state* state = nullptr) noexcept
         : state_(state), promise_count_() {}
 
+    /// Constructs a pending shared state that counts one promise: the one it is created for.
     inline explicit future_shared_state(init_promise_tag) noexcept : state_(), promise_count_(1) {}
 
     /// Returns \c true if the Future result is not yet evaluated, otherwise - \c false.
@@ -345,6 +352,9 @@ public:
         return state && state->id() == state_id::failed;
     }
 
+    /// Returns the stored exception.
+    ///
+    /// \throw std::logic_error if the result is not an exception.
     inline const std::exception_ptr& get_exception_ptr() const {
         const state* const state = state_.load();
 
@@ -421,10 +431,15 @@ public:
         return false;
     }
 
+    /// Stores the exception of \p failed_state, the failed result of another shared state, and
+    /// makes this state ready.
+    /// \return true if this call resolved the state; false if it was already resolved.
     inline bool set_exception(const detail::state* failed_state) {
         return set_exception(detail::failed_state::from(failed_state)->exception_ptr_);
     }
 
+    /// Waits until the shared state is ready and returns its result. If the result is an
+    /// exception, rethrows it instead.
     inline const state* get() const {
         state* state = state_.load();
 
@@ -447,9 +462,13 @@ public:
     template <typename T, class t_when_succeeded>
     void when_succeeded(t_when_succeeded callback) const;
 
+    /// Calls \p callback, which takes no argument, once the state holds a value: at once if it
+    /// holds one already, otherwise when it is resolved. A failed state never calls it.
     template <class t_when_succeeded>
     void when_succeeded_void(t_when_succeeded callback) const;
 
+    /// Calls \p callback with the stored exception once the state fails: at once if it has
+    /// failed already, otherwise when it is resolved. A state that holds a value never calls it.
     template <class t_when_failed>
     void when_failed(t_when_failed callback) const;
 
@@ -461,20 +480,38 @@ public:
     template <class T, class t_when_ready>
     void when_ready1(t_when_ready callback) const;
 
+    /// Attaches the continuation \p next_task, whose outcome resolves \p result: at once if
+    /// the state is ready already, otherwise when it is resolved. On a value, \p next_task is
+    /// called with it (with no argument when `T` is `void`), and what it returns or throws
+    /// resolves \p result; on a failure, \p result receives the exception.
     template <typename T, typename t_result, class t_next_task>
     void next(t_next_task next_task, future_shared_state* result) const;
     /// @}
 
+    /// Tries to push the pending node \p new_state, which holds \p callback, onto the list of
+    /// continuations in \p state with one compare-and-swap. The node is created if
+    /// \p new_state is `nullptr`, and relinked to the current list otherwise.
+    /// \return `true` if the node is attached; otherwise `false`, and \p state receives the
+    ///         current state.
     template <class t_next_pending_state, class t_callback>
     bool try_attach_continuation(t_next_pending_state*& new_state, state*& state,
                                  t_callback&& callback) const;
 
+    /// Tries to push the pending node \p new_state, which holds \p callback and the shared
+    /// state \p result it resolves, onto the list of continuations in \p state with one
+    /// compare-and-swap. The node is created if \p new_state is `nullptr`, and relinked to the
+    /// current list otherwise.
+    /// \return `true` if the node is attached; otherwise `false`, and \p state receives the
+    ///         current state.
     template <class t_next_pending_state, class t_callback>
     bool try_attach_continuation(t_next_pending_state*& new_state, state*& state,
                                  t_callback&& callback, future_shared_state* result) const;
 
+    /// Counts one more promise that refers to the state.
     inline void increment_promise_count() noexcept { ++promise_count_; }
 
+    /// Counts one promise fewer. When the last one goes, calls `abandon`, which fails an
+    /// unresolved state with `std::future_errc::broken_promise`.
     void checked_decrement_promise_count();
 
     /// Closes an unresolved shared state whose producer is gone, with
@@ -490,18 +527,28 @@ public:
 protected:
     ~future_shared_state() override;
 
+    /// Tests whether \p state is an unresolved result: `nullptr` or a pending node.
     inline static bool pending(const state* state) noexcept {
         return nullptr == state || state_id::pending == state->id();
     }
 
+    /// Tests whether \p state is a resolved result: a value or an exception.
     inline static bool ready(const state* state) noexcept { return !pending(state); }
 
+    /// Counts one promise fewer and returns the number of promises left.
     inline ssize_t decrement_promise_count() { return --promise_count_; }
 
+    /// Provides the memory for the result and the pending nodes of a shared state: blocks of a
+    /// small buffer inside the state while it has room, then blocks of `std::malloc`.
     class allocator : public core::noncopyable
     {
     public:
+        /// Allocates \p size bytes from the internal buffer, or from `std::malloc` when the
+        /// buffer has no room for them.
+        /// \throw std::bad_alloc if `std::malloc` fails.
         void* alloc(size_t size);
+        /// Releases \p mem. A block of the internal buffer is not reclaimed; any other block
+        /// goes back to `std::free`.
         void free(void* mem);
 
     private:
@@ -525,6 +572,8 @@ protected:
         }
     }
 
+    /// Destroys \p obj and releases its memory to the allocator. Does nothing if \p obj is
+    /// `nullptr`.
     template <typename T>
     void destroy(T* obj) const {
         if (obj) {

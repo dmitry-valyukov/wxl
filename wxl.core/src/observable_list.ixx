@@ -15,6 +15,7 @@ export namespace wxl::core {
 /// What happened to an observable_list, said exactly enough for a view to do the same to
 /// itself: one operation of the view per change, nothing to compare or guess.
 struct list_change {
+    /// Specifies the kind of a change.
     enum kind_t : uint8_t {
         /// `count` items now stand from `at` on; what stood there moved up.
         inserted,
@@ -26,10 +27,14 @@ struct list_change {
         reset,
     };
 
+    /// The kind of the change.
     kind_t kind;
+    /// The index of the first item that the change affects.
     uint32_t at;
+    /// The number of items that the change affects.
     uint32_t count;
 
+    /// Tests whether two changes are equal in kind, index and count.
     friend bool operator==(list_change const&, list_change const&) = default;
 };
 
@@ -57,8 +62,9 @@ template <class T>
 class observable_list<T const>
 {
 public:
-    // Spelled noexcept for the reason observable's is: a watcher is called from
-    // inside the event's call, which has nobody to hand an exception to.
+    /// The type of the event that notifies the watchers of a change. The signature is
+    /// `noexcept` for the reason given at `wxl::core::observable`: a watcher is called from
+    /// inside the call of the event, which has no caller to propagate an exception to.
     using changed_event = event<void(list_change const&) noexcept>;
 
     // A field, not a handle, for observable's reason: a copy would be a second
@@ -66,17 +72,22 @@ public:
     observable_list(observable_list const&) = delete;
     observable_list& operator=(observable_list const&) = delete;
 
+    /// Returns the number of items.
     uint32_t size() const noexcept { return static_cast<uint32_t>(items_.size()); }
 
+    /// Tests whether the list contains no items.
     bool empty() const noexcept { return items_.empty(); }
 
+    /// Returns the item at index \p at, which must be less than `size()`.
     T const& operator[](uint32_t at) const noexcept {
         assert(at < size());
         return items_[at];
     }
 
+    /// Returns a pointer to the first item.
     T const* begin() const noexcept { return items_.data(); }
 
+    /// Returns a pointer past the last item.
     T const* end() const noexcept { return items_.data() + items_.size(); }
 
     /// The items now -- what follow() hands a function for a list among its sources.
@@ -113,13 +124,14 @@ public:
 
 protected:
     observable_list() = default;
+    /// Constructs a list that holds \p items, with the size field set to their number.
     explicit observable_list(sta_vector<T> items) : items_(std::move(items)), count_(size()) {}
     ~observable_list() = default;
 
-    // The change is made already: the bindings hear first, so a view shows it before
-    // anything else learns of it; then the size; then the application. The list is not
-    // changed again from inside: a watcher that did would hand the ones after it the
-    // second change before the first.
+    /// Notifies the watchers of \p change, which is already made: the bindings first, so that
+    /// a view shows the change before anything else learns of it; then the size field; then
+    /// the application. The list must not be changed again from inside a watcher: a watcher
+    /// that did would deliver the second change to the watchers after it before the first.
     void notify(list_change const& change) noexcept {
         assert(!notifying_ && "wxl: an observable_list is changed by one of its own watchers");
         notifying_ = true;
@@ -129,12 +141,18 @@ protected:
         notifying_ = false;
     }
 
+    /// The items.
     sta_vector<T> items_;
+    /// The size as a field; see `count()`.
     observable<uint32_t> count_;
-    // After the items and the size, so that the watches go first: a binding's watch lets
-    // go of its view while the list it mirrored is still whole.
+    /// The watches of the bindings, which `unbind()` removes. Declared after the items and the
+    /// size so that the watches are destroyed first: a binding's watch releases its view while
+    /// the list it mirrors is still intact.
     changed_event bound_;
+    /// The watches of the application, added through `on_change`; `unbind()` leaves them in
+    /// place.
     changed_event changed_;
+    /// `true` while `notify()` calls the watchers; detects a change made from inside a watcher.
     bool notifying_ = false;
 };
 
@@ -175,8 +193,10 @@ class observable_list : public impl::readonly_observable_list<T>
 
 public:
     observable_list() = default;
+    /// Constructs a list that holds \p items.
     explicit observable_list(sta_vector<T> items) : readonly(std::move(items)) {}
 
+    /// Inserts \p item at the end of the list.
     void push_back(T item) { insert(this->size(), std::move(item)); }
 
     /// Puts `item` at `at`, moving what stood there and after it up by one.

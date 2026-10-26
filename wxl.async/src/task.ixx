@@ -483,6 +483,7 @@ class [[nodiscard("a task nobody keeps is destroyed at once, and its work with i
     : public detail::awaiter<R>
 {
 public:
+    /// The promise type of a coroutine that returns this task.
     using promise_type = detail::task_promise<R>;
 
     /// An empty task: nothing to wait for, nothing to give.
@@ -494,6 +495,7 @@ public:
     inline explicit task(std::unique_ptr<async_op_t<R>> started) noexcept
         : detail::awaiter<R>(started.release()) {}
 
+    /// Takes over what \p other holds, and leaves \p other empty.
     inline task(task&& other) noexcept
         : detail::awaiter<R>(std::exchange(other.producer_, nullptr)) {}
 

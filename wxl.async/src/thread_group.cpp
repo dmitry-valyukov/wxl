@@ -280,6 +280,8 @@ private:
 class thread_starter : public core::noncopyable
 {
 public:
+    /// Constructs the starter of a thread named \p thread_name, with \p thread_proc as its
+    /// body, for \p group, or for a detached thread if \p group is null.
     thread_starter(thread_group* group, core::u8_view thread_name,
                    const std::function<void()>& thread_proc)
         : group_(group),
@@ -287,17 +289,25 @@ public:
           thread_proc_(thread_proc),
           info_(group ? core::make_refcounted<thread_info>() : nullptr) {}
 
+    /// Gets the group of the thread, or `nullptr` for a detached thread.
     thread_group* group() { return group_.get(); }
 
+    /// Gets the information about the managed thread, or `nullptr` for a detached thread.
     thread_info* info() { return info_.get(); }
 
+    /// Returns the future of the promise that the thread body reports through.
     future<void> get_future() const { return result_.get_future(); }
 
+    /// Starts the thread. A thread of a group starts suspended and is resumed once its handle
+    /// is stored in its `thread_info`; a detached thread runs at once.
+    /// \throw std::runtime_error if the thread cannot be started.
+    /// \throw last_error if `ResumeThread` fails.
     void start_thread();
 
-    // noexcept: an exception must not leave a thread's entry point for the system frames
-    // below it -- what the body throws goes to the promise -- so a failure outside the body
-    // is std::terminate.
+    /// The entry point of the thread; \p arg is the starter, which the thread takes over and
+    /// deletes. The function is `noexcept` because an exception must not leave the entry point
+    /// for the system frames below it: what the body throws goes to the promise, and a failure
+    /// outside the body calls `std::terminate`.
     static unsigned __stdcall thread_proc(void* arg) noexcept;
 
 private:

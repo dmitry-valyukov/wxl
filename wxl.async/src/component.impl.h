@@ -17,24 +17,40 @@ class component::impl_t : public future_shared_state, public core::synchronized_
     using base = future_shared_state;
 
 public:
+    /// Constructs the state that synchronizes on \p sync_root_arg.
     explicit impl_t(core::sync_root_holder sync_root_arg);
+    /// Constructs the state that synchronizes on \p sync_root_arg.
     explicit impl_t(core::not_null<core::sync_root> sync_root_arg);
 
     /// \note Aborts if the component has already been disposed -- that is an architecture-level
     ///       invariant violation, not an application error.
     component* owner_unsafe();
 
+    /// Returns the stop ticket: a ticket on this state.
     ticket stop_ticket();
 
+    /// Returns the recorded stop reason, or `nullptr` if no stop has been requested.
     const std::exception_ptr* stop_reason_ptr() const noexcept;
 
+    /// Records the stop reason, unless a reason has been recorded already.
+    ///
+    /// An empty \p error is replaced by the exception of a failed start, or by
+    /// `operation_canceled_exception` if a start is under way; during process termination it
+    /// is recorded as it is. The reason is published by a compare-and-exchange, so of several
+    /// callers exactly one records its reason.
+    /// \return `true` if this call recorded the reason.
     bool try_to_win_stopping_race(const std::exception_ptr& error);
 
+    /// Requests the stop with \p error as the reason, and carries out the stop if this call
+    /// recorded the reason.
     void stop_async_unsafe(const std::exception_ptr& error = std::exception_ptr());
 
+    /// Requests the stop with \p reason; the same as the form that takes the exception.
     void stop_async_unsafe(const stop_reason& reason);
 
 
+    /// Tests whether the component has been disposed of, which is when the state no longer
+    /// has an owner.
     bool is_disposed() const noexcept;
 
     /// Virtual: a state that holds more than the lifecycle -- the thread of a threaded
@@ -44,10 +60,13 @@ public:
 protected:
     ~impl_t() override;
 
+    /// Gets the starting task of the component.
     const task_tree& starting_task() const;
 
+    /// Gets the running task of the component.
     const task_tree& running_task() const;
 
+    /// Gets the subtask of the starting task that covers the call to `on_starting()`.
     const task_tree& on_starting_task() const;
 
 private:
@@ -84,12 +103,16 @@ private:
 /// Stops the component whatever it is handed -- an exception, or the ticket of an operation
 /// that may have failed.
 struct component::stop_async_func {
+    /// Constructs the functor that stops the component whose state is \p component_impl.
     explicit stop_async_func(const impl_ptr& component_impl);
 
+    /// Requests the stop with \p error as the reason.
     void operator()(const std::exception_ptr& error) const noexcept;
+    /// Requests the stop with the exception of \p result as the reason, or with an empty
+    /// reason if \p result holds no exception.
     void operator()(const ticket& result) const noexcept;
 
-    impl_ptr impl_;
+    impl_ptr impl_;  ///< The state of the component to stop.
 };
 
 }  // namespace wxl::async

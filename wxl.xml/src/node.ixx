@@ -51,6 +51,9 @@ class qualified_name {
 public:
     constexpr qualified_name() noexcept = default;
 
+    /// Constructs a name from \p qualified, the name as the document wrote it;
+    /// \p prefix_length, the length of its prefix without the colon, or zero when there is
+    /// none; and \p namespace_uri, the namespace in scope for it.
     constexpr qualified_name(core::u8_view qualified, std::size_t prefix_length,
                              core::u8_view namespace_uri) noexcept
         : qualified_(qualified), namespace_uri_(namespace_uri),
@@ -95,14 +98,21 @@ private:
 /// One attribute of an element.
 class attribute {
 public:
+    /// Constructs an attribute with the name \p name and the value \p value.
     constexpr attribute(qualified_name name, core::u8_view value) noexcept : name_(name), value_(value) {}
 
+    /// Gets the local part of the name.
     inline core::u8_view name() const noexcept { return name_.name(); }
+    /// Gets the prefix of the name; empty when the name carries none.
     inline core::u8_view prefix() const noexcept { return name_.prefix(); }
+    /// Gets the namespace of the attribute; empty when the attribute is in no namespace.
     inline core::u8_view namespace_uri() const noexcept { return name_.namespace_uri(); }
+    /// Gets the name as the document wrote it, prefix included.
     inline core::u8_view qualified_name() const noexcept { return name_.qualified(); }
+    /// Gets the whole name.
     constexpr const xml::qualified_name& full_name() const noexcept { return name_; }
 
+    /// Gets the value of the attribute.
     constexpr core::u8_view value() const noexcept { return value_; }
 
 private:
@@ -123,18 +133,28 @@ using attribute_span = std::span<const attribute>;
 /// the reader's arena and released with it.
 class node : public core::intrusive_slist_node<node> {
 public:
+    /// Constructs a node of the type \p type with the name \p name, starting at \p line and
+    /// \p column of the document.
     inline node(node_type type, qualified_name name, int line, int column) noexcept
         : name_(name), type_(type), line_(line), column_(column) {}
 
+    /// Gets the type of the node.
     inline node_type type() const noexcept { return type_; }
+    /// Tests whether the node is an element.
     inline bool is_element() const noexcept { return type_ == node_type::element; }
+    /// Tests whether the node is a text node.
     inline bool is_text() const noexcept { return type_ == node_type::text; }
 
     /// The local name of an element; empty for anything else.
     inline core::u8_view name() const noexcept { return name_.name(); }
+    /// Gets the prefix of the name of an element; empty when the name carries none.
     inline core::u8_view prefix() const noexcept { return name_.prefix(); }
+    /// Gets the namespace of an element: the one its prefix stands for, or the default
+    /// namespace in scope for an unprefixed element; empty when there is none.
     inline core::u8_view namespace_uri() const noexcept { return name_.namespace_uri(); }
+    /// Gets the name of an element as the document wrote it, prefix included.
     inline core::u8_view qualified_name() const noexcept { return name_.qualified(); }
+    /// Gets the whole name of the node.
     inline const xml::qualified_name& full_name() const noexcept { return name_; }
 
     /// What a text node or a comment holds. An element answers empty: its text
@@ -145,8 +165,10 @@ public:
     /// node, of its first byte. The column counts bytes, not characters, which
     /// is what a text editor showing a UTF-8 file counts too.
     inline int line() const noexcept { return line_; }
+    /// Gets the column that the node starts at, 1-based and counted in bytes.
     inline int column() const noexcept { return column_; }
 
+    /// Gets the parent node, or `nullptr` for a node that has none.
     inline const node* parent() const noexcept { return parent_; }
 
     /// The children, in document order.
@@ -164,6 +186,7 @@ public:
     /// The element children of that local name, for a range-for:
     /// `for (const node& row : table.children_named("tr"))`.
     class named_range;
+    /// Returns the range of the element children with the local name \p name.
     named_range children_named(std::string_view name) const noexcept;
 
     /// The pieces of text under this node, in document order, as views into
@@ -175,17 +198,23 @@ public:
     /// live, and what it usually finds is a single piece already lying whole
     /// in the document, with nothing to join at all.
     class text_range;
+    /// Returns the range of the pieces of text under this node.
     text_range text_pieces() const noexcept;
 
+    /// Gets the attributes of the element, in document order.
     inline attribute_span attributes() const noexcept { return attributes_; }
 
     /// The value of the attribute with that local name, whatever namespace it
     /// is in. Enough wherever a document has one vocabulary, which is most of
     /// them; use the two-argument form to mean one particular attribute.
     std::optional<core::u8_view> attribute(std::string_view name) const noexcept;
+    /// Returns the value of the attribute with the namespace \p namespace_uri and the local
+    /// name \p name, or `std::nullopt` when the element has no such attribute.
     std::optional<core::u8_view> attribute(std::string_view namespace_uri,
                                            std::string_view name) const noexcept;
 
+    /// Tests whether the element has an attribute with the local name \p name, in any
+    /// namespace.
     inline bool has_attribute(std::string_view name) const noexcept {
         return attribute(name).has_value();
     }
@@ -238,24 +267,31 @@ private:
 /// The element children of one name. Built by node::children_named().
 class node::named_range {
 public:
+    /// Represents an iterator over the element children of one name.
     class iterator {
     public:
         iterator() noexcept = default;
+        /// Constructs an iterator at the first matching child in the range from \p at to
+        /// \p end, where a matching child is an element with the local name \p name.
         inline iterator(node_list::const_iterator at, node_list::const_iterator end,
                         std::string_view name) noexcept
             : at_(at), end_(end), name_(name) {
             skip_to_match();
         }
 
+        /// Returns the current child.
         inline const node& operator*() const noexcept { return *at_; }
+        /// Provides member access to the current child.
         inline const node* operator->() const noexcept { return &*at_; }
 
+        /// Advances the iterator to the next matching child.
         inline iterator& operator++() noexcept {
             ++at_;
             skip_to_match();
             return *this;
         }
 
+        /// Tests whether two iterators stand at the same child.
         inline bool operator==(const iterator& other) const noexcept { return at_ == other.at_; }
 
     private:
@@ -269,12 +305,16 @@ public:
         std::string_view name_;
     };
 
+    /// Constructs the range of the element children in \p children with the local name
+    /// \p name.
     inline named_range(const node_list& children, std::string_view name) noexcept
         : children_(&children), name_(name) {}
 
+    /// Returns an iterator at the first matching child.
     inline iterator begin() const noexcept {
         return iterator(children_->begin(), children_->end(), name_);
     }
+    /// Returns the iterator past the last child.
     inline iterator end() const noexcept {
         return iterator(children_->end(), children_->end(), name_);
     }
@@ -291,31 +331,42 @@ inline node::named_range node::children_named(const std::string_view name) const
 /// The pieces of text under one node. Built by node::text_pieces().
 class node::text_range {
 public:
+    /// Represents an iterator over the pieces of text under one node.
     class iterator {
     public:
+        /// The type of a piece of text.
         using value_type = core::u8_view;
+        /// The type of the distance between two iterators.
         using difference_type = std::ptrdiff_t;
+        /// The iterator concept that the iterator models: a forward iterator.
         using iterator_concept = std::forward_iterator_tag;
 
         iterator() noexcept = default;
+        /// Constructs an iterator over the subtree under \p root, at the first text node from
+        /// \p at on in document order; a null \p at is the end.
         inline iterator(const node* root, const node* at) noexcept : root_(root), at_(at) {
             skip_to_text();
         }
 
+        /// Returns the text of the current piece.
         inline core::u8_view operator*() const noexcept { return at_->value(); }
 
+        /// Advances the iterator to the next piece of text.
         inline iterator& operator++() noexcept {
             at_ = node::next_in_subtree(at_, root_);
             skip_to_text();
             return *this;
         }
 
+        /// Advances the iterator to the next piece of text and returns the iterator as it was
+        /// before.
         inline iterator operator++(int) noexcept {
             const iterator before = *this;
             ++*this;
             return before;
         }
 
+        /// Tests whether two iterators stand at the same node.
         inline bool operator==(const iterator& other) const noexcept { return at_ == other.at_; }
 
     private:
@@ -331,9 +382,12 @@ public:
         const node* at_ = nullptr;
     };
 
+    /// Constructs the range of the pieces of text under \p root, \p root included.
     inline explicit text_range(const node& root) noexcept : root_(&root) {}
 
+    /// Returns an iterator at the first piece of text.
     inline iterator begin() const noexcept { return iterator(root_, root_); }
+    /// Returns the iterator past the last piece of text.
     inline iterator end() const noexcept { return iterator(root_, nullptr); }
 
 private:

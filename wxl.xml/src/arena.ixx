@@ -27,6 +27,11 @@ import :core;
 
 export namespace wxl::xml {
 
+/// Provides the storage that a parsed tree is made of. Memory comes in pages from
+/// `wxl::xml::arena_pool`, objects are carved out by moving a cursor, and all the pages are
+/// released together when the arena is destroyed. No destructor of a stored object is run,
+/// so only trivially destructible types may be stored. A request too large for a page gets a
+/// block of its own from `std::malloc`.
 class arena {
 public:
     /// Takes its first page. An arena with no page in it is a state this class
@@ -47,6 +52,7 @@ public:
         return core::sta_memory_pool::alloc(size);
     }
 
+    /// Releases the memory of an arena to the STA pool, which `operator new` takes it from.
     inline static void operator delete(void* ptr, std::size_t size) noexcept {
         core::sta_memory_pool::free(ptr, size);
     }

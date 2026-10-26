@@ -51,6 +51,7 @@ class spsc_channel : public spsc_queue<element_t, block_size>
     using base = spsc_queue<element_t, block_size>;
 
 public:
+    /// The type of the wake-up primitive.
     using signal_type = signal_t;
 
     /// The arguments go to the wake-up primitive: a message queue wants the
@@ -135,6 +136,7 @@ public:
     class reader : public base::reader
     {
     public:
+        /// Constructs the reading half of \p channel.
         explicit reader(spsc_channel& channel) : base::reader(channel), channel_(&channel) {}
 
         /// Takes an element, waiting for one to arrive.

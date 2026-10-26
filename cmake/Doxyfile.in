@@ -57,6 +57,17 @@ EXTRACT_STATIC         = YES
 SORT_MEMBER_DOCS       = NO
 HAVE_DOT               = NO
 
+# Doxygen does not parse the conditional explicit(...) of C++20: it reads
+# `explicit` as the name of a function whose parameters are the condition, and
+# a comma in the template arguments of the real parameter then ends the
+# declaration, losing the doc comment that follows. A variadic macro replaces
+# the specifier, condition and all, with a plain `explicit`; variadic because a
+# condition such as is_convertible_v<U, T> has a comma of its own. No other
+# macro is expanded.
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = "explicit(...)=explicit"
+
 # ---- Output ----
 GENERATE_HTML          = YES
 GENERATE_LATEX         = NO

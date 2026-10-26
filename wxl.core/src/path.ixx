@@ -51,13 +51,17 @@ export namespace wxl::core {
 class path
 {
 public:
+    /// The type that stores the text of the path.
     using string_type = sta_wstring;
+    /// The type of a view of the text of the path.
     using view_type = std::wstring_view;
 
     path() = default;
 
+    /// Constructs a path from \p text.
     inline path(view_type text) : text_(text) {}
 
+    /// Constructs a path from the null-terminated \p text.
     inline path(const wchar_t* text) : text_(text) {}
 
     /// What the system is called with. Null-terminated, which is why this class
@@ -75,8 +79,10 @@ public:
     /// level. See `directory::create_all()`, which puts back what it truncated.
     inline wchar_t* data() noexcept { return text_.data(); }
 
+    /// Tests whether the path is empty.
     inline bool empty() const noexcept { return text_.empty(); }
 
+    /// Returns the length of the path, in `wchar_t` units.
     inline std::size_t size() const noexcept { return text_.size(); }
 
     /// Appends one component, with a separator where one is needed.
@@ -108,6 +114,7 @@ public:
         return *this;
     }
 
+    /// Returns \p left with the component \p right appended, as `operator/=` appends it.
     inline friend path operator/(path left, view_type right) {
         left /= right;
         return left;
@@ -143,8 +150,10 @@ public:
         return left.text_ == right.text_;
     }
 
+    /// The separator that `operator/=` inserts: a backslash.
     static constexpr wchar_t preferred_separator = L'\\';
 
+    /// Tests whether \p c is a path separator: a backslash or a forward slash.
     static constexpr bool is_separator(wchar_t c) noexcept { return c == L'\\' || c == L'/'; }
 
 private:

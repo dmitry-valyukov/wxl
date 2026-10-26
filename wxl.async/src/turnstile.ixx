@@ -31,6 +31,7 @@ public:
         return closed() || inside_.compare_exchange_strong(expected, closed_sentinel);
     }
 
+    /// Tests whether the turnstile is closed.
     inline bool closed() const noexcept { return inside_.load() < 0; }
 
     /// \note Do NOT call exit() if this returns false.
@@ -57,6 +58,8 @@ private:
 class turnstile_guard : core::noncopyable
 {
 public:
+    /// Constructs the guard and tries to enter \p gate; `entered()` tells whether the
+    /// attempt succeeded.
     inline explicit turnstile_guard(turnstile& gate) noexcept
         : gate_(gate.try_enter() ? &gate : nullptr) {}
 

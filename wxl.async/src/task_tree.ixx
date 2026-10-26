@@ -38,12 +38,16 @@ class task_tree : public detail::shared_state_holder<detail::task_tree_state>
 public:
     task_tree() noexcept;
 
+    /// Constructs an instance that refers to the same node as \p other.
     task_tree(const task_tree& other);
 
+    /// Constructs an instance that takes over the node of \p other, leaving \p other empty.
     task_tree(task_tree&& other) noexcept;
 
+    /// Makes this instance refer to the same node as \p other.
     task_tree& operator=(const task_tree& other);
 
+    /// Takes over the node of \p other, leaving \p other empty.
     task_tree& operator=(task_tree&& other) noexcept;
 
     ~task_tree();
@@ -161,6 +165,8 @@ public:
     /// Creates an empty handle (no shared state).
     task_tree_handle() noexcept;
 
+    /// Constructs a handle to the same node as \p other, and counts one more handle of that
+    /// node.
     task_tree_handle(const task_tree_handle& other);
 
     /// Takes the state over without touching the handle count: the moved-from handle is left
@@ -169,8 +175,12 @@ public:
 
     ~task_tree_handle();
 
+    /// Makes this handle refer to the node of \p other. The handle count of that node grows by
+    /// one, and the count of the node this handle referred to drops by one.
     task_tree_handle& operator=(const task_tree_handle& other);
 
+    /// Takes over the node of \p other, leaving \p other empty. The handle count of the node
+    /// this handle referred to drops by one. Assignment to itself does nothing.
     task_tree_handle& operator=(task_tree_handle&& other);
 
     /// Marks the task as succeeded.

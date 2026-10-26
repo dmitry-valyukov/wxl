@@ -11,6 +11,7 @@ template <typename T>
 class bit_vector : noncopyable
 {
 public:
+    /// Constructs a bit vector that holds \p value.
     explicit bit_vector(T value = T()) noexcept : value_(value) {}
 
     /// \return true if the bits' state changed.
@@ -41,6 +42,7 @@ public:
         return new_value != old_value;
     }
 
+    /// Returns the current bits.
     T value() const noexcept { return value_.load(); }
 
     /// Atomically resets the given bits and returns their value from before the reset.
