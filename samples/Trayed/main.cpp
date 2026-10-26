@@ -44,6 +44,7 @@
 #include <utility>
 #include <vector>
 
+#include "Application.h"
 #include "Settings.h"
 #include "TrayIcon.h"
 #include "UiThread.h"
@@ -807,8 +808,9 @@ private:
     void quit() {
         stop();
 
-        // What ends the message loop wxl is running for the application.
-        ::PostQuitMessage(0);
+        // Whatever the window is doing: hidden in the tray, it is not closed, and XAML
+        // ends an application by itself only when its last window closes.
+        wxl::Application::exit();
     }
 
     void chooseEncoding(UINT codePage) {
