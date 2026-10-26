@@ -56,6 +56,14 @@ public:
     /// named in an Image's source are found the same way.
     static std::filesystem::path makeAbsolute(std::filesystem::path const& path);
 
+    /// Ends the application: XAML's Application.Exit(), which wxl otherwise calls itself when
+    /// a window of its own closes. Application::Start returns, the windows of wxl's own still
+    /// open are closed, and the Teardown handler wxl_launched() returned is called -- its answer
+    /// is the process's exit code, as on any other way out. The way to end an application that
+    /// has no window, or whose window is only hidden: XAML ends one by itself only when its last
+    /// window closes.
+    static void exit();
+
     /// Whether XAML's Application::Start is running its loop: set before the call and put down
     /// in ShutdownStarting of the queue of XAML, when the loop is over. A window that closes
     /// while it is asks the application to exit; one closed after must not, because Exit() then
