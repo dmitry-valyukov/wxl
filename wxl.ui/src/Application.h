@@ -62,6 +62,12 @@ public:
     /// is the process's exit code, as on any other way out. The way to end an application that
     /// has no window, or whose window is only hidden: XAML ends one by itself only when its last
     /// window closes.
+    ///
+    /// Only while the loop runs (loopRunning()); after it, from the Teardown handler or from a
+    /// window closed on the way out, it does nothing, as wxl's own call does: the application is
+    /// ending already, and Exit() would post a WM_QUIT that no XAML loop is there to take, on which
+    /// the next wait of the thread's loop would stop. A second call while the loop runs is as
+    /// harmless as XAML's.
     static void exit();
 
     /// Whether XAML's Application::Start is running its loop: set before the call and put down
