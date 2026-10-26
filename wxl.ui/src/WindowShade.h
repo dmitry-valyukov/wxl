@@ -10,7 +10,7 @@
 // shrink and fade toward a point on the screen -- a tray icon, say -- and the
 // window is hidden there; expanding reverses it. The motion is a composition
 // visual on the DWM thread, not frames the application draws, so it stays
-// smooth while the thread is busy, the same way a page turn does.
+// smooth while the thread is busy, as every animation of the compositor does.
 //
 // It animates a *snapshot* of the window, taken the moment it starts to
 // collapse, on a transparent click-through overlay of its own; the real

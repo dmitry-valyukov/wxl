@@ -13,8 +13,8 @@
 // and the compositor shows.
 //
 // Everything a XAML control puts on the screen is drawn by the framework.
-// This is the other case: the application has drawing of its own to do -- a
-// page of a book, glyph by glyph -- and needs somewhere to put it that the
+// This is the other case: the application has drawing of its own to do -- text
+// it lays out itself, glyph by glyph -- and needs somewhere to put it that the
 // compositor will then move, turn and fade like any other visual.
 //
 // Getting there is a chain of four links, and every one of them is interop

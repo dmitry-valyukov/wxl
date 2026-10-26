@@ -17,6 +17,8 @@ export namespace wxl::json {
 /// остальное здесь.
 class exception : public std::runtime_error {
 public:
+    /// Создаёт исключение с сообщением `message`. Сообщение копируется; его возвращает
+    /// `what()`.
     inline explicit exception(std::string_view message)
         : std::runtime_error(std::string(message)) {}
 };
@@ -24,6 +26,12 @@ public:
 /// Документ не разобрался; несёт место, на котором разбор остановился.
 class parsing_exception : public exception {
 public:
+    /// Создаёт исключение разбора для места `line`, `column` в документе `file_name`.
+    ///
+    /// Сообщение, которое возвращает `what()`, записывает место так, как его пишет
+    /// компилятор: `file_name(line,column): reason`, а при пустом `file_name` --
+    /// `(line,column): reason`. `rule` -- место в исходниках читателя, где документ
+    /// был отвергнут.
     parsing_exception(std::string_view file_name, int line, int column, std::string_view reason,
                       const std::source_location& rule);
 
@@ -35,12 +43,14 @@ public:
     /// не байт, на котором разбор сдался: искать надо там.
     /// @{
     inline std::string_view file_name() const noexcept { return file_name_; }
+    /// Возвращает номер строки, считая с единицы.
     inline int line() const noexcept { return line_; }
+    /// Возвращает номер колонки в байтах, считая с единицы.
     inline int column() const noexcept { return column_; }
     /// @}
 
     /// Чем документ не угодил, одной строкой и по-русски: «ожидалась
-    /// запятая или »}«». Место говорит, куда смотреть, а это -- что там
+    /// запятая или «}»». Место говорит, куда смотреть, а это -- что там
     /// не так.
     inline std::string_view reason() const noexcept { return reason_; }
 

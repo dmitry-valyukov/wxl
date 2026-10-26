@@ -20,7 +20,12 @@ class document_builder;
 /// tree was parsed from may die the moment parse() returns.
 class document {
 public:
+    /// Constructs a document that takes over the tree and the storage of
+    /// `other`. `other` is left empty: it can be destroyed or assigned to, and
+    /// `root()` and `errors()` must not be called on it.
     document(document&& other) noexcept;
+    /// Releases the tree and the storage of this document and takes over those
+    /// of `other`, which is left empty. Self-assignment has no effect.
     document& operator=(document&& other) noexcept;
     ~document();
 
@@ -30,9 +35,9 @@ public:
     /// business, not the tree's.
     const node& root() const noexcept;
 
-    /// The recoveries, in input order. Capped at a few dozen: hostile input
-    /// repeats its garbage, and diagnostics need the shape of the problem,
-    /// not every instance of it.
+    /// The recoveries, in input order. At most 64 are recorded and later ones
+    /// are dropped: hostile input repeats its garbage, and diagnostics need
+    /// the shape of the problem, not every instance of it.
     std::span<const parse_error> errors() const noexcept;
 
 private:
@@ -58,6 +63,7 @@ public:
     document_builder(const document_builder&) = delete;
     document_builder& operator=(const document_builder&) = delete;
 
+    /// Gets the tree builder a tokenizer drives; valid until `finish()`.
     inline tree_builder& tree() noexcept { return *tree_; }
 
     /// The finished document; the builder is spent.

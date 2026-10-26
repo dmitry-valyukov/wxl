@@ -66,10 +66,14 @@ public:
     /// carries.
     inline std::string_view full_name() const noexcept { return full_name_; }
 
+    /// Gets the facility this one is part of, or `nullptr` for a root.
     inline const facility* parent() const noexcept { return parent_; }
 
+    /// Gets the level this part of the program is logged at.
     inline severity level() const noexcept { return level_.load(std::memory_order_relaxed); }
 
+    /// Sets the level this part of the program is logged at. The level is atomic, so other
+    /// threads may read it while it changes.
     inline void set_level(severity level) noexcept {
         level_.store(level, std::memory_order_relaxed);
     }

@@ -77,7 +77,8 @@ public:
     /// The file being written to right now.
     std::filesystem::path current_path() const;
 
-    /// Bytes written to the current file so far.
+    /// Gets the size of the current file in bytes: its size on disk when it was opened (with
+    /// `append`, the bytes of earlier runs included) plus the bytes written to it since.
     std::uint64_t current_size() const;
 
     /// Which part of the log is open, counting from one.
@@ -98,14 +99,17 @@ protected:
     /// reached yet. A part that never gets a line never gets a banner either.
     virtual void on_before_first_line();
 
-    /// Names part \p number. The default gives part one the plain name and
-    /// every part after it a `-partNNN` before the extension.
+    /// Names part \p number. The default gives part one the plain name and every part after
+    /// it a `-partNNN` before the extension; with `rotate_by_date`, every part also carries
+    /// the date after the stem.
     virtual std::filesystem::path make_part_name(unsigned number) const;
 
     /// Writes text to the open file and counts it against max_size. For use
     /// from write() and on_before_first_line() only: it does not take the lock.
     void write_to_file(std::string_view text);
 
+    /// Gets the mutex that guards the open file: write() holds it while it writes, and
+    /// current_path(), current_size() and part_number() read under it.
     inline core::mutex& file_mutex() const noexcept { return mutex_; }
 
 private:
