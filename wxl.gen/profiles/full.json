@@ -40,7 +40,7 @@
             ]
         },
         "Microsoft.UI.Xaml.Controls.Page": {
-            "comment": "The page the Gallery's Frame shows. Never created by Frame.Navigate here -- that takes a TypeName of a XAML class -- but built directly and put into Frame.Content.",
+            "comment": "The page the Gallery's Frame shows. Frame.Navigate takes a TypeName, and wxl::navigatePage (Navigation.h) gives it this one, the framework's own empty page; the application puts its content into Page.Content.",
             "members": []
         },
         "Microsoft.UI.Xaml.Controls.Frame": {
