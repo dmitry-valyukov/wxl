@@ -123,7 +123,7 @@ std::filesystem::path Application::makeAbsolute(std::filesystem::path const& pat
 }
 
 void Application::exit() {
-    winrt::Microsoft::UI::Xaml::Application::Current().Exit();
+    if (loopRunning()) winrt::Microsoft::UI::Xaml::Application::Current().Exit();
 }
 
 void Application::install_terminate_report() noexcept {
