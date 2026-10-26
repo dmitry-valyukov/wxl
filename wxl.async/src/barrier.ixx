@@ -15,6 +15,7 @@ export namespace wxl::async {
 class barrier : public core::noncopyable
 {
 public:
+    /// Constructs a barrier for \p initial_count threads, which must not be zero.
     inline explicit barrier(size_t initial_count) : counter_(initial_count) {
         assert(initial_count);
     }

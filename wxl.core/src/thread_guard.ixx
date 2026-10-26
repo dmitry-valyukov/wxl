@@ -38,6 +38,8 @@ public:
     /// and after destruction as well, not only on a foreign thread.
     static bool is_safe() noexcept { return s_thread_id == current_thread_id(); }
 
+    /// Asserts that `is_safe` returns `true`. The check is a standard `assert` and is active
+    /// only in builds without `NDEBUG`.
     static void debug_check_thread() noexcept {
         assert(is_safe() && "thread_guard: thread mismatch");
     }

@@ -37,6 +37,7 @@ export namespace wxl::async {
 class sta_signal
 {
 public:
+    /// The type of the callback that wakes a driven loop.
     using wake_t = core::function<void() noexcept>;
 
     /// The sleeping mode. Auto-reset: a wakeup means "look again".
@@ -678,6 +679,8 @@ public:
         return work.result(where);
     }
 
+    /// Runs until the task \p work ends and returns what it ended with; the same as the
+    /// overload above, for a temporary task.
     template <class R>
     inline static R run_until(task<R>&& work, detail::site where = detail::site::current()) {
         return run_until(work, where);

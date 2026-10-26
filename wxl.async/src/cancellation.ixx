@@ -22,7 +22,9 @@ class operation_canceled_exception : public std::runtime_error
 
 public:
     inline operation_canceled_exception() : base("Operation was canceled") {}
+    /// Constructs the exception with the explanatory string \p message.
     inline explicit operation_canceled_exception(const char* message) : base(message) {}
+    /// Constructs the exception with a copy of \p message as the explanatory string.
     inline explicit operation_canceled_exception(std::string_view message)
         : base(std::string(message)) {}
 };
@@ -140,6 +142,7 @@ class cancellation_registration final : public detail::cancellation_event::func_
     using owner_t = typename core::impl::member_owner<decltype(Callback)>::type;
 
 public:
+    /// Constructs a registration, not registered yet, that calls `Callback` on \p owner.
     inline explicit cancellation_registration(owner_t& owner) noexcept : owner_(owner) {}
 
     cancellation_registration(const cancellation_registration&) = delete;
@@ -318,6 +321,8 @@ class cancellation_token
 public:
     cancellation_token() noexcept = default;
 
+    /// Tests whether cancellation has been requested. A default-constructed token returns
+    /// `false`.
     inline bool is_canceled() const noexcept { return state_ && state_->canceled(); }
 
     /// \throw operation_canceled_exception if cancellation has been requested.
@@ -480,10 +485,12 @@ struct cancellation_source_sentinel {
 
 export namespace wxl::core {
 
-// The extension point compressed_optional.ixx documents: a source that may not be there yet, or
-// any more, is one pointer, as the source itself is.
+/// Provides the `wxl::core::nullable` representation of a `wxl::async::cancellation_source`: a
+/// source that may not be there yet, or any more, takes one pointer, as the source itself does.
 template <>
 struct optional_selector<async::cancellation_source> {
+    /// The type of an optional source: a `wxl::core::compressed_optional` whose empty value is
+    /// the state of a moved-from source.
     using nullable = compressed_optional<async::cancellation_source,
                                          async::detail::cancellation_source_sentinel>;
 };

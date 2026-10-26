@@ -12,6 +12,10 @@ import std;
 
 export namespace wxl::core {
 
+/// Represents a non-recursive mutual-exclusion lock that records the identifier of its owning
+/// thread. An uncontended acquisition is a single compare-exchange. A contended one retries a
+/// bounded number of times with a processor pause hint, then waits on a semaphore that is
+/// created on first contention.
 class mutex : public noncopyable
 {
     std::atomic<HANDLE> sem_{};
@@ -68,6 +72,9 @@ private:
     bool acquire_slow(duration timeout);
 };
 
+/// Represents a recursive mutual-exclusion lock that records the identifier of its owning
+/// thread and the recursion depth. The owning thread can acquire it again without blocking
+/// and releases it once per acquisition. Contention is handled as in `wxl::core::mutex`.
 class recursive_mutex : public noncopyable
 {
     std::atomic<HANDLE> sem_{};

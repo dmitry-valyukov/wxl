@@ -5,6 +5,8 @@ import std;
 
 export namespace wxl::core {
 
+/// Specifies that `TSentinel` names a sentinel value of `T`: a `noexcept` static `sentinel()`
+/// that returns it, and a `noexcept` static `is_sentinel()` that tests a value for it.
 template <typename TSentinel, typename T>
 concept sentinel = requires(const T& val) {
     { TSentinel::sentinel() } noexcept -> std::same_as<T>;
@@ -14,6 +16,7 @@ concept sentinel = requires(const T& val) {
 template <typename T, sentinel<T> TSentinel>
 class compressed_optional;
 
+/// Satisfied by a specialization of `std::optional` and by a class derived from one.
 template <typename X>
 concept is_std_optional =
     requires { []<typename W>(const std::optional<W>&) {}(std::declval<const X&>()); };
@@ -40,22 +43,35 @@ struct raw_pointer_sentinel {
 
 }  // namespace impl
 
-// Where a type says what its empty state looks like. Specialise it beside the
-// type, naming the value that stands for "nothing" -- the largest duration, a
-// NaN, an empty exception_ptr, a wrapper over a null Impl.
-//
-// The default is a pointer to the type: `nullable<Widget>` is one machine word
-// holding a Widget* that may be null, and what comes out of it is a
-// not_null<Widget>. That is what an ordinary class has to offer -- a class
-// cannot spare a value of itself, but the pointer to it can spare its null.
+/// Selects the type of `nullable<T>`: the place where a type states what its empty state looks
+/// like. A specialization, declared beside the type, names the value that stands for "no value",
+/// such as the largest duration, a NaN, an empty `std::exception_ptr` or a wrapper over a null
+/// `Impl`.
+///
+/// The primary template selects a pointer to the type: `nullable<Widget>` is one machine word
+/// that holds a `Widget*` which may be null, and its value is accessed as `not_null<Widget>`. A
+/// class cannot spare a value of its own, but a pointer to it can spare null.
 template <typename T>
 struct optional_selector {
+    /// The type that represents an optional `T`: a `compressed_optional` over `T*` that is empty
+    /// when the pointer is null.
     using nullable = compressed_optional<T*, impl::raw_pointer_sentinel<T>>;
 };
 
+/// The type that represents an optional `T`, as selected by `wxl::core::optional_selector`.
 template <typename T>
 using nullable = typename optional_selector<T>::nullable;
 
+/// Represents an optional value whose empty state is a sentinel value of `T`, named by
+/// `TSentinel`, so the object is the size of `T`.
+///
+/// The interface follows `std::optional`. Emptiness is decided by `TSentinel::is_sentinel`, so
+/// every value it accepts reads as empty, not only the one `TSentinel::sentinel` returns; for a
+/// floating-point `T`, every NaN reads as empty.
+///
+/// When `T` is a raw pointer, the value is accessed as a `not_null`, which states in its type
+/// that the value is present; the storage remains the bare pointer. Constness carries over: a
+/// const optional over `Widget*` gives access through `not_null<const Widget>`.
 template <typename T, sentinel<T> TSentinel>
 class compressed_optional {
     T value_;
@@ -95,13 +111,17 @@ public:
                   "T in compressed_optional<T> must meet the Cpp17Destructible requirements (N4950 "
                   "[optional.optional.general]/3).");
 
+    /// The type of the contained value, `T`.
     using value_type = T;
+    /// The type that names the sentinel value and tests for it, `TSentinel`.
     using sentinel_provider_type = TSentinel;
 
     // --- КОНСТРУКТОРЫ ---
 
+    /// Constructs an empty object.
     constexpr compressed_optional() noexcept : value_(sentinel_provider_type::sentinel()) {}
 
+    /// Constructs an empty object.
     constexpr compressed_optional(std::nullopt_t) noexcept
         : value_(sentinel_provider_type::sentinel()) {}
 
@@ -119,9 +139,13 @@ public:
     constexpr compressed_optional(decltype(nullptr)) noexcept
         : value_(sentinel_provider_type::sentinel()) {}
 
+    /// Constructs a copy of another `compressed_optional`, empty when that one is empty.
     constexpr compressed_optional(const compressed_optional&) noexcept = default;
+    /// Constructs an object from a moved `compressed_optional`, empty when that one is empty.
     constexpr compressed_optional(compressed_optional&&) noexcept = default;
 
+    /// Constructs an object whose value is initialized from \p value. The constructor is
+    /// explicit when `U` does not convert implicitly to `T`.
     template <typename U = T>
         requires(!std::is_same_v<std::remove_cvref_t<U>, compressed_optional>) &&
                 (!std::is_same_v<std::remove_cvref_t<U>, std::in_place_t>) &&
@@ -131,18 +155,25 @@ public:
         compressed_optional(U&& value) noexcept(std::is_nothrow_constructible_v<T, U>)
         : value_(std::forward<U>(value)) {}
 
-    // Both arms of the conditional are built as T on purpose. Left as
-    // `other.value_ : sentinel()` the two operands are U and T, and the
-    // conditional has to find a type they share -- which for a widening from
-    // a derived wrapper to its base is not U, not T, and not anything: it
-    // fails, though every conversion it needs exists. Saying T twice asks for
-    // exactly the conversion the requires-clause above already checked.
+    /// Constructs an object from a `compressed_optional` over another value type: its value is
+    /// a `T` constructed from the value of \p other, or the object is empty when \p other is
+    /// empty. The constructor is explicit when `const U&` does not convert implicitly to `T`.
+    ///
+    /// Both operands of the conditional expression in the initializer are of type `T`. With
+    /// operands of types `U` and `T`, the conditional has to find a common type, and for a
+    /// conversion from a derived wrapper to its base there is none, although every conversion it
+    /// needs exists. Constructing `T` explicitly requests exactly the conversion that the
+    /// constraint checks.
     template <typename U, sentinel<U> USentinel>
         requires std::is_constructible_v<T, const U&>
     constexpr explicit(!std::is_convertible_v<const U&, T>)
         compressed_optional(const compressed_optional<U, USentinel>& other) noexcept
         : value_(other.has_value() ? T{other.value_} : sentinel_provider_type::sentinel()) {}
 
+    /// Constructs an object from an rvalue `compressed_optional` over another value type: its
+    /// value is a `T` constructed from the moved value of \p other, or the object is empty when
+    /// \p other is empty. The constructor is explicit when `U` does not convert implicitly to
+    /// `T`.
     template <typename U, sentinel<U> USentinel>
         requires std::is_constructible_v<T, U>
     constexpr explicit(!std::is_convertible_v<U, T>)
@@ -150,24 +181,32 @@ public:
         : value_(other.has_value() ? T{std::move(other.value_)}
                                    : sentinel_provider_type::sentinel()) {}
 
+    /// Constructs an object from a `std::optional`: its value is constructed from the value of
+    /// \p other, or the object is empty when \p other is empty. The constructor is explicit
+    /// when `const U&` does not convert implicitly to `T`.
     template <typename U>
         requires std::is_constructible_v<T, const U&>
     constexpr explicit(!std::is_convertible_v<const U&, T>)
         compressed_optional(const std::optional<U>& other) noexcept
         : value_(other.has_value() ? *other : sentinel_provider_type::sentinel()) {}
 
+    /// Constructs an object from an rvalue `std::optional`: its value is constructed from the
+    /// moved value of \p other, or the object is empty when \p other is empty. The constructor
+    /// is explicit when `U` does not convert implicitly to `T`.
     template <typename U>
         requires std::is_constructible_v<T, U>
     constexpr explicit(!std::is_convertible_v<U, T>)
         compressed_optional(std::optional<U>&& other) noexcept
         : value_(other.has_value() ? std::move(*other) : sentinel_provider_type::sentinel()) {}
 
+    /// Constructs the value in place from \p args.
     template <typename... Args>
         requires std::is_constructible_v<T, Args...>
     constexpr explicit compressed_optional(std::in_place_t, Args&&... args) noexcept(
         std::is_nothrow_constructible_v<T, Args...>)
         : value_(std::forward<Args>(args)...) {}
 
+    /// Constructs the value in place from \p ilist and \p args.
     template <typename U, typename... Args>
         requires std::is_constructible_v<T, std::initializer_list<U>&, Args...>
     constexpr explicit compressed_optional(
@@ -178,14 +217,19 @@ public:
 
     // --- ОПЕРАТОРЫ ПРИСВАИВАНИЯ ---
 
+    /// Assigns a copy of another `compressed_optional`, including its empty state.
     constexpr compressed_optional& operator=(const compressed_optional&) noexcept = default;
+    /// Assigns from a moved `compressed_optional`, including its empty state.
     constexpr compressed_optional& operator=(compressed_optional&&) noexcept = default;
 
+    /// Resets the object to the empty state.
     constexpr compressed_optional& operator=(std::nullopt_t) noexcept {
         reset();
         return *this;
     }
 
+    /// Resets the object to the empty state. Available when the sentinel provider declares
+    /// `empty_is_nullptr`.
     template <typename S = TSentinel>
         requires requires { S::empty_is_nullptr; }
     constexpr compressed_optional& operator=(decltype(nullptr)) noexcept {
@@ -193,6 +237,7 @@ public:
         return *this;
     }
 
+    /// Assigns \p value to the contained value.
     template <typename U = T>
         requires(!std::is_same_v<std::remove_cvref_t<U>, compressed_optional>) &&
                 (!std::is_same_v<std::remove_cvref_t<U>, std::nullopt_t>) &&
@@ -204,6 +249,8 @@ public:
         return *this;
     }
 
+    /// Assigns the value of \p other, a `compressed_optional` over another value type, or
+    /// resets the object when \p other is empty.
     template <typename U, sentinel<U> USentinel>
         requires std::is_constructible_v<T, const U&> && std::is_assignable_v<T&, std::decay_t<const U&>>
     constexpr compressed_optional& operator=(
@@ -215,6 +262,8 @@ public:
         return *this;
     }
 
+    /// Assigns the moved value of \p other, a `compressed_optional` over another value type, or
+    /// resets the object when \p other is empty.
     template <typename U, sentinel<U> USentinel>
         requires std::is_constructible_v<T, U> && std::is_assignable_v<T&, std::decay_t<U>>
     constexpr compressed_optional& operator=(compressed_optional<U, USentinel>&& other) noexcept {
@@ -225,6 +274,8 @@ public:
         return *this;
     }
 
+    /// Assigns the value of \p other, a `std::optional`, or resets the object when \p other is
+    /// empty.
     template <typename U>
         requires std::is_constructible_v<T, const U&> && std::is_assignable_v<T&, std::decay_t<const U&>>
     constexpr compressed_optional& operator=(const std::optional<U>& other) noexcept {
@@ -235,6 +286,8 @@ public:
         return *this;
     }
 
+    /// Assigns the moved value of \p other, a `std::optional`, or resets the object when
+    /// \p other is empty.
     template <typename U>
         requires std::is_constructible_v<T, U> && std::is_assignable_v<T&, std::decay_t<U>>
     constexpr compressed_optional& operator=(std::optional<U>&& other) noexcept {
@@ -247,6 +300,10 @@ public:
 
     // --- МЕТОДЫ MODIFIERS ---
 
+    /// Replaces the contained value with one constructed from \p args and returns a reference
+    /// to it. When the construction may throw and `T` is move-constructible, the new value is
+    /// built in a temporary and move-assigned, so an exception from the constructor leaves the
+    /// current value unchanged.
     template <typename... Args>
         requires std::is_constructible_v<T, Args...>
     constexpr T& emplace(Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>) {
@@ -262,6 +319,10 @@ public:
         return value_;
     }
 
+    /// Replaces the contained value with one constructed from \p ilist and \p args and returns
+    /// a reference to it. When the construction may throw and `T` is move-constructible, the new
+    /// value is built in a temporary and move-assigned, so an exception from the constructor
+    /// leaves the current value unchanged.
     template <typename U, typename... Args>
         requires std::is_constructible_v<T, std::initializer_list<U>&, Args...>
     constexpr T& emplace(std::initializer_list<U> ilist, Args&&... args) noexcept(
@@ -277,10 +338,12 @@ public:
         return value_;
     }
 
+    /// Exchanges the stored values, empty states included, of this object and \p other.
     constexpr void swap(compressed_optional& other) noexcept(std::is_nothrow_swappable_v<T>) {
         std::swap(value_, other.value_);
     }
 
+    /// Exchanges the stored values, empty states included, of \p lhs and \p rhs.
     friend constexpr void swap(compressed_optional& lhs,
                                compressed_optional& rhs) noexcept(noexcept(lhs.swap(rhs))) {
         lhs.swap(rhs);
@@ -288,12 +351,18 @@ public:
 
     // --- МЕТОДЫ НАБЛЮДАТЕЛИ (OBSERVERS) ---
 
+    /// Tests whether the object holds a value.
     constexpr explicit operator bool() const noexcept { return has_value(); }
 
+    /// Tests whether the object holds a value, that is, whether `TSentinel::is_sentinel` returns
+    /// `false` for the stored value.
     constexpr bool has_value() const noexcept {
         return !sentinel_provider_type::is_sentinel(value_);
     }
 
+    /// Returns a const reference to the contained value, or a `not_null` over the const element
+    /// when `T` is a pointer.
+    /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr const_access_type value() const& {
         if (has_value()) [[likely]] {
             if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
@@ -302,6 +371,9 @@ public:
         throw std::bad_optional_access{};
     }
 
+    /// Returns a reference to the contained value, or a `not_null` over the element when `T` is
+    /// a pointer.
+    /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr access_type value() & {
         if (has_value()) [[likely]] {
             if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
@@ -310,6 +382,9 @@ public:
         throw std::bad_optional_access{};
     }
 
+    /// Returns an rvalue reference to the contained value, or a `not_null` over the element when
+    /// `T` is a pointer.
+    /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr rvalue_access_type value() && {
         if (has_value()) [[likely]] {
             if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
@@ -318,6 +393,9 @@ public:
         throw std::bad_optional_access{};
     }
 
+    /// Returns a const rvalue reference to the contained value, or a `not_null` over the const
+    /// element when `T` is a pointer.
+    /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr const_rvalue_access_type value() const&& {
         if (has_value()) [[likely]] {
             if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
@@ -326,6 +404,8 @@ public:
         throw std::bad_optional_access{};
     }
 
+    /// Returns a copy of the contained value, or \p default_value converted to `T` when the
+    /// object is empty.
     template <typename U>
         requires std::is_copy_constructible_v<T> && std::is_convertible_v<U, T>
     constexpr T value_or(U&& default_value) const& noexcept {
@@ -333,6 +413,8 @@ public:
         return static_cast<T>(std::forward<U>(default_value));
     }
 
+    /// Returns the contained value moved out of the object, or \p default_value converted to
+    /// `T` when the object is empty.
     template <typename U>
         requires std::is_move_constructible_v<T> && std::is_convertible_v<U, T>
     constexpr T value_or(U&& default_value) && noexcept {
@@ -342,6 +424,8 @@ public:
 
     // --- МОНАДИЧЕСКИЙ ИНТЕРФЕЙС (AND_THEN) ---
 
+    /// Invokes \p f with the contained value as `T&` and returns its result, or returns a
+    /// value-initialized object of the result type when the object is empty.
     template <typename F>
     constexpr auto and_then(F&& f) & -> std::invoke_result_t<F, T&> {
         using ret_t = std::invoke_result_t<F, T&>;
@@ -349,6 +433,8 @@ public:
         return ret_t{};
     }
 
+    /// Invokes \p f with the contained value as `const T&` and returns its result, or returns a
+    /// value-initialized object of the result type when the object is empty.
     template <typename F>
     constexpr auto and_then(F&& f) const& -> std::invoke_result_t<F, const T&> {
         using ret_t = std::invoke_result_t<F, const T&>;
@@ -356,6 +442,8 @@ public:
         return ret_t{};
     }
 
+    /// Invokes \p f with the contained value as `T&&` and returns its result, or returns a
+    /// value-initialized object of the result type when the object is empty.
     template <typename F>
     constexpr auto and_then(F&& f) && -> std::invoke_result_t<F, T&&> {
         using ret_t = std::invoke_result_t<F, T&&>;
@@ -363,6 +451,8 @@ public:
         return ret_t{};
     }
 
+    /// Invokes \p f with the contained value as `const T&&` and returns its result, or returns
+    /// a value-initialized object of the result type when the object is empty.
     template <typename F>
     constexpr auto and_then(F&& f) const&& -> std::invoke_result_t<F, const T&&> {
         using ret_t = std::invoke_result_t<F, const T&&>;
@@ -372,6 +462,8 @@ public:
 
     // --- МОНАДИЧЕСКИЙ ИНТЕРФЕЙС (TRANSFORM) ---
 
+    /// Invokes \p f with the contained value as `T&` and returns its result in a `nullable` of
+    /// the result type, or an empty `nullable` when the object is empty.
     template <typename F>
     constexpr auto transform(F&& f) & -> nullable<std::invoke_result_t<F, T&>> {
         using ret_t = nullable<std::invoke_result_t<F, T&>>;
@@ -380,6 +472,8 @@ public:
         return ret_t{};
     }
 
+    /// Invokes \p f with the contained value as `const T&` and returns its result in a
+    /// `nullable` of the result type, or an empty `nullable` when the object is empty.
     template <typename F>
     constexpr auto transform(F&& f) const& -> nullable<std::invoke_result_t<F, const T&>> {
         using ret_t = nullable<std::invoke_result_t<F, const T&>>;
@@ -388,6 +482,8 @@ public:
         return ret_t{};
     }
 
+    /// Invokes \p f with the contained value as `T&&` and returns its result in a `nullable` of
+    /// the result type, or an empty `nullable` when the object is empty.
     template <typename F>
     constexpr auto transform(F&& f) && -> nullable<std::invoke_result_t<F, T&&>> {
         using ret_t = nullable<std::invoke_result_t<F, T&&>>;
@@ -397,6 +493,8 @@ public:
         return ret_t{};
     }
 
+    /// Invokes \p f with the contained value as `const T&&` and returns its result in a
+    /// `nullable` of the result type, or an empty `nullable` when the object is empty.
     template <typename F>
     constexpr auto transform(F&& f) const&& -> nullable<std::invoke_result_t<F, const T&&>> {
         using ret_t = nullable<std::invoke_result_t<F, const T&&>>;
@@ -408,6 +506,8 @@ public:
 
     // --- МОНАДИЧЕСКИЙ ИНТЕРФЕЙС (OR_ELSE) ---
 
+    /// Returns a copy of this object when it holds a value; otherwise returns the result of
+    /// invoking \p f.
     template <typename F>
         requires std::is_copy_constructible_v<T>
     constexpr auto or_else(F&& f) const& -> compressed_optional {
@@ -415,6 +515,8 @@ public:
         return std::forward<F>(f)();
     }
 
+    /// Returns this object, moved, when it holds a value; otherwise returns the result of
+    /// invoking \p f.
     template <typename F>
         requires std::is_move_constructible_v<T>
     constexpr auto or_else(F&& f) && -> compressed_optional {
@@ -422,35 +524,54 @@ public:
         return std::forward<F>(f)();
     }
 
+    /// Resets the object to the empty state by assigning the sentinel value.
     constexpr void reset() noexcept { value_ = sentinel_provider_type::sentinel(); }
 
     // --- ОПЕРАТОРЫ ДОСТУПА ПО УКАЗАТЕЛЮ ---
 
+    /// Returns a pointer to the contained value, or a `not_null` over the element when `T` is a
+    /// pointer. The object must hold a value: for a pointer `T` an empty object aborts the
+    /// process, and for any other `T` no check is made.
     constexpr pointer_access_type operator->() noexcept {
         if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
         else return &value_;
     }
 
+    /// Returns a pointer to the const contained value, or a `not_null` over the const element
+    /// when `T` is a pointer. The object must hold a value: for a pointer `T` an empty object
+    /// aborts the process, and for any other `T` no check is made.
     constexpr const_pointer_access_type operator->() const noexcept {
         if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
         else return &value_;
     }
 
+    /// Returns a reference to the contained value, or a `not_null` over the element when `T` is
+    /// a pointer. The object must hold a value: for a pointer `T` an empty object aborts the
+    /// process, and for any other `T` no check is made.
     constexpr access_type operator*() & noexcept {
         if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
         else return value_;
     }
 
+    /// Returns a const reference to the contained value, or a `not_null` over the const element
+    /// when `T` is a pointer. The object must hold a value: for a pointer `T` an empty object
+    /// aborts the process, and for any other `T` no check is made.
     constexpr const_access_type operator*() const& noexcept {
         if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
         else return value_;
     }
 
+    /// Returns an rvalue reference to the contained value, or a `not_null` over the element when
+    /// `T` is a pointer. The object must hold a value: for a pointer `T` an empty object aborts
+    /// the process, and for any other `T` no check is made.
     constexpr rvalue_access_type operator*() && noexcept {
         if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
         else return std::move(value_);
     }
 
+    /// Returns a const rvalue reference to the contained value, or a `not_null` over the const
+    /// element when `T` is a pointer. The object must hold a value: for a pointer `T` an empty
+    /// object aborts the process, and for any other `T` no check is made.
     constexpr const_rvalue_access_type operator*() const&& noexcept {
         if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
         else return std::move(value_);
@@ -458,6 +579,7 @@ public:
 
     // --- СРАВНЕНИЯ (МЕЖДУ КОНТЕЙНЕРАМИ) ---
 
+    /// Tests whether \p lhs and \p rhs are equal: both empty, or both holding equal values.
     friend constexpr bool operator==(const compressed_optional& lhs,
                                      const compressed_optional& rhs) noexcept {
         const bool lhs_has = lhs.has_value();
@@ -468,6 +590,8 @@ public:
         return lhs.value_ == rhs.value_;
     }
 
+    /// Compares \p lhs and \p rhs: an empty object orders before one that holds a value, two
+    /// empty objects are equivalent, and two values compare with the `operator<=>` of `T`.
     [[nodiscard]] friend constexpr auto operator<=>(const compressed_optional& lhs,
                                                     const compressed_optional& rhs) noexcept
         requires requires(const T& a, const T& b) { { a <=> b }; }
@@ -488,10 +612,13 @@ public:
 
     // --- СРАВНЕНИЯ С NULLOPT ---
 
+    /// Tests whether \p opt is empty.
     friend constexpr bool operator==(const compressed_optional& opt, std::nullopt_t) noexcept {
         return !opt.has_value();
     }
 
+    /// Compares \p opt with `std::nullopt`: an object that holds a value is greater, and an
+    /// empty object is equivalent.
     friend constexpr auto operator<=>(const compressed_optional& opt, std::nullopt_t) noexcept
         -> std::partial_ordering {
         return opt.has_value() ? std::partial_ordering::greater : std::partial_ordering::equivalent;
@@ -499,10 +626,13 @@ public:
 
     //  --- СРАВНЕНИЯ С ТИПОМ T ---
 
+    /// Tests whether \p lhs holds a value equal to \p rhs.
     friend constexpr bool operator==(const compressed_optional& lhs, const T& rhs) noexcept {
         return lhs.has_value() && (lhs.value_ == rhs);
     }
 
+    /// Compares \p lhs with \p rhs: an empty object orders before any value, and a held value
+    /// compares with the `operator<=>` of `T`.
     [[nodiscard]] friend constexpr auto operator<=>(const compressed_optional& lhs,
                                                     const T& rhs) noexcept
         requires requires(const T & a, const T & b) { { a <=> b }; }
@@ -574,47 +704,58 @@ struct exception_ptr_sentinel {
 
 }  // namespace impl
 
-// The one standard type specialised here rather than beside itself, for want
-// of anywhere else to put it. It earns the specialisation: an outcome that may
-// be "cancelled, and that is all there is to say" or "this went wrong, and
-// here is what" is exactly nullable<exception_ptr>, and it costs a pointer.
+/// Selects `nullable<std::exception_ptr>`: a `compressed_optional` whose empty state is a null
+/// `std::exception_ptr`, which already means "no exception", so it adds no storage to the
+/// `std::exception_ptr`.
+///
+/// It is the one standard library type whose selector is declared here rather than beside the
+/// type itself. It serves an outcome that is either a cancellation with nothing more to report or a
+/// failure with its exception.
 template <>
 struct optional_selector<std::exception_ptr> {
+    /// The type that represents an optional `std::exception_ptr`.
     using nullable = compressed_optional<std::exception_ptr, impl::exception_ptr_sentinel>;
 };
 
-// Every number at once, on the values described above: the smallest for a
-// signed integer, the largest for an unsigned one, a NaN for a float. Between
-// them they cover most of what is ever optional, and none of the three costs
-// a byte over the bare number.
+/// Selects `nullable<T>` for a signed integer type: a `compressed_optional` whose sentinel is
+/// `std::numeric_limits<T>::min()`, the one value whose negation is not representable. It adds
+/// no storage to the number.
 template <std::signed_integral T>
 struct optional_selector<T> {
+    /// The type that represents an optional signed integer.
     using nullable = compressed_optional<T, impl::integral_min_sentinel<T>>;
 };
 
+/// Selects `nullable<T>` for an unsigned integer type: a `compressed_optional` whose sentinel is
+/// `std::numeric_limits<T>::max()`, the largest representable value. It adds no storage to the
+/// number.
 template <std::unsigned_integral T>
 struct optional_selector<T> {
+    /// The type that represents an optional unsigned integer.
     using nullable = compressed_optional<T, impl::integral_max_sentinel<T>>;
 };
 
+/// Selects `nullable<T>` for a floating-point type: a `compressed_optional` whose sentinel is a
+/// quiet NaN. It adds no storage to the number.
+///
+/// Every NaN reads as empty, not one chosen bit pattern, so a NaN stored as a value reads back
+/// as empty. A type for which a NaN is real data needs a selector of its own.
 template <std::floating_point T>
 struct optional_selector<T> {
+    /// The type that represents an optional floating-point number.
     using nullable = compressed_optional<T, impl::quiet_nan_sentinel<T>>;
 };
 
-// And the one type that cannot be compressed, spelled out here rather than
-// left to fail: a bool has two values and means both of them, and a third bit
-// pattern read back as bool is undefined behaviour, not a spare value. So
-// nullable<bool> is std::optional<bool> -- two bytes, and no pretending
-// otherwise. It beats the partial specialisation for unsigned integers above,
-// which bool would otherwise match.
-//
-// The selector exists all the same, and writing it is the point. Code says
-// nullable<T> everywhere, for every T, so that a type nobody has thought about
-// still fails to compile for want of a selector. std::optional appears once,
-// here, where the reason for it can be read.
+/// Selects `std::optional<bool>` as `nullable<bool>`, for the one type that cannot be
+/// compressed.
+///
+/// A `bool` has two values and uses both, and reading any other bit pattern as `bool` is
+/// undefined behavior, not a spare value. `nullable<bool>` is therefore `std::optional<bool>`,
+/// two bytes. This explicit specialization takes precedence over the partial specialization for
+/// unsigned integer types, which `bool` would otherwise match.
 template <>
 struct optional_selector<bool> {
+    /// The type that represents an optional `bool`.
     using nullable = std::optional<bool>;
 };
 
@@ -645,8 +786,12 @@ struct not_null_sentinel {
 
 }
 
+/// Selects `nullable<not_null<T>>`: a `compressed_optional` whose empty state is a null pointer
+/// in the storage of the `not_null`, so it is the size of a pointer. The empty state may be
+/// written as `nullptr`.
 template <class T>
 struct optional_selector<not_null<T>> {
+    /// The type that represents an optional `not_null<T>`.
     using nullable = compressed_optional<not_null<T>, impl::not_null_sentinel<T>>;
 };
 

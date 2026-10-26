@@ -45,8 +45,12 @@ public:
     /// No subscription: what a field holds before its subscription and after taking it off.
     event_token() noexcept = default;
 
+    /// Constructs a token that takes over the subscription of \p other and leaves \p other
+    /// empty.
     event_token(event_token&& other) noexcept : value_(std::exchange(other.value_, 0)) {}
 
+    /// Takes over the subscription of \p other, leaves \p other empty, and returns a reference
+    /// to this token.
     event_token& operator=(event_token&& other) noexcept {
         value_ = std::exchange(other.value_, 0);
         return *this;
@@ -55,11 +59,13 @@ public:
     event_token(event_token const&) = delete;
     event_token& operator=(event_token const&) = delete;
 
+    /// Tests whether the token names a subscription.
     explicit operator bool() const noexcept { return value_ != 0; }
 
     /// The number the event gave, for the boundary that hands it back to the event.
     std::int64_t value() const noexcept { return value_; }
 
+    /// Tests whether two tokens carry the same number.
     friend bool operator==(event_token const&, event_token const&) noexcept = default;
 
 private:

@@ -13,6 +13,7 @@ export namespace wxl::core {
 class timeout_timer
 {
 public:
+    /// Constructs a timer whose deadline is \p timeout after the current time.
     inline explicit timeout_timer(duration timeout) : timeout_timer(time_stamp::now(), timeout) {}
 
     /// Counts from \p start rather than from the current moment: the deadline is then one
@@ -20,8 +21,11 @@ public:
     /// asking the clock anything.
     inline timeout_timer(time_stamp start, duration timeout) : deadline_(start + timeout) {}
 
+    /// Returns the time remaining until the deadline, or zero once the deadline has passed.
     inline duration remaining() const { return remaining(time_stamp::now()); }
 
+    /// Returns the time remaining from \p now until the deadline, or zero if \p now is at or
+    /// after the deadline.
     inline duration remaining(time_stamp now) const {
         if (now >= deadline_) return duration::zero();
 

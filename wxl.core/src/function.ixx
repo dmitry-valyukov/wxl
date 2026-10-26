@@ -259,8 +259,9 @@ struct func_sentinel;
 template <class Signature>
 class function;
 
-// Both spellings, one body, the way func_body above does it: `function<void()>`
-// and `function<void() noexcept>` stay two distinct types.
+/// Implements `wxl::core::function` for both spellings of a signature, with and without
+/// `noexcept`, in one body, as `func_body` does: `function<void()>` and
+/// `function<void() noexcept>` remain two distinct types.
 template <class R, class... T, bool NX>
 class function<R(T...) noexcept(NX)>
 {
@@ -269,6 +270,7 @@ class function<R(T...) noexcept(NX)>
     friend struct impl::func_sentinel<impl::sig_t<NX, R, T...>>;
 
 public:
+    /// The type of the result of a call.
     using result_type = R;
 
     /// From any callable the signature fits, checked here rather than inside the
@@ -340,12 +342,14 @@ struct func_sentinel {
 
 }  // namespace impl
 
-// The extension point compressed_optional.ixx documents, keyed on every
-// function at once. Its effect is the whole reason the empty function could be
-// taken away: what used to be a state of the type is now a state of the holder
-// that admits to having one, and it still fits in the same pointer.
+/// Specializes the `optional_selector` extension point for every `wxl::core::function`: the
+/// nullable form is a `compressed_optional` whose empty state is the null body pointer, so that
+/// it still fits in one pointer. This is what allows `function` to have no empty state of its
+/// own: the empty state belongs to the holder that declares it.
 template <class Signature>
 struct optional_selector<function<Signature>> {
+    /// The type of a nullable `function`: a `compressed_optional` with the null body as its
+    /// empty state.
     using nullable = compressed_optional<function<Signature>, impl::func_sentinel<Signature>>;
 };
 

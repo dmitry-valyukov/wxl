@@ -5,7 +5,7 @@ import std;
 export namespace wxl::core {
 
 /// A boolean flag whose set()/reset()/invert() each report whether the call actually
-/// changed the value, backed by std::atomic<bool>.
+/// changed the value, backed by `std::atomic<bool>`.
 ///
 /// The mutating operations default to seq_cst rather than acq_rel, because the flag is
 /// typically half of a store/load exchange between two threads -- one side writes the
@@ -19,6 +19,7 @@ export namespace wxl::core {
 class atomic_trigger
 {
 public:
+    /// Constructs the trigger with the value \p initial_value.
     inline explicit atomic_trigger(bool initial_value = false) noexcept : value_(initial_value) {}
 
     atomic_trigger(const atomic_trigger&) = delete;

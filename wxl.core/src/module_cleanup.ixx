@@ -14,9 +14,13 @@ export namespace wxl::core {
 class module_cleanup : noncopyable
 {
 public:
+    /// The type of a callback that takes no argument.
     using cleanup_func = void();
+    /// The type of a callback that takes a `void*` argument.
     using cleanup_func1 = void(void*);
 
+    /// Specifies the ordering category of a callback: the `cleanup_first` callbacks run before
+    /// the `cleanup_normal` ones, and those before the `cleanup_last` ones.
     enum class priority : int
     {
         cleanup_first = -1,
@@ -26,15 +30,20 @@ public:
 
     using enum priority;
 
+    /// Constructs an instance that registers \p func in the category \p p. Once `run_now()` has
+    /// started, \p func runs at once instead.
     inline explicit module_cleanup(cleanup_func* func, priority p = cleanup_normal) {
         init(func, nullptr, nullptr, p);
     }
 
+    /// Constructs an instance that registers \p func, to be called with \p arg, in the category
+    /// \p p. Once `run_now()` has started, the callback runs at once instead.
     template <typename t_arg>
     module_cleanup(void (*func)(t_arg*), t_arg* arg, priority p = cleanup_normal) {
         init(nullptr, reinterpret_cast<cleanup_func1*>(func), arg, p);
     }
 
+    /// Tests whether `run_now()` has been called.
     inline static bool process_is_terminating() {
         return s_process_is_terminating.load(std::memory_order_acquire);
     }

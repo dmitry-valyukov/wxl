@@ -49,6 +49,7 @@ public:
         return top_.exchange(nullptr, std::memory_order_acquire);
     }
 
+    /// Tests whether the stack is empty, by a relaxed load of the top.
     bool empty() const noexcept { return top_.load(std::memory_order_relaxed) == nullptr; }
 
 private:

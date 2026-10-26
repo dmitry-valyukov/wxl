@@ -44,7 +44,9 @@ constexpr uint32_t leading_zeros(uint32_t value) noexcept {
 class sta_memory_pool final : public static_thread_heap<sta_memory_pool>
 {
 public:
+    /// The largest request, in bytes, that the free lists of the size classes serve.
     static constexpr uint32_t MaxBlockSize = 32 * 1024;
+    /// The size, in bytes, of a page that the pool allocates and carves into blocks.
     static constexpr uint32_t PageSize = 1024 * 1024;
 
     /// The smallest block, and the alignment of every block: the classes are multiples of it and
@@ -64,6 +66,11 @@ public:
         return std::max(1u << (32 - pool_index(size)), MinBlockSize);
     }
 
+    /// Allocates a block of \p size bytes. A request of up to `MaxBlockSize` bytes is served by
+    /// its size class: from the free list of the class while the list has blocks, otherwise
+    /// carved from the current page, or from a new page when the current one is full. A request
+    /// above half a page is served by `std::malloc`, and any other by the private heap. A
+    /// request for zero bytes aborts the process.
     inline static void* alloc(size_t size) {
         debug_check_thread();
         const auto size32 = static_cast<uint32_t>(size);
@@ -77,6 +84,8 @@ public:
         return base::alloc(size32);
     }
 
+    /// Releases the block at \p mem, allocated by `alloc()` with the same \p size, along the
+    /// path that `alloc()` took for that size.
     inline static void free(void* mem, size_t size) {
         debug_check_thread();
         const auto size32 = static_cast<uint32_t>(size);
@@ -100,6 +109,8 @@ public:
         return s_alloc_table[index]();
     }
 
+    /// Releases the block at \p mem, allocated by the `alloc()` template with the same `Size`,
+    /// to the free list of its size class.
     template <uint32_t Size>
         requires(Size >= 1 && Size <= MaxBlockSize)
     inline static void free(void* mem) noexcept {
@@ -133,6 +144,7 @@ private:
     static const sta_memory_pool s_instance;
 };
 
+/// The type of a standard allocator that allocates from `wxl::core::sta_memory_pool`.
 template <typename T>
 using sta_allocator = allocator<T, sta_memory_pool>;
 

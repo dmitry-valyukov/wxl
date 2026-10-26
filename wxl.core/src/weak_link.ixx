@@ -95,6 +95,7 @@ private:
 template <class T>
 using sta_weak_link = weak_link<T, sta_refcounted>;
 
+/// The type of the base of an owner whose `weak_link` is counted by `sta_refcounted`.
 template <class T>
 using sta_weak_linked = weak_linked<T, sta_refcounted>;
 
@@ -102,6 +103,7 @@ using sta_weak_linked = weak_linked<T, sta_refcounted>;
 template <class T>
 using weak_link_mt = weak_link<T, refcounted_mt>;
 
+/// The type of the base of an owner whose `weak_link` is counted by `refcounted_mt`.
 template <class T>
 using weak_linked_mt = weak_linked<T, refcounted_mt>;
 

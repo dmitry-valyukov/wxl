@@ -18,6 +18,7 @@ export namespace wxl::xml {
 /// everything else here hands out.
 class exception : public std::runtime_error {
 public:
+    /// Constructs the exception with \p message, a UTF-8 text.
     inline explicit exception(std::string_view message)
         : std::runtime_error(std::string(message)) {}
 };
@@ -25,6 +26,10 @@ public:
 /// Thrown when a document does not parse; carries where the parser stopped.
 class parsing_exception : public exception {
 public:
+    /// Constructs the exception for the document \p file_name, refused at \p line and
+    /// \p column by the grammar rule at \p rule. The message gives the position the way a
+    /// compiler reports one, `file(line,column)`, or `(line,column)` when \p file_name is
+    /// empty.
     parsing_exception(std::string_view file_name, int line, int column, const std::source_location& rule);
 
     /// The document, and the place in it to look at -- 1-based, the column
@@ -35,7 +40,9 @@ public:
     /// than the byte the parser gave up on.
     /// @{
     inline std::string_view file_name() const noexcept { return file_name_; }
+    /// Gets the line of the place, 1-based.
     inline int line() const noexcept { return line_; }
+    /// Gets the column of the place, 1-based and counted in bytes.
     inline int column() const noexcept { return column_; }
     /// @}
 

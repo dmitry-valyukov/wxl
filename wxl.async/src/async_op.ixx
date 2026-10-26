@@ -26,6 +26,7 @@ struct orphanable_t {
     explicit orphanable_t() = default;
 };
 
+/// The tag that selects the orphanable form of an operation (`wxl::async::orphanable_t`).
 inline constexpr orphanable_t orphanable{};
 
 /// What owns an operation, defined with the coroutines (wxl.async:task): declared here to be
@@ -137,6 +138,7 @@ public:
         return core::sta_memory_pool::alloc(size);
     }
 
+    /// Releases the block \p mem of \p size bytes to `wxl::core::sta_memory_pool`.
     inline static void operator delete(void* mem, std::size_t size) noexcept {
         core::sta_memory_pool::free(mem, size);
     }
@@ -248,6 +250,7 @@ public:
     /// Defined with the loop, whose return channel it waits on (sta_loop.cpp).
     static void abandon(async_op* op) noexcept;
 
+    /// Tests whether the answer is an exception: what the work threw, or its cancellation.
     inline bool has_exception() const noexcept { return error_kept(); }
 
 protected:
@@ -300,6 +303,7 @@ protected:
     /// throw: it runs in a destructor, often one called by unwinding.
     virtual void on_cancel() noexcept {}
 
+    /// Rethrows the kept exception, if the answer is one.
     inline void rethrow_if_failed() const {
         if (error_kept()) std::rethrow_exception(exception());
     }
@@ -496,8 +500,10 @@ template <class R>
 class WXL_ABSTRACT_BASE async_op_t : public async_op
 {
 public:
+    /// The type of the result.
     using result_type = R;
 
+    /// Inherits the constructors of `wxl::async::async_op`.
     using async_op::async_op;
 
     ~async_op_t() override {
@@ -582,12 +588,16 @@ private:
 };
 #pragma warning(pop)
 
+/// Represents a producer with a result of type `void`: the answer is an exception or nothing,
+/// and there is no value to keep.
 template <>
 class WXL_ABSTRACT_BASE async_op_t<void> : public async_op
 {
 public:
+    /// The type of the result: `void`.
     using result_type = void;
 
+    /// Inherits the constructors of `wxl::async::async_op`.
     using async_op::async_op;
 
     /// Nothing is moved out, so asking again is asking again: what the body threw is
@@ -597,8 +607,10 @@ public:
     }
 
 protected:
+    /// Does nothing: there is no value to destroy.
     inline void drop_value() noexcept {}
 
+    /// Takes over the answer of \p made: its exception, or nothing if it succeeded.
     inline void take_answer_from(async_op_t& made) noexcept { take_error_from(made); }
 };
 
@@ -705,15 +717,19 @@ private:
 template <class Fn>
 concept takes_orphan_state = std::invocable<Fn&, const orphan_state&>;
 
+/// Provides the result type of an orphanable body `Fn` that takes no argument.
 template <class Fn>
 struct orphanable_result
 {
+    /// The type that `Fn` returns when called with no argument.
     using type = std::invoke_result_t<Fn&>;
 };
 
+/// Provides the result type of an orphanable body `Fn` that takes its `wxl::async::orphan_state`.
 template <takes_orphan_state Fn>
 struct orphanable_result<Fn>
 {
+    /// The type that `Fn` returns when called with a `const orphan_state&`.
     using type = std::invoke_result_t<Fn&, const orphan_state&>;
 };
 
@@ -731,6 +747,7 @@ template <class Fn, class R = orphanable_result_t<Fn>>
 class orphanable_op_f : public async_op_t<R>
 {
 public:
+    /// Constructs the operation with the body built from \p fn, forwarded rather than copied.
     template <class Fn2>
     explicit orphanable_op_f(Fn2&& fn) : fn_(std::forward<Fn2>(fn)) {}
 

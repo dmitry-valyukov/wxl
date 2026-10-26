@@ -26,6 +26,7 @@ export namespace wxl::async {
 class overlapped_op : public async_op_t<std::size_t>
 {
 public:
+    /// Specifies whether the operation is a read or a write.
     enum class kind : std::uint8_t { read, write };
 
     /// The most one call to the system is given. Bigger buys nothing -- the storage
@@ -64,6 +65,7 @@ public:
         std::atomic<std::size_t> started_on_worker{0};
     };
 
+    /// The tallies of all operations.
     static inline tally debug;
 #endif
 

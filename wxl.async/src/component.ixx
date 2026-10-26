@@ -60,6 +60,8 @@ public:
     /// \throw operation_canceled_exception if the component was already asked to stop.
     ticket start_async();
 
+    /// Tests whether the component has been started; the answer stays `true` after the
+    /// component has stopped. Takes the component's lock.
     bool was_started() const;
 
     /// Registers a callback -- `void callback()` -- called when the component has started
@@ -111,6 +113,8 @@ public:
     ///               that will be set as an exception result for the stop ticket.
     ticket stop_async(const stop_reason & reason = {});
 
+    /// Requests the component to stop with \p error as the stop reason; the same as the form
+    /// that takes a `stop_reason`.
     ticket stop_async(const std::exception_ptr & error);
     ///@}
 
@@ -158,6 +162,8 @@ protected:
     /// reference in through this field.
     using impl_ref = core::not_null<core::release_only_ptr<impl_t>>;
 
+    /// Constructs a component on a state that a derived class has created: \p initial_impl is
+    /// adopted as the shared state, and its `sync_root` becomes the component's.
     component(std::string_view name, impl_t * initial_impl);
 
     /// Starts the component as a child of another one. This is the machinery of a
@@ -165,7 +171,7 @@ protected:
     /// starts it with start_async(), and a component that is part of another's
     /// lifecycle is started by that other one, through here.
     ///@{
-    /// param parent The component whose start and stop this one becomes part of: this
+    /// \param parent The component whose start and stop this one becomes part of: this
     ///               component's starting and running tasks are created as subtasks of the
     ///               parent's, so the parent is not started until this one is and does not
     ///               count as stopped while this one still runs.
@@ -178,6 +184,9 @@ protected:
     /// \throw std::logic_error if the parent has not started, or is stopping or stopped.
     ticket start_async(core::not_null<component> parent);
 
+    /// Starts the component with its starting and running tasks created as subtasks of
+    /// \p parent_starting_task and \p parent_running_task; in place of a tree whose `valid()`
+    /// is `false`, the component gets a tree of its own.
     ticket start_async(const task_tree & parent_starting_task, const task_tree & parent_running_task = {});
 
     /// The same two starts, but of some other component: what a parent does to a child
@@ -190,13 +199,19 @@ protected:
     static ticket start_async_of(core::not_null<component> child,
                                  core::not_null<component> parent);
 
+    /// Starts \p child with its starting and running tasks created as subtasks of
+    /// \p parent_starting_task and \p parent_running_task.
     static ticket start_async_of(core::not_null<component> child,
                                  const task_tree & parent_starting_task,
                                  const task_tree & parent_running_task);
     ///@}
 
+    /// Tests whether the component has been started, without taking the lock.
+    /// \note The calling thread must hold the component's `sync_root` mutex.
     bool was_started_unsafe() const;
 
+    /// Tests whether the component has been started and has not yet stopped completely.
+    /// \note The calling thread must hold the component's `sync_root` mutex.
     bool is_running() const;
 
     /// Called during the start of the component. Derived classes can add extra
@@ -232,6 +247,7 @@ protected:
     /// the component from destruction until it has stopped completely.
     void dispose();
 
+    /// Tests whether the component has been disposed of.
     bool is_disposed() const noexcept;
 
     /// Valid during the starting process; derived components can create their own
@@ -259,8 +275,10 @@ protected:
     /// this by reference-counted smart pointer.
     inline core::not_null<impl_t> impl() { return impl_.get(); }
 
+    /// Returns the shared state of the component, read-only.
     inline core::not_null<const impl_t> impl() const { return impl_.get(); }
 
+    /// Returns the shared state of the component \p c.
     inline static core::not_null<impl_t> impl_of(core::not_null<component> c) { return c->impl(); }
     ///@}
 

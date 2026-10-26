@@ -35,11 +35,12 @@ class observable;
 template <class T>
 class observable<T const> {
 public:
-    // Spelled noexcept: a watcher is called from inside the event's call, which walks the
-    // whole list and has nobody to hand an exception to, so a throwing watcher
-    // would break the chain and abandon the watchers after it. The event enforces
-    // this on every callback regardless; spelling it here makes the contract read
-    // off the type, which is the reason event accepts the noexcept signature.
+    /// The type of the event that notifies the watchers of a change. The signature is
+    /// `noexcept`: a watcher is called from inside the call of the event, which walks the whole
+    /// list and has no caller to propagate an exception to, so a throwing watcher would abort
+    /// the walk and skip the watchers after it. The event requires `noexcept` of every callback
+    /// in either case; the spelling here makes the contract visible in the type, which is the
+    /// reason `event` accepts the `noexcept` signature.
     using changed_event = event<void(T const&) noexcept>;
 
     // A field, not a handle: copying one would make a second state that no
@@ -98,16 +99,21 @@ public:
 
 protected:
     observable() = default;
+    /// Constructs an observable that holds \p value.
     explicit observable(T value) : value_(std::move(value)) {}
     ~observable() = default;
 
+    /// The current value.
     T value_{};
-    // Two lists rather than one with a mark: the bindings' watches are the ones
-    // unbind() drops, the application's are the ones it must not touch. Declared
-    // after the value, so that they are destroyed first -- a binding's watch
-    // removes the handler it put on its control as it goes, and does so while
-    // the field it named is still there.
+    /// The watches of the bindings, which `unbind()` removes. The watches of the bindings and
+    /// those of the application are kept in two lists rather than in one list with a mark:
+    /// `unbind()` removes the former and must not touch the latter. Both lists are declared
+    /// after the value so that they are destroyed first: a binding's watch removes the handler
+    /// it put on its control as it is destroyed, and does so while the field it refers to
+    /// still exists.
     changed_event bound_;
+    /// The watches of the application, added through `on_change`; `unbind()` leaves them in
+    /// place.
     changed_event changed_;
 };
 
@@ -153,6 +159,7 @@ class observable : public impl::readonly_observable<T> {
 
 public:
     observable() = default;
+    /// Constructs a field that holds \p value.
     explicit observable(T value) : readonly(std::move(value)) {}
 
     /// Sets the value and, if it actually changed, tells the watchers. Setting
