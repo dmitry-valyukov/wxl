@@ -27,7 +27,7 @@
 //
 //     UiThread const ui{window.dispatcherQueue()};   // on the UI thread
 //     ...
-//     ui.post([found = std::move(books)] { shelf.add(found); });   // anywhere
+//     ui.post([found = std::move(files)] { fileList.add(found); });   // anywhere
 //
 // The work is copied into the queue, as it must be: it runs after post() has
 // returned, so nothing it needs may be held by reference.

@@ -38,6 +38,9 @@ struct console_options {
 class console_output final : public log_output
 {
 public:
+    /// Constructs an output that writes to \p stream every line whose severity is within
+    /// \p shows. When `options.colored` is set, turns on escape-sequence processing for the
+    /// stream if it is a console.
     explicit console_output(console_stream stream = console_stream::standard_output,
                             severity_range shows = {}, console_options options = {});
 

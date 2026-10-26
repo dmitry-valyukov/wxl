@@ -49,6 +49,8 @@ struct log_entry {
     /// asynchronous case those are different threads and can be far apart.
     log_time time{};
 
+    /// Severity of the message. An output with a band of severities tests it against that
+    /// band.
     severity level = severity::info;
 
     /// Bytes of `buffer` taken by the prefix: timestamp, level, facility.

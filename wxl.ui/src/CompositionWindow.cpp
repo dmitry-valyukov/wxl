@@ -125,7 +125,8 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
     HWND hwnd{nullptr};
     muc::Compositor compositor{nullptr};
     // Один визуал на всю сцену: он и корень острова, и задний фон (картинка или
-    // цвет). Страница висит на нём ребёнком -- контейнер над контейнером не нужен.
+    // цвет). Его же отдаёт contentVisual(): собственные визуалы приложения висят
+    // на нём детьми -- контейнер над контейнером не нужен.
     muc::SpriteVisual backdrop{nullptr};
     content::DesktopAttachedSiteBridge scene_bridge{nullptr};
     xaml::Hosting::DesktopWindowXamlSource chrome{nullptr};   // оснастка островом
@@ -154,8 +155,8 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
     // остаётся; замена устройства грузит её снова (device_replaced).
     impl::background_load<BackgroundImage> background_load;
 
-    // Ввод со сцены (режим чтения без острова): источники ввода её ContentIsland.
-    // Источники держим живыми -- на них висят подписки.
+    // Ввод со сцены, когда остров спрятан или его ещё нет: источники ввода её
+    // ContentIsland. Источники держим живыми -- на них висят подписки.
     content::ContentIsland scene_island{nullptr};
     input::InputPointerSource pointer_input{nullptr};   // указатель сцены; клавиатура -- через WndProc
 
@@ -234,7 +235,7 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
     bool initial_activation{true};
     bool island_focus_pending{false};
     winrt::guid last_take_focus_correlation{};
-    // Остров показан (show_page) и не спрятан (hideContent, режим чтения). Не
+    // Остров показан (show_page) и не спрятан (hideContent). Не
     // IsVisible моста: тот ложен и у показанного острова, пока не видно само
     // окно, -- а первый WM_ACTIVATE приходит изнутри ShowWindow.
     bool content_shown{false};
@@ -289,7 +290,7 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
     // отпускается сейчас, как у Microsoft.UI.Xaml.Window при закрытии (DesktopWindowImpl::CloseImpl
     // и Shutdown в исходниках WinUI 3): подписки сняты, содержимое убрано, источник XAML закрыт.
     // XamlRoot, отпущенный после закрытия XAML, падал в своём деструкторе нарушением доступа --
-    // Беседка при закрытии, но только после клавиш масштаба: деструктор разбирает службы,
+    // при закрытии окна, но только после клавиш масштаба: деструктор разбирает службы,
     // заведённые по требованию, а всплывающее их заводит (Flyout -- ApplicationBarService).
     // Заголовок-элемент, если его держит приложение, переживает окно -- его обратные вызовы
     // снимаются здесь же. С ними -- подписки на неклиентский ввод: окно ещё есть, и снимать их есть
@@ -343,8 +344,8 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
     void resize(float width, float height) {
         winrt::Windows::Foundation::Numerics::float2 const wh{width, height};
         // Один визуал сцены -- задний. Он корень острова и картинка разом, а
-        // страница висит на нём ребёнком и меряет себя сама, так что под окно
-        // подгоняем только его.
+        // собственные визуалы приложения висят на нём детьми и меряют себя сами,
+        // так что под окно подгоняем только его.
         if (backdrop) backdrop.Size(wh);
         if (chrome) {
             chrome.SiteBridge().MoveAndResize(
@@ -511,7 +512,7 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
         // Прозрачный фон -- чтобы пустые места корня принимали указатель: без
         // кисти их нет для попадания, и Ctrl+колесо над ними доставалось
         // датчику масштаба мимо обработчика колеса у корня, а датчик
-        // масштабировал сам (Беседка: ступени скакали, остров съезжал от угла).
+        // масштабировал сам (ступени скакали, остров съезжал от угла).
         root.Background(xaml::Media::SolidColorBrush{winrt::Microsoft::UI::Colors::Transparent()});
         root.Loaded([this](auto&&, auto&&) { on_root_loaded(); });
         chrome.Content(root);
@@ -563,7 +564,7 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
     }
 
     // WM_ACTIVATE -- DesktopWindowImpl::OnActivate. false -- острова нет или он
-    // спрятан (режим чтения): фокус ставит DefWindowProc на само окно, и
+    // спрятан (hideContent): фокус ставит DefWindowProc на само окно, и
     // клавиши идут сцене (onKeyDown).
     bool on_activate(WPARAM wparam) {
         if (!island_shown()) return false;
@@ -767,7 +768,7 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
     // ввода. Не у корня: фокус бывает и над ним -- на самом датчике или ни на
     // чём, -- и во всплывающем окне, где корень клавишу не видит. Такую клавишу
     // датчик масштабировал сам, как любой ScrollViewer, и оставался не в 1:
-    // остров уменьшался дважды и съезжал от угла (Беседка; проба
+    // остров уменьшался дважды и съезжал от угла (проба
     // sandbox/KeyboardZoomProbe). Колесо -- у корня, с handledEventsToo: оно
     // всплывает снизу, и корень видит его раньше датчика; ScrollViewer и
     // списки помечают его обработанным.
@@ -850,9 +851,9 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
         }
         chrome.SiteBridge().Show();
         content_shown = true;
-        // Фокус на самом окне -- он там для сцены (режим чтения) или остров
-        // показан уже после активации. Показанному острову -- фокус, как при
-        // активации.
+        // Фокус на самом окне -- он там для сцены, пока острова не было или он был
+        // спрятан, или остров показан уже после активации. Показанному острову --
+        // фокус, как при активации.
         if (::GetFocus() == hwnd) {
             focus_island();
             restore_xaml_focus();
@@ -1382,7 +1383,7 @@ bool CompositionWindow::all_closed() noexcept {
     return live_windows().empty();
 }
 
-// ---- Сцена: задний фон и страница ------------------------------------------
+// ---- Сцена: задний фон и собственные визуалы приложения --------------------
 
 Compositor CompositionWindow::compositor() const {
     return Object::Impl::wrap<Compositor>(impl_->compositor);
@@ -1627,7 +1628,7 @@ Compositor CompositionWindow::chromeCompositor() const {
 }
 
 void CompositionWindow::hideContent() const {
-    // Прячем остров и снимаем с него содержимое: в режиме чтения ввод должен
+    // Прячем остров и снимаем с него содержимое: без оснастки ввод должен
     // идти сцене, а пустой, но показанный остров перехватывал бы его над собой.
     if (impl_->chrome) {
         impl_->show_page(nullptr);

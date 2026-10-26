@@ -78,9 +78,12 @@ inline constexpr severity compiled_severity = severity::debug;
 /// `from` is the most severe end and `to` the mildest, which is the order the
 /// enumerators are in; the default band is everything.
 struct severity_range {
+    /// The most severe end of the band, inclusive.
     severity from = severity::fatal;
+    /// The mildest end of the band, inclusive.
     severity to = severity::debug;
 
+    /// Tests whether \p level lies within the band, both ends included.
     constexpr bool contains(severity level) const noexcept {
         return from <= level && level <= to;
     }

@@ -49,15 +49,21 @@ public:
     /// руками должен уметь и тест, и тот, кто отдаёт готовый ответ вместо
     /// запроса к сети.
     /// @{
+
+    /// Создаёт значение `null` с именем `name`.
     static constexpr value of_null(core::u8_view name = {}) noexcept {
         return value(value_type::null, name, payload_t());
     }
+    /// Создаёт логическое значение `flag` с именем `name`.
     static constexpr value of_boolean(bool flag, core::u8_view name = {}) noexcept {
         return value(value_type::boolean, name, payload_t(flag));
     }
+    /// Создаёт числовое значение `number` с именем `name`.
     static constexpr value of_number(double number, core::u8_view name = {}) noexcept {
         return value(value_type::number, name, payload_t(number));
     }
+    /// Создаёт строковое значение `text` с именем `name`. Текст не копируется: значение
+    /// хранит вид в него.
     static constexpr value of_string(core::u8_view text, core::u8_view name = {}) noexcept {
         return value(value_type::string, name, payload_t(text));
     }
@@ -72,6 +78,7 @@ public:
     }
     /// @}
 
+    /// Возвращает вид значения.
     constexpr value_type type() const noexcept { return type_; }
 
     /// Имя, под которым значение лежит в объекте. Пусто у элемента массива
@@ -80,11 +87,18 @@ public:
 
     /// @name Что это
     /// @{
+
+    /// Проверяет, является ли значение `null`.
     constexpr bool is_null() const noexcept { return type_ == value_type::null; }
+    /// Проверяет, является ли значение логическим: `true` или `false`.
     constexpr bool is_boolean() const noexcept { return type_ == value_type::boolean; }
+    /// Проверяет, является ли значение числом.
     constexpr bool is_number() const noexcept { return type_ == value_type::number; }
+    /// Проверяет, является ли значение строкой.
     constexpr bool is_string() const noexcept { return type_ == value_type::string; }
+    /// Проверяет, является ли значение массивом.
     constexpr bool is_array() const noexcept { return type_ == value_type::array; }
+    /// Проверяет, является ли значение объектом.
     constexpr bool is_object() const noexcept { return type_ == value_type::object; }
     /// @}
 
@@ -97,9 +111,12 @@ public:
     /// из двух десятков полей DTO значит писать её двадцать раз зря. Кому
     /// разница важна, тот спрашивает type() или find().
     /// @{
+
+    /// Возвращает логическое значение или `fallback`, если значение не логическое.
     constexpr bool as_bool(bool fallback = false) const noexcept {
         return type_ == value_type::boolean ? payload_.boolean : fallback;
     }
+    /// Возвращает число или `fallback`, если значение не число.
     constexpr double as_number(double fallback = 0.0) const noexcept {
         return type_ == value_type::number ? payload_.number : fallback;
     }
@@ -111,6 +128,7 @@ public:
         return type_ == value_type::number ? static_cast<std::int64_t>(payload_.number) : fallback;
     }
 
+    /// Возвращает текст строки или `fallback`, если значение не строка.
     constexpr core::u8_view as_string(core::u8_view fallback = {}) const noexcept {
         return type_ == value_type::string ? payload_.text : fallback;
     }

@@ -47,9 +47,9 @@ public:
 
     // ---- elements ----
 
-    /// Opens an element; void tags (br, img) land without joining the
-    /// stack. Attribute spans must live in the document's arena -- see
-    /// copy_attributes().
+    /// Opens an element; void tags (`br`, `img`, `hr`, see `is_void()`) land
+    /// without joining the stack. Attribute spans must live in the document's
+    /// arena -- see copy_attributes().
     void open(tag_t tag, attribute_span attributes = {});
 
     /// Closes the topmost matching element, recovering browser-fashion:

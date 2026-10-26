@@ -48,8 +48,11 @@ public:
     /// through. Belongs to the logger's own thread, like the rest of it.
     inline severity level() const noexcept { return level_; }
 
+    /// Sets the level this logger passes. The level is a plain member, set and read on the
+    /// logger's own thread.
     inline void set_level(severity level) noexcept { level_ = level; }
 
+    /// Tests whether a message at severity \p of_message passes the logger's own level.
     inline bool enabled(severity of_message) const noexcept {
         return is_enabled(of_message, level_);
     }
@@ -93,6 +96,8 @@ public:
         log<severity::fatal>(form, std::forward<Args>(args)...);
     }
 
+    /// Logs a `severity::fatal` message for the facility \p where: its name goes into the
+    /// line, and its level filters the message along with the logger's.
     template <typename... Args>
     void fatal(const facility& where, fmt::format_string<Args...> form, Args&&... args) {
         log<severity::fatal>(where, form, std::forward<Args>(args)...);
@@ -106,6 +111,8 @@ public:
         log<severity::error>(form, std::forward<Args>(args)...);
     }
 
+    /// Logs a `severity::error` message for the facility \p where: its name goes into the
+    /// line, and its level filters the message along with the logger's.
     template <typename... Args>
     void error(const facility& where, fmt::format_string<Args...> form, Args&&... args) {
         log<severity::error>(where, form, std::forward<Args>(args)...);
@@ -119,6 +126,8 @@ public:
         log<severity::warn>(form, std::forward<Args>(args)...);
     }
 
+    /// Logs a `severity::warn` message for the facility \p where: its name goes into the
+    /// line, and its level filters the message along with the logger's.
     template <typename... Args>
     void warn(const facility& where, fmt::format_string<Args...> form, Args&&... args) {
         log<severity::warn>(where, form, std::forward<Args>(args)...);
@@ -132,6 +141,8 @@ public:
         log<severity::info>(form, std::forward<Args>(args)...);
     }
 
+    /// Logs a `severity::info` message for the facility \p where: its name goes into the
+    /// line, and its level filters the message along with the logger's.
     template <typename... Args>
     void info(const facility& where, fmt::format_string<Args...> form, Args&&... args) {
         log<severity::info>(where, form, std::forward<Args>(args)...);
@@ -145,6 +156,8 @@ public:
         log<severity::trace>(form, std::forward<Args>(args)...);
     }
 
+    /// Logs a `severity::trace` message for the facility \p where: its name goes into the
+    /// line, and its level filters the message along with the logger's.
     template <typename... Args>
     void trace(const facility& where, fmt::format_string<Args...> form, Args&&... args) {
         log<severity::trace>(where, form, std::forward<Args>(args)...);
@@ -158,6 +171,8 @@ public:
         log<severity::debug>(form, std::forward<Args>(args)...);
     }
 
+    /// Logs a `severity::debug` message for the facility \p where: its name goes into the
+    /// line, and its level filters the message along with the logger's.
     template <typename... Args>
     void debug(const facility& where, fmt::format_string<Args...> form, Args&&... args) {
         log<severity::debug>(where, form, std::forward<Args>(args)...);
@@ -165,6 +180,7 @@ public:
     ///@}
 
 protected:
+    /// Constructs the logger with \p level as its initial level.
     inline explicit base_logger(severity level) noexcept : level_(level) {}
 
     /// Hands out the entry the next line is built in, emptied and ready. What
@@ -206,9 +222,12 @@ private:
 class logger final : public base_logger
 {
 public:
+    /// Constructs a logger that writes to \p output, with \p level as its initial level.
+    /// The output is held by reference, not owned.
     inline explicit logger(log_output& output, severity level = severity::info)
         : base_logger(level), output_(output) {}
 
+    /// Gets the output this logger writes to.
     inline log_output& output() const noexcept { return output_; }
 
 protected:

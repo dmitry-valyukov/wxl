@@ -11,20 +11,26 @@ import wxl.xml;
 
 namespace wxl::html {
 
+/// Holds the storage of a document: the arena, the root node and the
+/// recovery records.
 struct document::state {
-    // One state per document, and a chat feed parses per message: the
-    // allocation repeats, so it comes from the STA pool like everything
-    // else here.
+    /// Allocates the state from the STA memory pool. One state is created per
+    /// document, and a chat feed parses one document per message, so the
+    /// allocation repeats.
     static void* operator new(std::size_t size) {
         return core::sta_memory_pool::alloc(static_cast<std::uint32_t>(size));
     }
 
+    /// Returns the memory of the state to the STA memory pool.
     static void operator delete(void* ptr, std::size_t size) noexcept {
         core::sta_memory_pool::free(ptr, static_cast<std::uint32_t>(size));
     }
 
+    /// The arena the nodes, the texts and the attribute arrays of the tree are allocated in.
     xml::arena arena;
+    /// The root node of the tree; set by `document_builder::finish()`.
     node* root = nullptr;
+    /// The recovery records, in input order.
     xml::sta_vector<parse_error> errors;
 };
 

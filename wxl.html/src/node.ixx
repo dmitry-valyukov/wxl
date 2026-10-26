@@ -93,10 +93,13 @@ enum class attr_t : std::uint8_t {
 /// a type whose natural name node::attribute() already wears as a method.
 class attribute_t {
 public:
+    /// Constructs an attribute from its name and its value.
     constexpr attribute_t(attr_t name, core::zstring_view value) noexcept
         : name_(name), value_(value) {}
 
+    /// Gets the name of the attribute.
     constexpr attr_t name() const noexcept { return name_; }
+    /// Gets the value of the attribute, as a zero-terminated view.
     constexpr core::zstring_view value() const noexcept { return value_; }
 
 private:
@@ -122,28 +125,32 @@ public:
     /// and a zero right after the view -- see the header comment.
     inline explicit node(core::zstring_view text) noexcept : value_(text), tag_(tag_t::text) {}
 
+    /// Gets the tag of the node; `wxl::html::tag_t::text` for a text node.
     inline tag_t tag() const noexcept { return tag_; }
+    /// Tests whether the node is a text node.
     inline bool is_text() const noexcept { return tag_ == tag_t::text; }
+    /// Tests whether the node is an element. The root counts as one.
     inline bool is_element() const noexcept { return tag_ != tag_t::text; }
 
     /// What a text node holds; an element answers empty.
     constexpr core::zstring_view value() const noexcept { return value_; }
 
+    /// Gets the parent node; null for the root.
     inline const node* parent() const noexcept { return parent_; }
 
     /// The children, in document order.
     inline const node_list& children() const noexcept { return children_; }
 
+    /// Gets the attributes of the element, in document order; empty for a text node.
     inline attribute_span attributes() const noexcept { return attributes_; }
 
-    /// The text of that attribute; empty when the element does not carry it.
+    /// Returns the value of the attribute `name`; empty when the element does
+    /// not carry it.
     ///
-    /// Empty and absent are one thing here, and that is the rule rather than
-    /// a shortcut: `<img src="">` is as much a missing source as `<img>`, and
-    /// every caller that used to receive an optional went on to write
-    /// `!x || x->empty()`. What is left of the distinction is `attribute()`
-    /// below, for the caller that really is asking whether the element
-    /// carries the thing at all.
+    /// An empty value and an absent attribute give the same result by design:
+    /// `<img src="">` is as much a missing source as `<img>`, so a caller tests
+    /// one condition rather than `!x || x->empty()`. A caller that asks whether
+    /// the element carries the attribute at all uses `attribute()` below.
     inline core::zstring_view attribute_str(attr_t name) const noexcept {
         for (const attribute_t& candidate : attributes_) {
             if (candidate.name() == name) return candidate.value();
@@ -237,7 +244,9 @@ enum class error_t : std::uint8_t {
     unpaired_close,   ///< close tag with nothing open to match, ignored
     misnested_tags,   ///< close matched below the top; recovered browser-fashion
     bad_entity,       ///< `&name;`-shaped body that failed to decode, left literal
-    misplaced_tag,    ///< a row or cell with no table around it, a summary outside details: dropped, content kept
+    /// a row or cell with no table around it, a summary outside details:
+    /// dropped, content kept
+    misplaced_tag,
 };
 
 /// One recovery record. The detail names the offender -- tag name, entity
@@ -245,11 +254,13 @@ enum class error_t : std::uint8_t {
 /// and alive at least as long as the document (an arena copy or a
 /// literal).
 struct parse_error {
+    /// The kind of recovery.
     error_t code;
+    /// The offending tag name or entity body.
     core::zstring_view detail;
 };
 
-/// The canonical spelling of a known tag, as a wide literal: what an error
+/// The canonical spelling of a known tag, as a UTF-16 literal: what an error
 /// record can point at forever, no arena copy needed.
 constexpr core::zstring_view canonical_name(tag_t tag) noexcept {
     switch (tag) {

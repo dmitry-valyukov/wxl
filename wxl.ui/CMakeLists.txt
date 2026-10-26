@@ -105,7 +105,7 @@ set(WXL_WINDOWSAPPSDK_WINUI_DIR
     CACHE INTERNAL "WindowsAppSDK.WinUI NuGet package (native interop headers)")
 
 # Win2D (Microsoft.Graphics.Canvas) -- CompositionWindow grabs textures with it
-# (TextureCache: covers, backdrops) asynchronously into video memory. The native
+# (TextureCache: backdrops, illustrations) asynchronously into video memory. The native
 # DLL activates unpackaged and, like the bootstrapper above, must sit next to the
 # consumer's executable -- or the window's constructor faults building the shared
 # CanvasDevice. wxl declares the path; the consumer copies the DLL.
