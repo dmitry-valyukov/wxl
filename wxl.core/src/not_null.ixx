@@ -155,47 +155,6 @@ private:
 };
 
 /* ------------------------------------------------------ */
-/// not_null specialization for release_only_ptr: the owning field that never was and
-/// never will be null. Poorer than the others on purpose -- there is no conversion to the
-/// smart pointer and no construction from one, because a release_only_ptr cannot be copied.
-template <class T>
-class not_null<release_only_ptr<T>>
-{
-public:
-    /// The type of the held smart pointer, `release_only_ptr<T>`.
-    using SmartPtr = release_only_ptr<T>;
-
-    /// Constructs a `not_null` that adopts the reference \p ptr already holds, as the
-    /// `intrusive_ptr` specialization does; `release_only_ptr` never adds a reference. A null
-    /// \p ptr aborts the process in every build.
-    explicit not_null(T* ptr) : ptr_(ptr) { ensure(ptr && "not_null was given a null pointer"); }
-
-    /// Returns the held object as a `not_null` raw pointer. The reference count does not change.
-    [[nodiscard]] not_null<T> get() const noexcept {
-        T* tmp = ptr_.get();
-        assume(tmp);
-        return not_null<T>(tmp);
-    }
-
-    /// Returns the raw pointer to the held object for member access.
-    [[nodiscard]] T* operator->() const noexcept {
-        T* tmp = ptr_.get();
-        assume(tmp);
-        return tmp;
-    }
-
-    /// Returns a reference to the held object.
-    [[nodiscard]] T& operator*() const noexcept { return *operator->(); }
-
-    /// By reference, and only here: a release_only_ptr cannot be copied, so
-    /// this is the one specialization whose conversion cannot hand out a copy.
-    operator const SmartPtr&() const noexcept { return ptr_; }
-
-private:
-    SmartPtr ptr_;
-};
-
-/* ------------------------------------------------------ */
 /// Tests whether \p l and \p r refer to the same object. The compiler synthesizes
 /// `operator!=` from this operator.
 template <class T>

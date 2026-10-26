@@ -145,54 +145,6 @@ private:
     T* ptr_ = nullptr;
 };
 
-/**
- * Owns one reference to an intrusively counted object and does nothing else with it: it
- * takes the reference it is handed and releases it when it goes.
- *
- * Deliberately poorer than `intrusive_ptr` -- no copying, no moving, no reassignment, no
- * `intrusive_ptr_add_ref` anywhere in it. That is the whole point: a field set once in the
- * member initializer and released with its owner, where a second reference would be a
- * mistake rather than a convenience. `component` holds its state this way, so the state's
- * reference count reads as "one for the component, plus one per keeper out there".
- */
-template <class T>
-class release_only_ptr
-{
-public:
-    /// Takes over `ptr`'s existing reference -- the implicit first one, if `ptr` was just
-    /// created (refcounted objects start at ref_count() == 1).
-    explicit release_only_ptr(T* ptr) noexcept : ptr_(ptr) {}
-
-    ~release_only_ptr() {
-        if (ptr_) intrusive_ptr_release(ptr_);
-    }
-
-    /// Returns the stored pointer. The reference count does not change.
-    [[nodiscard]] T* get() const noexcept { return ptr_; }
-
-    /// Returns the stored pointer for member access. The pointer must not be null; this is
-    /// asserted in debug builds and assumed in release builds.
-    T* operator->() const noexcept {
-        assume(ptr_);
-        return ptr_;
-    }
-
-    /// Returns a reference to the held object. The pointer must not be null; this is asserted
-    /// in debug builds and assumed in release builds.
-    T& operator*() const noexcept {
-        assume(ptr_);
-        return *ptr_;
-    }
-
-    /// Tests whether the stored pointer is not null.
-    [[nodiscard]] explicit operator bool() const noexcept { return ptr_ != nullptr; }
-
-private:
-    // const, so that the absence of assignment is the type's own doing rather than a rule
-    // to remember; it makes the class non-copyable and non-movable at the same time.
-    T* const ptr_;
-};
-
 /// Tests whether \p a and \p b store the same pointer. The compiler synthesizes `operator!=`
 /// from this operator.
 template <class T, class U>
