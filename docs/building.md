@@ -165,8 +165,11 @@ MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProje
 - **Файл блокировки.** Восстановление записывает выбранные версии в
   `tools/packages.lock.json`, и этот файл входит в репозиторий. CI
   восстанавливает пакеты в режиме блокировки (переменная окружения
-  `RestoreLockedMode=true`): если файл не соответствует закреплениям, настройка
-  останавливается.
+  `RestoreLockedMode=true`): NuGet берёт версии, записанные в файле, и
+  останавливает восстановление, если файл не соответствует закреплениям. Файла,
+  которого нет, NuGet в этом режиме не требует, а записывает его заново,
+  поэтому настройку в режиме блокировки без файла останавливает
+  `cmake/wxl_packages.cmake` ещё до запуска MSBuild.
 - **Проекция.** Её строят цели пакета `Microsoft.Windows.CppWinRT`: проекцию
   Windows SDK (`winrt/base.h`, `winrt/Windows.*`) и проекцию метаданных пакетов
   (`winrt/Microsoft.*`, Win2D, WebView2). Результат находится в каталоге
@@ -177,12 +180,14 @@ MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProje
   восстановления, файла `wxl.packages/obj/project.assets.json`, функцией
   `wxl_nuget_package_dir()`. Сами пакеты находятся в глобальной папке пакетов
   NuGet, которую задаёт переменная `NUGET_PACKAGES` или конфигурация NuGet.
-- **Независимость от машины.** Вспомогательный проект выключает то, что
-  машина добавляет в каждый проект MSBuild: интеграцию vcpkg
-  (`VcpkgEnabled=false`) и файлы `Directory.Build.props`,
+- **Что выключено.** Вспомогательный проект выключает интеграцию vcpkg
+  (`VcpkgEnabled=false`) и импорт файлов `Directory.Build.props`,
   `Directory.Build.targets` и `Directory.Packages.props` из каталогов выше
   каталога сборки. Набор инструментов и Windows SDK он берёт из окружения
-  разработчика (`VCToolsVersion`, `WindowsSDKVersion`).
+  разработчика (`VCToolsVersion`, `WindowsSDKVersion`). Остальное окружение
+  машины на восстановление влияет: MSBuild читает переменные окружения как
+  свойства, а NuGet — файлы `NuGet.Config` в каталогах выше каталога сборки и
+  конфигурацию пользователя и машины.
 - **Повторная настройка.** MSBuild пропускает восстановление и цели, результат
   которых актуален. Изменение `wxl.gen/profiles/base.json`,
   `tools/packages.json` или `tools/packages.lock.json` запускает настройку при
@@ -190,8 +195,11 @@ MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProje
 - **Ошибки.** Журнал MSBuild записывается в
   `build/x64/wxl.packages/msbuild.log`. Если MSBuild завершается ошибкой или
   результат не тот, что ожидается (нет файла блокировки, нет пакета, нет
-  заголовков проекции), настройка останавливается и показывает вывод MSBuild и
-  путь к журналу.
+  заголовков проекции), настройка останавливается и показывает вывод MSBuild,
+  путь к журналу и то, что нужно сделать. Кэш каталога сборки, в котором
+  записан файл инструментов vcpkg (`CMAKE_TOOLCHAIN_FILE`), тоже останавливает
+  настройку: дерево собирается без файла инструментов, и такой каталог
+  настраивается заново, `cmake --preset x64 --fresh`.
 
 Чтобы изменить закрепление, исправьте версию в `tools/packages.json` (или
 выпуск в `wxl.gen/profiles/base.json`), выполните настройку
@@ -346,10 +354,15 @@ Ninja; проще всего взять `CMakePresets.json` из wxl.
 Пакеты NuGet и проекцию `wxl.ui` получает сама: её `CMakeLists.txt`
 подключает `cmake/wxl_packages.cmake`, и вспомогательный проект появляется в
 каталоге сборки проекта. Поэтому проект настраивается из окружения
-разработчика с компонентом C++ WinUI (см. «Требования»), а восстановление
-пишет файл блокировки дерева **wxl**, `tools/packages.lock.json`. Своей цели
+разработчика с компонентом C++ WinUI (см. «Требования»). Своей цели
 `Microsoft::CppWinRT` (её определяет, например, пакет `cppwinrt` из vcpkg) в
 проекте быть не должно: две проекции в одной сборке останавливают настройку.
+
+Проект, который подключает **wxl** (подкаталогом или через `FetchContent`),
+восстанавливает пакеты в режиме блокировки: настройка передаёт MSBuild
+`-p:RestoreLockedMode=true`, берёт версии из файла блокировки дерева **wxl**,
+`tools/packages.lock.json`, и этот файл не переписывает. Если файла в дереве
+**wxl** нет, настройка проекта останавливается.
 
 ```cmake
 cmake_minimum_required(VERSION 4.3)
@@ -399,6 +412,12 @@ FetchContent_MakeAvailable(wxl)
 add_executable(app main.cpp)
 target_link_libraries(app PRIVATE wxl::core)
 ```
+
+Корневой `CMakeLists.txt` **wxl** при настройке восстанавливает пакеты NuGet и
+строит проекцию cppwinrt в каталоге сборки потребителя, в режиме блокировки
+(см. «Рядом с деревом wxl»). Поэтому настройка потребителя тоже выполняется из
+окружения разработчика той установки Visual Studio, в которой есть компонент
+C++ WinUI (см. «Требования»).
 
 ### `wxl.core` отдельно
 

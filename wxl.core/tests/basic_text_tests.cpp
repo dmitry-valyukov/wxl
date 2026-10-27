@@ -342,9 +342,8 @@ TEST(basic_text, a_string_gives_up_its_text_when_asked) {
 
     const std::u8string text = std::move(owned).plain();
 
-    // Read back through assume_valid rather than compared as a std::u8string:
-    // the gtest in vcpkg is built without char8_t printing, so an EXPECT_EQ on
-    // one fails to link rather than to compile.
+    // Read back through assume_valid and compared as chars(), the way the other
+    // tests of this file compare text.
     EXPECT_EQ(assume_valid(text).chars(), "мягких"sv);
     EXPECT_TRUE(owned.empty());  // still a valid basic_text, just an empty one
 }

@@ -16,10 +16,9 @@
   <PropertyGroup Label="Globals">
     <Configuration>Release</Configuration>
     <Platform>x64</Platform>
-    <!-- What the machine adds to every project is switched off, so that the restore and the
-         projection depend on this file alone: the vcpkg integration that `vcpkg integrate
-         install` imports into each .vcxproj, and Directory.Build.props, Directory.Build.targets
-         and Directory.Packages.props found in a directory above the build directory. -->
+    <!-- Switched off: the vcpkg integration that `vcpkg integrate install` imports into each
+         .vcxproj, and the import of Directory.Build.props, Directory.Build.targets and
+         Directory.Packages.props from the directories above the build directory. -->
     <VcpkgEnabled>false</VcpkgEnabled>
     <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps>
     <ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets>
@@ -29,8 +28,10 @@
     <VCToolsVersion>@WXL_PACKAGES_VC_TOOLS_VERSION@</VCToolsVersion>
     <WindowsTargetPlatformVersion>@WXL_PACKAGES_WINDOWS_SDK_VERSION@</WindowsTargetPlatformVersion>
     <!-- The restore writes what it resolved into the lock file of the tree. With
-         RestoreLockedMode=true it does not write the file: references that the lock file does
-         not match stop the restore. -->
+         RestoreLockedMode=true and the file there, it resolves the versions the file records and
+         does not write it: references that the file does not match stop the restore. Without the
+         file a locked restore writes one, so cmake/wxl_packages.cmake stops a locked configure
+         without the file before it runs MSBuild. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <NuGetLockFilePath>@WXL_PACKAGES_LOCK_FILE@</NuGetLockFilePath>
   </PropertyGroup>
@@ -45,6 +46,9 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
 
   <PropertyGroup>
+    <!-- The response files of the projection targets are $(IntDir)$(MSBuildProjectFile)
+         .cppwinrt_plat.rsp and .cppwinrt_ref.rsp; cmake/wxl_packages.cmake reads them there. -->
+    <IntDir>@WXL_PACKAGES_INT_DIR@\</IntDir>
     <!-- Where CppWinRTMakePlatformProjection and CppWinRTMakeReferenceProjection write the
          headers (cppwinrt.exe -out "$(GeneratedFilesDir)."). -->
     <GeneratedFilesDir>@WXL_PACKAGES_PROJECTION_DIR@\</GeneratedFilesDir>

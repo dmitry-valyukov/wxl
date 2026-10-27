@@ -86,7 +86,9 @@ jobs:
       # MSBuild reads the environment variables as properties, so the restore of
       # the configure runs in locked mode: it resolves the versions that
       # tools/packages.lock.json records, and a lock file that does not match
-      # the pins stops the configure instead of being rewritten.
+      # the pins stops the configure instead of being rewritten. NuGet in
+      # locked mode writes a lock file that is not there, so
+      # cmake/wxl_packages.cmake stops a locked configure without one.
       RestoreLockedMode: true
     steps:
       - uses: actions/checkout@v4
