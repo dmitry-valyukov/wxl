@@ -27,16 +27,16 @@ struct fragment {
 }  // namespace
 
 TEST(parser, takes_a_name_and_stops_after_it) {
-    fragment f("book:title=");
+    fragment f("doc:title=");
     std::string_view name;
 
     EXPECT_TRUE(f.reader.parse_name(name));
-    EXPECT_EQ(name, "book:title");
+    EXPECT_EQ(name, "doc:title");
     EXPECT_EQ(f.reader.peek(), '=');
 }
 
 TEST(parser, refuses_a_name_starting_with_a_digit_and_does_not_move) {
-    fragment f("1book");
+    fragment f("1item");
     std::string_view name;
 
     EXPECT_FALSE(f.reader.parse_name(name));

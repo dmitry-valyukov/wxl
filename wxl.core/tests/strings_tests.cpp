@@ -54,13 +54,13 @@ TEST(strings, case_insensitive_comparison_is_ascii) {
     EXPECT_FALSE(wxl::core::equal_ignore_ascii_case("ПРИВЕТ"sv, "привет"sv));
 
     EXPECT_TRUE(wxl::core::starts_with_ignore_ascii_case("Content-Type: x"sv, "content-type"sv));
-    EXPECT_TRUE(wxl::core::ends_with_ignore_ascii_case("book.FB3"sv, ".fb3"sv));
-    EXPECT_FALSE(wxl::core::ends_with_ignore_ascii_case("fb3"sv, ".fb3"sv));
+    EXPECT_TRUE(wxl::core::ends_with_ignore_ascii_case("file.MP3"sv, ".mp3"sv));
+    EXPECT_FALSE(wxl::core::ends_with_ignore_ascii_case("mp3"sv, ".mp3"sv));
 }
 
 TEST(strings, case_conversion) {
     EXPECT_EQ(wxl::core::ascii_lower("Microsoft.WindowsAppSDK"sv), "microsoft.windowsappsdk");
-    EXPECT_EQ(wxl::core::ascii_upper("fb3"sv), "FB3");
+    EXPECT_EQ(wxl::core::ascii_upper("mp3"sv), "MP3");
     EXPECT_EQ(wxl::core::ascii_lower(L"Grid"sv), L"grid");
 
     // Bytes above ASCII are not letters as far as this is concerned, so UTF-8
@@ -158,7 +158,7 @@ TEST(strings, escaping_only_what_cannot_stand) {
     EXPECT_EQ(wxl::core::xml_escaped(""sv), "");
 
     // UTF-8 goes through untouched: XML carries it as itself.
-    EXPECT_EQ(wxl::core::xml_escaped("Пушкин & Гоголь"sv), "Пушкин &amp; Гоголь");
+    EXPECT_EQ(wxl::core::xml_escaped("Хлеб & соль"sv), "Хлеб &amp; соль");
 
     std::string out = "<v>";
     wxl::core::append_xml_escaped(out, "1 < 2"sv);

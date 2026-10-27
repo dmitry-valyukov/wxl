@@ -391,7 +391,7 @@ public:
 /// What a coroutine awaits, and the one thing it ever sees of asynchronous work: a
 /// result in the making, handed back to its caller to be kept, swept and read -- or
 /// awaited by another coroutine, which reads it for them. `file f = co_await
-/// async_file::open_read(path);` and `co_await load(book)` are the same co_await.
+/// async_file::open_read(path);` and `co_await load(document)` are the same co_await.
 ///
 /// Two kinds of producer stand behind it, and the awaiting coroutine cannot tell them
 /// apart: an operation of this module (`async_op_t`), carried out on the worker, on the

@@ -20,7 +20,7 @@ export namespace wxl::xml {
 ///
 /// The aliases in this group differ from their standard counterparts only in the allocator.
 /// The STA pool is 10 to 15 times faster than the default heap, and it is usable here because
-/// everything that the reader allocates for its own bookkeeping is created, used and
+/// everything that the reader allocates for its own use is created, used and
 /// destroyed on the single STA thread.
 ///
 /// The pool is used only where allocation repeats. A buffer that the parse keeps and refills

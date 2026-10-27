@@ -222,10 +222,12 @@ void threaded_component::impl_t::dispose() {
 
     // The component says it has stopped from inside its thread, and the thread still has
     // its way out to go: the callbacks on the stop ticket that ran there, its at-exit
-    // callbacks, the callable it came in with the keeper in it, COM, the group's books, and
-    // the runtime's own goodbye -- thread_local data, DLL_THREAD_DETACH under the loader
-    // lock. A process that exits meanwhile kills the thread on that way, with whatever it
-    // holds. So the component is done with only once its thread has exited.
+    // callbacks, the callable it came in with the keeper in it, COM, the group's registry
+    // (it joins the group's other finished threads, waiting for each, marks its own entry
+    // finished and lets go of the group), and the runtime's own goodbye -- thread_local
+    // data, DLL_THREAD_DETACH under the loader lock. A process that exits meanwhile kills
+    // the thread on that way, with whatever it holds. So the component is done with only
+    // once its thread has exited.
     //
     // Unless it is disposed of on that very thread -- deleted by a callback on its stop
     // ticket, which runs where the stop finished: a thread cannot wait for its own end.

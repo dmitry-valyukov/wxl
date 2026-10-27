@@ -83,27 +83,27 @@ protected:
 }  // namespace
 
 TEST_F(AsyncDirectoryTest, ListsADirectoryInACoroutine) {
-    given_a_file(L"one.fb3");
-    given_a_file(L"two.fb3");
+    given_a_file(L"one.dat");
+    given_a_file(L"two.dat");
     given_a_file(L"notes.txt");
 
     std::vector<std::wstring> found;
 
     sta_loop::run_until(list_all(root_ / L"*", found));
 
-    EXPECT_EQ(found, (std::vector<std::wstring>{L"notes.txt", L"one.fb3", L"two.fb3"}));
+    EXPECT_EQ(found, (std::vector<std::wstring>{L"notes.txt", L"one.dat", L"two.dat"}));
 }
 
 TEST_F(AsyncDirectoryTest, TheMaskGoesToTheSystem) {
-    given_a_file(L"one.fb3");
-    given_a_file(L"two.fb3");
+    given_a_file(L"one.dat");
+    given_a_file(L"two.dat");
     given_a_file(L"notes.txt");
 
     std::vector<std::wstring> found;
 
-    sta_loop::run_until(list_all(root_ / L"*.fb3", found));
+    sta_loop::run_until(list_all(root_ / L"*.dat", found));
 
-    EXPECT_EQ(found, (std::vector<std::wstring>{L"one.fb3", L"two.fb3"}));
+    EXPECT_EQ(found, (std::vector<std::wstring>{L"one.dat", L"two.dat"}));
 }
 
 TEST_F(AsyncDirectoryTest, AnEmptyDirectoryEndsTheLoopAtOnce) {
@@ -119,14 +119,14 @@ TEST_F(AsyncDirectoryTest, ListsMoreNamesThanOneTripCanCarry) {
     // coroutine goes round the loop many times and every crossing has to be
     // right -- including the one where the listing quietly ends.
     for (int i = 0; i < 200; ++i)
-        given_a_file((L"book-" + std::to_wstring(i) + L".fb3").c_str());
+        given_a_file((L"file-" + std::to_wstring(i) + L".dat").c_str());
 
     std::vector<std::wstring> found;
 
     sta_loop::run_until(list_all(root_ / L"*", found));
 
     EXPECT_EQ(found.size(), 200u);
-    EXPECT_EQ(found.front(), L"book-0.fb3");
+    EXPECT_EQ(found.front(), L"file-0.dat");
 }
 
 TEST_F(AsyncDirectoryTest, MakesAChainChecksItAndRemovesIt) {
@@ -164,7 +164,7 @@ TEST_F(AsyncDirectoryTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
     // that started the coroutine is still safe. This is the shape that was
     // broken while the path was merely borrowed -- the worker read it after the
     // temporary was gone -- and it is here to stay broken no longer.
-    given_a_file(L"one.fb3");
+    given_a_file(L"one.dat");
 
     std::vector<std::wstring> found;
 
@@ -172,7 +172,7 @@ TEST_F(AsyncDirectoryTest, APathGivenToAnOperationNeedNotOutliveTheStatement) {
 
     sta_loop::run_until(work);
 
-    EXPECT_EQ(found, (std::vector<std::wstring>{L"one.fb3"}));
+    EXPECT_EQ(found, (std::vector<std::wstring>{L"one.dat"}));
 }
 
 // ---- The listing at once: list ----------------------------------------------
@@ -204,57 +204,57 @@ task<> lists_and_catches(path pattern, int& code) {
 }  // namespace
 
 TEST_F(AsyncDirectoryTest, ListBringsEveryMatchAtOnce) {
-    given_a_file(L"one.fb3");
-    given_a_file(L"two.fb3");
+    given_a_file(L"one.dat");
+    given_a_file(L"two.dat");
     given_a_file(L"notes.txt");
 
     // A directory whose name matches comes out too, and says what it is.
-    ASSERT_TRUE(directory::create((root_ / L"inner.fb3").c_str()));
+    ASSERT_TRUE(directory::create((root_ / L"inner.dat").c_str()));
 
     std::vector<async_directory::listed_entry> found;
 
-    sta_loop::run_until(lists_at_once(root_ / L"*.fb3", found));
+    sta_loop::run_until(lists_at_once(root_ / L"*.dat", found));
 
     ASSERT_EQ(found.size(), 3u);
-    EXPECT_EQ(found[0].name, L"inner.fb3");
+    EXPECT_EQ(found[0].name, L"inner.dat");
     EXPECT_TRUE(found[0].is_directory);
-    EXPECT_EQ(found[1].name, L"one.fb3");
+    EXPECT_EQ(found[1].name, L"one.dat");
     EXPECT_FALSE(found[1].is_directory);
     EXPECT_EQ(found[1].size, 0u);
-    EXPECT_EQ(found[2].name, L"two.fb3");
+    EXPECT_EQ(found[2].name, L"two.dat");
 }
 
 TEST_F(AsyncDirectoryTest, ListBringsWhenEachWasLastWritten) {
-    given_a_file(L"one.fb3");
+    given_a_file(L"one.dat");
 
     const std::filesystem::file_time_type written =
-        std::filesystem::last_write_time((root_ / L"one.fb3").native());
+        std::filesystem::last_write_time((root_ / L"one.dat").native());
 
     std::vector<async_directory::listed_entry> found;
 
-    sta_loop::run_until(lists_at_once(root_ / L"*.fb3", found));
+    sta_loop::run_until(lists_at_once(root_ / L"*.dat", found));
 
     ASSERT_EQ(found.size(), 1u);
     EXPECT_EQ(found[0].last_write.time_since_epoch().count(), written.time_since_epoch().count());
 }
 
 TEST_F(AsyncDirectoryTest, ListUnderATokenBringsWhatThePlainOneDoesUntilAsked) {
-    given_a_file(L"one.fb3");
-    given_a_file(L"two.fb3");
+    given_a_file(L"one.dat");
+    given_a_file(L"two.dat");
 
     cancellation_source source;
     std::vector<async_directory::listed_entry> found;
 
-    sta_loop::run_until(cancelable_lists_at_once(root_ / L"*.fb3", source.token(), found));
+    sta_loop::run_until(cancelable_lists_at_once(root_ / L"*.dat", source.token(), found));
 
     ASSERT_EQ(found.size(), 2u);
-    EXPECT_EQ(found[0].name, L"one.fb3");
-    EXPECT_EQ(found[1].name, L"two.fb3");
+    EXPECT_EQ(found[0].name, L"one.dat");
+    EXPECT_EQ(found[1].name, L"two.dat");
 
     source.cancel();
 
     std::vector<async_directory::listed_entry> again;
-    task<> asked = cancelable_lists_at_once(root_ / L"*.fb3", source.token(), again);
+    task<> asked = cancelable_lists_at_once(root_ / L"*.dat", source.token(), again);
 
     EXPECT_TRUE(asked.done()) << "an operation was started under a cancelled token";
     EXPECT_THROW(asked.result(), operation_canceled_exception);
@@ -266,7 +266,7 @@ TEST_F(AsyncDirectoryTest, ListOfNoMatchIsEmptyAndNotAFailure) {
 
     std::vector<async_directory::listed_entry> found{{L"stale"}};
 
-    sta_loop::run_until(lists_at_once(root_ / L"*.fb3", found));
+    sta_loop::run_until(lists_at_once(root_ / L"*.dat", found));
 
     EXPECT_TRUE(found.empty());
 }

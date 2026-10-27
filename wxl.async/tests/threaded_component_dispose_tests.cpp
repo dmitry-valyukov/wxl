@@ -15,9 +15,9 @@ namespace {
 
 /// A component whose thread is slow to leave: past run() and past its report that the
 /// component has stopped, it still sleeps in a thread-exit callback -- where a real thread
-/// does its group's books, drops its thread_local data and says the runtime's goodbye. The
-/// sleep holds that stretch open long enough to be seen; with dispose() waiting for the
-/// thread, its length makes no difference.
+/// joins its group's finished threads and marks its own entry finished, drops its
+/// thread_local data and says the runtime's goodbye. The sleep holds that stretch open long
+/// enough to be seen; with dispose() waiting for the thread, its length makes no difference.
 class slow_exit_component : public threaded_component
 {
 public:

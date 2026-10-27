@@ -897,8 +897,8 @@ struct CompositionWindow::Impl : core::refcounted, core::intrusive_list_node<Imp
         button.VerticalAlignment(xaml::VerticalAlignment::Stretch);
         // Мышь над кнопкой -- у области окна, и команду по щелчку Windows
         // выполняет сама; до XAML щелчок не доходит, иначе команда пришла бы
-        // дважды. Click остаётся UI Automation: нажатие кнопки читалкой экрана
-        // отдаёт ту же системную команду.
+        // дважды. Click остаётся UI Automation: нажатие кнопки программой чтения
+        // с экрана отдаёт ту же системную команду.
         button.IsHitTestVisible(false);
         button.Click([this, command](auto&&, auto&&) {
             if (!hwnd) return;

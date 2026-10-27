@@ -5,10 +5,11 @@ module;
 // Unicode: the type of checked text, the three encodings, and the traffic
 // between them.
 //
-// UTF-8 is what this tree keeps text in -- wxl.xml parses it, FB3 stores it,
-// reading positions are counted in it -- and UTF-16 is what Windows speaks, so
-// the pair below is the one that gets used. UTF-32 appears only as char32_t,
-// the type a single code point travels in.
+// UTF-8 is what this tree keeps text in -- wxl.xml and wxl.json parse it and
+// their trees hold it, and the column of a parse error is counted in its
+// bytes -- and UTF-16 is what Windows speaks, so the pair below is the one
+// that gets used. UTF-32 appears only as char32_t, the type a single code
+// point travels in.
 //
 // Everything that decodes takes well-formed text, and says so in the signature
 // rather than in a comment: a transcoder that also had to answer "and what if
@@ -960,8 +961,9 @@ u8_text repaired(std::string_view utf8);
 
 // ---- Measuring ---------------------------------------------------------------------
 
-/// How many code points the text holds. Bytes are what a string_view counts,
-/// and characters are what a reading position, a column or a limit means.
+/// How many code points the text holds. Bytes are what a string_view counts;
+/// this is the count for an offset or a limit kept in characters rather than
+/// in bytes.
 inline std::size_t code_point_count(const u8_view utf8) noexcept {
     return impl::code_point_count(utf8.chars());
 }

@@ -4,7 +4,7 @@
 // Formatting and appending are two calls and not one overload set, and that
 // is deliberate. A format string and a piece of text are different things --
 // a brace in the first is an argument and in the second is a brace -- so a
-// single append() that guessed by type would turn a book title with a "{" in
+// single append() that guessed by type would turn a file name with a "{" in
 // it into an error at run time. What one wrote is what one gets: format()
 // formats, append() copies.
 

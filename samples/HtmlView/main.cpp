@@ -60,7 +60,7 @@ wxl::Teardown wxl_launched() {
         isTextSelectionEnabled = true,
         Margin {16, 8},
     };
-    auto forum = BbBlock {
+    auto message = BbBlock {
         isTextSelectionEnabled = true,
         Margin {16, 8},
     };
@@ -106,7 +106,7 @@ wxl::Teardown wxl_launched() {
         block.baseDirectory(assets);
     };
     wire(view);
-    wire(forum);
+    wire(message);
     wire(post);
 
     view.html(load(L"Assets/first-tier.html"));
@@ -118,9 +118,9 @@ wxl::Teardown wxl_launched() {
 
     // Перенос текста — свойство самого RichTextBlock; без него линейка,
     // таблица и раскрывашка держат естественную ширину, как и строки.
-    const auto set_wrapping = [view, forum, post](TextWrapping mode) {
+    const auto set_wrapping = [view, message, post](TextWrapping mode) {
         view.textWrapping(mode);
-        forum.textWrapping(mode);
+        message.textWrapping(mode);
         post.textWrapping(mode);
     };
     auto wrap = CheckBox {
@@ -168,9 +168,9 @@ wxl::Teardown wxl_launched() {
         Button {
             content = L"BB",
             toolTip = L"Тот же образец BB-кодом: BbBlock над общим MarkupBlock",
-            onClick += [forum, scroll](Object const&, RoutedEventArgs&) {
-                forum.bb(load(L"Assets/forum.bb.txt"));
-                scroll.content(forum);
+            onClick += [message, scroll](Object const&, RoutedEventArgs&) {
+                message.bb(load(L"Assets/forum.bb.txt"));
+                scroll.content(message);
             },
         },
         Button {

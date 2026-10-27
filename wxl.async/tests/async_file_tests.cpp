@@ -122,12 +122,12 @@ protected:
 TEST_F(AsyncFileTest, ReadsAFileInACoroutine) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     std::string got;
     std::thread::id worker_thread;
 
-    sta_loop::run_until(read_all(root_ / L"book.bin", got, worker_thread));
+    sta_loop::run_until(read_all(root_ / L"data.bin", got, worker_thread));
 
     EXPECT_EQ(got, content);
     EXPECT_NE(worker_thread, std::thread::id{});
@@ -557,11 +557,11 @@ task<> reads_then_writes(path from, path to, std::string& got) {
 TEST_F(AsyncFileTest, TheLoopRunsUntilAFrameStillReadingAndWritingIsGone) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     std::string got;
 
-    task<> copying = reads_then_writes(root_ / L"book.bin", root_ / L"copy.bin", got);
+    task<> copying = reads_then_writes(root_ / L"data.bin", root_ / L"copy.bin", got);
     EXPECT_NE(sta_loop::outstanding(), 0u);
 
     sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
@@ -578,11 +578,11 @@ TEST_F(AsyncFileTest, TheLoopRunsUntilAFrameStillReadingAndWritingIsGone) {
 TEST_F(AsyncFileTest, ReadAllBringsTheWholeFileInOneOperation) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     std::string got;
 
-    sta_loop::run_until(reads_whole(root_ / L"book.bin", got));
+    sta_loop::run_until(reads_whole(root_ / L"data.bin", got));
 
     EXPECT_EQ(got, content);
 }
@@ -636,13 +636,13 @@ TEST_F(AsyncFileTest, WriteAllOfNothingLeavesAnEmptyFile) {
 TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     cancellation_source source;
     std::string got;
     bool cancelled = false;
 
-    sta_loop::run_until(cancelable_reads_whole(root_ / L"book.bin", source.token(), got, cancelled));
+    sta_loop::run_until(cancelable_reads_whole(root_ / L"data.bin", source.token(), got, cancelled));
 
     EXPECT_EQ(got, content);
     EXPECT_FALSE(cancelled);
@@ -650,7 +650,7 @@ TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
     source.cancel();
 
     std::string again;
-    task<> asked = cancelable_reads_whole(root_ / L"book.bin", source.token(), again, cancelled);
+    task<> asked = cancelable_reads_whole(root_ / L"data.bin", source.token(), again, cancelled);
 
     EXPECT_TRUE(asked.done()) << "an operation was started under a cancelled token";
     sta_loop::run_until(asked);

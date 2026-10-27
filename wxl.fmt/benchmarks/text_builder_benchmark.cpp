@@ -68,7 +68,7 @@ void lines(unsigned rounds) {
     constexpr int page = 7;
     constexpr int count = 350;
     constexpr double share = 12.3456;
-    const char* const title = "Мёртвые души";
+    const char* const title = "Отчёт отдела";
 
     std::size_t sink = 0;
 
