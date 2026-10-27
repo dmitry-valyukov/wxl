@@ -1809,6 +1809,7 @@ private:
             klass_.members.push_back({schema::member::kind_t::Property, member.winrt_name,
                                       member.name, value.value_type});
             klass_.members.back().braced = member.braced;
+            klass_.members.back().positional = member.positional;
         }
         if (member.braced) {
             d.braced.insert(member.winrt_name);
