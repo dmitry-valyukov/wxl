@@ -21,7 +21,7 @@ FrameworkElement around() {
     return gallery::controlExample({
         .header = gallery::snippet(aroundHeader),
         .example = border,
-        .options = {thickness, Grid {columnDefinitions = u"*,*", columnSpacing = 8.0, backgroundChoice, brushChoice}},
+        .options = {thickness, Grid {ColumnDefinitions<u"*,*">, columnSpacing = 8.0, backgroundChoice, brushChoice}},
         .code = gallery::snippet(aroundCode),
     });
 }

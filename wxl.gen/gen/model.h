@@ -333,6 +333,10 @@ struct schema {
         // The tag builds its value from braces too (see dsl::braced).
         bool braced = false;
 
+        // A synthetic property whose value is written unnamed (the profile's "positional") and
+        // is not assigned to the tag: the test line hands it to the class's positional route.
+        bool positional = false;
+
         // Bound only: "input", "output" or "both" -- which Bind form the
         // pair takes, and so which one the test line writes.
         std::string direction;

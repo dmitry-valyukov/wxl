@@ -23,7 +23,7 @@ auto const linkItem = [](NavLink const& link, bool iconAfter) -> FrameworkElemen
         name = link.label,
         automationName = link.label,
         iconAfter ? Margin {0, 0, 2, 0} : Margin {2, 0, 0, 0},
-        columnDefinitions = iconAfter ? u"*,auto" : u"auto,*",
+        iconAfter ? ColumnDefinitions<u"*,auto"> : ColumnDefinitions<u"auto,*">,
         SymbolIcon {symbol = link.symbol, column = iconAfter ? 1 : 0},
         TextBlock {
             link.label,
@@ -72,12 +72,12 @@ auto splitView = SplitView {
     onPaneClosing += [model](SplitView const&, SplitViewPaneClosingEventArgs&) { model->paneOpen.set(false); },
     onPaneOpened += [model](SplitView const&, Object const&) { model->paneOpen.set(true); },
     pane = Grid {
-        rowDefinitions = u"auto,*,auto",
+        RowDefinitions<u"auto,*,auto">,
         TextBlock {u"PANE CONTENT", Margin {60, 12, 0, 0}, styles.TextBlock.BodyStrong},
         navLinks,
     },
     Grid {
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         TextBlock {u"SPLITVIEW CONTENT", Margin {12, 12, 0, 0}, styles.TextBlock.BodyStrong},
         Border {row = 1, pageText},
     },

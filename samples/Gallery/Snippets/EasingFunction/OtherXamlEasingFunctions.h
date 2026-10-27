@@ -35,7 +35,7 @@ for (auto const& each : *functions) {
 
 auto example = Grid {
     minWidth = 420,
-    columnDefinitions = u"auto,*",
+    ColumnDefinitions<u"auto,*">,
     Button {content = u"Animate", automationName = u"Animate rectangle using an Easing Function", onClick += [model, functions](auto&&...) {
                 if (model->choice.selectedIndex() < 0) {
                     return;

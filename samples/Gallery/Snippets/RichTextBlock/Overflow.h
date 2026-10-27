@@ -23,7 +23,7 @@ auto text = RichTextBlock {
 
 auto columns = Grid {
     height = 300,
-    columnDefinitions = u"*,*,*",
+    ColumnDefinitions<u"*,*,*">,
     text,
     first,
     second,

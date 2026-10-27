@@ -185,36 +185,28 @@ inline FontFamily from_winrt(winrt::Microsoft::UI::Xaml::Media::FontFamily const
 }
 
 // WinRT's nullable box and wxl's nullable. cppwinrt's IReference<T> already
-// converts to and from a std::optional of the *same* T; these add the
-// element's own conversion, which is why it arrives as a callable -- the
-// element may cross as itself, as a cast, or through one of the overloads
-// above, and only the generator knows which.
+// converts to and from an optional of the *same* T; this adds the element's
+// own conversion, which is why it arrives as a callable -- the element may
+// cross as itself, as a cast, or through one of the overloads above, and only
+// the generator knows which.
 //
-// The parameter is spelled compressed_optional rather than core::nullable
-// because an alias template deduces nothing: nullable<T> is whatever the
-// selector for T resolved to, and the compiler cannot run that backwards.
-template <typename WinRT, typename T, typename S, typename Convert>
-WinRT to_reference(core::compressed_optional<T, S> const& value, Convert convert) {
-    return value ? WinRT{convert(*value)} : WinRT{nullptr};
-}
-
+// The parameter is any optional_like rather than core::nullable<T>, because an
+// alias template deduces nothing: nullable<T> is whatever the selector for T
+// resolved to -- a compressed_optional, or the plain optional of a type with
+// no spare value to compress into (bool, a Color) -- and the compiler cannot
+// run that backwards.
+//
 // A boolean is handed over as one of two objects that already exist -- see
-// impl/value_box.h. Every other type still gets a box of its own, because
-// every other type has more values than boxes are worth making in advance.
-//
-// It is std::optional and not a compressed_optional because bool is the one
-// type with no spare value to compress into; core::nullable<bool> is this,
-// and optional_selector<bool> in compressed_optional.ixx says why.
-template <typename WinRT, typename Convert>
-WinRT to_reference(std::optional<bool> const& value, Convert) {
-    return value ? WinRT{bool_reference(*value)} : WinRT{nullptr};
-}
-
-// The other types with no spare value -- a Color, whose every bit pattern is a
-// colour -- are std::optional too, and box like the compressed ones.
-template <typename WinRT, typename T, typename Convert>
-WinRT to_reference(std::optional<T> const& value, Convert convert) {
-    return value ? WinRT{convert(*value)} : WinRT{nullptr};
+// impl/value_box.h. Every other type gets a box of its own, because every
+// other type has more values than boxes are worth making in advance.
+template <typename WinRT, core::optional_like Optional, typename Convert>
+WinRT to_reference(Optional const& value, [[maybe_unused]] Convert convert) {
+    if (!value) return WinRT{nullptr};
+    if constexpr (std::is_same_v<typename Optional::value_type, bool>) {
+        return WinRT{bool_reference(*value)};
+    } else {
+        return WinRT{convert(*value)};
+    }
 }
 
 // Coming out, the element type is named by the caller, so the alias works

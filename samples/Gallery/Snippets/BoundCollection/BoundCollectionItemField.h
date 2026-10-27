@@ -38,7 +38,7 @@ auto const model = gallery::hold<Model>();
 
 auto example = Grid {
     columnSpacing = 16.0,
-    columnDefinitions = u"260,*",
+    ColumnDefinitions<u"260,*">,
     ListView {
         height = 220,
         borderBrush = brushes.Card.StrokeColorDefault,

@@ -24,16 +24,20 @@ import std;
 import wxl.core;
 import wxl.async;
 
+#include "sta_box.h"
+
 using namespace wxl::core;
 using namespace wxl::async;
 
 namespace {
 
-// A source that may not be there is one pointer, as the source itself is: its empty value is the
-// one a source is moved into (detail::cancellation_source_sentinel), and the sentinel reads the
-// source as that pointer.
+// A source or a token that may not be there is one pointer, as each itself is: the empty value is
+// the null state (detail::cancellation_sentinel) -- for a source the one it is moved into, for a
+// token the one a default token has -- and the sentinel reads the object as that pointer.
 static_assert(sizeof(cancellation_source) == sizeof(void*));
 static_assert(sizeof(nullable<cancellation_source>) == sizeof(cancellation_source));
+static_assert(sizeof(cancellation_token) == sizeof(void*));
+static_assert(sizeof(nullable<cancellation_token>) == sizeof(cancellation_token));
 
 /// What the operations of one test saw and did, kept outside them: an operation is deleted
 /// whenever its turn comes, and the test looks afterwards.
@@ -1341,15 +1345,15 @@ TEST(CancellationTest, AChildGoneBeforeTheParentIsCancelledLeavesItsEvent) {
     }
     EXPECT_FALSE(anybody_registered(parent.token()));
 
-    std::optional<cancellation_token> kept;
+    std::unique_ptr<wxl::test::sta_box<cancellation_token>> token;
     {
         cancellation_source child(parent.token());
-        kept = child.token();
+        token = std::make_unique<wxl::test::sta_box<cancellation_token>>(child.token());
     }
-    EXPECT_TRUE(kept->is_canceled()) << "the child's source went and its token is not cancelled";
+    EXPECT_TRUE(token->value.is_canceled()) << "the child's source went and its token is not cancelled";
     EXPECT_FALSE(parent.is_canceled());
     EXPECT_TRUE(anybody_registered(parent.token())) << "the child left while its token was held";
-    kept.reset();
+    token.reset();
     EXPECT_FALSE(anybody_registered(parent.token()));
 
     parent.cancel();

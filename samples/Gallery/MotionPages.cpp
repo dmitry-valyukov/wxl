@@ -33,8 +33,8 @@ SamplePage1 samplePage1() {
     auto source = Grid {row = 1, rowSpan = 2, column = 0, minWidth = 250, minHeight = 150, Margin {5},
                         background = brushes.Accent.FillColor.Default};
     auto root = ScrollViewer {content = Grid {
-        columnDefinitions = u"auto,*,*",
-        rowDefinitions = u"auto,auto,auto,*",
+        ColumnDefinitions<u"auto,*,*">,
+        RowDefinitions<u"auto,auto,auto,*">,
         tile(1, 1, dark),
         tile(1, 2, light),
         tile(2, 1, light),
@@ -57,7 +57,7 @@ SamplePage2 samplePage2() {
                    u"Lorem ipsum dolor sit amet, consectetur adipiscing elit"},
         TextBlock {textWrapping = TextWrapping::WrapWholeWords, lorem},
     };
-    auto root = ScrollViewer {content = Grid {columnDefinitions = u"auto,*", rowDefinitions = u"auto,auto", destination, contentPanel}};
+    auto root = ScrollViewer {content = Grid {ColumnDefinitions<u"auto,*">, RowDefinitions<u"auto,auto">, destination, contentPanel}};
     return {root, destination, contentPanel};
 }
 
@@ -75,9 +75,9 @@ DetailedInfoPage detailedInfoPage(CustomDataObject const& object) {
                     TextBlock {Margin {5, 0, 0, 0}, styles.TextBlock.Subtitle, object.likes}},
     };
     auto root = Grid {
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         Grid {hAlign.stretch, vAlign.stretch, goBack},
-        Grid {Margin {20, 52, 20, 20}, columnDefinitions = u"auto,*", image, coordinated},
+        Grid {Margin {20, 52, 20, 20}, ColumnDefinitions<u"auto,*">, image, coordinated},
         Grid {row = 1, Margin {10}, TextBlock {styles.TextBlock.Subtitle, object.description}},
     };
     return {root, goBack, image, coordinated};

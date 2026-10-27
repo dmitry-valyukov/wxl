@@ -157,7 +157,7 @@ struct event_adder<EventKey::{0}> {{
 void write_property_tag(std::ostream& file, dsl const& d, std::string const& name,
                         std::string const& value_type) {
     // A collection that a setter can also be given in one go --
-    // `rowDefinitions[a, b]` and `rowDefinitions = L"2*,*"` are the same
+    // `rowDefinitions[a, b]` and `rowDefinitions = lengths` are the same
     // property said two ways -- so the tag carries both.
     if (d.collection_element.count(name)) {
         std::print(file, "inline constexpr impl::assignable_collection_tag<PropertyKey::{}, {}> {};\n",

@@ -5,6 +5,8 @@
 import std;
 import wxl.core;
 
+#include "sta_box.h"
+
 using namespace wxl::core;
 
 namespace {
@@ -33,34 +35,11 @@ TEST(ChangeWatch, calls_its_owner_on_every_change) {
     observable<int> value{0};
     Listener owner;
     value_watch watch{value, owner};
-    EXPECT_TRUE(watch.attached());
 
     value.set(1);
     value.set(1);  // no change, nothing to hear
     value.set(2);
     EXPECT_EQ(owner.heard, (std::vector<int>{1, 2}));
-}
-
-// An empty watch stands nowhere: the field changes unheard until the watch is attached.
-TEST(ChangeWatch, starts_empty_and_is_attached_later) {
-    observable<int> value{0};
-    Listener owner;
-    value_watch watch;
-    EXPECT_FALSE(watch.attached());
-
-    value.set(1);
-    EXPECT_TRUE(owner.heard.empty());
-
-    watch.attach(value, owner);
-    EXPECT_TRUE(watch.attached());
-    value.set(2);
-    EXPECT_EQ(owner.heard, (std::vector<int>{2}));
-}
-
-// An empty watch has nothing to take off.
-TEST(ChangeWatch, an_empty_watch_goes_quietly) {
-    { value_watch watch; }
-    SUCCEED();
 }
 
 // The watch comes off with its end, and the field, living on, calls the owner no more --
@@ -132,28 +111,15 @@ void without_a_dialog() {
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 }
 
-void attach_twice() {
-    without_a_dialog();
-    observable<int> first{0};
-    observable<int> second{0};
-    Listener owner;
-    value_watch watch{first, owner};
-    watch.attach(second, owner);
-}
-
-TEST(ChangeWatchDeathTest, attaching_twice_stops) {
-    EXPECT_DEATH(attach_twice(), "a change_watch is attached twice");
-}
-
-// Declared before the field it watches, a watch outlives it: the field lets go of the node
-// as it ends, and the watch would take itself off a field that is gone.
+// A watch that outlives its field: the field lets go of the node as it ends, and the watch
+// would take itself off a field that is gone.
 void outlive_the_field() {
     without_a_dialog();
     Listener owner;
-    value_watch watch;
+    std::unique_ptr<wxl::test::sta_box<value_watch>> watch;
     {
         observable<int> value{0};
-        watch.attach(value, owner);
+        watch = std::make_unique<wxl::test::sta_box<value_watch>>(value, owner);
     }
 }
 
@@ -181,14 +147,15 @@ TEST(ChangeWatchDeathTest, taken_off_by_someone_else_stops) {
 struct SelfDestroying {
     void valueChanged(int const&) noexcept { watch.reset(); }
 
-    std::optional<change_watch<observable<int const>, &SelfDestroying::valueChanged>> watch;
+    using watch_box = wxl::test::sta_box<change_watch<observable<int const>, &SelfDestroying::valueChanged>>;
+    std::unique_ptr<watch_box> watch;
 };
 
 void destroy_from_inside_its_call() {
     without_a_dialog();
     observable<int> value{0};
     SelfDestroying owner;
-    owner.watch.emplace(value, owner);
+    owner.watch = std::make_unique<SelfDestroying::watch_box>(value, owner);
     value.set(1);
 }
 

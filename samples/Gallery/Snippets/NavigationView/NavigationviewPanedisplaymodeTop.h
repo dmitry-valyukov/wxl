@@ -23,7 +23,7 @@ auto const view = NavigationView {
 view.selectedItem(view.menuItems()[0]);
 
 auto example = Grid {
-    rowDefinitions = u"auto,*",
+    RowDefinitions<u"auto,*">,
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"If you have equally important navigation categories that should be de-emphasized relative to the content of your app, consider using "
                u"a top navigation pane."},

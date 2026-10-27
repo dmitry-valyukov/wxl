@@ -110,7 +110,7 @@ std::string event_anchor(std::string_view key, std::string_view owner) {
 }
 
 // The same property said two ways -- `rowDefinitions[a, b]` and
-// `rowDefinitions = L"2*,*"` -- so the anchor carries both.
+// `rowDefinitions = lengths` -- so the anchor carries both.
 std::string assignable_collection_anchor(std::string_view key, std::string_view value_type,
                                          std::string_view owner) {
     return std::format("::wxl::impl::assignable_collection_tag<::wxl::PropertyKey::{}, {}, ::wxl::{}>",
@@ -273,6 +273,14 @@ namespace {{
                     break;
 
                 case schema::member::kind_t::Property:
+                    if (member.positional) {
+                        std::print(file, R"([[maybe_unused]] void {0}_{1}_positional({2}, {3} value) {{
+    ::wxl::impl::apply_argument(object, value);
+}}
+)",
+                                   klass.name, member.name, object, qualified(member.type));
+                        break;
+                    }
                     std::print(file, R"([[maybe_unused]] void {0}_{1}_assigned({2}, {4} value) {{
     ::wxl::impl::apply_argument(object, {3} = {5});
 }}

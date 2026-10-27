@@ -39,6 +39,7 @@ target_link_libraries(wxl.core.tests
     PRIVATE
         wxl::core
         wxl::test-support
+        wxl::test
         runtimeobject
 )
 

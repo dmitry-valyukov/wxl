@@ -45,7 +45,7 @@ struct Model {
         content = Grid {
             columnSpacing = 8,
             hAlign.stretch,
-            columnDefinitions = u"*,auto",
+            ColumnDefinitions<u"*,auto">,
             // Interactive control: auto-excluded from drag.
             AutoSuggestBox {
                 maxWidth = 580.0,
@@ -133,7 +133,7 @@ auto openWindow = [] {
     Window window {
         systemBackdrop = MicaBackdrop {},
         extendsContentIntoTitleBar = true,
-        content = Grid {rowDefinitions = u"auto,*", model->titleBar, model->body()},
+        content = Grid {RowDefinitions<u"auto,*">, model->titleBar, model->body()},
     };
     window.appWindow().titleBar().preferredHeightOption(TitleBarHeightOption::Tall);
     window.setTitleBar(model->titleBar);

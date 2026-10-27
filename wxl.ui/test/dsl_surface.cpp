@@ -216,11 +216,11 @@ using namespace wxl::dsl;
 // A repeated child, and the properties a child carries for its parent's
 // layout: the count is part of repeat's type, and `row` reaches
 // Grid::setRow(child, value) although it is written inside the child. The
-// rows are the same property the collection form subscripts, said as text.
+// rows are the same property the collection form subscripts, parsed from text.
 [[maybe_unused]] void repeated_children() {
     Grid grid{
-        rowDefinitions = L"2*,*,*",
-        columnDefinitions = L"*,*",
+        RowDefinitions<u"2*,*,*">,
+        ColumnDefinitions<u"*,*">,
         TextBlock{L"header", row = 0, columnSpan = 2},
         [](repeat<4> index) {
             return Button{
@@ -272,12 +272,79 @@ using namespace wxl::dsl;
 
     static constexpr int spans[]{1, 2, 4};
     Grid layout{
-        columnDefinitions = L"*,*,*,*",
+        ColumnDefinitions<u"*,*,*,*">,
         [](iterate<0, 1, 2> at) { return TextBlock{L"head", column = at}; },
         [](iterate<spans> span) { return TextBlock{L"body", row = 1, columnSpan = span}; },
         [](iterate<L"ab", L'c'> mixed) { return TextBlock{mixed.text(), row = 2}; },
     };
 }
+
+// A grid's rows and columns written as text are parsed when the code compiles into a static array
+// of GridLength, and RowDefinitions<...> / ColumnDefinitions<...> are views on it: written unnamed in
+// the Grid's braces, kept by a Preset with nothing that can go away, and a choice between two texts
+// is a choice between two values of one type. Lengths counted while the program runs go to the
+// named tag as GridLength values -- a span or a braced list -- borrowed for the expression that
+// writes them, which is why a Preset and a Template refuse them (borrows_items, as a collection list).
+[[maybe_unused]] void grid_lengths(bool iconAfter, int columns) {
+    Grid literal{RowDefinitions<u"auto, 2*,*,120">, ColumnDefinitions<u"*,1.5*">};
+    Grid chosen{iconAfter ? ColumnDefinitions<u"*,auto"> : ColumnDefinitions<u"auto,*">};
+    constexpr auto pinned = ColumnDefinitions<u"*,*,*">;
+    Grid fixed{pinned};
+    Apply{fixed, RowDefinitions<u"auto">};
+
+    std::vector<GridLength> const counted(static_cast<std::size_t>(columns), GridLength{1.0, GridUnitType::Star});
+    Grid computed{columnDefinitions = counted};
+    Grid listed{rowDefinitions = {GridLength{1.0, GridUnitType::Auto}, GridLength{2.0, GridUnitType::Star}}};
+    Apply{computed, rowDefinitions = std::span<GridLength const>{counted}};
+
+    static constexpr Preset look{RowDefinitions<u"auto,*">};
+    Grid dressed{look};
+
+    static_assert(pinned.size() == 3);
+    static_assert(RowDefinitions<u"auto, 2*,*,120">.size() == 4);
+    constexpr GridLength shares = ColumnDefinitions<u" 1.5* ">.lengths()[0];
+    static_assert(shares.value == 1.5 && shares.gridUnitType == GridUnitType::Star);
+    static_assert(!std::is_same_v<RowLengths, ColumnLengths>);
+    static_assert(!impl::borrows_items<std::decay_t<decltype(RowDefinitions<u"*">)>>);
+    static_assert(impl::borrows_items<decltype(rowDefinitions = std::span<GridLength const>{})>);
+}
+
+// A text that is not lengths does not compile. Asked of the parse itself -- the one that makes
+// RowDefinitions and ColumnDefinitions -- through a template argument, so that the evaluation that
+// fails is the answer of a requires-expression rather than an error on this line.
+template <impl::values Text>
+concept parses_as_grid_lengths =
+    requires { typename std::integral_constant<std::size_t, impl::grid_lengths_parse<Text>().size()>; };
+
+static_assert(parses_as_grid_lengths<u"*,2*,auto,120">);
+static_assert(!parses_as_grid_lengths<u"*,2x,auto">);
+static_assert(!parses_as_grid_lengths<u"*,,auto">);
+static_assert(!parses_as_grid_lengths<u"">);
+
+// A fraction is the double nearest what is written, as a literal of the language is.
+constexpr auto grid_fractions = RowDefinitions<u"0.3,0.7*,1.25">.lengths();
+static_assert(grid_fractions[0].value == 0.3);
+static_assert(grid_fractions[1].value == 0.7);
+static_assert(grid_fractions[2].value == 1.25);
+static_assert(!parses_as_grid_lengths<u"12345678901234567">);
+static_assert(!parses_as_grid_lengths<u"0.00000000000000000000001">);
+
+// Only a string literal is a text. A lone character, characters with no terminator and numbers make
+// a values too, and the parse refuses them before it reads an entry.
+static constexpr char16_t grid_unterminated[]{u'*', u',', u'*'};
+static constexpr int grid_numbers[]{1, 2};
+static_assert(!parses_as_grid_lengths<'*'>);
+static_assert(!parses_as_grid_lengths<u'*'>);
+static_assert(!parses_as_grid_lengths<grid_unterminated>);
+static_assert(!parses_as_grid_lengths<42>);
+static_assert(!parses_as_grid_lengths<grid_numbers>);
+
+// Written in a default member initializer, as a window's model writes its grid: the check of the
+// text has to hold there too.
+struct [[maybe_unused]] grid_in_a_model {
+    Grid rows{RowDefinitions<u"32,*">};
+    Grid columns{ColumnDefinitions<u"*,auto">};
+};
 
 // Margin and Padding are wxl types of their own, so they read as braced
 // lists and route positionally without the property name.
@@ -440,12 +507,13 @@ static_assert(
 static_assert(std::is_same_v<impl::handler_sender_t<decltype([](auto const&) {})>, void>);
 static_assert(impl::iterating<decltype([](repeat<3>) noexcept { return Button{}; })>);
 
-// An owner that keeps its watches on the window's events as members: each calls a noexcept
-// member of its own, with the event's args or with nothing, and comes off with the owner. One
-// is put on the window later, and the window answers whether a token was there.
+// An owner that keeps its watches on the window's events as members, built with the owner: each
+// calls a noexcept member of its own, with the event's args or with nothing, and comes off with
+// the owner. A remove of the window answers whether a token was there.
 struct WatchesTheWindow {
     explicit WatchesTheWindow(CompositionWindow const& window)
-        : sizeWatch{window, *this}, closingWatch{window, *this}, keyWatch{window, *this} {}
+        : geometryWatch{window, *this}, sizeWatch{window, *this}, closingWatch{window, *this},
+          keyWatch{window, *this} {}
 
     void moved() noexcept {}
     void sized(ClientSize const& client) noexcept { (void)client.scale; }
@@ -453,11 +521,8 @@ struct WatchesTheWindow {
     void keyPressed(VirtualKey const& key) noexcept { (void)key; }
 
     void placed(CompositionWindow const& window) {
-        geometryWatch.attach(window, *this);
-        bool const attached = geometryWatch.attached();
         EventToken token = window.add_onGeometryChanged([] {});
         bool const removed = window.remove_onGeometryChanged(token);
-        (void)attached;
         (void)removed;
     }
 
@@ -1088,9 +1153,7 @@ struct DrawnPage {
 
 void device_replaced(Compositor const& compositor) {
     DrawnPage const page{compositor};
-    RenderingDeviceWatch<&DrawnPage::deviceReplaced> later;
-    bool const attached = later.attached();
-    (void)attached;
+    static_assert(!std::is_default_constructible_v<RenderingDeviceWatch<&DrawnPage::deviceReplaced>>);
     (void)page;
 }
 

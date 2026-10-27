@@ -29,7 +29,7 @@ struct Model {
             case Kind::ImageText:
                 return Grid {
                     width = 280,
-                    columnDefinitions = u"auto,*",
+                    ColumnDefinitions<u"auto,*">,
                     Image {height = 100, verticalAlignment = VerticalAlignment::Top, stretch = Stretch::Fill, source = object.imageLocation},
                     StackPanel {
                         column = 1,
@@ -76,7 +76,7 @@ auto const switches = [](char16_t const* title, auto apply) {
 };
 
 auto example = Grid {
-    rowDefinitions = u"*,auto",
+    RowDefinitions<u"*,auto">,
     model->grid,
     StackPanel {row = 1, model->clicked, model->selected},
 };

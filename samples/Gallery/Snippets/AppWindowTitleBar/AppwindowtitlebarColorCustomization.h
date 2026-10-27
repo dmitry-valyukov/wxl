@@ -96,7 +96,7 @@ auto example = model->showButton;
 
 auto options = Grid {
     columnSpacing = 16,
-    columnDefinitions = u"auto,auto,auto",
+    ColumnDefinitions<u"auto,auto,auto">,
     // Normal and hover states.
     StackPanel {
         column = 0,

@@ -30,7 +30,7 @@ auto example = StackPanel {
 
 auto options = Grid {
     minWidth = 200,
-    columnDefinitions = u"auto,*",
+    ColumnDefinitions<u"auto,*">,
     columnSpacing = 12.0,
     TextBlock {vAlign.center, u"Vertical velocity"},
     NumberBox {

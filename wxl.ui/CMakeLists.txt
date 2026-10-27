@@ -235,6 +235,7 @@ add_library(wxl.ui STATIC
     src/SettingsCard.h
     src/SettingsCard.cpp
     src/SettingsCardContentAlignment.h
+    src/GridLengths.h
     src/SizeToContent.h
     src/HeaderedContentControl.h
     src/HeaderedContentControl.cpp
@@ -579,6 +580,7 @@ if(BUILD_TESTING)
             runtimeobject.lib
             wxl::core
             wxl::async
+            wxl::test
     )
     target_include_directories(wxl.ui.tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src

@@ -88,7 +88,7 @@ auto const model = gallery::hold<Model>();
 
 auto example = Grid {
     rowSpacing = 8,
-    rowDefinitions = u"auto,auto,*",
+    RowDefinitions<u"auto,auto,*">,
     onUnloaded += [model](auto&&...) { model->unload(); },
     model->hint,
     Button {row = 1, styles.Button.Accent, content = u"Load model", onClick += [model](Button const&) { model->load(); }},

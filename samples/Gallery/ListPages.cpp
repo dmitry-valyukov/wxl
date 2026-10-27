@@ -70,7 +70,7 @@ auto byRoom(Thickness wide, Thickness narrow) {
 
 FrameworkElement titled(zstring_view title, FrameworkElement const& body, Thickness titleMargin, Thickness narrowTitleMargin) {
     return Grid {
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         TextBlock {
             title,
             margin = byRoom(titleMargin, narrowTitleMargin),

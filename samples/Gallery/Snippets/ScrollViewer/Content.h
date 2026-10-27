@@ -63,8 +63,8 @@ auto choice = [](int line, Thickness around, char16_t const* description, std::i
 
 auto options = Grid {
     minWidth = 200,
-    columnDefinitions = u"auto,*",
-    rowDefinitions = u"auto,auto,auto,auto,auto,auto,auto,auto",
+    ColumnDefinitions<u"auto,*">,
+    RowDefinitions<u"auto,auto,auto,auto,auto,auto,auto,auto">,
     caption(u"ZoomMode", 0, Thickness {0, 0, 10, 0}, false),
     choice(0, Thickness {}, u"zoom mode", {u"Disabled", u"Enabled"}, model->zoomMode),
     Slider {
