@@ -71,6 +71,39 @@ sta_vector<sta_wstring> environment::command_line() {
     return result;
 }
 
+std::wstring environment::variable(wchar_t const* const name) {
+    // Asked with no room, the call answers with the room the value needs, its terminator
+    // included; given that room, with the length it wrote. Zero is a value of no characters
+    // and a failure alike, and only the last error tells them apart -- cleared before each
+    // call, so that one left by an earlier call decides nothing. A length that does not fit
+    // the room is a value another thread lengthened in between, and the size is asked again.
+    auto const empty_unless_failed = [] {
+        DWORD const error = ::GetLastError();
+        if (error != ERROR_SUCCESS && error != ERROR_ENVVAR_NOT_FOUND) {
+            throw std::system_error{static_cast<int>(error), std::system_category(),
+                                    "GetEnvironmentVariableW"};
+        }
+        return std::wstring{};
+    };
+
+    std::wstring value;
+    for (;;) {
+        ::SetLastError(ERROR_SUCCESS);
+        DWORD const room = ::GetEnvironmentVariableW(name, nullptr, 0);
+        if (room == 0) return empty_unless_failed();
+        if (room == 1) return {};
+
+        value.resize(room);
+        ::SetLastError(ERROR_SUCCESS);
+        DWORD const length = ::GetEnvironmentVariableW(name, value.data(), room);
+        if (length == 0) return empty_unless_failed();
+        if (length < room) {
+            value.resize(length);
+            return value;
+        }
+    }
+}
+
 u8_text environment::error_explanation(std::uint32_t const code) {
     // Language 0 is the system's own order of search: the thread's language, the user's, the
     // system's, English. An insert in the text (%1) has nothing to fill it, and without

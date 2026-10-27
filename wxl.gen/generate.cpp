@@ -16,10 +16,10 @@ namespace {
 // carrying the generator's own banner are removed -- anything a human put
 // in the output directory is left alone.
 void prune_stale(output const& out, gen::emitted const& em) {
-    std::set<std::string> const current{em.files().begin(), em.files().end()};
+    std::set<std::filesystem::path> const current{em.files().begin(), em.files().end()};
 
     for (auto&& entry : std::filesystem::directory_iterator{out.dir}) {
-        if (!entry.is_regular_file() || current.count(entry.path().filename().string())) {
+        if (!entry.is_regular_file() || current.contains(entry.path().filename())) {
             continue;
         }
 

@@ -27,7 +27,7 @@ bool second_finished = false;
 void report(const char* text) {
     FILE* out = nullptr;
 
-    if (fopen_s(&out, "modal-loop-probe.txt", "a") == 0) {
+    if (_wfopen_s(&out, L"modal-loop-probe.txt", L"a") == 0) {
         fputs(text, out);
         fclose(out);
     }

@@ -28,6 +28,21 @@ public:
     /// \throw std::system_error if the system could not split it.
     static sta_vector<sta_wstring> command_line();
 
+    /// The value of the environment variable \p name as the process's environment
+    /// block holds it now: UTF-16 units, unchecked, since nothing makes the block
+    /// well-formed. A variable that holds a path -- `APPDATA`, `SystemRoot` --
+    /// becomes one from these units as they are. Empty when the variable is not
+    /// set, and when it is set to nothing.
+    ///
+    /// Read with GetEnvironmentVariableW, not std::getenv: that one answers from
+    /// the copy of the block the C runtime took at startup, where a variable set
+    /// since with SetEnvironmentVariableW is missing, and answers in the ANSI code
+    /// page. A std::wstring and not the pool's string, as application_folder() is
+    /// a std::filesystem::path: a tool or a test with no STA pool asks this.
+    /// \throw std::system_error if the system fails to read the block for a
+    ///        reason other than the variable being absent.
+    static std::wstring variable(wchar_t const* name);
+
     /// What the system says of an error code -- a Win32 code or an HRESULT -- in
     /// the reader's language: the thread's, else the user's, the system's, and
     /// only then English; without the line break the system ends the phrase

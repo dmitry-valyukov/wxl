@@ -380,4 +380,33 @@ TEST(basic_text, a_path_is_utf8_whatever_the_code_page) {
     EXPECT_EQ(wxl::core::unicode::to_utf8(path), "m:/wxl/тест.xml"sv);
 }
 
+// Above the basic plane a name is a surrogate pair in the path and one code point
+// of four bytes in the text -- a character no ANSI code page but UTF-8 has.
+TEST(basic_text, a_path_beyond_the_basic_plane_is_utf8_too) {
+    const std::filesystem::path path = L"m:/wxl/😀.xml";
+
+    EXPECT_EQ(wxl::core::unicode::to_utf8(path), "m:/wxl/\xF0\x9F\x98\x80.xml"sv);
+}
+
+// A file name the system allows and UTF-16 does not: the unpaired half is marked,
+// and the rest of the name is kept.
+TEST(basic_text, a_lone_surrogate_in_a_path_becomes_a_replacement_character) {
+    const std::filesystem::path path = with_unit(L"m:/wxl/a", 0xD800, L"b.xml");
+
+    EXPECT_EQ(wxl::core::unicode::to_utf8(path), replaced("m:/wxl/a", "b.xml"));
+}
+
+// Text becomes the path it spells, unit for unit -- Cyrillic and a name beyond the
+// basic plane -- and to_utf8() gives the text back.
+TEST(basic_text, checked_text_is_the_path_it_spells) {
+    const std::filesystem::path path = wxl::core::unicode::to_path(u8"m:/wxl/тест 😀.xml");
+
+    EXPECT_EQ(std::wstring_view(path.native()), L"m:/wxl/тест 😀.xml"sv);
+    EXPECT_EQ(wxl::core::unicode::to_utf8(path), "m:/wxl/тест 😀.xml"sv);
+}
+
+TEST(basic_text, empty_text_is_an_empty_path) {
+    EXPECT_TRUE(wxl::core::unicode::to_path(u8"").empty());
+}
+
 }  // namespace

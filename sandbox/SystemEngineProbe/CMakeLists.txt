@@ -21,4 +21,6 @@ add_custom_command(TARGET sandbox.system-engine-probe POST_BUILD
         "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/runtimes/win-x64/native/Microsoft.WindowsAppRuntime.Bootstrap.dll"
         "$<TARGET_FILE_DIR:sandbox.system-engine-probe>"
     VERBATIM)
+# Манифест исполняемых файлов wxl, как у всякой программы дерева на wxl.
+wxl_target_manifest(sandbox.system-engine-probe)
 wxl_set_target_folders(sandbox.system-engine-probe)

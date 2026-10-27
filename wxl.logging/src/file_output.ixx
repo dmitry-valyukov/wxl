@@ -68,11 +68,13 @@ public:
     /// The directory the files are written to.
     inline const std::filesystem::path& directory() const noexcept { return directory_; }
 
-    /// The name the caller asked for, without directory or extension.
-    inline const std::string& stem() const noexcept { return stem_; }
+    /// The name the caller asked for, without directory or extension. A path, as the
+    /// parts are: they go back into the names of the files, and only the output's id
+    /// and its messages turn them into text.
+    inline const std::filesystem::path& stem() const noexcept { return stem_; }
 
     /// The extension, dot included, or empty.
-    inline const std::string& extension() const noexcept { return extension_; }
+    inline const std::filesystem::path& extension() const noexcept { return extension_; }
 
     /// The file being written to right now.
     std::filesystem::path current_path() const;
@@ -117,8 +119,8 @@ private:
     void rotate_history();
 
     std::filesystem::path directory_;
-    std::string stem_;
-    std::string extension_;
+    std::filesystem::path stem_;
+    std::filesystem::path extension_;
     std::string id_;
 
     file_options options_;

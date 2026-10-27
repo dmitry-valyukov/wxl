@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <sstream>
@@ -33,7 +34,9 @@ void append_utf16(std::u16string& out, const char32_t code_point) {
 }
 
 std::vector<conformance_case> read_conformance() {
-    std::ifstream file(WXL_CORE_TESTDATA_DIR "/GraphemeBreakTest.txt", std::ios::binary);
+    // u8, so that the path reads the directory as UTF-8 and not in the ANSI code page.
+    std::ifstream file(std::filesystem::path(u8"" WXL_CORE_TESTDATA_DIR "/GraphemeBreakTest.txt"),
+                       std::ios::binary);
     std::vector<conformance_case> cases;
     std::string line;
 

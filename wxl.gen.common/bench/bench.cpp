@@ -12,6 +12,7 @@
 
 #include "xml_input.h"
 
+import wxl.core;
 import wxl.xml;
 
 namespace {
@@ -37,14 +38,19 @@ void time(best_time& best, F&& f) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+// wmain: the file's path comes in UTF-16, as the system hands it over, and the ID
+// becomes the UTF-8 the documentation is keyed by.
+int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
         std::fprintf(stderr, "usage: wxl.gen.common.bench <documentation.xml> [rounds] [id]\n");
         return 2;
     }
     std::filesystem::path const file {argv[1]};
-    int const rounds = argc > 2 ? std::atoi(argv[2]) : 5;
-    char const* const id = argc > 3 ? argv[3] : "T:Windows.Foundation.Uri";
+    int const rounds = argc > 2 ? _wtoi(argv[2]) : 5;
+    std::string const id_text = argc > 3
+        ? std::string {wxl::core::unicode::repaired(std::wstring_view {argv[3]}).to_utf8().chars()}
+        : std::string {"T:Windows.Foundation.Uri"};
+    char const* const id = id_text.c_str();
 
     best_time parse;
     best_time open;

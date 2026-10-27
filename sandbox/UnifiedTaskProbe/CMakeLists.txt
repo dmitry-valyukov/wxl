@@ -6,4 +6,6 @@ add_executable(sandbox.unified-task-probe main.cpp)
 
 target_link_libraries(sandbox.unified-task-probe PRIVATE wxl::async)
 
+# Манифест исполняемых файлов wxl, как у всякой программы дерева на wxl.
+wxl_target_manifest(sandbox.unified-task-probe)
 wxl_set_target_folders(sandbox.unified-task-probe)

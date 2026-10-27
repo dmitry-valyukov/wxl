@@ -149,7 +149,7 @@ std::string open_error(std::filesystem::path const& file, std::string_view text)
 
 // The error names the file, the offset the last member in `text` starts at,
 // and the reason.
-void expect_broken_member(std::string_view name, std::string_view text, std::string_view reason) {
+void expect_broken_member(std::wstring_view name, std::string_view text, std::string_view reason) {
     auto const file = std::filesystem::temp_directory_path() / name;
     std::string const what = open_error(file, text);
     EXPECT_TRUE(what.contains(utf8(file))) << what;
@@ -167,21 +167,21 @@ constexpr std::string_view cyrillic_name_utf8 =
 }  // namespace
 
 TEST(xml_input, documentation_file_fails_on_a_start_tag_truncated) {
-    expect_broken_member("wxl.gen.common.cut_tag.xml",
+    expect_broken_member(L"wxl.gen.common.cut_tag.xml",
                          "<doc><members><member name=\"T:N.Fine\"><summary>Fine.</summary></member>"
                          "<member name=\"T:N.Cut",
                          "is truncated: no '>' closes its start tag");
 }
 
 TEST(xml_input, documentation_file_fails_on_a_member_truncated) {
-    expect_broken_member("wxl.gen.common.cut_member.xml",
+    expect_broken_member(L"wxl.gen.common.cut_member.xml",
                          "<doc><members><member name=\"T:N.Fine\"><summary>Fine.</summary></member>"
                          "<member name=\"T:N.Cut\"><summary>Cut",
                          "is truncated: no </member> closes it");
 }
 
 TEST(xml_input, documentation_file_fails_on_a_name_left_open) {
-    expect_broken_member("wxl.gen.common.open_name.xml",
+    expect_broken_member(L"wxl.gen.common.open_name.xml",
                          "<doc><members><member name=\"T:N.Fine\"><summary>Fine.</summary></member>"
                          "<member name=\"T:N.Open><summary>Open.</summary></member>"
                          "</members></doc>",
@@ -189,7 +189,7 @@ TEST(xml_input, documentation_file_fails_on_a_name_left_open) {
 }
 
 TEST(xml_input, documentation_file_fails_on_a_member_without_a_name) {
-    expect_broken_member("wxl.gen.common.no_name.xml",
+    expect_broken_member(L"wxl.gen.common.no_name.xml",
                          "<doc><members><member name=\"T:N.Fine\"><summary>Fine.</summary></member>"
                          "<member kind=\"T\"><summary>Nameless.</summary></member></members></doc>",
                          "has no name: its start tag holds no quoted name attribute");

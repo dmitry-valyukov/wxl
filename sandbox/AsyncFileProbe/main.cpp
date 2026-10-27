@@ -18,7 +18,7 @@ namespace {
 void report(const char* text) {
     FILE* out = nullptr;
 
-    if (fopen_s(&out, "async-file-probe.txt", "a") == 0) {
+    if (_wfopen_s(&out, L"async-file-probe.txt", L"a") == 0) {
         fputs(text, out);
         fclose(out);
     }

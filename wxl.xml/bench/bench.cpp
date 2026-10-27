@@ -83,7 +83,8 @@ void report(const char* const name, const best_time& best, const std::size_t byt
 
 }  // namespace
 
-int main(int argc, char** argv) {
+// wmain: the document's path comes in UTF-16, as the system hands it over.
+int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
         std::puts("usage: wxl.xml.bench <document.xml> [rounds]\n"
                   "\n"
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
     }
 
     const std::filesystem::path path = argv[1];
-    const int rounds = argc > 2 ? std::atoi(argv[2]) : 20;
+    const int rounds = argc > 2 ? _wtoi(argv[2]) : 20;
 
     try {
         timings times;
@@ -145,7 +146,8 @@ int main(int argc, char** argv) {
             times.whole.add(clock::now() - whole_started);
         }
 
-        std::printf("%s\n  %zu bytes, %d rounds\n\n", path.string().c_str(), bytes, rounds);
+        std::printf("%s\n  %zu bytes, %d rounds\n\n", wxl::core::unicode::to_utf8(path).c_str(),
+                    bytes, rounds);
 
         report("allocate", times.allocate, bytes);
         report("read", times.read, bytes);

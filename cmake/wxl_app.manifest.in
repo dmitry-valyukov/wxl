@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The manifest of an application built on wxl, written once for all of
-     them and generated for each: the only thing an application puts in it is
-     its own name, and wxl_add_executable() knows that already.
+<!-- The manifest of an executable built on wxl, an application or a tool of the
+     library's own, written once for all of them and generated for each: the
+     only thing that differs between them is the name in the identity, and
+     wxl_target_manifest() knows it already.
 
-     What it says is required by the library, not by the application: an
+     What it says is required by the library, not by the executable. An
      unpackaged WinUI3 process has to name the Windows it was tested against,
      or the framework refuses to consider it a current-Windows one, and it has
      to declare that it handles per-monitor DPI itself, or its window is
@@ -12,7 +13,21 @@
      this (version 6 of the common controls) already travels, from a
      #pragma comment(linker, ...) in wxl.ui/src/launch.cpp.
 
-     An application with reasons of its own passes a manifest in its sources,
+     The active code page (Windows 10 1903 and later) makes the process's ANSI
+     and OEM code pages UTF-8: GetACP() and GetOEMCP() answer 65001 instead of
+     the system's own, 1251 and 866 on a Russian Windows. With it, measured
+     against the same program without it: path::string() gives UTF-8 where it
+     threw on a character the system's page lacks; a path made from a
+     std::string of UTF-8 round-trips where it was read as that page; a
+     std::ifstream opens a file named by such a std::string, which it did not
+     open before; std::getenv answers in UTF-8 instead of that page. So code in
+     the process that is not wxl's and goes through these keeps names intact.
+     It is not what makes wxl's own paths right, which stay UTF-16 up to the
+     system call: an unpaired surrogate in a name still throws from
+     path::string(), and std::getenv still answers from the copy of the
+     environment the C runtime took at startup.
+
+     An executable with reasons of its own passes a manifest in its sources,
      and then this one steps aside: two manifests with different identities do
      not merge, and the link fails outright ("Values of attribute name not
      equal in different manifest snippets"). -->
@@ -21,6 +36,7 @@
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
     </windowsSettings>
   </application>
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">

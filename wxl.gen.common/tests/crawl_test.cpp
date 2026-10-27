@@ -8,9 +8,12 @@
 
 #include "crawl.h"
 
+import wxl.core;
+
 namespace {
 
-std::filesystem::path const profiles_dir{WXL_GEN_PROFILES_DIR};
+// u8, so that the path reads the directory as UTF-8 and not in the ANSI code page.
+std::filesystem::path const profiles_dir{u8"" WXL_GEN_PROFILES_DIR};
 
 template <typename Types>
 std::vector<std::string> names_of(Types const& types) {
@@ -33,7 +36,7 @@ TEST(crawl, order_depends_on_the_metadata_alone) {
 
     std::vector<std::string> files;
     for (auto&& file : profiles.metadata) {
-        files.push_back(file.string());
+        files.push_back(std::string{wxl::core::unicode::to_utf8(file).chars()});
     }
     std::deque<winmd::reader::cache> caches;
     auto const walk = [&] { return crawl(profiles, types, caches.emplace_back(files)); };

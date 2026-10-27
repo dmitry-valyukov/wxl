@@ -261,9 +261,10 @@ struct App : ApplicationT<App> {
 }  // namespace
 
 int main() {
-    if (char const* const o = std::getenv("PROBE_OPTS")) {
+    if (wchar_t const* const wide = _wgetenv(L"PROBE_OPTS")) {
+        std::string const o = winrt::to_string(wide);
         std::string word;
-        for (char const* p = o;; ++p) {
+        for (char const* p = o.c_str();; ++p) {
             if (*p == ',' || *p == 0) {
                 if (!word.empty()) opts.insert(word);
                 word.clear();

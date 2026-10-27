@@ -1064,12 +1064,27 @@ void append_utf8(std::basic_string<char, Traits, Allocator>& out, u16_view utf16
     });
 }
 
-/// A path as UTF-8. Through the units the file system actually holds, and with
-/// U+FFFD where they do not spell anything: std::filesystem::path::string()
-/// would convert through the active code page and mangle every name that page
-/// cannot write, and u8string() has no answer at all for a name that is not
-/// well-formed UTF-16 -- which nothing stops a name from being.
+/// A path as UTF-8, for whatever takes text: a message, a log, a JSON or XML
+/// file, a library whose contract is UTF-8. The UTF-16 units the path holds are
+/// transcoded here, each unpaired surrogate as U+FFFD, since nothing obliges a
+/// file name to be well-formed UTF-16.
+///
+/// Not std::filesystem::path::string(): MSVC converts through the process's
+/// ANSI code page, which writes that page's bytes instead of UTF-8 and throws
+/// `std::system_error` ("No mapping for the Unicode character") on a character
+/// the page lacks. A manifest that makes the page UTF-8 gets UTF-8 out of it,
+/// and an unpaired surrogate still throws; u8string() has no answer for one
+/// either.
 u8_text to_utf8(const std::filesystem::path& path);
+
+/// Checked UTF-8 as the path it spells: the way back from to_utf8(), for a path
+/// read out of text -- a JSON or XML file, a profile. The text is transcoded
+/// here to the UTF-16 a path keeps, which well-formed text cannot fail.
+///
+/// Not a path constructed from the narrow text: MSVC reads that in the process's
+/// ANSI code page, and UTF-8 comes out as that page's characters wherever the
+/// page is not UTF-8.
+std::filesystem::path to_path(u8_view utf8);
 
 // ---- Walking ------------------------------------------------------------------------
 

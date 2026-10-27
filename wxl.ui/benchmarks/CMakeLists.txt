@@ -13,6 +13,11 @@
 # framework package is resolved.
 
 function(_wxl_scene_benchmark target)
+    # The manifest of wxl's executables, for both halves alike: among what it
+    # declares is that the process handles per-monitor DPI itself, and a window
+    # bitmap-stretched on a scaled display would be a different scene to measure.
+    wxl_target_manifest(${target})
+
     wxl_set_target_folders(${target})
 
     # The bootstrapper and Win2D, from wxl itself: the benchmark declares its
@@ -29,7 +34,6 @@ add_executable(wxl.ui.scene-wxl-benchmark
     scene_shape.h
     scene_report.h
     scene_wxl.cpp
-    app.manifest
 )
 
 target_link_libraries(wxl.ui.scene-wxl-benchmark PRIVATE wxl::ui)
@@ -46,7 +50,6 @@ add_executable(wxl.ui.scene-winrt-benchmark
     scene_shape.h
     scene_report.h
     scene_winrt.cpp
-    app.manifest
 )
 
 target_compile_features(wxl.ui.scene-winrt-benchmark PRIVATE cxx_std_23)

@@ -418,6 +418,14 @@ u8_text to_utf8(const std::filesystem::path& path) {
     return repaired(path.native()).to_utf8();
 }
 
+std::filesystem::path to_path(const u8_view utf8) {
+    // Written into a string of the path's own type and moved in, so the path
+    // takes the units as they are instead of converting them again.
+    std::wstring units;
+    append_utf16(units, utf8);
+    return std::filesystem::path{std::move(units)};
+}
+
 }  // namespace unicode
 
 }  // namespace wxl::core
