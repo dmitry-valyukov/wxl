@@ -161,3 +161,180 @@ jobs:
             build/x64/Testing/Temporary/
             build/x64/ctest.xml
           if-no-files-found: ignore
+
+  # Every commit a pull request, or a merge queue candidate, would bring into
+  # main is checked against the rules CONTRIBUTING.md states; the maintainers
+  # run the same checks before they push, and this job is the one that holds
+  # for everybody. The rules, numbered as there:
+  #   1. the author and the committer addresses are GitHub's private
+  #      @users.noreply.github.com ones; the names are free and need not be
+  #      equal. A commit GitHub rewrites -- "Update with rebase", a rebase
+  #      merge, the merge queue -- gets as its committer whoever pressed the
+  #      button, which is again such an address, so a contributor's commit
+  #      rewritten by a maintainer passes. A committer of exactly
+  #      GitHub <noreply@github.com> passes only with a signature, which
+  #      rule 4 then holds to one GitHub verifies;
+  #   2. none of these trailer lines in the message: Co-Authored-By (a commit
+  #      has one author), banner lines, trailer lines that carry a link. The
+  #      patterns are case-sensitive and anchored at the start of a line,
+  #      with the colon or the bracket that follows the word: a body line
+  #      that merely starts with the same words in lower case is prose, and
+  #      so is a link inside a sentence;
+  #   3. no hidden entry outside the list: a path component that starts with
+  #      a dot is not part of the tree, except the hidden entries listed in
+  #      the script below, which are exactly the ones the tree tracks. A bare
+  #      entry, such as a symbolic link or a submodule at that path, counts
+  #      as well; a new hidden entry is added to the list deliberately, in a
+  #      change of its own;
+  #   4. a signed commit is one GitHub verifies: a key GitHub does not know
+  #      makes an unverifiable commit, an unsigned one passes;
+  #   5. no merge commit: the ruleset requires linear history, so a merge
+  #      would not land anyway, and the rules above are not read for it.
+  # A run by hand has no range of commits to check.
+  commits:
+    name: commits
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The whole history: the range starts at the base, which a shallow clone
+      # of the pull request's merge ref does not reach. The job pushes
+      # nothing, so no token stays in .git.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The event's values reach the shell as variables, never spliced into
+      # the script, and are checked before anything uses them. The runner
+      # reads the output line by line, a bare CR ending a line as well, and
+      # takes a line that starts with "::" for a workflow command: a subject
+      # is printed after the short SHA and with its CRs turned into spaces,
+      # so no part of it starts a line.
+      - name: Check the commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: |
+          for sha in "$BASE_SHA" "$HEAD_SHA"; do
+            if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+              echo "::error::'$sha' is not a commit of this repository"
+              exit 1
+            fi
+          done
+
+          # The hidden entries the tree tracks (rule 3), as git ls-files lists
+          # them; a component is compared whole, wherever it stands in a path.
+          tracked_hidden=(.clang-format .gitattributes .github .gitignore)
+          is_tracked_hidden() {
+            local entry
+            for entry in "${tracked_hidden[@]}"; do
+              if [ "$1" = "$entry" ]; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          # An annotation's text is URL-style encoded by the runner: % and the
+          # line breaks are escaped so that a name cannot cut it short.
+          faults=0
+          fault() {
+            local text="rule $1: $2"
+            text=${text//'%'/'%25'}
+            text=${text//$'\r'/'%0D'}
+            text=${text//$'\n'/'%0A'}
+            echo "::error title=commit $short::$text"
+            faults=$((faults + 1))
+          }
+
+          commits=$(git rev-list --reverse "$BASE_SHA..$HEAD_SHA")
+          count=0
+          for sha in $commits; do
+            count=$((count + 1))
+            short=$(git rev-parse --short "$sha")
+            subject=$(git log -1 --format=%s "$sha")
+            echo "$short ${subject//$'\r'/ }"
+
+            read -ra parents <<< "$(git rev-list --parents -n 1 "$sha")"
+            if [ "${#parents[@]}" -gt 2 ]; then
+              fault 5 "a merge commit; the history of main is linear"
+              continue
+            fi
+
+            # %ae and %cn, not %aE and %cN: the identity as recorded, without
+            # a .mailmap in between.
+            {
+              IFS= read -r author_email
+              IFS= read -r committer_name
+              IFS= read -r committer_email
+            } < <(git log -1 --format='%ae%n%cn%n%ce' "$sha")
+
+            # The signature is a header of the commit object: the headers end
+            # at the first empty line, and a message line that starts with
+            # gpgsig is not one.
+            object=$(git cat-file commit "$sha")
+            signed=false
+            if grep -q '^gpgsig' <<< "${object%%$'\n\n'*}"; then
+              signed=true
+            fi
+
+            if [[ "$author_email" != *@users.noreply.github.com ]]; then
+              fault 1 "author <$author_email> is not a @users.noreply.github.com address"
+            fi
+            if [ "$committer_name" = "GitHub" ] && [ "$committer_email" = "noreply@github.com" ]; then
+              if [ "$signed" != true ]; then
+                fault 1 "committer GitHub <noreply@github.com> on a commit without a signature"
+              fi
+            elif [[ "$committer_email" != *@users.noreply.github.com ]]; then
+              fault 1 "committer <$committer_email> is not a @users.noreply.github.com address"
+            fi
+
+            message=$(git log -1 --format=%B "$sha")
+            if grep -qE '^(Co-Authored-By:|Co-authored-by:|🤖|Generated with \[)' <<< "$message"; then
+              fault 2 "the message carries a Co-Authored-By or a banner line"
+            fi
+            if grep -qE '^[A-Za-z]+(-[A-Za-z]+)*: https?://' <<< "$message"; then
+              fault 2 "the message carries a trailer line with a link"
+            fi
+
+            # -z: a path is printed as it is, not quoted; --root: the paths of
+            # a commit without a parent as well. The path is split on / by
+            # parameter expansion, which keeps any other character in it.
+            while IFS= read -r -d '' path; do
+              rest=$path
+              while :; do
+                part=${rest%%/*}
+                if [[ "$part" == .* ]] && ! is_tracked_hidden "$part"; then
+                  fault 3 "$path: $part is a hidden entry the tree does not track"
+                  break
+                fi
+                if [[ "$rest" != */* ]]; then
+                  break
+                fi
+                rest=${rest#*/}
+              done
+            done < <(git diff-tree --no-commit-id --name-only -r -z --root "$sha")
+
+            if [ "$signed" = true ]; then
+              if ! verified=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq .commit.verification.verified); then
+                fault 4 "signed, and GitHub could not be asked whether it verifies the signature"
+              elif [ "$verified" != "true" ]; then
+                fault 4 "signed with a signature GitHub does not verify"
+              fi
+            fi
+          done
+
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no commits in $BASE_SHA..$HEAD_SHA"
+            exit 1
+          fi
+          if [ "$faults" -ne 0 ]; then
+            echo "::error::$faults fault(s) in $count commit(s); the rules are in CONTRIBUTING.md"
+            exit 1
+          fi
+          echo "$count commit(s), no faults"
