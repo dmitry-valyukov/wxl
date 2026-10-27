@@ -125,15 +125,26 @@ private:
 namespace detail {
 
 /// A producer answered on the STA thread outside the loop, in line for the loop to resume its
-/// waiter (sta_loop::queue_loop_turn). Built into the producer, so a turn allocates nothing.
+/// waiter (sta_loop::queue_loop_turn). Built into the producer, so a turn allocates nothing: the
+/// producer derives from it and hands the loop the call that takes it, which finds the producer
+/// again by a static_cast -- one word, as a pointer to an operation was, and no virtual table, so
+/// that a producer that is not an operation is given a turn the same way.
 struct loop_turn {
-    async_op* op;
+    /// The loop's call, with the turn already out of line: resumes the producer's waiter, or lets
+    /// the producer go. \return whether a coroutine was resumed. The producer, and the turn built
+    /// into it, may be gone by the time it returns.
+    bool (*take)(loop_turn&);
     loop_turn* next = nullptr;
 };
 
 /// The half of an orphanable call under a token that its task holds. Defined after the loop.
 template <class R>
 class orphanable_wait;
+
+/// One co_await of async_semaphore::acquire(), in its own partition (wxl.async:async_semaphore):
+/// given a turn when it is handed a permit or cancelled, and taking its turn back out of line
+/// when its frame goes before the turn comes.
+class semaphore_wait;
 
 /// Hands an orphanable operation to the loop the way async_call(orphanable, fn) does, for
 /// async_call_waiting_for_body(), which makes the operation itself. Defined after the loop.
@@ -247,9 +258,10 @@ class sta_loop
     /// application's to choose.
     static inline std::optional<worker> worker_;
 
-    /// Producers answered here outside the loop -- an orphanable call whose token fired --
-    /// in the order they were, each waiting for the loop to resume its waiter. Counted among
-    /// the outstanding, so that the end of a process and stop() see them as well.
+    /// Producers answered here outside the loop -- an orphanable call whose token fired, a
+    /// semaphore's waiter handed a permit or cancelled -- in the order they were, each waiting
+    /// for the loop to resume its waiter. Counted among the outstanding, so that the end of a
+    /// process and stop() see them as well.
     static inline detail::loop_turn* loop_turns_ = nullptr;
     static inline detail::loop_turn** loop_turns_end_ = &loop_turns_;
 
@@ -258,6 +270,8 @@ class sta_loop
 
     template <class R>
     friend class detail::orphanable_wait;
+
+    friend class detail::semaphore_wait;
 
     /// What async_op::abandon() asks of the loop, in sta_loop.cpp: the look into the
     /// return channel, the wait in place, and the tidying after it. wait_until_back()
@@ -780,6 +794,26 @@ private:
         if (first) mode_->wake_for_turn();
     }
 
+    /// Takes a turn out of line before it comes, for a producer that goes first -- a frame
+    /// destroyed while its wait was owed a turn -- so that the loop never reaches into it. The
+    /// turn has to be in line. The walk is linear in the turns in line, which a release() of
+    /// many permits can make long; that is accepted because a producer dying between being
+    /// answered and its turn is the rare path, and the path that takes a turn pays nothing for
+    /// it. A drain already asked for that then finds nothing is the ordinary empty look.
+    inline static void dequeue_loop_turn(detail::loop_turn& turn) noexcept {
+        detail::loop_turn** link = &loop_turns_;
+
+        while (*link != &turn) {
+            coro_check(*link, "sta_loop: a turn taken out of line is not in it",
+                       detail::site::current());
+            link = &(*link)->next;
+        }
+
+        *link = turn.next;
+        if (!*link) loop_turns_end_ = link;
+        --outstanding_;
+    }
+
     /// Takes the first turn in line and gives it to its producer, which resumes its waiter --
     /// or, given up meanwhile, goes. \return whether a coroutine was resumed.
     inline static bool take_loop_turn() {
@@ -790,7 +824,7 @@ private:
         --outstanding_;
 
         // The producer, and the turn built into it, may be gone by the time this returns.
-        return turn->op->complete();
+        return turn->take(*turn);
     }
 };
 
@@ -885,12 +919,12 @@ namespace detail {
 
 /// The wait: the answer the waiter reads, and the call's place in the token's event.
 template <class R>
-class orphanable_wait final : public pooled<orphanable_wait<R>, async_op_t<R>>
+class orphanable_wait final : public pooled<orphanable_wait<R>, async_op_t<R>>, private loop_turn
 {
 public:
     /// Made only under a token that has a source and is not cancelled yet.
     inline explicit orphanable_wait(cancellation_token token)
-        : token_(std::move(token)), registration_(*this), turn_{this} {
+        : loop_turn{&orphanable_wait::take_turn}, token_(std::move(token)), registration_(*this) {
         coro_check(!cancellation_state_of(token_)->canceled(),
                    "orphanable_wait: made under a token cancelled already", detail::site::current());
 
@@ -944,13 +978,19 @@ private:
 
         detach_body();
         this->answer_canceled();
-        sta_loop::queue_loop_turn(turn_);
+        sta_loop::queue_loop_turn(*this);
+    }
+
+    /// The loop's call for the turn on_token_canceled() gave: the wait, answered, is completed
+    /// as an operation the loop takes back is -- its waiter resumed, or, given up meanwhile, the
+    /// wait deleted.
+    inline static bool take_turn(loop_turn& turn) {
+        return static_cast<orphanable_wait&>(turn).complete();
     }
 
     cancellation_token token_;
     /// The wait's place in the token's event.
     cancellation_registration<&orphanable_wait::on_token_canceled> registration_;
-    loop_turn turn_;
 
     /// The body while the two are linked; null once either end has broken the link.
     async_op_t<R>* body_ = nullptr;
