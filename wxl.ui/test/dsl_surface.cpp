@@ -290,7 +290,7 @@ using namespace wxl::dsl;
     Grid chosen{iconAfter ? ColumnDefinitions<u"*,auto"> : ColumnDefinitions<u"auto,*">};
     constexpr auto pinned = ColumnDefinitions<u"*,*,*">;
     Grid fixed{pinned};
-    Apply{fixed, rowDefinitions = RowDefinitions<u"auto">};
+    Apply{fixed, RowDefinitions<u"auto">};
 
     std::vector<GridLength> const counted(static_cast<std::size_t>(columns), GridLength{1.0, GridUnitType::Star});
     Grid computed{columnDefinitions = counted};
@@ -305,7 +305,7 @@ using namespace wxl::dsl;
     constexpr GridLength shares = ColumnDefinitions<u" 1.5* ">.lengths()[0];
     static_assert(shares.value == 1.5 && shares.gridUnitType == GridUnitType::Star);
     static_assert(!std::is_same_v<RowLengths, ColumnLengths>);
-    static_assert(!impl::borrows_items<decltype(rowDefinitions = RowDefinitions<u"*">)>);
+    static_assert(!impl::borrows_items<std::decay_t<decltype(RowDefinitions<u"*">)>>);
     static_assert(impl::borrows_items<decltype(rowDefinitions = std::span<GridLength const>{})>);
 }
 

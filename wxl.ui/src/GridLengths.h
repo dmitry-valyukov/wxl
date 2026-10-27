@@ -214,13 +214,11 @@ inline constexpr bool borrows_items<grid_lengths_op<key, Owner>> = true;
 template <PropertyKey key, typename Owner>
 inline constexpr bool describes<grid_lengths_op<key, Owner>> = true;
 
-// The named tags of a Grid's rows and columns: the parsed value as any property takes its own type,
-// and the lengths a program computed, borrowed. No deduced assignment: text is not a value of these
-// tags any more -- it is a template argument of RowDefinitions and ColumnDefinitions.
-template <PropertyKey key, typename Lengths, typename Owner>
+// The named tags of a Grid's rows and columns: the lengths a program computed, borrowed, and nothing
+// else. A text is not assigned to them: RowDefinitions<...> and ColumnDefinitions<...> are written
+// unnamed in the Grid's braces.
+template <PropertyKey key, typename Owner>
 struct grid_lengths_tag {
-    constexpr setter_op<key, Lengths, Owner> operator=(Lengths lengths) const { return {lengths}; }
-
     constexpr grid_lengths_op<key, Owner> operator=(std::span<GridLength const> lengths) const {
         return {lengths};
     }
@@ -231,13 +229,13 @@ struct grid_lengths_tag {
 };
 
 template <PropertyKey key, typename Owner>
-struct property_tag<key, RowLengths, Owner> : grid_lengths_tag<key, RowLengths, Owner> {
-    using grid_lengths_tag<key, RowLengths, Owner>::operator=;
+struct property_tag<key, RowLengths, Owner> : grid_lengths_tag<key, Owner> {
+    using grid_lengths_tag<key, Owner>::operator=;
 };
 
 template <PropertyKey key, typename Owner>
-struct property_tag<key, ColumnLengths, Owner> : grid_lengths_tag<key, ColumnLengths, Owner> {
-    using grid_lengths_tag<key, ColumnLengths, Owner>::operator=;
+struct property_tag<key, ColumnLengths, Owner> : grid_lengths_tag<key, Owner> {
+    using grid_lengths_tag<key, Owner>::operator=;
 };
 
 }  // namespace impl
