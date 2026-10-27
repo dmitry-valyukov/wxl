@@ -464,8 +464,10 @@ void report_failures_to_stderr() {
 }
 
 // The co_await a strict build names sits alone on the line below the one that records it.
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_wait = std::source_location::current().line() + 1;
 task<> waits_on(plain_keys& keys) { co_await keys; }
+// clang-format on
 
 void two_coroutines_on_one_proxy() {
     report_failures_to_stderr();

@@ -465,8 +465,10 @@ task<int> answers(int value) { co_return value; }
 // Each misuse a strict build reports with the line of the co_await sits alone on the line
 // below the one that records it.
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_take = std::source_location::current().line() + 1;
 task<int> takes_twice(task<int>& kept) { (void)co_await kept; co_return co_await kept; }
+// clang-format on
 
 /// A chain answered inside the call at every level, so that it breaks the rule before the
 /// call that starts it returns -- in a process of its own, without the loop.

@@ -1763,8 +1763,10 @@ void report_failures_to_stderr() {
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 }
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_foreign_cancel = std::source_location::current().line() + 1;
 void cancel_there(cancellation_source& source) { source.cancel(); }
+// clang-format on
 
 void cancel_from_another_thread() {
     report_failures_to_stderr();
@@ -1773,8 +1775,10 @@ void cancel_from_another_thread() {
     std::thread([&source] { cancel_there(source); }).join();
 }
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_foreign_child = std::source_location::current().line() + 1;
 void make_a_child_there(cancellation_source& parent) { cancellation_source child(parent.token()); }
+// clang-format on
 
 void make_a_child_on_another_thread() {
     report_failures_to_stderr();

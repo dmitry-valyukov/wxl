@@ -74,20 +74,30 @@ task<int> awaits_twice(task<int>& op) {
 // Each misuse a strict build reports with the line of the co_await sits alone on the line
 // below the one that records it.
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_await = std::source_location::current().line() + 1;
 task<int> awaits(task<int>& op) { co_return co_await op; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_join = std::source_location::current().line() + 1;
 task<> joins_second(task<int>& kept) { (void)co_await kept; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_foreign_join = std::source_location::current().line() + 1;
 task<> joins_there(task<int>& kept) { co_await to_another_thread{}; (void)co_await kept; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_take = std::source_location::current().line() + 1;
 task<int> takes_twice(task<int>& op) { (void)co_await op; co_return co_await op; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_early_ask = std::source_location::current().line() + 1;
 void ask(task<int>& op) { (void)op.result(); }
+// clang-format on
 
 void await_a_moved_from_one() {
     report_failures_to_stderr();

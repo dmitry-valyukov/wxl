@@ -364,8 +364,10 @@ void report_failures_to_stderr() {
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 }
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_release_over_max = std::source_location::current().line() + 1;
 void release_once_more(async_semaphore& semaphore) { semaphore.release(); }
+// clang-format on
 
 void release_over_max() {
     report_failures_to_stderr();
@@ -384,8 +386,10 @@ void destroy_with_a_waiter() {
     semaphore.reset();
 }
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_release_over_a_handed_permit = std::source_location::current().line() + 1;
 void release_once_more_there(async_semaphore& semaphore) { semaphore.release(); }
+// clang-format on
 
 /// The permit handed to the waiter counts against the maximum until its turn comes: given back a
 /// second time before then, it would make two.
@@ -399,8 +403,10 @@ void release_over_a_handed_permit() {
     release_once_more_there(semaphore);
 }
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_foreign_acquire = std::source_location::current().line() + 1;
 void acquire_there(async_semaphore& semaphore) { (void)semaphore.acquire(cancellation_token{}); }
+// clang-format on
 
 void acquire_from_another_thread() {
     report_failures_to_stderr();

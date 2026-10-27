@@ -1207,8 +1207,10 @@ void ask_before_the_end() {
 }
 
 // A task's coroutine moved to another thread, joining there.
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_foreign_join = std::source_location::current().line() + 1;
 task<> joins_from_there(task<int>& kept) { co_await to_another_thread{}; (void)co_await kept; }
+// clang-format on
 
 void await_from_another_thread() {
     report_failures_to_stderr();
@@ -1253,8 +1255,10 @@ std::string in_task(std::string_view why) {
 // Each misuse a strict build reports with the caller's line sits alone on the line
 // below the one that records it.
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_take = std::source_location::current().line() + 1;
 void take_again(task<int>& t) { (void)t.result(); }
+// clang-format on
 
 void take_the_value_twice_by_result() {
     report_failures_to_stderr();
@@ -1264,11 +1268,15 @@ void take_the_value_twice_by_result() {
     take_again(t);
 }
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_early_ask = std::source_location::current().line() + 1;
 void ask(task<int>& t) { (void)t.result(); }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_wrong_question = std::source_location::current().line() + 1;
 void ask_for_the_exception(task<int>& t) { (void)t.get_exception_ptr(); }
+// clang-format on
 
 void ask_for_the_exception_of_a_value_by_line() {
     report_failures_to_stderr();
@@ -1287,8 +1295,10 @@ void ask_too_early() {
 }
 
 // A task awaiting a task: the place comes through the awaiter await_transform wraps.
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_join = std::source_location::current().line() + 1;
 task<> joins_second(task<int>& kept) { (void)co_await kept; }
+// clang-format on
 
 void join_second_while_the_first_waits() {
     report_failures_to_stderr();
@@ -1301,8 +1311,10 @@ void join_second_while_the_first_waits() {
 }
 
 // The value taken twice by co_await: the place is the second co_await's.
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_await = std::source_location::current().line() + 1;
 task<> awaits_twice_by_value(task<int>& kept) { (void)co_await kept; (void)co_await kept; }
+// clang-format on
 
 void take_the_value_twice_by_co_await() {
     report_failures_to_stderr();
@@ -1313,8 +1325,10 @@ void take_the_value_twice_by_co_await() {
 
 // A task that has been moved from has nothing to wait for: awaiting it fails at the
 // co_await, whatever made the result it no longer holds.
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_moved_from_await = std::source_location::current().line() + 1;
 task<> awaits_what_is_left(task<int>& left) { (void)co_await left; }
+// clang-format on
 
 void await_a_moved_from_task() {
     report_failures_to_stderr();

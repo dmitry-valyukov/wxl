@@ -14,8 +14,10 @@ void without_a_dialog() {
 }
 
 // The default place is the caller's line: the call on the line below.
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_call = std::source_location::current().line() + 1;
 [[noreturn]] void abort_where_called() { without_a_dialog(); wxl::core::abort("the reason"); }
+// clang-format on
 
 std::source_location somewhere_else() {
     return std::source_location::current();
@@ -51,8 +53,10 @@ TEST(ChecksDeathTest, AbortNamesThePlaceItIsGiven) {
 
 TEST(ChecksTest, AReportWritesTheLineOfAnAbortAndGoesOn) {
     testing::internal::CaptureStderr();
+    // clang-format off: the test reads the line of the call as its own line + 1
     constexpr std::uint_least32_t line_of_the_report = std::source_location::current().line() + 1;
     wxl::core::report("the note");
+    // clang-format on
     const std::string said = testing::internal::GetCapturedStderr();
 
     EXPECT_TRUE(std::regex_search(said, std::regex(place_of(line_of_the_report) + "the note\\n$"))) << said;
