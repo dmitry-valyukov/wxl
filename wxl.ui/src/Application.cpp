@@ -18,6 +18,7 @@
 #include <winrt/Microsoft.UI.Xaml.h>
 
 #include "Application.h"
+#include "UiThread.h"
 
 namespace wxl {
 
@@ -123,6 +124,7 @@ std::filesystem::path Application::makeAbsolute(std::filesystem::path const& pat
 }
 
 void Application::exit() {
+    UiThread::ensureCurrent();
     if (loopRunning()) winrt::Microsoft::UI::Xaml::Application::Current().Exit();
 }
 

@@ -62,7 +62,8 @@ public:
     /// returns, and the Teardown handler wxl_launched() returned is called -- its answer is the
     /// process's exit code, as on any other way out. The way to end an application that has no
     /// window, or whose window is only hidden: XAML ends one by itself only when its last window
-    /// closes. On the UI thread only, the one that runs the loop of XAML.
+    /// closes. On the UI thread only, the one that runs the loop of XAML: a call from another
+    /// thread stops the process.
     ///
     /// Only while the loop runs (loopRunning()); after it the call does nothing, as wxl's own call
     /// does: the application is ending already, and asking XAML would be wrong for one of two
