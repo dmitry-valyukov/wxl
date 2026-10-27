@@ -9,5 +9,4 @@ wxl_add_executable(sandbox.titlebar-probe
     main.cpp
 )
 
-target_include_directories(sandbox.titlebar-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
 target_link_libraries(sandbox.titlebar-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib shell32.lib)

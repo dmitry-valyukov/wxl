@@ -1,9 +1,8 @@
 # ---- CMakeList.txt : wxl.core ----
 #
 # Builds both as part of the tree's common top-level project and on its own.
-# Standalone, it has to do the setup the top level otherwise does: resolve
-# vcpkg, open the `import std;` gate, call project(), find the shared
-# dependencies.
+# Standalone, it has to do the setup the top level otherwise does: open the
+# `import std;` gate, call project(), find the shared dependencies.
 cmake_minimum_required(VERSION 4.3)
 
 # Every CMake script in this tree is shared, one level up.
@@ -11,9 +10,6 @@ set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(WXL_CORE_STANDALONE ON)
-
-    # Resolves VCPKG_ROOT and the toolchain file; must run before project().
-    include(${WXL_CMAKE_SCRIPT_DIR}/vcpkg_bootstrap.cmake)
 
     # src/CMakeLists.txt sets CXX_MODULE_STD ON, which CMake keeps behind an
     # experimental gate that only the top-level project can open, and only
@@ -75,10 +71,8 @@ if(BUILD_TESTING)
     include(GoogleTest)
 endif()
 
-find_package(cppwinrt CONFIG REQUIRED)
-
-# winmd::reader is a header-only WinMD metadata parsing library; not packaged
-# by vcpkg, so it's fetched directly from its upstream repo.
+# winmd::reader is a header-only WinMD metadata parsing library, fetched from
+# its upstream repository at a pinned commit.
 include(FetchContent)
 FetchContent_Declare(
     winmd

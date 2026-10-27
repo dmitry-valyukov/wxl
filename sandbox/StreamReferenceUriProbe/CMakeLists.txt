@@ -8,5 +8,4 @@ wxl_add_executable(sandbox.stream-reference-uri-probe
     main.cpp
 )
 
-target_include_directories(sandbox.stream-reference-uri-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
 target_link_libraries(sandbox.stream-reference-uri-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib shcore.lib shlwapi.lib)

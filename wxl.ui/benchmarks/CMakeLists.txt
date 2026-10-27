@@ -56,7 +56,6 @@ target_compile_features(wxl.ui.scene-winrt-benchmark PRIVATE cxx_std_23)
 
 target_include_directories(wxl.ui.scene-winrt-benchmark PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${WXL_CPPWINRT_PROJECTION_DIR}
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include
     # platform.h alone, the tree's one way to <windows.h>: a header, not a line
     # of wxl linked in.

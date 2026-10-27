@@ -7,5 +7,4 @@ wxl_add_executable(sandbox.keyboard-zoom-probe
     main.cpp
 )
 
-target_include_directories(sandbox.keyboard-zoom-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
 target_link_libraries(sandbox.keyboard-zoom-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib)

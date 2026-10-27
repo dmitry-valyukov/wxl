@@ -1,5 +1,4 @@
 build/
-generated/
 # Обёртки, которые пишет генератор: подключаются как <wxl/X.h>.
 wxl.ui/src/wxl/
 out/
