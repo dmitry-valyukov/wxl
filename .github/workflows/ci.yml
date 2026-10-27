@@ -27,9 +27,9 @@
 # that counts, and a second full build of the pull request alone, some 45
 # minutes a row, only delayed it. The queue admits a pull request only when
 # its required checks are green on its head, and the ruleset requires the
-# rows by name, so on the pull request the build-pr job reports the same three
-# names at once, without building. The commits job and the docs site still
-# check the pull request itself.
+# rows by name, so on the pull request the windows-pr job reports the same
+# three names at once, without building. The commits job and the docs site
+# still check the pull request itself.
 name: ci
 
 # merge_group: the merge queue's candidate branch, main plus the queued pull
@@ -49,10 +49,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The matrix rows and the name are those of build-pr below: the expanded
+  # The matrix rows and the name are those of windows-pr below: the expanded
   # names are the required checks of the ruleset, and the two jobs keep them
-  # byte for byte the same.
-  build:
+  # byte for byte the same. The job ids are not build on purpose: a job its
+  # if skips has no matrix expanded and may be reported under its id, and an
+  # id of build would put a check of that name beside the docs site's
+  # required build.
+  windows:
     if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
@@ -195,8 +198,8 @@ jobs:
 
   # The build rows on a pull request: the names the ruleset requires, green at
   # once, so that the merge queue admits the pull request and builds its
-  # candidate (see the header). The rows and the name are those of build.
-  build-pr:
+  # candidate (see the header). The rows and the name are those of windows.
+  windows-pr:
     if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
