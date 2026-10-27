@@ -14,6 +14,13 @@
 # restore the packages, generate the projection, seed the wrapper directory
 # with an empty CMakeLists.txt, build the generator, run it with the full
 # profile, configure again and build everything.
+#
+# A third row keeps the coroutine checks of wxl.async in the build
+# (WXL_STRICT_CORO): the tests that expect a broken rule to stop the process
+# with the line of the call are skipped by every other configuration, and
+# only run here. It builds and tests the three programs of wxl.async/tests
+# alone -- the checks live there, and the wrappers are not needed for them --
+# so the generator, the second configure and the sample are left out.
 name: ci
 
 # merge_group: the merge queue's candidate branch, main plus the queued pull
@@ -41,7 +48,10 @@ jobs:
             preset: x64-debug
           - config: Release
             preset: x64-release
-    name: build (${{ matrix.config }})
+          - config: Debug
+            preset: x64-debug
+            strict: true
+    name: build (${{ matrix.strict && 'Strict' || matrix.config }})
     runs-on: windows-2025
     timeout-minutes: 90
     env:
@@ -94,19 +104,22 @@ jobs:
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF
+          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF ${{ matrix.strict && '-DWXL_STRICT_CORO=ON' || '' }}
 
       - name: Build winui-srcgen
+        if: ${{ !matrix.strict }}
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
           cmake --build build\x64 --config ${{ matrix.config }} --target winui-srcgen
 
       - name: Generate the wrappers
+        if: ${{ !matrix.strict }}
         shell: cmd
         run: build\x64\wxl.gen\${{ matrix.config }}\winui-srcgen.exe --profile wxl.gen\profiles\full.json
 
       - name: Configure with the wrappers
+        if: ${{ !matrix.strict }}
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
@@ -118,13 +131,15 @@ jobs:
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --build build\x64 --config ${{ matrix.config }} -- -k 0
+          cmake --build build\x64 --config ${{ matrix.config }} ${{ matrix.strict && '--target wxl.async.tests wxl.async.dispatched-tests wxl.async.driven-tests' || '' }} -- -k 0
 
+      # The strict row runs the tests of its own directory: the preset would list
+      # every program of the tree, and the ones it did not build would fail.
       - name: Test
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          ctest --preset ${{ matrix.preset }} --output-on-failure --timeout 300 --output-junit ctest.xml
+          ctest ${{ matrix.strict && '--test-dir build\x64\wxl.async\tests -C Debug' || format('--preset {0}', matrix.preset) }} --output-on-failure --timeout 300 --output-junit ctest.xml
 
       # No test opens a WinUI window; a sample does. The experimental runtime
       # the wrappers ask for, then the hello sample for twenty seconds: it has
@@ -132,12 +147,12 @@ jobs:
       # step as well -- the two answer different questions -- but not after a
       # red build, which left nothing to start.
       - name: Install the experimental Windows App Runtime
-        if: (success() || failure()) && steps.build.outcome == 'success'
+        if: (success() || failure()) && steps.build.outcome == 'success' && !matrix.strict
         shell: pwsh
         run: pwsh -NoProfile -File tools/install-runtime.ps1
 
       - name: Start a sample
-        if: (success() || failure()) && steps.build.outcome == 'success'
+        if: (success() || failure()) && steps.build.outcome == 'success' && !matrix.strict
         shell: pwsh
         run: |
           $exe = "build\x64\samples\HelloHere\${{ matrix.config }}\sample.hello.exe"
@@ -156,10 +171,12 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ctest-logs-${{ matrix.config }}
+          name: ctest-logs-${{ matrix.strict && 'Strict' || matrix.config }}
           path: |
             build/x64/Testing/Temporary/
+            build/x64/wxl.async/tests/Testing/Temporary/
             build/x64/ctest.xml
+            build/x64/wxl.async/tests/ctest.xml
           if-no-files-found: ignore
 
   # Every commit a pull request, or a merge queue candidate, would bring into
