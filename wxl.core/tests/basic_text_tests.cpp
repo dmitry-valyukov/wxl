@@ -220,11 +220,11 @@ TEST(basic_text, a_string_grows_by_whole_code_points) {
 }
 
 TEST(basic_text, a_string_grows_by_checked_text) {
-    u16_text title{u"Отцы"};
+    u16_text title{u"Окно"};
     title += u" и ";
     title.append(wide_greeting.substr(14));
 
-    EXPECT_EQ(title.wchars(), L"Отцы и 😀"sv);
+    EXPECT_EQ(title.wchars(), L"Окно и 😀"sv);
 
     u8_text line;
     line.reserve(64);

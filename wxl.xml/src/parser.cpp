@@ -151,7 +151,7 @@ bool parser::looks_like(const std::string_view text) const noexcept {
 parser::line_column parser::place(const char* const position) noexcept {
     // Backwards only when a rule that already failed asks where it began.
     // Counting again from the top is correct, and rare enough to be cheaper
-    // than a second bookkeeping to avoid it.
+    // than keeping a second record to avoid it.
     if (position < place_at_) {
         place_at_ = start_;
         place_line_ = start_;
@@ -302,10 +302,10 @@ core::u8_view parser::namespace_for(const std::string_view prefix) const noexcep
         return xmlns_namespace;
 
     // A prefix nothing declared. Refusing the document here would be the
-    // letter of the recommendation, and would also mean a book no reader can
-    // open because one attribute of it names a vocabulary nobody uses. The
-    // name keeps its prefix and stands in no namespace, which is exactly what
-    // the document said.
+    // letter of the recommendation, and would also mean a document no
+    // application can open because one attribute of it names a vocabulary
+    // nobody uses. The name keeps its prefix and stands in no namespace, which
+    // is exactly what the document said.
     return {};
 }
 

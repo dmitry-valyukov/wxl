@@ -71,8 +71,8 @@ public:
     /// Starts an enumeration.
     ///
     /// \param pattern the directory and what to match in it, together, the way
-    ///        Windows wants them -- `C:\\books\\*` for everything, or
-    ///        `C:\\books\\*.fb3` for the only files a reader cares about.
+    ///        Windows wants them -- `C:\\data\\*` for everything, or
+    ///        `C:\\data\\*.xml` for the only files an application cares about.
     ///        Filtering by the system beats filtering by us: the names we never
     ///        see cost nothing.
     /// \return the enumeration, started or not -- ask opened().
@@ -210,7 +210,7 @@ private:
     /// Three shapes. A drive letter and its separator, `C:\`. A separator on its
     /// own, rooted on the current drive. And a UNC name, `\\server\share`, where
     /// the root runs to the end of the share: neither `\\server` nor a bare
-    /// `\\server\` is something `CreateDirectoryW` will make, and a books folder
+    /// `\\server\` is something `CreateDirectoryW` will make, and a data folder
     /// watched on a network share is written exactly this way.
     inline static std::size_t root_length(const path& p) noexcept {
         const std::wstring_view text = p.native();

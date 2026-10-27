@@ -31,8 +31,8 @@ export namespace wxl::async {
 ///
 /// A listing is worth having asynchronous even more than a file is. A directory
 /// on a network share, or one with tens of thousands of names in it, keeps
-/// `FindNextFileW` busy for as long as it likes, and a reader that watches
-/// folders for books does this while somebody is reading.
+/// `FindNextFileW` busy for as long as it likes, and an application that watches
+/// folders for new files does this while somebody is working in its window.
 class async_directory
 {
 public:
@@ -59,7 +59,7 @@ public:
     /// Starts an enumeration.
     ///
     /// \param pattern the directory and the mask together, as `core::directory`
-    ///        wants them: `dir / L"*.fb3"`. Copied into the operation, for the
+    ///        wants them: `dir / L"*.txt"`. Copied into the operation, for the
     ///        reason `async_file` gives at length -- a borrowed path outlives
     ///        nothing once the statement that started the coroutine has ended,
     ///        and the worker is already holding it by then.
@@ -67,9 +67,9 @@ public:
     static task<async_directory> open(const core::path& pattern);
 
     /// Everything the pattern matches, at once, in one operation that owns its
-    /// result -- orphanable, one round trip, for the folder a reader adds to its
-    /// shelf. The enumeration above is for the other case, the directory with
-    /// tens of thousands of names, where one trip per name is the point.
+    /// result -- orphanable, one round trip, for the folder somebody adds to those
+    /// an application watches. The enumeration above is for the other case, the
+    /// directory with tens of thousands of names, where one trip per name is the point.
     ///
     /// A pattern that matches nothing is an empty answer, not a failure: the
     /// directory is there and holds none of what was asked for.

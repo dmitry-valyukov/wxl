@@ -24,7 +24,7 @@
 //    the file.
 //  - a wxl::core::sta_memory_pool has to exist before the first parse and
 //    outlive the last object of this library, since that is where all of its
-//    bookkeeping comes from. A pool may be built once per process, so it
+//    auxiliary storage comes from. A pool may be built once per process, so it
 //    belongs in main(), or in a global fixture in a test binary.
 //  - a document may nest as deeply as it likes: neither the parse nor
 //    node::find() recurses. Code of one's own that walks children by calling

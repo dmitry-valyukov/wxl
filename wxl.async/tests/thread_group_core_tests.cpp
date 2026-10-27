@@ -115,7 +115,7 @@ TEST(ThreadGroupTest, AtThreadExitCallbackRunsOnThreadExit) {
 }
 
 // Nested managers spawned concurrently from many threads, racing thread_info_container's
-// add/remove/join bookkeeping under real contention.
+// adds, removals and joins under real contention.
 TEST(ThreadGroupTest, ConcurrentNestedManagersHandleEveryTask) {
     constexpr int outer_threads = 8;
     constexpr int inner_spawns = 200;
@@ -150,7 +150,7 @@ TEST(ThreadGroupTest, JoinClosesTheHandlesOfJoinedThreads) {
 }
 
 // A group let go of without a join goes with its last reference, and closes the handles of
-// the threads still on its books. That reference may be the thread's own, given back on its
+// the threads still in its registry. That reference may be the thread's own, given back on its
 // way out -- so the body opens its thread for the test to wait on, and the group has gone by
 // the time the wait returns.
 TEST(ThreadGroupTest, ReleasedGroupClosesTheHandlesOfThreadsNobodyJoined) {

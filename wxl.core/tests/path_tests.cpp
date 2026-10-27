@@ -35,18 +35,18 @@ TEST(PathTest, DefaultConstructedIsEmpty) {
 }
 
 TEST(PathTest, JoinsComponentsWithASeparator) {
-    const path p = path(L"C:\\data") / L"books" / L"guid.xml";
+    const path p = path(L"C:\\data") / L"files" / L"guid.xml";
 
-    EXPECT_EQ(p.native(), std::wstring_view(L"C:\\data\\books\\guid.xml"));
+    EXPECT_EQ(p.native(), std::wstring_view(L"C:\\data\\files\\guid.xml"));
 }
 
 TEST(PathTest, DoesNotDoubleASeparatorThatIsAlreadyThere) {
-    EXPECT_EQ((path(L"C:\\data\\") / L"books").native(), std::wstring_view(L"C:\\data\\books"));
-    EXPECT_EQ((path(L"C:/data/") / L"books").native(), std::wstring_view(L"C:/data/books"));
+    EXPECT_EQ((path(L"C:\\data\\") / L"files").native(), std::wstring_view(L"C:\\data\\files"));
+    EXPECT_EQ((path(L"C:/data/") / L"files").native(), std::wstring_view(L"C:/data/files"));
 }
 
 TEST(PathTest, JoiningOntoAnEmptyPathGivesTheComponent) {
-    EXPECT_EQ((path() / L"books").native(), std::wstring_view(L"books"));
+    EXPECT_EQ((path() / L"files").native(), std::wstring_view(L"files"));
 }
 
 TEST(PathTest, AnEmptyComponentChangesNothing) {
@@ -56,22 +56,22 @@ TEST(PathTest, AnEmptyComponentChangesNothing) {
 }
 
 TEST(PathTest, FilenameIsTheLastComponent) {
-    EXPECT_EQ(path(L"C:\\data\\book.fb3").filename(), std::wstring_view(L"book.fb3"));
-    EXPECT_EQ(path(L"C:/data/book.fb3").filename(), std::wstring_view(L"book.fb3"));
-    EXPECT_EQ(path(L"book.fb3").filename(), std::wstring_view(L"book.fb3"));
+    EXPECT_EQ(path(L"C:\\data\\file.dat").filename(), std::wstring_view(L"file.dat"));
+    EXPECT_EQ(path(L"C:/data/file.dat").filename(), std::wstring_view(L"file.dat"));
+    EXPECT_EQ(path(L"file.dat").filename(), std::wstring_view(L"file.dat"));
     EXPECT_EQ(path(L"C:\\data\\").filename(), std::wstring_view(L""));
 }
 
 TEST(PathTest, ParentPathKeepsARootSeparatorAndDropsAnyOther) {
-    EXPECT_EQ(path(L"C:\\data\\book.fb3").parent_path(), std::wstring_view(L"C:\\data"));
-    EXPECT_EQ(path(L"C:\\book.fb3").parent_path(), std::wstring_view(L"C:\\"));
-    EXPECT_EQ(path(L"\\book.fb3").parent_path(), std::wstring_view(L"\\"));
-    EXPECT_EQ(path(L"book.fb3").parent_path(), std::wstring_view(L""));
+    EXPECT_EQ(path(L"C:\\data\\file.dat").parent_path(), std::wstring_view(L"C:\\data"));
+    EXPECT_EQ(path(L"C:\\file.dat").parent_path(), std::wstring_view(L"C:\\"));
+    EXPECT_EQ(path(L"\\file.dat").parent_path(), std::wstring_view(L"\\"));
+    EXPECT_EQ(path(L"file.dat").parent_path(), std::wstring_view(L""));
 }
 
 TEST(PathTest, ComparesOrdinally) {
-    EXPECT_EQ(path(L"C:\\data\\book.fb3"), path(L"C:\\data\\book.fb3"));
-    EXPECT_FALSE(path(L"C:\\data\\book.fb3") == path(L"C:\\DATA\\BOOK.FB3"));
+    EXPECT_EQ(path(L"C:\\data\\file.dat"), path(L"C:\\data\\file.dat"));
+    EXPECT_FALSE(path(L"C:\\data\\file.dat") == path(L"C:\\DATA\\FILE.DAT"));
 }
 
 // The debug CRT heap is what the probe below reads, and it is only there in a
@@ -82,7 +82,7 @@ TEST(PathTest, TakesItsCharactersFromTheStaPoolAndNotTheCrtHeap) {
     _CrtMemState before{}, after{}, difference{};
 
     _CrtMemCheckpoint(&before);
-    path p = path(L"C:\\data\\books") / long_name;
+    path p = path(L"C:\\data\\files") / long_name;
     _CrtMemCheckpoint(&after);
 
     EXPECT_EQ(0, _CrtMemDifference(&difference, &before, &after))
@@ -97,7 +97,7 @@ TEST(PathTest, TheProbeNoticesAnOrdinaryStdWstring) {
     _CrtMemState before{}, after{}, difference{};
 
     _CrtMemCheckpoint(&before);
-    std::wstring text = std::wstring(L"C:\\data\\books\\") + long_name;
+    std::wstring text = std::wstring(L"C:\\data\\files\\") + long_name;
     _CrtMemCheckpoint(&after);
 
     EXPECT_NE(0, _CrtMemDifference(&difference, &before, &after));
@@ -107,9 +107,9 @@ TEST(PathTest, TheProbeNoticesAnOrdinaryStdWstring) {
 #endif
 
 TEST(PathTest, HandlesAUncPathTheWayWindowsWritesIt) {
-    const path p = path(LR"(\\server\books)") / L"fantasy" / L"one.fb3";
+    const path p = path(LR"(\\server\share)") / L"archive" / L"one.dat";
 
-    EXPECT_EQ(p.native(), std::wstring_view(LR"(\\server\books\fantasy\one.fb3)"));
-    EXPECT_EQ(p.filename(), std::wstring_view(L"one.fb3"));
-    EXPECT_EQ(p.parent_path(), std::wstring_view(LR"(\\server\books\fantasy)"));
+    EXPECT_EQ(p.native(), std::wstring_view(LR"(\\server\share\archive\one.dat)"));
+    EXPECT_EQ(p.filename(), std::wstring_view(L"one.dat"));
+    EXPECT_EQ(p.parent_path(), std::wstring_view(LR"(\\server\share\archive)"));
 }

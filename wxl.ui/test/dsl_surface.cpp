@@ -164,16 +164,16 @@ using namespace wxl::dsl;
 // Братья HtmlBlock над общим MarkupBlock: своя только дверь разметки, всё
 // остальное — тема, база картинок, onLink/onError — семейное.
 [[maybe_unused]] void bb_and_rsdn_blocks() {
-    BbBlock forum{
+    BbBlock message{
         L"Привет, [b]мир[/b]! [url=https://example.invalid]пример[/url]",
         isTextSelectionEnabled = true,
     };
-    forum.theme(MarkupTheme{});
-    forum.baseDirectory(LR"(C:\docs)");
-    forum.onLink([](zstring_view) {});
-    forum.onError([](MarkupError const&) {});
-    forum.append(L"[quote=Вася]дописано[/quote]");
-    forum.bb(L"[list][*]заново[/list]");
+    message.theme(MarkupTheme{});
+    message.baseDirectory(LR"(C:\docs)");
+    message.onLink([](zstring_view) {});
+    message.onError([](MarkupError const&) {});
+    message.append(L"[quote=Вася]дописано[/quote]");
+    message.bb(L"[list][*]заново[/list]");
 
     RsdnBlock post{
         L"AVK>цитата\nответ [c#]var x = 1;[/c#]",
@@ -361,8 +361,8 @@ using namespace wxl::dsl;
     };
     CompositionWindow const coloured{background = rgb(32, 32, 32)};
     // A picture loaded on the way, under the token the exit ends its wait with.
-    tiled.backgroundAsync(BackgroundImage{L"Assets/cover.png", BackgroundFill::None, rgb(0, 0, 0)}, token);
-    coloured.backgroundAsync(std::filesystem::path{L"Assets/cover.png"}, token);
+    tiled.backgroundAsync(BackgroundImage{L"Assets/photo.png", BackgroundFill::None, rgb(0, 0, 0)}, token);
+    coloured.backgroundAsync(std::filesystem::path{L"Assets/photo.png"}, token);
 
     auto const closeLater = [window] { window.close(); };
     (void)closeLater;
@@ -390,7 +390,7 @@ static_assert(!loads_background_without_a_token<BackgroundImage> &&
 // A texture from the cache, under a token as every operation of the platform's.
 [[maybe_unused]] async::task<CompositionDrawingSurface> cached_texture(TextureCache& cache,
                                                                        async::cancellation_token token) {
-    return cache.getAsync(std::filesystem::path{L"C:/Books/cover.png"}, std::move(token));
+    return cache.getAsync(std::filesystem::path{L"C:/Pictures/photo.png"}, std::move(token));
 }
 
 // An application that refuses to close until its own exit is over: the handler is
@@ -1162,7 +1162,7 @@ void handing_work_over(DispatcherQueue const& queue) {
     auto const background = [ui](std::wstring found) {
         ui.post([found = std::move(found)] { (void)found; });
     };
-    background(L"a book");
+    background(L"a file");
 }
 
 // A class that is only its statics derives from Statics, not from Object.
@@ -1553,14 +1553,13 @@ static_assert(!core::invocable<recounted_call, void(int const&) noexcept>);
 static_assert(impl::typed_sender_handler<clicked_call, RoutedEventArgs>);
 
 // Tabs at the bottom of a window and the dialog that answers by events: both
-// arrived for the forum client, and both are here so that a change to the
-// profile or to showDialog's signature stops this translation unit rather
-// than an application.
+// are here so that a change to the profile or to showDialog's signature stops
+// this translation unit rather than an application.
 [[maybe_unused]] void tabs_and_dialogs(Window const& window, async::cancellation_token token) {
     SelectorBar tabs{
         hAlign.center,
         onSelectionChanged += [](Object const&, SelectorBarSelectionChangedEventArgs&) {},
-        SelectorBarItem{L"Forums", icon = FontIcon{glyph = L""}},
+        SelectorBarItem{L"Messages", icon = FontIcon{glyph = L""}},
         SelectorBarItem{L"Watched", icon = FontIcon{glyph = L""}},
     };
 
@@ -2445,15 +2444,15 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 // through the schema; a read-only list; an item held by pointer whose own field is bound inside its element; the item
 // back from what a click hands out (boundItem); the selection as a field of any Selector.
 namespace {
-struct ShelfCard : ::wxl::core::sta_refcounted {
-    explicit ShelfCard(::wxl::core::u16_text t) : title(std::move(t)) {}
+struct BoardCard : ::wxl::core::sta_refcounted {
+    explicit BoardCard(::wxl::core::u16_text t) : title(std::move(t)) {}
 
     ::wxl::core::u16_text const title;
     ::wxl::core::observable<::wxl::core::u16_text> progress;
 };
 
-struct Shelf {
-    ::wxl::core::observable_list<::wxl::core::intrusive_ptr<ShelfCard>> cards;
+struct Board {
+    ::wxl::core::observable_list<::wxl::core::intrusive_ptr<BoardCard>> cards;
     ::wxl::core::observable_list<::wxl::core::u16_text> words;
     ::wxl::core::observable<int> chosen;
 
@@ -2461,37 +2460,37 @@ struct Shelf {
 };
 }  // namespace
 
-[[maybe_unused]] void bound_lists(Shelf& shelf) {
+[[maybe_unused]] void bound_lists(Board& board) {
     using namespace ::wxl;
     using namespace ::wxl::dsl;
     auto const row = [](core::u16_text const& word) { return TextBlock{text = word}; };
 
-    ListView{itemsSource = BindOutput{shelf.words, row}};
-    GridView{itemsSource = BindOutput{shelf.words, row}};
-    ItemsRepeater{itemsSource = BindOutput{shelf.words, row}};
-    ItemsView{itemsSource = BindOutput{shelf.words, [](core::u16_text const& word) {
+    ListView{itemsSource = BindOutput{board.words, row}};
+    GridView{itemsSource = BindOutput{board.words, row}};
+    ItemsRepeater{itemsSource = BindOutput{board.words, row}};
+    ItemsView{itemsSource = BindOutput{board.words, [](core::u16_text const& word) {
                   return ItemContainer{child = TextBlock{text = word}};
               }}};
-    ListView{BindOutput{shelf.words, row}};  // unnamed: what a list control binds a list to is its items
-    ItemsRepeater{BindOutput{shelf.words, row}};
-    ListView{itemsSource = BindOutput{shelf.shown(), row}};  // read-only: only the model changes it
-    ListView{schema::ItemsControl::itemsSource = BindOutput{shelf.words, row}};
+    ListView{BindOutput{board.words, row}};  // unnamed: what a list control binds a list to is its items
+    ItemsRepeater{BindOutput{board.words, row}};
+    ListView{itemsSource = BindOutput{board.shown(), row}};  // read-only: only the model changes it
+    ListView{schema::ItemsControl::itemsSource = BindOutput{board.words, row}};
 
     ListView{
         isItemClickEnabled = true,
-        itemsSource = BindOutput{shelf.cards, [](core::intrusive_ptr<ShelfCard> const& card) {
+        itemsSource = BindOutput{board.cards, [](core::intrusive_ptr<BoardCard> const& card) {
             return StackPanel{TextBlock{text = card->title}, TextBlock{text = BindOutput{card->progress}}};
         }},
-        onItemClick += [&cards = shelf.cards](ListView const&, ItemClickEventArgs& args) {
-            if (core::intrusive_ptr<ShelfCard> const* card = boundItem(cards, args.clickedItem())) {
+        onItemClick += [&cards = board.cards](ListView const&, ItemClickEventArgs& args) {
+            if (core::intrusive_ptr<BoardCard> const* card = boundItem(cards, args.clickedItem())) {
                 (*card)->progress.set(core::u16_text{u"opened"});
             }
         },
-        selectedIndex = Bind{shelf.chosen},
+        selectedIndex = Bind{board.chosen},
     };
-    ListView{itemsSource = BindOutput{shelf.words, row}, selectedIndex = BindInput{shelf.chosen}};
-    GridView{itemsSource = BindOutput{shelf.words, row}, selectedIndex = BindOutput{shelf.chosen}};
-    ListView{Bind{shelf.chosen}};  // unnamed: an int on a selector is its index
-    FlipView{selectedIndex = Bind{shelf.chosen}};
-    ComboBox{Bind{shelf.chosen}};
+    ListView{itemsSource = BindOutput{board.words, row}, selectedIndex = BindInput{board.chosen}};
+    GridView{itemsSource = BindOutput{board.words, row}, selectedIndex = BindOutput{board.chosen}};
+    ListView{Bind{board.chosen}};  // unnamed: an int on a selector is its index
+    FlipView{selectedIndex = Bind{board.chosen}};
+    ComboBox{Bind{board.chosen}};
 }

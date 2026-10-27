@@ -36,7 +36,7 @@ struct options {
     /// Whether the text between markup becomes text nodes. On, because that is
     /// the only way a tree can say where text stands among its siblings, and
     /// mixed content -- `<p>a<em>b</em>c</p>`, which is what a paragraph of a
-    /// book is -- means nothing without it.
+    /// document is -- means nothing without it.
     ///
     /// Off, text is read and dropped: nothing here joins it into a value of
     /// its own, since a reader that copied the bytes between the tags would be

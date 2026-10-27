@@ -122,7 +122,7 @@ TEST(grapheme, the_floor_is_the_last_boundary_not_after_the_offset) {
     }
 }
 
-TEST(grapheme, the_letters_a_book_is_made_of) {
+TEST(grapheme, the_letters_a_text_is_made_of) {
     // и with a separate breve, a flag, a family joined by ZWJ, and a
     // Devanagari conjunct: each one letter, and the next letter after it.
     const std::wstring_view short_i = L"\x0438\x0306" L"x";

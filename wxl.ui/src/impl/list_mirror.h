@@ -27,8 +27,8 @@ namespace wxl::impl {
 
 /// Above this many items, a run inserted or erased goes to the view as one reset. A guess
 /// to be refined by measurement in the probe: ListView and ItemsRepeater re-realise only
-/// what is on screen after a reset, while each item of a run costs a notification and the
-/// bookkeeping of every position after it.
+/// what is on screen after a reset, while each item of a run costs a notification and an
+/// update of every position after it.
 inline constexpr uint32_t list_reset_threshold = 64;
 
 /// What a view does for the mirror. Positions are the view's own, as they stand when the

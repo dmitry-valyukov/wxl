@@ -226,6 +226,26 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         PARENT_SCOPE)
 endfunction()
 
+# _wxl_doxygen_module_names(<var> <root>)
+#
+# The names of the modules of the wxl tree rooted at <root>, for
+# AUTOLINK_IGNORE_WORDS (Doxyfile.in): every wxl.* directory with a
+# CMakeLists.txt of its own. Read off the tree rather than listed, so a module
+# added to it is in the list without anyone remembering to add it there;
+# CONFIGURE_DEPENDS makes the build that follows its arrival configure again
+# instead of running Doxygen with the list it had before.
+function(_wxl_doxygen_module_names var root)
+    file(GLOB _lists CONFIGURE_DEPENDS "${root}/wxl.*/CMakeLists.txt")
+    set(_names "")
+    foreach(_list IN LISTS _lists)
+        cmake_path(GET _list PARENT_PATH _dir)
+        cmake_path(GET _dir FILENAME _name)
+        list(APPEND _names "${_name}")
+    endforeach()
+    list(SORT _names)
+    set(${var} "${_names}" PARENT_SCOPE)
+endfunction()
+
 # wxl_add_doxygen_site(<target>
 #     PROJECT_NAME <name> [BRIEF <text>] [LANGUAGE <Doxygen language>]
 #     INPUT <path>...  [EXCLUDE <pattern>...]  [STRIP_FROM <dir>]
@@ -257,6 +277,15 @@ function(wxl_add_doxygen_site target)
     _wxl_doxygen_quote(DOXY_EXCLUDE_PATTERNS ${A_EXCLUDE})
     _wxl_doxygen_quote(DOXY_TAGFILES ${A_TAGS})
     _wxl_doxygen_quote(DOXY_IMAGE_PATH ${A_IMAGES})
+
+    # The module names are those of the wxl tree this file belongs to, whatever
+    # tree the site itself is of: a site that reads wxl's tag file mentions
+    # wxl.core as often as wxl's own does, and the tag file turns the mention
+    # into the same link to the namespace page. Taken from here rather than from
+    # the caller, so a site built with this function needs no argument for it.
+    cmake_path(GET WXL_DOXYGEN_CMAKE_DIR PARENT_PATH _wxl_root)
+    _wxl_doxygen_module_names(_modules "${_wxl_root}")
+    _wxl_doxygen_quote(DOXY_AUTOLINK_IGNORE_WORDS ${_modules})
 
     set(DOXY_PROJECT_NAME     "${A_PROJECT_NAME}")
     set(DOXY_PROJECT_BRIEF    "${A_BRIEF}")

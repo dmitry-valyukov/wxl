@@ -39,13 +39,13 @@ TEST(json, scalar_at_the_root_is_a_document) {
 }
 
 TEST(json, object_answers_by_the_name_of_its_field) {
-    const parsed document(R"({"id": 7, "code": "cpp", "isRated": true})");
+    const parsed document(R"({"id": 7, "code": "en", "isDefault": true})");
 
     EXPECT_TRUE(document->is_object());
     EXPECT_EQ(document->size(), 3u);
     EXPECT_EQ((*document)["id"].as_int(), 7);
-    EXPECT_EQ(chars((*document)["code"]), "cpp");
-    EXPECT_TRUE((*document)["isRated"].as_bool());
+    EXPECT_EQ(chars((*document)["code"]), "en");
+    EXPECT_TRUE((*document)["isDefault"].as_bool());
 }
 
 TEST(json, a_field_that_is_not_there_reads_as_null) {
@@ -287,12 +287,12 @@ TEST(json, a_document_object_reads_more_than_one_document) {
 }
 
 TEST(json, a_stream_is_read_to_its_end) {
-    std::istringstream source(R"({"name": "Беседка", "year": 2026})");
+    std::istringstream source(R"({"name": "Пример", "year": 2026})");
 
     json::document document;
     const json::value& root = document.load(source, "поток");
 
-    EXPECT_EQ(chars(root["name"]), "Беседка");
+    EXPECT_EQ(chars(root["name"]), "Пример");
     EXPECT_EQ(root["year"].as_int(), 2026);
     EXPECT_EQ(document.file_name(), "поток");
 }
@@ -308,13 +308,13 @@ TEST(json, a_tree_can_be_built_without_a_document) {
     // руками, не выдумывая текста документа.
     const json::value fields[] = {
         json::value::of_number(12, u8"id"),
-        json::value::of_string(u8"Беседка", u8"name"),
+        json::value::of_string(u8"Пример", u8"name"),
     };
 
-    const json::value forum = json::value::of_items(json::value_type::object, fields);
+    const json::value item = json::value::of_items(json::value_type::object, fields);
 
-    EXPECT_EQ(forum["id"].as_int(), 12);
-    EXPECT_EQ(chars(forum["name"]), "Беседка");
+    EXPECT_EQ(item["id"].as_int(), 12);
+    EXPECT_EQ(chars(item["name"]), "Пример");
 }
 
 }  // namespace

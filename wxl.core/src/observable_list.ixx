@@ -167,16 +167,16 @@ using readonly_observable_list = observable_list<T const>;
 /**
  * A list that says exactly what changed in it -- the model side of a list view.
  *
- * A view showing a collection needs to hear more than "it changed": a shelf that grew by
- * one book should get one new row, not a rebuilt shelf, and a list of a thousand search
+ * A view showing a collection needs to hear more than "it changed": a list of files that
+ * grew by one should get one new row, not a rebuilt list, and a list of a thousand search
  * hits should not be compared item by item to find out that all of them are new. So
  * every change here is one of four, with its place -- inserted, erased, replaced, reset
  * (list_change) -- and a view does the same to itself in one operation.
  *
  * Like `observable`, it is a field: held by value in the model that owns it, neither
  * copied nor moved, its identity the model's. A view binds to the field, not to its
- * contents, so a model whose contents are replaced wholesale -- another book's table of
- * contents -- assigns them rather than making a new list. The items live in the STA pool,
+ * contents, so a model whose contents are replaced wholesale -- the files of another
+ * folder -- assigns them rather than making a new list. The items live in the STA pool,
  * and so does every watch.
  *
  * An item that changes in part while it is shown is best an item with fields of its own,

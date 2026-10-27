@@ -6,7 +6,8 @@ WebView2/Electron на десктопе — и доступных средств
 служат фильтром: то, чего нет в **WinUI**, **wxl** реализует сам, как уже реализован
 `wxl::HaloEffect`. Каталог основан на коде `wxl.ui`, примерах, пробах `sandbox/` и
 профилях генератора; ID пункта не меняется, когда пункт переходит из группы в
-группу. Итог: готово 34, P1 — 10, P2 — 28, P3 — 19, вне каталога 5.
+группу. Итог: готово 34, P1 — 10, P2 — 28, P3 — 19, вне каталога 5. Из 13 пунктов
+фундамента готовы пять, открыты семь, один вне каталога.
 
 - **Готово** — эффект уже есть в **wxl** или предоставляется самим **WinUI** (шаблоны
   и переходы элементов управления, материалы окна, ресурсы Fluent).
@@ -20,7 +21,8 @@ WebView2/Electron на десктопе — и доступных средств
   через Direct3D, частицы, 3D, кинетический текст. Именно в этой группе **wxl**
   может оказаться дешевле браузера за кадр.
 - **Вне каталога** — пункт не имеет смысла на десктопе, не является эффектом
-  или закрыт другим пунктом.
+  или закрыт другим пунктом; пункт фундамента — когда на него не опирается ни
+  одна строка каталога.
 
 Механизм выбирается по одному правилу: движение выполняется на композиторе, а
 не в потоке интерфейса; пиксели рисуются один раз в одну поверхность, без
@@ -29,7 +31,7 @@ WebView2/Electron на десктопе — и доступных средств
 ## Готово
 
 34 эффекта каталога уже реализованы: часть написана в **wxl**, часть
-предоставляет **WinUI**. Готовы и четыре пункта фундамента (INF-…), а семь
+предоставляет **WinUI**. Готовы и пять пунктов фундамента (INF-…), а семь
 наработок **wxl** (WXL-…) не входят в перечень эффектов, но на них опираются
 будущие эффекты.
 
@@ -73,6 +75,7 @@ WebView2/Electron на десктопе — и доступных средств
 | INF-05 | Наборы свойств для выражений | `ElementCompositionPreview::getScrollViewerManipulationPropertySet` и `getPointerPositionPropertySet` в профиле full: от первого масштабируются элементы `ItemsRepeater` в примере `samples/Gallery`, от второго свет `wxl::RevealEffect` и `wxl::Button3DEffect` следует за указателем. Выражение вычисляется на композиторе, как `animation-timeline` в CSS |
 | INF-09 | Источники света | `AmbientLight`, `DistantLight`, `PointLight`, `SpotLight` с `Targets` и `SceneLightingEffect` в профиле full; на них построены `wxl::RevealEffect` (прожекторы над указателем) и `wxl::Button3DEffect` (далёкая лампа и общий свет над картой нормалей), опыты со светом — `sandbox/LightingLab` |
 | INF-11 | Потеря устройства у `wxl::DrawingSurface` | **wxl** заменяет потерянное устройство сам: до замены `draw()` отвечает false, после неё `wxl::RenderingDeviceWatch` зовёт владельца нарисовать поверхности заново. Сами восстанавливаются снимок `wxl::WindowShade` и фон `wxl::CompositionWindow`, загруженный `backgroundAsync`; `wxl::TextureCache` забывает всё, и картинку держатель просит снова по своему `RenderingDeviceWatch`. Поверхности `wxl::Button3DEffect` и `wxl::RevealEffect` и фон окна, заданный синхронным `background`, после замены пока остаются пустыми |
+| INF-12 | Ожидание события типа | Событие самого типа, без объекта для подписки, ожидается парой его статических членов: `on_event(&CompositionTarget::add_onRendering, &CompositionTarget::remove_onRendering)`; токен отмены передаётся последним аргументом (`event_awaitable.h`). Эффекты `wxl.ui` ждут кадр через `when_drawn` (`effect_helpers.h`): если у визуала элемента уже есть дочерний визуал, в который XAML рисует элемент, слой размещается сразу, иначе `when_drawn` подписывается на `CompositionTarget::Rendering` проекции C++/WinRT и снимает подписку на первом кадре, в котором этот визуал появился |
 | WXL-01 | Полёт окна к точке и обратно | `wxl::WindowShade`: снимок окна перемещается ключевыми кадрами по `Offset`, `Scale`, `Opacity` в потоке DWM |
 | WXL-02 | Сцена окна под островом XAML | `wxl::CompositionWindow`: окно без поверхности перенаправления, фон — картинка с режимами заполнения, размер визуалов задаёт `ExpressionAnimation` от сцены |
 | WXL-03 | Собственное рисование и текстуры | `wxl::DrawingSurface` (цепочка D3D11 → D2D → `CompositionGraphicsDevice`), `wxl::VirtualDrawingSurface` (поверхность длиннее текстуры устройства, пиксели — только у нарисованных частей) и `wxl::TextureCache` (асинхронное декодирование через Win2D с кэшем по пути) |
@@ -90,13 +93,11 @@ WebView2/Electron на десктопе — и доступных средств
 | ID | Что | Механизм | Открывает | Приор. |
 | --- | --- | --- | --- | --- |
 | INF-01 | Общий каркас «эффекта в скобках» | Эффекты `wxl.ui` повторяют одну форму: дескриптор, копии которого делят настройки, теги в скобках и `operator()`, которым элемент или окно «надевает» эффект. Общие части собраны в `effect_helpers.h`: ожидание визуала, в который XAML рисует элемент (`when_drawn`), порядок слоёв по z (`insert_layer`), скругление элемента (`corner_of`), сцена окна (`scene_of`), жизнь между `Loaded` и `Unloaded` (`attach_while_loaded`). Саму форму по правилу **wxl** стоит оформить отдельным типом | Все собственные эффекты P1–P3 | P1 |
-| INF-02 | Эффекты композитора | Свои эффекты **wxl** строят графы на Win2D через C++/WinRT, мимо профиля: так сделаны `wxl::GlassEffect`, `wxl::GaussianBlurEffect`, `wxl::RevealEffect`, `wxl::Button3DEffect`. Профиль full даёт приложению `CompositionEffectFactory` / `CompositionEffectBrush`, `CreateBackdropBrush` и только нужные свету описания Win2D (`CompositeEffect`, `ArithmeticCompositeEffect`, `ColorSourceEffect`, `ColorMatrixEffect`, эффекты освещения): размытия, `BlendEffect` и `TintEffect` в нём нет. Доступны только встроенные шейдеры: собственные композитор не принимает | Графы эффектов в коде приложения | P1 |
 | INF-04 | Пружины и неявные анимации композитора | `SpringVector3NaturalMotionAnimation` и `ColorKeyFrameAnimation` в профиле full уже есть; нет `SpringScalarNaturalMotionAnimation`, `ImplicitAnimationCollection`, `SetImplicitShowAnimation` / `HideAnimation` | SCR-01; скалярная пружина в MOT-02, визуалы сцены в MOT-03, MOT-11 | P1 |
 | INF-06 | Выключатель анимаций и прозрачности | `UISettings.AnimationsEnabled` (+ `AnimationsEnabledChanged`, Windows 10 2004) и `AdvancedEffectsEnabled` (+ `Changed`). Переходы XAML и `AcrylicBrush` учитывают эти настройки сами, анимации и эффекты **wxl** — нет: нужно одно место, которое принимает решение для всех | Все движущиеся и прозрачные эффекты | P1 |
 | INF-07 | Композиция — отдельным модулем | Открытая задача: `wxl::CompositionWindow`, `wxl::DrawingSurface`, `wxl::TextureCache`, Win2D и эффекты живут в `wxl.ui`; вынос в отдельный модуль не начат. Новые эффекты лучше сразу создавать рядом с ними | — | P1 |
 | INF-08 | InteractionTracker | Жест с инерцией, упорами и пружинным возвратом; весь жест обрабатывается на композиторе | INT-07, INT-09, SCR-07 | P2 |
 | INF-10 | Фигуры композитора | `ShapeVisual`, `CompositionSpriteShape`, `CompositionPathGeometry`, `PathKeyFrameAnimation`, `TrimStart` / `TrimEnd`. Внутри **wxl** `ShapeVisual` и `CompositionSpriteShape` рисуют обводку `wxl::BevelEffect` и подложку `wxl::FocusEffect`, а `LottieLogo.cpp` примера `samples/Gallery` строит фигуры с `CompositionPathGeometry` и анимирует `TrimStart` / `TrimEnd` через C++/WinRT; в профиле фигур композитора нет | MOT-14, ADV-02, ADV-07, STA-08 | P2 |
-| INF-12 | `wxl::impl::event_adder` для событий типа | Открытая задача: `on_event<EventKey::Rendering, CompositionTarget>()` вместо членов. Пока событие типа ожидается парой его статических членов, `on_event(&CompositionTarget::add_onRendering, &CompositionTarget::remove_onRendering)`; эффекты `wxl.ui` ждут кадр без этого — через `CompositionTarget::Rendering` проекции (`when_drawn`) | Эффекты, ожидающие кадр (ADV-05) | P2 |
 | INF-13 | Слой Direct3D с собственными шейдерами | Цепочка обмена (swap chain) как поверхность композитора (`ICompositorInterop::CreateCompositionSurfaceForSwapChain`) и HLSL; для статичного изображения — собственный эффект Direct2D в `wxl::DrawingSurface`. Проба `sandbox/LightingLab` рисует свой пиксельный шейдер HLSL на устройстве Direct3D под Direct2D **wxl** в текстуру и выводит её в `wxl::DrawingSurface` без цепочки обмена, кадр на каждое изменение. Собственные шейдеры идут только через Direct3D: композитор их не принимает | MAT-08, MAT-09, ADV-09…ADV-13, LGT-03 (конический) | P3 |
 
 ## P1 — минимальный уровень паритета
@@ -174,7 +175,7 @@ WebView2/Electron на десктопе — и доступных средств
 | MOT-14 | Морфинг форм | `PathKeyFrameAnimation` между путями с одинаковым составом сегментов; выравнивание сегментов выполняет **wxl** | INF-10 |
 | INT-12 | Контекстное меню с превью | `MenuFlyout` + подъём элемента по Z и размытие сцены на время показа меню | SCR-08 |
 | SCR-10 | Горизонтальная секция при вертикальной прокрутке | Закреплённый блок со `Translation.X` из выражения от прокрутки | INF-05 |
-| ADV-05 | Анимация вариативного шрифта | Оси шрифта через DirectWrite (`IDWriteFontFace5`), покадровая отрисовка в `wxl::DrawingSurface` | INF-11, INF-12 |
+| ADV-05 | Анимация вариативного шрифта | Оси шрифта через DirectWrite (`IDWriteFontFace5`), покадровая отрисовка в `wxl::DrawingSurface` | INF-11 |
 | ADV-06 | Кинетическая типографика | ADV-03 + временные шкалы композитора (`AnimationController` в профиле пока нет) | ADV-03 |
 | ADV-07 | Морфинг блобов | `PathKeyFrameAnimation`, как в MOT-14 | INF-10 |
 | ADV-08 | Анимированное зерно | Плитка MAT-06, сдвигаемая ступенчато по `Offset`; шум не перерисовывается | MAT-06 |
@@ -187,7 +188,8 @@ WebView2/Electron на десктопе — и доступных средств
 ## Вне каталога
 
 Пять пунктов исключены не потому, что их нет во Fluent, а потому, что они не
-являются эффектами или не имеют смысла на десктопе.
+являются эффектами или не имеют смысла на десктопе. Шестой — пункт фундамента
+INF-02: на него не опирается ни одна строка каталога.
 
 | ID | Эффект | Почему |
 | --- | --- | --- |
@@ -196,6 +198,7 @@ WebView2/Electron на десктопе — и доступных средств
 | STA-06 | Пустое состояние | Приём вёрстки из готовых элементов управления; оживляется с помощью MOT-03 и MOT-13 |
 | INT-11 | Тактильный отклик | На десктопе тактильный отклик возможен разве что у пера; к пункту стоит вернуться, если появится сценарий с пером |
 | SCR-11 | Пространственный UI (visionOS) | Другая платформа и другой ввод |
+| INF-02 | Эффекты композитора в профиле | Собственные эффекты **wxl** строят графы эффектов сами, из описаний Win2D через C++/WinRT, мимо профиля: так сделаны `wxl::GlassEffect` (`GlassEffect.cpp`), `wxl::GaussianBlurEffect` (`GaussianBlurEffect.cpp`), `wxl::RevealEffect` и `wxl::Button3DEffect`. Ни одна строка каталога на этот пункт не опирается. Профиль full даёт `CompositionEffectFactory` / `CompositionEffectBrush`, `CreateBackdropBrush` и только нужные свету описания Win2D (`CompositeEffect`, `ArithmeticCompositeEffect`, `ColorSourceEffect`, `ColorMatrixEffect`, эффекты освещения); описания размытия, `BlendEffect` и `TintEffect` в профиле нужны только приложению, которое строит граф эффектов само |
 
 ## Требования ко всем эффектам на Windows
 
