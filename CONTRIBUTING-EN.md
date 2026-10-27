@@ -3,7 +3,9 @@
 *Русская версия: [CONTRIBUTING.md](CONTRIBUTING.md)*
 
 The rules are the same for everyone who contributes. GitHub holds
-them: the ruleset of `main` and the CI checks.
+them: the ruleset of `main` and the CI checks. One alone rests on the
+contributor, since nothing checks it: a pushed branch is not rewritten
+(below).
 
 ## The `main` branch
 
@@ -18,16 +20,18 @@ them: the ruleset of `main` and the CI checks.
 - A change lives on a branch named `wxl-<topic>`: lowercase letters and
   hyphens, such as `wxl-effects-catalog`.
 - The pull request goes from that branch into `main`; one topic per PR.
-- The PR title becomes the subject of its commit on `main`: write it the way
-  a commit subject is written (below).
+- The PR title becomes the subject of its commit on `main` and the
+  description its body: write them the way a commit message is written
+  (below); rule 2 holds for them too.
 - A branch need not be updated merely because `main` has moved on: the merge
   queue puts the PR on top of `main` itself and checks the result.
-- A pushed branch is never rewritten: no force-push, no rebase of what is
+- A pushed branch is not rewritten: no force-push, no rebase of what is
   already pushed. When a branch is behind `main` or conflicts with it,
-  `main` is merged into the branch: with the "Update branch" button, or, if
-  GitHub cannot merge it, locally, by merging the current `main` of this
-  repository with the conflict resolved in the merge commit and pushing as
-  usual.
+  `main` is merged into the branch: with "Update with merge commit" of the
+  "Update branch" button (not "Update with rebase"); on a conflict, in
+  GitHub's "Resolve conflicts" editor or locally, by merging the current
+  `main` of this repository with the conflict resolved in the merge commit
+  and pushing as usual.
 
 ## CI
 
@@ -52,16 +56,20 @@ them: the ruleset of `main` and the CI checks.
 
 ## Commits
 
-The `commits` job checks rules 1–5 on every commit of a pull request; its
-error message names the rule.
+The `commits` job checks rules 1–5 on every commit of a pull request and,
+in the merge queue, on the commit the queue squashes it into; its error
+message names the rule.
 
 1. Author and committer addresses are of the form
    `…@users.noreply.github.com` (GitHub's "Keep my email address private").
-   A commit GitHub makes itself (the "Update branch" merge, the merge
-   queue's squash) has the committer `GitHub <noreply@github.com>`; that
-   committer is accepted only with a signature GitHub verifies.
+   The committer `GitHub <noreply@github.com>`, that of the commits GitHub
+   makes itself (the merges of "Update with merge commit" and "Resolve
+   conflicts", the merge queue's squash), is accepted only with a signature
+   GitHub verifies.
 2. The message has none of these lines: `Co-Authored-By` (a commit has one
-   author), banner lines, trailer lines with links.
+   author), banner lines, trailer lines with links. The same holds for the
+   PR title and description, which become the message of the squashed
+   commit.
 3. Hidden directories and files (`.…`) are not part of the repository; the
    tree keeps only those listed in the check.
 4. A signature only if GitHub verifies it; an unsigned commit passes.
