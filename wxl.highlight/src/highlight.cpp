@@ -1,6 +1,6 @@
-// Сканер подсветки: правила «открыл -- закрыл» для комментариев и строк,
-// двоичный поиск по отсортированным наборам ключевых слов, границы слов --
-// то, что у RsdnFormatter делали регулярные выражения .NET и trie.
+// The highlighting scanner: opening and closing sequences for comments and strings,
+// binary search over sorted keyword sets, and word boundaries -- what RsdnFormatter
+// does with .NET regular expressions and a trie.
 
 module wxl.highlight;
 
@@ -12,12 +12,11 @@ namespace {
 
 constexpr std::size_t npos = std::u16string_view::npos;
 
-// Самое длинное ключевое слово в таблицах короче; кандидат длиннее и
-// сравнивать незачем.
+// Every keyword in the tables is shorter than this limit; a longer candidate is not compared.
 constexpr std::size_t kMaxKeyword = 64;
 
-// Символ слова -- как \w у .NET: буквы, цифры, подчёркивание. Всё не-ASCII
-// считается буквой: ключевое слово внутри «переменнаяif» -- не слово.
+// A word character, as `\w` in .NET: a letter, a digit or an underscore. Every non-ASCII
+// character counts as a letter, so `if` right after a non-ASCII letter is not a keyword.
 constexpr bool is_word(char16_t c) noexcept {
     return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z') || (c >= u'0' && c <= u'9') ||
            c == u'_' || c >= 0x80;
@@ -42,7 +41,7 @@ bool starts_at(std::u16string_view code, std::size_t at, std::u16string_view wha
            code.compare(at, what.size(), what) == 0;
 }
 
-// Граница перед ключевым словом, как её проверяет TrieKeywordMatcher.
+// Checks the boundary before a keyword the way TrieKeywordMatcher does.
 bool boundary_before(boundary_t boundary, std::u16string_view code, std::size_t at) noexcept {
     const auto word = [&] { return at == 0 || !is_word(code[at - 1]); };
     const auto dot = [&] { return at > 0 && code[at - 1] == u'.'; };
@@ -57,7 +56,7 @@ bool boundary_before(boundary_t boundary, std::u16string_view code, std::size_t 
     case boundary_t::dot: return dot();
     case boundary_t::dot_or_word: return dot() || word();
     case boundary_t::hash_with_space: {
-        // Решётка, потом сколько угодно пробелов, потом слово: # define.
+        // A number sign, any amount of white space, then the word: `# define`.
         std::size_t i = at;
         while (i > 0 && is_space(code[i - 1])) --i;
         return i > 0 && code[i - 1] == u'#';
@@ -73,7 +72,8 @@ bool boundary_before(boundary_t boundary, std::u16string_view code, std::size_t 
     return true;
 }
 
-// Граница после: где кончается кусок, или npos, если границы нет.
+// Checks the boundary after a keyword: returns the end of the piece, or npos if there is no
+// boundary.
 std::size_t boundary_after(boundary_t boundary, std::u16string_view code, std::size_t end) noexcept {
     const auto word = [&] { return end >= code.size() || !is_word(code[end]); };
     const auto dot = [&] { return end < code.size() && code[end] == u'.'; };
@@ -88,14 +88,14 @@ std::size_t boundary_after(boundary_t boundary, std::u16string_view code, std::s
     case boundary_t::at_or_word: return at_sign() || word() ? end : npos;
     case boundary_t::dot_or_at_or_word: return dot() || at_sign() || word() ? end : npos;
     case boundary_t::exclamation_and_word:
-        // Восклицательный знак -- часть слова: assert!, и за ним граница.
+        // The exclamation mark belongs to the word (`assert!`) and is followed by a boundary.
         if (end < code.size() && code[end] == u'!' &&
             (end + 1 >= code.size() || !is_word(code[end + 1])))
             return end + 1;
         return npos;
     default:
-        // word, hash_with_space, double_question, not_ampersand,
-        // word_or_double_question -- после слова все они просто \b.
+        // word, hash_with_space, double_question, not_ampersand and
+        // word_or_double_question: after the word, each of them is `\b`.
         return word() ? end : npos;
     }
 }
@@ -112,8 +112,8 @@ std::optional<piece> scanner::next() noexcept {
         return result;
     }
 
-    // Обычный текст -- до первой точки, где начинается что-то другое; эта
-    // проба запоминается, чтобы следующий вызов не делал её заново.
+    // Plain text runs to the first position where another piece starts; that probe is stored
+    // so that the next call does not repeat it.
     std::size_t end = pos_ + 1;
     while (end < size) {
         if (std::optional<found> ahead = probe(end)) {
@@ -152,14 +152,14 @@ std::optional<scanner::found> scanner::delimited_at(std::size_t at) const noexce
         }
         if (!prefixed && !starts_at(code_, at, rule.open)) continue;
 
-        // Решётка shell: комментарий она открывает только с начала слова,
-        // иначе ${имя#хвост} и $# съели бы остаток строки.
+        // The shell `#` opens a comment only at the start of a word; otherwise
+        // `${name#pattern}` and `$#` would turn the rest of the line into a comment.
         if (rule.after_space && at != 0 && !is_space(code_[at - 1])) continue;
 
         if (rule.line_start_only) {
             if (at != 0 && code_[at - 1] != u'\n') continue;
-            // Односимвольный открыватель в начале строки -- POD в Perl (=head1):
-            // без буквы за ним это не он.
+            // A one-character opening sequence at the start of a line is Perl POD (`=head1`):
+            // it counts only when a word character follows it.
             if (rule.open.size() == 1) {
                 const std::size_t after = open_at + 1;
                 if (after >= code_.size() || !is_word(code_[after])) continue;
@@ -178,7 +178,7 @@ std::size_t scanner::delimited_end(const delimited_rule& rule, std::size_t at) c
     std::size_t i = at;
 
     if (rule.close.empty()) {
-        // До конца строки; сам перевод строки -- не комментарий.
+        // To the end of the line; the line break itself is not part of the piece.
         while (i < size && !is_newline(code_[i])) ++i;
         return i;
     }
@@ -194,7 +194,7 @@ std::size_t scanner::delimited_end(const delimited_rule& rule, std::size_t at) c
                 ++i;
             }
         } else if (starts_at(code_, i, rule.close)) {
-            return npos;  // '' -- пусто, не литерал
+            return npos;  // `''` is empty, not a literal
         } else {
             ++i;
         }
@@ -203,7 +203,7 @@ std::size_t scanner::delimited_end(const delimited_rule& rule, std::size_t at) c
 
     while (i < size) {
         const char16_t c = code_[i];
-        if (!rule.multiline && is_newline(c)) return i;  // незакрытая кончается со строкой
+        if (!rule.multiline && is_newline(c)) return i;  // an unterminated piece ends with the line
         if (rule.escape != 0 && c == rule.escape) {
             i = std::min(i + 2, size);
             continue;
@@ -217,12 +217,12 @@ std::size_t scanner::delimited_end(const delimited_rule& rule, std::size_t at) c
         }
         ++i;
     }
-    return size;  // незакрытый комментарий -- до конца, как рисует его редактор
+    return size;  // an unterminated comment runs to the end of the code, as editors display it
 }
 
 std::optional<scanner::found> scanner::keyword_at(std::size_t at) const noexcept {
     char16_t candidate[kMaxKeyword];
-    std::size_t prepared = 0;  // сколько символов кандидата уже уложено
+    std::size_t prepared = 0;  // the number of candidate characters already filled in
 
     for (const keyword_set& set : language_->keywords) {
         if (!boundary_before(set.prefix, code_, at)) continue;
@@ -233,7 +233,7 @@ std::optional<scanner::found> scanner::keyword_at(std::size_t at) const noexcept
             candidate[prepared] = language_->case_insensitive ? to_lower_ascii(c) : c;
         }
 
-        // Самое длинное слово первым: у «foreach» не должен побеждать «for».
+        // Longer words are tried first, so that `foreach` takes precedence over `for`.
         for (std::size_t length = longest; length > 0; --length) {
             const std::u16string_view word(candidate, length);
             if (!std::ranges::binary_search(set.words, word)) continue;

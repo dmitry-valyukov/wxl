@@ -1,22 +1,21 @@
-// Объект документа: то, что забирает буфер себе, разбирает его и владеет
-// деревом и всем, на что дерево смотрит. Вступление к библиотеке -- на её
-// первичном интерфейсе, wxl.json.ixx.
+// The document object: it takes the buffer, parses it, and owns the tree and
+// everything the tree refers to. The library overview is in its primary
+// interface, wxl.json.ixx.
 
 export module wxl.json:document;
 
 import :value;
 import std;
 import wxl.core;
-import wxl.xml;  // арена -- схема хранения wxl.xml, взятая как есть
+import wxl.xml;  // the arena: the storage scheme of wxl.xml, used as is
 
 export namespace wxl::json {
 
-/// Документ, прочитанный и присвоенный: дерево и всё, на что оно смотрит.
+/// Represents a parsed document that owns its text: the tree and everything it refers to.
 ///
-/// Самого разбора здесь нет: он живёт на стеке той загрузки, которой
-/// понадобился, а тут остаётся то, что он после себя оставил. Поэтому поля
-/// ниже -- это весь документ и есть: второго объекта за указателем не
-/// прячется, потому что прятать нечего.
+/// The parser is not part of it: the parser lives on the stack of the load that needs
+/// it, and only its result stays here. The fields below are therefore the whole
+/// document; no implementation object is hidden behind a pointer.
 class document {
 public:
     document() = default;
@@ -24,55 +23,53 @@ public:
     document(const document&) = delete;
     document& operator=(const document&) = delete;
 
-    /// Разбирает UTF-8, который документ забирает себе, а дерево потом
-    /// разглядывает.
+    /// Parses UTF-8 text, which the document takes ownership of and the tree then views.
     ///
-    /// Буфер забирается, а не одалживается, потому что читателю нужен нуль
-    /// в конце: у std::string он есть всегда, в документе его быть не
-    /// может, и это тот ограничитель, на котором останавливается всякий
-    /// скан внутри вместо проверки конца буфера.
+    /// The buffer is taken rather than borrowed: the document keeps it, so the views of
+    /// the tree do not depend on the caller's buffer, and the move copies nothing.
     ///
-    /// @throw exception, parsing_exception
+    /// \throw exception
+    /// \throw parsing_exception
     const value& load(std::string&& source, std::string_view file_name = {});
 
-    /// Читает поток до конца и разбирает как UTF-8.
+    /// Reads the stream to its end and parses it as UTF-8.
     ///
-    /// @throw exception, когда поток сломался, не дойдя до конца, -- с
-    /// указанием байта, до которого дошёл: оборванный документ иначе был бы
-    /// объявлен испорченным, и читающий пошёл бы искать не там.
-    /// @throw parsing_exception
+    /// \throw exception when the stream fails before its end, with the offset of the
+    /// byte reached; otherwise a truncated document would be reported as malformed, and
+    /// the error would be looked for in the wrong place.
+    /// \throw parsing_exception
     const value& load(std::istream& source, std::string_view file_name = {});
 
-    /// Читает файл в UTF-8; его путь -- то, чем потом отвечает file_name().
+    /// Reads and parses a UTF-8 file; its path becomes the value of `file_name()`.
     ///
-    /// @throw exception, parsing_exception
+    /// \throw exception
+    /// \throw parsing_exception
     const value& load_file(const std::filesystem::path& path);
 
-    /// Дерево последней загрузки, или nullptr до первой.
+    /// Returns the tree of the last load, or `nullptr` before the first one.
     inline const value* root() const noexcept { return root_; }
 
-    /// Файл, которым была названа последняя загрузка; пусто, когда её не
-    /// называли. Отсюда сообщение о поломке берёт имя файла -- само место в
-    /// документе несёт только строку и колонку.
+    /// Returns the file name given to the last load, or an empty string if none was
+    /// given. Error messages take the file name from here; a position in the document
+    /// carries only the line and the column.
     inline std::string_view file_name() const noexcept { return file_name_; }
 
 private:
-    /// Разбирает то, что сейчас лежит в document_.
+    /// Parses the current contents of `document_`.
     const value& parse_source();
 
-    /// Документ, присвоенный. Всё, чем отвечает дерево, -- вид в этот
-    /// буфер, и именно это делает дерево независимым от того, откуда его
-    /// прочли, не копируя ни байта.
+    /// The owned text of the document. Names and strings without escape sequences are
+    /// views into this buffer, which makes the tree independent of where the text was
+    /// read from without copying it.
     std::string document_;
 
-    /// Документ, из которого дерево, -- здесь, а не в каждом значении.
+    /// The name of the document the tree comes from, kept here rather than in every value.
     std::string file_name_;
 
-    /// Где живёт дерево и всё, чего нет в самом документе, -- строки,
-    /// собранные из escape-последовательностей. До первой загрузки арены нет
-    /// вовсе, а каждая следующая берёт свою: арена заводится тогда, когда есть
-    /// что в неё положить, и умирает вместе с деревом -- ни пустой, ни
-    /// переиспользованной не бывает.
+    /// Storage for the tree and for what the document does not contain as is: strings
+    /// assembled from escape sequences. There is no arena before the first load, and
+    /// each load creates its own: an arena is created when there is something to put in
+    /// it and is destroyed with its tree, so it is never empty and never reused.
     std::unique_ptr<xml::arena> arena_;
 
     const value* root_ = nullptr;

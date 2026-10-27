@@ -1,6 +1,6 @@
-// Тесты читателя JSON: документ на входе, дерево на выходе. Взято то, где
-// у грамматики есть что проверить, -- границы чисел, escape-по­следова­тель­но­сти,
-// суррогатные пары, пустые контейнеры, вложенность и все отказы.
+// Tests of the JSON reader: a document in, a tree out. They cover what the
+// grammar has to get right: number bounds, escape sequences, surrogate pairs,
+// empty containers, nesting and every rejection.
 
 #include <gtest/gtest.h>
 
@@ -13,8 +13,8 @@ using namespace wxl;
 
 namespace {
 
-/// Разбор с готовым документом: тесту нужен и корень, и объект, который им
-/// владеет, а держать оба руками в каждом тесте незачем.
+/// Parses a document and keeps it: a test needs both the root and the object that
+/// owns it.
 class parsed {
 public:
     explicit parsed(std::string_view source, std::string_view file_name = {})
@@ -54,12 +54,12 @@ TEST(json, a_field_that_is_not_there_reads_as_null) {
     EXPECT_TRUE((*document)["author"].is_null());
     EXPECT_TRUE((*document)["nobody"].is_null());
 
-    // Ради этого поиск и отвечает значением, а не указателем: цепочка по
-    // отсутствующему полю дописывается до конца и не падает.
+    // This is why a lookup returns a value, not a pointer: a chain through a
+    // missing member runs to the end without failing.
     EXPECT_EQ(chars((*document)["author"]["displayName"]), "");
     EXPECT_EQ((*document)["nobody"]["deeper"]["deeper still"].as_int(-1), -1);
 
-    // Кому разница важна -- у того find().
+    // find() tells a missing member from a null one.
     EXPECT_NE(document->find("author"), nullptr);
     EXPECT_EQ(document->find("nobody"), nullptr);
 }
@@ -118,7 +118,7 @@ TEST(json, members_carry_their_names) {
 
     EXPECT_EQ(names, "a=1;b=2;");
 
-    // У элемента массива имени нет, и это видно.
+    // An array element has no name.
     EXPECT_EQ(parsed("[1]")->elements()[0].name().chars(), "");
 }
 
@@ -136,7 +136,7 @@ TEST(json, numbers_come_back_as_they_were_written) {
     EXPECT_DOUBLE_EQ(parsed("-2.5E-2")->as_number(), -0.025);
     EXPECT_EQ(parsed("0")->as_int(), 0);
 
-    // Идентификатор сообщения -- целое, и оно обязано остаться собой.
+    // An identifier is an integer and has to come back unchanged.
     EXPECT_EQ(parsed("7654321")->as_int(), 7654321);
 }
 
@@ -153,26 +153,26 @@ TEST(json, escapes_are_undone) {
     EXPECT_EQ(chars(*parsed(R"("\"кавычки\"")")), "\"кавычки\"");
     EXPECT_EQ(chars(*parsed(R"("\\")")), "\\");
     EXPECT_EQ(chars(*parsed(R"("\/")")), "/");
-    EXPECT_EQ(chars(*parsed(R"("AB")")), "AB");
+    EXPECT_EQ(chars(*parsed(R"("\u0041\u0042")")), "AB");
 
-    // Кириллица через \u -- та же буква, что и написанная прямо.
-    EXPECT_EQ(chars(*parsed(R"("П")")), "П");
+    // A Cyrillic letter written with \u is the same letter as one written directly.
+    EXPECT_EQ(chars(*parsed(R"("\u041F")")), "П");
 }
 
 TEST(json, a_surrogate_pair_is_one_character) {
-    // U+1F600, смайл: в UTF-16 две половины, в UTF-8 четыре байта.
-    EXPECT_EQ(chars(*parsed(R"("😀")")), "\U0001F600");
+    // U+1F600: two surrogates in UTF-16, four bytes in UTF-8.
+    EXPECT_EQ(chars(*parsed(R"("\ud83d\ude00")")), "\U0001F600");
 }
 
 TEST(json, half_a_pair_left_alone_becomes_the_replacement_character) {
-    // Испорчен символ, а не грамматика, -- документ читается, символ
-    // становится U+FFFD, как в wxl::core::unicode::repaired.
+    // The character is corrupt, not the grammar: the document is read, and the
+    // character becomes U+FFFD, as in wxl::core::unicode::repaired.
     EXPECT_EQ(chars(*parsed(R"("\ud83d")")), "�");
     EXPECT_EQ(chars(*parsed(R"("\ude00")")), "�");
 
-    // Верхняя половина, за которой идёт не нижняя, не съедает следующую
-    // escape-последовательность.
-    EXPECT_EQ(chars(*parsed(R"("\ud83dA")")), "�A");
+    // A high surrogate followed by something other than a low surrogate does not
+    // consume the next escape sequence.
+    EXPECT_EQ(chars(*parsed(R"("\ud83d\u0041")")), "�A");
 }
 
 TEST(json, a_broken_escape_is_refused) {
@@ -213,13 +213,13 @@ TEST(json, what_the_document_gets_wrong_is_named_and_placed) {
 
     try {
         document.load(std::string("{\n  \"a\": 1,\n  \"b\" 2\n}"), "profile.json");
-        FAIL() << "документ разобрался";
+        FAIL() << "the document parsed";
     } catch (const json::parsing_exception& refused) {
         EXPECT_EQ(refused.file_name(), "profile.json");
         EXPECT_EQ(refused.line(), 3);
-        EXPECT_EQ(refused.reason(), "после имени поля ожидалось двоеточие");
+        EXPECT_EQ(refused.reason(), "expected ':' after the member name");
 
-        // Сообщение читается редактором: имя, строка, колонка, причина.
+        // An editor can read the message: name, line, column, reason.
         EXPECT_TRUE(std::string_view(refused.what()).starts_with("profile.json(3,"));
     }
 }
@@ -229,10 +229,10 @@ TEST(json, an_unclosed_container_points_at_where_it_opened) {
 
     try {
         document.load(std::string("[\n  1,\n  2\n"));
-        FAIL() << "документ разобрался";
+        FAIL() << "the document parsed";
     } catch (const json::parsing_exception& refused) {
         EXPECT_EQ(refused.line(), 1);
-        EXPECT_EQ(refused.reason(), "контейнер не закрыт");
+        EXPECT_EQ(refused.reason(), "unclosed object or array");
     }
 }
 
@@ -250,8 +250,8 @@ TEST(json, the_grammar_is_the_one_from_the_specification) {
 }
 
 TEST(json, nesting_is_bounded_by_memory_and_not_by_the_stack) {
-    // Разбор не рекурсивен, и это единственный способ показать это: глубина,
-    // на которой рекурсивный читатель кончился бы вместе со стеком потока.
+    // The parse keeps nesting on an explicit stack, not on the thread's stack, so
+    // a deeply nested document parses.
     constexpr int deep = 20000;
 
     std::string source;
@@ -280,7 +280,7 @@ TEST(json, a_document_object_reads_more_than_one_document) {
     EXPECT_EQ(document.load(std::string(R"({"first": 1})"))["first"].as_int(), 1);
     EXPECT_EQ(document.load(std::string(R"({"second": 2})"))["second"].as_int(), 2);
 
-    // Прошлое дерево умерло вместе с ареной; живо только последнее.
+    // The previous tree was destroyed with its arena; only the last one remains.
     ASSERT_NE(document.root(), nullptr);
     EXPECT_TRUE((*document.root())["first"].is_null());
     EXPECT_EQ(document.file_name(), "");
@@ -304,8 +304,8 @@ TEST(json, a_file_that_is_not_there_is_reported_and_not_guessed) {
 }
 
 TEST(json, a_tree_can_be_built_without_a_document) {
-    // Дерево -- обычные данные: тест и заглушка сети собирают такое же
-    // руками, не выдумывая текста документа.
+    // The tree is plain data: a test or a network stub builds one by hand, without
+    // document text.
     const json::value fields[] = {
         json::value::of_number(12, u8"id"),
         json::value::of_string(u8"Пример", u8"name"),
