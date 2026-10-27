@@ -69,7 +69,8 @@ struct pointer_spot_light;
 }
 
 /// The narrow lamp of a RevealEffect: the spot on the face under the pointer.
-class HoverLight {
+class HoverLight
+{
 public:
     /// A white spot 140 across from a lamp 120 high, intensity 1, diffuseAmount 0.69.
     HoverLight();
@@ -108,7 +109,8 @@ private:
 };
 
 /// The wide lamp of a RevealEffect: the glow along the edges around the pointer.
-class BorderLight {
+class BorderLight
+{
 public:
     /// A white spot 340 across from a lamp 120 high, intensity 1, diffuseAmount
     /// 1.24, an edge 1.5 wide rounded as the element is.
@@ -150,7 +152,8 @@ private:
     core::intrusive_ptr<Impl> impl_;
 };
 
-class RevealEffect {
+class RevealEffect
+{
 public:
     /// Both lights as they come, layers over the element's own drawing.
     RevealEffect();

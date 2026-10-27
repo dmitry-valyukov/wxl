@@ -23,12 +23,14 @@ namespace wxl {
 
 class SelectorItem;
 
-class ItemContainerPreset {
+class ItemContainerPreset
+{
 public:
     using dress_t = core::function<void(SelectorItem const&)>;
 
     template <typename... Setters>
-    ItemContainerPreset(Preset<Setters...> preset) : dress_{[preset](SelectorItem const& container) { preset(container); }} {}
+    ItemContainerPreset(Preset<Setters...> preset)
+        : dress_{[preset](SelectorItem const& container) { preset(container); }} {}
 
     void operator()(SelectorItem const& container) const { dress_(container); }
 

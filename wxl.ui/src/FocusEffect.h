@@ -47,9 +47,15 @@ namespace wxl {
 
 class CompositionWindow;
 
-enum class FocusLook { System, Lift, Glow };
+enum class FocusLook
+{
+    System,
+    Lift,
+    Glow
+};
 
-class FocusEffect {
+class FocusEffect
+{
 public:
     /// Lift.
     FocusEffect();

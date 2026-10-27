@@ -51,9 +51,8 @@ namespace wxl::impl {
 // base is deliberate: this is one object created once per process, on the
 // private side of the library, and reimplementing WinRT aggregation for it
 // would buy nothing.
-struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
-                                                      winrt::Microsoft::UI::Xaml::Markup::
-                                                          IXamlMetadataProvider> {
+struct App : winrt::Microsoft::UI::Xaml::ApplicationT<
+                 App, winrt::Microsoft::UI::Xaml::Markup::IXamlMetadataProvider> {
     void OnLaunched(winrt::Microsoft::UI::Xaml::LaunchActivatedEventArgs const&) {
         // From here on a WinRT object can be made; before, and after Start
         // returns, an attempt to make one is the mistake the check in
@@ -88,8 +87,10 @@ struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App,
         // is left to run its course -- nothing is marked handled.
         UnhandledException([](winrt::Windows::Foundation::IInspectable const&,
                               winrt::Microsoft::UI::Xaml::UnhandledExceptionEventArgs const& args) {
-            std::wstring text = L"wxl: unhandled error 0x" + std::format(L"{:08X}", static_cast<std::uint32_t>(args.Exception())) +
-                                L": " + std::wstring{args.Message()} + L"\n";
+            std::wstring text =
+                L"wxl: unhandled error 0x" +
+                std::format(L"{:08X}", static_cast<std::uint32_t>(args.Exception())) + L": " +
+                std::wstring{args.Message()} + L"\n";
             std::wcerr << text << std::flush;
             ::OutputDebugStringW(text.c_str());
         });
@@ -125,9 +126,7 @@ namespace {
 // What the process waits for before it ends: no operation out. A coroutine body is not waited
 // for: every task lives in a place of an owner, and the owners let go before the end, so a frame
 // still alive there is a broken rule, which a build that checks stops at (see wWinMain).
-bool nothingLeftToWaitFor() noexcept {
-    return wxl::async::sta_loop::outstanding() == 0;
-}
+bool nothingLeftToWaitFor() noexcept { return wxl::async::sta_loop::outstanding() == 0; }
 
 #ifndef NDEBUG
 // The watch over the wait at exit, in a Debug build (see wWinMain): called once, when the
@@ -168,10 +167,10 @@ void CALLBACK reportWhatIsStillAlive(HWND, UINT, UINT_PTR id, DWORD) noexcept {
 // dependency with it, silently. The directive merges with the manifest an
 // application supplies of its own, so app.manifest stays where it is and
 // says what it said.
-#pragma comment(linker,                                                            \
-                "/manifestdependency:\"type='win32' "                              \
-                "name='Microsoft.Windows.Common-Controls' version='6.0.0.0' "       \
-                "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' "      \
+#pragma comment(linker,                                                        \
+                "/manifestdependency:\"type='win32' "                          \
+                "name='Microsoft.Windows.Common-Controls' version='6.0.0.0' "  \
+                "processorArchitecture='*' publicKeyToken='6595b64144ccf1df' " \
                 "language='*'\"")
 
 int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
@@ -326,8 +325,9 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // XAML content under a XAML that is gone; the process stops on it here instead, with the
     // cause named.
     if (!wxl::CompositionWindow::all_closed()) {
-        wxl::core::abort("wxl: a CompositionWindow is still alive at sta_loop::stop() -- it was "
-                         "to be closed while XAML lived, in ShutdownStarting of its queue");
+        wxl::core::abort(
+            "wxl: a CompositionWindow is still alive at sta_loop::stop() -- it was "
+            "to be closed while XAML lived, in ShutdownStarting of its queue");
     }
 
     wxl::async::sta_loop::stop();

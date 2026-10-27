@@ -32,7 +32,8 @@ struct system_compositor {
     ::IUnknown* identity;
 };
 
-class rendering_device {
+class rendering_device
+{
 public:
     rendering_device() = delete;
 

@@ -30,7 +30,8 @@
 namespace wxl {
 
 template <typename T>
-class VectorView : public Object {
+class VectorView : public Object
+{
     using base_t = Object;
 
 public:

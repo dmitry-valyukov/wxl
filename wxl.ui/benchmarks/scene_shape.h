@@ -99,21 +99,20 @@ inline constexpr int runs = 25;
 // object and several of those to one interface, because that is what decides
 // how much the *first* touch of an object costs wxl.
 
-inline constexpr int writesPerBorder = 5;        // background, borderBrush, borderThickness,
-                                                 // cornerRadius, padding -- all IBorder
-inline constexpr int writesPerTextBlock = 7;     // 5 on ITextBlock, then opacity and margin
-inline constexpr int writesPerButton = 6;        // 3 on IControl, content, opacity, margin
-inline constexpr int writesPerCheckBox = 6;      // isThreeState and the three-state isChecked
-                                                 // among them -- see threeState() below
+inline constexpr int writesPerBorder = 5;     // background, borderBrush, borderThickness,
+                                              // cornerRadius, padding -- all IBorder
+inline constexpr int writesPerTextBlock = 7;  // 5 on ITextBlock, then opacity and margin
+inline constexpr int writesPerButton = 6;     // 3 on IControl, content, opacity, margin
+inline constexpr int writesPerCheckBox = 6;   // isThreeState and the three-state isChecked
+                                              // among them -- see threeState() below
 inline constexpr int writesPerRadioButton = 5;
 inline constexpr int writesPerToggleSwitch = 5;  // 4 on IToggleSwitch, then opacity
 inline constexpr int writesPerSlider = 5;        // 3 on IRangeBase, stepFrequency, isEnabled
 inline constexpr int writesPerProgressBar = 4;   // 3 on IRangeBase, then height
 
-inline constexpr int writesPerCard = writesPerBorder + 2 * writesPerTextBlock +
-                                     2 * writesPerButton + writesPerCheckBox +
-                                     2 * writesPerRadioButton + writesPerToggleSwitch +
-                                     writesPerSlider + writesPerProgressBar;
+inline constexpr int writesPerCard =
+    writesPerBorder + 2 * writesPerTextBlock + 2 * writesPerButton + writesPerCheckBox +
+    2 * writesPerRadioButton + writesPerToggleSwitch + writesPerSlider + writesPerProgressBar;
 
 inline constexpr int writesPerPass = cards * writesPerCard;
 
@@ -162,8 +161,7 @@ inline constexpr const char16_t* secondChoice = u"Manual";
 inline constexpr const char16_t* switchHeader = u"Mode";
 inline constexpr const char16_t* switchOn = u"On";
 inline constexpr const char16_t* switchOff = u"Off";
-inline constexpr const char16_t* caption =
-    u"Created, configured and wired to a handler.";
+inline constexpr const char16_t* caption = u"Created, configured and wired to a handler.";
 
 // The two texts that differ from card to card. They are built once, before
 // any timing starts, so that what the stopwatch sees is the scene being

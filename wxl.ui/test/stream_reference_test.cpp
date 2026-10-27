@@ -43,28 +43,28 @@ void check(bool ok, std::string const& what) {
     }
 }
 
-std::string narrow(std::wstring_view text) {
-    return winrt::to_string(text);
-}
+std::string narrow(std::wstring_view text) { return winrt::to_string(text); }
 
 std::vector<uint8_t> make_bytes() {
     std::vector<uint8_t> bytes(5000);
-    for (size_t i = 0; i < bytes.size(); ++i) bytes[i] = static_cast<uint8_t>((i * 31 + i / 7) & 0xFF);
+    for (size_t i = 0; i < bytes.size(); ++i)
+        bytes[i] = static_cast<uint8_t>((i * 31 + i / 7) & 0xFF);
     return bytes;
 }
 
 // Читает ссылку целиком; false -- если она не открылась, причина -- в `error`.
-bool read_all(ss::RandomAccessStreamReference const& reference, std::vector<uint8_t>& bytes, std::wstring& type, std::wstring& error) {
+bool read_all(ss::RandomAccessStreamReference const& reference, std::vector<uint8_t>& bytes,
+              std::wstring& type, std::wstring& error) {
     try {
         auto const stream = reference.OpenReadAsync().get();
         type = stream.ContentType();
-        ss::DataReader reader {stream.GetInputStreamAt(0)};
+        ss::DataReader reader{stream.GetInputStreamAt(0)};
         auto const loaded = reader.LoadAsync(static_cast<uint32_t>(stream.Size())).get();
         bytes.resize(loaded);
         reader.ReadBytes(bytes);
         return true;
     } catch (winrt::hresult_error const& e) {
-        error = std::wstring {e.message()};
+        error = std::wstring{e.message()};
         return false;
     }
 }
@@ -74,7 +74,8 @@ std::wstring escaped(std::wstring_view text) {
     std::string const bytes = winrt::to_string(text);
     std::wstring out;
     for (unsigned char c : bytes) {
-        if (c < 0x80 && (std::iswalnum(c) || c == '/' || c == ':' || c == '.' || c == '-' || c == '_')) {
+        if (c < 0x80 &&
+            (std::iswalnum(c) || c == '/' || c == ':' || c == '.' || c == '-' || c == '_')) {
             out += static_cast<wchar_t>(c);
         } else {
             wchar_t hex[4];
@@ -85,12 +86,14 @@ std::wstring escaped(std::wstring_view text) {
     return out;
 }
 
-void check_reads(std::wstring const& address, std::vector<uint8_t> const& expected, std::string const& what) {
+void check_reads(std::wstring const& address, std::vector<uint8_t> const& expected,
+                 std::string const& what) {
     try {
         std::vector<uint8_t> bytes;
         std::wstring type, error;
-        auto const reference = wxl::impl::stream_reference_from_uri(wf::Uri {address});
-        check(read_all(reference, bytes, type, error), what + ": does not open: " + narrow(error) + " (" + narrow(address) + ")");
+        auto const reference = wxl::impl::stream_reference_from_uri(wf::Uri{address});
+        check(read_all(reference, bytes, type, error),
+              what + ": does not open: " + narrow(error) + " (" + narrow(address) + ")");
         check(bytes == expected, what + ": other bytes (" + narrow(address) + ")");
         check(type == L"image/jpeg", what + ": content type is " + narrow(type));
     } catch (winrt::hresult_error const& e) {
@@ -106,10 +109,12 @@ int run() {
     auto const folder = root / L"папка с пробелом";
     std::filesystem::create_directories(folder);
     auto const bytes = make_bytes();
-    std::vector<std::filesystem::path> const files {folder / L"plain.jpg", folder / L"with space.jpg", folder / L"Кириллица.jpg"};
+    std::vector<std::filesystem::path> const files{
+        folder / L"plain.jpg", folder / L"with space.jpg", folder / L"Кириллица.jpg"};
     for (auto const& file : files) {
-        std::ofstream out {file, std::ios::binary};
-        out.write(reinterpret_cast<char const*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        std::ofstream out{file, std::ios::binary};
+        out.write(reinterpret_cast<char const*>(bytes.data()),
+                  static_cast<std::streamsize>(bytes.size()));
     }
 
     for (auto const& file : files) {
@@ -137,33 +142,41 @@ int run() {
         try {
             std::vector<uint8_t> read;
             std::wstring type, error;
-            auto const reference = wxl::impl::stream_reference_from_uri(wf::Uri {L"file:///" + base, L"with space.jpg"});
-            check(read_all(reference, read, type, error) && read == bytes, "an address relative to a base: " + narrow(error));
+            auto const reference = wxl::impl::stream_reference_from_uri(
+                wf::Uri{L"file:///" + base, L"with space.jpg"});
+            check(read_all(reference, read, type, error) && read == bytes,
+                  "an address relative to a base: " + narrow(error));
         } catch (winrt::hresult_error const& e) {
             check(false, "an address relative to a base: " + narrow(e.message()));
         }
     }
 
     try {
-        (void)wxl::impl::stream_reference_from_uri(wf::Uri {L"file:///" + std::filesystem::temp_directory_path().wstring() + L"/there-is-no-such-file.jpg"});
+        (void)wxl::impl::stream_reference_from_uri(
+            wf::Uri{L"file:///" + std::filesystem::temp_directory_path().wstring() +
+                    L"/there-is-no-such-file.jpg"});
         check(false, "a file that is not there is an error");
     } catch (winrt::hresult_error const&) {
     }
 
     try {
-        (void)wxl::impl::stream_reference_from_uri(wf::Uri {L"file:///M:/%FF.jpg"});
+        (void)wxl::impl::stream_reference_from_uri(wf::Uri{L"file:///M:/%FF.jpg"});
         check(false, "an escape that is not UTF-8 is an error");
     } catch (winrt::hresult_invalid_argument const&) {
     } catch (winrt::hresult_error const& e) {
-        check(false, "an escape that is not UTF-8 is an invalid argument, not " + narrow(e.message()));
+        check(false,
+              "an escape that is not UTF-8 is an invalid argument, not " + narrow(e.message()));
     }
 
     // Не файл -- платформа: ссылка делается, и ничто не читается раньше времени.
-    for (wchar_t const* address : {L"https://example.invalid/a.png", L"ms-appx:///a.png", L"ms-appdata:///local/a.png"}) {
+    for (wchar_t const* address :
+         {L"https://example.invalid/a.png", L"ms-appx:///a.png", L"ms-appdata:///local/a.png"}) {
         try {
-            check(static_cast<bool>(wxl::impl::stream_reference_from_uri(wf::Uri {address})), std::string {"a reference is made for "} + narrow(address));
+            check(static_cast<bool>(wxl::impl::stream_reference_from_uri(wf::Uri{address})),
+                  std::string{"a reference is made for "} + narrow(address));
         } catch (winrt::hresult_error const& e) {
-            check(false, std::string {"a reference is made for "} + narrow(address) + ": " + narrow(e.message()));
+            check(false, std::string{"a reference is made for "} + narrow(address) + ": " +
+                             narrow(e.message()));
         }
     }
 
@@ -180,7 +193,8 @@ int main() {
     try {
         return run();
     } catch (winrt::hresult_error const& e) {
-        std::fprintf(stderr, "stream_reference_test: FAILED -- unexpected %s\n", narrow(e.message()).c_str());
+        std::fprintf(stderr, "stream_reference_test: FAILED -- unexpected %s\n",
+                     narrow(e.message()).c_str());
     } catch (std::exception const& e) {
         std::fprintf(stderr, "stream_reference_test: FAILED -- unexpected %s\n", e.what());
     }

@@ -40,9 +40,7 @@ T wrap(WinRT const& object) {
     return wxl::Object::Impl::wrap<T>(object);
 }
 
-std::u16string_view text(wxl::hstring const& value) {
-    return std::u16string_view{value};
-}
+std::u16string_view text(wxl::hstring const& value) { return std::u16string_view{value}; }
 
 // An object of its own for every element: a vector is an IInspectable like any
 // other, and needs no activation.
@@ -85,8 +83,8 @@ TEST(vector_view, is_walked_in_order) {
 }
 
 TEST(vector_view, an_empty_view_is_walked_not_at_all) {
-    auto const view =
-        wrap<wxl::VectorView<wxl::hstring>>(winrt::single_threaded_vector<winrt::hstring>().GetView());
+    auto const view = wrap<wxl::VectorView<wxl::hstring>>(
+        winrt::single_threaded_vector<winrt::hstring>().GetView());
 
     EXPECT_TRUE(view.empty());
     EXPECT_TRUE(view.begin() == view.end());
@@ -147,7 +145,8 @@ TEST(vector_view, wraps_each_object_element_around_the_object_itself) {
 }
 
 // What a call taking an IIterable<String> reads out of what it was given.
-std::wstring joined(winrt::Windows::Foundation::Collections::IIterable<winrt::hstring> const& items) {
+std::wstring joined(
+    winrt::Windows::Foundation::Collections::IIterable<winrt::hstring> const& items) {
     std::wstring all;
     for (auto const& item : items) {
         all += item;
@@ -204,7 +203,8 @@ TEST(iterable_param, copies_wrapper_elements_as_the_objects_themselves) {
     auto const made = objects(2);
     std::vector<wxl::Object> items;
     for (auto const& object : made) {
-        items.push_back(wxl::Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(object))));
+        items.push_back(
+            wxl::Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(object))));
     }
 
     auto const iterable = handed<wxl::Object>(items);
@@ -221,7 +221,8 @@ TEST(collection, is_walked_and_takes_the_object_itself) {
     auto const made = objects(2);
 
     for (auto const& object : made) {
-        collection.append(wxl::Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(object))));
+        collection.append(
+            wxl::Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(object))));
     }
 
     ASSERT_EQ(source.Size(), 2u);

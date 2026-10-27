@@ -24,9 +24,7 @@ Fn abi_entry_point(void* itf) noexcept {
     return reinterpret_cast<Fn>((*static_cast<void***>(itf))[6]);
 }
 
-::IInspectable* as_inspectable(void* itf) noexcept {
-    return static_cast<::IInspectable*>(itf);
-}
+::IInspectable* as_inspectable(void* itf) noexcept { return static_cast<::IInspectable*>(itf); }
 
 using dll_get_activation_factory_fn = HRESULT(__stdcall*)(HSTRING, void**) noexcept;
 
@@ -63,8 +61,8 @@ HRESULT resolve_factory_from_dll(wchar_t const* name, GUID const& iid, void** fa
 
         winrt::param::hstring const text{name};
         ::IActivationFactory* activation = nullptr;
-        HRESULT hr = entry(static_cast<HSTRING>(get_abi(text)),
-                           reinterpret_cast<void**>(&activation));
+        HRESULT hr =
+            entry(static_cast<HSTRING>(get_abi(text)), reinterpret_cast<void**>(&activation));
         if (FAILED(hr)) {
             continue;
         }
@@ -86,7 +84,7 @@ HRESULT resolve_factory_from_dll(wchar_t const* name, GUID const& iid, void** fa
     return REGDB_E_CLASSNOTREG;
 }
 
-} // namespace
+}  // namespace
 
 HRESULT resolve_activation_factory(wchar_t const* class_name, GUID const& iid,
                                    void** factory) noexcept {
@@ -138,10 +136,9 @@ HRESULT __stdcall thunk(composable_slot* slot, ::IInspectable** result) noexcept
     return hr;
 }
 
-} // namespace
+}  // namespace
 
-HRESULT __stdcall activation_slot::init(activation_slot* slot,
-                                        ::IInspectable** result) noexcept {
+HRESULT __stdcall activation_slot::init(activation_slot* slot, ::IInspectable** result) noexcept {
     void* factory = nullptr;
     HRESULT hr = resolve_factory(slot->arg1_, &factory);
     if (FAILED(hr)) {
@@ -163,8 +160,7 @@ HRESULT __stdcall activation_slot::init(activation_slot* slot,
     return hr;
 }
 
-HRESULT __stdcall composable_slot::init(composable_slot* slot,
-                                         ::IInspectable** result) noexcept {
+HRESULT __stdcall composable_slot::init(composable_slot* slot, ::IInspectable** result) noexcept {
     void* factory = nullptr;
     HRESULT hr = resolve_factory(slot->arg1_, &factory);
     if (FAILED(hr)) {
@@ -195,8 +191,8 @@ HRESULT __stdcall composable_slot::init(composable_slot* slot,
     // That interface holds the object up on its own, which is why the
     // activation factory's reference is handed straight back.
     void* composable_fac = nullptr;
-    hr = as_inspectable(factory)->QueryInterface(
-        *static_cast<winrt::guid const*>(slot->arg2_), &composable_fac);
+    hr = as_inspectable(factory)->QueryInterface(*static_cast<winrt::guid const*>(slot->arg2_),
+                                                 &composable_fac);
     as_inspectable(factory)->Release();
 
     if (FAILED(hr)) {
@@ -220,4 +216,4 @@ HRESULT __stdcall composable_slot::init(composable_slot* slot,
     return hr;
 }
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

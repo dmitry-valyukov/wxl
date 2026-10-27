@@ -51,17 +51,13 @@ IndexList IndexList::observable() {
     return IndexList{object_of(winrt::single_threaded_observable_vector<IInspectable>())};
 }
 
-void IndexList::append(int64_t value) const {
-    vector_of(*this).Append(winrt::box_value(value));
-}
+void IndexList::append(int64_t value) const { vector_of(*this).Append(winrt::box_value(value)); }
 
 void IndexList::insertAt(uint32_t index, int64_t value) const {
     vector_of(*this).InsertAt(index, winrt::box_value(value));
 }
 
-void IndexList::removeAt(uint32_t index) const {
-    vector_of(*this).RemoveAt(index);
-}
+void IndexList::removeAt(uint32_t index) const { vector_of(*this).RemoveAt(index); }
 
 int64_t IndexList::getAt(uint32_t index) const {
     return winrt::unbox_value<int64_t>(vector_of(*this).GetAt(index));
@@ -72,8 +68,6 @@ Object IndexList::objectAt(uint32_t index) const {
     return Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(item)));
 }
 
-uint32_t IndexList::size() const {
-    return vector_of(*this).Size();
-}
+uint32_t IndexList::size() const { return vector_of(*this).Size(); }
 
 }  // namespace wxl

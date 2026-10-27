@@ -2,8 +2,6 @@
 
 namespace wxl::impl {
 
-void throw_hresult(std::int32_t hr) {
-    throw hresult_error(hr);
-}
+void throw_hresult(std::int32_t hr) { throw hresult_error(hr); }
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

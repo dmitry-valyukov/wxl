@@ -24,7 +24,8 @@
 
 namespace wxl {
 
-class ImageSource {
+class ImageSource
+{
 public:
     ImageSource() = default;
 

@@ -22,12 +22,11 @@ namespace wxl::impl {
 // the UI thread's queue; an exception has nowhere to go from any of them. The sender is not
 // offered: the sources raise an empty one.
 template <auto Listener, class Owner, class Args>
-concept event_listener =
-    requires(Owner& owner, EventArgsRef<Args> args) {
-        { (owner.*Listener)(args) } noexcept -> std::same_as<void>;
-    } || requires(Owner& owner) {
-        { (owner.*Listener)() } noexcept -> std::same_as<void>;
-    };
+concept event_listener = requires(Owner& owner, EventArgsRef<Args> args) {
+    { (owner.*Listener)(args) } noexcept -> std::same_as<void>;
+} || requires(Owner& owner) {
+    { (owner.*Listener)() } noexcept -> std::same_as<void>;
+};
 
 // `Source` is a handle, copied by value; `Adder` is the pair of calls for one event, as the
 // generated event_adder has it: add(source, handler) gives a token, remove(source, token) takes
@@ -38,7 +37,8 @@ concept event_listener =
 // named before the generated vocabulary is included, as a wait's may (event_awaitable.h), and
 // the event's args are read only where the watch is attached.
 template <class Source, class Adder, auto Listener>
-class event_watch {
+class event_watch
+{
     using owner_t = typename core::impl::member_owner<decltype(Listener)>::type;
 
 public:
@@ -97,7 +97,8 @@ private:
     // The source lives while the token is set: CompositionWindow has no empty value -- made
     // without arguments, it makes a window -- and a flag beside the token would say the same
     // thing twice. The tokens count from one, so a subscription is never the empty token.
-    union {
+    union
+    {
         Source source_;
     };
     EventToken token_;

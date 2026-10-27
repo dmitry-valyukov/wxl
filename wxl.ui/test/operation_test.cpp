@@ -56,7 +56,8 @@ constexpr uint32_t canceled_code = 0x800704C7;
 
 /// An operation of the platform: a reference to one object, which its copies share.
 template <class T>
-class fake_operation {
+class fake_operation
+{
 public:
     using handler_t = std::function<void(fake_operation const&, AsyncStatus)>;
 
@@ -87,11 +88,14 @@ public:
     void Cancel() const {
         ++state_->cancels;
         if (std::function<void()> const hook = std::exchange(state_->when_cancelled, {})) hook();
-        if (state_->ends_when_cancelled && state_->status == AsyncStatus::Started) end(AsyncStatus::Canceled);
+        if (state_->ends_when_cancelled && state_->status == AsyncStatus::Started)
+            end(AsyncStatus::Canceled);
     }
 
     void ends_when_cancelled() const { state_->ends_when_cancelled = true; }
-    void when_cancelled(std::function<void()> hook) const { state_->when_cancelled = std::move(hook); }
+    void when_cancelled(std::function<void()> hook) const {
+        state_->when_cancelled = std::move(hook);
+    }
 
     /// The operation ends: the handler is called on whichever thread calls this.
     void end(AsyncStatus status) const {
@@ -145,7 +149,8 @@ private:
 
 /// The dispatcher of the thread that made the call: scheduled on from any thread, run by the test
 /// on its own.
-class fake_dispatcher {
+class fake_dispatcher
+{
 public:
     template <class Fn>
     bool schedule(Fn&& fn) const {
@@ -441,7 +446,9 @@ TEST(OperationTaskTest, ATaskLetGoWhileItsAnswerIsPostedGoesAndThePostedCallFind
 
     // Not ready until the dispatcher's turn: the task asks the operation to stop, which costs
     // nothing.
-    { auto const gone = std::move(pending); }
+    {
+        auto const gone = std::move(pending);
+    }
     EXPECT_EQ(op.cancels(), 1);
     EXPECT_EQ(op.held(), 1);
 
@@ -747,7 +754,7 @@ struct fake_dialog {
     fake_operation<int> op;
     fake_dispatcher dispatcher;
     bool refuses = false;
-    mutable int shown = 0;   ///< calls of the platform's ShowAsync
+    mutable int shown = 0;  ///< calls of the platform's ShowAsync
 
     task<int> showAsync(cancellation_token token) const {
         return start_cancelable_winrt_on_dispatcher<int>(
@@ -852,7 +859,7 @@ TEST(ShowDialogTest, DroppingTheWaitClosesTheDialog) {
 
 TEST(ShowDialogTest, ADialogThatCompletesInsideItsCancelEndsTheFrameOnce) {
     fake_dialog dialog;
-    dialog.op.ends_when_cancelled();   // a ContentDialog whose popup is gone already
+    dialog.op.ends_when_cancelled();  // a ContentDialog whose popup is gone already
     cancellation_source source;
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
@@ -917,9 +924,7 @@ TEST(ShowDialogTest, UnderATokenCancelledAlreadyTheDialogIsNotShownAndNothingIsL
 
 /// A report goes to stderr and the process ends without a dialog, which in a test run would be a
 /// hang.
-void without_a_dialog() {
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-}
+void without_a_dialog() { _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT); }
 
 void show_under_a_token_of_nobody(fake_dialog const& dialog) {
     without_a_dialog();
@@ -928,7 +933,8 @@ void show_under_a_token_of_nobody(fake_dialog const& dialog) {
 
 TEST(ShowDialogDeathTest, UnderATokenNobodyCanCancelTheCallStops) {
     fake_dialog const dialog;
-    EXPECT_DEATH(show_under_a_token_of_nobody(dialog), "wxl: showDialog under a token nobody can cancel");
+    EXPECT_DEATH(show_under_a_token_of_nobody(dialog),
+                 "wxl: showDialog under a token nobody can cancel");
     EXPECT_EQ(dialog.shown, 0);
 }
 

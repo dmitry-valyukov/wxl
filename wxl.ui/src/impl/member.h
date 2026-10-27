@@ -72,7 +72,8 @@ struct property_setter;
 // has no such pair, finds no bind() here and is refused by bind_property
 // below, which says what to write instead.
 template <PropertyKey key, typename Obj>
-struct property_binder {};
+struct property_binder {
+};
 
 template <EventKey key>
 struct event_adder;
@@ -119,7 +120,12 @@ namespace impl {
 
 // Which way a binding runs, seen from the field: input is what the control
 // writes into it, output what it shows on the control.
-enum class bind_direction { both, input, output };
+enum class bind_direction
+{
+    both,
+    input,
+    output
+};
 
 template <typename T>
 inline constexpr bool is_bind = false;
@@ -217,9 +223,8 @@ void bind_property(Obj const& object, core::observable<T>& model, Fn const& fn) 
         if constexpr (plain) {
             Pair::bind(object, model, direction);
         } else if constexpr (direction == bind_direction::input) {
-            bind_transformed_input(model, fn, [&](core::observable<T>& own) {
-                Pair::bind(object, own, direction);
-            });
+            bind_transformed_input(
+                model, fn, [&](core::observable<T>& own) { Pair::bind(object, own, direction); });
         } else {
             bind_mirrored(model, fn, [&](core::observable<T>& mirror) {
                 Pair::bind(object, mirror, direction);
@@ -252,7 +257,8 @@ struct setter_op {
         check_owner<Owner, Obj>();
         if constexpr (is_list_binding<T>) {
             static_assert(key == PropertyKey::ItemsSource,
-                          "wxl: a list is bound as the items of a list control: itemsSource = BindOutput{list, fn}.");
+                          "wxl: a list is bound as the items of a list control: itemsSource = "
+                          "BindOutput{list, fn}.");
             value_(object);
         } else if constexpr (is_bind<T>) {
             bind_property<key, T::direction>(object, *value_.model, value_.fn);
@@ -340,7 +346,8 @@ struct deduced_property_tag {
 // and has to be visible before the first property_tag over that enumeration is
 // instantiated.
 template <typename E>
-struct enum_values {};
+struct enum_values {
+};
 
 // A property tag -- the object the DSL writes on the left of the `=`.
 //
@@ -575,7 +582,8 @@ struct iterate {
     constexpr core::basic_zstring_view<element_t> text() const noexcept
         requires impl::is_character<element_t>
     {
-        return core::basic_zstring_view<element_t>{&terminated[static_cast<std::size_t>(2 * index)]};
+        return core::basic_zstring_view<element_t>{
+            &terminated[static_cast<std::size_t>(2 * index)]};
     }
 };
 
@@ -589,7 +597,8 @@ namespace impl {
 // be an ordinary substitution failure, so that an argument which is merely
 // some other one-parameter callable is rejected rather than hard-errored.
 template <typename T>
-struct iteration {};
+struct iteration {
+};
 
 template <int Count>
 struct iteration<repeat<Count>> {
@@ -610,12 +619,14 @@ struct iteration<iterate<Parts...>> {
 // The iteration a body names by its one parameter. Empty for any other
 // callable, for the same reason as the primary above.
 template <typename F>
-struct iteration_over {};
+struct iteration_over {
+};
 
 template <typename F>
     requires(call_operator_traits<F>::arity == 1)
 struct iteration_over<F>
-    : iteration<std::decay_t<typename call_operator_traits<F>::template parameter_t<0>>> {};
+    : iteration<std::decay_t<typename call_operator_traits<F>::template parameter_t<0>>> {
+};
 
 template <typename F>
 concept iterating = requires { iteration_over<F>::count; };
@@ -641,9 +652,9 @@ struct collection_arg {
     template <typename Obj>
     void operator()(Obj const& object) const {
         check_owner<Owner, Obj>();
-        std::apply([&object](Items const&... items) {
-            collection_setter<key>::set(object, items...);
-        }, items_);
+        std::apply(
+            [&object](Items const&... items) { collection_setter<key>::set(object, items...); },
+            items_);
     }
 };
 
@@ -707,12 +718,13 @@ concept applicable_to =
     requires(Obj const& object, Arg&& argument) { argument(object); }
     // A tagged value names its own property, so the route is the key it
     // carries and no class declares anything for it.
-    || (tagged<Arg> && requires(Obj const& object, Arg&& argument) {
-           property_setter<std::remove_cvref_t<Arg>::tag>::set(object, argument);
-       })
-    || requires(Obj const& object, Arg&& argument) {
-           object.setPositional(std::forward<Arg>(argument));
-       }
+    || (tagged<Arg> &&
+        requires(Obj const& object, Arg&& argument) {
+            property_setter<std::remove_cvref_t<Arg>::tag>::set(object, argument);
+        }) ||
+    requires(Obj const& object, Arg&& argument) {
+        object.setPositional(std::forward<Arg>(argument));
+    }
     // A repeated child: what it builds is what has to have a route, and the
     // parent takes it the same way a child written out by hand is taken.
     || (iterating<Arg> && requires(Obj const& object, Arg&& argument) {
@@ -743,13 +755,13 @@ concept applicable_to =
 // counts too.
 template <typename Arg>
 inline constexpr bool impl_pointer =
-    std::is_pointer_v<std::decay_t<Arg>>
-    && !is_character<std::remove_cv_t<std::remove_pointer_t<std::decay_t<Arg>>>>;
+    std::is_pointer_v<std::decay_t<Arg>> &&
+    !is_character<std::remove_cv_t<std::remove_pointer_t<std::decay_t<Arg>>>>;
 
 template <typename Obj, typename... Args>
 concept setter_pack =
-    (sizeof...(Args) != 1 || !(std::derived_from<std::decay_t<Args>, Obj> && ...))
-    && !(impl_pointer<Args> || ...);
+    (sizeof...(Args) != 1 || !(std::derived_from<std::decay_t<Args>, Obj> && ...)) &&
+    !(impl_pointer<Args> || ...);
 
 // One constructor argument, applied.
 //
@@ -869,7 +881,8 @@ struct braced_property_tag : deduced_property_tag<key, Owner> {
 // twice is handed to the framework twice, which refuses it a second parent.
 // Both are written as a Template, which builds afresh where it is applied.
 template <typename... Setters>
-class Preset {
+class Preset
+{
 public:
     constexpr explicit Preset(Setters... setters) : setters_{std::move(setters)...} {
         static_assert(!(impl::borrows_items<Setters> || ...),
@@ -889,8 +902,9 @@ public:
     // inside braces is this call, made by the constructor.
     template <typename Obj>
     void operator()(Obj const& object) const {
-        std::apply([&object](auto const&... setter) { (impl::apply_argument(object, setter), ...); },
-                   setters_);
+        std::apply(
+            [&object](auto const&... setter) { (impl::apply_argument(object, setter), ...); },
+            setters_);
     }
 
 private:
@@ -925,7 +939,8 @@ Preset(Setters&&...) -> Preset<std::decay_t<Setters>...>;
 // program and after the last -- so a template at namespace scope is an
 // ordinary line.
 template <typename Target>
-class Template {
+class Template
+{
     // The plain spelling, not `noexcept`: a setter's work goes through WinRT
     // and can fail, and whoever applies the template is there to hear about it.
     using func_t = core::function<void(Target const&)>;
@@ -934,15 +949,13 @@ public:
     using target_type = Target;
 
     template <typename... Setters>
-        requires(!(sizeof...(Setters) == 1
-                   && (std::same_as<std::decay_t<Setters>, Template> && ...)))
+        requires(!(sizeof...(Setters) == 1 &&
+                   (std::same_as<std::decay_t<Setters>, Template> && ...)))
     Template(Setters&&... setters)
         : setters_{[pack = std::tuple<std::decay_t<Setters>...>{std::forward<Setters>(setters)...}](
                        Target const& object) {
               std::apply(
-                  [&object](auto const&... setter) {
-                      (impl::apply_argument(object, setter), ...);
-                  },
+                  [&object](auto const&... setter) { (impl::apply_argument(object, setter), ...); },
                   pack);
           }} {
         static_assert(!(impl::borrows_items<std::decay_t<Setters>> || ...),
@@ -1000,7 +1013,8 @@ private:
 // commas, same order -- which is the entire point of it. The older spelling,
 // `(content = icon)(button)`, remains what a *preset* does when it is worn,
 // and is no longer how a pack of setters is written by hand.
-class Apply {
+class Apply
+{
 public:
     template <typename Obj, typename... Setters>
         requires std::derived_from<std::remove_cvref_t<Obj>, Object>
@@ -1027,11 +1041,12 @@ struct setter_op<key, Preset<Setters...>, Owner> {
             check_owner<Owner, Obj>();
             property_setter<key>::set(object, value_);
         } else {
-            static_assert(sizeof...(Setters) < 0,
-                          "wxl: a preset is worn, not assigned -- written unnamed inside the braces "
-                          "it dresses the object being built. The object a property asks for is "
-                          "built by a template: write `property = Template<T>{...}`, with the "
-                          "preset inside if it is the look.");
+            static_assert(
+                sizeof...(Setters) < 0,
+                "wxl: a preset is worn, not assigned -- written unnamed inside the braces "
+                "it dresses the object being built. The object a property asks for is "
+                "built by a template: write `property = Template<T>{...}`, with the "
+                "preset inside if it is the look.");
         }
     }
 };
@@ -1090,7 +1105,7 @@ void operator,(A&&, B&&) = delete;
 
 namespace impl {
 
-using wxl::operator,;
+using wxl::operator, ;
 
 }  // namespace impl
 

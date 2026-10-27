@@ -35,19 +35,20 @@ static_assert(mirrors<Rect>(winrt::Windows::Foundation::Rect{1, 2, 3, 4}, [](Rec
     return v.offset.x == 1 && v.offset.y == 2 && v.size.width == 3 && v.size.height == 4;
 }));
 
-static_assert(mirrors<Color>(winrt::Windows::UI::Color{1, 2, 3, 4}, [](Color v) {
-    return v.A == 1 && v.R == 2 && v.G == 3 && v.B == 4;
-}));
+static_assert(mirrors<Color>(winrt::Windows::UI::Color{1, 2, 3, 4},
+                             [](Color v) { return v.A == 1 && v.R == 2 && v.G == 3 && v.B == 4; }));
 
 // The four edges and the four corners, in the order the framework writes them.
-static_assert(mirrors<Thickness>(winrt::Microsoft::UI::Xaml::Thickness{1, 2, 3, 4}, [](Thickness v) {
-    return v.left == 1 && v.top == 2 && v.right == 3 && v.bottom == 4;
-}));
+static_assert(mirrors<Thickness>(winrt::Microsoft::UI::Xaml::Thickness{1, 2, 3, 4},
+                                 [](Thickness v) {
+                                     return v.left == 1 && v.top == 2 && v.right == 3 &&
+                                            v.bottom == 4;
+                                 }));
 
 static_assert(mirrors<CornerRadius>(winrt::Microsoft::UI::Xaml::CornerRadius{1, 2, 3, 4},
                                     [](CornerRadius v) {
-                                        return v.topLeft == 1 && v.topRight == 2
-                                            && v.bottomRight == 3 && v.bottomLeft == 4;
+                                        return v.topLeft == 1 && v.topRight == 2 &&
+                                               v.bottomRight == 3 && v.bottomLeft == 4;
                                     }));
 
 // The numerics a composition object is written in: cppwinrt spells them

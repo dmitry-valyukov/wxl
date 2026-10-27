@@ -26,7 +26,8 @@ namespace impl {
 // that one thread. One template for every handler the block hands out this
 // way: onLink and onError share the mechanics.
 template <typename Handler>
-class handler_box : public core::sta_refcounted {
+class handler_box : public core::sta_refcounted
+{
 public:
     // Replacing drops the old handler, and every existing closure sees the new
     // one at its next call.
@@ -50,7 +51,8 @@ private:
 // The elements that follow the width of the text area (appendWideElement),
 // shared with the block's LayoutUpdated closure the way the handler boxes
 // are shared: the closure holds the list, never the Impl.
-class wide_elements : public core::sta_refcounted {
+class wide_elements : public core::sta_refcounted
+{
 public:
     struct entry {
         winrt::Microsoft::UI::Xaml::FrameworkElement element;
@@ -64,7 +66,8 @@ public:
 
 }  // namespace impl
 
-class FormattedBlock::Impl : public base_t::Impl {
+class FormattedBlock::Impl : public base_t::Impl
+{
 public:
     using base_t::Impl::Impl;
 
@@ -90,8 +93,8 @@ public:
     // XAML tree owns the control, not us) still finds the handler, and no
     // closure ever points back at this Impl to keep it alive in a cycle.
     // Adopted, not add-ref'd: refcounted starts at one.
-    core::intrusive_ptr<impl::handler_box<LinkHandler>> onLink_{
-        new impl::handler_box<LinkHandler>, /*add_ref=*/false};
+    core::intrusive_ptr<impl::handler_box<LinkHandler>> onLink_{new impl::handler_box<LinkHandler>,
+                                                                /*add_ref=*/false};
     core::intrusive_ptr<impl::handler_box<ErrorHandler>> onError_{
         new impl::handler_box<ErrorHandler>, /*add_ref=*/false};
 

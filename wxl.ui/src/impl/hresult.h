@@ -20,7 +20,8 @@ inline constexpr std::int32_t e_accessdenied = static_cast<std::int32_t>(0x80070
 // boundaries wxl::impl has: incoming (check_hresult, calling into the WinUI3
 // ABI) and outgoing (exception_to_hresult, an ABI method of an object of
 // wxl's own -- impl/sta_com.h -- answering what it threw).
-class hresult_error : public std::exception {
+class hresult_error : public std::exception
+{
 public:
     explicit hresult_error(std::int32_t hr) noexcept : hr_(hr) {}
 
@@ -57,4 +58,4 @@ inline std::int32_t exception_to_hresult() noexcept {
     }
 }
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

@@ -43,7 +43,8 @@ int main() {
     }
 
     {
-        double constexpr expected[] {0.5, 2.0 / 3.0, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0};
+        double constexpr expected[]{0.5,  2.0 / 3.0, 0.75, 0.8, 0.9, 1.0, 1.1,
+                                    1.25, 1.5,       1.75, 2.0, 2.5, 3.0};
         auto const zoom = wxl::AppZoom::make();
         zoom->setZoomFactor(0.0);
         bool ladder = true;
@@ -53,7 +54,8 @@ int main() {
         }
         check(ladder, "zoomIn walks the thirteen steps from 50 % to 300 %, two thirds exact");
         check(zoom->zoomFactor().get() == 3.0, "zoomIn stays at 300 %");
-        check(!zoom->canZoomIn().get() && zoom->canZoomOut().get(), "at 300 % only zoomOut is open");
+        check(!zoom->canZoomIn().get() && zoom->canZoomOut().get(),
+              "at 300 % only zoomOut is open");
 
         zoom->resetZoom();
         check(zoom->zoomFactor().get() == 1.0, "resetZoom goes back to 100 %");
@@ -66,13 +68,15 @@ int main() {
     {
         check(factorAfter(1.1) == 1.1, "a saved step comes back as the same step");
         check(factorAfter(0.67) == 2.0 / 3.0, "the old 0.67 lands on two thirds");
-        check(factorAfter(1.04) == 1.0 && factorAfter(1.06) == 1.1, "between 100 and 110 % -- the nearer one");
+        check(factorAfter(1.04) == 1.0 && factorAfter(1.06) == 1.1,
+              "between 100 and 110 % -- the nearer one");
         // 1.37 is nearer 1.25 by difference (0.12 against 0.13) but nearer 1.5
         // by ratio (1.096 against 1.095): the ratio decides.
         check(factorAfter(1.37) == 1.5, "nearest by ratio, not by difference");
         check(factorAfter(0.1) == 0.5 && factorAfter(-2.0) == 0.5, "below 50 % -- 50 %");
-        check(factorAfter(10.0) == 3.0 && factorAfter(std::numeric_limits<double>::infinity()) == 3.0,
-              "above 300 % -- 300 %");
+        check(
+            factorAfter(10.0) == 3.0 && factorAfter(std::numeric_limits<double>::infinity()) == 3.0,
+            "above 300 % -- 300 %");
         check(factorAfter(std::nan("")) == 1.0, "not a number -- 100 %");
     }
 

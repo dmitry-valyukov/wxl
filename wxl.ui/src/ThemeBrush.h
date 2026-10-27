@@ -43,7 +43,8 @@
 
 namespace wxl {
 
-class ThemeBrush {
+class ThemeBrush
+{
 public:
     ThemeBrush(hstring_param const& key, Brush brush) : key_(key), brush_(std::move(brush)) {}
 

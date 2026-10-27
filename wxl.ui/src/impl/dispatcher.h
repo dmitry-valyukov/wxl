@@ -22,7 +22,8 @@ concept dispatcher_like = std::copy_constructible<D> && requires(D const& d) {
 /// The dispatcher over a DispatcherQueue of the platform, held by value: schedule() is its
 /// TryEnqueue. What TryEnqueue throws -- its call failing, the delegate not made -- goes on to the
 /// caller.
-class winrt_dispatcher {
+class winrt_dispatcher
+{
 public:
     explicit winrt_dispatcher(winrt::Microsoft::UI::Dispatching::DispatcherQueue queue) noexcept
         : queue_(std::move(queue)) {}

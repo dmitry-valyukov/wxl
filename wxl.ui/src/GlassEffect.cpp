@@ -40,7 +40,9 @@ GlassEffect& GlassEffect::operator=(GlassEffect const& other) noexcept = default
 GlassEffect::~GlassEffect() = default;
 
 void GlassEffect::color(Color value) const { impl_->color = value; }
-void GlassEffect::blurRadius(double value) const { impl_->blurRadius = static_cast<float>(std::max(value, 0.0)); }
+void GlassEffect::blurRadius(double value) const {
+    impl_->blurRadius = static_cast<float>(std::max(value, 0.0));
+}
 void GlassEffect::opacity(double value) const {
     impl_->opacity = static_cast<float>(std::clamp(value, 0.0, 1.0));
 }
@@ -50,7 +52,8 @@ namespace {
 // The glass: what lies behind the pane, blurred, and the tint laid over it.
 // A DropShadow's blur radius is about three deviations of the Gaussian, so
 // the same number gives the same reach here.
-composition::CompositionBrush glass_brush(composition::Compositor const& compositor, Color color, float blurRadius) {
+composition::CompositionBrush glass_brush(composition::Compositor const& compositor, Color color,
+                                          float blurRadius) {
     effects::GaussianBlurEffect blur;
     blur.Source(composition::CompositionEffectSourceParameter{L"behind"});
     blur.BlurAmount(blurRadius / 3.0f);
@@ -77,7 +80,8 @@ struct Sheet {
     composition::SpriteVisual layer{nullptr};
     composition::CompositionRoundedRectangleGeometry shape{nullptr};
 
-    void make(composition::Compositor const& compositor, Color color, float blurRadius, float opacity) {
+    void make(composition::Compositor const& compositor, Color color, float blurRadius,
+              float opacity) {
         shape = compositor.CreateRoundedRectangleGeometry();
         layer = compositor.CreateSpriteVisual();
         layer.Brush(glass_brush(compositor, color, blurRadius));
@@ -152,14 +156,14 @@ struct Attachment : core::sta_refcounted, core::sta_weak_linked<Attachment> {
         }
 
         auto const host = xaml::Hosting::ElementCompositionPreview::GetElementVisual(fe);
-        impl::when_drawn(host.as<composition::ContainerVisual>(),
-                         [link = weak_link(), host](auto const& children) {
-                             core::intrusive_ptr<Attachment> const self = link->get();
-                             if (!self || self->inIsland.layer) return;
-                             self->inIsland.make(host.Compositor(), self->color, self->blurRadius, self->opacity);
-                             if (auto const fe = self->element.get()) self->follow(fe);
-                             impl::insert_layer(children, self->inIsland.layer, paneZ);
-                         });
+        impl::when_drawn(host.as<composition::ContainerVisual>(), [link = weak_link(),
+                                                                   host](auto const& children) {
+            core::intrusive_ptr<Attachment> const self = link->get();
+            if (!self || self->inIsland.layer) return;
+            self->inIsland.make(host.Compositor(), self->color, self->blurRadius, self->opacity);
+            if (auto const fe = self->element.get()) self->follow(fe);
+            impl::insert_layer(children, self->inIsland.layer, paneZ);
+        });
 
         follow(fe);
         layoutUpdated = fe.LayoutUpdated([link = weak_link()](auto&&, auto&&) {
@@ -178,7 +182,8 @@ struct Attachment : core::sta_refcounted, core::sta_weak_linked<Attachment> {
     void follow(xaml::FrameworkElement const& fe) {
         auto const root = fe.XamlRoot();
         if (!root) return;
-        float2 const size{static_cast<float>(fe.ActualWidth()), static_cast<float>(fe.ActualHeight())};
+        float2 const size{static_cast<float>(fe.ActualWidth()),
+                          static_cast<float>(fe.ActualHeight())};
         float const radius = impl::corner_of(fe);
         inIsland.fit(size, radius);
         inIsland.reattach(paneZ);

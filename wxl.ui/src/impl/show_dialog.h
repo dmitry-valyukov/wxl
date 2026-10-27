@@ -43,8 +43,9 @@ async::task<> await_answer(async::task<R> answer) {
 template <class Dialog>
 [[nodiscard]] async::task<> show_dialog(Dialog const& dialog, async::cancellation_token token) {
     if (!async::detail::cancellation_state_of(token))
-        core::abort("wxl: showDialog under a token nobody can cancel -- a dialog only the reader "
-                    "can close would keep its wait alive at the exit");
+        core::abort(
+            "wxl: showDialog under a token nobody can cancel -- a dialog only the reader "
+            "can close would keep its wait alive at the exit");
 
     return await_answer(dialog.showAsync(std::move(token)));
 }

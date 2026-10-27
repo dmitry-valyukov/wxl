@@ -44,7 +44,8 @@
 
 namespace wxl {
 
-class HaloEffect {
+class HaloEffect
+{
 public:
     /// The DropShadow's defaults: black, blur 9, opaque, no offset; under the glyphs.
     HaloEffect();

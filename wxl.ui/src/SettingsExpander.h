@@ -27,7 +27,8 @@
 
 namespace wxl {
 
-class SettingsExpander : public ContentControl {
+class SettingsExpander : public ContentControl
+{
 public:
     SettingsExpander();
 

@@ -73,55 +73,153 @@ struct named_color {
 // Полный набор CSS-имён цвета — самая дешёвая грамматика: одна таблица
 // (design.md, «Атрибуты»: принято).
 constexpr named_color kNamedColors[] = {
-    {u"aliceblue", 0xF0F8FF}, {u"antiquewhite", 0xFAEBD7}, {u"aqua", 0x00FFFF},
-    {u"aquamarine", 0x7FFFD4}, {u"azure", 0xF0FFFF}, {u"beige", 0xF5F5DC},
-    {u"bisque", 0xFFE4C4}, {u"black", 0x000000}, {u"blanchedalmond", 0xFFEBCD},
-    {u"blue", 0x0000FF}, {u"blueviolet", 0x8A2BE2}, {u"brown", 0xA52A2A},
-    {u"burlywood", 0xDEB887}, {u"cadetblue", 0x5F9EA0}, {u"chartreuse", 0x7FFF00},
-    {u"chocolate", 0xD2691E}, {u"coral", 0xFF7F50}, {u"cornflowerblue", 0x6495ED},
-    {u"cornsilk", 0xFFF8DC}, {u"crimson", 0xDC143C}, {u"cyan", 0x00FFFF},
-    {u"darkblue", 0x00008B}, {u"darkcyan", 0x008B8B}, {u"darkgoldenrod", 0xB8860B},
-    {u"darkgray", 0xA9A9A9}, {u"darkgreen", 0x006400}, {u"darkgrey", 0xA9A9A9},
-    {u"darkkhaki", 0xBDB76B}, {u"darkmagenta", 0x8B008B}, {u"darkolivegreen", 0x556B2F},
-    {u"darkorange", 0xFF8C00}, {u"darkorchid", 0x9932CC}, {u"darkred", 0x8B0000},
-    {u"darksalmon", 0xE9967A}, {u"darkseagreen", 0x8FBC8F}, {u"darkslateblue", 0x483D8B},
-    {u"darkslategray", 0x2F4F4F}, {u"darkslategrey", 0x2F4F4F}, {u"darkturquoise", 0x00CED1},
-    {u"darkviolet", 0x9400D3}, {u"deeppink", 0xFF1493}, {u"deepskyblue", 0x00BFFF},
-    {u"dimgray", 0x696969}, {u"dimgrey", 0x696969}, {u"dodgerblue", 0x1E90FF},
-    {u"firebrick", 0xB22222}, {u"floralwhite", 0xFFFAF0}, {u"forestgreen", 0x228B22},
-    {u"fuchsia", 0xFF00FF}, {u"gainsboro", 0xDCDCDC}, {u"ghostwhite", 0xF8F8FF},
-    {u"gold", 0xFFD700}, {u"goldenrod", 0xDAA520}, {u"gray", 0x808080},
-    {u"green", 0x008000}, {u"greenyellow", 0xADFF2F}, {u"grey", 0x808080},
-    {u"honeydew", 0xF0FFF0}, {u"hotpink", 0xFF69B4}, {u"indianred", 0xCD5C5C},
-    {u"indigo", 0x4B0082}, {u"ivory", 0xFFFFF0}, {u"khaki", 0xF0E68C},
-    {u"lavender", 0xE6E6FA}, {u"lavenderblush", 0xFFF0F5}, {u"lawngreen", 0x7CFC00},
-    {u"lemonchiffon", 0xFFFACD}, {u"lightblue", 0xADD8E6}, {u"lightcoral", 0xF08080},
-    {u"lightcyan", 0xE0FFFF}, {u"lightgoldenrodyellow", 0xFAFAD2}, {u"lightgray", 0xD3D3D3},
-    {u"lightgreen", 0x90EE90}, {u"lightgrey", 0xD3D3D3}, {u"lightpink", 0xFFB6C1},
-    {u"lightsalmon", 0xFFA07A}, {u"lightseagreen", 0x20B2AA}, {u"lightskyblue", 0x87CEFA},
-    {u"lightslategray", 0x778899}, {u"lightslategrey", 0x778899}, {u"lightsteelblue", 0xB0C4DE},
-    {u"lightyellow", 0xFFFFE0}, {u"lime", 0x00FF00}, {u"limegreen", 0x32CD32},
-    {u"linen", 0xFAF0E6}, {u"magenta", 0xFF00FF}, {u"maroon", 0x800000},
-    {u"mediumaquamarine", 0x66CDAA}, {u"mediumblue", 0x0000CD}, {u"mediumorchid", 0xBA55D3},
-    {u"mediumpurple", 0x9370DB}, {u"mediumseagreen", 0x3CB371}, {u"mediumslateblue", 0x7B68EE},
-    {u"mediumspringgreen", 0x00FA9A}, {u"mediumturquoise", 0x48D1CC}, {u"mediumvioletred", 0xC71585},
-    {u"midnightblue", 0x191970}, {u"mintcream", 0xF5FFFA}, {u"mistyrose", 0xFFE4E1},
-    {u"moccasin", 0xFFE4B5}, {u"navajowhite", 0xFFDEAD}, {u"navy", 0x000080},
-    {u"oldlace", 0xFDF5E6}, {u"olive", 0x808000}, {u"olivedrab", 0x6B8E23},
-    {u"orange", 0xFFA500}, {u"orangered", 0xFF4500}, {u"orchid", 0xDA70D6},
-    {u"palegoldenrod", 0xEEE8AA}, {u"palegreen", 0x98FB98}, {u"paleturquoise", 0xAFEEEE},
-    {u"palevioletred", 0xDB7093}, {u"papayawhip", 0xFFEFD5}, {u"peachpuff", 0xFFDAB9},
-    {u"peru", 0xCD853F}, {u"pink", 0xFFC0CB}, {u"plum", 0xDDA0DD},
-    {u"powderblue", 0xB0E0E6}, {u"purple", 0x800080}, {u"rebeccapurple", 0x663399},
-    {u"red", 0xFF0000}, {u"rosybrown", 0xBC8F8F}, {u"royalblue", 0x4169E1},
-    {u"saddlebrown", 0x8B4513}, {u"salmon", 0xFA8072}, {u"sandybrown", 0xF4A460},
-    {u"seagreen", 0x2E8B57}, {u"seashell", 0xFFF5EE}, {u"sienna", 0xA0522D},
-    {u"silver", 0xC0C0C0}, {u"skyblue", 0x87CEEB}, {u"slateblue", 0x6A5ACD},
-    {u"slategray", 0x708090}, {u"slategrey", 0x708090}, {u"snow", 0xFFFAFA},
-    {u"springgreen", 0x00FF7F}, {u"steelblue", 0x4682B4}, {u"tan", 0xD2B48C},
-    {u"teal", 0x008080}, {u"thistle", 0xD8BFD8}, {u"tomato", 0xFF6347},
-    {u"turquoise", 0x40E0D0}, {u"violet", 0xEE82EE}, {u"wheat", 0xF5DEB3},
-    {u"white", 0xFFFFFF}, {u"whitesmoke", 0xF5F5F5}, {u"yellow", 0xFFFF00},
+    {u"aliceblue", 0xF0F8FF},
+    {u"antiquewhite", 0xFAEBD7},
+    {u"aqua", 0x00FFFF},
+    {u"aquamarine", 0x7FFFD4},
+    {u"azure", 0xF0FFFF},
+    {u"beige", 0xF5F5DC},
+    {u"bisque", 0xFFE4C4},
+    {u"black", 0x000000},
+    {u"blanchedalmond", 0xFFEBCD},
+    {u"blue", 0x0000FF},
+    {u"blueviolet", 0x8A2BE2},
+    {u"brown", 0xA52A2A},
+    {u"burlywood", 0xDEB887},
+    {u"cadetblue", 0x5F9EA0},
+    {u"chartreuse", 0x7FFF00},
+    {u"chocolate", 0xD2691E},
+    {u"coral", 0xFF7F50},
+    {u"cornflowerblue", 0x6495ED},
+    {u"cornsilk", 0xFFF8DC},
+    {u"crimson", 0xDC143C},
+    {u"cyan", 0x00FFFF},
+    {u"darkblue", 0x00008B},
+    {u"darkcyan", 0x008B8B},
+    {u"darkgoldenrod", 0xB8860B},
+    {u"darkgray", 0xA9A9A9},
+    {u"darkgreen", 0x006400},
+    {u"darkgrey", 0xA9A9A9},
+    {u"darkkhaki", 0xBDB76B},
+    {u"darkmagenta", 0x8B008B},
+    {u"darkolivegreen", 0x556B2F},
+    {u"darkorange", 0xFF8C00},
+    {u"darkorchid", 0x9932CC},
+    {u"darkred", 0x8B0000},
+    {u"darksalmon", 0xE9967A},
+    {u"darkseagreen", 0x8FBC8F},
+    {u"darkslateblue", 0x483D8B},
+    {u"darkslategray", 0x2F4F4F},
+    {u"darkslategrey", 0x2F4F4F},
+    {u"darkturquoise", 0x00CED1},
+    {u"darkviolet", 0x9400D3},
+    {u"deeppink", 0xFF1493},
+    {u"deepskyblue", 0x00BFFF},
+    {u"dimgray", 0x696969},
+    {u"dimgrey", 0x696969},
+    {u"dodgerblue", 0x1E90FF},
+    {u"firebrick", 0xB22222},
+    {u"floralwhite", 0xFFFAF0},
+    {u"forestgreen", 0x228B22},
+    {u"fuchsia", 0xFF00FF},
+    {u"gainsboro", 0xDCDCDC},
+    {u"ghostwhite", 0xF8F8FF},
+    {u"gold", 0xFFD700},
+    {u"goldenrod", 0xDAA520},
+    {u"gray", 0x808080},
+    {u"green", 0x008000},
+    {u"greenyellow", 0xADFF2F},
+    {u"grey", 0x808080},
+    {u"honeydew", 0xF0FFF0},
+    {u"hotpink", 0xFF69B4},
+    {u"indianred", 0xCD5C5C},
+    {u"indigo", 0x4B0082},
+    {u"ivory", 0xFFFFF0},
+    {u"khaki", 0xF0E68C},
+    {u"lavender", 0xE6E6FA},
+    {u"lavenderblush", 0xFFF0F5},
+    {u"lawngreen", 0x7CFC00},
+    {u"lemonchiffon", 0xFFFACD},
+    {u"lightblue", 0xADD8E6},
+    {u"lightcoral", 0xF08080},
+    {u"lightcyan", 0xE0FFFF},
+    {u"lightgoldenrodyellow", 0xFAFAD2},
+    {u"lightgray", 0xD3D3D3},
+    {u"lightgreen", 0x90EE90},
+    {u"lightgrey", 0xD3D3D3},
+    {u"lightpink", 0xFFB6C1},
+    {u"lightsalmon", 0xFFA07A},
+    {u"lightseagreen", 0x20B2AA},
+    {u"lightskyblue", 0x87CEFA},
+    {u"lightslategray", 0x778899},
+    {u"lightslategrey", 0x778899},
+    {u"lightsteelblue", 0xB0C4DE},
+    {u"lightyellow", 0xFFFFE0},
+    {u"lime", 0x00FF00},
+    {u"limegreen", 0x32CD32},
+    {u"linen", 0xFAF0E6},
+    {u"magenta", 0xFF00FF},
+    {u"maroon", 0x800000},
+    {u"mediumaquamarine", 0x66CDAA},
+    {u"mediumblue", 0x0000CD},
+    {u"mediumorchid", 0xBA55D3},
+    {u"mediumpurple", 0x9370DB},
+    {u"mediumseagreen", 0x3CB371},
+    {u"mediumslateblue", 0x7B68EE},
+    {u"mediumspringgreen", 0x00FA9A},
+    {u"mediumturquoise", 0x48D1CC},
+    {u"mediumvioletred", 0xC71585},
+    {u"midnightblue", 0x191970},
+    {u"mintcream", 0xF5FFFA},
+    {u"mistyrose", 0xFFE4E1},
+    {u"moccasin", 0xFFE4B5},
+    {u"navajowhite", 0xFFDEAD},
+    {u"navy", 0x000080},
+    {u"oldlace", 0xFDF5E6},
+    {u"olive", 0x808000},
+    {u"olivedrab", 0x6B8E23},
+    {u"orange", 0xFFA500},
+    {u"orangered", 0xFF4500},
+    {u"orchid", 0xDA70D6},
+    {u"palegoldenrod", 0xEEE8AA},
+    {u"palegreen", 0x98FB98},
+    {u"paleturquoise", 0xAFEEEE},
+    {u"palevioletred", 0xDB7093},
+    {u"papayawhip", 0xFFEFD5},
+    {u"peachpuff", 0xFFDAB9},
+    {u"peru", 0xCD853F},
+    {u"pink", 0xFFC0CB},
+    {u"plum", 0xDDA0DD},
+    {u"powderblue", 0xB0E0E6},
+    {u"purple", 0x800080},
+    {u"rebeccapurple", 0x663399},
+    {u"red", 0xFF0000},
+    {u"rosybrown", 0xBC8F8F},
+    {u"royalblue", 0x4169E1},
+    {u"saddlebrown", 0x8B4513},
+    {u"salmon", 0xFA8072},
+    {u"sandybrown", 0xF4A460},
+    {u"seagreen", 0x2E8B57},
+    {u"seashell", 0xFFF5EE},
+    {u"sienna", 0xA0522D},
+    {u"silver", 0xC0C0C0},
+    {u"skyblue", 0x87CEEB},
+    {u"slateblue", 0x6A5ACD},
+    {u"slategray", 0x708090},
+    {u"slategrey", 0x708090},
+    {u"snow", 0xFFFAFA},
+    {u"springgreen", 0x00FF7F},
+    {u"steelblue", 0x4682B4},
+    {u"tan", 0xD2B48C},
+    {u"teal", 0x008080},
+    {u"thistle", 0xD8BFD8},
+    {u"tomato", 0xFF6347},
+    {u"turquoise", 0x40E0D0},
+    {u"violet", 0xEE82EE},
+    {u"wheat", 0xF5DEB3},
+    {u"white", 0xFFFFFF},
+    {u"whitesmoke", 0xF5F5F5},
+    {u"yellow", 0xFFFF00},
     {u"yellowgreen", 0x9ACD32},
 };
 
@@ -153,8 +251,8 @@ core::nullable<Color> parse_color(std::u16string_view text) {
         } else {
             return std::nullopt;
         }
-        return Color{255, static_cast<std::uint8_t>(rgb >> 16),
-                     static_cast<std::uint8_t>(rgb >> 8), static_cast<std::uint8_t>(rgb)};
+        return Color{255, static_cast<std::uint8_t>(rgb >> 16), static_cast<std::uint8_t>(rgb >> 8),
+                     static_cast<std::uint8_t>(rgb)};
     }
 
     // Имена, без учёта регистра ASCII: <font color=Navy> встречается.
@@ -176,8 +274,8 @@ core::nullable<Color> parse_color(std::u16string_view text) {
 std::u16string_view first_face(std::u16string_view faces) {
     const std::size_t comma = faces.find(u',');
     if (comma != std::u16string_view::npos) faces = faces.substr(0, comma);
-    while (!faces.empty() && (faces.front() == u' ' || faces.front() == u'"' ||
-                              faces.front() == u'\''))
+    while (!faces.empty() &&
+           (faces.front() == u' ' || faces.front() == u'"' || faces.front() == u'\''))
         faces.remove_prefix(1);
     while (!faces.empty() &&
            (faces.back() == u' ' || faces.back() == u'"' || faces.back() == u'\''))
@@ -223,12 +321,16 @@ core::sta_u16string flatten(const html::node& element) {
 // когда нет, — так укладывает таблицу браузер. Ширина полосы приходит от
 // блока (appendWideElement), поэтому в режиме без переноса таблица просто
 // остаётся естественной ширины.
-class table_fit : public core::sta_refcounted {
+class table_fit : public core::sta_refcounted
+{
 public:
     // `extra` — что ячейка добавляет к ширине своего текста: отступы и линия.
     table_fit(Grid grid, Border frame, int columns, double font_size, double extra) noexcept
-        : grid_(std::move(grid)), frame_(std::move(frame)), columns_(columns),
-          font_size_(font_size), extra_(extra) {}
+        : grid_(std::move(grid)),
+          frame_(std::move(frame)),
+          columns_(columns),
+          font_size_(font_size),
+          extra_(extra) {}
 
     // `word` — самое длинное слово ячейки, из которого считается её
     // min-content: RichTextBlock, измеренный нулевой шириной, отвечает
@@ -262,7 +364,8 @@ public:
             auto native = Object::Impl::as<winrt::Microsoft::UI::Xaml::UIElement>(boxes_[i]);
             const std::size_t column = static_cast<std::size_t>(columns_of_[i]);
             native.Measure({infinite, infinite});
-            widest[column] = std::max(widest[column], static_cast<double>(native.DesiredSize().Width));
+            widest[column] =
+                std::max(widest[column], static_cast<double>(native.DesiredSize().Width));
 
             if (narrow_[i] < 0) {
                 // Слово не меняется — меряется один раз, пробным TextBlock
@@ -328,14 +431,19 @@ private:
     core::sta_u16string last_;
 };
 
-class builder {
+class builder
+{
 public:
     // Примитивы говорятся `target` — самому блоку или вложенному блоку ячейки
     // таблицы; настройки, реестр стилей и слив — у корневого `root`.
     builder(FormattedBlock const& target, MarkupBlock const& root, MarkupBlock::Impl const& impl,
             int depth = 0) noexcept
-        : block_(target), root_(root), impl_(impl), theme_(impl.theme_),
-          base_size_(target.fontSize()), depth_(depth) {}
+        : block_(target),
+          root_(root),
+          impl_(impl),
+          theme_(impl.theme_),
+          base_size_(target.fontSize()),
+          depth_(depth) {}
 
     void run(const html::node& root) {
         stack_.push_back({&root, root.children().begin()});
@@ -387,40 +495,40 @@ private:
 
         // Бездетные — без своего уровня стека.
         switch (element.tag()) {
-        case tag_t::br:
-            block_.appendLineBreak();
-            return;
-        case tag_t::img:
-            emit_image(element);
-            return;
-        case tag_t::sub:
-            block_.appendScript(flatten(element), theme_.scriptScale, theme_.subscriptDrop);
-            return;
-        case tag_t::sup:
-            block_.appendScript(flatten(element), theme_.scriptScale, theme_.superscriptDrop);
-            return;
-        case tag_t::hr:
-            emit_rule();
-            return;
-        case tag_t::summary:
-            // Заголовок раскрывашки уже прочитан при входе в <details>.
-            return;
-        case tag_t::table:
-            if (depth_ < kMaxTableDepth) {
-                emit_table(element);
+            case tag_t::br:
+                block_.appendLineBreak();
                 return;
-            }
-            break;
-        case tag_t::pre:
-            // Как таблица: своим элементом, со своим блоком внутри. Глубже
-            // предела — плоско, обычными абзацами (enter_element).
-            if (depth_ < kMaxTableDepth) {
-                emit_code(element);
+            case tag_t::img:
+                emit_image(element);
                 return;
-            }
-            break;
-        default:
-            break;
+            case tag_t::sub:
+                block_.appendScript(flatten(element), theme_.scriptScale, theme_.subscriptDrop);
+                return;
+            case tag_t::sup:
+                block_.appendScript(flatten(element), theme_.scriptScale, theme_.superscriptDrop);
+                return;
+            case tag_t::hr:
+                emit_rule();
+                return;
+            case tag_t::summary:
+                // Заголовок раскрывашки уже прочитан при входе в <details>.
+                return;
+            case tag_t::table:
+                if (depth_ < kMaxTableDepth) {
+                    emit_table(element);
+                    return;
+                }
+                break;
+            case tag_t::pre:
+                // Как таблица: своим элементом, со своим блоком внутри. Глубже
+                // предела — плоско, обычными абзацами (enter_element).
+                if (depth_ < kMaxTableDepth) {
+                    emit_code(element);
+                    return;
+                }
+                break;
+            default:
+                break;
         }
 
         stack_.push_back(enter_element(element));
@@ -442,84 +550,84 @@ private:
         }
 
         switch (element.tag()) {
-        case tag_t::p:
-            open_block(entered, {.margin = theme_.paragraphMargin}, named);
-            break;
-        case tag_t::div:
-            open_block(entered, {}, named);
-            break;
-        case tag_t::h1:
-        case tag_t::h2:
-        case tag_t::h3: {
-            const int rank = static_cast<int>(element.tag()) - static_cast<int>(tag_t::h1);
-            push(entered, {.fontSize = base_size_ * theme_.headingScale[rank], .bold = true});
-            open_block(entered, {.margin = theme_.headingMargin}, named);
-            break;
-        }
-        case tag_t::blockquote:
-            push(entered, {.color = quote_color(quote_level())});
-            open_block(entered, {.margin = theme_.quoteMargin}, named);
-            break;
-        case tag_t::details:
-            open_details(entered, element, named);
-            break;
-        case tag_t::table:
-        case tag_t::tr:
-        case tag_t::td:
-            // Сюда таблица попадает только глубже kMaxTableDepth: плоско.
-            open_block(entered, {}, named);
-            break;
-        case tag_t::th:
-            push(entered, {.bold = true});
-            open_block(entered, {}, named);
-            break;
-        case tag_t::ul:
-            lists_.push_back({-1, 0});
-            entered.leaves_list = true;
-            break;
-        case tag_t::ol:
-            lists_.push_back({1, numbering(element)});
-            entered.leaves_list = true;
-            break;
-        case tag_t::li:
-            open_list_item(entered, named);
-            break;
-        case tag_t::pre:
-            // Пробелы и структура строк приезжают из парсера готовыми
-            // (сохранённые пробелы, узлы <br> на переводы); остался вид.
-            push(entered, {.fontFamily = theme_.monospace});
-            open_block(entered, {.margin = theme_.preMargin}, named);
-            break;
-        case tag_t::b:
-            push(entered, {.bold = true}, named);
-            break;
-        case tag_t::i:
-            push(entered, {.italic = true}, named);
-            break;
-        case tag_t::u:
-            push(entered, {.underline = true}, named);
-            break;
-        case tag_t::s:
-            push(entered, {.strikethrough = true}, named);
-            break;
-        case tag_t::code:
-            push(entered, {.fontFamily = theme_.monospace}, named);
-            break;
-        case tag_t::span:
-            // Своего вида нет: только именованный стиль, ради которого он и
-            // существует.
-            if (named) push(entered, named->text);
-            break;
-        case tag_t::font:
-            push(entered, font_style(element), named);
-            break;
-        case tag_t::a:
-            block_.pushLink(element.attribute_str(attr_t::href));
-            entered.pops_link = true;
-            if (named) push(entered, named->text);
-            break;
-        default:
-            break;
+            case tag_t::p:
+                open_block(entered, {.margin = theme_.paragraphMargin}, named);
+                break;
+            case tag_t::div:
+                open_block(entered, {}, named);
+                break;
+            case tag_t::h1:
+            case tag_t::h2:
+            case tag_t::h3: {
+                const int rank = static_cast<int>(element.tag()) - static_cast<int>(tag_t::h1);
+                push(entered, {.fontSize = base_size_ * theme_.headingScale[rank], .bold = true});
+                open_block(entered, {.margin = theme_.headingMargin}, named);
+                break;
+            }
+            case tag_t::blockquote:
+                push(entered, {.color = quote_color(quote_level())});
+                open_block(entered, {.margin = theme_.quoteMargin}, named);
+                break;
+            case tag_t::details:
+                open_details(entered, element, named);
+                break;
+            case tag_t::table:
+            case tag_t::tr:
+            case tag_t::td:
+                // Сюда таблица попадает только глубже kMaxTableDepth: плоско.
+                open_block(entered, {}, named);
+                break;
+            case tag_t::th:
+                push(entered, {.bold = true});
+                open_block(entered, {}, named);
+                break;
+            case tag_t::ul:
+                lists_.push_back({-1, 0});
+                entered.leaves_list = true;
+                break;
+            case tag_t::ol:
+                lists_.push_back({1, numbering(element)});
+                entered.leaves_list = true;
+                break;
+            case tag_t::li:
+                open_list_item(entered, named);
+                break;
+            case tag_t::pre:
+                // Пробелы и структура строк приезжают из парсера готовыми
+                // (сохранённые пробелы, узлы <br> на переводы); остался вид.
+                push(entered, {.fontFamily = theme_.monospace});
+                open_block(entered, {.margin = theme_.preMargin}, named);
+                break;
+            case tag_t::b:
+                push(entered, {.bold = true}, named);
+                break;
+            case tag_t::i:
+                push(entered, {.italic = true}, named);
+                break;
+            case tag_t::u:
+                push(entered, {.underline = true}, named);
+                break;
+            case tag_t::s:
+                push(entered, {.strikethrough = true}, named);
+                break;
+            case tag_t::code:
+                push(entered, {.fontFamily = theme_.monospace}, named);
+                break;
+            case tag_t::span:
+                // Своего вида нет: только именованный стиль, ради которого он и
+                // существует.
+                if (named) push(entered, named->text);
+                break;
+            case tag_t::font:
+                push(entered, font_style(element), named);
+                break;
+            case tag_t::a:
+                block_.pushLink(element.attribute_str(attr_t::href));
+                entered.pops_link = true;
+                if (named) push(entered, named->text);
+                break;
+            default:
+                break;
         }
         return entered;
     }
@@ -725,7 +833,8 @@ private:
                     ++column;
                 const int column_span = span_of(cell, attr_t::colspan);
                 const int row_span = span_of(cell, attr_t::rowspan);
-                cells.push_back({&cell, rows, column, row_span, column_span, cell.tag() == tag_t::th});
+                cells.push_back(
+                    {&cell, rows, column, row_span, column_span, cell.tag() == tag_t::th});
                 if (static_cast<int>(reserved.size()) < column + column_span)
                     reserved.resize(static_cast<std::size_t>(column + column_span), 0);
                 for (int c = column; c < column + column_span; ++c) reserved[c] = rows + row_span;
@@ -763,7 +872,8 @@ private:
             content.fontSize(base_size_);
             content.isTextSelectionEnabled(root_.isTextSelectionEnabled());
             content.onLink([box = impl_.onLink_](zstring_view target) { box->invoke(target); });
-            content.onError([box = impl_.onError_](MarkupError const& error) { box->invoke(error); });
+            content.onError(
+                [box = impl_.onError_](MarkupError const& error) { box->invoke(error); });
             if (cell.header) {
                 content.pushStyle({.bold = true});
                 content.appendParagraph({.alignment = TextAlignment::Center});
@@ -942,12 +1052,16 @@ private:
 
         Size size{static_cast<float>(theme_.imageSide), static_cast<float>(theme_.imageSide)};
         if (const zstring_view width = element.attribute_str(attr_t::width); !width.empty()) {
-            if (const auto value = parse_number(width)) size.width = static_cast<float>(*value);
-            else report(MarkupErrorKind::BadDimension, width);
+            if (const auto value = parse_number(width))
+                size.width = static_cast<float>(*value);
+            else
+                report(MarkupErrorKind::BadDimension, width);
         }
         if (const zstring_view height = element.attribute_str(attr_t::height); !height.empty()) {
-            if (const auto value = parse_number(height)) size.height = static_cast<float>(*value);
-            else report(MarkupErrorKind::BadDimension, height);
+            if (const auto value = parse_number(height))
+                size.height = static_cast<float>(*value);
+            else
+                report(MarkupErrorKind::BadDimension, height);
         }
         block_.appendImage(src, size, element.attribute_str(attr_t::alt));
     }
@@ -1063,11 +1177,16 @@ private:
 // Восстановления парсера — в словаре слива.
 MarkupErrorKind mapped(html::error_t code) noexcept {
     switch (code) {
-    case html::error_t::unknown_tag: return MarkupErrorKind::UnknownTag;
-    case html::error_t::unpaired_close: return MarkupErrorKind::UnpairedClose;
-    case html::error_t::misnested_tags: return MarkupErrorKind::MisnestedTags;
-    case html::error_t::bad_entity: return MarkupErrorKind::BadEntity;
-    case html::error_t::misplaced_tag: return MarkupErrorKind::MisplacedTag;
+        case html::error_t::unknown_tag:
+            return MarkupErrorKind::UnknownTag;
+        case html::error_t::unpaired_close:
+            return MarkupErrorKind::UnpairedClose;
+        case html::error_t::misnested_tags:
+            return MarkupErrorKind::MisnestedTags;
+        case html::error_t::bad_entity:
+            return MarkupErrorKind::BadEntity;
+        case html::error_t::misplaced_tag:
+            return MarkupErrorKind::MisplacedTag;
     }
     return MarkupErrorKind::UnknownTag;
 }

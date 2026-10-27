@@ -33,7 +33,8 @@ inline EventToken next_event_token() noexcept {
 }
 
 template <typename Args>
-class handler_list {
+class handler_list
+{
 public:
     // `token` is the counter's next one, never the empty token, and it goes back to the caller.
     EventToken add(EventToken token, EventHandler<Args> handler) {

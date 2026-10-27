@@ -31,7 +31,8 @@ long resolve_activation_factory(wchar_t const* class_name, _GUID const& iid,
 
 }  // namespace impl
 
-class Application {
+class Application
+{
 public:
     Application() = delete;
 

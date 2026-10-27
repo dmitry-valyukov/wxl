@@ -34,7 +34,8 @@
 
 namespace wxl {
 
-class GaussianBlurEffect {
+class GaussianBlurEffect
+{
 public:
     /// Black, blur 9, opaque, gamma 1; under the glyphs.
     GaussianBlurEffect();

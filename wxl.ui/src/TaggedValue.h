@@ -27,21 +27,23 @@
 namespace wxl {
 
 template <typename T, auto Tag>
-class TaggedValue : public T {
+class TaggedValue : public T
+{
 public:
     using value_t = T;
     static constexpr auto tag = Tag;
 
     template <typename... Args>
-        requires std::constructible_from<T, Args...>
-                 && (sizeof...(Args) != 1
-                     || !(std::same_as<std::remove_cvref_t<Args>, TaggedValue> && ...))
+        requires std::constructible_from<T, Args...> &&
+                 (sizeof...(Args) != 1 ||
+                  !(std::same_as<std::remove_cvref_t<Args>, TaggedValue> && ...))
     explicit constexpr TaggedValue(Args&&... args) : T(std::forward<Args>(args)...) {}
 };
 
 template <typename T, auto Tag>
     requires std::is_scalar_v<T>
-class TaggedValue<T, Tag> {
+class TaggedValue<T, Tag>
+{
 public:
     using value_t = T;
     static constexpr auto tag = Tag;

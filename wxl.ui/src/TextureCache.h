@@ -52,7 +52,8 @@
 
 namespace wxl {
 
-class TextureCache : core::noncopyable {
+class TextureCache : core::noncopyable
+{
 public:
     /// Кэш поверх этого композитора: в его поверхности рисуются текстуры, его
     /// же кистями они попадают на визуалы. Микрософт-UI-композитор -- тот

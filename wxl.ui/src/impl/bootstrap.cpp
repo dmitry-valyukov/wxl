@@ -23,4 +23,4 @@ void ensure_windows_app_runtime_initialized() {
     });
 }
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

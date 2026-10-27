@@ -59,7 +59,8 @@ namespace wxl::impl {
 // deriving from two of them at once leaves a class with two base classes of
 // the same name, and MSVC refuses it. One named layer each (interface_vtable,
 // impl/sta_com.h, and the one below) is enough to tell them apart.
-struct property_value_vtable : winrt::impl::abi_t<winrt::Windows::Foundation::IPropertyValue> {};
+struct property_value_vtable : winrt::impl::abi_t<winrt::Windows::Foundation::IPropertyValue> {
+};
 
 template <typename Interface>
 struct eternal_value : interface_vtable<Interface>, property_value_vtable {
@@ -78,8 +79,8 @@ struct eternal_value : interface_vtable<Interface>, property_value_vtable {
         }
 
         if (id == winrt::guid_of<winrt::Windows::Foundation::IPropertyValue>()) {
-            *object = static_cast<winrt::impl::abi_t<winrt::Windows::Foundation::IPropertyValue>*>(
-                this);
+            *object =
+                static_cast<winrt::impl::abi_t<winrt::Windows::Foundation::IPropertyValue>*>(this);
             return 0;
         }
 
@@ -150,54 +151,24 @@ struct eternal_value : interface_vtable<Interface>, property_value_vtable {
         return e_notimpl;
     }
 
-    int32_t __stdcall GetUInt8Array(uint32_t*, uint8_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetInt16Array(uint32_t*, int16_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetUInt16Array(uint32_t*, uint16_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetInt32Array(uint32_t*, int32_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetUInt32Array(uint32_t*, uint32_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetInt64Array(uint32_t*, int64_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetUInt64Array(uint32_t*, uint64_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetSingleArray(uint32_t*, float**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetDoubleArray(uint32_t*, double**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetChar16Array(uint32_t*, char16_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetBooleanArray(uint32_t*, bool**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetStringArray(uint32_t*, void***) noexcept override {
-        return e_notimpl;
-    }
+    int32_t __stdcall GetUInt8Array(uint32_t*, uint8_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetInt16Array(uint32_t*, int16_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetUInt16Array(uint32_t*, uint16_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetInt32Array(uint32_t*, int32_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetUInt32Array(uint32_t*, uint32_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetInt64Array(uint32_t*, int64_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetUInt64Array(uint32_t*, uint64_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetSingleArray(uint32_t*, float**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetDoubleArray(uint32_t*, double**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetChar16Array(uint32_t*, char16_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetBooleanArray(uint32_t*, bool**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetStringArray(uint32_t*, void***) noexcept override { return e_notimpl; }
     int32_t __stdcall GetInspectableArray(uint32_t*, void***) noexcept override {
         return e_notimpl;
     }
-    int32_t __stdcall GetGuidArray(uint32_t*, winrt::guid**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetDateTimeArray(uint32_t*, int64_t**) noexcept override {
-        return e_notimpl;
-    }
-    int32_t __stdcall GetTimeSpanArray(uint32_t*, int64_t**) noexcept override {
-        return e_notimpl;
-    }
+    int32_t __stdcall GetGuidArray(uint32_t*, winrt::guid**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetDateTimeArray(uint32_t*, int64_t**) noexcept override { return e_notimpl; }
+    int32_t __stdcall GetTimeSpanArray(uint32_t*, int64_t**) noexcept override { return e_notimpl; }
     int32_t __stdcall GetPointArray(uint32_t*,
                                     winrt::Windows::Foundation::Point**) noexcept override {
         return e_notimpl;

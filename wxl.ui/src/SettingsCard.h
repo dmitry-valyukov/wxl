@@ -33,7 +33,8 @@
 
 namespace wxl {
 
-class SettingsCard : public ContentControl {
+class SettingsCard : public ContentControl
+{
 public:
     SettingsCard();
 

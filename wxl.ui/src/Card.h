@@ -54,7 +54,8 @@
 
 namespace wxl {
 
-class Card : public Border {
+class Card : public Border
+{
 public:
     template <typename... Setters>
         requires impl::setter_pack<Card, Setters...>
@@ -109,7 +110,8 @@ protected:
 // for: `brushes.Text.FillColor.Primary(ElementTheme::Dark)`. A control that
 // paints itself from the accent colour, ProgressRing among them, needs the
 // same treatment for the same reason.
-class OverlayCard : public Border {
+class OverlayCard : public Border
+{
 public:
     template <typename... Setters>
         requires impl::setter_pack<OverlayCard, Setters...>

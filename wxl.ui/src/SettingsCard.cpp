@@ -19,18 +19,22 @@ namespace {
 // The look of the card: the framework's own card brushes, the states of a control that is clicked, the parts the code
 // finds by name. Written as markup because a template is -- the parts are named in it.
 constexpr wchar_t const* templateText =
-    L"<ControlTemplate TargetType='ContentControl' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' "
+    L"<ControlTemplate TargetType='ContentControl' "
+    L"xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' "
     L"xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>"
     // The surface: what a card is a card by. The states of the second group change it, so a card in an expander is
     // flat and a card that heads an open expander is square below.
     L"<Border x:Name='PART_Frame' CornerRadius='4' BorderThickness='1' "
-    L"Background='{ThemeResource CardBackgroundFillColorDefaultBrush}' BorderBrush='{ThemeResource CardStrokeColorDefaultBrush}'>"
-    L"<Grid x:Name='PART_Root' MinHeight='68' Padding='16,12' Background='Transparent' CornerRadius='4'>"
+    L"Background='{ThemeResource CardBackgroundFillColorDefaultBrush}' BorderBrush='{ThemeResource "
+    L"CardStrokeColorDefaultBrush}'>"
+    L"<Grid x:Name='PART_Root' MinHeight='68' Padding='16,12' Background='Transparent' "
+    L"CornerRadius='4'>"
     L"<VisualStateManager.VisualStateGroups>"
     L"<VisualStateGroup x:Name='CommonStates'>"
     L"<VisualState x:Name='Normal'/>"
     L"<VisualState x:Name='PointerOver'><VisualState.Setters>"
-    L"<Setter Target='PART_Root.Background' Value='{ThemeResource ControlFillColorSecondaryBrush}'/>"
+    L"<Setter Target='PART_Root.Background' Value='{ThemeResource "
+    L"ControlFillColorSecondaryBrush}'/>"
     L"</VisualState.Setters></VisualState>"
     L"<VisualState x:Name='Pressed'><VisualState.Setters>"
     L"<Setter Target='PART_Root.Background' Value='{ThemeResource ControlFillColorTertiaryBrush}'/>"
@@ -38,7 +42,8 @@ constexpr wchar_t const* templateText =
     L"<VisualState x:Name='Disabled'><VisualState.Setters>"
     L"<Setter Target='PART_Root.Background' Value='{ThemeResource ControlFillColorDisabledBrush}'/>"
     L"<Setter Target='PART_Header.Foreground' Value='{ThemeResource TextFillColorDisabledBrush}'/>"
-    L"<Setter Target='PART_Description.Foreground' Value='{ThemeResource TextFillColorDisabledBrush}'/>"
+    L"<Setter Target='PART_Description.Foreground' Value='{ThemeResource "
+    L"TextFillColorDisabledBrush}'/>"
     L"</VisualState.Setters></VisualState>"
     L"</VisualStateGroup>"
     L"<VisualStateGroup x:Name='SurfaceStates'>"
@@ -47,7 +52,8 @@ constexpr wchar_t const* templateText =
     L"<Setter Target='PART_Frame.CornerRadius' Value='0'/>"
     L"<Setter Target='PART_Root.CornerRadius' Value='0'/>"
     L"<Setter Target='PART_Frame.BorderThickness' Value='0,1,0,0'/>"
-    L"<Setter Target='PART_Frame.Background' Value='{ThemeResource CardBackgroundFillColorSecondaryBrush}'/>"
+    L"<Setter Target='PART_Frame.Background' Value='{ThemeResource "
+    L"CardBackgroundFillColorSecondaryBrush}'/>"
     L"</VisualState.Setters></VisualState>"
     L"<VisualState x:Name='OpenHeader'><VisualState.Setters>"
     L"<Setter Target='PART_Frame.CornerRadius' Value='4,4,0,0'/>"
@@ -55,23 +61,29 @@ constexpr wchar_t const* templateText =
     L"</VisualState.Setters></VisualState>"
     L"</VisualStateGroup>"
     L"</VisualStateManager.VisualStateGroups>"
-    L"<Grid.ColumnDefinitions><ColumnDefinition Width='Auto'/><ColumnDefinition Width='*'/><ColumnDefinition Width='Auto'/>"
+    L"<Grid.ColumnDefinitions><ColumnDefinition Width='Auto'/><ColumnDefinition "
+    L"Width='*'/><ColumnDefinition Width='Auto'/>"
     L"<ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>"
-    L"<Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='Auto'/></Grid.RowDefinitions>"
-    L"<ContentPresenter x:Name='PART_HeaderIcon' Grid.RowSpan='2' VerticalAlignment='Center' Margin='0,0,16,0' Visibility='Collapsed'/>"
+    L"<Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition "
+    L"Height='Auto'/></Grid.RowDefinitions>"
+    L"<ContentPresenter x:Name='PART_HeaderIcon' Grid.RowSpan='2' VerticalAlignment='Center' "
+    L"Margin='0,0,16,0' Visibility='Collapsed'/>"
     L"<StackPanel x:Name='PART_Text' Grid.Column='1' Grid.RowSpan='2' VerticalAlignment='Center'>"
     L"<ContentPresenter x:Name='PART_Header' TextWrapping='WrapWholeWords' Visibility='Collapsed'/>"
     L"<ContentPresenter x:Name='PART_Description' FontSize='12' TextWrapping='WrapWholeWords' "
     L"Foreground='{ThemeResource TextFillColorSecondaryBrush}' Visibility='Collapsed'/>"
     L"</StackPanel>"
-    L"<ContentPresenter x:Name='PART_Content' Grid.Column='2' Grid.RowSpan='2' VerticalAlignment='Center' HorizontalAlignment='Right' "
+    L"<ContentPresenter x:Name='PART_Content' Grid.Column='2' Grid.RowSpan='2' "
+    L"VerticalAlignment='Center' HorizontalAlignment='Right' "
     L"Content='{TemplateBinding Content}' ContentTemplate='{TemplateBinding ContentTemplate}'/>"
-    L"<ContentPresenter x:Name='PART_ActionIcon' Grid.Column='3' Grid.RowSpan='2' VerticalAlignment='Center' Margin='16,0,0,0' Visibility='Collapsed'/>"
+    L"<ContentPresenter x:Name='PART_ActionIcon' Grid.Column='3' Grid.RowSpan='2' "
+    L"VerticalAlignment='Center' Margin='16,0,0,0' Visibility='Collapsed'/>"
     L"</Grid></Border></ControlTemplate>";
 
 // Enter and Space click a card as they click a button.
 bool is_click_key(winrt::Windows::System::VirtualKey key) {
-    return key == winrt::Windows::System::VirtualKey::Enter || key == winrt::Windows::System::VirtualKey::Space;
+    return key == winrt::Windows::System::VirtualKey::Enter ||
+           key == winrt::Windows::System::VirtualKey::Space;
 }
 
 }  // namespace
@@ -97,7 +109,8 @@ void SettingsCardCore::OnApplyTemplate() {
 }
 
 void SettingsCardCore::apply() {
-    auto const show = [](controls::ContentPresenter const& part, winrt::Windows::Foundation::IInspectable const& content) {
+    auto const show = [](controls::ContentPresenter const& part,
+                         winrt::Windows::Foundation::IInspectable const& content) {
         if (!part) {
             return;
         }
@@ -120,12 +133,14 @@ void SettingsCardCore::apply() {
             icon = chevron;
         }
         actionIconPart_.Content(icon);
-        actionIconPart_.Visibility(visible ? xaml::Visibility::Visible : xaml::Visibility::Collapsed);
+        actionIconPart_.Visibility(visible ? xaml::Visibility::Visible
+                                           : xaml::Visibility::Collapsed);
     }
 
     // Where the setting stands: right of the text across both rows, or in the second row under it.
     if (textPart_) {
-        controls::Grid::SetRowSpan(textPart_, alignment_ == SettingsCardContentAlignment::Right ? 2 : 1);
+        controls::Grid::SetRowSpan(textPart_,
+                                   alignment_ == SettingsCardContentAlignment::Right ? 2 : 1);
     }
     if (contentPart_) {
         if (alignment_ == SettingsCardContentAlignment::Right) {
@@ -140,8 +155,9 @@ void SettingsCardCore::apply() {
             controls::Grid::SetRow(contentPart_, 1);
             controls::Grid::SetRowSpan(contentPart_, 1);
             controls::Grid::SetColumnSpan(contentPart_, 1);
-            contentPart_.HorizontalAlignment(alignment_ == SettingsCardContentAlignment::Left ? xaml::HorizontalAlignment::Left
-                                                                                               : xaml::HorizontalAlignment::Stretch);
+            contentPart_.HorizontalAlignment(alignment_ == SettingsCardContentAlignment::Left
+                                                 ? xaml::HorizontalAlignment::Left
+                                                 : xaml::HorizontalAlignment::Stretch);
             contentPart_.Margin(xaml::Thickness{0, 8, 0, 0});
         }
     }
@@ -163,7 +179,9 @@ void SettingsCardCore::surface(Surface value) {
 }
 
 void SettingsCardCore::go_to_surface() {
-    wchar_t const* state = surface_ == Surface::Flat ? L"Flat" : (surface_ == Surface::OpenHeader ? L"OpenHeader" : L"Standalone");
+    wchar_t const* state = surface_ == Surface::Flat
+                               ? L"Flat"
+                               : (surface_ == Surface::OpenHeader ? L"OpenHeader" : L"Standalone");
     xaml::VisualStateManager::GoToState(this->try_as<controls::Control>(), state, false);
 }
 
@@ -274,14 +292,17 @@ namespace wxl {
 namespace {
 
 // The object behind the wrapper: the derived class itself, which the wrapper made in its constructor.
-impl::SettingsCardCore* core_of(winrt::Microsoft::UI::Xaml::Controls::ContentControl const& control) {
-    return winrt::get_self<impl::SettingsCardCore>(control.as<winrt::Microsoft::UI::Xaml::Controls::IContentControlOverrides>());
+impl::SettingsCardCore* core_of(
+    winrt::Microsoft::UI::Xaml::Controls::ContentControl const& control) {
+    return winrt::get_self<impl::SettingsCardCore>(
+        control.as<winrt::Microsoft::UI::Xaml::Controls::IContentControlOverrides>());
 }
 
 }  // namespace
 
 SettingsCard::SettingsCard() : ContentControl(new Impl{}) {
-    auto inspectable = winrt::make_self<impl::SettingsCardCore>().as<winrt::Windows::Foundation::IInspectable>();
+    auto inspectable =
+        winrt::make_self<impl::SettingsCardCore>().as<winrt::Windows::Foundation::IInspectable>();
     *put_abi() = static_cast<::IInspectable*>(winrt::detach_abi(inspectable));
 }
 
@@ -310,11 +331,13 @@ Object SettingsCard::description() const {
 }
 
 void SettingsCard::headerIcon(IconElement const& value) const {
-    core_of(get<&Impl::contentControl_>())->headerIcon(*Object::Impl::get_typed<IconElement>(value));
+    core_of(get<&Impl::contentControl_>())
+        ->headerIcon(*Object::Impl::get_typed<IconElement>(value));
 }
 
 void SettingsCard::actionIcon(IconElement const& value) const {
-    core_of(get<&Impl::contentControl_>())->actionIcon(*Object::Impl::get_typed<IconElement>(value));
+    core_of(get<&Impl::contentControl_>())
+        ->actionIcon(*Object::Impl::get_typed<IconElement>(value));
 }
 
 bool SettingsCard::isClickEnabled() const {
@@ -342,11 +365,12 @@ void SettingsCard::contentAlignment(SettingsCardContentAlignment value) const {
 }
 
 EventToken SettingsCard::add_onClick(EventHandler<RoutedEventArgs> const& handler) const {
-    return impl::from_winrt(core_of(get<&Impl::contentControl_>())->Click({
-        [handler](auto const& sender, auto const& args) {
-            auto view = Object::Impl::make_args<RoutedEventArgs>(winrt::get_abi(args));
-            handler(Object::Impl::wrap<Object>(sender), view);
-        }}));
+    return impl::from_winrt(core_of(get<&Impl::contentControl_>())
+                                ->Click({[handler](auto const& sender, auto const& args) {
+                                    auto view = Object::Impl::make_args<RoutedEventArgs>(
+                                        winrt::get_abi(args));
+                                    handler(Object::Impl::wrap<Object>(sender), view);
+                                }}));
 }
 
 void SettingsCard::remove_onClick(EventToken& token) const {

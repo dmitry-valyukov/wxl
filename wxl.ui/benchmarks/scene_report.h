@@ -81,9 +81,7 @@ inline summary summarise(std::vector<double> const& runs) {
 // run does.
 inline void table(summary const& figures, char const* unitName, int units, double unitFactor,
                   char const* unitSuffix) {
-    auto const per = [&](double ms) {
-        return units > 0 ? ms * unitFactor / units : 0.0;
-    };
+    auto const per = [&](double ms) { return units > 0 ? ms * unitFactor / units : 0.0; };
 
     std::printf("  %-22s %10s %11s %s\n", "", "total", "per", unitName);
     std::printf("  %-22s %7.3f ms %9.1f %s\n", "first (cold)", figures.cold, per(figures.cold),
@@ -93,8 +91,8 @@ inline void table(summary const& figures, char const* unitName, int units, doubl
         return;
     }
 
-    std::printf("  %-22s %7.3f ms %9.1f %s\n", "best of the rest", figures.best,
-                per(figures.best), unitSuffix);
+    std::printf("  %-22s %7.3f ms %9.1f %s\n", "best of the rest", figures.best, per(figures.best),
+                unitSuffix);
     std::printf("  %-22s %7.3f ms %9.1f %s\n", "median of the rest", figures.median,
                 per(figures.median), unitSuffix);
     std::printf("  %-22s %7.3f ms %9.1f %s\n", "mean of the rest", figures.mean, per(figures.mean),
@@ -103,21 +101,19 @@ inline void table(summary const& figures, char const* unitName, int units, doubl
 }
 
 // The heading and the first measurement: building the scene from nothing.
-inline void reportBuild(char const* which,
-                        std::vector<double> const& runs,
-                        double windowReady,
-                        tree_count const& counted,
-                        int expectedElements,
-                        int expectedEvents) {
+inline void reportBuild(char const* which, std::vector<double> const& runs, double windowReady,
+                        tree_count const& counted, int expectedElements, int expectedEvents) {
     std::printf("\n%s\n", which);
-    std::printf("  built from the tree: %d cards, %d controls in them, %d elements, "
-                "%d event handlers\n",
-                counted.cards, counted.controls, counted.elements, expectedEvents);
+    std::printf(
+        "  built from the tree: %d cards, %d controls in them, %d elements, "
+        "%d event handlers\n",
+        counted.cards, counted.controls, counted.elements, expectedEvents);
 
     if (counted.elements != expectedElements) {
-        std::printf("  !! the tree holds %d elements, the scene describes %d -- "
-                    "the two benchmarks are no longer building the same scene\n",
-                    counted.elements, expectedElements);
+        std::printf(
+            "  !! the tree holds %d elements, the scene describes %d -- "
+            "the two benchmarks are no longer building the same scene\n",
+            counted.elements, expectedElements);
     }
 
     std::printf("\n  BUILDING THE SCENE -- %zu runs, each let go as its time is taken\n\n",
@@ -129,23 +125,24 @@ inline void reportBuild(char const* which,
 }
 
 // And the second: writing to a scene that is already there.
-inline void reportPass(std::vector<double> const& passes,
-                       int writesPerPass,
-                       int writesPerCard,
-                       int checksPassed,
-                       int checks) {
-    std::printf("\n  WRITING TO THE BUILT SCENE -- %zu passes, %d property writes each "
-                "(%d per card)\n",
-                passes.size(), writesPerPass, writesPerCard);
-    std::printf("  every one of them a QueryInterface for cppwinrt; none of them for wxl "
-                "after the first pass\n");
-    std::printf("  read back after the last pass: %d of %d sampled properties hold what "
-                "it wrote\n\n",
-                checksPassed, checks);
+inline void reportPass(std::vector<double> const& passes, int writesPerPass, int writesPerCard,
+                       int checksPassed, int checks) {
+    std::printf(
+        "\n  WRITING TO THE BUILT SCENE -- %zu passes, %d property writes each "
+        "(%d per card)\n",
+        passes.size(), writesPerPass, writesPerCard);
+    std::printf(
+        "  every one of them a QueryInterface for cppwinrt; none of them for wxl "
+        "after the first pass\n");
+    std::printf(
+        "  read back after the last pass: %d of %d sampled properties hold what "
+        "it wrote\n\n",
+        checksPassed, checks);
 
     if (checksPassed != checks) {
-        std::printf("  !! a sampled property does not hold what the last pass wrote -- "
-                    "the pass is not doing what this table claims\n\n");
+        std::printf(
+            "  !! a sampled property does not hold what the last pass wrote -- "
+            "the pass is not doing what this table claims\n\n");
     }
 
     table(summarise(passes), "write", writesPerPass, 1'000'000.0, "ns");

@@ -17,7 +17,8 @@ namespace wxl {
 // handler is given, because it is the one thing that changes what such a
 // handler does: state worth saving on a normal close is usually not worth
 // writing over good state on the way out of a failure.
-enum class TeardownReason {
+enum class TeardownReason
+{
     Closed,  // the application closed normally
     Error,   // it is going down because of a failure
 };

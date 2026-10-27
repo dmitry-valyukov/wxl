@@ -29,7 +29,8 @@ int z_of(composition::Visual const& visual) {
 
 }  // namespace
 
-void insert_layer(composition::VisualCollection const& children, composition::Visual const& layer, int z) {
+void insert_layer(composition::VisualCollection const& children, composition::Visual const& layer,
+                  int z) {
     layer.Properties().InsertScalar(zKey, static_cast<float>(z));
     // The collection enumerates from the bottom up. The layer goes right
     // under the first sibling that stands higher than it; none, and it goes

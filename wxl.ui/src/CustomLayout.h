@@ -33,7 +33,8 @@
 
 namespace wxl {
 
-class CustomLayout : public Layout {
+class CustomLayout : public Layout
+{
     using base_t = Layout;
 
 public:

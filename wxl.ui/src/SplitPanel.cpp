@@ -27,7 +27,7 @@ namespace {
 // wxl своего ничего не несёт.
 struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
     SplitPanelCore() {
-        grip_.Fill(xaml::Media::SolidColorBrush {winrt::Windows::UI::Color {0, 0, 0, 0}});
+        grip_.Fill(xaml::Media::SolidColorBrush{winrt::Windows::UI::Color{0, 0, 0, 0}});
         showCursor();
         grip_.PointerPressed({this, &SplitPanelCore::pressed});
         grip_.PointerMoved({this, &SplitPanelCore::moved});
@@ -41,9 +41,10 @@ struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
     winrt::hstring GetRuntimeClassName() const { return L"wxl.SplitPanel"; }
 
     void showCursor() {
-        grip_.as<xaml::IUIElementProtected>().ProtectedCursor(winrt::Microsoft::UI::Input::InputSystemCursor::Create(
-            vertical_ ? winrt::Microsoft::UI::Input::InputSystemCursorShape::SizeNorthSouth
-                      : winrt::Microsoft::UI::Input::InputSystemCursorShape::SizeWestEast));
+        grip_.as<xaml::IUIElementProtected>().ProtectedCursor(
+            winrt::Microsoft::UI::Input::InputSystemCursor::Create(
+                vertical_ ? winrt::Microsoft::UI::Input::InputSystemCursorShape::SizeNorthSouth
+                          : winrt::Microsoft::UI::Input::InputSystemCursorShape::SizeWestEast));
     }
 
     // Часть встаёт перед разделителем; прежняя уходит из детей.
@@ -63,14 +64,17 @@ struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
     float along(foundation::Size size) const { return vertical_ ? size.Height : size.Width; }
     float across(foundation::Size size) const { return vertical_ ? size.Width : size.Height; }
     float along(foundation::Point point) const { return vertical_ ? point.Y : point.X; }
-    float along(winrt::Windows::Foundation::Numerics::float2 size) const { return vertical_ ? size.y : size.x; }
+    float along(winrt::Windows::Foundation::Numerics::float2 size) const {
+        return vertical_ ? size.y : size.x;
+    }
 
     foundation::Size size(float main, float cross) const {
-        return vertical_ ? foundation::Size {cross, main} : foundation::Size {main, cross};
+        return vertical_ ? foundation::Size{cross, main} : foundation::Size{main, cross};
     }
 
     foundation::Rect rect(float offset, float main, float cross) const {
-        return vertical_ ? foundation::Rect {0, offset, cross, main} : foundation::Rect {offset, 0, main, cross};
+        return vertical_ ? foundation::Rect{0, offset, cross, main}
+                         : foundation::Rect{offset, 0, main, cross};
     }
 
     // Сколько pane помещается в данный размер: зазор и content остаются
@@ -86,7 +90,8 @@ struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
         float const extent = along(available);
         float const cross = across(available);
         float const length = fitted(extent);
-        float const rest = std::isfinite(extent) ? std::max(0.0f, extent - length - spacing_) : extent;
+        float const rest =
+            std::isfinite(extent) ? std::max(0.0f, extent - length - spacing_) : extent;
         float main = length + spacing_;
         float thickness = 0;
         if (pane_) {
@@ -122,7 +127,9 @@ struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
 
     float leastOf(xaml::UIElement const& element) const {
         auto const framework = element.try_as<xaml::FrameworkElement>();
-        return framework ? static_cast<float>(vertical_ ? framework.MinHeight() : framework.MinWidth()) : 0.0f;
+        return framework
+                   ? static_cast<float>(vertical_ ? framework.MinHeight() : framework.MinWidth())
+                   : 0.0f;
     }
 
     // Граница не заходит за MinWidth (MinHeight) ни одной из частей; если обе
@@ -156,7 +163,8 @@ struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
         args.Handled(true);
     }
 
-    void released(foundation::IInspectable const&, xaml::Input::PointerRoutedEventArgs const& args) {
+    void released(foundation::IInspectable const&,
+                  xaml::Input::PointerRoutedEventArgs const& args) {
         if (dragging_) {
             dragging_ = false;
             grip_.ReleasePointerCapture(args.Pointer());
@@ -168,8 +176,8 @@ struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
         dragging_ = false;
     }
 
-    xaml::UIElement pane_ {nullptr};
-    xaml::UIElement content_ {nullptr};
+    xaml::UIElement pane_{nullptr};
+    xaml::UIElement content_{nullptr};
     xaml::Shapes::Rectangle grip_;
 
     float length_ = 320;  // как OpenPaneLength у SplitView
@@ -184,7 +192,8 @@ struct SplitPanelCore : xaml::Controls::PanelT<SplitPanelCore> {
 
 }  // namespace
 
-class SplitPanel::Impl : public base_t::Impl {
+class SplitPanel::Impl : public base_t::Impl
+{
 public:
     explicit Impl(winrt::com_ptr<SplitPanelCore> const& object)
         : base_t::Impl(object.as<xaml::Controls::Panel>()), object_(object.get()) {}
@@ -198,30 +207,32 @@ private:
     SplitPanelCore* object_;
 };
 
-SplitPanel::SplitPanel() : base_t(new Impl {winrt::make_self<SplitPanelCore>()}) {}
+SplitPanel::SplitPanel() : base_t(new Impl{winrt::make_self<SplitPanelCore>()}) {}
 
 SplitPanel::SplitPanel(Impl* impl) noexcept : base_t(impl) {}
 
 void SplitPanel::pane(UIElement const& value) const {
     SplitPanelCore& object = Impl::of(impl());
-    object.place(object.pane_, value ? static_cast<xaml::UIElement const&>(*Object::Impl::get_typed<UIElement>(value))
-                                     : xaml::UIElement {nullptr});
+    object.place(object.pane_, value ? static_cast<xaml::UIElement const&>(
+                                           *Object::Impl::get_typed<UIElement>(value))
+                                     : xaml::UIElement{nullptr});
     object.InvalidateMeasure();
 }
 
 UIElement SplitPanel::pane() const {
-    return Object::Impl::wrap<UIElement>(xaml::UIElement {Impl::of(impl()).pane_});
+    return Object::Impl::wrap<UIElement>(xaml::UIElement{Impl::of(impl()).pane_});
 }
 
 void SplitPanel::content(UIElement const& value) const {
     SplitPanelCore& object = Impl::of(impl());
-    object.place(object.content_, value ? static_cast<xaml::UIElement const&>(*Object::Impl::get_typed<UIElement>(value))
-                                        : xaml::UIElement {nullptr});
+    object.place(object.content_, value ? static_cast<xaml::UIElement const&>(
+                                              *Object::Impl::get_typed<UIElement>(value))
+                                        : xaml::UIElement{nullptr});
     object.InvalidateMeasure();
 }
 
 UIElement SplitPanel::content() const {
-    return Object::Impl::wrap<UIElement>(xaml::UIElement {Impl::of(impl()).content_});
+    return Object::Impl::wrap<UIElement>(xaml::UIElement{Impl::of(impl()).content_});
 }
 
 void SplitPanel::openPaneLength(double value) const {
@@ -230,9 +241,7 @@ void SplitPanel::openPaneLength(double value) const {
     object.InvalidateMeasure();
 }
 
-double SplitPanel::openPaneLength() const {
-    return Impl::of(impl()).length_;
-}
+double SplitPanel::openPaneLength() const { return Impl::of(impl()).length_; }
 
 void SplitPanel::orientation(Orientation value) const {
     SplitPanelCore& object = Impl::of(impl());
@@ -252,7 +261,8 @@ void SplitPanel::panePlacement(SplitViewPanePlacement value) const {
 }
 
 SplitViewPanePlacement SplitPanel::panePlacement() const {
-    return Impl::of(impl()).trailing_ ? SplitViewPanePlacement::Right : SplitViewPanePlacement::Left;
+    return Impl::of(impl()).trailing_ ? SplitViewPanePlacement::Right
+                                      : SplitViewPanePlacement::Left;
 }
 
 void SplitPanel::spacing(double value) const {
@@ -261,9 +271,7 @@ void SplitPanel::spacing(double value) const {
     object.InvalidateMeasure();
 }
 
-double SplitPanel::spacing() const {
-    return Impl::of(impl()).spacing_;
-}
+double SplitPanel::spacing() const { return Impl::of(impl()).spacing_; }
 
 void SplitPanel::setPositional(UIElement const& value) const {
     if (Impl::of(impl()).pane_) {

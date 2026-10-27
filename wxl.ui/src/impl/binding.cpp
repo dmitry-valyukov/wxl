@@ -96,7 +96,8 @@ void bind_pair(Control const& control, core::observable<T>& model, bind_directio
     EventToken token;
     if (edits) {
         token = event_adder<key>::add(
-            control, [&model, get](Control const& sender, EventArgsRef<Args>) { model.set(get(sender)); });
+            control,
+            [&model, get](Control const& sender, EventArgsRef<Args>) { model.set(get(sender)); });
     }
 
     handler_revoker<key, Control> revoker{control, std::move(token)};
@@ -141,7 +142,9 @@ void apply_bind(ToggleButton const& control, core::observable<bool>& model,
     EventToken checked;
     EventToken unchecked;
     if (edits) {
-        auto const write = [&model, get](ToggleButton const& sender, EventArgsRef<Args>) { model.set(get(sender)); };
+        auto const write = [&model, get](ToggleButton const& sender, EventArgsRef<Args>) {
+            model.set(get(sender));
+        };
         checked = event_adder<EventKey::Checked>::add(control, write);
         unchecked = event_adder<EventKey::Unchecked>::add(control, write);
     }
@@ -152,77 +155,78 @@ void apply_bind(ToggleButton const& control, core::observable<bool>& model,
         model.watch_for_binding([a = std::move(onChecked), b = std::move(onUnchecked),
                                  set](bool value) noexcept { set(a.control, value); });
     } else {
-        model.watch_for_binding([a = std::move(onChecked), b = std::move(onUnchecked)](bool) noexcept {});
+        model.watch_for_binding(
+            [a = std::move(onChecked), b = std::move(onUnchecked)](bool) noexcept {});
     }
 }
 
 void apply_bind(Selector const& control, core::observable<int>& model, bind_direction direction) {
     bind_pair<EventKey::SelectionChanged>(
-        control, model, direction,                                  //
-        [](Selector const& c) { return c.selectedIndex(); },        // get
-        [](Selector const& c, int v) { c.selectedIndex(v); });      // set
+        control, model, direction,                              //
+        [](Selector const& c) { return c.selectedIndex(); },    // get
+        [](Selector const& c, int v) { c.selectedIndex(v); });  // set
 }
 
 void apply_bind(RadioButtons const& control, core::observable<int>& model,
                 bind_direction direction) {
     bind_pair<EventKey::SelectionChanged>(
-        control, model, direction,                                     //
-        [](RadioButtons const& c) { return c.selectedIndex(); },       // get
-        [](RadioButtons const& c, int v) { c.selectedIndex(v); });     // set
+        control, model, direction,                                  //
+        [](RadioButtons const& c) { return c.selectedIndex(); },    // get
+        [](RadioButtons const& c, int v) { c.selectedIndex(v); });  // set
 }
 
 void apply_bind(Slider const& control, core::observable<double>& model, bind_direction direction) {
     bind_pair<EventKey::ValueChanged>(
-        control, model, direction,                          //
-        [](Slider const& c) { return c.value(); },          // get
-        [](Slider const& c, double v) { c.value(v); });     // set
+        control, model, direction,                       //
+        [](Slider const& c) { return c.value(); },       // get
+        [](Slider const& c, double v) { c.value(v); });  // set
 }
 
 void apply_bind(RatingControl const& control, core::observable<double>& model,
                 bind_direction direction) {
     bind_pair<EventKey::ValueChanged>(
-        control, model, direction,                                 //
-        [](RatingControl const& c) { return c.value(); },          // get
-        [](RatingControl const& c, double v) { c.value(v); });     // set
+        control, model, direction,                              //
+        [](RatingControl const& c) { return c.value(); },       // get
+        [](RatingControl const& c, double v) { c.value(v); });  // set
 }
 
 void apply_bind(ColorPicker const& control, core::observable<Color>& model,
                 bind_direction direction) {
     bind_pair<EventKey::ColorChanged>(
-        control, model, direction,                                 //
-        [](ColorPicker const& c) { return c.color(); },            // get
-        [](ColorPicker const& c, Color v) { c.color(v); });        // set
+        control, model, direction,                           //
+        [](ColorPicker const& c) { return c.color(); },      // get
+        [](ColorPicker const& c, Color v) { c.color(v); });  // set
 }
 
 void apply_bind(ToggleMenuFlyoutItem const& control, core::observable<bool>& model,
                 bind_direction direction) {
     bind_pair<EventKey::Click>(
-        control, model, direction,                                    //
-        [](ToggleMenuFlyoutItem const& c) { return c.isChecked(); },  // get
+        control, model, direction,                                       //
+        [](ToggleMenuFlyoutItem const& c) { return c.isChecked(); },     // get
         [](ToggleMenuFlyoutItem const& c, bool v) { c.isChecked(v); });  // set
 }
 
 void apply_bind(RadioMenuFlyoutItem const& control, core::observable<bool>& model,
                 bind_direction direction) {
     bind_pair<EventKey::Click>(
-        control, model, direction,                                    //
-        [](RadioMenuFlyoutItem const& c) { return c.isChecked(); },   // get
-        [](RadioMenuFlyoutItem const& c, bool v) { c.isChecked(v); });   // set
+        control, model, direction,                                      //
+        [](RadioMenuFlyoutItem const& c) { return c.isChecked(); },     // get
+        [](RadioMenuFlyoutItem const& c, bool v) { c.isChecked(v); });  // set
 }
 
 void apply_bind(PipsPager const& control, core::observable<int>& model, bind_direction direction) {
     bind_pair<EventKey::SelectedIndexChanged>(
-        control, model, direction,                                     //
-        [](PipsPager const& c) { return c.selectedPageIndex(); },      // get
-        [](PipsPager const& c, int v) { c.selectedPageIndex(v); });    // set
+        control, model, direction,                                   //
+        [](PipsPager const& c) { return c.selectedPageIndex(); },    // get
+        [](PipsPager const& c, int v) { c.selectedPageIndex(v); });  // set
 }
 
 void apply_bind(PagerControl const& control, core::observable<int>& model,
                 bind_direction direction) {
     bind_pair<EventKey::SelectedIndexChanged>(
-        control, model, direction,                                        //
-        [](PagerControl const& c) { return c.selectedPageIndex(); },      // get
-        [](PagerControl const& c, int v) { c.selectedPageIndex(v); });    // set
+        control, model, direction,                                      //
+        [](PagerControl const& c) { return c.selectedPageIndex(); },    // get
+        [](PagerControl const& c, int v) { c.selectedPageIndex(v); });  // set
 }
 
 void apply_bind(NumberBox const& control, core::observable<int>& model, bind_direction direction) {
@@ -301,7 +305,7 @@ void apply_bind_intermediate_value(NumberBox const& control, core::observable<do
     namespace xaml = winrt::Microsoft::UI::Xaml;
 
     core::intrusive_ptr<intermediate_revoker> revoker{new intermediate_revoker{control},
-                                                  /*add_ref=*/false};
+                                                      /*add_ref=*/false};
     intermediate_revoker* const state = revoker.get();
 
     state->loaded = event_adder<EventKey::Loaded>::add(
@@ -321,7 +325,8 @@ void apply_bind_intermediate_value(NumberBox const& control, core::observable<do
             state->changed = input.TextChanged(
                 [&model, parser](winrt::Windows::Foundation::IInspectable const& sender,
                                  xaml::Controls::TextChangedEventArgs const&) {
-                    auto const number = parser.ParseDouble(sender.as<xaml::Controls::TextBox>().Text());
+                    auto const number =
+                        parser.ParseDouble(sender.as<xaml::Controls::TextBox>().Text());
                     model.set(number ? number.Value() : std::numeric_limits<double>::quiet_NaN());
                 });
         });
@@ -406,7 +411,8 @@ struct offset_revoker : core::sta_refcounted {
 void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
                       bind_direction direction) {
     xaml::UIElement const& element = *Object::Impl::get_typed<UIElement>(control);
-    core::intrusive_ptr<focus_revoker> revoker{new focus_revoker{element, model}, /*add_ref=*/false};
+    core::intrusive_ptr<focus_revoker> revoker{new focus_revoker{element, model},
+                                               /*add_ref=*/false};
     focus_revoker* const state = revoker.get();
 
     auto const report = [state](winrt::Windows::Foundation::IInspectable const&,
@@ -441,12 +447,13 @@ void apply_bind_focus(UIElement const& control, core::observable<bool>& model,
 void apply_bind_vertical_offset(ScrollViewer const& control, core::observable<double>& model,
                                 bind_direction direction) {
     xaml::Controls::ScrollViewer const& viewer = *Object::Impl::get_typed<ScrollViewer>(control);
-    core::intrusive_ptr<offset_revoker> revoker{new offset_revoker{viewer, model}, /*add_ref=*/false};
+    core::intrusive_ptr<offset_revoker> revoker{new offset_revoker{viewer, model},
+                                                /*add_ref=*/false};
     offset_revoker* const state = revoker.get();
 
-    state->changed = viewer.ViewChanged(
-        [state](winrt::Windows::Foundation::IInspectable const&,
-                xaml::Controls::ScrollViewerViewChangedEventArgs const& args) {
+    state->changed =
+        viewer.ViewChanged([state](winrt::Windows::Foundation::IInspectable const&,
+                                   xaml::Controls::ScrollViewerViewChangedEventArgs const& args) {
             if (!args.IsIntermediate()) state->field.set(state->target.offset());
         });
 

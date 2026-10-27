@@ -8,7 +8,8 @@
 
 namespace wxl {
 
-enum class SettingsCardContentAlignment : int32_t {
+enum class SettingsCardContentAlignment : int32_t
+{
     Right,
     Left,
     Vertical,

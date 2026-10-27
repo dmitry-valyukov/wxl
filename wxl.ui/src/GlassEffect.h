@@ -33,7 +33,8 @@
 
 namespace wxl {
 
-class GlassEffect {
+class GlassEffect
+{
 public:
     /// No tint, blur 24, opaque pane.
     GlassEffect();

@@ -62,7 +62,8 @@
 
 namespace wxl {
 
-class Button3DEffect {
+class Button3DEffect
+{
 public:
     /// Pale glyphs on graphite, shadow 0.7, a dish; a rim of 3, raised 3 over
     /// the panel, a travel of 5; the lamp at 120 degrees, 50 high.

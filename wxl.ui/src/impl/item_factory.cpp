@@ -27,7 +27,8 @@ class element_factory final : public sta_com_object<element_factory, xaml::IElem
 {
 public:
     // `containers`: the factory of an ItemsView, which takes an ItemContainer for each item and nothing else.
-    element_factory(winrt_item_builder make, bool containers) : make_(std::move(make)), containers_(containers) {}
+    element_factory(winrt_item_builder make, bool containers)
+        : make_(std::move(make)), containers_(containers) {}
 
     ~element_factory() { take_out_given_back(); }
 
@@ -35,7 +36,8 @@ public:
         take_out_given_back();
         auto const& asked = *reinterpret_cast<xaml::ElementFactoryGetArgs const*>(&args);
         core::intrusive_ptr<element_scope> scope{new element_scope(), /*add_ref=*/false};
-        xaml::UIElement element = scope->bindings.collect([&] { return make_(asked.Data()); }).try_as<xaml::UIElement>();
+        xaml::UIElement element =
+            scope->bindings.collect([&] { return make_(asked.Data()); }).try_as<xaml::UIElement>();
         if (!element) element = blank();
         // A stale entry at the same address -- an element that went without being given back -- is
         // unbound as it is replaced.
@@ -104,8 +106,9 @@ private:
 };
 
 xaml::IElementFactory factory_of(winrt_item_builder make, bool containers) {
-    core::intrusive_ptr<element_factory> const made{new element_factory{std::move(make), containers},
-                                                    /*add_ref=*/false};
+    core::intrusive_ptr<element_factory> const made{
+        new element_factory{std::move(make), containers},
+        /*add_ref=*/false};
     return made->as_interface<xaml::IElementFactory>();
 }
 
@@ -117,7 +120,8 @@ winrt_item_builder maker_of(ItemBuilder const& build) {
 
 }  // namespace
 
-void set_repeater_template(xaml::Controls::ItemsRepeater const& repeater, ItemBuilder const& build) {
+void set_repeater_template(xaml::Controls::ItemsRepeater const& repeater,
+                           ItemBuilder const& build) {
     repeater.ItemTemplate(factory_of(maker_of(build), false));
 }
 
@@ -133,7 +137,8 @@ void attach_items(ItemsView const& control, bound_list_watch const& source) {
 }
 
 void attach_items(ItemsRepeater const& control, bound_list_watch const& source) {
-    xaml::Controls::ItemsRepeater const& repeater = *Object::Impl::get_typed<ItemsRepeater>(control);
+    xaml::Controls::ItemsRepeater const& repeater =
+        *Object::Impl::get_typed<ItemsRepeater>(control);
     repeater.ItemTemplate(factory_of(&bound_element, false));
     repeater.ItemsSource(source.source().as_inspectable());
 }

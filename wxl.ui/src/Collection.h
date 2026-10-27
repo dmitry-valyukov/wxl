@@ -35,7 +35,8 @@
 namespace wxl {
 
 template <typename T>
-class Collection : public Object {
+class Collection : public Object
+{
     using base_t = Object;
 
 public:

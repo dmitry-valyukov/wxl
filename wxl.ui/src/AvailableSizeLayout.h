@@ -41,7 +41,8 @@
 
 namespace wxl {
 
-class AvailableSizeLayout : public Layout {
+class AvailableSizeLayout : public Layout
+{
     using base_t = Layout;
 
 public:
@@ -76,7 +77,8 @@ namespace impl {
 template <>
 struct property_binder<PropertyKey::AvailableWidth, AvailableSizeLayout> {
     static constexpr bind_direction direction = bind_direction::input;
-    static void bind(AvailableSizeLayout const& layout, core::observable<double>& field, bind_direction) {
+    static void bind(AvailableSizeLayout const& layout, core::observable<double>& field,
+                     bind_direction) {
         AvailableSizeLayout::bind_width(layout, field);
     }
 };
@@ -84,7 +86,8 @@ struct property_binder<PropertyKey::AvailableWidth, AvailableSizeLayout> {
 template <>
 struct property_binder<PropertyKey::AvailableHeight, AvailableSizeLayout> {
     static constexpr bind_direction direction = bind_direction::input;
-    static void bind(AvailableSizeLayout const& layout, core::observable<double>& field, bind_direction) {
+    static void bind(AvailableSizeLayout const& layout, core::observable<double>& field,
+                     bind_direction) {
         AvailableSizeLayout::bind_height(layout, field);
     }
 };

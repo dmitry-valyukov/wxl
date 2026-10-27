@@ -55,11 +55,16 @@ void set_size_to_content(winrt::Microsoft::UI::Xaml::Window const& window, SizeT
 /// The state a placement string carries. Full screen is not a Win32 window state -- the WinUI
 /// Window carries it as a presenter, CompositionWindow as a borderless cover -- so it is applied
 /// by whoever owns the window.
-enum class placement_state { normal, maximized, full_screen };
+enum class placement_state
+{
+    normal,
+    maximized,
+    full_screen
+};
 
 struct placement_geometry {
     placement_state state;
-    RECT restore;   // left, top, right, bottom, in work-area coordinates
+    RECT restore;  // left, top, right, bottom, in work-area coordinates
 };
 
 /// Reads "state left top width height"; nothing on anything it cannot make sense of. Shared so

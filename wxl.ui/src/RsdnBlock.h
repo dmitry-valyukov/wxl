@@ -18,7 +18,8 @@
 
 namespace wxl {
 
-class RsdnBlock : public MarkupBlock {
+class RsdnBlock : public MarkupBlock
+{
     using base_t = MarkupBlock;
 
 public:

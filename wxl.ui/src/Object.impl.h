@@ -38,7 +38,8 @@ namespace wxl {
 // Reference-counted without interlocked operations and allocated from the
 // STA pool -- which is what core::sta_refcounted is, and both halves of it
 // rest on the same single-main-STA-thread guarantee the rest of wxl does.
-class Object::Impl : public core::sta_refcounted {
+class Object::Impl : public core::sta_refcounted
+{
 public:
     // What this wrapper stands for on the WinRT side. Every level restates
     // it, so anything needing the real type of a wxl type asks the wrapper
@@ -184,7 +185,8 @@ T Object::try_as() const {
 
 template <typename T>
 bool Object::is() const {
-    return impl_ != nullptr && static_cast<bool>(impl_->inspectable_.try_as<typename T::Impl::winrt_t>());
+    return impl_ != nullptr &&
+           static_cast<bool>(impl_->inspectable_.try_as<typename T::Impl::winrt_t>());
 }
 
 inline ::IInspectable** Object::put_abi() noexcept {
@@ -194,7 +196,8 @@ inline ::IInspectable** Object::put_abi() noexcept {
     return reinterpret_cast<::IInspectable**>(&impl_->inspectable_);
 }
 
-class DependencyObject::Impl : public Object::Impl {
+class DependencyObject::Impl : public Object::Impl
+{
 public:
     using Object::Impl::Impl;
 

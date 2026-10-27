@@ -19,21 +19,28 @@ namespace wxl::impl {
 // that says which. The cards of the list are dressed flat -- a hairline between them, square, on the second card brush --
 // when they are put in, and again whenever the list changes.
 
-struct SettingsExpanderCore : winrt::Microsoft::UI::Xaml::Controls::ContentControlT<SettingsExpanderCore> {
+struct SettingsExpanderCore
+    : winrt::Microsoft::UI::Xaml::Controls::ContentControlT<SettingsExpanderCore> {
     SettingsExpanderCore();
 
     void OnApplyTemplate();
     winrt::com_ptr<SettingsCardCore> const& head() const { return head_; }
-    winrt::Microsoft::UI::Xaml::Controls::UIElementCollection items() const { return items_.Children(); }
+    winrt::Microsoft::UI::Xaml::Controls::UIElementCollection items() const {
+        return items_.Children();
+    }
 
     bool isExpanded() const { return expanded_; }
     void isExpanded(bool value);
 
-    winrt::event_token Expanded(winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable> const& handler) {
+    winrt::event_token Expanded(
+        winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable> const&
+            handler) {
         return expanded_event_.add(handler);
     }
     void Expanded(winrt::event_token const& token) noexcept { expanded_event_.remove(token); }
-    winrt::event_token Collapsed(winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable> const& handler) {
+    winrt::event_token Collapsed(
+        winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable> const&
+            handler) {
         return collapsed_event_.add(handler);
     }
     void Collapsed(winrt::event_token const& token) noexcept { collapsed_event_.remove(token); }
@@ -48,8 +55,10 @@ private:
     winrt::Microsoft::UI::Xaml::Controls::Border itemsHost_{nullptr};
     bool expanded_ = false;
 
-    winrt::event<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>> expanded_event_;
-    winrt::event<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>> collapsed_event_;
+    winrt::event<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>>
+        expanded_event_;
+    winrt::event<winrt::Windows::Foundation::EventHandler<winrt::Windows::Foundation::IInspectable>>
+        collapsed_event_;
 };
 
 namespace xaml = winrt::Microsoft::UI::Xaml;
@@ -60,12 +69,15 @@ namespace {
 // The head's place and the list's place, found by name. The list sits under the head, on the second card brush,
 // framed on the three sides the head does not frame.
 constexpr wchar_t const* templateText =
-    L"<ControlTemplate TargetType='ContentControl' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' "
+    L"<ControlTemplate TargetType='ContentControl' "
+    L"xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' "
     L"xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>"
     L"<StackPanel>"
     L"<ContentPresenter x:Name='PART_Head' HorizontalContentAlignment='Stretch'/>"
-    L"<Border x:Name='PART_Items' Visibility='Collapsed' CornerRadius='0,0,4,4' BorderThickness='1,0,1,1' "
-    L"BorderBrush='{ThemeResource CardStrokeColorDefaultBrush}' Background='{ThemeResource CardBackgroundFillColorSecondaryBrush}'/>"
+    L"<Border x:Name='PART_Items' Visibility='Collapsed' CornerRadius='0,0,4,4' "
+    L"BorderThickness='1,0,1,1' "
+    L"BorderBrush='{ThemeResource CardStrokeColorDefaultBrush}' Background='{ThemeResource "
+    L"CardBackgroundFillColorSecondaryBrush}'/>"
     L"</StackPanel></ControlTemplate>";
 
 controls::FontIcon chevron(bool open) {
@@ -116,7 +128,8 @@ void SettingsExpanderCore::isExpanded(bool value) {
 
 void SettingsExpanderCore::update() {
     head_->actionIcon(chevron(expanded_));
-    head_->surface(expanded_ ? SettingsCardCore::Surface::OpenHeader : SettingsCardCore::Surface::Standalone);
+    head_->surface(expanded_ ? SettingsCardCore::Surface::OpenHeader
+                             : SettingsCardCore::Surface::Standalone);
     if (itemsHost_) {
         itemsHost_.Visibility(expanded_ ? xaml::Visibility::Visible : xaml::Visibility::Collapsed);
     }
@@ -128,7 +141,8 @@ void SettingsExpanderCore::update() {
 void SettingsExpanderCore::dress_items() {
     for (auto const& child : items_.Children()) {
         if (winrt::get_class_name(child) == SettingsCardCore::className) {
-            winrt::get_self<SettingsCardCore>(child.as<controls::IContentControlOverrides>())->surface(SettingsCardCore::Surface::Flat);
+            winrt::get_self<SettingsCardCore>(child.as<controls::IContentControlOverrides>())
+                ->surface(SettingsCardCore::Surface::Flat);
         }
     }
 }
@@ -139,21 +153,26 @@ namespace wxl {
 
 namespace {
 
-impl::SettingsExpanderCore* core_of(winrt::Microsoft::UI::Xaml::Controls::ContentControl const& control) {
-    return winrt::get_self<impl::SettingsExpanderCore>(control.as<winrt::Microsoft::UI::Xaml::Controls::IContentControlOverrides>());
+impl::SettingsExpanderCore* core_of(
+    winrt::Microsoft::UI::Xaml::Controls::ContentControl const& control) {
+    return winrt::get_self<impl::SettingsExpanderCore>(
+        control.as<winrt::Microsoft::UI::Xaml::Controls::IContentControlOverrides>());
 }
 
 }  // namespace
 
 SettingsExpander::SettingsExpander() : ContentControl(new Impl{}) {
-    auto inspectable = winrt::make_self<impl::SettingsExpanderCore>().as<winrt::Windows::Foundation::IInspectable>();
+    auto inspectable = winrt::make_self<impl::SettingsExpanderCore>()
+                           .as<winrt::Windows::Foundation::IInspectable>();
     *put_abi() = static_cast<::IInspectable*>(winrt::detach_abi(inspectable));
 }
 
 // The setting is the content of the head, not of the expander: a ContentControl without a presenter in its template would take
 // the element for a child of its own, and the head could no longer have it.
 void SettingsExpander::content(Object const& value) const {
-    core_of(get<&Impl::contentControl_>())->head()->Content(*Object::Impl::get_typed<Object>(value));
+    core_of(get<&Impl::contentControl_>())
+        ->head()
+        ->Content(*Object::Impl::get_typed<Object>(value));
 }
 
 Object SettingsExpander::content() const {
@@ -169,7 +188,9 @@ void SettingsExpander::header(hstring_param const& value) const {
 }
 
 void SettingsExpander::description(Object const& value) const {
-    core_of(get<&Impl::contentControl_>())->head()->description(*Object::Impl::get_typed<Object>(value));
+    core_of(get<&Impl::contentControl_>())
+        ->head()
+        ->description(*Object::Impl::get_typed<Object>(value));
 }
 
 void SettingsExpander::description(hstring_param const& value) const {
@@ -177,11 +198,14 @@ void SettingsExpander::description(hstring_param const& value) const {
 }
 
 void SettingsExpander::headerIcon(IconElement const& value) const {
-    core_of(get<&Impl::contentControl_>())->head()->headerIcon(*Object::Impl::get_typed<IconElement>(value));
+    core_of(get<&Impl::contentControl_>())
+        ->head()
+        ->headerIcon(*Object::Impl::get_typed<IconElement>(value));
 }
 
 Collection<UIElement> SettingsExpander::items() const {
-    return Object::Impl::wrap<Collection<UIElement>>(core_of(get<&Impl::contentControl_>())->items());
+    return Object::Impl::wrap<Collection<UIElement>>(
+        core_of(get<&Impl::contentControl_>())->items());
 }
 
 bool SettingsExpander::isExpanded() const {
@@ -193,11 +217,11 @@ void SettingsExpander::isExpanded(bool value) const {
 }
 
 EventToken SettingsExpander::add_onExpanding(EventHandler<Object> const& handler) const {
-    return impl::from_winrt(core_of(get<&Impl::contentControl_>())->Expanded({
-        [handler](auto const& sender, auto const& args) {
-            auto view = Object::Impl::wrap<Object>(args);
-            handler(Object::Impl::wrap<Object>(sender), view);
-        }}));
+    return impl::from_winrt(core_of(get<&Impl::contentControl_>())
+                                ->Expanded({[handler](auto const& sender, auto const& args) {
+                                    auto view = Object::Impl::wrap<Object>(args);
+                                    handler(Object::Impl::wrap<Object>(sender), view);
+                                }}));
 }
 
 void SettingsExpander::remove_onExpanding(EventToken& token) const {
@@ -205,11 +229,11 @@ void SettingsExpander::remove_onExpanding(EventToken& token) const {
 }
 
 EventToken SettingsExpander::add_onCollapsed(EventHandler<Object> const& handler) const {
-    return impl::from_winrt(core_of(get<&Impl::contentControl_>())->Collapsed({
-        [handler](auto const& sender, auto const& args) {
-            auto view = Object::Impl::wrap<Object>(args);
-            handler(Object::Impl::wrap<Object>(sender), view);
-        }}));
+    return impl::from_winrt(core_of(get<&Impl::contentControl_>())
+                                ->Collapsed({[handler](auto const& sender, auto const& args) {
+                                    auto view = Object::Impl::wrap<Object>(args);
+                                    handler(Object::Impl::wrap<Object>(sender), view);
+                                }}));
 }
 
 void SettingsExpander::remove_onCollapsed(EventToken& token) const {

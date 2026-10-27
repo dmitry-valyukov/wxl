@@ -18,7 +18,8 @@
 
 namespace wxl {
 
-async::task<> showDialog(ContentDialog const& dialog, UIElement const& host, async::cancellation_token token) {
+async::task<> showDialog(ContentDialog const& dialog, UIElement const& host,
+                         async::cancellation_token token) {
     winrt::Microsoft::UI::Xaml::Controls::ContentDialog const& native =
         *Object::Impl::get_typed<ContentDialog>(dialog);
 
@@ -33,7 +34,8 @@ async::task<> showDialog(ContentDialog const& dialog, UIElement const& host, asy
 
 // A window is named by what it shows: a dialog raised from a window belongs
 // over that same content, in that same island.
-async::task<> showDialog(ContentDialog const& dialog, Window const& host, async::cancellation_token token) {
+async::task<> showDialog(ContentDialog const& dialog, Window const& host,
+                         async::cancellation_token token) {
     return showDialog(dialog, host.content(), std::move(token));
 }
 

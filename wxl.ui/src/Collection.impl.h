@@ -15,7 +15,8 @@ namespace wxl {
 // impl::vector_element's, shared with VectorView<T>.
 
 template <typename T>
-class Collection<T>::Impl : public Object::Impl {
+class Collection<T>::Impl : public Object::Impl
+{
 public:
     using element = impl::vector_element<T>;
     using vector_t = winrt::Windows::Foundation::Collections::IVector<typename element::winrt_t>;
@@ -29,8 +30,7 @@ public:
     // on first use the way an ordinary interface field does.
     template <typename Source>
         requires std::constructible_from<vector_t, Source const&>
-    explicit Impl(Source&& source)
-        : Object::Impl(source), vector_(std::forward<Source>(source)) {}
+    explicit Impl(Source&& source) : Object::Impl(source), vector_(std::forward<Source>(source)) {}
 
     vector_t vector_;
 

@@ -23,7 +23,8 @@
 namespace wxl {
 
 template <typename T>
-class iterable_param {
+class iterable_param
+{
 public:
     iterable_param(VectorView<T> const& view) noexcept : list_(&view) {}
     iterable_param(Collection<T> const& collection) noexcept : list_(&collection) {}

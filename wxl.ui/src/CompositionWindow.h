@@ -108,7 +108,8 @@ struct ClientSize {
 /// по порядку подписки, и каждый видит ответ тех, кто был до него: решает
 /// последний сказавший. Живёт, пока идёт вызов, как всякие аргументы события;
 /// объекта WinRT за ней нет -- просьба своя, окна.
-class WindowClosingEventArgs : public EventArgs {
+class WindowClosingEventArgs : public EventArgs
+{
 public:
     WindowClosingEventArgs() noexcept : EventArgs(nullptr) {}
 
@@ -126,7 +127,8 @@ private:
 
 /// Как картинка заднего фона кроет окно. Свой размер картинки -- в логических
 /// пикселях: на экране 150 % она крупнее в физических и мельче не становится.
-enum class BackgroundFill {
+enum class BackgroundFill
+{
     UniformToFill,  ///< всё окно, пропорции целы: обрезана по краям, по центру
     Uniform,        ///< вся картинка, пропорции целы: поля по сторонам, по центру
     Fill,           ///< всё окно, пропорции теряются
@@ -148,7 +150,8 @@ struct BackgroundImage {
     Color color{};
 };
 
-class CompositionWindow {
+class CompositionWindow
+{
 public:
     /// Заводит окно: класс без кисти фона, WS_EX_NOREDIRECTIONBITMAP, свой
     /// композитор, цель на HWND. Окно создаётся скрытым -- показывает его
