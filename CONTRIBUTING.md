@@ -65,8 +65,10 @@
 - Пакеты NuGet CI восстанавливает в режиме блокировки
   (`RestoreLockedMode=true`): изменение закреплений
   (`wxl.gen/profiles/base.json`, `tools/packages.json`) приходит в одном
-  коммите с файлом `tools/packages.lock.json`, который записала настройка,
-  иначе сборка останавливается на настройке (см.
+  коммите с файлом `tools/packages.lock.json`, который записала настройка.
+  Файл, который не соответствует закреплениям, останавливает восстановление
+  NuGet, а отсутствие файла останавливает настройку
+  (`cmake/wxl_packages.cmake`; см.
   [docs/building.md](docs/building.md#пакеты-nuget-и-проекция-cppwinrt)).
 - Обязательные проверки: `build (Debug)`, `build (Release)`,
   `build (Strict)`, `build` (сайт документации) и `commits`. Pull request
