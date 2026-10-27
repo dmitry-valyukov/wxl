@@ -1446,9 +1446,13 @@ LRESULT CALLBACK window_procedure(HWND hwnd, UINT message, WPARAM wparam, LPARAM
             // wxl при выходе (ShutdownStarting очереди XAML), приложения уже не
             // гасит: цикл кончился, и Exit() положил бы в очередь потока
             // WM_QUIT, которого не ждёт уже ни один цикл, -- ожидание петли
-            // потока на выходе остановилось бы на нём.
-            if (state) state->close_xaml();
-            if (Application::loopRunning()) xaml::Application::Current().Exit();
+            // потока на выходе остановилось бы на нём. Окно без состояния не
+            // гасит ничего: его уничтожает владелец (owned_window), когда
+            // построение состояния не удалось, и приложение живёт дальше.
+            if (state) {
+                state->close_xaml();
+                if (Application::loopRunning()) xaml::Application::Current().Exit();
+            }
             return 0;
 
         case WM_NCDESTROY:
