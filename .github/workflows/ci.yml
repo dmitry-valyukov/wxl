@@ -21,6 +21,15 @@
 # only run here. It builds and tests the three programs of wxl.async/tests
 # alone -- the checks live there, and the wrappers are not needed for them --
 # so the generator, the second configure and the sample are left out.
+#
+# The rows build in the merge queue and on a run by hand, not on the pull
+# request: the queue's candidate is what becomes main, so its run is the check
+# that counts, and a second full build of the pull request alone, some 45
+# minutes a row, only delayed it. The queue admits a pull request only when
+# its required checks are green on its head, and the ruleset requires the
+# rows by name, so on the pull request the build-pr job reports the same three
+# names at once, without building. The commits job and the docs site still
+# check the pull request itself.
 name: ci
 
 # merge_group: the merge queue's candidate branch, main plus the queued pull
@@ -33,13 +42,18 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same pull request makes the older run moot.
+# A newer push to the same pull request makes the older run moot. A queue
+# candidate has a ref of its own, so one candidate does not cancel another.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # The matrix rows and the name are those of build-pr below: the expanded
+  # names are the required checks of the ruleset, and the two jobs keep them
+  # byte for byte the same.
   build:
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -178,6 +192,31 @@ jobs:
             build/x64/ctest.xml
             build/x64/wxl.async/tests/ctest.xml
           if-no-files-found: ignore
+
+  # The build rows on a pull request: the names the ruleset requires, green at
+  # once, so that the merge queue admits the pull request and builds its
+  # candidate (see the header). The rows and the name are those of build.
+  build-pr:
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: Debug
+            preset: x64-debug
+          - config: Release
+            preset: x64-release
+          - config: Debug
+            preset: x64-debug
+            strict: true
+    name: build (${{ matrix.strict && 'Strict' || matrix.config }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Build in the merge queue
+        env:
+          ROW: ${{ matrix.strict && 'Strict' || matrix.config }}
+        run: echo "The $ROW build and its tests run in the merge queue, on the candidate that would become main."
 
   # Every commit a pull request, or a merge queue candidate, would bring into
   # main is checked against the rules CONTRIBUTING.md states; the maintainers
