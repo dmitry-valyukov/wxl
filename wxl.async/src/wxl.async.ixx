@@ -4,7 +4,9 @@ export module wxl.async;
 // threads, and the lock-free primitives underneath them.
 export import :async_directory;
 export import :async_file;
+export import :async_mutex;
 export import :async_op;
+export import :async_semaphore;
 export import :barrier;
 export import :bump_buffer;
 export import :cancellation;

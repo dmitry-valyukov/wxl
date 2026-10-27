@@ -4,7 +4,9 @@ wxl_add_module_library(wxl.async STATIC
 
         async_directory.ixx
         async_file.ixx
+        async_mutex.ixx
         async_op.ixx
+        async_semaphore.ixx
         barrier.ixx
         bump_buffer.ixx
         cancellation.ixx
