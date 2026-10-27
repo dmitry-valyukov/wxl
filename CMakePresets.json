@@ -19,14 +19,12 @@
         "dev": false
       },
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
-        "VCPKG_HOST_TRIPLET": "x64-windows-static-md",
         "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
       }
     },
     {
       "name": "x64",
-      "displayName": "x64 (vcpkg, x64-windows-static-md)",
+      "displayName": "x64 (Ninja Multi-Config)",
       "inherits": "base"
     }
   ],

@@ -73,9 +73,8 @@ wxl_set_target_folders(wxl.async.channels-benchmark)
 # IAsyncOperation a framework call is -- beside sta_loop in its driven mode, on one
 # real DispatcherQueue pumped by the STA thread. coremessaging.lib is the OS queue
 # itself (CreateDispatcherQueueController); runtimeobject.lib is what the cppwinrt
-# base links against.
-find_package(cppwinrt CONFIG REQUIRED)
-
+# base links against. Microsoft::CppWinRT is the projection the top level of the
+# tree makes (cmake/wxl_packages.cmake).
 add_executable(wxl.async.winrt-coroutine-benchmark winrt_coroutine_benchmark.cpp)
 
 target_link_libraries(wxl.async.winrt-coroutine-benchmark

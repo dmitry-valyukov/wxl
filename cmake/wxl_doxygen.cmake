@@ -10,8 +10,8 @@
 #   wxl_add_doxygen_site(...) -- one target per site
 #
 # Both are meant to be used from outside this tree as well: an application
-# includes this file the same way it already includes vcpkg_bootstrap.cmake and
-# wxl_helpers.cmake, and builds its own site plus wxl's tag file with it.
+# includes this file the same way it already includes wxl_helpers.cmake, and
+# builds its own site plus wxl's tag file with it.
 
 include_guard(GLOBAL)
 include(FetchContent)

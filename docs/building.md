@@ -32,10 +32,26 @@
   Ключ на всё дерево попадает и в цель модуля: в Debug потребители берут
   модуль как есть, и копия остаётся одна, для Release. В свой проект этот
   ключ добавлять не нужно.
-- **Компилятор:** Visual Studio 2026 (канал Insiders) с поддержкой C++,
-  набором инструментов MSVC версии 14.53.36911 или новее и Windows SDK; они
-  необходимы для работы `import std;` в модулях C++20, а более ранние сборки
-  тулсета собирают Release с дефектом корутин (см. «Release и дефект MSVC»).
+- **Компилятор:** Visual Studio 2026 (канал Insiders) с поддержкой C++ и
+  набором инструментов MSVC версии 14.53.36911 или новее; он необходим для
+  работы `import std;` в модулях C++20, а более ранние сборки тулсета собирают
+  Release с дефектом корутин (см. «Release и дефект MSVC»).
+- **Средства WinUI:** в той же установке Visual Studio 2026 — рабочая нагрузка
+  «WinUI application development» (`Microsoft.VisualStudio.Workload.Universal`)
+  с компонентом «C++ WinUI app development tools»
+  (`Microsoft.VisualStudio.Component.WindowsAppSdkSupport.Cpp`); в Build Tools
+  для Visual Studio 2026 — рабочая нагрузка «WinUI application development
+  build tools» (`Microsoft.VisualStudio.Workload.UniversalBuildTools`) с
+  компонентом «C++ WinUI app development build tools»
+  (`Microsoft.VisualStudio.ComponentGroup.WindowsAppDevelopment.VC.BuildTools`).
+  Пакеты NuGet и проекцию cppwinrt настройка получает от MSBuild этой
+  установки (см. «Пакеты NuGet и проекция cppwinrt»). Если компонента нет,
+  настройка останавливается и называет, что установить.
+- **Windows SDK:** версии 10.0.26100.0 или новее (компонент установщика
+  `Microsoft.VisualStudio.Component.Windows11SDK.26100`). Сборка берёт
+  новейший установленный SDK, который выбирает окружение разработчика, и
+  одна и та же версия идёт в проекцию и в компиляцию. Если она ниже
+  10.0.26100.0, настройка останавливается.
 - **Система сборки:** CMake версии 4.3 или 4.4. Нижняя граница задана в
   конфигурации как `cmake_minimum_required(VERSION 4.3)`. Верхнюю границу
   определяет UUID-ключ механизма `import std;`: сценарию
@@ -43,13 +59,6 @@
 - **Генератор:** Ninja. Генераторы Visual Studio не строят BMI
   (скомпилированные интерфейсы модулей) для импортированных целей.
 - **Командная оболочка:** PowerShell 7 (`pwsh`).
-- **Управление пакетами:** vcpkg с портом `cppwinrt:x64-windows-static-md`.
-  GoogleTest для тестов из vcpkg не берётся: его собирает само дерево (см.
-  «Тесты и бенчмарки»).
-- **Интеграция vcpkg:** требуется однократно выполнить
-  `vcpkg integrate install`. Сборка находит vcpkg по файлу `vcpkg.path.txt`
-  или по ключу `-DVCPKG_ROOT=<путь>`, а не по переменной окружения, поскольку
-  её подменяет `vcvars64.bat`.
 - **Сетевое подключение:** необходимо при первой настройке для загрузки
   пакетов NuGet, зависимостей `winmd` и `fmt` через механизм `FetchContent`
   (при `BUILD_TESTING=ON` — и GoogleTest), а также Doxygen 1.18 и темы
@@ -57,16 +66,14 @@
 
 ## От клона до окна
 
-Сгенерированная проекция `cppwinrt` (каталог `generated/`) и декларативные
-обёртки `wxl` (каталог `wxl.ui/src/wxl/`) намеренно исключены из
-репозитория. Для их генерации и запуска первого приложения выполните в среде
-`pwsh` из корня дерева следующие команды:
+Проекция `cppwinrt` и декларативные обёртки `wxl` (каталог `wxl.ui/src/wxl/`)
+в репозиторий не входят: проекцию строит настройка дерева в каталоге сборки,
+обёртки создаёт генератор `winui-srcgen`. Для их создания и запуска первого
+приложения выполните в среде `pwsh` из корня дерева следующие команды:
 
 ```powershell
-pwsh -NoProfile -File tools\restore-packages.ps1    # пакеты NuGet, версии — wxl.gen\profiles\base.json и tools\packages.json
-pwsh -NoProfile -File tools\projection.ps1          # проекция cppwinrt в generated\
-pwsh -NoProfile -File tools\install-runtime.ps1     # экспериментальная среда Windows App Runtime
-tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
+tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF   # настройка (пакеты NuGet, проекция) и генератор
+pwsh -NoProfile -File tools\install-runtime.ps1                   # экспериментальная среда Windows App Runtime
 build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
 tools\build.ps1 -Configure -Target sample.quadratic
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
@@ -78,7 +85,10 @@ build\x64\samples\Quadratic\Debug\sample.quadratic.exe
   объявляет сам выпуск. Это выпуск экспериментального канала, поскольку в
   метаданных **WinUI** стабильного канала нет `WrapPanel` и `LayoutPanel`.
   Среда этого канала устанавливается для текущего пользователя рядом со
-  стабильной; без неё приложение не запустится.
+  стабильной; без неё приложение не запустится. Сценарий
+  `tools/install-runtime.ps1` берёт её установщики из пакета
+  `Microsoft.WindowsAppSDK.Runtime`, а этот пакет восстанавливает настройка,
+  поэтому сценарий запускается после настройки.
 - **Отсутствие обёрток:** пока обёртки не сгенерированы, настройка
   пропускает `wxl.ui` и всё, что от неё зависит, и выводит об этом
   предупреждение. Сборка не запускает генератор, поэтому после правки
@@ -119,7 +129,6 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 | `WXL_BUILD_DOCS` | `ON` | Включает сайт документации Doxygen: цель `docs`, результат — `build/x64/docs/wxl/html/index.html`. |
 | `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui`. |
 | `WXL_STRICT_CORO` | `OFF` | Оставляет проверки корутин `wxl.async` в любой конфигурации сборки, а не только в Debug (см. [«Асинхронность»](async.md)). |
-| `WXL_CPPWINRT_PROJECTION_DIR` | `generated` в корне дерева | Задаёт каталог проекции cppwinrt. |
 | `WXL_WINDOWSAPPSDK_VERSION_TAG` | `experimentalF` | Задаёт тег версии выпуска Windows App SDK, по которому собирается дерево. Вместе с основным номером версии тег называет пакет платформы Windows App Runtime, который запрашивает приложение (`Microsoft.WindowsAppRuntime.2-experimentalF`). У каждого выпуска свой тег, у стабильного выпуска он пустой. Значение ведётся вручную и меняется вместе с выпуском. |
 | `WXL_ENABLE_PCH` | `ON` | Включает предкомпилированный заголовок `src/pch.h` у `wxl.core` и `wxl.async`. Модульные единицы из него исключены (MSVC не принимает его перед объявлением модуля), поэтому ключ влияет только на время сборки обычных единиц трансляции. |
 | `WXL_INSTALL` | `ON` у `wxl.core`, настроенного самостоятельно; в общем дереве — `OFF`, чтобы `cmake --install` потребителя не переносил файлы **wxl** в его префикс | Включает правила установки `wxl.core` (см. ниже, «`wxl.core` отдельно»). |
@@ -133,6 +142,61 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 объектные файлы с `/GL` содержат промежуточное представление вместо кода:
 статические библиотеки дерева вырастают с 42 МБ до 1.7 ГБ, а каждая
 компоновка Release перекомпилирует программу целиком.
+
+## Пакеты NuGet и проекция cppwinrt
+
+Пакеты NuGet, по которым собирается дерево, и проекцию C++/WinRT над ними
+создаёт настройка. Сценарий `cmake/wxl_packages.cmake` записывает в каталог
+сборки вспомогательный проект MSBuild `wxl.packages/wxl.packages.vcxproj` без
+исходников и запускает на нём MSBuild той установки Visual Studio, из
+окружения которой выполняется настройка (`VSINSTALLDIR`):
+
+```
+MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProjections
+```
+
+- **Закрепления.** Выпуск Windows App SDK называет ключ `windowsAppSdk` в
+  `wxl.gen/profiles/base.json`: проект ссылается на зонтичный пакет
+  `Microsoft.WindowsAppSDK` этого выпуска, зависимости которого — пакеты
+  выпуска.
+  Остальные пакеты перечислены в списке `extra` файла `tools/packages.json`:
+  Win2D, WebView2 и `Microsoft.Windows.CppWinRT`. Каждая версия — минимальная:
+  NuGet берёт наименьшую версию, которая удовлетворяет всем ссылкам.
+- **Файл блокировки.** Восстановление записывает выбранные версии в
+  `tools/packages.lock.json`, и этот файл входит в репозиторий. CI
+  восстанавливает пакеты в режиме блокировки (переменная окружения
+  `RestoreLockedMode=true`): если файл не соответствует закреплениям, настройка
+  останавливается.
+- **Проекция.** Её строят цели пакета `Microsoft.Windows.CppWinRT`: проекцию
+  Windows SDK (`winrt/base.h`, `winrt/Windows.*`) и проекцию метаданных пакетов
+  (`winrt/Microsoft.*`, Win2D, WebView2). Результат находится в каталоге
+  сборки, `build/x64/wxl.packages/projection`. Цель `Microsoft::CppWinRT`
+  передаёт этот каталог своим потребителям как каталог включаемых файлов;
+  `wxl.ui` линкует её как `PRIVATE`.
+- **Каталоги пакетов.** Каталог каждого пакета настройка берёт из результата
+  восстановления, файла `wxl.packages/obj/project.assets.json`, функцией
+  `wxl_nuget_package_dir()`. Сами пакеты находятся в глобальной папке пакетов
+  NuGet, которую задаёт переменная `NUGET_PACKAGES` или конфигурация NuGet.
+- **Независимость от машины.** Вспомогательный проект выключает то, что
+  машина добавляет в каждый проект MSBuild: интеграцию vcpkg
+  (`VcpkgEnabled=false`) и файлы `Directory.Build.props`,
+  `Directory.Build.targets` и `Directory.Packages.props` из каталогов выше
+  каталога сборки. Набор инструментов и Windows SDK он берёт из окружения
+  разработчика (`VCToolsVersion`, `WindowsSDKVersion`).
+- **Повторная настройка.** MSBuild пропускает восстановление и цели, результат
+  которых актуален. Изменение `wxl.gen/profiles/base.json`,
+  `tools/packages.json` или `tools/packages.lock.json` запускает настройку при
+  следующей сборке.
+- **Ошибки.** Журнал MSBuild записывается в
+  `build/x64/wxl.packages/msbuild.log`. Если MSBuild завершается ошибкой или
+  результат не тот, что ожидается (нет файла блокировки, нет пакета, нет
+  заголовков проекции), настройка останавливается и показывает вывод MSBuild и
+  путь к журналу.
+
+Чтобы изменить закрепление, исправьте версию в `tools/packages.json` (или
+выпуск в `wxl.gen/profiles/base.json`), выполните настройку
+(`tools\build.ps1 -Configure`) и зафиксируйте изменённый
+`tools/packages.lock.json` в том же коммите, что и закрепление.
 
 ## Тесты и бенчмарки
 
@@ -266,22 +330,31 @@ wxl_target_assets(sample.quadratic Assets)
 `samples/HelloHere/pch.h`) и определяется функция
 `wxl::Teardown wxl_launched()`, объявленная в `launch.h`. Проще всего
 создать папку в `samples/` и добавить строку в `samples/CMakeLists.txt`.
+Приложению, которое само обращается к проекции C++/WinRT, её заголовки даёт
+цель `Microsoft::CppWinRT`: `target_link_libraries(<цель> PRIVATE
+Microsoft::CppWinRT)`, как в `sandbox/LightingLab/CMakeLists.txt`.
 
 ### Рядом с деревом wxl
 
 Проект, расположенный рядом с деревом **wxl**, подключает его подкаталоги.
-Порядок при этом важен. Менеджер vcpkg и ворота `import std;` открываются до
-`project()`: UUID ворот привязан к выпуску CMake, и открыть их может только
-верхний уровень. Стандарт и модули задаются до первого подкаталога. Дерево
-**wxl** к этому моменту должно быть уже настроено (проекция и обёртки
-сгенерированы), а пресет проекта должен задавать Ninja и тот же триплет
-vcpkg; проще всего взять `CMakePresets.json` из wxl:
+Порядок при этом важен. Ворота `import std;` открываются до `project()`: UUID
+ворот привязан к выпуску CMake, и открыть их может только верхний уровень.
+Стандарт и модули задаются до первого подкаталога. Обёртки дерева **wxl** к
+этому моменту должны быть сгенерированы, а пресет проекта должен задавать
+Ninja; проще всего взять `CMakePresets.json` из wxl.
+
+Пакеты NuGet и проекцию `wxl.ui` получает сама: её `CMakeLists.txt`
+подключает `cmake/wxl_packages.cmake`, и вспомогательный проект появляется в
+каталоге сборки проекта. Поэтому проект настраивается из окружения
+разработчика с компонентом C++ WinUI (см. «Требования»), а восстановление
+пишет файл блокировки дерева **wxl**, `tools/packages.lock.json`. Своей цели
+`Microsoft::CppWinRT` (её определяет, например, пакет `cppwinrt` из vcpkg) в
+проекте быть не должно: две проекции в одной сборке останавливают настройку.
 
 ```cmake
 cmake_minimum_required(VERSION 4.3)
 
 set(WXL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../wxl")
-include("${WXL_ROOT}/cmake/vcpkg_bootstrap.cmake")
 include("${WXL_ROOT}/cmake/wxl_import_std_gate.cmake")
 
 project(MyApp LANGUAGES CXX)

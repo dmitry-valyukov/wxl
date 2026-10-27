@@ -21,7 +21,6 @@ add_executable(sandbox.aggregation
 )
 
 target_include_directories(sandbox.aggregation PRIVATE
-    ${WXL_CPPWINRT_PROJECTION_DIR}
     ${PROJECT_SOURCE_DIR}/wxl.ui/src
     ${PROJECT_SOURCE_DIR}/wxl.core/src
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include

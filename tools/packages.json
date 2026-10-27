@@ -1,15 +1,9 @@
 {
-    "comment": "The NuGet packages the tree reads. \"sdkPackages\" are packages of the Windows App SDK release named by \"windowsAppSdk\" in wxl.gen/profiles/base.json, at the versions that release declares; Microsoft.WindowsAppSDK.Runtime among them carries the installers of the release's Windows App Runtime, which tools/install-runtime.ps1 installs. \"extra\" are packages from outside the release, at their own pinned versions. tools/restore-packages.ps1 fetches every one into the NuGet package folder, and nothing else downloads anything.",
-
-    "sdkPackages": [
-        "Microsoft.WindowsAppSDK.Foundation",
-        "Microsoft.WindowsAppSDK.InteractiveExperiences",
-        "Microsoft.WindowsAppSDK.Runtime",
-        "Microsoft.WindowsAppSDK.WinUI"
-    ],
+    "comment": "The NuGet packages the tree builds against besides the Windows App SDK release that \"windowsAppSdk\" in wxl.gen/profiles/base.json names. Each version is a minimum: NuGet takes the lowest version that satisfies every reference. cmake/wxl_packages.cmake reads this file at configure: the release (the umbrella package Microsoft.WindowsAppSDK, whose dependencies are the packages of the release) and the \"extra\" packages become the PackageReference items of its helper MSBuild project, whose restore writes what it resolved into tools/packages.lock.json. Microsoft.Windows.CppWinRT carries cppwinrt.exe and the MSBuild targets that build the C++/WinRT projection of the Windows SDK and of the packages.",
 
     "extra": [
         { "id": "Microsoft.Graphics.Win2D", "version": "1.4.0" },
-        { "id": "Microsoft.Web.WebView2", "version": "1.0.4078.44" }
+        { "id": "Microsoft.Web.WebView2", "version": "1.0.4078.44" },
+        { "id": "Microsoft.Windows.CppWinRT", "version": "2.0.250303.1" }
     ]
 }

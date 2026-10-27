@@ -70,7 +70,7 @@ private:
     ULONG refs_ = 1;
 };
 
-// Real GUID, verified against generated/cppwinrt earlier in this session
+// Real GUID, the one the cppwinrt projection declares
 // (winrt/impl/Microsoft.UI.Xaml.0.h): E7BEAEE7-160E-50F7-8789-D63463F979FA.
 constexpr GUID IID_IDependencyObject = {
     0xE7BEAEE7, 0x160E, 0x50F7, {0x87, 0x89, 0xD6, 0x34, 0x63, 0xF9, 0x79, 0xFA}

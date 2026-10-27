@@ -200,7 +200,8 @@ target_compile_definitions(sample.gallery PRIVATE GALLERY_VERSION=u"${wxl-projec
 target_link_libraries(sample.gallery PRIVATE wxl::json wxl::fmt)
 
 # LottieLogo.cpp -- код анимации Lottie, написанный на объектах Composition и Win2D самой платформы, -- единственный файл
-# приложения, которому нужны заголовки проекции; наружу он отдаёт один wxl::Object. Остальным они остаются закрыты.
+# приложения, которому нужны заголовки проекции; наружу он отдаёт один wxl::Object. Остальным они остаются закрыты:
+# каталог проекции (каталог включаемых файлов цели Microsoft::CppWinRT) задан только этому файлу, а саму цель
+# приложение не линкует.
 set_source_files_properties(LottieLogo.cpp PROPERTIES INCLUDE_DIRECTORIES
-    "${WXL_CPPWINRT_PROJECTION_DIR};${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include;${WXL_WINDOWSAPPSDK_WINUI_DIR}/include")
-target_link_libraries(sample.gallery PRIVATE Microsoft::CppWinRT)
+    "$<TARGET_PROPERTY:Microsoft::CppWinRT,INTERFACE_INCLUDE_DIRECTORIES>;${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include;${WXL_WINDOWSAPPSDK_WINUI_DIR}/include")
