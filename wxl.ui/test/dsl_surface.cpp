@@ -321,6 +321,14 @@ static_assert(!parses_as_grid_lengths<u"*,2x,auto">);
 static_assert(!parses_as_grid_lengths<u"*,,auto">);
 static_assert(!parses_as_grid_lengths<u"">);
 
+// A fraction is the double nearest what is written, as a literal of the language is.
+constexpr auto grid_fractions = RowDefinitions<u"0.3,0.7*,1.25">.lengths();
+static_assert(grid_fractions[0].value == 0.3);
+static_assert(grid_fractions[1].value == 0.7);
+static_assert(grid_fractions[2].value == 1.25);
+static_assert(!parses_as_grid_lengths<u"12345678901234567">);
+static_assert(!parses_as_grid_lengths<u"0.00000000000000000000001">);
+
 // Only a string literal is a text. A lone character, characters with no terminator and numbers make
 // a values too, and are refused before anything is parsed -- by the parse and by the names written.
 template <impl::values Text>

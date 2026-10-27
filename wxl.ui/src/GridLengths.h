@@ -81,6 +81,9 @@ namespace impl {
 // evaluated, it makes the evaluation fail, and the compiler names this function.
 inline void grid_lengths_entry_is_not_a_length() {}
 
+// The same, where an entry has more digits than a double holds exactly (see the parse below).
+inline void grid_lengths_entry_has_too_many_digits() {}
+
 template <typename Char>
 constexpr bool grid_lengths_is_digit(Char unit) noexcept {
     return unit >= Char('0') && unit <= Char('9');
@@ -133,22 +136,32 @@ consteval GridLength grid_lengths_parse_entry(Char const* first, Char const* las
     if (star) --last;
     if (star && first == last) return {1.0, GridUnitType::Star};
 
-    // Digits, then a point and digits if there is a fraction; nothing else.
+    // Digits, then a point and digits if there is a fraction; nothing else. All the digits make one
+    // whole number, divided once by ten to the power of the fraction's digits. Both are exact in a
+    // double -- the number up to 2^53, the power up to 10^22, and more digits than that are the
+    // compile error -- so the one division rounds correctly: "0.3" is the double nearest 0.3, as
+    // std::from_chars reads it. Adding digit times a tenth each step rounds at every step and made
+    // 0.30000000000000004.
     if (first == last || !grid_lengths_is_digit(*first)) grid_lengths_entry_is_not_a_length();
-    double value = 0;
-    for (; first != last && grid_lengths_is_digit(*first); ++first) value = value * 10 + (*first - Char('0'));
+    unsigned long long whole = 0;
+    auto const take = [&whole](Char digit) {
+        whole = whole * 10 + static_cast<unsigned long long>(digit - Char('0'));
+        if (whole > (1ull << 53)) grid_lengths_entry_has_too_many_digits();
+    };
+    for (; first != last && grid_lengths_is_digit(*first); ++first) take(*first);
+    double power = 1;
     if (first != last) {
         if (*first != Char('.')) grid_lengths_entry_is_not_a_length();
         ++first;
         if (first == last) grid_lengths_entry_is_not_a_length();
-        double scale = 1;
-        for (; first != last; ++first) {
+        for (int fraction_digits = 1; first != last; ++first, ++fraction_digits) {
             if (!grid_lengths_is_digit(*first)) grid_lengths_entry_is_not_a_length();
-            scale /= 10;
-            value += (*first - Char('0')) * scale;
+            if (fraction_digits > 22) grid_lengths_entry_has_too_many_digits();
+            take(*first);
+            power *= 10;
         }
     }
-    return {value, star ? GridUnitType::Star : GridUnitType::Pixel};
+    return {static_cast<double>(whole) / power, star ? GridUnitType::Star : GridUnitType::Pixel};
 }
 
 // The one parse of a text: each entry in turn, into the array of exactly that many lengths.
