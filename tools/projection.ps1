@@ -16,10 +16,9 @@
 #
 # Versions are the pins of the tree, not whatever the NuGet cache holds: the
 # packages of the Windows App SDK release named in wxl.gen/profiles/base.json at
-# the versions that release declares, the "extra" packages of tools/packages.json,
-# and WinUI from its "experimental" entry (the metadata of WrapPanel and
-# LayoutPanel). tools/restore-packages.ps1 puts them all into the cache; pass a
-# version here to try another.
+# the versions that release declares, and the "extra" packages of
+# tools/packages.json. tools/restore-packages.ps1 puts them all into the cache;
+# pass a version here to try another.
 #
 # Nothing re-runs this: after the pins change, run restore-packages.ps1 and then
 # this script again by hand.
@@ -39,6 +38,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 if (-not $Out) { $Out = Join-Path $repo 'generated' }
 
 . (Join-Path $PSScriptRoot 'nuget-root.ps1')
+. (Join-Path $PSScriptRoot 'windows-app-sdk.ps1')
 function Resolve-Root { Resolve-NuGetRoot $NuGetRoot }
 
 # The pinned version of a package, and a check that the restore put it there.
@@ -50,14 +50,8 @@ function Resolve-Version([string]$package, [string]$pinned) {
 }
 
 $manifest = Get-Content (Join-Path $PSScriptRoot 'packages.json') -Raw | ConvertFrom-Json
-$base = Get-Content (Join-Path $repo 'wxl.gen\profiles\base.json') -Raw
-if ($base -notmatch '"windowsAppSdk"\s*:\s*"([^"]+)"') { throw 'base.json names no windowsAppSdk release' }
-$sdkNuspec = [xml](Get-Content (Join-Path (Resolve-Root) "microsoft.windowsappsdk\$($Matches[1])\microsoft.windowsappsdk.nuspec"))
-$declared = @{}
-foreach ($d in $sdkNuspec.package.metadata.dependencies.dependency) { $declared[$d.id.ToLowerInvariant()] = $d.version.Trim('[', ']') }
+$declared = Get-WindowsAppSdkPackageVersion (Resolve-Root) (Get-WindowsAppSdkRelease $repo)
 function Pin([string]$id) {
-    $e = @($manifest.experimental | Where-Object { $_.id -eq $id })
-    if ($e) { return $e[0].version }
     $x = @($manifest.extra | Where-Object { $_.id -eq $id })
     if ($x) { return $x[0].version }
     $declared[$id.ToLowerInvariant()]

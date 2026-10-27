@@ -396,16 +396,19 @@ target_link_libraries(wxl.ui
         dwmapi.lib
 )
 
-# The channel of the Windows App Runtime the application starts on. The WinUI
-# metadata the wrappers are generated from is the experimental channel's (see
-# tools/packages.json: WrapPanel, TitleBar.RecomputeDragRegions and the Window
-# size properties are declared nowhere else), and a stable runtime answers a call
-# to any of them with "no such interface". So the default is the experimental
-# framework package, Microsoft.WindowsAppRuntime.2-experimentalF (tag experimentalF), which
-# tools/restore-packages.ps1 fetches the installer of and tools/install-runtime.ps1 installs. An empty value is the
-# stable channel, for a tree whose metadata is the stable package's.
+# The version tag of the Windows App SDK release the tree builds against
+# ("windowsAppSdk" in wxl.gen/profiles/base.json). With the major version it names
+# the release's framework package, the one the application starts on: experimentalF
+# names Microsoft.WindowsAppRuntime.2-experimentalF. Every release has its own tag,
+# WINDOWSAPPSDK_RELEASE_VERSION_TAG in include/WindowsAppSDK-VersionInfo.h of its
+# Microsoft.WindowsAppSDK.Runtime package, and a stable release has an empty one.
+# The value is kept here by hand and has to change together with the release. The
+# release is an experimental one because a stable runtime answers a call to
+# WrapPanel, TitleBar.RecomputeDragRegions or the Window size properties with "no
+# such interface"; tools/restore-packages.ps1 fetches the installers of its framework
+# package and tools/install-runtime.ps1 installs them.
 set(WXL_WINDOWSAPPSDK_VERSION_TAG "experimentalF"
-    CACHE STRING "Version tag of the Windows App Runtime framework package: experimentalF, or empty for the stable channel")
+    CACHE STRING "Version tag of the Windows App SDK release the tree builds against (WINDOWSAPPSDK_RELEASE_VERSION_TAG of its Runtime package); empty for a stable release")
 
 # The bootstrapper as a target, not as a path to its import library: then
 # CMake knows the DLL behind it, and $<TARGET_RUNTIME_DLLS> of an application
@@ -420,7 +423,7 @@ if(EXISTS "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsA
         IMPORTED_IMPLIB
             "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib"
         # Whoever compiles impl/bootstrap.cpp -- wxl.ui, or a sandbox that takes the
-        # file directly -- asks for the same channel.
+        # file directly -- asks for the same release.
         INTERFACE_COMPILE_DEFINITIONS
             "WXL_WINDOWSAPPSDK_VERSION_TAG=L\"${WXL_WINDOWSAPPSDK_VERSION_TAG}\"")
 

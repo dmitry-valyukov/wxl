@@ -5,7 +5,7 @@
         "extended"
     ],
 
-    "windowsAppSdk": "2.5.1",
+    "windowsAppSdk": "2.5.4-experimental",
     "windowsMetadata": true,
 
     "types": {
