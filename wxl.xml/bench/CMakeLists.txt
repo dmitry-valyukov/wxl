@@ -10,4 +10,6 @@ set_target_properties(wxl.xml.bench PROPERTIES
     CXX_SCAN_FOR_MODULES ON
 )
 
+# The manifest of wxl's executables, as every tool of the tree carries it.
+wxl_target_manifest(wxl.xml.bench)
 wxl_set_target_folders(wxl.xml.bench)

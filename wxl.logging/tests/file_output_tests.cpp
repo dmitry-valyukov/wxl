@@ -1,13 +1,14 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <cstdio>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <string_view>
 
+import wxl.core;
 import wxl.logging;
 
 using wxl::logging::file_options;
@@ -16,14 +17,27 @@ using wxl::logging::severity;
 
 namespace {
 
+// Two paths compared as paths, element by element, so that / and \ are one separator,
+// and shown through to_utf8() when they differ: operator<< on a path goes through
+// string(), which throws on a name the ANSI code page cannot write.
+::testing::AssertionResult same_path(std::filesystem::path const& actual,
+                                     std::filesystem::path const& expected) {
+    if (actual == expected) return ::testing::AssertionSuccess();
+    return ::testing::AssertionFailure() << wxl::core::unicode::to_utf8(actual).chars() << " vs "
+                                         << wxl::core::unicode::to_utf8(expected).chars();
+}
+
 /// Every test gets a directory of its own, named after itself, and leaves
 /// nothing behind.
 class file_output_test : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        directory_ = std::filesystem::temp_directory_path() / "wxl.logging.tests" /
-                     ::testing::UnitTest::GetInstance()->current_test_info()->name();
+        // The name of a TEST_F is a C++ identifier, ASCII, so widening it is a plain copy.
+        const std::string_view test =
+            ::testing::UnitTest::GetInstance()->current_test_info()->name();
+        directory_ = std::filesystem::temp_directory_path() / L"wxl.logging.tests" /
+                     std::wstring(test.begin(), test.end());
 
         std::filesystem::remove_all(directory_);
         std::filesystem::create_directories(directory_);
@@ -34,7 +48,7 @@ protected:
         std::filesystem::remove_all(directory_, failed);
     }
 
-    std::filesystem::path log_path(std::string_view name = "app.log") const {
+    std::filesystem::path log_path(std::wstring_view name = L"app.log") const {
         return directory_ / name;
     }
 
@@ -109,7 +123,7 @@ TEST_F(file_output_test, a_full_file_is_followed_by_a_numbered_part) {
     }
 
     EXPECT_TRUE(std::filesystem::exists(log_path()));
-    EXPECT_TRUE(std::filesystem::exists(log_path("app-part002.log")));
+    EXPECT_TRUE(std::filesystem::exists(log_path(L"app-part002.log")));
 }
 
 TEST_F(file_output_test, a_line_is_never_split_between_two_parts) {
@@ -122,7 +136,7 @@ TEST_F(file_output_test, a_line_is_never_split_between_two_parts) {
     }
 
     EXPECT_TRUE(contents_of(log_path()).ends_with("whole\n"));
-    EXPECT_TRUE(contents_of(log_path("app-part002.log")).ends_with("also whole\n"));
+    EXPECT_TRUE(contents_of(log_path(L"app-part002.log")).ends_with("also whole\n"));
 }
 
 TEST_F(file_output_test, a_new_run_pushes_the_old_file_down_the_history) {
@@ -135,30 +149,30 @@ TEST_F(file_output_test, a_new_run_pushes_the_old_file_down_the_history) {
         log.info("this run");
     }
 
-    EXPECT_EQ(contents_of(log_path("app.log.1")), "the run before last\n");
+    EXPECT_EQ(contents_of(log_path(L"app.log.1")), "the run before last\n");
     EXPECT_NE(contents_of(log_path()).find("this run"), std::string::npos);
 }
 
 TEST_F(file_output_test, the_history_only_goes_so_far_back) {
     put(log_path(), "newest");
-    put(log_path("app.log.1"), "older");
-    put(log_path("app.log.2"), "oldest");
+    put(log_path(L"app.log.1"), "older");
+    put(log_path(L"app.log.2"), "oldest");
 
     { file_output file(log_path(), {.rotate_by_run = true, .history_depth = 2}); }
 
-    EXPECT_EQ(contents_of(log_path("app.log.1")), "newest");
-    EXPECT_EQ(contents_of(log_path("app.log.2")), "older");
-    EXPECT_FALSE(std::filesystem::exists(log_path("app.log.3")));
+    EXPECT_EQ(contents_of(log_path(L"app.log.1")), "newest");
+    EXPECT_EQ(contents_of(log_path(L"app.log.2")), "older");
+    EXPECT_FALSE(std::filesystem::exists(log_path(L"app.log.3")));
 }
 
 TEST_F(file_output_test, every_part_of_the_previous_run_moves_down) {
     put(log_path(), "part one");
-    put(log_path("app-part002.log"), "part two");
+    put(log_path(L"app-part002.log"), "part two");
 
     { file_output file(log_path(), {.rotate_by_run = true}); }
 
-    EXPECT_EQ(contents_of(log_path("app.log.1")), "part one");
-    EXPECT_EQ(contents_of(log_path("app-part002.log.1")), "part two");
+    EXPECT_EQ(contents_of(log_path(L"app.log.1")), "part one");
+    EXPECT_EQ(contents_of(log_path(L"app-part002.log.1")), "part two");
 }
 
 TEST_F(file_output_test, appending_keeps_what_was_there) {
@@ -194,9 +208,9 @@ TEST_F(file_output_test, the_date_goes_into_the_name) {
     const auto today = std::chrono::floor<std::chrono::days>(wxl::logging::log_clock::now());
     const std::chrono::year_month_day date{today};
 
-    char expected[32];
-    std::snprintf(expected, sizeof expected, "app-%04d%02u%02u.log", static_cast<int>(date.year()),
-                  static_cast<unsigned>(date.month()), static_cast<unsigned>(date.day()));
+    const std::wstring expected =
+        std::format(L"app-{:04}{:02}{:02}.log", static_cast<int>(date.year()),
+                    static_cast<unsigned>(date.month()), static_cast<unsigned>(date.day()));
 
     { file_output file(log_path(), {.rotate_by_date = true}); }
 
@@ -205,13 +219,13 @@ TEST_F(file_output_test, the_date_goes_into_the_name) {
 
 TEST_F(file_output_test, the_history_can_be_listed) {
     put(log_path(), "newest");
-    put(log_path("app.log.1"), "older");
+    put(log_path(L"app.log.1"), "older");
 
     const auto found = file_output::history_of(log_path(), 5);
 
     ASSERT_EQ(found.size(), 2u);
-    EXPECT_EQ(found[0], log_path());
-    EXPECT_EQ(found[1], log_path("app.log.1"));
+    EXPECT_TRUE(same_path(found[0], log_path()));
+    EXPECT_TRUE(same_path(found[1], log_path(L"app.log.1")));
 }
 
 /// A file that writes a banner at the top of every part it opens, which is what
@@ -235,7 +249,7 @@ TEST_F(file_output_test, a_derived_output_can_head_each_part) {
     }
 
     EXPECT_TRUE(contents_of(log_path()).starts_with("*** part ***\n"));
-    EXPECT_TRUE(contents_of(log_path("app-part002.log")).starts_with("*** part ***\n"));
+    EXPECT_TRUE(contents_of(log_path(L"app-part002.log")).starts_with("*** part ***\n"));
 }
 
 TEST_F(file_output_test, a_file_that_cannot_be_opened_says_so) {
@@ -244,6 +258,67 @@ TEST_F(file_output_test, a_file_that_cannot_be_opened_says_so) {
     std::filesystem::create_directories(log_path());
 
     EXPECT_THROW(file_output file(log_path()), std::system_error);
+}
+
+// "журнал", spelled out so that the source's own encoding does not matter: the
+// parts of a name in Cyrillic go back into the names of the files whole, and the
+// output's id says the name in UTF-8.
+constexpr std::wstring_view cyrillic = L"\u0436\u0443\u0440\u043D\u0430\u043B";
+constexpr std::string_view cyrillic_utf8 = "\xD0\xB6\xD1\x83\xD1\x80\xD0\xBD\xD0\xB0\xD0\xBB";
+
+std::wstring cyrillic_named(std::wstring_view rest) {
+    return std::wstring(cyrillic).append(rest);
+}
+
+TEST_F(file_output_test, a_name_in_cyrillic_names_every_part) {
+    {
+        file_output file(log_path(cyrillic_named(L".log")), {.max_size = 1});
+        wxl::logging::logger log(file);
+
+        EXPECT_EQ(std::wstring_view(file.stem().native()), cyrillic);
+        EXPECT_EQ(file.id(), std::string("file:").append(cyrillic_utf8).append(".log"));
+
+        log.info("one");
+        log.info("two");
+    }
+
+    EXPECT_NE(contents_of(log_path(cyrillic_named(L".log"))).find("one"), std::string::npos);
+    EXPECT_NE(contents_of(log_path(cyrillic_named(L"-part002.log"))).find("two"),
+              std::string::npos);
+}
+
+TEST_F(file_output_test, a_name_in_cyrillic_takes_the_date) {
+    const auto today = std::chrono::floor<std::chrono::days>(wxl::logging::log_clock::now());
+    const std::chrono::year_month_day date{today};
+
+    const std::wstring expected =
+        cyrillic_named(std::format(L"-{:04}{:02}{:02}.log", static_cast<int>(date.year()),
+                                   static_cast<unsigned>(date.month()),
+                                   static_cast<unsigned>(date.day())));
+
+    { file_output file(log_path(cyrillic_named(L".log")), {.rotate_by_date = true}); }
+
+    EXPECT_TRUE(std::filesystem::exists(log_path(expected)));
+}
+
+TEST_F(file_output_test, a_name_in_cyrillic_keeps_its_history) {
+    put(log_path(cyrillic_named(L".log")), "newest");
+    put(log_path(cyrillic_named(L".log.1")), "older");
+
+    {
+        file_output file(log_path(cyrillic_named(L".log")),
+                         {.rotate_by_run = true, .history_depth = 2});
+    }
+
+    EXPECT_EQ(contents_of(log_path(cyrillic_named(L".log.1"))), "newest");
+    EXPECT_EQ(contents_of(log_path(cyrillic_named(L".log.2"))), "older");
+
+    const auto found = file_output::history_of(log_path(cyrillic_named(L".log")), 5);
+
+    ASSERT_EQ(found.size(), 3u);
+    EXPECT_TRUE(same_path(found[0], log_path(cyrillic_named(L".log"))));
+    EXPECT_TRUE(same_path(found[1], log_path(cyrillic_named(L".log.1"))));
+    EXPECT_TRUE(same_path(found[2], log_path(cyrillic_named(L".log.2"))));
 }
 
 }  // namespace

@@ -74,6 +74,10 @@ target_compile_features(winui-srcgen PRIVATE cxx_std_23)
 
 target_link_libraries(winui-srcgen PRIVATE wxl.gen)
 
+# The manifest of wxl's executables, a console tool's included: the same
+# template the applications get, UTF-8 for the process's code page among it.
+wxl_target_manifest(winui-srcgen)
+
 # Before the profiles below, not after: this lays the sources out by directory
 # with source_group(TREE), and the explicit grouping of the profiles has to be
 # the one that wins.

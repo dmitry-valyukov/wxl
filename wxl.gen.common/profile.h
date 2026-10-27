@@ -280,6 +280,8 @@ profile load_profile(std::filesystem::path const& path);
 // Where a profile named in `extends` lives. A reference is either a path (has
 // a directory part or a .json suffix), relative to the referring profile's
 // directory, or a bare profile name sitting next to the profile that named it.
+// The reference is a profile's own text, checked UTF-8, as load_profile() puts
+// it in `extends`.
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer);
 

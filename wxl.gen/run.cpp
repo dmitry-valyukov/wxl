@@ -100,7 +100,7 @@ void run(profile_set const& profiles, type_map const& types, std::vector<symbol>
     std::vector<std::string> files;
     files.reserve(profiles.metadata.size());
     for (auto&& file : profiles.metadata) {
-        files.push_back(file.string());
+        files.push_back(std::string{wxl::core::unicode::to_utf8(file).chars()});
     }
 
     cache const db{files};

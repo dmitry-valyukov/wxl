@@ -24,7 +24,8 @@ import wxl.core;
 
 namespace {
 
-std::filesystem::path const profiles_dir{WXL_GEN_PROFILES_DIR};
+// u8, so that the path reads the directory as UTF-8 and not in the ANSI code page.
+std::filesystem::path const profiles_dir{u8"" WXL_GEN_PROFILES_DIR};
 
 // The generator's output for one test, in a directory of the test's own,
 // emptied before and removed after.
@@ -65,7 +66,8 @@ TEST_F(doc_language, names_the_code_and_doxygens_language_under_the_banner) {
     gen::write_doc_language(out(), documented_in(traditional), em);
 
     EXPECT_EQ(text_of(file()), std::string{gen::banner} + "zh-hant Chinese-Traditional\n");
-    EXPECT_EQ(em.files(), std::vector<std::string>{"doc_language.txt"});
+    ASSERT_EQ(em.files().size(), 1u);
+    EXPECT_EQ(em.files().front().native(), L"doc_language.txt");
 }
 
 // A whole run, as main() makes it: the language reaches the model and the

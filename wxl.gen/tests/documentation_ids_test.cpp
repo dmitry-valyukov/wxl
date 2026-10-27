@@ -11,13 +11,16 @@
 
 #include "wxl.gen.h"
 
+import wxl.core;
+
 // The documentation IDs the generator's own collection gives members: keyed on
 // the class that owns them, a factory's methods as its constructors, the form
 // with a token as the method it is a form of.
 
 namespace {
 
-std::filesystem::path const profiles_dir{WXL_GEN_PROFILES_DIR};
+// u8, so that the path reads the directory as UTF-8 and not in the ANSI code page.
+std::filesystem::path const profiles_dir{u8"" WXL_GEN_PROFILES_DIR};
 
 type_map const& types() {
     static type_map const map = load_type_map(profiles_dir / "types.json");
@@ -29,7 +32,7 @@ md::cache const& metadata() {
         auto const profiles = resolve_profiles({profiles_dir / "rich.json"}, default_nuget_root());
         std::vector<std::string> paths;
         for (auto&& file : profiles.metadata) {
-            paths.push_back(file.string());
+            paths.push_back(std::string{wxl::core::unicode::to_utf8(file).chars()});
         }
         return paths;
     }();

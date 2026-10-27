@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <set>
 #include <string>
@@ -44,6 +45,12 @@ struct by_full_name {
 
 // "Microsoft.UI.Xaml.Controls.Button"
 std::string full_name(winmd::reader::TypeDef const& type);
+
+// A name the metadata spells, as a path: the namespace a generated file is named
+// after, the contract a folder of the SDK's reference is named after. Nothing
+// checks the text of a .winmd before it is read, so it is checked here, and a name
+// that is not UTF-8 stops with std::runtime_error naming it.
+std::filesystem::path metadata_path(std::string_view name);
 
 // Accessors (get_X/put_X/add_X/remove_X) and .ctor are not methods of their
 // own: they are reached through the Property and Event tables, so neither the

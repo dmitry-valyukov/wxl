@@ -139,6 +139,18 @@ std::filesystem::path newest_version(std::filesystem::path const& directory) {
     return newest;
 }
 
+// The metadata file a database was read from. The reader keeps the name it was opened by
+// in UTF-8, its contract, and a name that is not UTF-8 is said rather than taken as a path.
+std::filesystem::path metadata_file(md::database const& database) {
+    auto const name = wxl::core::unicode::checked(database.path());
+    if (!name) {
+        throw std::runtime_error(
+            std::format("metadata opened by a name that is not UTF-8: {}",
+                        wxl::core::unicode::repaired(database.path()).chars()));
+    }
+    return wxl::core::unicode::to_path(*name);
+}
+
 // The contract a Windows type belongs to: its ContractVersionAttribute.
 std::string contract_of(md::TypeDef const& type) {
     for (auto&& attribute : type.CustomAttribute()) {
@@ -256,7 +268,7 @@ documentation_source::source* documentation_source::source_of(md::TypeDef const&
     auto const& database = type.get_database();
     auto beside = beside_.find(&database);
     if (beside == beside_.end()) {
-        source opened = open(std::filesystem::path {database.path()}.replace_extension(L".xml"));
+        source opened = open(metadata_file(database).replace_extension(L".xml"));
         beside = beside_.emplace(&database, std::move(opened)).first;
         started(beside->second);
     }
@@ -340,12 +352,12 @@ documentation_source::reference documentation_source::open_reference(std::string
     if (sdk.empty()) {
         return {};
     }
-    std::filesystem::path const versions = newest_version(sdk / contract);
+    std::filesystem::path const versions = newest_version(sdk / metadata_path(contract));
     if (versions.empty()) {
         return {};
     }
     for (std::wstring const& language : languages_) {
-        source found = open(versions / language / (contract + ".xml"));
+        source found = open(versions / language / metadata_path(contract + ".xml"));
         if (found.file || found.error) {
             return {std::move(found), &language == &languages_.front()};
         }

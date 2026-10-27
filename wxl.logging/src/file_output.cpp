@@ -21,7 +21,7 @@ constexpr unsigned max_parts_to_rotate = 1000;
 /// history with holes in it closes them up rather than stopping.
 void shift_history(const std::filesystem::path& path, const std::size_t history_depth) {
     const auto numbered = [&path](const std::size_t number) {
-        return std::filesystem::path(path).concat("." + wxl::core::to_string(number));
+        return std::filesystem::path(path).concat(L"." + std::to_wstring(number));
     };
 
     std::error_code failed;  // renaming files nobody asked about must not throw
@@ -43,9 +43,9 @@ void shift_history(const std::filesystem::path& path, const std::size_t history_
 
 file_output::file_output(const std::filesystem::path& path, const file_options options)
     : directory_(path.parent_path()),
-      stem_(path.stem().string()),
-      extension_(path.extension().string()),
-      id_("file:" + path.filename().string()),
+      stem_(path.stem()),
+      extension_(path.extension()),
+      id_(fmt::format("file:{}", core::unicode::to_utf8(path.filename()).chars())),
       options_(options) {
     ensure(!stem_.empty());
 
@@ -110,18 +110,18 @@ void file_output::write_to_file(const std::string_view text) {
 void file_output::on_before_first_line() {}
 
 std::filesystem::path file_output::make_part_name(const unsigned number) const {
-    std::string name = stem_;
+    std::filesystem::path name = stem_;
 
     if (options_.rotate_by_date) {
         const auto today = std::chrono::floor<std::chrono::days>(log_clock::now());
         const std::chrono::year_month_day date{today};
 
-        name += fmt::format("-{:04}{:02}{:02}", static_cast<int>(date.year()),
+        name += std::format(L"-{:04}{:02}{:02}", static_cast<int>(date.year()),
                             static_cast<unsigned>(date.month()),
                             static_cast<unsigned>(date.day()));
     }
 
-    if (number > 1) name += fmt::format("-part{:03}", number);
+    if (number > 1) name += std::format(L"-part{:03}", number);
 
     name += extension_;
 
@@ -150,7 +150,8 @@ void file_output::open_part(const unsigned number) {
 
     if (!file_.is_open())
         throw std::system_error(errno, std::generic_category(),
-                                "wxl.logging: cannot open " + current_path_.string());
+                                fmt::format("wxl.logging: cannot open {}",
+                                            core::unicode::to_utf8(current_path_).chars()));
 
     std::error_code unknown_size;
     const auto size_on_disk = std::filesystem::file_size(current_path_, unknown_size);
@@ -182,7 +183,8 @@ std::vector<std::filesystem::path> file_output::history_of(const std::filesystem
     found.push_back(path);
 
     for (std::size_t number = 1; number <= history_depth; ++number) {
-        std::filesystem::path older = std::filesystem::path(path).concat("." + wxl::core::to_string(number));
+        std::filesystem::path older =
+            std::filesystem::path(path).concat(L"." + std::to_wstring(number));
 
         if (!std::filesystem::exists(older)) break;
 

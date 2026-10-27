@@ -18,6 +18,11 @@
 // Диагностика: launch.cpp печатает сообщение необработанной ошибки XAML в stderr (в этом случае: 0x80040111,
 // Windows.ApplicationModel.LimitedAccessFeatures).
 
+// _wfopen объявлен в заголовке библиотеки C, и он включается раньше ui.h: core.h, до которого ui.h доходит
+// через свои заголовки, импортирует wxl.core, а стандартный заголовок, не встреченный до импорта, MSVC после
+// него не принимает.
+#include <cstdio>
+
 #include "ui.h"
 #include "SettingsCard.h"
 #include "SettingsExpander.h"
@@ -221,12 +226,11 @@ void dump(char const* when) {
 }  // namespace
 
 wxl::Teardown wxl_launched() {
-    if (char const* const o = std::getenv("SHIFT_OPTS")) {
-        for (auto const word : std::string_view {o} | std::views::split(',')) opts.insert(std::string(std::string_view(word)));
-    }
-    char const* const path = std::getenv("SHIFT_LOG");
-    logFile = std::fopen(path ? path : "shift.log", "w");
-    std::fprintf(logFile, "opts: %s\n", std::getenv("SHIFT_OPTS") ? std::getenv("SHIFT_OPTS") : "");
+    std::string const words {core::unicode::repaired(core::environment::variable(L"SHIFT_OPTS")).to_utf8().chars()};
+    for (auto const word : std::string_view {words} | std::views::split(',')) opts.insert(std::string(std::string_view(word)));
+    std::filesystem::path const path {core::environment::variable(L"SHIFT_LOG")};
+    logFile = _wfopen(path.empty() ? L"shift.log" : path.c_str(), L"w");
+    std::fprintf(logFile, "opts: %s\n", words.c_str());
 
     L("start"); hostBox = Border {};
     auto nav = NavigationView {

@@ -362,7 +362,7 @@ void write_event_args(output const& out, model const& m, emitted& em) {
     size_t members = 0;
     for (auto&& file : m.event_args_files) {
         std::string const filename = file.ns + ".EventArgs.h";
-        auto const path = out.dir / filename;
+        auto const path = out.dir / metadata_path(filename);
         write_event_args_file(path, file);
         em.add(path);
         event_args_files.push_back(filename);
@@ -371,7 +371,7 @@ void write_event_args(output const& out, model const& m, emitted& em) {
         members += emitted_members;
 
         if (emitted_members != 0) {
-            auto const source = out.dir / (file.ns + ".EventArgs.cpp");
+            auto const source = out.dir / metadata_path(file.ns + ".EventArgs.cpp");
             write_event_args_source(source, filename, file);
             em.add(source);
         }

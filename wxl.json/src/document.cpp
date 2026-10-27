@@ -478,7 +478,7 @@ const value& document::load_file(const std::filesystem::path& path) {
     // Имя файла Windows -- просто последовательность 16-битных чисел, и
     // непарный суррогат в ней ничем не запрещён. В сообщение об ошибке оно
     // попадает почищенным, а не как есть.
-    std::string name(core::unicode::repaired(path.wstring()).to_utf8().chars());
+    std::string name(core::unicode::to_utf8(path).chars());
 
     std::ifstream file(path, std::ios::binary);
 

@@ -1,3 +1,7 @@
+// windows.h for SetEnvironmentVariableW: a variable is set in the process's own block,
+// where environment::variable() reads it.
+#include "platform.h"
+
 #include <gtest/gtest.h>
 
 import std;
@@ -26,8 +30,62 @@ TEST(EnvironmentTest, CommandLineStartsWithTheProgram) {
 
     ASSERT_FALSE(arguments.empty());
     const std::filesystem::path program{std::wstring_view{arguments.front()}};
-    EXPECT_EQ(program.filename(), L"wxl.core.tests.exe") << program;
-    EXPECT_EQ(program.parent_path(), environment::application_folder()) << program;
+    // Compared as paths, element by element: the program may be spelled with / where the
+    // folder has \. Shown through to_utf8(), since a path printed by operator<< goes through
+    // string(), which throws on a name the ANSI code page cannot write.
+    const auto folder = environment::application_folder();
+    EXPECT_TRUE(program.filename() == L"wxl.core.tests.exe")
+        << wxl::core::unicode::to_utf8(program).chars();
+    EXPECT_TRUE(program.parent_path() == folder)
+        << wxl::core::unicode::to_utf8(program).chars() << " vs "
+        << wxl::core::unicode::to_utf8(folder).chars();
+}
+
+// A variable set after the process started -- a folder in Cyrillic, "папка", and a
+// character beyond the basic plane, both spelled out so that the source's own encoding
+// does not matter -- is read back unit for unit.
+TEST(EnvironmentTest, AVariableSetSinceStartupIsReadBack) {
+    constexpr wchar_t name[] = L"WXL_CORE_TESTS_VARIABLE";
+    const std::wstring value = L"C:\\\u043F\u0430\u043F\u043A\u0430 \U0001F600";
+    ASSERT_TRUE(::SetEnvironmentVariableW(name, value.c_str()));
+
+    EXPECT_EQ(environment::variable(name), value);
+
+    ::SetEnvironmentVariableW(name, nullptr);
+}
+
+// Longer than any room a first guess would make: the size is asked for, not assumed.
+TEST(EnvironmentTest, ALongVariableIsReadWhole) {
+    constexpr wchar_t name[] = L"WXL_CORE_TESTS_LONG_VARIABLE";
+    const std::wstring value(20000, L'x');
+    ASSERT_TRUE(::SetEnvironmentVariableW(name, value.c_str()));
+
+    EXPECT_EQ(environment::variable(name), value);
+
+    ::SetEnvironmentVariableW(name, nullptr);
+}
+
+// A variable that is not set reads as empty. The last error is set beforehand to one
+// that would throw if it were read as the answer.
+TEST(EnvironmentTest, AnAbsentVariableIsEmpty) {
+    constexpr wchar_t name[] = L"WXL_CORE_TESTS_ABSENT_VARIABLE";
+    ::SetEnvironmentVariableW(name, nullptr);
+    ::SetLastError(ERROR_ACCESS_DENIED);
+
+    EXPECT_TRUE(environment::variable(name).empty());
+}
+
+// A variable set to nothing reads as empty too, on its own lookup: no earlier one has
+// left an error behind, and the one set beforehand, which would throw if it were read
+// as the answer, is not.
+TEST(EnvironmentTest, AVariableSetToNothingIsEmpty) {
+    constexpr wchar_t name[] = L"WXL_CORE_TESTS_EMPTY_VARIABLE";
+    ASSERT_TRUE(::SetEnvironmentVariableW(name, L""));
+    ::SetLastError(ERROR_ACCESS_DENIED);
+
+    EXPECT_TRUE(environment::variable(name).empty());
+
+    ::SetEnvironmentVariableW(name, nullptr);
 }
 
 // The system's words for a code it knows: a phrase, its line break trimmed --

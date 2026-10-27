@@ -2733,7 +2733,7 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     std::vector<std::string> files;
     files.reserve(resolved.metadata.size());
     for (auto&& file : resolved.metadata) {
-        files.push_back(file.string());
+        files.push_back(std::string{wxl::core::unicode::to_utf8(file).chars()});
     }
     auto const resources = resolved.resources;
 

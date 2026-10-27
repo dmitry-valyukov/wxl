@@ -66,7 +66,7 @@ struct options {
     std::vector<std::filesystem::path> extra_metadata;
     // Default output lands in the library that consumes it; the generated
     // directory carries its own CMakeLists.txt (see gen/cmake.cpp).
-    std::filesystem::path out_dir{"wxl.ui/src/wxl"};
+    std::filesystem::path out_dir{L"wxl.ui/src/wxl"};
     std::string cmake_target{"wxl.ui"};
     std::filesystem::path nuget_root;
     std::filesystem::path type_map;
@@ -78,41 +78,60 @@ struct options {
     bool help = false;
 };
 
-options parse_options(int argc, char** argv) {
+// An argument as text, for a message or for an option that takes text: UTF-8, as
+// the rest of the run spells text, with U+FFFD where the system's UTF-16 is not
+// well-formed.
+std::string text_of(std::wstring_view argument) {
+    return std::string{wxl::core::unicode::repaired(argument).to_utf8().chars()};
+}
+
+// The arguments in UTF-16, as the system hands them over: a path among them goes
+// to the file system as it came, with no code page on the way.
+options parse_options(int argc, wchar_t** argv) {
     options opts;
     // Absent when --doc-language is not given: an empty code that is given is
     // refused like any other the reference lacks, not taken for the default.
     std::optional<std::string> language;
 
-    auto const value = [&](int& i, std::string_view option) {
+    auto const value = [&](int& i, std::wstring_view option) {
         if (++i >= argc) {
-            throw std::runtime_error(std::format("{} needs a value", option));
+            throw std::runtime_error(std::format("{} needs a value", text_of(option)));
         }
-        return std::string{argv[i]};
+        return std::wstring_view{argv[i]};
+    };
+    // A value that is text, not a path: UTF-16 that does not spell anything is
+    // refused, not carried on with U+FFFD in it.
+    auto const text_value = [&](int& i, std::wstring_view option) {
+        auto const text = wxl::core::unicode::checked(value(i, option));
+        if (!text) {
+            throw std::runtime_error(
+                std::format("{}: the value is not well-formed UTF-16", text_of(option)));
+        }
+        return std::string{text->to_utf8().chars()};
     };
 
     for (int i = 1; i < argc; ++i) {
-        std::string_view const argument{argv[i]};
-        if (argument == "--profile" || argument == "-p") {
+        std::wstring_view const argument{argv[i]};
+        if (argument == L"--profile" || argument == L"-p") {
             opts.profiles.emplace_back(value(i, argument));
-        } else if (argument == "--out" || argument == "-o") {
+        } else if (argument == L"--out" || argument == L"-o") {
             opts.out_dir = value(i, argument);
-        } else if (argument == "--target") {
-            opts.cmake_target = value(i, argument);
-        } else if (argument == "--nuget-root") {
+        } else if (argument == L"--target") {
+            opts.cmake_target = text_value(i, argument);
+        } else if (argument == L"--nuget-root") {
             opts.nuget_root = value(i, argument);
-        } else if (argument == "--types") {
+        } else if (argument == L"--types") {
             opts.type_map = value(i, argument);
-        } else if (argument == "--winmd") {
+        } else if (argument == L"--winmd") {
             opts.extra_metadata.emplace_back(value(i, argument));
-        } else if (argument == "--docs") {
+        } else if (argument == L"--docs") {
             opts.docs = true;
-        } else if (argument == "--doc-language") {
-            language = value(i, argument);
-        } else if (argument == "--help" || argument == "-h") {
+        } else if (argument == L"--doc-language") {
+            language = text_value(i, argument);
+        } else if (argument == L"--help" || argument == L"-h") {
             opts.help = true;
         } else {
-            throw std::runtime_error(std::format("unknown argument: {}", argument));
+            throw std::runtime_error(std::format("unknown argument: {}", text_of(argument)));
         }
     }
 
@@ -147,7 +166,7 @@ options parse_options(int argc, char** argv) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int wmain(int argc, wchar_t** argv) {
     try {
         auto const opts = parse_options(argc, argv);
         if (opts.help || opts.profiles.empty()) {

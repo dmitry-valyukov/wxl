@@ -2137,15 +2137,15 @@ void write_classes(output const& out, model const& m, emitted& em) {
     size_t constructors = 0;
     size_t members = 0;
     for (auto&& group : m.class_groups) {
-        auto const header = out.dir / (group.name + ".h");
-        auto const source = out.dir / (group.name + ".cpp");
+        auto const header = out.dir / metadata_path(group.name + ".h");
+        auto const source = out.dir / metadata_path(group.name + ".cpp");
 
         write_public_header(header, group.name, group.classes, m.group_of, group.collections_used,
                             group.dropped);
         em.add(header);
 
         if (has_impl(group.classes)) {
-            auto const impl_header = out.dir / (group.name + ".impl.h");
+            auto const impl_header = out.dir / metadata_path(group.name + ".impl.h");
             write_impl_header(impl_header, group.name, group.classes, m.group_of);
             em.add(impl_header);
         }
