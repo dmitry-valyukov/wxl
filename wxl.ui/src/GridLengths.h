@@ -94,8 +94,6 @@ constexpr bool grid_lengths_is_space(Char unit) noexcept {
     return unit == Char(' ') || unit == Char('\t');
 }
 
-// How many lengths a text has: one more than its commas. The type of the array needs the number
-// before the parse fills it; whether each entry is a length is the parse's to say.
 template <values Text>
 using grid_lengths_char = typename std::remove_cvref_t<decltype(Text)>::element_t;
 
@@ -108,6 +106,8 @@ template <values Text>
 concept grid_lengths_text =
     is_character<grid_lengths_char<Text>> && std::size(Text.items) == Text.count + 2;
 
+// How many lengths a text has: one more than its commas. The type of the array needs the number
+// before the parse fills it; whether each entry is a length is the parse's to say.
 template <values Text>
 consteval std::size_t grid_lengths_count() {
     std::size_t count = 1;
