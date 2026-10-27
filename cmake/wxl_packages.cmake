@@ -25,6 +25,10 @@
 # and the targets whose outputs are up to date, so a repeated configure stays
 # short.
 #
+# A project that adds wxl -- as a subdirectory or through FetchContent --
+# restores in locked mode: its configure resolves the versions the lock file of
+# the wxl tree records and does not write that file.
+#
 # Defined here:
 #
 #   Microsoft::CppWinRT
@@ -248,9 +252,17 @@ function(_wxl_packages_read_assets assets out_count)
     foreach(i RANGE ${last})
         string(JSON key MEMBER "${libraries}" ${i})
         string(JSON entry GET "${libraries}" "${key}")
+        # A project reference has no package directory; the helper project has
+        # none, and any other type is not one this file knows how to read.
         string(JSON type ERROR_VARIABLE error GET "${entry}" type)
-        if(error OR NOT type STREQUAL "package")
+        if(error)
+            message(FATAL_ERROR "${assets}: the entry \"${key}\" has no readable type: ${error}")
+        endif()
+        if(type STREQUAL "project")
             continue()
+        endif()
+        if(NOT type STREQUAL "package")
+            message(FATAL_ERROR "${assets}: the entry \"${key}\" is of type \"${type}\", neither a package nor a project.")
         endif()
         string(JSON path ERROR_VARIABLE error GET "${entry}" path)
         string(FIND "${key}" "/" slash)
@@ -316,16 +328,62 @@ function(_wxl_packages)
             "(find_package(cppwinrt) and its package) and link wxl's Microsoft::CppWinRT.")
     endif()
 
+    # The top-level source directory is the wxl tree itself (its root, or
+    # wxl.ui configured on its own), or a project that adds wxl as a
+    # subdirectory or through FetchContent.
+    cmake_path(IS_PREFIX _WXL_PACKAGES_TREE "${CMAKE_SOURCE_DIR}" NORMALIZE wxl_is_top_level)
+
+    # The tree is configured without a toolchain file. A cache that still names
+    # vcpkg's would load it into every configure of the build directory.
+    if(wxl_is_top_level AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg\\.cmake$")
+        message(FATAL_ERROR
+            "CMAKE_TOOLCHAIN_FILE names vcpkg's toolchain (${CMAKE_TOOLCHAIN_FILE}), which the wxl "
+            "tree does not use: the cache of ${CMAKE_BINARY_DIR} keeps it from an earlier "
+            "configure. Configure the build directory anew, with an empty cache: "
+            "cmake --preset x64 --fresh in a developer prompt, or delete the directory and run "
+            "tools\\build.ps1 -Configure.")
+    endif()
+
     _wxl_packages_environment(msbuild sdk vc_tools)
     _wxl_packages_pins(pins)
 
     set(helper "${CMAKE_BINARY_DIR}/wxl.packages")
     set(project "${helper}/wxl.packages.vcxproj")
+    set(int "${helper}/int")
     set(projection "${helper}/projection")
     set(log "${helper}/msbuild.log")
     set(lock "${_WXL_PACKAGES_TREE}/tools/packages.lock.json")
     _wxl_packages_check_path("The build directory" "${helper}")
     _wxl_packages_check_path("The lock file" "${lock}")
+
+    # Locked mode. NuGet reads RestoreLockedMode as an MSBuild property: from the
+    # environment, as on CI, or from the command line. With the lock file there,
+    # a locked restore resolves the versions the file records and stops when the
+    # references do not match it; without the file NuGet resolves the versions
+    # anew and writes one, so a locked configure without the file stops here. A
+    # project that adds wxl restores in locked mode always, so that its configure
+    # does not rewrite the lock file the wxl tree tracks.
+    string(TOLOWER "$ENV{RestoreLockedMode}" locked)
+    set(lock_arguments "")
+    if(NOT wxl_is_top_level)
+        set(locked "true")
+        set(lock_arguments "-p:RestoreLockedMode=true")
+    endif()
+    if(locked STREQUAL "true" AND NOT EXISTS "${lock}")
+        if(wxl_is_top_level)
+            message(FATAL_ERROR
+                "RestoreLockedMode is true in the environment, and there is no lock file ${lock}. "
+                "A locked restore without the file resolves the versions anew and writes it instead "
+                "of checking them. Commit the lock file that a configure without RestoreLockedMode "
+                "writes.")
+        else()
+            message(FATAL_ERROR
+                "${CMAKE_SOURCE_DIR} adds the wxl tree ${_WXL_PACKAGES_TREE}, which has no lock file "
+                "${lock}. The configure of a project that adds wxl restores the packages of wxl in "
+                "locked mode, so that it does not rewrite the lock file of the wxl tree, and the "
+                "file has to be there: a configure of the wxl tree on its own writes it.")
+        endif()
+    endif()
 
     set(WXL_PACKAGES_REFERENCES "")
     list(LENGTH pins length)
@@ -340,6 +398,7 @@ function(_wxl_packages)
     set(WXL_PACKAGES_VC_TOOLS_VERSION "${vc_tools}")
     set(WXL_PACKAGES_WINDOWS_SDK_VERSION "${sdk}")
     file(TO_NATIVE_PATH "${lock}" WXL_PACKAGES_LOCK_FILE)
+    file(TO_NATIVE_PATH "${int}" WXL_PACKAGES_INT_DIR)
     file(TO_NATIVE_PATH "${projection}" WXL_PACKAGES_PROJECTION_DIR)
     # configure_file leaves the file alone when its text has not changed. The
     # projection targets take the project file and its imports as inputs
@@ -359,6 +418,7 @@ function(_wxl_packages)
                 -t:ResolveReferences,CppWinRTMakeProjections
                 -nologo -noAutoResponse -nodeReuse:false -verbosity:minimal
                 "-fileLoggerParameters:LogFile=${log_native};Verbosity=normal;Encoding=UTF-8"
+                ${lock_arguments}
         WORKING_DIRECTORY "${helper}"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
@@ -366,9 +426,11 @@ function(_wxl_packages)
     if(NOT result EQUAL 0)
         message(FATAL_ERROR
             "MSBuild failed (${result}) on ${project}, restoring the NuGet packages or building the "
-            "C++/WinRT projection. A restore with RestoreLockedMode=true, as on CI, stops when "
-            "tools/packages.lock.json does not match the pins; without it the restore writes the "
-            "lock file anew, and the changed file is committed together with the pins.\n"
+            "C++/WinRT projection. In locked mode (RestoreLockedMode=true in the environment, as on "
+            "CI, or the configure of a project that adds wxl) the restore stops when "
+            "tools/packages.lock.json does not match the pins. A configure of the wxl tree without "
+            "locked mode writes the lock file anew, and the changed file is committed together with "
+            "the pins.\n"
             "${output}\nThe whole log: ${log}")
     endif()
     if(output MATCHES "warning")
@@ -392,15 +454,21 @@ function(_wxl_packages)
         endif()
     endforeach()
 
-    # The response files are written in IntDir, x64\Release\ of the project
-    # directory; the platform projection reads the Windows SDK, the reference
-    # projection reads the packages and refers to the SDK.
-    set(int "${helper}/x64/Release")
-    _wxl_packages_check_response("${int}/wxl.packages.vcxproj.cppwinrt_plat.rsp" "${WXL_PACKAGES_PROJECTION_DIR}" -in)
-    _wxl_packages_check_response("${int}/wxl.packages.vcxproj.cppwinrt_ref.rsp" "${WXL_PACKAGES_PROJECTION_DIR}" -in -ref)
+    # The response files are $(IntDir)$(MSBuildProjectFile).cppwinrt_*.rsp: the
+    # platform projection reads the Windows SDK, the reference projection reads
+    # the packages and refers to the SDK.
+    cmake_path(GET project FILENAME project_file)
+    _wxl_packages_check_response("${int}/${project_file}.cppwinrt_plat.rsp" "${WXL_PACKAGES_PROJECTION_DIR}" -in)
+    _wxl_packages_check_response("${int}/${project_file}.cppwinrt_ref.rsp" "${WXL_PACKAGES_PROJECTION_DIR}" -in -ref)
+    # The response files are the outputs of the projection targets, so MSBuild
+    # skips a projection whose response file is newer than its inputs, whether
+    # or not the headers are still there.
     foreach(header base.h Windows.Foundation.h Microsoft.UI.Xaml.h)
         if(NOT EXISTS "${projection}/winrt/${header}")
-            message(FATAL_ERROR "The C++/WinRT projection in ${projection} has no winrt/${header}.")
+            message(FATAL_ERROR
+                "The C++/WinRT projection in ${projection} has no winrt/${header}. MSBuild skips "
+                "the projection targets while their response files in ${int} are newer than their "
+                "inputs: delete ${int} and configure again.")
         endif()
     endforeach()
 

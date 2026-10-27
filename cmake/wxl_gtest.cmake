@@ -20,10 +20,10 @@
 # here asks for -- to it. GTest::gtest and GTest::gtest_main are googletest's
 # own aliases.
 #
-# gtest_force_shared_crt: the triplet links the CRT dynamically
-# (x64-windows-static-md), and gtest picks the static one when it is the
-# top-level project; the option states the requirement instead of relying on
-# gtest being nested. No gmock and no install rules: nothing here mocks, and
+# gtest_force_shared_crt: the tree links the CRT dynamically (/MD and /MDd,
+# CMake's default runtime library), and gtest picks the static one when it is
+# the top-level project; the option states the requirement instead of relying
+# on gtest being nested. No gmock and no install rules: nothing here mocks, and
 # nothing installs gtest.
 
 include_guard(GLOBAL)
