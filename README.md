@@ -179,7 +179,7 @@ TextBox {
 запуска примера:
 
 ```powershell
-# 1. Восстановление необходимых NuGet-пакетов (версии зафиксированы в tools/packages.json)
+# 1. Восстановление необходимых NuGet-пакетов (версии зафиксированы в wxl.gen/profiles/base.json и tools/packages.json)
 pwsh -NoProfile -File tools\restore-packages.ps1
 
 # 2. Генерация базовой проекции cppwinrt в каталог generated\

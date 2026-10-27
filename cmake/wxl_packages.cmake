@@ -8,8 +8,8 @@
 #
 # The folder: %NUGET_PACKAGES%, else the globalPackagesFolder of NuGet.Config,
 # else %USERPROFILE%\.nuget\packages -- NuGet's own order. The version: the
-# "experimental" and "extra" pins of tools/packages.json, else the one the
-# Windows App SDK release of wxl.gen/profiles/base.json declares.
+# "extra" pin of tools/packages.json, else the one the Windows App SDK release
+# of wxl.gen/profiles/base.json declares.
 
 set(_WXL_PACKAGES_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
@@ -37,15 +37,13 @@ function(wxl_nuget_package_dir variable id)
 
     set(version "")
     file(READ "${_WXL_PACKAGES_DIR}/../tools/packages.json" manifest)
-    foreach(section experimental extra)
-        string(JSON count LENGTH "${manifest}" ${section})
-        math(EXPR last "${count} - 1")
-        foreach(i RANGE ${last})
-            string(JSON entry_id GET "${manifest}" ${section} ${i} id)
-            if(entry_id STREQUAL id)
-                string(JSON version GET "${manifest}" ${section} ${i} version)
-            endif()
-        endforeach()
+    string(JSON count LENGTH "${manifest}" extra)
+    math(EXPR last "${count} - 1")
+    foreach(i RANGE ${last})
+        string(JSON entry_id GET "${manifest}" extra ${i} id)
+        if(entry_id STREQUAL id)
+            string(JSON version GET "${manifest}" extra ${i} version)
+        endif()
     endforeach()
 
     if(version STREQUAL "")
