@@ -86,7 +86,7 @@ void document(documentation_source* docs, md::TypeDef const& type, member_info& 
     document(docs, type, member.doc_id, member.doc);
     if (member.out_result && member.doc.returns.empty()) {
         auto const out = std::ranges::find(member.doc.params, member.out_param,
-                                           &std::pair<std::string, std::string>::first);
+                                           &std::pair<std::string, doc_text>::first);
         if (out != member.doc.params.end()) {
             member.doc.returns = out->second;
         }

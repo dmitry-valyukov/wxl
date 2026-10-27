@@ -144,5 +144,5 @@ TEST(documentation_ids, an_out_result_is_documented_as_the_result) {
     documentation_source docs{{L"en"}};
     gen::document(&docs, type("Microsoft.UI.Text.ITextRange"), get_text);
     EXPECT_FALSE(get_text.doc.summary.empty());
-    EXPECT_EQ(get_text.doc.returns, "The text in the text range.");
+    EXPECT_EQ(get_text.doc.returns, (doc_text {{.text = "The text in the text range."}}));
 }

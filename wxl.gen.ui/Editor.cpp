@@ -204,34 +204,130 @@ std::vector<std::wstring> interface_documentation_languages() {
     return languages;
 }
 
+void append_inline(std::wstring& html, doc_run const& run);
+
+void append_inline_runs(std::wstring& html, doc_text const& text) {
+    for (doc_run const& run : text) {
+        append_inline(html, run);
+    }
+}
+
+void append_tagged(std::wstring& html, std::wstring_view tag, doc_text const& text) {
+    html += std::format(L"<{}>", tag);
+    append_inline_runs(html, text);
+    html += std::format(L"</{}>", tag);
+}
+
+// Код в обратных кавычках — тегом code, как его показывает Doxygen: текст между
+// серией кавычек в начале и такой же в конце, как написан, с пробелами у кавычек.
+void append_code(std::wstring& html, std::string_view span) {
+    std::size_t const ticks = span.find_first_not_of('`');
+    html += L"<code>";
+    append_text(html, span.substr(ticks, span.size() - 2 * ticks));
+    html += L"</code>";
+}
+
+// Строчная часть описания в разметку HtmlBlock: жирный, курсив, индексы,
+// перенос и код — её тегами, картинка — своей подписью, сети у панели нет, а без
+// подписи — адресом: картинка не пропадает бесследно.
+void append_inline(std::wstring& html, doc_run const& run) {
+    using kind = doc_run::kind_t;
+    switch (run.kind) {
+        case kind::text: append_text(html, run.text); break;
+        case kind::code: append_code(html, run.text); break;
+        case kind::bold: append_tagged(html, L"b", run.runs); break;
+        case kind::italic: append_tagged(html, L"i", run.runs); break;
+        case kind::superscript: append_tagged(html, L"sup", run.runs); break;
+        case kind::subscript: append_tagged(html, L"sub", run.runs); break;
+        case kind::line_break: html += L"<br>"; break;
+        case kind::image: append_text(html, run.text.empty() ? run.url : run.text); break;
+        // Блоки — у append_markup: внутри строчного их не бывает.
+        case kind::definitions:
+        case kind::definition:
+        case kind::table:
+        case kind::row:
+        case kind::header_cell:
+        case kind::cell: break;
+    }
+}
+
+// Описание в абзац раздела сведений. Таблица и список терминов — блоки HtmlBlock:
+// перед ними абзац закрывается, а строчное после них открывает новый; открыт ли
+// абзац — в open, закрывает его раздел. Термин — код: в справочниках это схемы
+// адресов, ms-appx:///.
+void append_markup(std::wstring& html, doc_text const& text, bool& open) {
+    using kind = doc_run::kind_t;
+    for (doc_run const& run : text) {
+        bool const block = run.kind == kind::table || run.kind == kind::definitions;
+        if (block && open) {
+            html += L"</p>";
+            open = false;
+        } else if (!block && !open) {
+            html += L"<p>";
+            open = true;
+        }
+        if (run.kind == kind::definitions) {
+            html += L"<ul>";
+            for (doc_run const& definition : run.runs) {
+                html += L"<li><code>";
+                append_text(html, definition.text);
+                html += L"</code> — ";
+                append_inline_runs(html, definition.runs);
+                html += L"</li>";
+            }
+            html += L"</ul>";
+        } else if (run.kind == kind::table) {
+            html += L"<table>";
+            for (doc_run const& row : run.runs) {
+                html += L"<tr>";
+                for (doc_run const& cell : row.runs) {
+                    append_tagged(html, cell.kind == kind::header_cell ? L"th" : L"td", cell.runs);
+                }
+                html += L"</tr>";
+            }
+            html += L"</table>";
+        } else {
+            append_inline(html, run);
+        }
+    }
+}
+
+// Раздел сведений: `head` открывает его абзац, за ним — описание.
+void append_section(std::wstring& html, std::wstring_view head, doc_text const& text) {
+    html += head;
+    bool open = true;
+    append_markup(html, text, open);
+    if (open) {
+        html += L"</p>";
+    }
+}
+
 // Документация члена или типа под сведениями о нём.
 void append_documentation(std::wstring& html, member_documentation const& documentation) {
     if (!documentation.deprecated.empty()) {
-        html += L"<p><b>Deprecated:</b> ";
-        append_text(html, documentation.deprecated);
-        html += L"</p>";
+        append_section(html, L"<p><b>Deprecated:</b> ", documentation.deprecated);
     }
     if (!documentation.summary.empty()) {
-        html += L"<p><b>Summary:</b><br>";
-        append_text(html, documentation.summary);
-        html += L"</p>";
+        append_section(html, L"<p><b>Summary:</b><br>", documentation.summary);
     }
     // Параметр без описания — такие в файлах есть — не показывается.
     auto const described = [](auto const& param) { return !param.second.empty(); };
     if (std::ranges::any_of(documentation.params, described)) {
         html += L"<p><b>Parameters:</b>";
+        bool open = true;
         for (auto const& [name, text] : documentation.params | std::views::filter(described)) {
-            html += L"<br><i>";
+            html += open ? L"<br><i>" : L"<p><i>";
+            open = true;
             append_text(html, name);
             html += L"</i> — ";
-            append_text(html, text);
+            append_markup(html, text, open);
         }
-        html += L"</p>";
+        if (open) {
+            html += L"</p>";
+        }
     }
     if (!documentation.returns.empty()) {
-        html += L"<p><b>Returns:</b><br>";
-        append_text(html, documentation.returns);
-        html += L"</p>";
+        append_section(html, L"<p><b>Returns:</b><br>", documentation.returns);
     }
 }
 

@@ -268,7 +268,7 @@ documentation_source::source* documentation_source::source_of(md::TypeDef const&
     auto const& database = type.get_database();
     auto beside = beside_.find(&database);
     if (beside == beside_.end()) {
-        source opened = open(metadata_file(database).replace_extension(L".xml"));
+        source opened = open(metadata_file(database).replace_extension(L".xml"), app_sdk_image_root);
         beside = beside_.emplace(&database, std::move(opened)).first;
         started(beside->second);
     }
@@ -309,7 +309,8 @@ documentation_source::source* documentation_source::source_of(md::TypeDef const&
 // Whether the file is there is asked inside the try too: exists() throws for
 // any answer but "not found" -- access denied, a network path gone -- and that
 // is an error about this file, kept with it like one met reading it.
-documentation_source::source documentation_source::open(std::filesystem::path const& file) {
+documentation_source::source documentation_source::open(std::filesystem::path const& file,
+                                                         std::string_view image_root) {
     if (file.empty()) {
         return {};
     }
@@ -318,7 +319,7 @@ documentation_source::source documentation_source::open(std::filesystem::path co
         if (!std::filesystem::exists(file)) {
             return {};
         }
-        opened.file = std::make_unique<documentation_file>(file);
+        opened.file = std::make_unique<documentation_file>(file, std::string {image_root});
     } catch (std::filesystem::filesystem_error const& error) {
         opened.error = std::make_exception_ptr(std::runtime_error(
             std::string {wxl::core::environment::error_message(error).chars()}));
@@ -357,7 +358,7 @@ documentation_source::reference documentation_source::open_reference(std::string
         return {};
     }
     for (std::wstring const& language : languages_) {
-        source found = open(versions / language / metadata_path(contract + ".xml"));
+        source found = open(versions / language / metadata_path(contract + ".xml"), windows_sdk_image_root);
         if (found.file || found.error) {
             return {std::move(found), &language == &languages_.front()};
         }

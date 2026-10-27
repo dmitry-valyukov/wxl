@@ -78,6 +78,11 @@ std::filesystem::path scratch(std::wstring_view name) {
     return directory;
 }
 
+// A description of text alone, as the reader gives one without markup.
+doc_text plain(std::string_view text) {
+    return {{.text = std::string{text}}};
+}
+
 void write_documentation(std::filesystem::path const& file, std::string_view id, std::string_view summary) {
     std::filesystem::create_directories(file.parent_path());
     std::ofstream{file} << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<doc><members>\n<member name=\"" << id
@@ -198,7 +203,7 @@ TEST(documentation_source, reads_beside_the_metadata_in_any_language) {
     auto const caret = db.find_required("Microsoft.UI.Text.CaretType");
     auto const found = docs.find(caret, "T:Microsoft.UI.Text.CaretType");
     ASSERT_TRUE(found);
-    EXPECT_EQ(found->summary, "Stub.");
+    EXPECT_EQ(found->summary, plain("Stub."));
     EXPECT_TRUE(docs.fell_back().empty());
 }
 
@@ -219,22 +224,65 @@ TEST(documentation_source, reads_the_reference_in_the_first_language_it_has) {
     auto const color = db.find_required("Windows.UI.Color");
 
     documentation_source russian{{L"ru", L"en"}, references};
-    EXPECT_EQ(russian.find(color, "T:Windows.UI.Color")->summary, "Цвет.");
+    EXPECT_EQ(russian.find(color, "T:Windows.UI.Color")->summary, plain("Цвет."));
     EXPECT_TRUE(russian.fell_back().empty());
 
     documentation_source german{{L"de", L"en"}, references};
-    EXPECT_EQ(german.find(color, "T:Windows.UI.Color")->summary, "A color.");
+    EXPECT_EQ(german.find(color, "T:Windows.UI.Color")->summary, plain("A color."));
     EXPECT_EQ(german.fell_back(), std::set<std::string>{utf8(winmd)});
 
     // Another language closes the reference and opens it again in that one.
     german.languages({L"ru", L"en"});
-    EXPECT_EQ(german.find(color, "T:Windows.UI.Color")->summary, "Цвет.");
+    EXPECT_EQ(german.find(color, "T:Windows.UI.Color")->summary, plain("Цвет."));
 
     // No file in any language: said of the metadata file, not passed over.
     documentation_source none{{L"en"}, references / "empty"};
     EXPECT_FALSE(none.find(color, "T:Windows.UI.Color"));
     EXPECT_EQ(none.undocumented(), std::set<std::string>{utf8(winmd)});
     EXPECT_TRUE(none.fell_back().empty());
+}
+
+// An image in a description is on the pages of the reference the file belongs
+// to: those of the Windows App SDK for the .xml beside its .winmd, those of the
+// Windows SDK for its reference, whatever the language.
+TEST(documentation_source, resolves_an_image_by_where_the_file_comes_from) {
+    auto const directory = scratch(L"images");
+    std::filesystem::path text_winmd;
+    for (auto&& file : rich_metadata_files()) {
+        if (file.filename() == L"Microsoft.UI.Text.winmd") {
+            text_winmd = file;
+        }
+    }
+    ASSERT_FALSE(text_winmd.empty());
+    std::filesystem::copy_file(text_winmd, directory / "Microsoft.UI.Text.winmd");
+    write_documentation(directory / "Microsoft.UI.Text.xml", "T:Microsoft.UI.Text.MarkerType",
+                        "Digits &lt;img alt=\"Circled digits.\" src=\"./microsoft.ui.text/images/digits.png\" /&gt;");
+    md::cache const beside{std::vector<std::string>{utf8(directory / "Microsoft.UI.Text.winmd")}};
+    documentation_source app_sdk{{L"ru", L"en"}, directory / "no-references"};
+    auto const marker =
+        app_sdk.find(beside.find_required("Microsoft.UI.Text.MarkerType"), "T:Microsoft.UI.Text.MarkerType");
+    ASSERT_TRUE(marker);
+    ASSERT_EQ(marker->summary.size(), 2u);
+    EXPECT_EQ(marker->summary[1].kind, doc_run::kind_t::image);
+    EXPECT_EQ(marker->summary[1].text, "Circled digits.");
+    EXPECT_EQ(marker->summary[1].url,
+              "https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.text/images/digits.png");
+
+    auto const references = directory / "references";
+    write_documentation(references / "10.0.1.0" / "Windows.Foundation.UniversalApiContract" / "1.0.0.0" / "ru" /
+                            "Windows.Foundation.UniversalApiContract.xml",
+                        "T:Windows.UI.Color",
+                        "Цвет &lt;img alt=\"Образец\" src=\"./windows.ui/images/color.png\"/&gt;");
+    std::filesystem::path const root{wxl::core::environment::variable(L"SystemRoot")};
+    ASSERT_FALSE(root.empty());
+    md::cache const windows{std::vector<std::string>{utf8(root / "System32" / "WinMetadata" / "Windows.UI.winmd")}};
+    documentation_source sdk{{L"ru", L"en"}, references};
+    auto const color = sdk.find(windows.find_required("Windows.UI.Color"), "T:Windows.UI.Color");
+    ASSERT_TRUE(color);
+    ASSERT_EQ(color->summary.size(), 2u);
+    EXPECT_EQ(color->summary[1].kind, doc_run::kind_t::image);
+    EXPECT_EQ(color->summary[1].text, "Образец");
+    EXPECT_EQ(color->summary[1].url, "https://learn.microsoft.com/uwp/api/windows.ui/images/color.png");
 }
 
 // A file that does not parse stops the documentation of its types: the error
@@ -268,7 +316,7 @@ TEST(documentation_source, keeps_the_error_of_a_file) {
     throws_naming_the_file(asked, "T:Windows.UI.Colors");
 
     documentation_source parsed{{L"en"}, references};
-    EXPECT_EQ(parsed.find(color, "T:Windows.UI.Colors")->summary, "Fine.");
+    EXPECT_EQ(parsed.find(color, "T:Windows.UI.Colors")->summary, plain("Fine."));
     EXPECT_TRUE(parsed.parsing());
     while (parsed.parse_some(std::chrono::steady_clock::now() + std::chrono::seconds{1})) {
     }
