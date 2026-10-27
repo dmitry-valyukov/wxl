@@ -9,19 +9,25 @@ them: the ruleset of `main` and the CI checks.
 
 - `main` changes only through a pull request with green CI. A GitHub ruleset
   forbids direct pushes and force-pushes, requires linear history and allows
-  merging by rebase or squash only. The merge queue merges a PR after it has
-  checked what `main` would become; GitHub deletes a merged PR's branch.
+  merging by squash only. The merge queue merges a PR after it has checked
+  what `main` would become, and squashes it into one commit: one PR, one
+  commit on `main`. GitHub deletes a merged PR's branch.
 
 ## Branch and pull request
 
 - A change lives on a branch named `wxl-<topic>`: lowercase letters and
   hyphens, such as `wxl-effects-catalog`.
 - The pull request goes from that branch into `main`; one topic per PR.
+- The PR title becomes the subject of its commit on `main`: write it the way
+  a commit subject is written (below).
 - A branch need not be updated merely because `main` has moved on: the merge
-  queue puts the PR on top of `main` itself and checks the result. When a
-  branch does need updating, use the "Update with rebase" button. Do not
-  merge `main` into the branch: linear history will not take the merge
-  commit.
+  queue puts the PR on top of `main` itself and checks the result.
+- A pushed branch is never rewritten: no force-push, no rebase of what is
+  already pushed. When a branch is behind `main` or conflicts with it,
+  `main` is merged into the branch: with the "Update branch" button, or, if
+  GitHub cannot merge it, locally, by merging the current `main` of this
+  repository with the conflict resolved in the merge commit and pushing as
+  usual.
 
 ## CI
 
@@ -51,16 +57,17 @@ error message names the rule.
 
 1. Author and committer addresses are of the form
    `…@users.noreply.github.com` (GitHub's "Keep my email address private").
-   A commit GitHub rewrites ("Update with rebase", rebase merge, the merge
-   queue) gets whoever pressed the button as its committer, also such an
-   address. The committer `GitHub <noreply@github.com>` is accepted only
-   with a signature GitHub verifies.
+   A commit GitHub makes itself (the "Update branch" merge, the merge
+   queue's squash) has the committer `GitHub <noreply@github.com>`; that
+   committer is accepted only with a signature GitHub verifies.
 2. The message has none of these lines: `Co-Authored-By` (a commit has one
    author), banner lines, trailer lines with links.
 3. Hidden directories and files (`.…`) are not part of the repository; the
    tree keeps only those listed in the check.
 4. A signature only if GitHub verifies it; an unsigned commit passes.
-5. No merge commits: the history is linear.
+5. A merge commit only merges `main` into the branch: two parents, the
+   second of them a commit of `main`; any other merge fails the check.
+   `main` itself stays linear: the queue squashes each PR into one commit.
 
 Write the message in English in the industry style: a short imperative
 subject, a blank line, and a body that says why.

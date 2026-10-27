@@ -227,12 +227,11 @@ jobs:
   # for everybody. The rules, numbered as there:
   #   1. the author and the committer addresses are GitHub's private
   #      @users.noreply.github.com ones; the names are free and need not be
-  #      equal. A commit GitHub rewrites -- "Update with rebase", a rebase
-  #      merge, the merge queue -- gets as its committer whoever pressed the
-  #      button, which is again such an address, so a contributor's commit
-  #      rewritten by a maintainer passes. A committer of exactly
-  #      GitHub <noreply@github.com> passes only with a signature, which
-  #      rule 4 then holds to one GitHub verifies;
+  #      equal. A commit GitHub makes itself -- the merge of "Update
+  #      branch", the squash of the merge queue -- has the committer
+  #      GitHub <noreply@github.com> and GitHub's signature. A committer of
+  #      exactly GitHub <noreply@github.com> passes only with a signature,
+  #      which rule 4 then holds to one GitHub verifies;
   #   2. none of these trailer lines in the message: Co-Authored-By (a commit
   #      has one author), banner lines, trailer lines that carry a link. The
   #      patterns are case-sensitive and anchored at the start of a line,
@@ -244,11 +243,25 @@ jobs:
   #      the script below, which are exactly the ones the tree tracks. A bare
   #      entry, such as a symbolic link or a submodule at that path, counts
   #      as well; a new hidden entry is added to the list deliberately, in a
-  #      change of its own;
+  #      change of its own. A merge is read against its first parent, the
+  #      branch: the paths that come from main are tracked already, and a
+  #      hidden entry the resolution of a conflict adds is caught;
   #   4. a signed commit is one GitHub verifies: a key GitHub does not know
   #      makes an unverifiable commit, an unsigned one passes;
-  #   5. no merge commit: the ruleset requires linear history, so a merge
-  #      would not land anyway, and the rules above are not read for it.
+  #   5. a merge commit only of main into the branch: exactly two parents,
+  #      the second of them a commit of main. That is how a branch behind
+  #      main or in conflict with it catches up: by "Update branch", or by a
+  #      merge by hand with the conflict resolved in it. A merge of another
+  #      branch, of a commit main does not have, or of more than two parents
+  #      is a fault. Rules 1 to 4 hold for a merge as for any other commit.
+  #      The merge queue squashes a pull request into one commit, so a
+  #      candidate brings no merge into main, and main stays linear.
+  # Main is the main the checkout fetched -- fetch-depth 0 fetches every
+  # branch -- not the base of the event: nothing promises that the base a
+  # pull_request event carries is as new as the main the branch has merged,
+  # while main only moves forward and the checkout comes after the push, so
+  # the fetched main has every commit a branch could merge. The commits of
+  # main a merge brings are left out of the range: main has them already.
   # A run by hand has no range of commits to check.
   commits:
     name: commits
@@ -259,9 +272,9 @@ jobs:
       run:
         shell: bash
     steps:
-      # The whole history: the range starts at the base, which a shallow clone
-      # of the pull request's merge ref does not reach. The job pushes
-      # nothing, so no token stays in .git.
+      # The whole history of every branch: the range starts at the base and
+      # at main, which a shallow clone of the pull request's merge ref does
+      # not reach. The job pushes nothing, so no token stays in .git.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -311,7 +324,12 @@ jobs:
             faults=$((faults + 1))
           }
 
-          commits=$(git rev-list --reverse "$BASE_SHA..$HEAD_SHA")
+          if ! main_tip=$(git rev-parse --verify -q 'refs/remotes/origin/main^{commit}'); then
+            echo "::error::main is not fetched"
+            exit 1
+          fi
+
+          commits=$(git rev-list --reverse "$HEAD_SHA" --not "$BASE_SHA" "$main_tip")
           count=0
           for sha in $commits; do
             count=$((count + 1))
@@ -319,10 +337,16 @@ jobs:
             subject=$(git log -1 --format=%s "$sha")
             echo "$short ${subject//$'\r'/ }"
 
+            # The commit itself, then its parents.
             read -ra parents <<< "$(git rev-list --parents -n 1 "$sha")"
+            merge=false
             if [ "${#parents[@]}" -gt 2 ]; then
-              fault 5 "a merge commit; the history of main is linear"
-              continue
+              merge=true
+            fi
+            if [ "${#parents[@]}" -gt 3 ]; then
+              fault 5 "a merge of $((${#parents[@]} - 1)) parents; only main is merged into a branch"
+            elif [ "$merge" = true ] && ! git merge-base --is-ancestor "${parents[2]}" "$main_tip"; then
+              fault 5 "a merge of $(git rev-parse --short "${parents[2]}"), which main does not have; only main is merged into a branch"
             fi
 
             # %ae and %cn, not %aE and %cN: the identity as recorded, without
@@ -362,8 +386,14 @@ jobs:
             fi
 
             # -z: a path is printed as it is, not quoted; --root: the paths of
-            # a commit without a parent as well. The path is split on / by
-            # parameter expansion, which keeps any other character in it.
+            # a commit without a parent as well; a merge against its first
+            # parent. The path is split on / by parameter expansion, which
+            # keeps any other character in it.
+            if [ "$merge" = true ]; then
+              changed=(git diff-tree --no-commit-id --name-only -r -z "${parents[1]}" "$sha")
+            else
+              changed=(git diff-tree --no-commit-id --name-only -r -z --root "$sha")
+            fi
             while IFS= read -r -d '' path; do
               rest=$path
               while :; do
@@ -377,7 +407,7 @@ jobs:
                 fi
                 rest=${rest#*/}
               done
-            done < <(git diff-tree --no-commit-id --name-only -r -z --root "$sha")
+            done < <("${changed[@]}")
 
             if [ "$signed" = true ]; then
               if ! verified=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq .commit.verification.verified); then
@@ -389,7 +419,7 @@ jobs:
           done
 
           if [ "$count" -eq 0 ]; then
-            echo "::error::no commits in $BASE_SHA..$HEAD_SHA"
+            echo "::error::no commits in $BASE_SHA..$HEAD_SHA that main does not have"
             exit 1
           fi
           if [ "$faults" -ne 0 ]; then
