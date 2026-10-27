@@ -31,11 +31,13 @@ using namespace wxl::async;
 
 namespace {
 
-// A source that may not be there is one pointer, as the source itself is: its empty value is the
-// one a source is moved into (detail::cancellation_source_sentinel), and the sentinel reads the
-// source as that pointer.
+// A source or a token that may not be there is one pointer, as each itself is: the empty value is
+// the null state (detail::cancellation_sentinel) -- for a source the one it is moved into, for a
+// token the one a default token has -- and the sentinel reads the object as that pointer.
 static_assert(sizeof(cancellation_source) == sizeof(void*));
 static_assert(sizeof(nullable<cancellation_source>) == sizeof(cancellation_source));
+static_assert(sizeof(cancellation_token) == sizeof(void*));
+static_assert(sizeof(nullable<cancellation_token>) == sizeof(cancellation_token));
 
 /// What the operations of one test saw and did, kept outside them: an operation is deleted
 /// whenever its turn comes, and the test looks afterwards.

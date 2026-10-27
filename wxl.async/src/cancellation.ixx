@@ -459,23 +459,26 @@ private:
 
 namespace detail {
 
-// The empty source of core::nullable<cancellation_source>. A source has an empty value of its own:
-// the one it is left in when it is moved from, its state null. Its destructor does nothing then
-// (`if (state_)`), so an empty optional costs nothing to destroy, and assigning over it cancels
-// nothing. There is no constructor for it on purpose -- a source a caller makes is a right to work
-// -- so, as with func_sentinel in wxl.core, the empty one is a null pointer read as the source it
-// is the whole of: the source is one intrusive_ptr, and the pointer is exactly its shape. The
-// sentinel moves out of that null, which reads the pointer and writes it null again.
-struct cancellation_source_sentinel {
-    static cancellation_source sentinel() noexcept {
+// The empty value of core::nullable<cancellation_source> and core::nullable<cancellation_token>:
+// both are one intrusive_ptr to the state and nothing else, so the empty one is that pointer null,
+// read as the object it is the whole of -- as with func_sentinel in wxl.core. The sentinel moves
+// out of that null, which reads the pointer and writes it null again; is_sentinel reads it back
+// the same way, without a friendship with the private state_.
+//
+// A source has that value already: the one it is left in when it is moved from. Its destructor
+// does nothing then (`if (state_)`), so an empty optional costs nothing to destroy, and assigning
+// over it cancels nothing; there is no constructor for it on purpose -- a source a caller makes is
+// a right to work. A token's null state is the same bits as a default token, the one with no
+// source, so such a token put in a nullable reads as empty.
+template <class T>
+struct cancellation_sentinel {
+    static T sentinel() noexcept {
         void* empty = nullptr;
-        return std::move(*reinterpret_cast<cancellation_source*>(&empty));
+        return std::move(*reinterpret_cast<T*>(&empty));
     }
 
-    // Read back the way sentinel() wrote it. A source moved from reads as empty too: it is the
-    // same state.
-    static bool is_sentinel(cancellation_source const& source) noexcept {
-        return *reinterpret_cast<void* const*>(&source) == nullptr;
+    static bool is_sentinel(T const& value) noexcept {
+        return *reinterpret_cast<void* const*>(&value) == nullptr;
     }
 };
 
@@ -492,7 +495,15 @@ struct optional_selector<async::cancellation_source> {
     /// The type of an optional source: a `wxl::core::compressed_optional` whose empty value is
     /// the state of a moved-from source.
     using nullable = compressed_optional<async::cancellation_source,
-                                         async::detail::cancellation_source_sentinel>;
+                                         async::detail::cancellation_sentinel<async::cancellation_source>>;
+};
+
+// The same for a token: one pointer. A default token -- no source -- has the null state, the same
+// bits as the empty one, so put in a nullable it reads as empty.
+template <>
+struct optional_selector<async::cancellation_token> {
+    using nullable = compressed_optional<async::cancellation_token,
+                                         async::detail::cancellation_sentinel<async::cancellation_token>>;
 };
 
 }  // export namespace wxl::core
