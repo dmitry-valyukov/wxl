@@ -43,10 +43,10 @@ public:
     /// What list() brings back: an `entry` that owns its name, since the listing
     /// it was read from is gone by the time anybody looks.
     struct listed_entry {
-        std::wstring name;                                  ///< The name of the file or directory.
-        bool is_directory = false;                          ///< Whether the entry is a directory.
-        std::uint64_t size = 0;                             ///< The file size, in bytes.
-        std::chrono::file_clock::time_point last_write{};   ///< The time of the last write.
+        std::wstring name;                                 ///< The name of the file or directory.
+        bool is_directory = false;                         ///< Whether the entry is a directory.
+        std::uint64_t size = 0;                            ///< The file size, in bytes.
+        std::chrono::file_clock::time_point last_write{};  ///< The time of the last write.
     };
 
     async_directory() = default;
@@ -116,7 +116,8 @@ public:
     static task<async_directory> open(const core::path& pattern, cancellation_token token);
 
     /// Lists everything that \p pattern matches; the operation can be canceled through \p token.
-    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern, cancellation_token token);
+    [[nodiscard]] static task<std::vector<listed_entry>> list(const core::path& pattern,
+                                                              cancellation_token token);
 
     /// Returns the next entry, or `std::nullopt` when the enumeration is over; the operation can
     /// be canceled through \p token.

@@ -45,22 +45,22 @@ bool orphan_state::end() noexcept {
 
     for (;;) {
         switch (found) {
-        // Whoever cancelled the operation or gave it up may be aborting the call
-        // this thread stood in. Until that is over the thread stays here: the next call it
-        // makes is somebody else's.
-        case stage::cancelling_io:
-            stage_.wait(found);
-            found = stage_.load();
-            break;
+            // Whoever cancelled the operation or gave it up may be aborting the call
+            // this thread stood in. Until that is over the thread stays here: the next call it
+            // makes is somebody else's.
+            case stage::cancelling_io:
+                stage_.wait(found);
+                found = stage_.load();
+                break;
 
-        // Cancelled, it keeps what it made -- unless it is given up meanwhile, which the
-        // exchange settles with the thread giving it up.
-        case stage::canceled:
-            if (stage_.compare_exchange_strong(found, stage::finished)) return true;
-            break;
+            // Cancelled, it keeps what it made -- unless it is given up meanwhile, which the
+            // exchange settles with the thread giving it up.
+            case stage::canceled:
+                if (stage_.compare_exchange_strong(found, stage::finished)) return true;
+                break;
 
-        default:
-            return false;
+            default:
+                return false;
         }
     }
 }
@@ -70,28 +70,28 @@ bool orphan_state::abandon() noexcept {
 
     for (;;) {
         switch (found) {
-        case stage::waiting:
-            if (stage_.compare_exchange_strong(found, stage::abandoned)) return false;
-            break;
+            case stage::waiting:
+                if (stage_.compare_exchange_strong(found, stage::abandoned)) return false;
+                break;
 
-        // Cancelled before, its call has been aborted once; the body may have gone on to
-        // another since, which is aborted the same way.
-        case stage::running:
-        case stage::canceled:
-            if (!stage_.compare_exchange_strong(found, stage::cancelling_io)) break;
+            // Cancelled before, its call has been aborted once; the body may have gone on to
+            // another since, which is aborted the same way.
+            case stage::running:
+            case stage::canceled:
+                if (!stage_.compare_exchange_strong(found, stage::cancelling_io)) break;
 
-            cancel_synchronous_io();
+                cancel_synchronous_io();
 
-            stage_.store(stage::abandoned);
-            stage_.notify_one();
-            return false;
+                stage_.store(stage::abandoned);
+                stage_.notify_one();
+                return false;
 
-        case stage::finished:
-            if (stage_.compare_exchange_strong(found, stage::abandoned)) return true;
-            break;
+            case stage::finished:
+                if (stage_.compare_exchange_strong(found, stage::abandoned)) return true;
+                break;
 
-        default:
-            return false;
+            default:
+                return false;
         }
     }
 }
@@ -101,24 +101,24 @@ void orphan_state::cancel() noexcept {
 
     for (;;) {
         switch (found) {
-        // Not started, it does not start, as one given up does not: the worker that reaches
-        // it answers the cancellation.
-        case stage::waiting:
-            if (stage_.compare_exchange_strong(found, stage::abandoned)) return;
-            break;
+            // Not started, it does not start, as one given up does not: the worker that reaches
+            // it answers the cancellation.
+            case stage::waiting:
+                if (stage_.compare_exchange_strong(found, stage::abandoned)) return;
+                break;
 
-        case stage::running:
-            if (!stage_.compare_exchange_strong(found, stage::cancelling_io)) break;
+            case stage::running:
+                if (!stage_.compare_exchange_strong(found, stage::cancelling_io)) break;
 
-            cancel_synchronous_io();
+                cancel_synchronous_io();
 
-            stage_.store(stage::canceled);
-            stage_.notify_one();
-            return;
+                stage_.store(stage::canceled);
+                stage_.notify_one();
+                return;
 
-        // Finished first, it keeps what it made.
-        default:
-            return;
+            // Finished first, it keeps what it made.
+            default:
+                return;
         }
     }
 }

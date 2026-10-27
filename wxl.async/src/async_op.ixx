@@ -224,7 +224,8 @@ public:
     /// \warning The op may be gone by the time this returns: a resumed coroutine goes
     ///          on from its co_await, and the task holding the op dies with it.
     inline bool complete() {
-        if (abandoned_) [[unlikely]] return complete_without_task();
+        if (abandoned_) [[unlikely]]
+            return complete_without_task();
 
         ready_ = true;
 
@@ -507,9 +508,10 @@ public:
     using async_op::async_op;
 
     ~async_op_t() override {
-        coro_check(made_ == (!error_kept() && ready_),
-                   "async_op_t: a producer ready without an error holds its value, and no other does",
-                   detail::site::current());
+        coro_check(
+            made_ == (!error_kept() && ready_),
+            "async_op_t: a producer ready without an error holds its value, and no other does",
+            detail::site::current());
 
         if constexpr (!std::is_trivially_destructible_v<R>) {
             if (!error_kept() && ready_) std::destroy_at(&value());
@@ -690,7 +692,8 @@ public:
     }
 
 private:
-    enum class stage : std::uint8_t {
+    enum class stage : std::uint8_t
+    {
         waiting,
         running,
         finished,
@@ -719,16 +722,14 @@ concept takes_orphan_state = std::invocable<Fn&, const orphan_state&>;
 
 /// Provides the result type of an orphanable body `Fn` that takes no argument.
 template <class Fn>
-struct orphanable_result
-{
+struct orphanable_result {
     /// The type that `Fn` returns when called with no argument.
     using type = std::invoke_result_t<Fn&>;
 };
 
 /// Provides the result type of an orphanable body `Fn` that takes its `wxl::async::orphan_state`.
 template <takes_orphan_state Fn>
-struct orphanable_result<Fn>
-{
+struct orphanable_result<Fn> {
     /// The type that `Fn` returns when called with a `const orphan_state&`.
     using type = std::invoke_result_t<Fn&, const orphan_state&>;
 };
@@ -835,7 +836,8 @@ public:
     inline explicit cancelable_operation(cancellation_token token, Args&&... args)
         : base(std::forward<Args>(args)...), token_(std::move(token)), registration_(*this) {
         coro_check(!cancellation_state_of(token_)->canceled(),
-                   "cancelable_operation: made under a token cancelled already", detail::site::current());
+                   "cancelable_operation: made under a token cancelled already",
+                   detail::site::current());
 
         registration_.register_with(*cancellation_state_of(token_));
     }

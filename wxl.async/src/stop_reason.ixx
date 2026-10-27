@@ -40,8 +40,8 @@ public:
     inline bool stopped_due_to_error() const { return !!error_; }
 
     /// Creates a stop reason whose error is a copy of the exception \p ex.
-    template<class t_exception>
-    static stop_reason from(const t_exception & ex) {
+    template <class t_exception>
+    static stop_reason from(const t_exception& ex) {
         return stop_reason(std::make_exception_ptr(ex));
     }
 
@@ -54,12 +54,12 @@ private:
 };
 
 /// Tests whether \p l and \p r hold the same error: the same exception object, or none.
-inline bool operator==(const stop_reason & l, const stop_reason & r) {
+inline bool operator==(const stop_reason& l, const stop_reason& r) {
     return l.error() == r.error();
 }
 
 /// Writes the description of a stop reason, as `wxl::async::stop_reason::to_string` returns it,
 /// to a stream.
-std::ostream & operator<<(std::ostream &, const stop_reason &);
+std::ostream& operator<<(std::ostream&, const stop_reason&);
 
 }  // export namespace wxl::async

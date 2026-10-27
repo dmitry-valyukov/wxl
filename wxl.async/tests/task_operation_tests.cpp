@@ -57,14 +57,14 @@ task<int> ask_the_worker(hevent* gate = nullptr) {
 /// this is how one comes to await it from another thread.
 struct to_another_thread {
     bool await_ready() const noexcept { return false; }
-    void await_suspend(std::coroutine_handle<> here) const { std::thread([here] { here.resume(); }).join(); }
+    void await_suspend(std::coroutine_handle<> here) const {
+        std::thread([here] { here.resume(); }).join();
+    }
     void await_resume() const noexcept {}
 };
 
 /// Joins an operation somebody else keeps: co_await of an lvalue.
-task<> joins(task<int>& kept, int& got) {
-    got = co_await kept;
-}
+task<> joins(task<int>& kept, int& got) { got = co_await kept; }
 
 task<int> awaits_twice(task<int>& op) {
     (void)co_await op;
@@ -294,12 +294,13 @@ TEST_F(TaskOperationStrictDeathTest, ASecondJoinNamesItsCoAwait) {
 }
 
 TEST_F(TaskOperationStrictDeathTest, AForeignJoinNamesItsCoAwait) {
-    EXPECT_DEATH(await_from_another_thread(),
-                 place_of(line_of_the_foreign_join) + "task: awaited from a thread other than its own");
+    EXPECT_DEATH(await_from_another_thread(), place_of(line_of_the_foreign_join) +
+                                                  "task: awaited from a thread other than its own");
 }
 
 // What the loop starts and what a coroutine returns are one type, one pointer wide.
 static_assert(std::is_same_v<decltype(sta_loop::async_call(std::declval<int (*)()>())), task<int>>);
-static_assert(std::is_same_v<decltype(sta_loop::async_call(orphanable, std::declval<int (*)()>())), task<int>>);
+static_assert(std::is_same_v<decltype(sta_loop::async_call(orphanable, std::declval<int (*)()>())),
+                             task<int>>);
 static_assert(std::is_same_v<decltype(sta_loop::call_here(std::declval<int (*)()>())), task<int>>);
 static_assert(sizeof(task<int>) == sizeof(void*));

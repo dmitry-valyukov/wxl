@@ -1,7 +1,5 @@
 #pragma once
 
-
-
 #include "stress_test.h"
 
 import std;
@@ -16,7 +14,8 @@ using namespace wxl::core;
 
 /// Lifecycle methods tracked by test_component.
 struct component_method {
-    enum enum_ {
+    enum enum_
+    {
         not_set,
 
         on_starting,
@@ -32,34 +31,51 @@ struct component_method {
     };
 };
 
-inline std::ostream & operator<<(std::ostream & s, component_method::enum_ value) {
+inline std::ostream& operator<<(std::ostream& s, component_method::enum_ value) {
     switch (value) {
-    case component_method::on_starting: return s << "on_starting";
-    case component_method::rollback_start: return s << "rollback_start";
-    case component_method::on_started: return s << "on_started";
-    case component_method::run: return s << "run";
-    case component_method::on_moved_in: return s << "on_moved_in";
-    case component_method::on_moved_out: return s << "on_moved_out";
-    case component_method::on_stopping: return s << "on_stopping";
-    case component_method::on_stopped: return s << "on_stopped";
-    default: return s << "(#error)";
+        case component_method::on_starting:
+            return s << "on_starting";
+        case component_method::rollback_start:
+            return s << "rollback_start";
+        case component_method::on_started:
+            return s << "on_started";
+        case component_method::run:
+            return s << "run";
+        case component_method::on_moved_in:
+            return s << "on_moved_in";
+        case component_method::on_moved_out:
+            return s << "on_moved_out";
+        case component_method::on_stopping:
+            return s << "on_stopping";
+        case component_method::on_stopped:
+            return s << "on_stopped";
+        default:
+            return s << "(#error)";
     }
 }
 
 /// Order in which the fault is injected relative to the base implementation's own work.
 struct method_throw_order {
-    enum enum_ { before, after };
+    enum enum_
+    {
+        before,
+        after
+    };
 };
 
-inline std::ostream & operator<<(std::ostream & s, method_throw_order::enum_ value) {
+inline std::ostream& operator<<(std::ostream& s, method_throw_order::enum_ value) {
     return s << (value == method_throw_order::before ? "before" : "after");
 }
 
 struct expected {
-    enum enum_ { ok, fail };
+    enum enum_
+    {
+        ok,
+        fail
+    };
 };
 
-inline std::ostream & operator<<(std::ostream & s, expected::enum_ value) {
+inline std::ostream& operator<<(std::ostream& s, expected::enum_ value) {
     return s << (value == expected::ok ? "OK" : "fail");
 }
 
@@ -95,17 +111,12 @@ public:
     test_component() noexcept = default;
 
     virtual ~test_component() {
-        if (is_deleted_promise_.valid())
-            is_deleted_promise_.set_value();
+        if (is_deleted_promise_.valid()) is_deleted_promise_.set_value();
     }
 
-    bool on_started_called() const {
-        return was_called(component_method::on_started);
-    }
+    bool on_started_called() const { return was_called(component_method::on_started); }
 
-    bool on_stopped_called() const {
-        return was_called(component_method::on_stopped);
-    }
+    bool on_stopped_called() const { return was_called(component_method::on_stopped); }
 
     bool was_called(component_method::enum_ method) const {
         return method_calls_.was_called(method);
@@ -130,7 +141,7 @@ private:
 
 /// Mixes test_component's tracking/fault-injection into a real component
 /// (or derivative) type TBase.
-template<class TBase>
+template <class TBase>
 class test_component_impl : public TBase, public test_component
 {
     typedef TBase base;
@@ -144,22 +155,21 @@ public:
     using base::start_async;
 
 protected:
-    explicit test_component_impl(std::string_view name)
-        : base(name) {}
+    explicit test_component_impl(std::string_view name) : base(name) {}
 
     test_component_impl(std::string_view name, not_null<wxl::core::sync_root> sync_root_arg)
         : base(name, sync_root_arg.get()) {}
 
-    test_component_impl(std::string_view name, thread_group * manager)
-        : base(name, manager) {}
+    test_component_impl(std::string_view name, thread_group* manager) : base(name, manager) {}
 
-    test_component_impl(std::string_view name, thread_group * manager, not_null<wxl::core::sync_root> sync_root_arg)
+    test_component_impl(std::string_view name, thread_group* manager,
+                        not_null<wxl::core::sync_root> sync_root_arg)
         : base(name, manager, sync_root_arg.get()) {}
 
     /// For apartment_pool, whose constructor takes the desired thread count in the middle.
     /// Nothing in this binary uses it any more: apartment_pool and its suites are kept
     /// outside this tree and include this header from there.
-    test_component_impl(std::string_view name, size_t thread_count, thread_group * manager)
+    test_component_impl(std::string_view name, size_t thread_count, thread_group* manager)
         : base(name, thread_count, manager) {}
 
     void on_starting() override {
@@ -204,7 +214,7 @@ protected:
         on_after(component_method::on_stopped);
 
         if (self_delete_) {
-            test_component * self = this;
+            test_component* self = this;
             this->stop_ticket().when_ready([self]() noexcept { delete self; });
         }
     }

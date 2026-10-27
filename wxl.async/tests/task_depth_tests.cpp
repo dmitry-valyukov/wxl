@@ -207,11 +207,13 @@ task<int> bottom(chain_state& c, cancellation_token token) {
     }
 
     if (c.bottom == bottom_kind::worker_failure)
-        co_return co_await sta_loop::async_call([]() -> int { throw std::runtime_error("from the worker"); });
+        co_return co_await sta_loop::async_call(
+            []() -> int { throw std::runtime_error("from the worker"); });
 
     const int value = co_await sta_loop::async_call([] { return 1000; }, token);
 
-    if (c.bottom == bottom_kind::coroutine_failure) throw std::runtime_error("from the bottom coroutine");
+    if (c.bottom == bottom_kind::coroutine_failure)
+        throw std::runtime_error("from the bottom coroutine");
 
     co_return value;
 }

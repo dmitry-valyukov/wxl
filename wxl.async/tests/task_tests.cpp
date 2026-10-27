@@ -62,7 +62,8 @@ heap_task heap_suspends_once(int& sink) {
 /// task: from any other, behind an erased handle or a promise of its own, the co_await
 /// does not compile.
 template <class Awaiter, class Handle>
-constexpr bool suspends_from = requires(Awaiter& awaiter, Handle handle) { awaiter.await_suspend(handle); };
+constexpr bool suspends_from =
+    requires(Awaiter& awaiter, Handle handle) { awaiter.await_suspend(handle); };
 
 using task_handle = std::coroutine_handle<task<>::promise_type>;
 using value_task_handle = std::coroutine_handle<task<std::string>::promise_type>;
@@ -101,9 +102,7 @@ task<int> answers_after_a_pause(std::coroutine_handle<>& slot, int& deaths) {
     co_return 42;
 }
 
-task<int> answers_at_once() {
-    co_return 7;
-}
+task<int> answers_at_once() { co_return 7; }
 
 /// Throws, and to the compiler "gives" a T: the body of a coroutine with a value
 /// has to end in co_return, and MSVC does not count a throw as its end.
@@ -117,18 +116,14 @@ task<std::string> fails_after_a_pause(std::coroutine_handle<>& slot) {
     co_return fail_with<std::string>("inner");
 }
 
-task<std::unique_ptr<int>> hands_over_ownership() {
-    co_return std::make_unique<int>(5);
-}
+task<std::unique_ptr<int>> hands_over_ownership() { co_return std::make_unique<int>(5); }
 
 task<> awaits_the_pause(std::coroutine_handle<>& slot, int& got, int& deaths) {
     notes_death guard{deaths};
     got = co_await answers_after_a_pause(slot, deaths);
 }
 
-task<> awaits_at_once(int& got) {
-    got = co_await answers_at_once();
-}
+task<> awaits_at_once(int& got) { got = co_await answers_at_once(); }
 
 task<> catches_from_the_inner(std::coroutine_handle<>& slot, std::string& what) {
     try {
@@ -160,9 +155,7 @@ std::string failure_of(Task& t) {
 
 /// Fails before its first co_await: by the time the call returns, the task is done
 /// and the exception is in its frame.
-task<int> fails_at_once(const char* what) {
-    co_return fail_with<int>(what);
-}
+task<int> fails_at_once(const char* what) { co_return fail_with<int>(what); }
 
 task<> catches_from_an_inner_that_never_suspended(std::string& what) {
     try {
@@ -176,9 +169,7 @@ task<int> passes_on_an_inner_that_never_suspended() {
     co_return 1 + co_await fails_at_once("passed on");
 }
 
-task<> passes_on_a_failure_at_once() {
-    co_await throws("passed on, without a value");
-}
+task<> passes_on_a_failure_at_once() { co_await throws("passed on, without a value"); }
 
 /// What the links of a chain of three saw: the bottom one parks in `slot` and fails
 /// once resumed; the middle one stands between it and the top.
@@ -337,9 +328,7 @@ task<> awaits_twice(task<>& failed, int& caught) {
     }
 }
 
-task<int> owes_a_value_and_fails() {
-    co_return fail_with<int>("at once");
-}
+task<int> owes_a_value_and_fails() { co_return fail_with<int>("at once"); }
 
 /// An awaitable that merely names a task among its template arguments, which
 /// is enough for argument-dependent lookup to bring the task's own co_await.
@@ -561,9 +550,9 @@ TEST(TaskTest, TwoInFlightStartInTheOrderTheyAreCalled) {
 
     EXPECT_TRUE(outer.done());
     EXPECT_NO_THROW(outer.result());
-    EXPECT_EQ(log.events, (std::vector<std::string>{"a starts", "b starts", "both started",
-                                                    "a lands", "outer has a", "b lands",
-                                                    "outer has b"}));
+    EXPECT_EQ(log.events,
+              (std::vector<std::string>{"a starts", "b starts", "both started", "a lands",
+                                        "outer has a", "b lands", "outer has b"}));
     EXPECT_EQ(sum, 3);
     EXPECT_EQ(log.given_up, 0);
 }
@@ -580,17 +569,17 @@ TEST(TaskTest, TwoInFlightMayEndInTheOtherOrder) {
     log.b.resume();
 
     EXPECT_FALSE(outer.done());
-    EXPECT_EQ(log.events, (std::vector<std::string>{"a starts", "b starts", "both started",
-                                                    "b lands"}));
+    EXPECT_EQ(log.events,
+              (std::vector<std::string>{"a starts", "b starts", "both started", "b lands"}));
 
     ASSERT_TRUE(log.a);
     log.a.resume();
 
     EXPECT_TRUE(outer.done());
     EXPECT_NO_THROW(outer.result());
-    EXPECT_EQ(log.events, (std::vector<std::string>{"a starts", "b starts", "both started",
-                                                    "b lands", "a lands", "outer has a",
-                                                    "outer has b"}));
+    EXPECT_EQ(log.events,
+              (std::vector<std::string>{"a starts", "b starts", "both started", "b lands",
+                                        "a lands", "outer has a", "outer has b"}));
     EXPECT_EQ(sum, 3);
 }
 
@@ -713,7 +702,8 @@ TEST(TaskTest, HowItEndedIsAskedWithoutThrowing) {
     } catch (const std::runtime_error& failure) {
         EXPECT_STREQ(failure.what(), "at once");
     }
-    EXPECT_EQ(failed.get_exception_ptr(), failed.get_exception_ptr()) << "asked again, the same exception";
+    EXPECT_EQ(failed.get_exception_ptr(), failed.get_exception_ptr())
+        << "asked again, the same exception";
     EXPECT_THROW((void)failed.result(), std::runtime_error);
 }
 
@@ -882,13 +872,9 @@ public:
     }
 };
 
-[[noreturn]] counted_value fail_counted() {
-    throw counted_failure();
-}
+[[noreturn]] counted_value fail_counted() { throw counted_failure(); }
 
-task<counted_value> fails_counted() {
-    co_return fail_counted();
-}
+task<counted_value> fails_counted() { co_return fail_counted(); }
 
 task<counted_value> answers_counted_after_a_pause(std::coroutine_handle<>& slot) {
     co_await parked{slot};
@@ -905,7 +891,11 @@ template <class R>
 class answered_here final : public async_op_t<R>
 {
 public:
-    void answer_value() requires(!std::is_void_v<R>) { this->set_value(R{}); }
+    void answer_value()
+        requires(!std::is_void_v<R>)
+    {
+        this->set_value(R{});
+    }
 
     void answer_failure() {
         try {
@@ -1143,7 +1133,9 @@ void report_failures_to_stderr() {
 /// as a hop to a thread pool would.
 struct to_another_thread {
     bool await_ready() const noexcept { return false; }
-    void await_suspend(std::coroutine_handle<> here) const { std::thread([here] { here.resume(); }).join(); }
+    void await_suspend(std::coroutine_handle<> here) const {
+        std::thread([here] { here.resume(); }).join();
+    }
     void await_resume() const noexcept {}
 };
 
@@ -1248,9 +1240,7 @@ std::string place_of(std::string_view file, std::uint_least32_t line) {
 
 /// The report of a check in task's own code, a destructor, which no line of the caller
 /// reaches: the place is wxl's.
-std::string in_task(std::string_view why) {
-    return std::format("task\\..*\\(.*\\): {}", why);
-}
+std::string in_task(std::string_view why) { return std::format("task\\..*\\(.*\\): {}", why); }
 
 // Each misuse a strict build reports with the caller's line sits alone on the line
 // below the one that records it.
@@ -1420,7 +1410,8 @@ TEST_F(TaskDeathTest, TheExceptionIsAskedOfATaskThatHasOne) {
 }
 
 TEST_F(TaskDeathTest, AnEmptyTaskHasNotEnded) {
-    EXPECT_DEATH(ask_an_empty_task_how_it_ended(), "task: empty -- default-constructed or moved-from");
+    EXPECT_DEATH(ask_an_empty_task_how_it_ended(),
+                 "task: empty -- default-constructed or moved-from");
 }
 
 TEST_F(TaskDeathTest, ATaskIsAwaitedOnItsOwnThread) {
@@ -1453,12 +1444,13 @@ TEST_F(TaskDeathTest, ADestructorThatThrowsAfterTheCoReturnStops) {
 
 TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTwice) {
     EXPECT_DEATH(take_the_value_twice_by_result(),
-                 place_of("task_tests\\.cpp", line_of_the_second_take) + "task: the value has already been taken");
+                 place_of("task_tests\\.cpp", line_of_the_second_take) +
+                     "task: the value has already been taken");
 }
 
 TEST_F(TaskStrictDeathTest, ResultNamesTheLineThatAskedTooEarly) {
-    EXPECT_DEATH(ask_too_early(),
-                 place_of("task_tests\\.cpp", line_of_the_early_ask) + "task: result\\(\\) asked before it ended");
+    EXPECT_DEATH(ask_too_early(), place_of("task_tests\\.cpp", line_of_the_early_ask) +
+                                      "task: result\\(\\) asked before it ended");
 }
 
 TEST_F(TaskStrictDeathTest, GetExceptionPtrNamesTheLineThatAsked) {
@@ -1475,12 +1467,14 @@ TEST_F(TaskStrictDeathTest, ATaskAwaitingNamesItsCoAwait) {
 
 TEST_F(TaskStrictDeathTest, ASecondCoAwaitNamesItsLine) {
     EXPECT_DEATH(take_the_value_twice_by_co_await(),
-                 place_of("task_tests\\.cpp", line_of_the_second_await) + "task: the value has already been taken");
+                 place_of("task_tests\\.cpp", line_of_the_second_await) +
+                     "task: the value has already been taken");
 }
 
 TEST_F(TaskStrictDeathTest, AForeignThreadNamesTheCoAwait) {
     EXPECT_DEATH(await_from_another_thread(),
-                 place_of("task_tests\\.cpp", line_of_the_foreign_join) + "task: awaited from a thread other than its own");
+                 place_of("task_tests\\.cpp", line_of_the_foreign_join) +
+                     "task: awaited from a thread other than its own");
 }
 
 TEST_F(TaskStrictDeathTest, AMovedFromTaskNamesTheCoAwait) {
@@ -1491,6 +1485,7 @@ TEST_F(TaskStrictDeathTest, AMovedFromTaskNamesTheCoAwait) {
 
 TEST_F(TaskStrictDeathTest, ADestructorNamesTheReasonAndItsOwnPlace) {
     EXPECT_DEATH(drop_a_joined_task(), in_task("task: destroyed while a coroutine joins it"));
-    EXPECT_DEATH(drop_the_chain_from_inside(),
-                 in_task("task: destroyed while its coroutine runs -- dropped from inside its own chain"));
+    EXPECT_DEATH(
+        drop_the_chain_from_inside(),
+        in_task("task: destroyed while its coroutine runs -- dropped from inside its own chain"));
 }

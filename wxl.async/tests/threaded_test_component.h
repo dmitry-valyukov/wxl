@@ -1,7 +1,5 @@
 #pragma once
 
-
-
 #include "exception_matrix_helper.h"
 #include "test_component.h"
 
@@ -18,9 +16,12 @@ using namespace wxl::core;
 class threaded_test_component : public test_component_impl<threaded_component>
 {
 public:
-    explicit threaded_test_component(std::string_view name = "threaded component", thread_group * manager = nullptr, bool call_dispose = true) noexcept;
+    explicit threaded_test_component(std::string_view name = "threaded component",
+                                     thread_group* manager = nullptr,
+                                     bool call_dispose = true) noexcept;
 
-    threaded_test_component(std::string_view name, thread_group * manager, not_null<wxl::core::sync_root> sync_root_arg, bool call_dispose = true);
+    threaded_test_component(std::string_view name, thread_group* manager,
+                            not_null<wxl::core::sync_root> sync_root_arg, bool call_dispose = true);
 
     ~threaded_test_component() override;
 

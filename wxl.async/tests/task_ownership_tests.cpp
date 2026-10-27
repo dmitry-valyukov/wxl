@@ -157,8 +157,8 @@ TEST(TaskOwnershipTest, WhatLeftTheBodyIsReadFromTheTask) {
 
     std::coroutine_handle<> waiter;
     bool released = false;
-    task<> later = waits_then_finishes_throwing(waiter, &released,
-                                                std::make_exception_ptr(std::runtime_error("after the wait")));
+    task<> later = waits_then_finishes_throwing(
+        waiter, &released, std::make_exception_ptr(std::runtime_error("after the wait")));
     waiter.resume();
 
     EXPECT_TRUE(released);
@@ -404,14 +404,15 @@ task<int> passes_the_answer_on(std::coroutine_handle<>& out, std::exception_ptr 
     co_return 1 + co_await answers_when_resumed(out, error);
 }
 
-task<> awaits_the_answer(std::coroutine_handle<>& out, std::exception_ptr error, int& got, bool* released) {
+task<> awaits_the_answer(std::coroutine_handle<>& out, std::exception_ptr error, int& got,
+                         bool* released) {
     const Trace trace{released};
 
     got = co_await answers_when_resumed(out, error);
 }
 
-task<> awaits_the_answer_through_a_chain(std::coroutine_handle<>& out, std::exception_ptr error, int& got,
-                                         bool* released) {
+task<> awaits_the_answer_through_a_chain(std::coroutine_handle<>& out, std::exception_ptr error,
+                                         int& got, bool* released) {
     const Trace trace{released};
 
     got = co_await passes_the_answer_on(out, error);
@@ -441,8 +442,8 @@ TEST(TaskOwnershipTest, AFailureOfTheTaskItAwaitsIsReadFromTheScenario) {
     int got = 0;
     bool released = false;
 
-    task<> scenario = awaits_the_answer(out, std::make_exception_ptr(std::runtime_error("the task failed")),
-                                        got, &released);
+    task<> scenario = awaits_the_answer(
+        out, std::make_exception_ptr(std::runtime_error("the task failed")), got, &released);
 
     ASSERT_TRUE(out);
     out.resume();

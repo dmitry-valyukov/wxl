@@ -9,8 +9,7 @@ import std;
 
 namespace wxl::async {
 
-component::component(std::string_view name,
-                                         core::nullable<core::sync_root> sync_root_arg)
+component::component(std::string_view name, core::nullable<core::sync_root> sync_root_arg)
     : core::traceable(name), core::synchronized_(sync_root_arg), impl_(new impl_t(sync_root())) {
     impl_->owner_ = this;
 }
@@ -39,9 +38,7 @@ bool component::is_running() const {
 
 bool component::is_disposed() const noexcept { return impl()->is_disposed(); }
 
-const std::exception_ptr* component::stop_reason_ptr() const {
-    return impl_->stop_reason_ptr();
-}
+const std::exception_ptr* component::stop_reason_ptr() const { return impl_->stop_reason_ptr(); }
 
 ticket component::stop_ticket() const { return impl_->stop_ticket(); }
 
@@ -97,9 +94,7 @@ void component::impl_t::dispose() {
     owner_ = nullptr;  // null owner_ marks the disposed state.
 }
 
-ticket component::start_async() {
-    return start_async(task_tree(), task_tree());
-}
+ticket component::start_async() { return start_async(task_tree(), task_tree()); }
 
 ticket component::start_async_of(core::not_null<component> child,
                                  core::not_null<component> parent) {
@@ -267,9 +262,7 @@ void component::on_started() {
     callbacks();
 }
 
-ticket component::stop_async(const stop_reason& reason) {
-    return stop_async(reason.error());
-}
+ticket component::stop_async(const stop_reason& reason) { return stop_async(reason.error()); }
 
 ticket component::stop_async(const std::exception_ptr& error) {
     const core::not_null<impl_t> ss = impl();
@@ -414,14 +407,17 @@ void component::on_stopped() {
     callbacks(reason);
 }
 
-component::impl_t::impl_t(core::sync_root_holder sync_root_arg) : core::synchronized_(sync_root_arg) {}
+component::impl_t::impl_t(core::sync_root_holder sync_root_arg)
+    : core::synchronized_(sync_root_arg) {}
 
-component::impl_t::impl_t(core::not_null<core::sync_root> sync_root_arg) : core::synchronized_(sync_root_arg) {}
+component::impl_t::impl_t(core::not_null<core::sync_root> sync_root_arg)
+    : core::synchronized_(sync_root_arg) {}
 
 component* component::impl_t::owner_unsafe() {
     if (is_disposed()) [[unlikely]]
-        core::abort("component::impl_t::owner_unsafe() called on a disposed component -- "
-                    "this is an architecture-level invariant violation, not an application error");
+        core::abort(
+            "component::impl_t::owner_unsafe() called on a disposed component -- "
+            "this is an architecture-level invariant violation, not an application error");
 
     return owner_;
 }
@@ -457,7 +453,6 @@ void component::stop_async_func::operator()(const ticket& result) const noexcept
     else
         impl_->stop_async_unsafe();
 }
-
 
 namespace {
 
@@ -578,7 +573,7 @@ core::event_token component::subscribe_on_started(core::not_null<on_started_call
     return impl()->on_started_.add(callback);
 }
 
-bool component::unsubscribe_on_started(core::event_token & token) {
+bool component::unsubscribe_on_started(core::event_token& token) {
     guard g(*this);
     return impl()->on_started_.remove(token);
 }
@@ -590,7 +585,7 @@ core::event_token component::subscribe_on_stopped(core::not_null<on_stopped_call
     return impl()->on_stopped_.add(callback);
 }
 
-bool component::unsubscribe_on_stopped(core::event_token & token) {
+bool component::unsubscribe_on_stopped(core::event_token& token) {
     guard g(*this);
     return impl()->on_stopped_.remove(token);
 }

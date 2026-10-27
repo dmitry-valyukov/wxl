@@ -8,8 +8,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -54,7 +52,7 @@ TEST(ThreadGroupTest, JoinAllFromASpawnedThreadThrows) {
     manager->spawn([&] {
         try {
             manager->join_all();
-        } catch (const std::logic_error &) {
+        } catch (const std::logic_error&) {
             threw.store(true);
         }
     });
@@ -105,9 +103,11 @@ TEST(ThreadGroupTest, AtThreadExitCallbackRunsOnThreadExit) {
     std::atomic<int> value{0};
 
     manager->spawn([&] {
-        thread_group::at_thread_exit(+[](void * arg) {
-            static_cast<std::atomic<int> *>(arg)->fetch_add(1, std::memory_order_relaxed);
-        }, &value);
+        thread_group::at_thread_exit(
+            +[](void* arg) {
+                static_cast<std::atomic<int>*>(arg)->fetch_add(1, std::memory_order_relaxed);
+            },
+            &value);
     });
 
     manager->join_all();
@@ -131,7 +131,7 @@ TEST(ThreadGroupTest, ConcurrentNestedManagersHandleEveryTask) {
         });
     }
 
-    for (auto & t : outers) t.join();
+    for (auto& t : outers) t.join();
     EXPECT_EQ(total.load(), outer_threads * inner_spawns);
 }
 
@@ -173,14 +173,10 @@ TEST(ThreadGroupTest, ReleasedGroupClosesTheHandlesOfThreadsNobodyJoined) {
 
 namespace {
 
-[[noreturn]] void fail_in_the_thread() {
-    throw std::runtime_error("проба потока");
-}
+[[noreturn]] void fail_in_the_thread() { throw std::runtime_error("проба потока"); }
 
 // A call with no way out for an exception, as a listener is.
-void listen_in_the_thread() noexcept {
-    fail_in_the_thread();
-}
+void listen_in_the_thread() noexcept { fail_in_the_thread(); }
 
 // Nothing is set on the thread of the test: the report comes from the handler the spawned
 // thread's entry sets, which MSVC keeps for that thread alone. To stderr rather than to a

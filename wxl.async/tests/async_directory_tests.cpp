@@ -67,9 +67,7 @@ protected:
         ASSERT_TRUE(directory::create(root_.c_str()));
     }
 
-    void TearDown() override {
-        std::filesystem::remove_all(root_.native());
-    }
+    void TearDown() override { std::filesystem::remove_all(root_.native()); }
 
     void given_a_file(const wchar_t* name) {
         file out = file::create((root_ / name).c_str());
@@ -118,8 +116,7 @@ TEST_F(AsyncDirectoryTest, ListsMoreNamesThanOneTripCanCarry) {
     // Enough of them that the system fills its buffer more than once, so the
     // coroutine goes round the loop many times and every crossing has to be
     // right -- including the one where the listing quietly ends.
-    for (int i = 0; i < 200; ++i)
-        given_a_file((L"file-" + std::to_wstring(i) + L".dat").c_str());
+    for (int i = 0; i < 200; ++i) given_a_file((L"file-" + std::to_wstring(i) + L".dat").c_str());
 
     std::vector<std::wstring> found;
 
@@ -186,7 +183,7 @@ task<> lists_at_once(path pattern, std::vector<async_directory::listed_entry>& o
 }
 
 task<> cancelable_lists_at_once(path pattern, cancellation_token token,
-                           std::vector<async_directory::listed_entry>& out) {
+                                std::vector<async_directory::listed_entry>& out) {
     out = co_await async_directory::list(pattern, token);
 
     std::ranges::sort(out, {}, &async_directory::listed_entry::name);

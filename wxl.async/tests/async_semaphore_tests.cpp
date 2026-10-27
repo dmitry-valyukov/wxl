@@ -445,7 +445,8 @@ TEST_F(AsyncSemaphoreStrictDeathTest, TheReportNamesTheLineOfTheReleaseOverTheMa
 }
 
 TEST_F(AsyncSemaphoreDeathTest, APermitHandedOverCountsAgainstTheMaximum) {
-    EXPECT_DEATH(release_over_a_handed_permit(), "async_semaphore: released over its maximum count");
+    EXPECT_DEATH(release_over_a_handed_permit(),
+                 "async_semaphore: released over its maximum count");
 }
 
 TEST_F(AsyncSemaphoreStrictDeathTest, TheReportNamesTheLineOfTheReleaseOverAHandedPermit) {
@@ -455,7 +456,8 @@ TEST_F(AsyncSemaphoreStrictDeathTest, TheReportNamesTheLineOfTheReleaseOverAHand
 }
 
 TEST_F(AsyncSemaphoreDeathTest, ASemaphoreIsNotDestroyedWhileACoroutineWaitsOnIt) {
-    EXPECT_DEATH(destroy_with_a_waiter(), "async_semaphore: destroyed while a coroutine waits on it");
+    EXPECT_DEATH(destroy_with_a_waiter(),
+                 "async_semaphore: destroyed while a coroutine waits on it");
 }
 
 TEST_F(AsyncSemaphoreDeathTest, APermitIsAcquiredOnItsCoroutinesThread) {
@@ -464,9 +466,10 @@ TEST_F(AsyncSemaphoreDeathTest, APermitIsAcquiredOnItsCoroutinesThread) {
 }
 
 TEST_F(AsyncSemaphoreStrictDeathTest, TheReportNamesTheLineOfTheForeignAcquire) {
-    EXPECT_DEATH(acquire_from_another_thread(),
-                 std::format("async_semaphore_tests\\.cpp\\({}\\): async_semaphore: acquired on a thread",
-                             line_of_the_foreign_acquire));
+    EXPECT_DEATH(
+        acquire_from_another_thread(),
+        std::format("async_semaphore_tests\\.cpp\\({}\\): async_semaphore: acquired on a thread",
+                    line_of_the_foreign_acquire));
 }
 
 // The wait is made in place and held by address: neither copied nor moved.

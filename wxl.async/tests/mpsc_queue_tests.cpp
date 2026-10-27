@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -75,7 +73,7 @@ TEST(MpscQueueTest, PeekReturnsTheNextNodeWithoutRemovingIt) {
     queue.push_one(&b);
 
     EXPECT_EQ(queue.peek()->value, 1);
-    EXPECT_EQ(queue.peek()->value, 1);  // still there, and still first
+    EXPECT_EQ(queue.peek()->value, 1);        // still there, and still first
     EXPECT_EQ(queue.pops_since_claim(), 0u);  // peek() never advances the count
 
     EXPECT_EQ(queue.pop_one()->value, 1);
@@ -140,14 +138,12 @@ TEST(MpscQueueTest, ClaimsEveryNodePushedConcurrentlyExactlyOnce) {
     constexpr int total = writers * per_writer;
 
     std::vector<test_node> nodes(total);
-    for (int i = 0; i < total; ++i)
-        nodes[i].value = i;
+    for (int i = 0; i < total; ++i) nodes[i].value = i;
 
     std::vector<std::thread> threads;
     for (int w = 0; w < writers; ++w) {
         threads.emplace_back([&, w] {
-            for (int i = 0; i < per_writer; ++i)
-                queue.push_one(&nodes[w * per_writer + i]);
+            for (int i = 0; i < per_writer; ++i) queue.push_one(&nodes[w * per_writer + i]);
         });
     }
     for (auto& t : threads) t.join();

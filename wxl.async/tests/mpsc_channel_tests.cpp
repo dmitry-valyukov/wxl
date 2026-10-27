@@ -94,7 +94,8 @@ TEST(MpscChannelTest, AWaitingReaderIsWokenBySend) {
 
         // The condition-variable contract: an empty-handed return is ordinary, so the
         // reader loops on its own predicate instead of trusting one answer.
-        while (!channel.receive(taken)) {}
+        while (!channel.receive(taken)) {
+        }
     });
 
     // The barrier only makes it likely that the reader is asleep by the time we send --
@@ -219,14 +220,16 @@ TEST(MpscChannelTest, TheWaitObjectIsTheOneTheReaderSleepsOn) {
 
     ASSERT_NE(channel.get_wait_object(), nullptr);
     EXPECT_EQ(channel.wait_handle(), channel.get_wait_object()->handle());
-    EXPECT_FALSE(channel.get_wait_object()->wait_for(duration::zero())) << "nothing has happened yet";
+    EXPECT_FALSE(channel.get_wait_object()->wait_for(duration::zero()))
+        << "nothing has happened yet";
 
     channel.arm();
 
     payload_ptr sent = make(1);
     channel.send(sent);
 
-    EXPECT_TRUE(channel.get_wait_object()->wait_for(duration::zero())) << "send() signalled the wait object";
+    EXPECT_TRUE(channel.get_wait_object()->wait_for(duration::zero()))
+        << "send() signalled the wait object";
 
     payload_ptr taken;
     ASSERT_TRUE(channel.try_receive(taken));
@@ -239,7 +242,8 @@ TEST(MpscChannelTest, WritersSignalOnlyWhileTheReaderSaysItIsWaiting) {
     test_channel channel;
 
     channel.signal();
-    EXPECT_FALSE(channel.get_wait_object()->wait_for(duration::zero())) << "nobody announced a wait";
+    EXPECT_FALSE(channel.get_wait_object()->wait_for(duration::zero()))
+        << "nobody announced a wait";
 
     channel.arm();
     channel.signal();
@@ -315,7 +319,8 @@ TEST(MpscChannelTest, ManyWritersOneReaderLoseNothing) {
     payload_ptr taken;
 
     for (int i = 0; i < writer_count * per_writer; ++i) {
-        while (!channel.receive(taken)) {}
+        while (!channel.receive(taken)) {
+        }
         received_sum += taken->value;
     }
 

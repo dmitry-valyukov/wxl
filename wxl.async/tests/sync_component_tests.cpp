@@ -10,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/SyncComponent/createDestroy --log_level=test_suite
-TEST(SyncComponentTest, createDestroy)
-{
+TEST(SyncComponentTest, createDestroy) {
     sync_test_component c;
 
     EXPECT_FALSE(c.on_started_called());
@@ -19,8 +18,7 @@ TEST(SyncComponentTest, createDestroy)
 }
 
 // --run_test=System/SyncComponent/startAndDestroy --log_level=test_suite
-TEST(SyncComponentTest, startAndDestroy)
-{
+TEST(SyncComponentTest, startAndDestroy) {
     sync_test_component c;
     c.start_async().get();
     EXPECT_TRUE(c.on_started_called());

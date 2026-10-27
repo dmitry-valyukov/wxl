@@ -56,9 +56,7 @@ public:
     }
 
     /// Whether `addr` points into this buffer.
-    bool contains(const void* addr) const noexcept {
-        return addr >= begin() && addr < end();
-    }
+    bool contains(const void* addr) const noexcept { return addr >= begin() && addr < end(); }
 
 private:
     const char* begin() const noexcept { return buffer_; }

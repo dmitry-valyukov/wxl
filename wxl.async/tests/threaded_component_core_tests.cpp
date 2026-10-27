@@ -6,22 +6,18 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
 namespace {
 
-class counting_component : public threaded_component {
+class counting_component : public threaded_component
+{
 public:
-    explicit counting_component(thread_group * manager = nullptr)
-        : threaded_component("counter", manager)
-    {}
+    explicit counting_component(thread_group* manager = nullptr)
+        : threaded_component("counter", manager) {}
 
-    ~counting_component() override {
-        dispose();
-    }
+    ~counting_component() override { dispose(); }
 
     std::atomic<int> run_calls{0};
     std::atomic<bool> saw_thread_id{false};
@@ -49,20 +45,15 @@ private:
     semaphore stopped_{0};
 };
 
-class failing_component : public threaded_component {
+class failing_component : public threaded_component
+{
 public:
-    failing_component()
-        : threaded_component("failer")
-    {}
+    failing_component() : threaded_component("failer") {}
 
-    ~failing_component() override {
-        dispose();
-    }
+    ~failing_component() override { dispose(); }
 
 protected:
-    void run() override {
-        throw std::runtime_error("boom");
-    }
+    void run() override { throw std::runtime_error("boom"); }
 };
 
 }  // namespace

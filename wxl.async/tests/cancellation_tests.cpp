@@ -116,9 +116,7 @@ task<std::size_t> middle(probe& p, cancellation_token token) {
     co_return co_await bottom(p, token);
 }
 
-task<std::size_t> top(probe& p, cancellation_token token) {
-    co_return co_await middle(p, token);
-}
+task<std::size_t> top(probe& p, cancellation_token token) { co_return co_await middle(p, token); }
 
 /// Undoes what the chain did: an operation of its own, under no token.
 task<> roll_back(probe& undo, std::vector<std::string>& log) {
@@ -145,9 +143,7 @@ task<std::size_t> middle_that_rolls_back(probe& p, probe& undo, cancellation_tok
 }
 
 /// Joins a read somebody else keeps.
-task<std::size_t> joins(task<std::size_t>& read) {
-    co_return co_await read;
-}
+task<std::size_t> joins(task<std::size_t>& read) { co_return co_await read; }
 
 /// Was given the token and does not use it: its read cannot be interrupted.
 task<std::size_t> deaf(probe& p, cancellation_token) {
@@ -384,8 +380,8 @@ TEST(CancellationTest, WorkHandedOffIsNotCancelledUnlessItTookTheToken) {
     std::vector<task<>> others;
 
     cancellation_source source;
-    task<std::size_t> chain = hands_off_two(own, unasked, asking, source.token(), others, unasked_got,
-                                            unasked_ended, asking_canceled);
+    task<std::size_t> chain = hands_off_two(own, unasked, asking, source.token(), others,
+                                            unasked_got, unasked_ended, asking_canceled);
 
     own.started.wait();
     source.cancel();
@@ -807,7 +803,8 @@ TEST(CancellationTest, TheOrphanableFormTakesTheTokenToo) {
 
     std::atomic<int> runs{0};
     const orphans_drained_on_exit drained(ahead.gate);
-    task<int> canceled = sta_loop::async_call(orphanable, [&runs] { return ++runs; }, source.token());
+    task<int> canceled =
+        sta_loop::async_call(orphanable, [&runs] { return ++runs; }, source.token());
 
     source.cancel();
     ahead.gate.set();
@@ -1418,7 +1415,8 @@ TEST(CancellationTest, AChildHoldsItsParentsStateAfterTheParentsSourceGoes) {
         const cancellation_token childs_token = child->token();
 
         parent.reset();
-        EXPECT_TRUE(child->is_canceled()) << "the parent's source went and the child was not cancelled";
+        EXPECT_TRUE(child->is_canceled())
+            << "the parent's source went and the child was not cancelled";
 
         probe p;
         task<std::size_t> chain = top(p, child->token());
@@ -1555,8 +1553,7 @@ TEST(CancellationTest, TheParentsFireCancelsTheChildsOwnAndDestroysNobody) {
     EXPECT_EQ(before.canceled + under_child.canceled + under_grandchild.canceled + after.canceled,
               4);
     EXPECT_EQ(queue.size(), 1u);
-    EXPECT_FALSE(first.done() || childs.done() || waits.done() || grandchilds.done() ||
-                 last.done())
+    EXPECT_FALSE(first.done() || childs.done() || waits.done() || grandchilds.done() || last.done())
         << "cancel() resumed somebody";
     EXPECT_FALSE(anybody_registered(parent.token()));
 
@@ -1815,13 +1812,16 @@ protected:
 }  // namespace
 
 TEST_F(CancellationDeathTest, ASourceIsCancelledOnItsCoroutinesThread) {
-    EXPECT_DEATH(cancel_from_another_thread(), "cancelled from a thread other than its coroutines'");
+    EXPECT_DEATH(cancel_from_another_thread(),
+                 "cancelled from a thread other than its coroutines'");
 }
 
 TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignCancel) {
-    EXPECT_DEATH(cancel_from_another_thread(),
-                 std::format("cancellation_tests\\.cpp\\({}\\): cancellation_source: cancelled from a thread",
-                             line_of_the_foreign_cancel));
+    EXPECT_DEATH(
+        cancel_from_another_thread(),
+        std::format(
+            "cancellation_tests\\.cpp\\({}\\): cancellation_source: cancelled from a thread",
+            line_of_the_foreign_cancel));
 }
 
 TEST_F(CancellationDeathTest, AMovedFromSourceIsNotAsked) {
@@ -1834,9 +1834,10 @@ TEST_F(CancellationDeathTest, AChildIsMadeOnItsCoroutinesThread) {
 }
 
 TEST_F(CancellationStrictDeathTest, TheReportNamesTheLineOfTheForeignChild) {
-    EXPECT_DEATH(make_a_child_on_another_thread(),
-                 std::format("cancellation_tests\\.cpp\\({}\\): cancellation_source: made under a token",
-                             line_of_the_foreign_child));
+    EXPECT_DEATH(
+        make_a_child_on_another_thread(),
+        std::format("cancellation_tests\\.cpp\\({}\\): cancellation_source: made under a token",
+                    line_of_the_foreign_child));
 }
 
 static_assert(sizeof(cancellation_token) == sizeof(void*));
@@ -1880,4 +1881,3 @@ static_assert(std::is_same_v<decltype(sta_loop::async_call(
                                  orphanable, std::declval<int (*)(const orphan_state&)>(),
                                  cancellation_token{})),
                              task<int>>);
-

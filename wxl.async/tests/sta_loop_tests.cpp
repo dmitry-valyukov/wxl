@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <objbase.h>   // CoGetApartmentType / APTTYPE -- проверить, что рабочий поток MTA
+#include <objbase.h>  // CoGetApartmentType / APTTYPE -- проверить, что рабочий поток MTA
 
 #include "sta_pool.h"
 

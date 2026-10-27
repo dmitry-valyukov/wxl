@@ -233,7 +233,8 @@ public:
     ///
     /// \note The callback must be noexcept: a subscription has nowhere to report an exception.
     template <class t_when_failed>
-        requires detail::nothrow_callback<std::remove_cvref_t<t_when_failed>, const std::exception_ptr&>
+        requires detail::nothrow_callback<std::remove_cvref_t<t_when_failed>,
+                                          const std::exception_ptr&>
     const future<T>& when_failed(t_when_failed&& when_failed_callback) const {
         checked_state()->when_failed(std::forward<t_when_failed>(when_failed_callback));
         return *this;
@@ -311,8 +312,8 @@ public:
 
         future_shared_state_ptr ticket = core::make_refcounted<future_shared_state>();
 
-        when_succeeded(detail::next_async_task<t_task, T>(
-            std::forward<t_next_async_task>(task), ticket));
+        when_succeeded(
+            detail::next_async_task<t_task, T>(std::forward<t_next_async_task>(task), ticket));
         when_failed(detail::set_exception_func(ticket));
 
         return future<void>(ticket.get());
@@ -487,8 +488,9 @@ inline future<std::vector<std::ranges::range_value_t<t_range>>> when_all(t_range
 /// copies of them. The combination itself never fails.
 template <detail::future_like... t_futures>
 inline future<std::tuple<t_futures...>> when_all(const t_futures&... futures) {
-    return when_all_ready(futures...).next(
-        [futures...]() { return std::tuple<t_futures...>(futures...); });
+    return when_all_ready(futures...).next([futures...]() {
+        return std::tuple<t_futures...>(futures...);
+    });
 }
 ///@}
 
@@ -632,8 +634,7 @@ class promise : public detail::promise_base
 
 public:
     /// Constructor.
-    promise() noexcept
-        : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
+    promise() noexcept : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
 
     /// Copy constructor.
     promise(const promise<T>& other) : base(other) {}
@@ -685,8 +686,7 @@ public:
 
     /// Constructs a promise that takes over the shared state of \p other, leaving \p other
     /// without one.
-    inline promise(promise<void>&& other) noexcept
-        : base(std::move(other)) {}
+    inline promise(promise<void>&& other) noexcept : base(std::move(other)) {}
 
     /// Makes this promise refer to the shared state of \p other. The promise count of that state
     /// grows by one, and the count of the state this promise referred to drops by one; an

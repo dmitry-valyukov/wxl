@@ -11,8 +11,8 @@ async_file::async_file(core::file&& opened) : file_(std::move(opened)) {
     skips_port_ = sta_loop::port().attach(file_.native_handle());
 
     // A pipe has no attributes to give, and nothing of the kind to be asked about.
-    if (FILE_BASIC_INFO info{}; ::GetFileInformationByHandleEx(file_.native_handle(), FileBasicInfo,
-                                                               &info, sizeof(info)))
+    if (FILE_BASIC_INFO info{};
+        ::GetFileInformationByHandleEx(file_.native_handle(), FileBasicInfo, &info, sizeof(info)))
         reads_hold_the_caller_ =
             (info.FileAttributes & (FILE_ATTRIBUTE_COMPRESSED | FILE_ATTRIBUTE_ENCRYPTED)) != 0;
 }

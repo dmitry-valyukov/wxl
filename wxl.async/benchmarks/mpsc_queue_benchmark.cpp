@@ -165,7 +165,8 @@ std::uint64_t drain(Queue& queue, std::uint64_t count, batch_stats* stats = null
 /// drained, so a scenario that stops the clock early still has to finish the job.
 template <class Queue>
 void discard_rest(Queue& queue) noexcept {
-    while (queue.pop_one()) {}
+    while (queue.pop_one()) {
+    }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -178,8 +179,7 @@ run_result batched_round_trip(node* nodes, unsigned count) {
     Queue queue;
 
     const auto start = bench_clock::now();
-    for (unsigned i = 0; i < count; ++i)
-        queue.push_one(nodes + i);
+    for (unsigned i = 0; i < count; ++i) queue.push_one(nodes + i);
     const std::uint64_t sum = drain<false>(queue, count);
     const double ms = ms_since(start);
 
@@ -222,16 +222,14 @@ run_result mpsc_run(unsigned writers, unsigned per_writer, node* nodes, batch_st
         producers.emplace_back([&, w] {
             node* const mine = nodes + std::size_t(w) * per_writer;
             gate.arrive_and_wait();
-            for (unsigned i = 0; i < per_writer; ++i)
-                queue.push_one(mine + i);
+            for (unsigned i = 0; i < per_writer; ++i) queue.push_one(mine + i);
         });
     }
 
     gate.arrive_and_wait();
 
     const auto start = bench_clock::now();
-    const std::uint64_t sum =
-        stats ? drain<true>(queue, total, stats) : drain<false>(queue, total);
+    const std::uint64_t sum = stats ? drain<true>(queue, total, stats) : drain<false>(queue, total);
     const double ms = ms_since(start);
 
     return {ms, sum};
@@ -245,8 +243,7 @@ run_result mpsc_run(unsigned writers, unsigned per_writer, node* nodes, batch_st
 template <drain_order order>
 run_result backlog_drain(node* nodes, unsigned count) {
     mpsc_queue<node, order> queue;
-    for (unsigned i = 0; i < count; ++i)
-        queue.push_one(nodes + i);
+    for (unsigned i = 0; i < count; ++i) queue.push_one(nodes + i);
 
     const auto start = bench_clock::now();
     const std::uint64_t sum = drain<false>(queue, count);
@@ -301,16 +298,13 @@ double ns_per_item(double ms, std::uint64_t items) noexcept {
 
 std::unique_ptr<node[]> make_nodes(std::uint64_t count) {
     auto nodes = std::make_unique<node[]>(count);
-    for (std::uint64_t i = 0; i < count; ++i)
-        nodes[i].value = i + 1;
+    for (std::uint64_t i = 0; i < count; ++i) nodes[i].value = i + 1;
     return nodes;
 }
 
 /// The sum the reader has to arrive at: the payloads are 1..count, so a lost or a doubled
 /// node shows up immediately.
-std::uint64_t expected_checksum(std::uint64_t count) noexcept {
-    return count * (count + 1) / 2;
-}
+std::uint64_t expected_checksum(std::uint64_t count) noexcept { return count * (count + 1) / 2; }
 
 const char* verdict(std::uint64_t got, std::uint64_t want) noexcept {
     return got == want ? "" : "  <-- CHECKSUM MISMATCH";
@@ -333,7 +327,8 @@ void bench_single_threaded(unsigned count, int repeats) {
         best_of(repeats, [&] { return batched_round_trip<mutex_queue>(n, count); });
     report("mutex + list", batched_base, batched_base);
     report("spin_lock + list",
-           best_of(repeats, [&] { return batched_round_trip<spin_queue>(n, count); }), batched_base);
+           best_of(repeats, [&] { return batched_round_trip<spin_queue>(n, count); }),
+           batched_base);
     report("mpsc_queue (fifo)",
            best_of(repeats, [&] { return batched_round_trip<mpsc_queue<node>>(n, count); }),
            batched_base);
@@ -346,7 +341,8 @@ void bench_single_threaded(unsigned count, int repeats) {
         best_of(repeats, [&] { return interleaved_round_trip<mutex_queue>(n, count); });
     report("mutex + list", inter_base, inter_base);
     report("spin_lock + list",
-           best_of(repeats, [&] { return interleaved_round_trip<spin_queue>(n, count); }), inter_base);
+           best_of(repeats, [&] { return interleaved_round_trip<spin_queue>(n, count); }),
+           inter_base);
     report("mpsc_queue (fifo)",
            best_of(repeats, [&] { return interleaved_round_trip<mpsc_queue<node>>(n, count); }),
            inter_base);
@@ -370,9 +366,8 @@ void bench_mpsc(unsigned writers, unsigned per_writer, int repeats) {
         best_of(repeats, [&] { return mpsc_run<spin_queue>(writers, per_writer, n, nullptr); });
     const run_result fifo = best_of(
         repeats, [&] { return mpsc_run<mpsc_queue<node>>(writers, per_writer, n, nullptr); });
-    const run_result lifo = best_of(repeats, [&] {
-        return mpsc_run<mpsc_stack<node>>(writers, per_writer, n, nullptr);
-    });
+    const run_result lifo = best_of(
+        repeats, [&] { return mpsc_run<mpsc_stack<node>>(writers, per_writer, n, nullptr); });
 
     // Separate, untimed passes: reading the counter belongs nowhere near the loops the numbers
     // above come from. Both modes claim their chains the same way, so the two lines also say
@@ -473,15 +468,13 @@ int main() {
     bench_single_threaded(N * 100, Repeats);
 
     std::printf("=== Scenario 2: many writers, one reader ===\n");
-    for (unsigned writers : writer_grid())
-        bench_mpsc(writers, N * 50, Repeats);
+    for (unsigned writers : writer_grid()) bench_mpsc(writers, N * 50, Repeats);
 
     std::printf("=== Scenario 3: a backlog claimed in one go ===\n");
     bench_backlog(N * 100, Repeats);
 
     std::printf("=== Scenario 4: the writers alone ===\n");
-    for (unsigned writers : writer_grid())
-        bench_push_storm(writers, N * 50, Repeats);
+    for (unsigned writers : writer_grid()) bench_push_storm(writers, N * 50, Repeats);
 
     return 0;
 }

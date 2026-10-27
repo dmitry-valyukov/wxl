@@ -265,7 +265,9 @@ struct when_ready_pending_state : pending_state {
     when_ready_pending_state(pending_state* prev, t_when_ready when_ready) noexcept
         : pending_state(prev), when_ready_(std::move(when_ready)) {}
 
-    void resolve(const future_shared_state*, const state*) noexcept final { std::invoke(when_ready_); }
+    void resolve(const future_shared_state*, const state*) noexcept final {
+        std::invoke(when_ready_);
+    }
 
     t_when_ready when_ready_;
 };
@@ -696,8 +698,7 @@ template <typename T, typename t_result, typename t_next_task>
 struct next_pending_state : pending_state {
     using my_state = next_pending_state<T, t_result, t_next_task>;
 
-    next_pending_state(pending_state* prev, t_next_task next_task,
-                       future_shared_state* result)
+    next_pending_state(pending_state* prev, t_next_task next_task, future_shared_state* result)
         : pending_state(prev), next_task_(std::move(next_task)), result_(result) {}
 
     static void do_call(t_next_task& task, const state* state, future_shared_state* result) {
@@ -909,8 +910,8 @@ inline bool future_shared_state::try_attach_continuation(t_next_pending_state*& 
     if (new_state)
         new_state->prev_ = prev_state;
     else
-        new_state = construct<t_next_pending_state>(prev_state, std::forward<t_callback>(callback),
-                                                    result);
+        new_state =
+            construct<t_next_pending_state>(prev_state, std::forward<t_callback>(callback), result);
 
     if (ref_cas(new_state, state)) return true;
 

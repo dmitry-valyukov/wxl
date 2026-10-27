@@ -34,7 +34,9 @@ class frame_mark
 public:
     explicit frame_mark(int& alive) noexcept : alive_(&alive) {}
 
-    frame_mark(const frame_mark& other) noexcept : alive_(other.alive_), counted_(true) { ++*alive_; }
+    frame_mark(const frame_mark& other) noexcept : alive_(other.alive_), counted_(true) {
+        ++*alive_;
+    }
 
     frame_mark& operator=(const frame_mark&) = delete;
 
@@ -69,9 +71,7 @@ template <class T>
     throw std::runtime_error(what);
 }
 
-task<int> answers_at_once(frame_mark) {
-    co_return 7;
-}
+task<int> answers_at_once(frame_mark) { co_return 7; }
 
 task<int> answers_after_a_pause(frame_mark, std::coroutine_handle<>& slot) {
     co_await parked{slot};
@@ -88,9 +88,7 @@ task<> fails_plainly_after_a_pause(frame_mark, std::coroutine_handle<>& slot) {
     throw std::runtime_error("without a value");
 }
 
-task<> ends_after_a_pause(frame_mark, std::coroutine_handle<>& slot) {
-    co_await parked{slot};
-}
+task<> ends_after_a_pause(frame_mark, std::coroutine_handle<>& slot) { co_await parked{slot}; }
 
 /// What a waiter saw the moment its co_await gave it the value: still inside the full
 /// expression of the co_await, where a temporary task the call returned is alive.
@@ -103,7 +101,8 @@ struct seen_at_resume {
 /// The usual co_await, of the task the call has just returned.
 task<> awaits_the_call(int& alive, std::coroutine_handle<>& slot, seen_at_resume& seen) {
     if constexpr (detail::checked)
-        seen = seen_at_resume{co_await answers_after_a_pause(frame_mark{alive}, slot), alive, live_frames()};
+        seen = seen_at_resume{co_await answers_after_a_pause(frame_mark{alive}, slot), alive,
+                              live_frames()};
     else
         seen = seen_at_resume{co_await answers_after_a_pause(frame_mark{alive}, slot), alive};
 }
@@ -117,9 +116,7 @@ task<> joins_a_kept_task(int& alive, std::coroutine_handle<>& slot, seen_at_resu
 }
 
 /// Joins a task somebody else keeps.
-task<> joins(task<int>& kept, int& got) {
-    got = co_await kept;
-}
+task<> joins(task<int>& kept, int& got) { got = co_await kept; }
 
 task<> joins_and_catches(task<int>& kept, int& frames_when_caught, std::string& what,
                          const int& alive) {
@@ -167,7 +164,8 @@ TEST(TaskLifetimeTest, AWaitedFrameIsGoneBeforeTheWaiterGoesOn) {
     }
     EXPECT_EQ(alive, 0);
     if constexpr (detail::checked) {
-        EXPECT_EQ(live_frames(), before) << "the outer frame, awaited by nobody, stayed after its body";
+        EXPECT_EQ(live_frames(), before)
+            << "the outer frame, awaited by nobody, stayed after its body";
     }
 }
 
@@ -469,7 +467,8 @@ TEST(TaskLifetimeTest, ABodyStoppedOnAnOperationInFlightWaitsForTheWorker) {
     EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
     EXPECT_EQ(p.canceled.load(), 1) << "the second read was never given up";
     EXPECT_EQ(p.wrote.load(), 2);
-    EXPECT_EQ(p.wrote_after_the_buffers.load(), 0) << "the worker wrote into buffers that were gone";
+    EXPECT_EQ(p.wrote_after_the_buffers.load(), 0)
+        << "the worker wrote into buffers that were gone";
     EXPECT_FALSE(p.buffers_alive.load());
 
     // The read given up waits in the return channel for the loop to delete it.
@@ -537,7 +536,8 @@ task<int> chain_level(int depth, frame_mark, chain_notes& notes) {
 
     if constexpr (detail::checked)
         std::tie(below, frames, live) = std::tuple<int, int, std::size_t>{
-            co_await chain_level(depth - 1, frame_mark{notes.alive}, notes), notes.alive, live_frames()};
+            co_await chain_level(depth - 1, frame_mark{notes.alive}, notes), notes.alive,
+            live_frames()};
     else
         std::tie(below, frames) = std::tuple<int, int>{
             co_await chain_level(depth - 1, frame_mark{notes.alive}, notes), notes.alive};
@@ -583,18 +583,21 @@ TEST(TaskLifetimeTest, AChainTenDeepUnmakesItsFramesAsItEnds) {
     for (int depth = 1; depth <= chain_depth; ++depth) {
         EXPECT_EQ(notes.frames_at_resume[depth], chain_depth + 1 - depth) << "level " << depth;
         if constexpr (detail::checked) {
-            EXPECT_EQ(notes.live_at_resume[depth], before + chain_depth + 1 - depth) << "level " << depth;
+            EXPECT_EQ(notes.live_at_resume[depth], before + chain_depth + 1 - depth)
+                << "level " << depth;
         }
     }
 
     const auto [lowest, highest] = std::ranges::minmax(notes.stack_at_resume);
 
     if constexpr (hands_over_by_a_jump) {
-        EXPECT_LT(highest - lowest, 256u) << "the stack grew from one level of the chain to the next";
+        EXPECT_LT(highest - lowest, 256u)
+            << "the stack grew from one level of the chain to the next";
     } else {
-        std::cout << std::format("[ INFO     ] the stack spread {} bytes over the chain; this build "
-                                 "does not promise a jump\n",
-                                 highest - lowest);
+        std::cout << std::format(
+            "[ INFO     ] the stack spread {} bytes over the chain; this build "
+            "does not promise a jump\n",
+            highest - lowest);
     }
 }
 
@@ -628,7 +631,8 @@ TEST(TaskLifetimeTest, AFailureWithAWaiterReachesItWithTheFrameGone) {
     EXPECT_TRUE(outer.done());
     EXPECT_NO_THROW(outer.result());
     EXPECT_EQ(what, "after the pause");
-    EXPECT_EQ(frames_when_caught, 0) << "the frame that failed was still there when its waiter caught";
+    EXPECT_EQ(frames_when_caught, 0)
+        << "the frame that failed was still there when its waiter caught";
 }
 
 TEST(TaskLifetimeTest, AFailureNobodyAwaitsWaitsInTheTaskWithTheFrameGone) {
@@ -647,7 +651,8 @@ TEST(TaskLifetimeTest, AFailureNobodyAwaitsWaitsInTheTaskWithTheFrameGone) {
     }
     ASSERT_TRUE(with_value.done());
     EXPECT_THROW((void)with_value.result(), std::runtime_error);
-    EXPECT_THROW((void)with_value.result(), std::runtime_error) << "the exception is thrown each time";
+    EXPECT_THROW((void)with_value.result(), std::runtime_error)
+        << "the exception is thrown each time";
 
     task<> without = fails_plainly_after_a_pause(frame_mark{alive}, slot);
     slot.resume();
@@ -827,5 +832,6 @@ TEST_F(TaskLifetimeDeathTest, AValueTakenByResultIsNotThereForACoAwait) {
 }
 
 TEST_F(TaskLifetimeDeathTest, AJoinerHoldsTheObjectWhoseTaskItJoins) {
-    EXPECT_DEATH(join_a_task_whose_object_goes_with_its_frame(), "destroyed while a coroutine joins it");
+    EXPECT_DEATH(join_a_task_whose_object_goes_with_its_frame(),
+                 "destroyed while a coroutine joins it");
 }

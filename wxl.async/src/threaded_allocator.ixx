@@ -82,8 +82,7 @@ public:
     inline static void* alloc(size_t size) {
         threaded_allocator* self = current();
         assert(self && "threaded_allocator::alloc: no allocator initialized on this thread");
-        assert(size >= 1 && size <= MaxBlockSize &&
-               "threaded_allocator: invalid allocation size");
+        assert(size >= 1 && size <= MaxBlockSize && "threaded_allocator: invalid allocation size");
 
         void* block = s_alloc_table[pool_index(static_cast<uint32_t>(size))](self);
         *static_cast<threaded_allocator**>(block) = self;

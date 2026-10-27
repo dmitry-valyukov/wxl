@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-
 #include "threaded_test_component.h"
 
 import std;
@@ -12,7 +11,8 @@ using namespace wxl::async;
 
 namespace {
 
-class error_from_barrier_exception : public std::logic_error {
+class error_from_barrier_exception : public std::logic_error
+{
 public:
     error_from_barrier_exception() : logic_error("Error from barrier") {}
 };
@@ -20,8 +20,7 @@ public:
 }  // namespace
 
 // --run_test=System/ThreadedComponent/errorFromBarrier --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, errorFromBarrier)
-{
+STRESS_TEST_CASE(ThreadedComponent, errorFromBarrier) {
     threaded_test_component component(tracer.name());
     task_tree_handle barrier = task_tree::create();
 

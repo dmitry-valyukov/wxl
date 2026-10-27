@@ -95,15 +95,13 @@ void* threaded_allocator::bump_alloc(threaded_allocator* self) noexcept {
 // block size would otherwise not be a multiple of sizeof(void*) -- see the comment on
 // s_alloc_table's declaration.
 const threaded_allocator::alloc_fn threaded_allocator::s_alloc_table[33] = {
-    invalid_alloc,   nullptr,         nullptr,         nullptr,
-    nullptr,         nullptr,         nullptr,         nullptr,
-    nullptr,         nullptr,         nullptr,         nullptr,
-    nullptr,         nullptr,         nullptr,         nullptr,
-    nullptr,         &bump_alloc<15>, &bump_alloc<14>, &bump_alloc<13>,
-    &bump_alloc<12>, &bump_alloc<11>, &bump_alloc<10>, &bump_alloc<9>,
-    &bump_alloc<8>,  &bump_alloc<7>,  &bump_alloc<6>,  &bump_alloc<5>,
-    &bump_alloc<4>,  &bump_alloc<3>,  &bump_alloc<3>,  &bump_alloc<3>,
-    &bump_alloc<3>,
+    invalid_alloc,   nullptr,         nullptr,         nullptr,         nullptr,
+    nullptr,         nullptr,         nullptr,         nullptr,         nullptr,
+    nullptr,         nullptr,         nullptr,         nullptr,         nullptr,
+    nullptr,         nullptr,         &bump_alloc<15>, &bump_alloc<14>, &bump_alloc<13>,
+    &bump_alloc<12>, &bump_alloc<11>, &bump_alloc<10>, &bump_alloc<9>,  &bump_alloc<8>,
+    &bump_alloc<7>,  &bump_alloc<6>,  &bump_alloc<5>,  &bump_alloc<4>,  &bump_alloc<3>,
+    &bump_alloc<3>,  &bump_alloc<3>,  &bump_alloc<3>,
 };
 
 void threaded_allocator::free_foreign(uint32_t idx, void* block) {

@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 namespace {
 
 using wxl::async::thread_scope;

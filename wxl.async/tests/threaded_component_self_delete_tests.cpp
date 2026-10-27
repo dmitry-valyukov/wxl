@@ -10,10 +10,9 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/selfDeleteScenario --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, selfDeleteScenario)
-{
+STRESS_TEST_CASE(ThreadedComponent, selfDeleteScenario) {
     thread_scope manager;
-    threaded_test_component * component = new threaded_test_component(tracer.name(), manager);
+    threaded_test_component* component = new threaded_test_component(tracer.name(), manager);
     component->self_delete_ = true;
 
     component->start_async().get();

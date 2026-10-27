@@ -91,7 +91,7 @@ public:
     ///
     /// \return the token unsubscribe_on_started() cancels this subscription by.
     template <core::invocable<void() noexcept> F>
-    core::event_token subscribe_on_started(F && callback) {
+    core::event_token subscribe_on_started(F&& callback) {
         return subscribe_on_started(on_started_callback::create(std::forward<F>(callback)));
     }
 
@@ -99,7 +99,7 @@ public:
     /// one -- cancelled already, or never given -- stops the process.
     /// \return false if the component has no such subscription: the token belongs to
     ///         another event, or the callbacks have been called and dropped.
-    bool unsubscribe_on_started(core::event_token & token);
+    bool unsubscribe_on_started(core::event_token& token);
 
     /// Requests the component to stop.
     ///
@@ -111,11 +111,11 @@ public:
     ///@{
     /// \param reason Can be empty (stop requested) or can hold the std::exception_ptr reason
     ///               that will be set as an exception result for the stop ticket.
-    ticket stop_async(const stop_reason & reason = {});
+    ticket stop_async(const stop_reason& reason = {});
 
     /// Requests the component to stop with \p error as the stop reason; the same as the form
     /// that takes a `stop_reason`.
-    ticket stop_async(const std::exception_ptr & error);
+    ticket stop_async(const std::exception_ptr& error);
     ///@}
 
     /// Kept in the class: it is a call to stop_reason_ptr() and a comparison, so the call
@@ -128,7 +128,7 @@ public:
     ticket stop_ticket() const;
 
     /// \return the reason the component stopped, or nullptr if it hasn't stopped.
-    const std::exception_ptr * stop_reason_ptr() const;
+    const std::exception_ptr* stop_reason_ptr() const;
 
     /// Registers a callback -- `void callback(const stop_reason &)` -- called when the
     /// component has stopped, before the stop ticket is signaled. Any number of them, called
@@ -138,19 +138,20 @@ public:
     ///          the process.
     /// \note Called under the sync_root mutex, as with subscribe_on_started().
     /// \return the token unsubscribe_on_stopped() cancels this subscription by.
-    template <core::invocable<void(const stop_reason &) noexcept> F>
-    core::event_token subscribe_on_stopped(F && callback) {
+    template <core::invocable<void(const stop_reason&) noexcept> F>
+    core::event_token subscribe_on_stopped(F&& callback) {
         return subscribe_on_stopped(on_stopped_callback::create(std::forward<F>(callback)));
     }
 
     /// Cancels a subscription made by subscribe_on_stopped().
     /// \return false if the component has no such subscription, see unsubscribe_on_started().
-    bool unsubscribe_on_stopped(core::event_token & token);
+    bool unsubscribe_on_stopped(core::event_token& token);
 
 protected:
     /// \param name Name of the component; can be used in diagnostics, can be empty.
     /// \param sync_root_arg External sync_root for the base synchronized_ class, or nullptr.
-    explicit component(std::string_view name, core::nullable<core::sync_root> sync_root_arg = nullptr);
+    explicit component(std::string_view name,
+                       core::nullable<core::sync_root> sync_root_arg = nullptr);
 
     class impl_t;
     /// A keeper: one more reference to the state, for whoever has to outlive the component
@@ -164,7 +165,7 @@ protected:
 
     /// Constructs a component on a state that a derived class has created: \p initial_impl is
     /// adopted as the shared state, and its `sync_root` becomes the component's.
-    component(std::string_view name, impl_t * initial_impl);
+    component(std::string_view name, impl_t* initial_impl);
 
     /// Starts the component as a child of another one. This is the machinery of a
     /// composite component, not something its user does: whoever owns a component
@@ -187,7 +188,8 @@ protected:
     /// Starts the component with its starting and running tasks created as subtasks of
     /// \p parent_starting_task and \p parent_running_task; in place of a tree whose `valid()`
     /// is `false`, the component gets a tree of its own.
-    ticket start_async(const task_tree & parent_starting_task, const task_tree & parent_running_task = {});
+    ticket start_async(const task_tree& parent_starting_task,
+                       const task_tree& parent_running_task = {});
 
     /// The same two starts, but of some other component: what a parent does to a child
     /// it holds, and a container to the components in it.
@@ -196,14 +198,13 @@ protected:
     /// derived class may use a protected member only on objects of its own type, and a
     /// child is known here as a plain component. A static member is not bound by that
     /// rule -- the same way impl_of() gets at another component's state.
-    static ticket start_async_of(core::not_null<component> child,
-                                 core::not_null<component> parent);
+    static ticket start_async_of(core::not_null<component> child, core::not_null<component> parent);
 
     /// Starts \p child with its starting and running tasks created as subtasks of
     /// \p parent_starting_task and \p parent_running_task.
     static ticket start_async_of(core::not_null<component> child,
-                                 const task_tree & parent_starting_task,
-                                 const task_tree & parent_running_task);
+                                 const task_tree& parent_starting_task,
+                                 const task_tree& parent_running_task);
     ///@}
 
     /// Tests whether the component has been started, without taking the lock.
@@ -252,11 +253,11 @@ protected:
 
     /// Valid during the starting process; derived components can create their own
     /// starting subtasks for a compounded starting operation.
-    const task_tree & starting_task() const;
+    const task_tree& starting_task() const;
 
     /// Valid during the whole running process; derived components can create their own
     /// running subtasks for a compounded running operation.
-    const task_tree & running_task() const;
+    const task_tree& running_task() const;
 
     /// Set to ready after on_starting() has been called.
     ticket on_starting_ticket();
@@ -265,7 +266,7 @@ protected:
     ticket on_stopping_ticket() const;
 
     /// Valid during the call to on_stopping().
-    const task_tree & on_stopping_task() const;
+    const task_tree& on_stopping_task() const;
 
     /// Functor that stops the component when the operation it is subscribed to completes.
     struct stop_async_func;
@@ -286,7 +287,7 @@ private:
     /// The callback objects the two subscribe_ templates build out of what they are given.
     ///@{
     using on_started_callback = core::event_mt<void()>::func_t;
-    using on_stopped_callback = core::event_mt<void(const stop_reason &)>::func_t;
+    using on_stopped_callback = core::event_mt<void(const stop_reason&)>::func_t;
     ///@}
 
     /// The same subscription, of a callback that is already built -- where the two templates

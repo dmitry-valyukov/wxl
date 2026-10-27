@@ -32,7 +32,9 @@ struct ThreadedObject {
     std::byte pad[Size];
 
     static void* operator new(std::size_t sz) { return threaded_allocator::alloc(sz); }
-    static void operator delete(void* p, std::size_t sz) noexcept { threaded_allocator::free(p, sz); }
+    static void operator delete(void* p, std::size_t sz) noexcept {
+        threaded_allocator::free(p, sz);
+    }
 };
 
 struct Result {
@@ -56,8 +58,7 @@ Result run_once_single_threaded(unsigned count) {
     }
     auto t1 = std::chrono::steady_clock::now();
 
-    for (unsigned i = 0; i < count; ++i)
-        delete objects[i];
+    for (unsigned i = 0; i < count; ++i) delete objects[i];
     auto t2 = std::chrono::steady_clock::now();
 
     return {
@@ -71,8 +72,7 @@ Result best_of_single_threaded(unsigned count, int repeats) {
     Result best;
     for (int i = 0; i < repeats; ++i) {
         Result r = run_once_single_threaded<T>(count);
-        if (i == 0 || r.total_ms() < best.total_ms())
-            best = r;
+        if (i == 0 || r.total_ms() < best.total_ms()) best = r;
     }
     return best;
 }
@@ -101,11 +101,13 @@ void bench_single_threaded(const char* label, unsigned count, int repeats) {
     }
 
     std::printf("%-10s  size=%5zu  count=%6u\n", label, Size, count);
-    std::printf("  new/delete       : alloc=%8.3f ms  free=%8.3f ms  total=%8.3f ms  (%7.1f ns/op)\n",
-                base.alloc_ms, base.free_ms, base.total_ms(), base.total_ms() * 1e6 / (2.0 * count));
-    std::printf("  threaded_alloc   : alloc=%8.3f ms  free=%8.3f ms  total=%8.3f ms  (%7.1f ns/op)\n",
-                threaded.alloc_ms, threaded.free_ms, threaded.total_ms(),
-                threaded.total_ms() * 1e6 / (2.0 * count));
+    std::printf(
+        "  new/delete       : alloc=%8.3f ms  free=%8.3f ms  total=%8.3f ms  (%7.1f ns/op)\n",
+        base.alloc_ms, base.free_ms, base.total_ms(), base.total_ms() * 1e6 / (2.0 * count));
+    std::printf(
+        "  threaded_alloc   : alloc=%8.3f ms  free=%8.3f ms  total=%8.3f ms  (%7.1f ns/op)\n",
+        threaded.alloc_ms, threaded.free_ms, threaded.total_ms(),
+        threaded.total_ms() * 1e6 / (2.0 * count));
     std::printf("  speedup          : %.2fx\n\n", base.total_ms() / threaded.total_ms());
 }
 
@@ -133,8 +135,7 @@ void drain_available(Channel& in, size_t& consumed) {
 // Spin-waits until `count` items total have been consumed from `in`.
 template <typename T>
 void drain_remaining(Channel& in, size_t& consumed, size_t count) {
-    while (consumed < count)
-        drain_available<T>(in, consumed);
+    while (consumed < count) drain_available<T>(in, consumed);
 }
 
 // Both threads run the same interleaved shape -- allocate one, hand it to the other thread,
@@ -144,7 +145,8 @@ void drain_remaining(Channel& in, size_t& consumed, size_t count) {
 // thread (used to call threaded_allocator::init() for the threaded_alloc variant; a no-op for
 // the plain new/delete baseline, which needs none).
 template <typename T, typename Setup>
-double run_ping_pong(unsigned count_per_thread, Setup setup, size_t* out_pages_a, size_t* out_pages_b) {
+double run_ping_pong(unsigned count_per_thread, Setup setup, size_t* out_pages_a,
+                     size_t* out_pages_b) {
     Channel a_to_b(count_per_thread), b_to_a(count_per_thread);
 
     auto t0 = std::chrono::steady_clock::now();
@@ -192,8 +194,7 @@ double run_ping_pong(unsigned count_per_thread, Setup setup, size_t* out_pages_a
 // already safe to free from any thread.
 template <size_t Size>
 double run_baseline_ping_pong(unsigned count_per_thread) {
-    return run_ping_pong<BaselineObject<Size>>(
-        count_per_thread, [] {}, nullptr, nullptr);
+    return run_ping_pong<BaselineObject<Size>>(count_per_thread, [] {}, nullptr, nullptr);
 }
 
 // threaded_allocator: each thread's page is sized for a small, fixed in-flight window (not
@@ -209,7 +210,8 @@ double run_threaded_ping_pong(unsigned count_per_thread, size_t* out_pages_a, si
     const uint32_t page_size = static_cast<uint32_t>((Size + sizeof(void*)) * InFlightWindow);
 
     return run_ping_pong<ThreadedObject<Size>>(
-        count_per_thread, [page_size] { threaded_allocator::init(page_size); }, out_pages_a, out_pages_b);
+        count_per_thread, [page_size] { threaded_allocator::init(page_size); }, out_pages_a,
+        out_pages_b);
 }
 
 template <size_t Size>
@@ -238,8 +240,9 @@ void bench_ping_pong(const char* label, unsigned count_per_thread, int repeats) 
     std::printf("%-10s  size=%5zu  count/thread=%6u\n", label, Size, count_per_thread);
     std::printf("  new/delete       : total=%8.3f ms  (%7.1f ns/op)\n", base_best,
                 base_best * 1e6 / (2.0 * total_objects));
-    std::printf("  threaded_alloc   : total=%8.3f ms  (%7.1f ns/op)  [pages committed: A=%zu B=%zu]\n",
-                threaded_best, threaded_best * 1e6 / (2.0 * total_objects), pages_a, pages_b);
+    std::printf(
+        "  threaded_alloc   : total=%8.3f ms  (%7.1f ns/op)  [pages committed: A=%zu B=%zu]\n",
+        threaded_best, threaded_best * 1e6 / (2.0 * total_objects), pages_a, pages_b);
     std::printf("  speedup          : %.2fx\n\n", base_best / threaded_best);
 }
 
@@ -264,9 +267,11 @@ int main() {
     bench_single_threaded<240>("240 bytes", N * 4, Repeats);
     bench_single_threaded<2400>("2400 bytes", N, Repeats);
 
-    std::printf("=== Scenario 2: two-thread ping-pong (every object freed on the other thread) ===\n");
-    std::printf("Grid per thread: 24 bytes x %u, 240 bytes x %u, 2400 bytes x %u (%d repeats, best-of)\n\n",
-                N * 16, N * 4, N, Repeats);
+    std::printf(
+        "=== Scenario 2: two-thread ping-pong (every object freed on the other thread) ===\n");
+    std::printf(
+        "Grid per thread: 24 bytes x %u, 240 bytes x %u, 2400 bytes x %u (%d repeats, best-of)\n\n",
+        N * 16, N * 4, N, Repeats);
 
     bench_ping_pong<24>("24 bytes", N * 16, Repeats);
     bench_ping_pong<240>("240 bytes", N * 4, Repeats);

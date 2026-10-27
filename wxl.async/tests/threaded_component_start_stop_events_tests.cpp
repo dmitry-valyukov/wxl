@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-
 #include "threaded_test_component.h"
 
 import std;
@@ -11,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/startStopEvents --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, startStopEvents)
-{
+STRESS_TEST_CASE(ThreadedComponent, startStopEvents) {
     thread_scope manager;
     threaded_test_component component(tracer.name(), manager);
     semaphore start_sema(0);
