@@ -178,7 +178,7 @@ the following commands to prepare the environment, generate the projection
 and run a sample:
 
 ```powershell
-# 1. Restore the required NuGet packages (versions are pinned in tools/packages.json)
+# 1. Restore the required NuGet packages (versions are pinned in wxl.gen/profiles/base.json and tools/packages.json)
 pwsh -NoProfile -File tools\restore-packages.ps1
 
 # 2. Generate the base cppwinrt projection into the generated\ directory

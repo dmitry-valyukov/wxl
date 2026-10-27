@@ -1,7 +1,9 @@
 # Installs the experimental Windows App Runtime on this machine, for the current
 # user: the framework package, the main and singleton packages and the
-# dynamic-dependency lifetime manager, from the installers
-# tools/restore-packages.ps1 fetched into the NuGet package folder.
+# dynamic-dependency lifetime manager, from the installers of the
+# Microsoft.WindowsAppSDK.Runtime package that the Windows App SDK release of
+# wxl.gen/profiles/base.json declares, which tools/restore-packages.ps1 fetched
+# into the NuGet package folder.
 #
 #   pwsh -NoProfile -File tools\restore-packages.ps1     # once, fetches them
 #   pwsh -NoProfile -File tools\install-runtime.ps1
@@ -14,19 +16,21 @@
 # version tag (WXL_WINDOWSAPPSDK_VERSION_TAG in wxl.ui/CMakeLists.txt). Installed
 # next to the stable runtime, not instead of it: other applications keep theirs.
 #
-# A package already installed at this version is left alone, so a second run is a no-op.
+# Every run hands each installer to Add-AppxPackage; Windows leaves a package already
+# installed at the same version as it is.
 [CmdletBinding()]
 param([string]$NuGetRoot)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'nuget-root.ps1')
+. (Join-Path $PSScriptRoot 'windows-app-sdk.ps1')
 $root = Resolve-NuGetRoot $NuGetRoot
-$manifest = Get-Content (Join-Path $PSScriptRoot 'packages.json') -Raw | ConvertFrom-Json
-$runtime = @($manifest.experimental | Where-Object { $_.id -eq 'Microsoft.WindowsAppSDK.Runtime' })[0]
-if (-not $runtime) { throw 'tools/packages.json has no Microsoft.WindowsAppSDK.Runtime entry' }
+$sdk = Get-WindowsAppSdkRelease (Split-Path -Parent $PSScriptRoot)
+$version = (Get-WindowsAppSdkPackageVersion $root $sdk)['microsoft.windowsappsdk.runtime']
+if (-not $version) { throw "Windows App SDK $sdk declares no Microsoft.WindowsAppSDK.Runtime" }
 
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'win10-arm64' } 'x86' { 'win10-x86' } default { 'win10-x64' } }
-$dir = Join-Path $root "microsoft.windowsappsdk.runtime\$($runtime.version)\tools\MSIX\$arch"
+$dir = Join-Path $root "microsoft.windowsappsdk.runtime\$version\tools\MSIX\$arch"
 if (-not (Test-Path $dir)) { throw "No installers at $dir -- run tools\restore-packages.ps1 first" }
 
 # The order Windows App SDK's own installer uses: the framework first, the
