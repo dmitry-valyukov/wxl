@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-
 #include "stress_test.h"
 
 import std;
@@ -10,44 +9,40 @@ using namespace wxl::core;
 
 namespace {
 
-class synchronized_checker : public synchronized_ {
+class synchronized_checker : public synchronized_
+{
 public:
-    synchronized_checker(not_null<wxl::core::sync_root> sync_root)
-        : synchronized_(sync_root)
-    {}
+    synchronized_checker(not_null<wxl::core::sync_root> sync_root) : synchronized_(sync_root) {}
 
     using synchronized_::is_synchronized;
 };
 
 /// То же, но принимает голый указатель -- это другая перегрузка synchronized_.
-class raw_synchronized_checker : public synchronized_ {
+class raw_synchronized_checker : public synchronized_
+{
 public:
     // Имя типа приходится писать полностью: в области класса sync_root -- это
     // унаследованный метод synchronized_::sync_root(), а не тип.
     explicit raw_synchronized_checker(::wxl::core::nullable<::wxl::core::sync_root> root)
-        : synchronized_(root)
-    {}
+        : synchronized_(root) {}
 };
 }
 
 // --run_test=System/SyncRoot/memoryCheck  --log_level=test_suite
-STRESS_TEST_CASE(sync_root, memory_check)
-{
+STRESS_TEST_CASE(sync_root, memory_check) {
     sync_root_holder holder(new sync_root());
 
     ASSERT_EQ(1, holder->ref_count());
 }
 
 // --run_test=System/SyncRoot/autoSyncRoot  --log_level=test_suite
-STRESS_TEST_CASE(sync_root, auto_sync_root)
-{
+STRESS_TEST_CASE(sync_root, auto_sync_root) {
     auto_sync_root_holder auto_sync_root;
     ASSERT_EQ(1, auto_sync_root->ref_count());
 }
 
 // --run_test=System/SyncRoot/synchronizedObject  --log_level=test_suite
-STRESS_TEST_CASE(sync_root, synchronized_object)
-{
+STRESS_TEST_CASE(sync_root, synchronized_object) {
     sync_root_holder holder(new sync_root());
     {
         synchronized_checker synchronized_checker(holder.get());
@@ -68,8 +63,7 @@ STRESS_TEST_CASE(sync_root, synchronized_object)
 
     ASSERT_EQ(1, holder->ref_count());
     {
-        std::unique_ptr<synchronized_checker>
-            checker(new synchronized_checker(holder.get()));
+        std::unique_ptr<synchronized_checker> checker(new synchronized_checker(holder.get()));
 
         ASSERT_TRUE(!checker->is_synchronized());
 
@@ -95,16 +89,14 @@ STRESS_TEST_CASE(sync_root, synchronized_object)
 // владельца. Проверяется именно это, потому что сама запись у обоих случаев одна.
 
 // --run_test=System/SyncRoot/anOwnRootIsBornWithItsSingleReference
-STRESS_TEST_CASE(sync_root, an_own_root_is_born_with_its_single_reference)
-{
+STRESS_TEST_CASE(sync_root, an_own_root_is_born_with_its_single_reference) {
     const auto_sync_root_holder own;
 
     ASSERT_EQ(1, own->ref_count());
 }
 
 // --run_test=System/SyncRoot/aBorrowedRootGetsAReferenceOfItsOwn
-STRESS_TEST_CASE(sync_root, a_borrowed_root_gets_a_reference_of_its_own)
-{
+STRESS_TEST_CASE(sync_root, a_borrowed_root_gets_a_reference_of_its_own) {
     sync_root_holder root(new sync_root());
     ASSERT_EQ(1, root->ref_count());
 
@@ -119,8 +111,7 @@ STRESS_TEST_CASE(sync_root, a_borrowed_root_gets_a_reference_of_its_own)
 }
 
 // --run_test=System/SyncRoot/synchronizedOverARawExternalRoot
-STRESS_TEST_CASE(sync_root, synchronized_over_a_raw_external_root)
-{
+STRESS_TEST_CASE(sync_root, synchronized_over_a_raw_external_root) {
     sync_root_holder root(new sync_root());
 
     {

@@ -16,10 +16,10 @@ namespace {
 void write_line(std::source_location where, std::string_view prefix, std::string_view what,
                 std::string_view suffix) noexcept {
     char line[1024];
-    const int length = std::snprintf(line, sizeof line, "%s(%u): %.*s%.*s%.*s\n", where.file_name(),
-                                     static_cast<unsigned>(where.line()), static_cast<int>(prefix.size()),
-                                     prefix.data(), static_cast<int>(what.size()), what.data(),
-                                     static_cast<int>(suffix.size()), suffix.data());
+    const int length = std::snprintf(
+        line, sizeof line, "%s(%u): %.*s%.*s%.*s\n", where.file_name(),
+        static_cast<unsigned>(where.line()), static_cast<int>(prefix.size()), prefix.data(),
+        static_cast<int>(what.size()), what.data(), static_cast<int>(suffix.size()), suffix.data());
 
     // A truncated report keeps its end of line, and the end of line takes the place of the
     // last byte only if that byte starts a code point: inside a letter, it goes back to the
@@ -142,7 +142,8 @@ void describe_terminate(terminate_report& report) noexcept {
     static_cast<void>(set_terminate_with_reason());
 
     thread_local bool describing = false;
-    if (describing) core::abort("wxl: std::terminate again while its exception was being described");
+    if (describing)
+        core::abort("wxl: std::terminate again while its exception was being described");
     describing = true;
 
     char text[512];

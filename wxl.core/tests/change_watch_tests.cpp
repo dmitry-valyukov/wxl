@@ -59,7 +59,9 @@ TEST(ChangeWatch, starts_empty_and_is_attached_later) {
 
 // An empty watch has nothing to take off.
 TEST(ChangeWatch, an_empty_watch_goes_quietly) {
-    { value_watch watch; }
+    {
+        value_watch watch;
+    }
     SUCCEED();
 }
 
@@ -128,9 +130,7 @@ TEST(ChangeWatch, watches_a_list) {
 // Each broken rule stops the process: what would follow is an event holding a node that
 // is gone, or a watch calling an owner that did not ask. The report goes to stderr rather
 // than to a dialog that would hang the run.
-void without_a_dialog() {
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-}
+void without_a_dialog() { _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT); }
 
 void attach_twice() {
     without_a_dialog();

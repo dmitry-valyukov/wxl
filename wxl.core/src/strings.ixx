@@ -84,7 +84,8 @@ constexpr std::basic_string_view<CharT> trim(std::basic_string_view<CharT> text)
 /// The same three, cutting a named set of characters instead of whitespace.
 template <typename CharT>
 constexpr std::basic_string_view<CharT> trim_front(
-    std::basic_string_view<CharT> text, std::type_identity_t<std::basic_string_view<CharT>> characters) noexcept {
+    std::basic_string_view<CharT> text,
+    std::type_identity_t<std::basic_string_view<CharT>> characters) noexcept {
     const std::size_t at = text.find_first_not_of(characters);
     return at == text.npos ? text.substr(text.size()) : text.substr(at);
 }
@@ -93,7 +94,8 @@ constexpr std::basic_string_view<CharT> trim_front(
 /// view into it.
 template <typename CharT>
 constexpr std::basic_string_view<CharT> trim_back(
-    std::basic_string_view<CharT> text, std::type_identity_t<std::basic_string_view<CharT>> characters) noexcept {
+    std::basic_string_view<CharT> text,
+    std::type_identity_t<std::basic_string_view<CharT>> characters) noexcept {
     const std::size_t last = text.find_last_not_of(characters);
     return last == text.npos ? text.substr(0, 0) : text.substr(0, last + 1);
 }
@@ -102,7 +104,8 @@ constexpr std::basic_string_view<CharT> trim_back(
 /// into it.
 template <typename CharT>
 constexpr std::basic_string_view<CharT> trim(
-    std::basic_string_view<CharT> text, std::type_identity_t<std::basic_string_view<CharT>> characters) noexcept {
+    std::basic_string_view<CharT> text,
+    std::type_identity_t<std::basic_string_view<CharT>> characters) noexcept {
     return trim_back(trim_front(text, characters), characters);
 }
 
@@ -183,7 +186,8 @@ std::wstring ascii_upper(std::wstring_view text);
 /// character, and both std::basic_string_view::find() and the size below take
 /// either kind, so there is nothing to gain by storing anything else.
 template <typename CharT, typename Separator>
-class split_view {
+class split_view
+{
 public:
     /// The type that represents a piece of the text, a view into it.
     using view = std::basic_string_view<CharT>;
@@ -203,7 +207,8 @@ public:
 
     /// Represents a forward iterator over the pieces of the text. The walk ends at
     /// `std::default_sentinel`, which `end()` returns.
-    class iterator {
+    class iterator
+    {
     public:
         /// The type that identifies the iterator category, `std::forward_iterator_tag`.
         using iterator_category = std::forward_iterator_tag;

@@ -51,7 +51,8 @@ constexpr std::size_t held_at_once = 16;
 
 /// The smallest of several runs: the interesting quantity is what the machine
 /// does when nothing interrupts it, and noise only ever adds.
-class best_time {
+class best_time
+{
 public:
     void add(const clock_type::duration duration) noexcept {
         const double nanoseconds = std::chrono::duration<double, std::nano>(duration).count();

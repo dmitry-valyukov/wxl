@@ -9,8 +9,7 @@ import wxl.core;
 
 using namespace wxl::core;
 
-TEST(SpinLockTest, spin_lock_test)
-{
+TEST(SpinLockTest, spin_lock_test) {
 #ifdef NDEBUG
     const size_t thread_count = 100, loop_count = 100000;
 #else

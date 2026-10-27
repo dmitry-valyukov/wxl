@@ -230,10 +230,9 @@ char* impl::write_utf8_to(char* out, const std::wstring_view utf16) noexcept {
             // 110xxxxx for the top five bits, 10xxxxxx for the bottom six --
             // and stored as one eight-byte write.
             if ((word & three_byte_bits) == 0 && zero_lanes(word & wide_high_bits) == 0) {
-                const std::uint64_t encoded = ((word & 0x003F003F003F003Full) << 8) |
-                                              0x8000800080008000ull |
-                                              ((word >> 6) & 0x001F001F001F001Full) |
-                                              0x00C000C000C000C0ull;
+                const std::uint64_t encoded =
+                    ((word & 0x003F003F003F003Full) << 8) | 0x8000800080008000ull |
+                    ((word >> 6) & 0x001F001F001F001Full) | 0x00C000C000C000C0ull;
 
                 std::memcpy(out, &encoded, word_size);
 
@@ -310,7 +309,8 @@ u16_text repaired(const std::wstring_view utf16) {
 }
 
 u16_text repaired(const std::u16string_view utf16) {
-    return repaired(std::wstring_view(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size()));
+    return repaired(
+        std::wstring_view(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size()));
 }
 
 namespace {
@@ -373,7 +373,8 @@ u8_text repaired(const std::string_view utf8) {
     return {std::move(result), impl::validated{}};
 }
 
-transcode_result write_utf8_repaired(const std::span<char> out, const std::wstring_view utf16) noexcept {
+transcode_result write_utf8_repaired(const std::span<char> out,
+                                     const std::wstring_view utf16) noexcept {
     transcode_result done;
 
     while (done.read != utf16.size()) {
@@ -381,9 +382,10 @@ transcode_result write_utf8_repaired(const std::span<char> out, const std::wstri
         std::size_t units = 1;
 
         if (is_surrogate(code_point)) {
-            const auto next = done.read + 1 != utf16.size()
-                                  ? static_cast<char32_t>(static_cast<std::uint16_t>(utf16[done.read + 1]))
-                                  : char32_t{0};
+            const auto next =
+                done.read + 1 != utf16.size()
+                    ? static_cast<char32_t>(static_cast<std::uint16_t>(utf16[done.read + 1]))
+                    : char32_t{0};
 
             if (is_high_surrogate(code_point) && is_low_surrogate(next)) {
                 code_point = 0x10000 + ((code_point - 0xD800u) << 10) + (next - 0xDC00u);
@@ -407,8 +409,10 @@ transcode_result write_utf8_repaired(const std::span<char> out, const std::wstri
     return done;
 }
 
-transcode_result write_utf8_repaired(const std::span<char> out, const std::u16string_view utf16) noexcept {
-    return write_utf8_repaired(out, std::wstring_view(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size()));
+transcode_result write_utf8_repaired(const std::span<char> out,
+                                     const std::u16string_view utf16) noexcept {
+    return write_utf8_repaired(
+        out, std::wstring_view(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size()));
 }
 
 u8_text to_utf8(const std::filesystem::path& path) {

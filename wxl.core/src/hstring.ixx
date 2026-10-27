@@ -80,15 +80,13 @@ inline void release_hstring(hstring_header* header) noexcept {
 }
 
 inline zstring_view text_of(const hstring_header* header) noexcept {
-    return header == nullptr
-               ? zstring_view{}
-               : zstring_view{terminated{}, header->ptr, header->length};
+    return header == nullptr ? zstring_view{}
+                             : zstring_view{terminated{}, header->ptr, header->length};
 }
 
 }  // namespace impl
 
 export {
-
 class hstring_param;
 
 /// A WinRT string, owned: a reference to an HSTRING. Copying it is an increment,
@@ -98,7 +96,8 @@ class hstring_param;
 /// an HSTRING is a sequence of sixteen-bit units and neither the system nor any
 /// component checks it. Checked text out of one is a door of its own --
 /// unicode::checked() or repaired() -- not a conversion.
-class hstring {
+class hstring
+{
 public:
     /// The type that represents an element of the string, a 16-bit code unit.
     using value_type = char16_t;
@@ -280,7 +279,8 @@ private:
 /// the end of the call, which is exactly how long a method of WinRT may borrow
 /// the string. One that keeps it must duplicate it, and duplicating a fast-pass
 /// string is what makes a real one.
-class hstring_param {
+class hstring_param
+{
 public:
     /// Written out rather than defaulted: the header is left as it is until a
     /// text arrives, and a const object may only be default-initialized when the
@@ -323,7 +323,9 @@ public:
     /// holds first, in the layout of an hstring. For the layer that speaks WinRT,
     /// which reinterprets it once more as its own hstring const& and lends it to
     /// a method that borrows: no count moves and nothing is copied.
-    const hstring& as_hstring() const noexcept { return *reinterpret_cast<const hstring*>(&handle_); }
+    const hstring& as_hstring() const noexcept {
+        return *reinterpret_cast<const hstring*>(&handle_);
+    }
 
 private:
     void reference(zstring_view text) noexcept {

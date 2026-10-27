@@ -59,7 +59,8 @@ struct model {
 // Deterministic and identical for every variant, so both allocate exactly the same sequence of
 // sizes. A plain LCG rather than <random>, whose engines differ in cost enough to show up next
 // to a pool allocation.
-class rng {
+class rng
+{
 public:
     explicit rng(uint32_t seed) noexcept : state_(seed) {}
 
@@ -107,8 +108,7 @@ typename Model::element make_element(rng& r, const shape& s) {
     typename Model::element result{make_string<typename Model::string>(r, 16, 40), {}, {}};
     for (unsigned i = 0; i < s.attributes; ++i)
         result.attributes.push_back(make_attribute<Model>(r));
-    for (unsigned i = 0; i < s.leaves; ++i)
-        result.leaves.push_back(make_leaf<Model>(r, s));
+    for (unsigned i = 0; i < s.leaves; ++i) result.leaves.push_back(make_leaf<Model>(r, s));
     return result;
 }
 
@@ -116,8 +116,7 @@ template <typename Model>
 typename Model::document build(rng& r, const shape& s) {
     typename Model::document doc{make_string<typename Model::string>(r, 16, 48), {}};
     doc.elements.reserve(s.elements);
-    for (unsigned i = 0; i < s.elements; ++i)
-        doc.elements.push_back(make_element<Model>(r, s));
+    for (unsigned i = 0; i < s.elements; ++i) doc.elements.push_back(make_element<Model>(r, s));
     return doc;
 }
 
@@ -127,12 +126,10 @@ template <typename Model>
 void churn(typename Model::document& doc, rng& r, const shape& s) {
     for (unsigned round = 0; round < s.churn_rounds; ++round) {
         for (size_t i = doc.elements.size(); i-- > 0;) {
-            if (i % 3 == 0)
-                doc.elements.erase(doc.elements.begin() + static_cast<ptrdiff_t>(i));
+            if (i % 3 == 0) doc.elements.erase(doc.elements.begin() + static_cast<ptrdiff_t>(i));
         }
 
-        while (doc.elements.size() < s.elements)
-            doc.elements.push_back(make_element<Model>(r, s));
+        while (doc.elements.size() < s.elements) doc.elements.push_back(make_element<Model>(r, s));
     }
 }
 
@@ -161,7 +158,8 @@ double run_once(const shape& s) {
 size_t g_allocation_count = 0;
 
 template <typename T>
-class counting_allocator {
+class counting_allocator
+{
 public:
     using value_type = T;
 
@@ -206,10 +204,8 @@ Results best_of_interleaved(const shape& s, int repeats) {
         const double heap = run_once<std::allocator>(s);
         const double sta = run_once<sta_allocator>(s);
 
-        if (i == 0 || heap < best.heap_ms)
-            best.heap_ms = heap;
-        if (i == 0 || sta < best.sta_ms)
-            best.sta_ms = sta;
+        if (i == 0 || heap < best.heap_ms) best.heap_ms = heap;
+        if (i == 0 || sta < best.sta_ms) best.sta_ms = sta;
     }
 
     return best;

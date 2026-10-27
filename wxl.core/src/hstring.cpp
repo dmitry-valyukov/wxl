@@ -12,7 +12,8 @@ namespace wxl::core::impl {
 hstring_header* create_hstring(const char16_t* text, std::uint32_t length) {
     if (length == 0) return nullptr;
 
-    const std::uint64_t bytes = sizeof(shared_hstring_header) + std::uint64_t{sizeof(char16_t)} * length;
+    const std::uint64_t bytes =
+        sizeof(shared_hstring_header) + std::uint64_t{sizeof(char16_t)} * length;
 
     if (bytes > std::numeric_limits<std::uint32_t>::max()) throw std::invalid_argument("length");
 
@@ -33,8 +34,6 @@ hstring_header* create_hstring(const char16_t* text, std::uint32_t length) {
     return header;
 }
 
-void free_hstring(hstring_header* header) noexcept {
-    ::HeapFree(::GetProcessHeap(), 0, header);
-}
+void free_hstring(hstring_header* header) noexcept { ::HeapFree(::GetProcessHeap(), 0, header); }
 
 }  // namespace wxl::core::impl

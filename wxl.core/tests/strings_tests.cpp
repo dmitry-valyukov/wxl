@@ -13,8 +13,7 @@ namespace {
 std::vector<std::string_view> pieces_of(std::string_view text, std::string_view separator) {
     std::vector<std::string_view> pieces;
 
-    for (const std::string_view piece : wxl::core::split(text, separator))
-        pieces.push_back(piece);
+    for (const std::string_view piece : wxl::core::split(text, separator)) pieces.push_back(piece);
 
     return pieces;
 }
@@ -41,9 +40,7 @@ TEST(strings, trimming_a_named_set) {
     EXPECT_EQ(wxl::core::trim_front("00123"sv, "0"sv), "123");
 }
 
-TEST(strings, trimming_wide_text_too) {
-    EXPECT_EQ(wxl::core::trim(L"  1* "sv), L"1*");
-}
+TEST(strings, trimming_wide_text_too) { EXPECT_EQ(wxl::core::trim(L"  1* "sv), L"1*"); }
 
 TEST(strings, case_insensitive_comparison_is_ascii) {
     EXPECT_TRUE(wxl::core::equal_ignore_ascii_case("Microsoft.UI"sv, "microsoft.ui"sv));

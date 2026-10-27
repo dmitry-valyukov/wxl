@@ -42,8 +42,8 @@ public:
         // atomic<bool> has no fetch_xor (that's only defined for atomic<Integral>), so
         // the flip is done via a compare_exchange retry loop instead.
         bool old_value = value_.load(std::memory_order_relaxed);
-        while (!value_.compare_exchange_weak(old_value, !old_value, order,
-                                             std::memory_order_relaxed));
+        while (
+            !value_.compare_exchange_weak(old_value, !old_value, order, std::memory_order_relaxed));
         return !old_value;
     }
 

@@ -102,10 +102,14 @@ TEST(ThreadHeapTest, SeparateInstancesAreIndependent) {
 // inside a single test body below rather than being split across several
 // TYPED_TESTs.
 template <typename Tag>
-class StaticThreadHeapTest : public ::testing::Test {};
+class StaticThreadHeapTest : public ::testing::Test
+{
+};
 
-struct TagA {};
-struct TagB {};
+struct TagA {
+};
+struct TagB {
+};
 
 using StaticThreadHeapTags = ::testing::Types<TagA, TagB>;
 TYPED_TEST_SUITE(StaticThreadHeapTest, StaticThreadHeapTags);
@@ -128,8 +132,10 @@ TYPED_TEST(StaticThreadHeapTest, ConstructsAllocatesAndFreesIndependently) {
 // Two tags never touched by the typed-test suite above, used to show that
 // static_thread_heap keeps a fully separate heap per Tag rather than sharing
 // state across unrelated consumers.
-struct IsolationTagX {};
-struct IsolationTagY {};
+struct IsolationTagX {
+};
+struct IsolationTagY {
+};
 
 TEST(StaticThreadHeapTest, DifferentTagsGetIndependentHeaps) {
     using heap_x = static_thread_heap<IsolationTagX>;
@@ -153,8 +159,10 @@ TEST(StaticThreadHeapTest, DifferentTagsGetIndependentHeaps) {
 // owns its own Windows heap (HeapCreate reserves its own address range via
 // VirtualAlloc), so two tags that are alive at the same time must allocate
 // from different memory regions/pages, never share one.
-struct PageIsolationTagA {};
-struct PageIsolationTagB {};
+struct PageIsolationTagA {
+};
+struct PageIsolationTagB {
+};
 
 TEST(StaticThreadHeapTest, DifferentTagsAllocateFromDifferentPages) {
     using heap_a = static_thread_heap<PageIsolationTagA>;

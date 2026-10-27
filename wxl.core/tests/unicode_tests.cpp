@@ -61,7 +61,8 @@ TEST(unicode, round_trip_at_every_length) {
     std::string text;
 
     for (const char32_t code_point : {U'a', U'б', U'字', U'\U0001F600'})
-        for (int repeat = 0; repeat != 4; ++repeat) wxl::core::unicode::append_utf8(text, code_point);
+        for (int repeat = 0; repeat != 4; ++repeat)
+            wxl::core::unicode::append_utf8(text, code_point);
 
     for (std::size_t size = 0; size != text.size(); ++size) {
         if (size != text.size() && wxl::core::unicode::is_continuation(text[size])) continue;
@@ -109,14 +110,14 @@ TEST(unicode, broken_utf8_is_named_by_its_offset) {
         std::string_view text;
         std::size_t offset;
     } const cases[] = {
-        {"ab\x80z"sv, 2},                  // a continuation byte with nothing to continue
-        {"ab\xC0\xAFz"sv, 2},              // over-long "/"
-        {"ab\xE0\x80\xAFz"sv, 2},          // over-long again, three bytes this time
-        {"ab\xED\xA0\x80z"sv, 2},          // U+D800, a surrogate half
-        {"ab\xF5\x80\x80\x80z"sv, 2},      // above U+10FFFF
-        {"ab\xD0"sv, 2},                   // cut off before its continuation
-        {"ab\xD0z"sv, 2},                  // continuation that is not one
-        {"ab\xFE\xFFz"sv, 2},              // bytes UTF-8 never uses at all
+        {"ab\x80z"sv, 2},              // a continuation byte with nothing to continue
+        {"ab\xC0\xAFz"sv, 2},          // over-long "/"
+        {"ab\xE0\x80\xAFz"sv, 2},      // over-long again, three bytes this time
+        {"ab\xED\xA0\x80z"sv, 2},      // U+D800, a surrogate half
+        {"ab\xF5\x80\x80\x80z"sv, 2},  // above U+10FFFF
+        {"ab\xD0"sv, 2},               // cut off before its continuation
+        {"ab\xD0z"sv, 2},              // continuation that is not one
+        {"ab\xFE\xFFz"sv, 2},          // bytes UTF-8 never uses at all
     };
 
     for (const auto& one : cases) {
@@ -130,7 +131,8 @@ TEST(unicode, broken_utf8_is_named_by_its_offset) {
 TEST(unicode, the_smallest_and_the_largest) {
     std::string text;
     wxl::core::unicode::append_utf8(text, U'\0');
-    wxl::core::unicode::append_utf8(text, static_cast<char32_t>(wxl::core::unicode::max_code_point));
+    wxl::core::unicode::append_utf8(text,
+                                    static_cast<char32_t>(wxl::core::unicode::max_code_point));
 
     EXPECT_TRUE(wxl::core::unicode::is_valid_utf8(text));
     EXPECT_EQ(wxl::core::unicode::code_point_count(assume_valid(text)), 2u);
@@ -142,9 +144,12 @@ TEST(unicode, broken_utf16_is_named_by_its_offset) {
     const std::wstring lone_low = L"ab\xDC00z";
     const std::wstring high_then_letter = L"ab\xD800z";
 
-    EXPECT_EQ(wxl::core::unicode::find_invalid_utf16(lone_high), wxl::core::nullable<std::size_t>(2));
-    EXPECT_EQ(wxl::core::unicode::find_invalid_utf16(lone_low), wxl::core::nullable<std::size_t>(2));
-    EXPECT_EQ(wxl::core::unicode::find_invalid_utf16(high_then_letter), wxl::core::nullable<std::size_t>(2));
+    EXPECT_EQ(wxl::core::unicode::find_invalid_utf16(lone_high),
+              wxl::core::nullable<std::size_t>(2));
+    EXPECT_EQ(wxl::core::unicode::find_invalid_utf16(lone_low),
+              wxl::core::nullable<std::size_t>(2));
+    EXPECT_EQ(wxl::core::unicode::find_invalid_utf16(high_then_letter),
+              wxl::core::nullable<std::size_t>(2));
 
     EXPECT_TRUE(wxl::core::unicode::is_valid_utf16(L"ab\xD83D\xDE00z"));
 }
@@ -348,17 +353,17 @@ TEST(unicode, writing_bounded_utf8_repairs_lone_surrogates) {
         u""sv,
         u"abc"sv,
         u"Съешь"sv,
-        u"\xD83D\xDE00"sv,               // a pair
-        u"\xD800z"sv,                    // a high one at the start, a low one,
+        u"\xD83D\xDE00"sv,  // a pair
+        u"\xD800z"sv,       // a high one at the start, a low one,
         u"\xDC00z"sv,
-        u"a\xD800z"sv,                   // in the middle,
+        u"a\xD800z"sv,  // in the middle,
         u"a\xDC00z"sv,
-        u"az\xD800"sv,                   // and at the end
+        u"az\xD800"sv,  // and at the end
         u"az\xDC00"sv,
-        u"\xDC00\xD800"sv,               // the halves the wrong way round
-        u"\xD800\xD83D\xDE00"sv,         // a lone high one, then a pair
-        u"\x7F\x80\x7FF\x800\xFFFF"sv,   // the edges of the one, two and three byte forms
-        u"\xD800\xDC00\xDBFF\xDFFF"sv,   // the smallest and the largest pair
+        u"\xDC00\xD800"sv,              // the halves the wrong way round
+        u"\xD800\xD83D\xDE00"sv,        // a lone high one, then a pair
+        u"\x7F\x80\x7FF\x800\xFFFF"sv,  // the edges of the one, two and three byte forms
+        u"\xD800\xDC00\xDBFF\xDFFF"sv,  // the smallest and the largest pair
     };
 
     for (const std::u16string_view utf16 : cases)
@@ -368,8 +373,7 @@ TEST(unicode, writing_bounded_utf8_repairs_lone_surrogates) {
     EXPECT_EQ(written_in_full(u"a\xD800z"sv), "a\xEF\xBF\xBDz");
     EXPECT_EQ(written_in_full(u"\x7F\x80\x7FF\x800\xFFFF"sv),
               "\x7F\xC2\x80\xDF\xBF\xE0\xA0\x80\xEF\xBF\xBF");
-    EXPECT_EQ(written_in_full(u"\xD800\xDC00\xDBFF\xDFFF"sv),
-              "\xF0\x90\x80\x80\xF4\x8F\xBF\xBF");
+    EXPECT_EQ(written_in_full(u"\xD800\xDC00\xDBFF\xDFFF"sv), "\xF0\x90\x80\x80\xF4\x8F\xBF\xBF");
 }
 
 // Room for less than the whole text: as many code points as fit whole, and not one byte of
@@ -385,7 +389,8 @@ TEST(unicode, writing_bounded_utf8_stops_before_a_code_point_that_does_not_fit) 
         char room[16];
         std::fill(std::begin(room), std::end(room), '#');
 
-        const auto done = wxl::core::unicode::write_utf8_repaired(std::span<char>(room, size), utf16);
+        const auto done =
+            wxl::core::unicode::write_utf8_repaired(std::span<char>(room, size), utf16);
 
         EXPECT_EQ(done.written, written[size]) << "room " << size;
         EXPECT_EQ(done.read, read[size]) << "room " << size;
@@ -425,7 +430,7 @@ TEST(unicode, repairing_utf8_marks_each_maximal_subpart) {
     EXPECT_EQ(repaired(""), "");
     EXPECT_EQ(repaired("a\xD0"), std::format("a{}", mark));               // cut off at the end
     EXPECT_EQ(repaired("\xE2\x82z"), std::format("{}z", mark));           // cut off inside
-    EXPECT_EQ(repaired("\xF0\x9F\x98"), std::string(mark));             // three of four bytes
+    EXPECT_EQ(repaired("\xF0\x9F\x98"), std::string(mark));               // three of four bytes
     EXPECT_EQ(repaired("\x80\xBF"), std::format("{0}{0}", mark));         // continuations alone
     EXPECT_EQ(repaired("\xC0\xAF"), std::format("{0}{0}", mark));         // an over-long form
     EXPECT_EQ(repaired("\xED\xA0\x80"), std::format("{0}{0}{0}", mark));  // a surrogate

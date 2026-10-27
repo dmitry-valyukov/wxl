@@ -51,7 +51,6 @@ inline constexpr CharT empty_text[1] = {};
 }  // namespace impl
 
 export {
-
 /// Represents a constant view of a character sequence that is followed by a null
 /// terminator, a guarantee that the type carries.
 ///
@@ -63,7 +62,8 @@ export {
 /// types provide conversions of their own. A default-constructed view points at a static
 /// null character rather than holding a null pointer.
 template <typename CharT, typename Traits = std::char_traits<CharT>>
-class basic_zstring_view {
+class basic_zstring_view
+{
 public:
     /// The type that represents a character.
     using value_type = CharT;
@@ -104,7 +104,8 @@ public:
     /// Constructs a view over the characters of the `wchar_t` string \p text, which keeps a
     /// null terminator after them. Available only when `CharT` is `char16_t`.
     template <typename Alloc>
-    basic_zstring_view(const std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>& text) noexcept
+    basic_zstring_view(
+        const std::basic_string<wchar_t, std::char_traits<wchar_t>, Alloc>& text) noexcept
         requires std::same_as<CharT, char16_t>
         : ptr_(reinterpret_cast<const char16_t*>(text.c_str())), size_(text.size()) {}
 
@@ -247,7 +248,8 @@ constexpr basic_zstring_view<CharT, Traits> assume_terminated(
         return {};
     }
 
-    ensure(text.data()[text.size()] == CharT{} && "assume_terminated on a view with no zero after it");
+    ensure(text.data()[text.size()] == CharT{} &&
+           "assume_terminated on a view with no zero after it");
     return basic_zstring_view<CharT, Traits>(impl::terminated{}, text.data(), text.size());
 }
 

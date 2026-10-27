@@ -30,16 +30,14 @@ public:
     /// Blocks until a permit is acquired. Waits on the OS semaphore only when no permit is
     /// free.
     inline void acquire() {
-        if(counter_.fetch_sub(1, std::memory_order_acquire) > 0)
-            return;
+        if (counter_.fetch_sub(1, std::memory_order_acquire) > 0) return;
 
         sema_.acquire();
     }
 
     /// Blocks until a permit is acquired or \p timeout elapses. Returns false only on timeout.
     inline bool try_acquire_for(duration timeout) {
-        if(counter_.fetch_sub(1, std::memory_order_acquire) > 0)
-            return true;
+        if (counter_.fetch_sub(1, std::memory_order_acquire) > 0) return true;
 
         return acquire_slow(timeout);
     }
@@ -49,9 +47,9 @@ public:
     inline bool try_acquire() {
         int32_t counter = counter_.load(std::memory_order_relaxed);
 
-        while(counter > 0) {
-            if(counter_.compare_exchange_weak(counter, counter - 1,
-                                               std::memory_order_acquire, std::memory_order_relaxed))
+        while (counter > 0) {
+            if (counter_.compare_exchange_weak(counter, counter - 1, std::memory_order_acquire,
+                                               std::memory_order_relaxed))
                 return true;
         }
 
@@ -60,8 +58,7 @@ public:
 
     /// Releases one permit. Signals the OS semaphore only when a waiter is owed a wakeup.
     inline void release() {
-        if(counter_.fetch_add(1, std::memory_order_release) < 0)
-            sema_.release();
+        if (counter_.fetch_add(1, std::memory_order_release) < 0) sema_.release();
     }
 
 private:

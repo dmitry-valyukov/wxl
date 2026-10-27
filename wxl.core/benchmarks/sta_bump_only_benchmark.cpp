@@ -42,7 +42,8 @@ struct Object64 {
 // distinct template instantiation -- and hence a distinct, separately compiled operator
 // new/delete -- per Derived, giving each one sizeof(Derived) as a compile-time constant.
 template <typename Derived>
-class StaObject {
+class StaObject
+{
 public:
     static void* operator new(std::size_t /*size*/) {
         return sta_memory_pool::alloc<static_cast<uint32_t>(sizeof(Derived))>();
@@ -96,9 +97,8 @@ int main() {
 
         const double ns = ns_per_op(t1 - t0, N);
         std::printf("  repeat %d: %8.3f ns/op  (checksum: %llx)\n", r + 1, ns,
-                     static_cast<unsigned long long>(checksum));
-        if (ns < best_generic_ns)
-            best_generic_ns = ns;
+                    static_cast<unsigned long long>(checksum));
+        if (ns < best_generic_ns) best_generic_ns = ns;
     }
     std::printf("  best: %.3f ns/op\n\n", best_generic_ns);
 
@@ -116,9 +116,8 @@ int main() {
 
         const double ns = ns_per_op(t1 - t0, N);
         std::printf("  repeat %d: %8.3f ns/op  (checksum: %llx)\n", r + 1, ns,
-                     static_cast<unsigned long long>(checksum));
-        if (ns < best_crtp_ns)
-            best_crtp_ns = ns;
+                    static_cast<unsigned long long>(checksum));
+        if (ns < best_crtp_ns) best_crtp_ns = ns;
     }
     std::printf("  best: %.3f ns/op\n\n", best_crtp_ns);
 

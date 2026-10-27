@@ -33,7 +33,6 @@ import std;
 namespace wxl::core {
 
 export {
-
 namespace unicode {
 
 /// Where letters begin in a stream of code points, fed one at a time.
@@ -50,7 +49,8 @@ namespace unicode {
 /// the only rules that look back past the start of a letter are the flag
 /// rules, and a boundary inside a run of regional indicators only ever falls
 /// after an even number of them -- the count a fresh start assumes.
-class grapheme_breaker {
+class grapheme_breaker
+{
 public:
     /// Whether a letter begins at this code point, given the ones fed before
     /// it. The code point need not be a scalar value: a lone surrogate from
@@ -59,10 +59,10 @@ public:
     bool breaks_before(char32_t code_point) noexcept;
 
 private:
-    std::uint8_t previous_ = 0xFF;        ///< property byte of the last code point; 0xFF: none yet
-    bool odd_regional_ = false;           ///< an odd run of regional indicators ends at the last one
-    std::uint8_t emoji_ = 0;              ///< 1: Extended_Pictographic Extend*; 2: that, then ZWJ
-    bool after_linker_ = false;           ///< InCB=Linker, then only InCB=Extend
+    std::uint8_t previous_ = 0xFF;  ///< property byte of the last code point; 0xFF: none yet
+    bool odd_regional_ = false;     ///< an odd run of regional indicators ends at the last one
+    std::uint8_t emoji_ = 0;        ///< 1: Extended_Pictographic Extend*; 2: that, then ZWJ
+    bool after_linker_ = false;     ///< InCB=Linker, then only InCB=Extend
 };
 
 /// The start of the letter after the one that starts at `at`, or the end of

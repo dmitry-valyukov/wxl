@@ -40,7 +40,8 @@ event_token make_event_token(std::int64_t value) noexcept;
  * Only the machinery makes one from a number (impl::make_event_token): an application cannot
  * write a token of its own. The number is read with value(), for the boundary that hands it on.
  */
-class event_token {
+class event_token
+{
 public:
     /// No subscription: what a field holds before its subscription and after taking it off.
     event_token() noexcept = default;
@@ -78,9 +79,7 @@ private:
 
 namespace impl {
 
-inline event_token make_event_token(std::int64_t value) noexcept {
-    return event_token{value};
-}
+inline event_token make_event_token(std::int64_t value) noexcept { return event_token{value}; }
 
 }  // namespace impl
 
@@ -205,7 +204,9 @@ public:
     ///         Gone from the list, that is, not necessarily let go of: during clear() a
     ///         callback still to be released answers false as well.
     bool remove(event_token& token) noexcept {
-        if (!token) abort("wxl: a callback taken off by an empty token -- taken off already, or never given");
+        if (!token)
+            abort(
+                "wxl: a callback taken off by an empty token -- taken off already, or never given");
         func_t const* const node = node_of(std::exchange(token, event_token{}));
         func_t* const fn = callbacks_.remove(node);
         if (!fn) return false;
@@ -269,7 +270,8 @@ public:
     /// local one and call that, so that a callback unsubscribing from inside the call finds
     /// nothing left to unsubscribe from. Neither event may be inside an invocation.
     void swap(basic_event& other) noexcept {
-        assert(!invocation_ && !other.invocation_ && "wxl: an event is swapped while it is invoked");
+        assert(!invocation_ && !other.invocation_ &&
+               "wxl: an event is swapped while it is invoked");
         callbacks_.swap(other.callbacks_);
     }
 
@@ -416,18 +418,26 @@ template <class Signature>
 class event;
 
 template <class R, class... Args>
-class event<R(Args...)> : public basic_event<sta_intrusive_slist_node, R, Args...> {};
+class event<R(Args...)> : public basic_event<sta_intrusive_slist_node, R, Args...>
+{
+};
 
 template <class R, class... Args>
-class event<R(Args...) noexcept> : public basic_event<sta_intrusive_slist_node, R, Args...> {};
+class event<R(Args...) noexcept> : public basic_event<sta_intrusive_slist_node, R, Args...>
+{
+};
 
 template <class Signature>
 class event_mt;
 
 template <class R, class... Args>
-class event_mt<R(Args...)> : public basic_event<intrusive_slist_node, R, Args...> {};
+class event_mt<R(Args...)> : public basic_event<intrusive_slist_node, R, Args...>
+{
+};
 
 template <class R, class... Args>
-class event_mt<R(Args...) noexcept> : public basic_event<intrusive_slist_node, R, Args...> {};
+class event_mt<R(Args...) noexcept> : public basic_event<intrusive_slist_node, R, Args...>
+{
+};
 
 }  // export namespace wxl::core

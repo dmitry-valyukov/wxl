@@ -68,11 +68,11 @@ export namespace wxl::core {
 template <typename T>
 bool try_parse(std::string_view text, T& result) noexcept {
     T value{};
-    const char * first = text.data();
-    const char * last = first + text.size();
-    const std::from_chars_result ok {last, std::errc{}};
+    const char* first = text.data();
+    const char* last = first + text.size();
+    const std::from_chars_result ok{last, std::errc{}};
 
-    if(std::from_chars(first, last, value) == ok) [[likely]] {
+    if (std::from_chars(first, last, value) == ok) [[likely]] {
         result = value;
         return true;
     }
@@ -207,7 +207,15 @@ u16_text to_u16(T value, Format... format) {
 
 /// The unit a byte count was scaled into, in steps of 1024 -- the steps
 /// Windows itself shows sizes in.
-enum class byte_unit { bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes };
+enum class byte_unit
+{
+    bytes,
+    kilobytes,
+    megabytes,
+    gigabytes,
+    terabytes,
+    petabytes
+};
 
 /// A byte count and the unit it is worth saying out loud in.
 struct scaled_bytes {

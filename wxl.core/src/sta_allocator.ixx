@@ -56,9 +56,7 @@ public:
     static_assert(MinBlockSize >= __STDCPP_DEFAULT_NEW_ALIGNMENT__);
 
     /// The slot of a size class in the dispatch tables: one lzcnt, larger classes first.
-    static constexpr uint32_t pool_index(uint32_t size) noexcept {
-        return leading_zeros(size - 1);
-    }
+    static constexpr uint32_t pool_index(uint32_t size) noexcept { return leading_zeros(size - 1); }
 
     /// How many bytes a block of this size really holds: its whole class, and at least the smallest.
     static constexpr uint32_t block_size(uint32_t size) noexcept {

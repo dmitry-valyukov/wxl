@@ -7,8 +7,8 @@ export namespace wxl::core {
 /// typesafe object to field offset
 template <typename t_obj, typename t_member>
 std::ptrdiff_t field_offset(t_member t_obj::* member_ptr) {
-    return reinterpret_cast<std::ptrdiff_t>(&reinterpret_cast<const volatile char&>(
-        static_cast<t_obj*>(nullptr)->*member_ptr));
+    return reinterpret_cast<std::ptrdiff_t>(
+        &reinterpret_cast<const volatile char&>(static_cast<t_obj*>(nullptr)->*member_ptr));
 }
 
 /// makes typed object from source address and offset

@@ -55,8 +55,8 @@ sta_vector<sta_wstring> environment::command_line() {
     };
 
     int argc = 0;
-    std::unique_ptr<LPWSTR[], local_free_deleter> argv{::CommandLineToArgvW(::GetCommandLineW(), &argc),
-                                                       local_free_deleter{}};
+    std::unique_ptr<LPWSTR[], local_free_deleter> argv{
+        ::CommandLineToArgvW(::GetCommandLineW(), &argc), local_free_deleter{}};
 
     if (!argv) {
         throw std::system_error{static_cast<int>(::GetLastError()), std::system_category(),

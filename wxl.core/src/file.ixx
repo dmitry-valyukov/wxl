@@ -63,9 +63,9 @@ public:
     /// \return the file, opened or not -- ask opened(), and ask the system
     ///         (`GetLastError`) why not, before anything else is called.
     inline static file open_read(const wchar_t* path) noexcept {
-        return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                  nullptr, OPEN_EXISTING,
-                                  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
+        return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+                                  nullptr));
     }
 
     /// Creates a file for writing, emptying one that is already there.
@@ -84,11 +84,9 @@ public:
     /// such a file: they pass none.
     ///@{
     inline static file open_read_overlapped(const wchar_t* path) noexcept {
-        return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                  nullptr, OPEN_EXISTING,
-                                  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN |
-                                      FILE_FLAG_OVERLAPPED,
-                                  nullptr));
+        return file(::CreateFileW(
+            path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN | FILE_FLAG_OVERLAPPED, nullptr));
     }
 
     /// Creates a file for overlapped writing, emptying one that is already there, for a caller

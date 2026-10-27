@@ -26,8 +26,8 @@ using clock_t_ = std::chrono::steady_clock;
 std::wstring windows_to_utf16(std::string_view utf8) {
     if (utf8.empty()) return {};
 
-    const int size = ::MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()),
-                                           nullptr, 0);
+    const int size =
+        ::MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), nullptr, 0);
     std::wstring result(static_cast<std::size_t>(size), L'\0');
     ::MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), result.data(),
                           size);
@@ -91,12 +91,14 @@ void compare(std::string_view name, std::string_view utf8, unsigned rounds) {
     std::size_t sink = 0;
 
     const double ours_wide = milliseconds(rounds, [&] { sink += checked.to_utf16().size(); });
-    const double windows_wide = milliseconds(rounds, [&] { sink += windows_to_utf16(utf8).size(); });
+    const double windows_wide =
+        milliseconds(rounds, [&] { sink += windows_to_utf16(utf8).size(); });
     const double ours_narrow = milliseconds(rounds, [&] { sink += checked_wide.to_utf8().size(); });
     const double windows_narrow =
         milliseconds(rounds, [&] { sink += windows_to_utf8(utf16).size(); });
 
-    const double checking = milliseconds(rounds, [&] { sink += wxl::core::unicode::is_valid_utf8(utf8); });
+    const double checking =
+        milliseconds(rounds, [&] { sink += wxl::core::unicode::is_valid_utf8(utf8); });
 
     std::printf("%-10s %9zu bytes  x%u\n", std::string(name).c_str(), utf8.size(), rounds);
     std::printf("    to utf16   wxl.core %8.2f ms   windows %8.2f ms   %5.2fx\n", ours_wide,

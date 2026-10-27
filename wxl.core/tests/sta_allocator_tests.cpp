@@ -3,8 +3,6 @@
 import std;
 import wxl.core;
 
-
-
 namespace {
 
 using wxl::core::sta_allocator;
@@ -89,8 +87,10 @@ TEST(StaMemoryPoolTest, AboveMaxBlockSizeFallsBackToTheRawHeap) {
 TEST(StaMemoryPoolTest, BlockSizeIsTheWholeClass) {
     EXPECT_EQ(sta_memory_pool::block_size(1), sta_memory_pool::MinBlockSize);
     EXPECT_EQ(sta_memory_pool::block_size(sizeof(void*)), sta_memory_pool::MinBlockSize);
-    EXPECT_EQ(sta_memory_pool::block_size(sta_memory_pool::MinBlockSize), sta_memory_pool::MinBlockSize);
-    EXPECT_EQ(sta_memory_pool::block_size(sta_memory_pool::MinBlockSize + 1), 2 * sta_memory_pool::MinBlockSize);
+    EXPECT_EQ(sta_memory_pool::block_size(sta_memory_pool::MinBlockSize),
+              sta_memory_pool::MinBlockSize);
+    EXPECT_EQ(sta_memory_pool::block_size(sta_memory_pool::MinBlockSize + 1),
+              2 * sta_memory_pool::MinBlockSize);
     EXPECT_EQ(sta_memory_pool::block_size(100), 128u);
     EXPECT_EQ(sta_memory_pool::block_size(128), 128u);
     EXPECT_EQ(sta_memory_pool::block_size(129), 256u);
@@ -155,27 +155,21 @@ struct Medium {
 TEST(StaAllocatorTest, VectorGrowsAndKeepsCorrectValues) {
     std::vector<int, sta_allocator<int>> v;
 
-    for (int i = 0; i < 5000; ++i)
-        v.push_back(i);
+    for (int i = 0; i < 5000; ++i) v.push_back(i);
 
     ASSERT_EQ(v.size(), 5000u);
-    for (int i = 0; i < 5000; ++i)
-        EXPECT_EQ(v[i], i);
+    for (int i = 0; i < 5000; ++i) EXPECT_EQ(v[i], i);
 }
 
 TEST(StaAllocatorTest, WorksForDifferentlySizedElements) {
     std::vector<Small, sta_allocator<Small>> small_objects(100);
     std::vector<Medium, sta_allocator<Medium>> medium_objects(100);
 
-    for (auto& obj : small_objects)
-        obj.data[0] = std::byte{0xAB};
-    for (auto& obj : medium_objects)
-        obj.data[0] = std::byte{0xCD};
+    for (auto& obj : small_objects) obj.data[0] = std::byte{0xAB};
+    for (auto& obj : medium_objects) obj.data[0] = std::byte{0xCD};
 
-    for (auto& obj : small_objects)
-        EXPECT_EQ(obj.data[0], std::byte{0xAB});
-    for (auto& obj : medium_objects)
-        EXPECT_EQ(obj.data[0], std::byte{0xCD});
+    for (auto& obj : small_objects) EXPECT_EQ(obj.data[0], std::byte{0xAB});
+    for (auto& obj : medium_objects) EXPECT_EQ(obj.data[0], std::byte{0xCD});
 }
 
 }  // namespace

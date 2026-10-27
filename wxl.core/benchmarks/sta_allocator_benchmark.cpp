@@ -52,8 +52,7 @@ Result run_once(unsigned count) {
     }
     auto t1 = std::chrono::steady_clock::now();
 
-    for (unsigned i = 0; i < count; ++i)
-        delete objects[i];
+    for (unsigned i = 0; i < count; ++i) delete objects[i];
     auto t2 = std::chrono::steady_clock::now();
 
     return {
@@ -67,8 +66,7 @@ Result best_of(unsigned count, int repeats) {
     Result best;
     for (int i = 0; i < repeats; ++i) {
         Result r = run_once<T>(count);
-        if (i == 0 || r.total_ms() < best.total_ms())
-            best = r;
+        if (i == 0 || r.total_ms() < best.total_ms()) best = r;
     }
     return best;
 }
@@ -107,21 +105,18 @@ void bench_size(const char* label, unsigned count, int repeats) {
 template <typename T>
 double run_recycle(unsigned working_set, unsigned iterations) {
     std::vector<T*> objects(working_set);
-    for (unsigned i = 0; i < working_set; ++i)
-        objects[i] = new T;
+    for (unsigned i = 0; i < working_set; ++i) objects[i] = new T;
 
     const auto t0 = std::chrono::steady_clock::now();
     for (unsigned i = 0, slot = 0; i < iterations; ++i) {
         delete objects[slot];
         objects[slot] = new T;
 
-        if (++slot == working_set)
-            slot = 0;
+        if (++slot == working_set) slot = 0;
     }
     const auto t1 = std::chrono::steady_clock::now();
 
-    for (unsigned i = 0; i < working_set; ++i)
-        delete objects[i];
+    for (unsigned i = 0; i < working_set; ++i) delete objects[i];
 
     return std::chrono::duration<double, std::nano>(t1 - t0).count() / iterations;
 }

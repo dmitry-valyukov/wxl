@@ -10,12 +10,12 @@ import wxl.core;
 
 using namespace std::string_view_literals;
 
-using wxl::core::unicode::assume_valid;
-using wxl::core::unicode::checked;
 using wxl::core::u16_text;
 using wxl::core::u16_view;
 using wxl::core::u8_text;
 using wxl::core::u8_view;
+using wxl::core::unicode::assume_valid;
+using wxl::core::unicode::checked;
 
 namespace {
 
@@ -216,7 +216,7 @@ TEST(basic_text, a_string_grows_by_whole_code_points) {
     EXPECT_EQ(narrow.chars(), "aё𠮷😀"sv);
     EXPECT_EQ(narrow.size(), 11u);  // 1 + 2 + 4 + 4
     EXPECT_EQ(wide.wchars(), L"aё𠮷😀"sv);
-    EXPECT_EQ(wide.size(), 6u);     // 1 + 1 + a pair + a pair
+    EXPECT_EQ(wide.size(), 6u);  // 1 + 1 + a pair + a pair
 }
 
 TEST(basic_text, a_string_grows_by_checked_text) {

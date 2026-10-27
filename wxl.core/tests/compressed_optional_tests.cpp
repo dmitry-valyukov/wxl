@@ -58,7 +58,7 @@ struct IntSentinel {
 };
 
 TEST(CompressedOptionalTest, universal_constructor_and_assignment) {
-    using opt_str = compressed_optional<const char *, PtrSentinel<const char>>;
+    using opt_str = compressed_optional<const char*, PtrSentinel<const char>>;
 
     opt_str opt = "hello";
     EXPECT_TRUE(opt.has_value());
@@ -115,21 +115,20 @@ TEST(CompressedOptionalTest, std_optional_interoperability) {
 }
 
 TEST(CompressedOptionalTest, monadic_interface) {
-    using opt_str = compressed_optional<const char *, PtrSentinel<const char>>;
+    using opt_str = compressed_optional<const char*, PtrSentinel<const char>>;
 
     opt_str input("42");
 
-    auto result =
-        input
-            // 1. transform: string -> int (возвращает nullable<int> по селектору выше)
-            .transform([](std::string_view s) { return std::stoi(std::string(s)); })
-            // 2. and_then: если число четное — делим на 2, иначе nullopt
-            .and_then([](int val) -> nullable<int> {
-                if (val % 2 == 0) return val / 2;
-                return std::nullopt;
-            })
-            // 3. or_else: если по дороге получили nullopt, подставляем 0
-            .or_else([]() -> nullable<int> { return 0; });
+    auto result = input
+                      // 1. transform: string -> int (возвращает nullable<int> по селектору выше)
+                      .transform([](std::string_view s) { return std::stoi(std::string(s)); })
+                      // 2. and_then: если число четное — делим на 2, иначе nullopt
+                      .and_then([](int val) -> nullable<int> {
+                          if (val % 2 == 0) return val / 2;
+                          return std::nullopt;
+                      })
+                      // 3. or_else: если по дороге получили nullopt, подставляем 0
+                      .or_else([]() -> nullable<int> { return 0; });
 
     EXPECT_TRUE(result.has_value());
     EXPECT_EQ(*result, 21);

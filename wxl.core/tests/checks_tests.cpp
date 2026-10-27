@@ -9,9 +9,7 @@ namespace {
 
 /// A report goes to stderr and the process ends without a dialog, which in a
 /// test run would be a hang.
-void without_a_dialog() {
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-}
+void without_a_dialog() { _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT); }
 
 // The default place is the caller's line: the call on the line below.
 // clang-format off: the test reads the line of the call as its own line + 1
@@ -19,9 +17,7 @@ constexpr std::uint_least32_t line_of_the_call = std::source_location::current()
 [[noreturn]] void abort_where_called() { without_a_dialog(); wxl::core::abort("the reason"); }
 // clang-format on
 
-std::source_location somewhere_else() {
-    return std::source_location::current();
-}
+std::source_location somewhere_else() { return std::source_location::current(); }
 
 [[noreturn]] void abort_naming(std::source_location where) {
     without_a_dialog();
@@ -59,7 +55,8 @@ TEST(ChecksTest, AReportWritesTheLineOfAnAbortAndGoesOn) {
     // clang-format on
     const std::string said = testing::internal::GetCapturedStderr();
 
-    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(line_of_the_report) + "the note\\n$"))) << said;
+    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(line_of_the_report) + "the note\\n$")))
+        << said;
 }
 
 TEST(ChecksTest, AReportNamesThePlaceItIsGiven) {
@@ -69,7 +66,8 @@ TEST(ChecksTest, AReportNamesThePlaceItIsGiven) {
     wxl::core::report("the note given", where);
     const std::string said = testing::internal::GetCapturedStderr();
 
-    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(where.line()) + "the note given\\n$"))) << said;
+    EXPECT_TRUE(std::regex_search(said, std::regex(place_of(where.line()) + "the note given\\n$")))
+        << said;
 }
 
 // A line longer than the buffer is truncated, and not inside a letter. Two-byte letters
@@ -150,7 +148,8 @@ TEST(TerminateReason, NamesWhatAStdExceptionSays) {
 TEST(TerminateReason, SaysWhenTheTypeIsUnknown) {
     char text[512];
     EXPECT_EQ(describe_thrown(42, text), "wxl: unhandled exception of an unknown type");
-    EXPECT_EQ(describe_thrown(foreign_error{7}, text), "wxl: unhandled exception of an unknown type");
+    EXPECT_EQ(describe_thrown(foreign_error{7}, text),
+              "wxl: unhandled exception of an unknown type");
 }
 
 TEST(TerminateReason, SaysWhenNothingWasThrown) {
@@ -170,8 +169,8 @@ void describe_with_the_namer() {
 
     char text[512];
     std::cerr << "said: " << describe_thrown(foreign_error{7}, text) << " / "
-              << describe_thrown(42, text) << " / " << describe_thrown(std::logic_error("known"), text)
-              << " end\n";
+              << describe_thrown(42, text) << " / "
+              << describe_thrown(std::logic_error("known"), text) << " end\n";
     std::exit(0);
 }
 
@@ -215,8 +214,14 @@ TEST(TerminateReason, ATruncatedReportKeepsWholeCodePoints) {
 TEST(TerminateReason, PutsUtf16AsUtf8) {
     char text[16];
     terminate_report report{text};
-    report.put(L"a\xD83D\xDE00" L"b\xD800" L"c");
-    EXPECT_EQ(report.text(), "a\xF0\x9F\x98\x80" "b\xEF\xBF\xBD" "c");
+    report.put(
+        L"a\xD83D\xDE00"
+        L"b\xD800"
+        L"c");
+    EXPECT_EQ(report.text(),
+              "a\xF0\x9F\x98\x80"
+              "b\xEF\xBF\xBD"
+              "c");
 
     char short_text[8];
     terminate_report truncated{short_text};
@@ -260,22 +265,14 @@ TEST(TerminateReason, ThreeBytesHoldTheDots) {
 
 namespace {
 
-[[noreturn]] void fail_with_a_runtime_error() {
-    throw std::runtime_error("проба terminate");
-}
+[[noreturn]] void fail_with_a_runtime_error() { throw std::runtime_error("проба terminate"); }
 
 // A call with no way out for an exception, as a listener of the window is.
-void listen() noexcept {
-    fail_with_a_runtime_error();
-}
+void listen() noexcept { fail_with_a_runtime_error(); }
 
-[[noreturn]] void fail_with_a_foreign_error() {
-    throw foreign_error{7};
-}
+[[noreturn]] void fail_with_a_foreign_error() { throw foreign_error{7}; }
 
-void listen_with_a_foreign_error() noexcept {
-    fail_with_a_foreign_error();
-}
+void listen_with_a_foreign_error() noexcept { fail_with_a_foreign_error(); }
 
 void throw_out_of_a_noexcept_call() {
     without_a_dialog();
@@ -303,14 +300,10 @@ void fail_with_no_exception_to_hand_over() {
     wxl::core::impl::terminate_with_exception(nullptr);
 }
 
-[[noreturn]] void fail_while_naming() {
-    throw std::runtime_error("the namer failed");
-}
+[[noreturn]] void fail_while_naming() { throw std::runtime_error("the namer failed"); }
 
 // A namer that throws: the exception leaves a noexcept call inside the handler.
-bool name_by_throwing(terminate_report&) noexcept {
-    fail_while_naming();
-}
+bool name_by_throwing(terminate_report&) noexcept { fail_while_naming(); }
 
 // Describing the exception brings std::terminate back; the handler entered again stops with
 // a line of its own instead of describing it again, and again.

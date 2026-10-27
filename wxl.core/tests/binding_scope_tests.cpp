@@ -96,9 +96,8 @@ TEST(BindingScope, a_field_dying_first_leaves_the_scope_nothing_to_unbind) {
     binding_scope scope;
     {
         observable<int> number{0};
-        scope.collect([&] {
-            number.watch_for_binding([p = probe{owned}](int const&) noexcept {});
-        });
+        scope.collect(
+            [&] { number.watch_for_binding([p = probe{owned}](int const&) noexcept {}); });
         EXPECT_FALSE(scope.empty());
     }
     EXPECT_EQ(owned, 1);
@@ -115,9 +114,8 @@ TEST(BindingScope, a_scope_going_first_takes_its_watches_with_it) {
     number.on_change([&app](int const&) noexcept { ++app; });
     {
         binding_scope scope;
-        scope.collect([&] {
-            number.watch_for_binding([p = probe{owned}](int const&) noexcept {});
-        });
+        scope.collect(
+            [&] { number.watch_for_binding([p = probe{owned}](int const&) noexcept {}); });
     }
     EXPECT_EQ(owned, 1);
 
@@ -196,8 +194,10 @@ TEST(BindingScope, unbind_while_the_field_fires) {
         scope.unbind();
     });
     scope.collect([&] {
-        number.watch_for_binding([&heard, p = probe{owned}](int const&) noexcept { heard.push_back('e'); });
-        number.watch_for_binding([&heard, p = probe{owned}](int const&) noexcept { heard.push_back('e'); });
+        number.watch_for_binding(
+            [&heard, p = probe{owned}](int const&) noexcept { heard.push_back('e'); });
+        number.watch_for_binding(
+            [&heard, p = probe{owned}](int const&) noexcept { heard.push_back('e'); });
     });
     number.on_change([&heard](int const&) noexcept { heard.push_back('a'); });
 
@@ -222,7 +222,8 @@ TEST(BindingScope, a_watch_unbinding_its_own_scope) {
             scope.unbind();
             ownedWhileRunning = owned;
         });
-        number.watch_for_binding([&heard, p = probe{owned}](int const&) noexcept { heard.push_back('2'); });
+        number.watch_for_binding(
+            [&heard, p = probe{owned}](int const&) noexcept { heard.push_back('2'); });
     });
 
     number.set(1);
