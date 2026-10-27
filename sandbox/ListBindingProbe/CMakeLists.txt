@@ -10,7 +10,6 @@ wxl_add_executable(sandbox.list-binding-probe
     probes.cpp
 )
 
-target_include_directories(sandbox.list-binding-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
 target_link_libraries(sandbox.list-binding-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib)
 
 add_executable(sandbox.list-binding-windowless
@@ -20,7 +19,6 @@ add_executable(sandbox.list-binding-windowless
 )
 
 target_include_directories(sandbox.list-binding-windowless PRIVATE
-    ${WXL_CPPWINRT_PROJECTION_DIR}
     ${PROJECT_SOURCE_DIR}/wxl.ui/src
     ${PROJECT_SOURCE_DIR}/wxl.core/src
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include

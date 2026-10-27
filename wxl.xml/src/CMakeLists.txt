@@ -38,8 +38,7 @@ target_link_libraries(wxl.xml PUBLIC wxl::core)
 # A broken document is reported by throwing, and MSVC unwinds nothing without
 # /EHsc: the destructors of everything on the stack between the throw and the
 # catch are simply skipped. CMake puts the flag in CMAKE_CXX_FLAGS itself, but
-# a toolchain file is free to replace those flags wholesale -- vcpkg's does
-# when this directory is configured as its own project -- so it is added here
+# a toolchain file is free to replace those flags wholesale, so it is added here
 # only when it is missing, rather than duplicated on every source file.
 if(MSVC AND NOT CMAKE_CXX_FLAGS MATCHES "/EHsc")
     target_compile_options(wxl.xml PUBLIC /EHsc)

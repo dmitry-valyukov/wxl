@@ -5,11 +5,10 @@
 # itself: it runs vcvars64.bat in a child cmd, reads back the variables it
 # set, and applies them to the current process.
 #
-# The VCPKG_ROOT vcvars64.bat overwrites on the way (it points at Visual
-# Studio's own bundled vcpkg, which carries no cppwinrt port) needs no
-# undoing here: cmake/vcpkg_bootstrap.cmake resolves the real root from
-# vcpkg's own vcpkg.path.txt and never reads the environment variable on
-# Windows. That is what the bootstrap file exists for.
+# The same environment names the Visual Studio installation whose MSBuild the
+# configure runs to restore the NuGet packages and build the C++/WinRT
+# projection (VSINSTALLDIR), and the Windows SDK of both the projection and the
+# compiler (WindowsSDKVersion): see cmake/wxl_packages.cmake.
 #
 # Usage:
 #   tools\build.ps1                 # configure (if needed) and build Debug

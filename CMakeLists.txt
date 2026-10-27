@@ -9,11 +9,6 @@
 # shared by all three projects.
 cmake_minimum_required(VERSION 4.3)
 
-# Resolves VCPKG_ROOT (from the vcpkg-managed path file, or the environment)
-# and sets the toolchain file itself -- which is why no preset here has to
-# name CMAKE_TOOLCHAIN_FILE. It has to run before project().
-include(cmake/vcpkg_bootstrap.cmake)
-
 # Opens CMake's experimental `import std;` gate, which wxl.core's module build
 # needs. Only the top-level project can open it, and only before project().
 # CMAKE_CXX_MODULE_STD below is the request; this is the permission, and CMake
@@ -94,10 +89,15 @@ if(BUILD_TESTING)
     endif()
 endif()
 
-find_package(cppwinrt CONFIG REQUIRED)
+# The NuGet packages and the C++/WinRT projection over them, made by the MSBuild
+# of the developer environment (cmake/wxl_packages.cmake): the target
+# Microsoft::CppWinRT and wxl_nuget_package_dir(). Here and not in wxl.ui: the
+# generator reads the packages from the NuGet package folder, and a fresh clone
+# configures it before the wrappers, and with them wxl.ui, exist.
+include(cmake/wxl_packages.cmake)
 
-# winmd::reader is a header-only WinMD metadata parsing library; not packaged
-# by vcpkg, so it's fetched directly from its upstream repo.
+# winmd::reader is a header-only WinMD metadata parsing library, fetched from
+# its upstream repository at a pinned commit.
 include(FetchContent)
 FetchContent_Declare(
     winmd

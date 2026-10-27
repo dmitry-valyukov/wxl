@@ -165,39 +165,39 @@ TextBox {
 - **ОС:** Windows x64
 - **Инструменты компиляции:** Visual Studio 2026 (канал Insiders) с тулсетом
   MSVC версии 14.53.36911 или новее
+- **Средства WinUI:** в той же установке — рабочая нагрузка «WinUI application
+  development» с компонентом «C++ WinUI app development tools»; в Build Tools
+  для Visual Studio 2026 — рабочая нагрузка «WinUI application development
+  build tools» с компонентом «C++ WinUI app development build tools». Пакеты
+  NuGet и проекцию cppwinrt настройка получает от MSBuild этой установки
+- **Windows SDK:** 10.0.26100.0 или новее
 - **Сборка:** CMake (версии 4.3 / 4.4) и Ninja
 - **Окружение:** PowerShell 7 (`pwsh`)
-- **Управление зависимостями:** развёрнутый `vcpkg` с выполненной
-  однократной командой интеграции (`vcpkg integrate install`). Скрипты
-  сборки автоматически обнаружат менеджер пакетов через файл
-  `vcpkg.path.txt` или при явной передаче флага `-DVCPKG_ROOT=<путь>`.
 
 ### Пошаговое развёртывание
 
 Запустите сеанс `pwsh` из корневой директории склонированного репозитория и
-выполните следующие команды для подготовки окружения, генерации проекции и
+выполните следующие команды для подготовки окружения, генерации обёрток и
 запуска примера:
 
 ```powershell
-# 1. Восстановление необходимых NuGet-пакетов (версии зафиксированы в wxl.gen/profiles/base.json и tools/packages.json)
-pwsh -NoProfile -File tools\restore-packages.ps1
-
-# 2. Генерация базовой проекции cppwinrt в каталог generated\
-pwsh -NoProfile -File tools\projection.ps1
-
-# 3. Развёртывание экспериментальной среды выполнения Windows App Runtime
-pwsh -NoProfile -File tools\install-runtime.ps1
-
-# 4. Сборка утилиты winui-srcgen без генерации сопутствующей документации
+# 1. Настройка дерева и сборка утилиты winui-srcgen без сайта документации.
+#    Настройка восстанавливает пакеты NuGet (закрепления — wxl.gen/profiles/base.json
+#    и tools/packages.json, результат — tools/packages.lock.json) и строит проекцию
+#    cppwinrt в каталоге сборки
 tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
 
-# 5. Запуск генератора для построения полного профиля обёрток WinUI
+# 2. Развёртывание экспериментальной среды выполнения Windows App Runtime
+#    из пакета, который восстановила настройка
+pwsh -NoProfile -File tools\install-runtime.ps1
+
+# 3. Запуск генератора для построения полного профиля обёрток WinUI
 build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
 
-# 6. Конфигурация CMake и компиляция демонстрационного проекта Quadratic
+# 4. Конфигурация CMake и компиляция демонстрационного проекта Quadratic
 tools\build.ps1 -Configure -Target sample.quadratic
 
-# 7. Запуск скомпилированного приложения
+# 5. Запуск скомпилированного приложения
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 

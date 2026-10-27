@@ -12,7 +12,6 @@ add_executable(sandbox.system-engine-probe
 )
 
 target_include_directories(sandbox.system-engine-probe PRIVATE
-    ${WXL_CPPWINRT_PROJECTION_DIR}
     ${PROJECT_SOURCE_DIR}/wxl.ui/src
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include)
 target_link_libraries(sandbox.system-engine-probe PRIVATE

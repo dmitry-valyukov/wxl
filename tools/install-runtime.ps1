@@ -2,10 +2,11 @@
 # user: the framework package, the main and singleton packages and the
 # dynamic-dependency lifetime manager, from the installers of the
 # Microsoft.WindowsAppSDK.Runtime package that the Windows App SDK release of
-# wxl.gen/profiles/base.json declares, which tools/restore-packages.ps1 fetched
-# into the NuGet package folder.
+# wxl.gen/profiles/base.json declares. The packages come from the configure of
+# the tree: its restore (cmake/wxl_packages.cmake) puts them into the NuGet
+# package folder, so this script runs after a configure.
 #
-#   pwsh -NoProfile -File tools\restore-packages.ps1     # once, fetches them
+#   cmake --preset x64                                # in a developer prompt; tools\build.ps1 configures as well
 #   pwsh -NoProfile -File tools\install-runtime.ps1
 #
 # Why: the WinUI metadata the wrappers are generated from is the experimental
@@ -31,7 +32,7 @@ if (-not $version) { throw "Windows App SDK $sdk declares no Microsoft.WindowsAp
 
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'win10-arm64' } 'x86' { 'win10-x86' } default { 'win10-x64' } }
 $dir = Join-Path $root "microsoft.windowsappsdk.runtime\$version\tools\MSIX\$arch"
-if (-not (Test-Path $dir)) { throw "No installers at $dir -- run tools\restore-packages.ps1 first" }
+if (-not (Test-Path $dir)) { throw "No installers at $dir -- configure the tree first: its restore puts the package there" }
 
 # The order Windows App SDK's own installer uses: the framework first, the
 # packages that depend on it after.

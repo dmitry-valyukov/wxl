@@ -14,7 +14,6 @@ add_executable(sandbox.cppwinrt-panel
 )
 
 target_include_directories(sandbox.cppwinrt-panel PRIVATE
-    ${WXL_CPPWINRT_PROJECTION_DIR}
     ${PROJECT_SOURCE_DIR}/wxl.ui/src
     ${PROJECT_SOURCE_DIR}/wxl.core/src
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include

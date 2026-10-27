@@ -10,5 +10,4 @@ wxl_add_executable(sandbox.windowless-island-probe
     main.cpp
 )
 
-target_include_directories(sandbox.windowless-island-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
 target_link_libraries(sandbox.windowless-island-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib gdi32.lib)

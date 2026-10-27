@@ -62,6 +62,12 @@
 - Workflow [`.github/workflows/docs.yml`](.github/workflows/docs.yml)
   собирает сайт документации на Linux; любое предупреждение Doxygen
   считается ошибкой.
+- Пакеты NuGet CI восстанавливает в режиме блокировки
+  (`RestoreLockedMode=true`): изменение закреплений
+  (`wxl.gen/profiles/base.json`, `tools/packages.json`) приходит в одном
+  коммите с файлом `tools/packages.lock.json`, который записала настройка,
+  иначе сборка останавливается на настройке (см.
+  [docs/building.md](docs/building.md#пакеты-nuget-и-проекция-cppwinrt)).
 - Обязательные проверки: `build (Debug)`, `build (Release)`,
   `build (Strict)`, `build` (сайт документации) и `commits`. Pull request
   вливается, только когда все они завершились успешно.

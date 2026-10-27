@@ -7,5 +7,4 @@ wxl_add_executable(sandbox.zoom-gesture-probe
     main.cpp
 )
 
-target_include_directories(sandbox.zoom-gesture-probe PRIVATE ${WXL_CPPWINRT_PROJECTION_DIR})
 target_link_libraries(sandbox.zoom-gesture-probe PRIVATE Microsoft::CppWinRT runtimeobject.lib user32.lib)
