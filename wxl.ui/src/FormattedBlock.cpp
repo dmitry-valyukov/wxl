@@ -363,6 +363,12 @@ void FormattedBlock::appendWideElement(FrameworkElement const& element, WideWidt
     Impl* self = static_cast<Impl*>(impl());
     auto block = get<&Impl::richTextBlock_>();
     const docs::Paragraph paragraph = last_paragraph(block);
+    // The line that holds the element grows to it. Under the block's
+    // BlockLineHeight -- an even step for its text lines -- that line keeps
+    // the fixed height, the element's bottom sits on the line's baseline, and
+    // the element rises over the text above. The strategy is the paragraph's
+    // own, so the text paragraphs around keep the block's.
+    paragraph.LineStackingStrategy(xaml::LineStackingStrategy::MaxHeight);
     appendElement(element);
 
     const xaml::Thickness margin = paragraph.Margin();

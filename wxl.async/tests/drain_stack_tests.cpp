@@ -73,31 +73,3 @@ TEST(DrainStackTest, PopAllClaimsEveryNodePushedConcurrentlyExactlyOnce) {
     EXPECT_EQ(seen.size(), static_cast<size_t>(total));
     EXPECT_TRUE(stack.empty());
 }
-
-namespace {
-
-struct payload {
-    int value;
-    explicit payload(int v) : value(v) {}
-};
-
-}  // namespace
-
-TEST(AsNodeTest, AdaptsATypeThatDoesNotItselfDeriveFromIntrusiveListNode) {
-    using wrapped_node = as_node<payload>;
-
-    drain_stack<wrapped_node> stack;
-
-    wrapped_node a(1);
-    wrapped_node b(2);
-
-    stack.push(&a);
-    stack.push(&b);
-
-    wrapped_node* chain = stack.pop_all();
-    ASSERT_NE(chain, nullptr);
-    EXPECT_EQ(chain->value, 2);
-
-    ASSERT_NE(chain->next_, nullptr);
-    EXPECT_EQ(chain->next_->value, 1);
-}

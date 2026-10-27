@@ -67,43 +67,6 @@ TEST(RefcountedTest, refcounted_mt_test) {
     EXPECT_TRUE(desctructor_flag);
 }
 
-// release_only_ptr: the field-shaped smart pointer that takes one reference and gives it
-// back, and can do nothing else -- no copy, no move, no second reference.
-TEST(ReleaseOnlyPtrTest, TakesTheReferenceItIsGivenAndReleasesIt) {
-    bool destroyed = false;
-    {
-        const release_only_ptr<test_object<refcounted>> owner(
-            new test_object<refcounted>(&destroyed));
-        EXPECT_FALSE(destroyed);
-    }
-    EXPECT_TRUE(destroyed);
-}
-
-TEST(ReleaseOnlyPtrTest, AKeeperOutlivesTheOwnerWithoutTheOwnerKnowing) {
-    bool destroyed = false;
-    intrusive_ptr<test_object<refcounted>> keeper;
-    {
-        const release_only_ptr<test_object<refcounted>> owner(
-            new test_object<refcounted>(&destroyed));
-        keeper = intrusive_ptr<test_object<refcounted>>(owner.get());
-    }
-    EXPECT_FALSE(destroyed);
-    keeper = intrusive_ptr<test_object<refcounted>>();
-    EXPECT_TRUE(destroyed);
-}
-
-// The not_null specialization over it: the same ownership, with the null ruled out by
-// the type. This is how component holds its state.
-TEST(ReleaseOnlyPtrTest, NotNullOverItOwnsTheSameWay) {
-    bool destroyed = false;
-    {
-        const not_null<release_only_ptr<test_object<refcounted>>> owner(
-            new test_object<refcounted>(&destroyed));
-        EXPECT_FALSE(destroyed);
-    }
-    EXPECT_TRUE(destroyed);
-}
-
 // make_refcounted: the count mixed into the type itself, so what comes back
 // points at a T and behaves like one.
 

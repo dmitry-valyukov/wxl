@@ -1,6 +1,5 @@
-// То, чем читатель отвечает на негодный документ, и больше ничего. Своя
-// партиция потому, что тому, кто только ловит -- обёртке, тесту, -- нужны
-// эти два типа и не нужны ни дерево, ни разбор.
+// The exceptions the reader throws, and nothing else. The partition depends only
+// on the standard library, not on the tree or the parser.
 
 export module wxl.json:exception;
 
@@ -8,63 +7,62 @@ import std;
 
 export namespace wxl::json {
 
-/// Корень всего, что бросает этот читатель: файл, который не читается,
-/// байты, которые не UTF-8, документ, который не разбирается. Один тип на
-/// всё, чтобы `catch (const wxl::json::exception&)` ловил любую неудачу
-/// этой библиотеки и ничью больше.
+/// Serves as the base class of every exception this reader throws: for a file that
+/// cannot be read, bytes that are not UTF-8, a document that does not parse. One base
+/// type lets `catch (const wxl::json::exception&)` catch any failure of this library
+/// and no other.
 ///
-/// Сообщение -- UTF-8: его берёт std::exception, им же отвечает всё
-/// остальное здесь.
+/// The message is UTF-8: `std::exception` stores it, and the rest of the library
+/// returns text in the same encoding.
 class exception : public std::runtime_error {
 public:
-    /// Создаёт исключение с сообщением `message`. Сообщение копируется; его возвращает
-    /// `what()`.
+    /// Creates an exception with the message `message`. The message is copied; `what()`
+    /// returns it.
     inline explicit exception(std::string_view message)
         : std::runtime_error(std::string(message)) {}
 };
 
-/// Документ не разобрался; несёт место, на котором разбор остановился.
+/// Represents the exception thrown when a document does not parse; carries the position
+/// of the error.
 class parsing_exception : public exception {
 public:
-    /// Создаёт исключение разбора для места `line`, `column` в документе `file_name`.
+    /// Creates a parsing exception for the position `line`, `column` in the document `file_name`.
     ///
-    /// Сообщение, которое возвращает `what()`, записывает место так, как его пишет
-    /// компилятор: `file_name(line,column): reason`, а при пустом `file_name` --
-    /// `(line,column): reason`. `rule` -- место в исходниках читателя, где документ
-    /// был отвергнут.
+    /// The message returned by `what()` writes the position the way a compiler does:
+    /// `file_name(line,column): reason`, or `(line,column): reason` when `file_name` is
+    /// empty. `rule` is the location in the reader's source code where the document was
+    /// rejected.
     parsing_exception(std::string_view file_name, int line, int column, std::string_view reason,
                       const std::source_location& rule);
 
-    /// Документ и место в нём, куда смотреть: счёт с единицы, колонка в
-    /// байтах.
+    /// Gets the document name and the position in it, one-based; the column counts bytes.
     ///
-    /// Там, где правило отказывается от начатого -- строка без закрывающей
-    /// кавычки, объект без закрывающей скобки, -- местом названо начало, а
-    /// не байт, на котором разбор сдался: искать надо там.
+    /// Where a rule abandons a construct it has begun -- a string without the closing
+    /// quote, an object without the closing brace -- the position is its beginning, not
+    /// the byte where parsing stopped, because that is where the error is.
     /// @{
     inline std::string_view file_name() const noexcept { return file_name_; }
-    /// Возвращает номер строки, считая с единицы.
+    /// Returns the line number, counted from one.
     inline int line() const noexcept { return line_; }
-    /// Возвращает номер колонки в байтах, считая с единицы.
+    /// Returns the column number in bytes, counted from one.
     inline int column() const noexcept { return column_; }
     /// @}
 
-    /// Чем документ не угодил, одной строкой и по-русски: «ожидалась
-    /// запятая или «}»». Место говорит, куда смотреть, а это -- что там
-    /// не так.
+    /// Returns what is wrong with the document in one line, such as `expected ',' or '}'`.
+    /// The position tells where to look; the reason tells what is wrong there.
     inline std::string_view reason() const noexcept { return reason_; }
 
-    /// Где в исходниках самого читателя документ был отвергнут, то есть
-    /// какое правило грамматики на нём сдалось. Это для отладки читателя, а
-    /// не документа, -- потому и рядом с местом, а не вместо него: вопросы
-    /// разные.
+    /// Returns the location in the reader's own source code where the document was
+    /// rejected, that is, the grammar rule that failed on it. It is meant for debugging
+    /// the reader, not the document, and so accompanies the position rather than
+    /// replacing it.
     inline const std::source_location& rule() const noexcept { return rule_; }
 
 private:
-    // Копия, а не вид: исключение вполне переживает разбор, который его
-    // бросил, и имя файла обязано пережить вместе с ним. Строка обычная, не
-    // пуловая: заполняется один раз, а объекту, уходящему так далеко из
-    // читателя, лучше не быть должным STA-пулу ничего.
+    // Copies, not views: the exception can outlive the parse that threw it, and the
+    // file name has to outlive it as well. Ordinary strings, not pool-allocated: they
+    // are filled once, and an object that travels this far from the reader should
+    // hold no memory from the STA pool.
     std::string file_name_;
     std::string reason_;
 

@@ -64,8 +64,9 @@ void write_includes(std::ostream& out, std::set<std::string> const& includes);
 // `indent`: the summary, then @deprecated, a @param for each of `params` the
 // documentation describes and @return when `has_result` -- a @param only for a
 // parameter the wxl declaration has, since Doxygen refuses one it does not.
-// The text is escaped for Doxygen and wrapped at 100 columns. Documentation
-// that says nothing writes nothing.
+// The text is escaped for Doxygen and wrapped at 100 columns, and its markup
+// written as the HTML and Markdown Doxygen renders. Documentation that says
+// nothing writes nothing.
 void write_doc(std::ostream& out, std::string_view indent, member_documentation const& doc,
                std::span<std::string_view const> params = {}, bool has_result = false);
 

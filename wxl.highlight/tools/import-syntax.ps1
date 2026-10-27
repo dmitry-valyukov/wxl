@@ -1,15 +1,15 @@
-# Переносит определения языков RsdnFormatter (Format/CodeFormat/Syntax/*.json,
-# MIT, © Russian Software Developer Network) в таблицы src/languages.cpp.
-# Языки, которых у RsdnFormatter нет, описаны в том же виде рядом со
-# скриптом, в tools/syntax, и приезжают оттуда же.
+# Converts the RsdnFormatter language definitions (Format/CodeFormat/Syntax/*.json,
+# MIT, © Russian Software Developer Network) into the tables of src/languages.cpp.
+# Languages that RsdnFormatter lacks are described in the same format next to the
+# script, in tools/syntax, and are read from there.
 #
-# Ключевые слова приезжают из JSON как есть — отсортированными по кодовым
-# единицам и, для языков без учёта регистра, в нижнем регистре: так их ищет
-# двоичным поиском сканер. Комментарии и строки в JSON описаны регулярными
-# выражениями .NET, которых у wxl нет и не будет, поэтому их перевод в
-# правила «открыл — закрыл» сделан руками и лежит здесь же, в $Delimiters.
+# The keywords are taken from the JSON, sorted by code units and, for case-insensitive
+# languages, converted to lowercase, as the scanner's binary search requires. The JSON
+# describes comments and strings with .NET regular expressions, which wxl does not
+# provide, so their translation into opening and closing sequences is written by hand
+# here, in $Delimiters.
 #
-# Запуск из корня дерева wxl:
+# Run from the root of the wxl tree:
 #   pwsh -NoProfile -File wxl.highlight/tools/import-syntax.ps1 -Source M:\source\RsdnFormatter
 
 param(
@@ -19,20 +19,20 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# ---- правила комментариев и строк, переведённые с регулярных выражений ----
+# ---- comment and string rules, translated from the regular expressions ----
 #
-# Поле: kind open close prefixes escape doubled multiline lineStart singleChar
+# Fields: kind open close prefixes escape doubled multiline lineStart singleChar afterSpace
 #   kind       comment | string
-#   close      пусто — до конца строки
-#   prefixes   символы, один из которых может стоять перед open (u"..." в Python)
-#   escape     символ экранирования внутри, '' — нет
-#   doubled    удвоенный close внутри — не конец ('it''s' в Pascal)
-#   multiline  может пересекать перевод строки
-#   lineStart  open только в начале строки (=begin в Ruby, POD в Perl)
-#   singleChar внутри ровно один символ или одна escape-последовательность
-#              (символьный литерал C-семейства: иначе 'a в Rust съело бы строку)
-#   afterSpace open только с начала слова (решётка shell: ${имя#хвост} — не
-#              комментарий)
+#   close      empty: the piece ends with the line
+#   prefixes   characters one of which may precede open (u"..." in Python)
+#   escape     the escape character inside; '' if there is none
+#   doubled    a doubled close inside does not end the piece ('it''s' in Pascal)
+#   multiline  the piece may cross a line break
+#   lineStart  open only at the start of a line (=begin in Ruby, POD in Perl)
+#   singleChar one character or one escape sequence inside (a character literal of
+#              the C family, so that a Rust lifetime 'a opens no string)
+#   afterSpace open only at the start of a word (the shell #, not a comment in
+#              ${name#pattern})
 
 function Rule($kind, $open, $close, $prefixes = '', $escape = '', $doubled = $false,
            $multiline = $false, $lineStart = $false, $singleChar = $false,
@@ -44,9 +44,8 @@ function Rule($kind, $open, $close, $prefixes = '', $escape = '', $doubled = $fa
     }
 }
 
-# Куски, которые повторяются от языка к языку: комментарий до конца строки,
-# внутристрочный комментарий, кавычки. Языку остаётся собрать свой набор из
-# них и дописать своё.
+# Rules shared by several languages: comments to the end of the line, inline
+# comments, quotes. A language combines them and adds its own.
 $slashLine  = Rule comment '//' ''
 $slashBlock = Rule comment '/*' '*/' -multiline $true
 $hashLine   = Rule comment '#' ''
@@ -63,8 +62,8 @@ $cFamily = @(
     $charLiteral
 )
 
-# Семейство ECMAScript: к сишным комментариям строка в обратных кавычках,
-# которая живёт через переводы строк.
+# The ECMAScript family: the C-style comments and a string in backticks that may
+# cross line breaks.
 $jsFamily = @(
     $slashLine,
     $slashBlock,
@@ -75,7 +74,11 @@ $jsFamily = @(
 
 $Delimiters = @{
     Assembler   = @((Rule comment ';' ''), (Rule string "'" "'" -doubled $true))
-    C           = $cFamily
+    # C and C++: the prefixes u, U, L and u8 (8 in the list allows u8).
+    C           = @($slashLine, $slashBlock,
+                    (Rule string '@"' '"' -doubled $true -multiline $true),
+                    (Rule string '"' '"' -prefixes 'uUL8' -escape '\'),
+                    (Rule string "'" "'" -prefixes 'uUL8' -escape '\' -singleChar $true))
     CSharp      = $cFamily
     Nemerle     = $cFamily
     Nitra       = $cFamily
@@ -107,15 +110,15 @@ $Delimiters = @{
     VisualBasic = @((Rule comment "'" ''), (Rule string '"' '"' -doubled $true))
     XSL         = @((Rule comment '<!--' '-->' -multiline $true), (Rule string '"' '"'))
 
-    # ---- языки, которых у RsdnFormatter нет: их описания в tools/syntax ----
+    # ---- languages that RsdnFormatter lacks, described in tools/syntax ----
 
     JavaScript  = $jsFamily
     TypeScript  = $jsFamily
     CSS         = @($slashBlock, $dqString, $sqString)
     Go          = @($slashLine, $slashBlock, (Rule string '`' '`' -multiline $true),
                     $dqString, $charLiteral)
-    # Длинные скобки Lua: комментарий --[[ ]] раньше построчного --, иначе
-    # тот съел бы его первую строку.
+    # Lua long brackets: the --[[ ]] comment precedes the -- line comment, which
+    # would otherwise match its first line.
     Lua         = @((Rule comment '--[[' ']]' -multiline $true), (Rule comment '--' ''),
                     (Rule string '[[' ']]' -multiline $true), $dqString, $sqString)
     CMake       = @((Rule comment '#[[' ']]' -multiline $true -afterSpace $true), $shellHash,
@@ -125,8 +128,8 @@ $Delimiters = @{
     JSON        = @($dqString)
 }
 
-# Группа ключевых слов ассемблера, которую JSON держит регулярными
-# выражениями (@cpu, ??date, (\.|@|\b)model): те же слова через виды границ.
+# Assembler keywords that the JSON describes with regular expressions (@cpu, ??date,
+# (\.|@|\b)model): the same words expressed with boundary kinds.
 $AssemblerExtra = @(
     @{ prefix = 'None'; postfix = 'WordBoundary'
        keywords = @('@codesize', '@cpu', '@datasize', '@filename', '@wordsize',
@@ -138,8 +141,8 @@ $AssemblerExtra = @(
     @{ prefix = 'WordBoundary'; postfix = 'None'; keywords = @('carry?', 'data?', 'fardata?') }
 )
 
-# Имена тегов кода — какой язык (FormatterHelper.CodeFormat.cs и
-# BBCode/Parser.cs; [code] без языка — не язык вовсе).
+# Code tag names of each language (FormatterHelper.CodeFormat.cs and
+# BBCode/Parser.cs; [code] without a language names no language).
 $Aliases = [ordered]@{
     Assembler   = @('asm', 'assembly')
     C           = @('c', 'cpp', 'c++', 'ccode')
@@ -184,14 +187,14 @@ $BoundaryNames = @{
 
 function Lit([string]$s) {
     $escaped = $s.Replace('\', '\\').Replace('"', '\"')
-    return "L`"$escaped`""
+    return "u`"$escaped`""
 }
 
 function Ch([string]$c) {
     if ($c -eq '') { return '0' }
-    if ($c -eq '\') { return "L'\\'" }
-    if ($c -eq "'") { return "L'\''" }
-    return "L'$c'"
+    if ($c -eq '\') { return "u'\\'" }
+    if ($c -eq "'") { return "u'\''" }
+    return "u'$c'"
 }
 
 function Bool($b) { if ($b) { 'true' } else { 'false' } }
@@ -199,23 +202,22 @@ function Bool($b) { if ($b) { 'true' } else { 'false' } }
 $syntaxDir = Join-Path $Source 'Format/CodeFormat/Syntax'
 $ownDir = Join-Path $PSScriptRoot 'syntax'
 
-# Сначала перенесённые из RsdnFormatter, потом свои: так номера языков в
-# таблице псевдонимов не разъезжаются, когда своих прибавляется.
+# The RsdnFormatter languages first, then those of tools/syntax: adding a language to
+# tools/syntax then leaves the alias-table indices of the RsdnFormatter languages unchanged.
 $files = @(Get-ChildItem $syntaxDir -Filter '*.json' | Sort-Object Name) +
          @(Get-ChildItem $ownDir -Filter '*.json' | Sort-Object Name)
 
 $sb = [System.Text.StringBuilder]::new()
 [void]$sb.AppendLine(@'
-// Таблицы языков подсветки. СГЕНЕРИРОВАНО tools/import-syntax.ps1 из двух
-// источников: определений RsdnFormatter (Format/CodeFormat/Syntax/*.json,
-// MIT, © Russian Software Developer Network) и наших собственных описаний
-// в tools/syntax — править не здесь, а в скрипте или в источнике.
+// Language tables for highlighting. GENERATED by tools/import-syntax.ps1 from two
+// sources: the RsdnFormatter definitions (Format/CodeFormat/Syntax/*.json, MIT,
+// © Russian Software Developer Network) and the definitions in tools/syntax. Do not
+// edit this file; edit the script or the source definitions.
 //
-// Ключевые слова каждого набора отсортированы по кодовым единицам (у
-// языков без учёта регистра — в нижнем регистре): сканер ищет двоичным
-// поиском. Комментарии и строки в источнике описаны регулярными
-// выражениями; их перевод в правила «открыл — закрыл» — таблица
-// $Delimiters в скрипте.
+// The keywords of each set are sorted by code units (lowercase for case-insensitive
+// languages), since the scanner uses binary search. The sources describe comments
+// and strings with regular expressions; their translation into opening and closing
+// sequences is the $Delimiters table in the script.
 
 module wxl.highlight;
 
@@ -235,13 +237,13 @@ foreach ($file in $files) {
     $json = Get-Content -Raw -Path $file.FullName | ConvertFrom-Json
     $name = $json.name
     $ci = ($json.options -and $json.options.Contains('i'))
-    if (-not $Delimiters.ContainsKey($name)) { throw "Нет правил комментариев и строк для $name" }
-    if (-not $Aliases.Contains($name)) { throw "Нет имён тегов для $name" }
+    if (-not $Delimiters.ContainsKey($name)) { throw "No comment and string rules for $name" }
+    if (-not $Aliases.Contains($name)) { throw "No code tag names for $name" }
 
     [void]$sb.AppendLine("// ---- $name ----")
     [void]$sb.AppendLine()
 
-    # Разделители.
+    # Delimiters.
     [void]$sb.AppendLine("constexpr delimited_rule k${name}Delimiters[] = {")
     foreach ($r in $Delimiters[$name]) {
         $line = "    {{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}}," -f `
@@ -253,7 +255,7 @@ foreach ($file in $files) {
     [void]$sb.AppendLine('};')
     [void]$sb.AppendLine()
 
-    # Наборы ключевых слов.
+    # Keyword sets.
     $sets = @()
     $index = 0
     $groups = @()
@@ -276,7 +278,7 @@ foreach ($file in $files) {
         $longest = ($arr | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
 
         $setName = "k${name}Words$index"
-        [void]$sb.AppendLine("constexpr std::wstring_view $setName[] = {")
+        [void]$sb.AppendLine("constexpr std::u16string_view $setName[] = {")
         $line = '   '
         foreach ($w in $arr) {
             $token = ' ' + (Lit $w) + ','
@@ -304,7 +306,7 @@ foreach ($file in $files) {
     $languageEntries += "    {{{0}, {1}, k{2}Delimiters, k{2}Keywords}}," -f (Lit $name), (Bool $ci), $name
 }
 
-[void]$sb.AppendLine('// ---- все языки ----')
+[void]$sb.AppendLine('// ---- all languages ----')
 [void]$sb.AppendLine()
 [void]$sb.AppendLine('constexpr language kLanguages[] = {')
 foreach ($e in $languageEntries) { [void]$sb.AppendLine($e) }
@@ -312,11 +314,11 @@ foreach ($e in $languageEntries) { [void]$sb.AppendLine($e) }
 [void]$sb.AppendLine()
 
 [void]$sb.AppendLine('struct alias_t {')
-[void]$sb.AppendLine('    std::wstring_view tag;')
-[void]$sb.AppendLine('    std::size_t language;  // индекс в kLanguages')
+[void]$sb.AppendLine('    std::u16string_view tag;')
+[void]$sb.AppendLine('    std::size_t language;  // index into kLanguages')
 [void]$sb.AppendLine('};')
 [void]$sb.AppendLine()
-[void]$sb.AppendLine('// Имена тегов кода в нижнем регистре — какой язык.')
+[void]$sb.AppendLine('// Lowercase names of code tags and the languages they name.')
 [void]$sb.AppendLine('constexpr alias_t kAliases[] = {')
 $li = 0
 foreach ($file in $files) {
@@ -331,15 +333,15 @@ foreach ($file in $files) {
 [void]$sb.AppendLine(@'
 }  // namespace
 
-const language* find_language(std::wstring_view tag) noexcept {
-    // Имя тега короткое; сравнение без учёта регистра ASCII, как у самих
-    // тегов разметки ([C#] и [c#] — один язык).
+const language* find_language(std::u16string_view tag) noexcept {
+    // Tag names are short; the comparison ignores ASCII case, as the markup tags do
+    // ([C#] and [c#] name one language).
     for (const alias_t& alias : kAliases) {
         if (alias.tag.size() != tag.size()) continue;
         bool same = true;
         for (std::size_t i = 0; i < tag.size() && same; ++i) {
-            wchar_t c = tag[i];
-            if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c + 32);
+            char16_t c = tag[i];
+            if (c >= u'A' && c <= u'Z') c = static_cast<char16_t>(c + 32);
             same = c == alias.tag[i];
         }
         if (same) return &kLanguages[alias.language];
@@ -355,4 +357,4 @@ std::span<const language> languages() noexcept { return kLanguages; }
 $text = $sb.ToString().Replace("`r`n", "`n")
 $outPath = [System.IO.Path]::GetFullPath($Out)
 [System.IO.File]::WriteAllText($outPath, $text, [System.Text.UTF8Encoding]::new($false))
-Write-Host "Записано: $outPath ($($files.Count) языков)"
+Write-Host "Written: $outPath ($($files.Count) languages)"

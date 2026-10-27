@@ -1,50 +1,43 @@
-// wxl::json -- читатель JSON, у которого дерево состоит из видов и больше
-// ни из чего.
+// wxl::json -- a JSON reader whose tree consists of views and nothing else.
 //
-// Брат wxl.xml, и нарочно на него похожий: тот же порядок работы (буфер
-// переходит читателю, проверяется целиком, дальше дерево на него смотрит),
-// та же арена под дерево, те же имена у дверей -- load(), load_file(),
-// root(). Кто читал один, читает другой без словаря.
+// It is modeled on wxl.xml: the same sequence of work (the buffer passes to
+// the reader, is validated whole, and the tree then views it), the same arena
+// for the tree, the same entry points -- load(), load_file(), root().
 //
-// Проверенный текст, wxl::core::u8_view: документ проверяется целиком до
-// того, как по нему пойдёт грамматика, и потому кусок документа -- заведомо
-// правильный UTF-8. Дерево это и хранит, а не только этим отвечает, --
-// иначе каждый читающий писал бы assume_valid() и повторял то, что читатель
-// уже знает.
+// Checked text, wxl::core::u8_view: the document is validated whole before the
+// grammar walks it, so any piece of it is well-formed UTF-8. The tree stores
+// that type rather than converting to it on return; otherwise every caller
+// would write assume_valid() and repeat what the reader already knows.
 //
-// Байты, а не символы. Вся грамматика JSON -- ASCII, а в UTF-8 байт ASCII
-// никогда не попадает внутрь многобайтовой последовательности, так что
-// побайтовый сканер читает документ на любом языке, ничего не декодируя.
-// Единственное место, где символы всё-таки появляются, -- escape \uXXXX:
-// он называет кодовую единицу UTF-16, которой в документе нет ни одним
-// байтом, и такая строка собирается в арене.
+// Bytes, not characters. All of the JSON grammar is ASCII, and in UTF-8 an
+// ASCII byte never occurs inside a multi-byte sequence, so a byte-oriented
+// scanner reads a document in any language without decoding it. Characters
+// appear only in the \uXXXX escape: it names a UTF-16 code unit that is not
+// present in the document as bytes, so such a string is assembled in the arena.
 //
-// Комментарии читаются всегда, и переключателя для них нет: у читателя ровно
-// два вида пищи -- ответ сервера, где комментария не бывает, и наши
-// собственные файлы настроек (`wxl.gen/profiles/*.json`), где комментарий
-// стоит рядом с решением и объясняет его. Всё остальное -- строго по RFC
-// 8259: ни висящей запятой, ни имени поля без кавычек, ни ведущего нуля в
-// числе. Читается тут ответ сервера, и «понял по-своему» здесь стоит дороже,
-// чем «отказался».
+// Comments are always accepted, and there is no switch for them: wxl's own
+// configuration files (`wxl.gen/profiles/*.json`) carry comments that explain
+// the settings next to them. Everything else follows RFC 8259 strictly: no
+// trailing comma, no unquoted member name, no leading zero in a number, because
+// misreading a document costs more than rejecting it.
 //
-// Что обязан соблюдать вызывающий:
+// What a caller has to keep to:
 //
-//  - дерево живёт ровно столько, сколько объект document, который его
-//    построил. Больше ничему переживать дерево не надо -- ни буферу
-//    вызывающего, ни файлу;
-//  - wxl::core::sta_memory_pool должен существовать до первого разбора и
-//    пережить последний объект этой библиотеки: оттуда идёт вся её
-//    служебная память. Пул строится раз на процесс, то есть его место -- в
-//    main() или в глобальной обвязке тестов;
-//  - вложенность не ограничена ничем: разбор не рекурсивен, у него явный
-//    стек. Свой обход дерева, зовущий сам себя, глубину имеет -- и здесь
-//    ему ничем не помочь.
+//  - a tree lives exactly as long as the document object that built it.
+//    Nothing else has to outlive the tree, neither the caller's buffer nor the
+//    file;
+//  - the library takes all of its auxiliary memory from wxl::core::sta_memory_pool,
+//    whose one static instance wxl.core builds before the program's own objects.
+//    The pool serves only the thread that built it, so the library has to be
+//    used on that thread;
+//  - nesting depth is not limited: the parse is not recursive and uses an
+//    explicit stack. A traversal of the tree that calls itself does have a
+//    depth limit, and this library cannot remove it.
 
 export module wxl.json;
 
-// Пул STA строит вызывающий -- значит, wxl.core ему нужна в любом случае, и
-// приходит она вместе с этим модулем: называть её вторым импортом ради
-// одного объекта в main() было бы данью бухгалтерии.
+// The public types return wxl::core::u8_view; the module re-exports wxl.core so
+// that a caller can name that type without a second import.
 export import wxl.core;
 
 export import :exception;

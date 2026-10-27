@@ -158,10 +158,10 @@ protected:
     /// object -- a callback, a container's list, a task still in flight.
     using impl_ptr = core::intrusive_ptr<impl_t>;
 
-    /// The component's own hold on its state. Never null, and it only ever releases: the
-    /// state is created with the component and adopted here, and nothing may put a second
-    /// reference in through this field.
-    using impl_ref = core::not_null<core::release_only_ptr<impl_t>>;
+    /// The component's own hold on its state. Never null, and never reassigned -- the field
+    /// is const: the state is created with the component and adopted here, its implicit
+    /// first reference taken over rather than a second one added.
+    using impl_ref = core::not_null<core::intrusive_ptr<impl_t>>;
 
     /// Constructs a component on a state that a derived class has created: \p initial_impl is
     /// adopted as the shared state, and its `sync_root` becomes the component's.

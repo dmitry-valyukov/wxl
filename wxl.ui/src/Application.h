@@ -57,6 +57,25 @@ public:
     /// named in an Image's source are found the same way.
     static std::filesystem::path makeAbsolute(std::filesystem::path const& path);
 
+    /// Ends the application: XAML's Application.Exit(). wxl calls exit() itself when a window
+    /// of its own closes. The loop of XAML ends; in ShutdownStarting of its queue, still
+    /// inside Application::Start, the windows of wxl's own still open are closed; then Start
+    /// returns, and the Teardown handler wxl_launched() returned is called -- its answer is the
+    /// process's exit code, as on any other way out. The way to end an application that has no
+    /// window, or whose window is only hidden: XAML ends one by itself only when its last window
+    /// closes. On the UI thread only, the one that runs the loop of XAML: a call from another
+    /// thread stops the process.
+    ///
+    /// Only while the loop runs (loopRunning()); after it the call does nothing, as wxl's own call
+    /// does: the application is ending already, and asking XAML would be wrong for one of two
+    /// reasons, by when the call comes. Between ShutdownStarting and the return of Start -- from a
+    /// window closed on the way out -- XAML's application is still there, and Exit() would post a
+    /// WM_QUIT that no XAML loop is there to take, on which the next wait of the thread's loop
+    /// would stop. After Start has returned -- from the Teardown handler -- there is no XAML
+    /// application any more: Application.Current() is null, and the call would dereference it. A
+    /// second call while the loop runs is as harmless as XAML's.
+    static void exit();
+
     /// Whether XAML's Application::Start is running its loop: set before the call and put down
     /// in ShutdownStarting of the queue of XAML, when the loop is over. A window that closes
     /// while it is asks the application to exit; one closed after must not, because Exit() then

@@ -122,7 +122,8 @@ private:
     };
 
     source* source_of(winmd::reader::TypeDef const& type);
-    static source open(std::filesystem::path const& file);
+    // `image_root` is what the images of the file's descriptions are relative to.
+    static source open(std::filesystem::path const& file, std::string_view image_root);
     reference open_reference(std::string const& contract);
     void started(source& opened);  // a file with members to parse joins unfinished_
 

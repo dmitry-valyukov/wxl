@@ -9,7 +9,7 @@
 #  - the Windows App SDK release named by "windowsAppSdk" in
 #    wxl.gen/profiles/base.json, and the packages of tools/packages.json's
 #    "sdkPackages" at the versions that release declares;
-#  - the pinned "extra" and "experimental" packages of tools/packages.json.
+#  - the pinned "extra" packages of tools/packages.json.
 # A package already in the folder is left alone, so a second run is a no-op.
 # The layout is NuGet's own (<root>\<id lower case>\<version>\), which is what
 # every other script and the generator read.
@@ -18,6 +18,7 @@ param([string]$NuGetRoot)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'nuget-root.ps1')
+. (Join-Path $PSScriptRoot 'windows-app-sdk.ps1')
 $repo = Split-Path -Parent $PSScriptRoot
 $root = Resolve-NuGetRoot $NuGetRoot
 $manifest = Get-Content (Join-Path $PSScriptRoot 'packages.json') -Raw | ConvertFrom-Json
@@ -59,19 +60,14 @@ function Get-Package([string]$id, [string]$version) {
 
 "package folder: $root"
 
-$base = Get-Content (Join-Path $repo 'wxl.gen\profiles\base.json') -Raw
-if ($base -notmatch '"windowsAppSdk"\s*:\s*"([^"]+)"') { throw 'base.json names no windowsAppSdk release' }
-$sdk = $Matches[1]
+$sdk = Get-WindowsAppSdkRelease $repo
 Get-Package 'Microsoft.WindowsAppSDK' $sdk
 
-$nuspec = [xml](Get-Content (Join-Path $root "microsoft.windowsappsdk\$sdk\microsoft.windowsappsdk.nuspec"))
-$declared = @{}
-foreach ($d in $nuspec.package.metadata.dependencies.dependency) { $declared[$d.id.ToLowerInvariant()] = $d.version.Trim('[', ']') }
+$declared = Get-WindowsAppSdkPackageVersion $root $sdk
 foreach ($id in $manifest.sdkPackages) {
     $version = $declared[$id.ToLowerInvariant()]
     if (-not $version) { throw "Windows App SDK $sdk declares no $id" }
     Get-Package $id $version
 }
 foreach ($p in $manifest.extra) { Get-Package $p.id $p.version }
-foreach ($p in $manifest.experimental) { Get-Package $p.id $p.version }
 "done"

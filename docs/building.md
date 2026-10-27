@@ -63,7 +63,7 @@
 `pwsh` из корня дерева следующие команды:
 
 ```powershell
-pwsh -NoProfile -File tools\restore-packages.ps1    # пакеты NuGet, версии — tools\packages.json
+pwsh -NoProfile -File tools\restore-packages.ps1    # пакеты NuGet, версии — wxl.gen\profiles\base.json и tools\packages.json
 pwsh -NoProfile -File tools\projection.ps1          # проекция cppwinrt в generated\
 pwsh -NoProfile -File tools\install-runtime.ps1     # экспериментальная среда Windows App Runtime
 tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
@@ -72,11 +72,13 @@ tools\build.ps1 -Configure -Target sample.quadratic
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 
-- **Экспериментальный канал:** обёртки построены по метаданным
-  экспериментального канала **WinUI**, поскольку в стабильном канале нет
-  `WrapPanel` и `LayoutPanel`. Среда этого канала устанавливается для
-  текущего пользователя рядом со стабильной; без неё приложение не
-  запустится.
+- **Экспериментальный канал:** дерево собирается по одному выпуску
+  Windows App SDK, который называет ключ `windowsAppSdk` в профилях
+  генератора (`wxl.gen/profiles/base.json`); версии входящих в него пакетов
+  объявляет сам выпуск. Это выпуск экспериментального канала, поскольку в
+  метаданных **WinUI** стабильного канала нет `WrapPanel` и `LayoutPanel`.
+  Среда этого канала устанавливается для текущего пользователя рядом со
+  стабильной; без неё приложение не запустится.
 - **Отсутствие обёрток:** пока обёртки не сгенерированы, настройка
   пропускает `wxl.ui` и всё, что от неё зависит, и выводит об этом
   предупреждение. Сборка не запускает генератор, поэтому после правки
@@ -118,7 +120,7 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 | `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui`. |
 | `WXL_STRICT_CORO` | `OFF` | Оставляет проверки корутин `wxl.async` в любой конфигурации сборки, а не только в Debug (см. [«Асинхронность»](async.md)). |
 | `WXL_CPPWINRT_PROJECTION_DIR` | `generated` в корне дерева | Задаёт каталог проекции cppwinrt. |
-| `WXL_WINDOWSAPPSDK_VERSION_TAG` | `experimentalF` | Задаёт канал Windows App Runtime, который запрашивает приложение; пустое значение означает стабильный канал. |
+| `WXL_WINDOWSAPPSDK_VERSION_TAG` | `experimentalF` | Задаёт тег версии выпуска Windows App SDK, по которому собирается дерево. Вместе с основным номером версии тег называет пакет платформы Windows App Runtime, который запрашивает приложение (`Microsoft.WindowsAppRuntime.2-experimentalF`). У каждого выпуска свой тег, у стабильного выпуска он пустой. Значение ведётся вручную и меняется вместе с выпуском. |
 | `WXL_ENABLE_PCH` | `ON` | Включает предкомпилированный заголовок `src/pch.h` у `wxl.core` и `wxl.async`. Модульные единицы из него исключены (MSVC не принимает его перед объявлением модуля), поэтому ключ влияет только на время сборки обычных единиц трансляции. |
 | `WXL_INSTALL` | `ON` у `wxl.core`, настроенного самостоятельно; в общем дереве — `OFF`, чтобы `cmake --install` потребителя не переносил файлы **wxl** в его префикс | Включает правила установки `wxl.core` (см. ниже, «`wxl.core` отдельно»). |
 | `WXL_UPDATE_INTELLISENSE` | `OFF` | Только у `wxl.core`, настроенного самостоятельно: после сборки из среды разработки обновляет конфигурацию IntelliSense VS Code (см. [«Работа в редакторе»](editor.md)). |

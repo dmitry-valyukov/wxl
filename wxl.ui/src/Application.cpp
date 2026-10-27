@@ -15,8 +15,10 @@
 #undef small
 
 #include <winrt/base.h>
+#include <winrt/Microsoft.UI.Xaml.h>
 
 #include "Application.h"
+#include "UiThread.h"
 
 namespace wxl {
 
@@ -120,6 +122,11 @@ bool Application::isPackaged() noexcept {
 
 std::filesystem::path Application::makeAbsolute(std::filesystem::path const& path) {
     return path.is_absolute() ? path : core::environment::application_folder() / path;
+}
+
+void Application::exit() {
+    UiThread::ensureCurrent();
+    if (loopRunning()) winrt::Microsoft::UI::Xaml::Application::Current().Exit();
 }
 
 void Application::install_terminate_report() noexcept {

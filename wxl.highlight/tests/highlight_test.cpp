@@ -1,6 +1,6 @@
-// Тесты сканера подсветки: код на входе, куски с видами на выходе. Языки
-// взяты те, где у правила есть что проверить: границы, экранирование,
-// удвоенные кавычки, префиксы, регистр.
+// Tests of the highlighting scanner: code as input, pieces with their kinds as output. The
+// languages are those whose rules have something to check: boundaries, escapes, doubled
+// quotes, prefixes, case.
 
 #include <gtest/gtest.h>
 
@@ -13,8 +13,8 @@ using namespace wxl::highlight;
 
 namespace {
 
-// Куски строкой: K<...> ключевое слово, S<...> строка, C<...> комментарий,
-// P<...> обычный текст. Тесты пишутся на ASCII, поэтому сужение честное.
+// Formats the pieces as a string: K<...> a keyword, S<...> a string, C<...> a comment,
+// P<...> plain text. The test code is ASCII, so the narrowing to char loses nothing.
 std::string pieces(std::u16string_view tag, std::u16string_view code) {
     const language* found = find_language(tag);
     if (!found) return "no language";
@@ -97,13 +97,13 @@ TEST(highlight, a_keyword_inside_a_string_stays_a_string) {
 TEST(highlight, csharp_string_escapes_and_verbatim) {
     EXPECT_EQ(pieces(u"c#", u"\"a\\\"b\" x"), "S<\"a\\\"b\">P< x>");
     EXPECT_EQ(pieces(u"c#", u"@\"a\"\"b\" x"), "S<@\"a\"\"b\">P< x>");
-    // Незакрытая строка кончается со строкой.
+    // An unterminated string ends at the end of the line.
     EXPECT_EQ(pieces(u"c#", u"\"abc\nint"), "S<\"abc>P<\n>K<int>");
 }
 
 TEST(highlight, char_literal_is_one_char) {
     EXPECT_EQ(pieces(u"c#", u"'a' '\\n' '\\x41'"), "S<'a'>P< >S<'\\n'>P< >S<'\\x41'>");
-    // Время жизни в Rust -- не строка: между кавычкой и следующей не один символ.
+    // A Rust lifetime is not a string: more than one character lies between the two quotes.
     EXPECT_EQ(pieces(u"rust", u"fn f<'a>(x: &'a str)"), "K<fn>P< f<'a>(x: &'a >K<str>P<)>");
 }
 
@@ -137,7 +137,7 @@ TEST(highlight, python_docstring_is_a_comment_and_prefixes_are_strings) {
 TEST(highlight, cpp_string_prefixes_are_strings) {
     EXPECT_EQ(pieces(u"cpp", u"a = u\"x\"; b = u'y'; c = u8\"z\"; d = U\"w\";"),
               "P<a = >S<u\"x\">P<; b = >S<u'y'>P<; c = >S<u8\"z\">P<; d = >S<U\"w\">P<;>");
-    // Префикс -- начало слова: в середине идентификатора это не он.
+    // A prefix starts a word: inside an identifier it is not a prefix.
     EXPECT_EQ(pieces(u"cpp", u"menu\"q\""), "P<menu>S<\"q\">");
     EXPECT_EQ(pieces(u"python", u"bar\"q\""), "P<bar>S<\"q\">");
 }
@@ -149,7 +149,7 @@ TEST(highlight, lisp_form_head_after_paren) {
 
 TEST(highlight, ruby_block_comment_at_line_start) {
     EXPECT_EQ(pieces(u"ruby", u"x\n=begin\na\n=end\ny"), "P<x\n>C<=begin\na\n=end>P<\ny>");
-    // Не в начале строки -- не комментарий; begin -- обычное ключевое слово.
+    // Not at the start of a line, so not a comment; `begin` is an ordinary keyword.
     EXPECT_EQ(pieces(u"ruby", u"a =begin b"), "P<a =>K<begin>P< b>");
 }
 
@@ -174,7 +174,7 @@ TEST(highlight, unterminated_block_comment_runs_to_the_end) {
 }
 
 TEST(highlight, javascript_template_string_swallows_its_holes) {
-    // Подстановку ${...} мы не разбираем: вся кавычка -- одна строка.
+    // Substitutions `${...}` are not parsed: the whole template literal is one string.
     EXPECT_EQ(pieces(u"js", u"const s = `a${b}c`; // note"),
               "K<const>P< s = >S<`a${b}c`>P<; >C<// note>");
 }
@@ -204,7 +204,7 @@ TEST(highlight, cmake_commands_ignore_case) {
 }
 
 TEST(highlight, shell_hash_opens_a_comment_only_after_a_space) {
-    // ${имя#хвост} и $# -- не комментарии, иначе решётка съела бы строку.
+    // `#` in `${x#y}` and `$#` does not open a comment.
     EXPECT_EQ(pieces(u"bash", u"echo ${x#y} # note"), "K<echo>P< ${x#y} >C<# note>");
     EXPECT_EQ(pieces(u"sh", u"echo $#"), "K<echo>P< $#>");
     EXPECT_EQ(pieces(u"bash", u"# note\necho"), "C<# note>P<\n>K<echo>");

@@ -56,15 +56,4 @@ private:
     std::atomic<Node*> top_;
 };
 
-/// Gives a type the link a stack node needs without touching the type itself: inherits
-/// both, so the payload keeps its own constructors.
-template <typename Base>
-class as_node : public Base, public core::intrusive_slist_node<as_node<Base>>
-{
-    using base = Base;
-
-public:
-    using base::base;
-};
-
 }  // namespace wxl::async

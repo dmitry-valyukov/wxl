@@ -16,7 +16,8 @@
 
 #include <cstdio>
 
-#include <MddBootstrap.h>
+#include <impl/hresult.h>
+#include <impl/winrt_helpers.h>
 
 namespace muc = winrt::Microsoft::UI::Composition;
 
@@ -35,10 +36,14 @@ void trySet(muc::CompositionEngineType type, char const* name) {
 }  // namespace
 
 int main() {
-    // Как wxl::impl::ensure_windows_app_runtime_initialized: «release 2».
-    HRESULT const bootstrap = ::MddBootstrapInitialize(0x00020000, nullptr, {});
-    std::printf("MddBootstrapInitialize: %08x\n", static_cast<unsigned>(bootstrap));
-    if (FAILED(bootstrap)) return 1;
+    // Загрузчик самой wxl: тот же выпуск и тот же тег версии, что у приложений на wxl.
+    try {
+        wxl::impl::ensure_windows_app_runtime_initialized();
+    } catch (wxl::impl::hresult_error const& error) {
+        std::printf("ensure_windows_app_runtime_initialized: %08x\n",
+                    static_cast<unsigned>(error.code()));
+        return 1;
+    }
     winrt::init_apartment(winrt::apartment_type::single_threaded);
     std::printf("runtime initialized, no composition object yet\n");
 

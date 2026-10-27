@@ -7,7 +7,8 @@
 
 // wxl::UiThread -- when work runs on the UI thread: post() hands it over from
 // another thread, and onIdle() lets a coroutine on the UI thread step aside for
-// what is more urgent.
+// what is more urgent. isCurrent() and ensureCurrent() tell whether the calling
+// thread is that thread.
 //
 // DispatcherQueue.tryEnqueue already takes a lambda: a delegate parameter is
 // projected as std::function of the delegate's own signature, so handing work
@@ -85,6 +86,17 @@ public:
     /// ends with async::operation_canceled_exception.
     [[nodiscard]] static impl::cancelable_event_wait<Idle, async::cancellation_token> onIdle(
         async::cancellation_token token);
+
+    /// Whether the calling thread is the UI thread: the one wxl runs on, whose STA pool it is.
+    static bool isCurrent() noexcept { return core::sta_memory_pool::is_safe(); }
+
+    /// Stops the process when the calling thread is not the UI thread: a call from another
+    /// thread to what lives on the UI thread is a broken rule. The report names the caller's line.
+    static void ensureCurrent(
+        std::source_location where = std::source_location::current()) noexcept {
+        if (!isCurrent()) [[unlikely]]
+            core::abort("called from a thread other than the UI thread", where);
+    }
 
 private:
     ::IInspectable* queue_ = nullptr;
