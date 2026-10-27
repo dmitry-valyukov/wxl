@@ -74,6 +74,7 @@ target_link_libraries(wxl.async.tests
     PRIVATE
         wxl::async
         wxl::test-support
+        wxl::test
 )
 
 # The queues keep their hot fields on cache lines of their own with alignas, and C4324
