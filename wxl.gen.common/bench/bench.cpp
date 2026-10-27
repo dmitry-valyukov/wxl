@@ -69,7 +69,7 @@ int wmain(int argc, wchar_t** argv) {
         // Timed around the constructor itself: the object stays where it is
         // made, for the steps below.
         auto const opening = clock::now();
-        documentation_file opened {file};
+        documentation_file opened {file, std::string {windows_sdk_image_root}};
         open.add(clock::now() - opening);
         members = opened.size();
         time(find, [&] { found = opened.find(id) != nullptr; });

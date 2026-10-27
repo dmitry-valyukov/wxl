@@ -160,7 +160,11 @@ public:
     // through every resize -- the width a browser gives a block box. With
     // WhileWrapping the element goes back to its natural width under
     // TextWrapping::NoWrap, like everything else on an unwrapped line; a
-    // rule has no natural width and asks for Always.
+    // rule has no natural width and asks for Always. Its paragraph stacks
+    // its lines by MaxHeight, whatever the block's lineStackingStrategy, so
+    // that the element's line grows to it; text sharing that paragraph
+    // would stack so too, and the element is best given a paragraph of its
+    // own.
     void appendWideElement(FrameworkElement const& element,
                            WideWidth width = WideWidth::WhileWrapping) const;
 
