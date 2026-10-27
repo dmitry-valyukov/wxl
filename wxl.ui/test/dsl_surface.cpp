@@ -330,13 +330,7 @@ static_assert(!parses_as_grid_lengths<u"12345678901234567">);
 static_assert(!parses_as_grid_lengths<u"0.00000000000000000000001">);
 
 // Only a string literal is a text. A lone character, characters with no terminator and numbers make
-// a values too, and are refused before anything is parsed -- by the parse and by the names written.
-template <impl::values Text>
-concept writes_grid_rows = requires { RowDefinitions<Text>; };
-
-template <impl::values Text>
-concept writes_grid_columns = requires { ColumnDefinitions<Text>; };
-
+// a values too, and the parse refuses them before it reads an entry.
 static constexpr char16_t grid_unterminated[]{u'*', u',', u'*'};
 static constexpr int grid_numbers[]{1, 2};
 static_assert(!parses_as_grid_lengths<'*'>);
@@ -344,11 +338,13 @@ static_assert(!parses_as_grid_lengths<u'*'>);
 static_assert(!parses_as_grid_lengths<grid_unterminated>);
 static_assert(!parses_as_grid_lengths<42>);
 static_assert(!parses_as_grid_lengths<grid_numbers>);
-static_assert(writes_grid_rows<u"*"> && writes_grid_columns<u"*">);
-static_assert(!writes_grid_rows<u'*'> && !writes_grid_columns<u'*'>);
-static_assert(!writes_grid_rows<grid_unterminated> && !writes_grid_columns<grid_unterminated>);
-static_assert(!writes_grid_rows<42> && !writes_grid_columns<42>);
-static_assert(!writes_grid_rows<grid_numbers> && !writes_grid_columns<grid_numbers>);
+
+// Written in a default member initializer, as a window's model writes its grid: the check of the
+// text has to hold there too.
+struct [[maybe_unused]] grid_in_a_model {
+    Grid rows{RowDefinitions<u"32,*">};
+    Grid columns{ColumnDefinitions<u"*,auto">};
+};
 
 // Margin and Padding are wxl types of their own, so they read as braced
 // lists and route positionally without the property name.
