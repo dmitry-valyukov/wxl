@@ -321,6 +321,27 @@ static_assert(!parses_as_grid_lengths<u"*,2x,auto">);
 static_assert(!parses_as_grid_lengths<u"*,,auto">);
 static_assert(!parses_as_grid_lengths<u"">);
 
+// Only a string literal is a text. A lone character, characters with no terminator and numbers make
+// a values too, and are refused before anything is parsed -- by the parse and by the names written.
+template <impl::values Text>
+concept writes_grid_rows = requires { RowDefinitions<Text>; };
+
+template <impl::values Text>
+concept writes_grid_columns = requires { ColumnDefinitions<Text>; };
+
+static constexpr char16_t grid_unterminated[]{u'*', u',', u'*'};
+static constexpr int grid_numbers[]{1, 2};
+static_assert(!parses_as_grid_lengths<'*'>);
+static_assert(!parses_as_grid_lengths<u'*'>);
+static_assert(!parses_as_grid_lengths<grid_unterminated>);
+static_assert(!parses_as_grid_lengths<42>);
+static_assert(!parses_as_grid_lengths<grid_numbers>);
+static_assert(writes_grid_rows<u"*"> && writes_grid_columns<u"*">);
+static_assert(!writes_grid_rows<u'*'> && !writes_grid_columns<u'*'>);
+static_assert(!writes_grid_rows<grid_unterminated> && !writes_grid_columns<grid_unterminated>);
+static_assert(!writes_grid_rows<42> && !writes_grid_columns<42>);
+static_assert(!writes_grid_rows<grid_numbers> && !writes_grid_columns<grid_numbers>);
+
 // Margin and Padding are wxl types of their own, so they read as braced
 // lists and route positionally without the property name.
 [[maybe_unused]] void thicknesses() {

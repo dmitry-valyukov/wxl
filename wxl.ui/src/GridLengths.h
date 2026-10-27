@@ -96,6 +96,15 @@ constexpr bool grid_lengths_is_space(Char unit) noexcept {
 template <values Text>
 using grid_lengths_char = typename std::remove_cvref_t<decltype(Text)>::element_t;
 
+// What a text of lengths is: a string literal, and nothing else values takes. values drops the
+// terminator a literal ends in from the count but keeps its slot, and gives characters one spare
+// slot besides, so a literal is the one run whose capacity is two more than its count. A lone
+// character -- '*' -- and an array of characters with no terminator are one more; numbers are not
+// characters at all.
+template <values Text>
+concept grid_lengths_text =
+    is_character<grid_lengths_char<Text>> && std::size(Text.items) == Text.count + 2;
+
 template <values Text>
 consteval std::size_t grid_lengths_count() {
     std::size_t count = 1;
@@ -144,6 +153,7 @@ consteval GridLength grid_lengths_parse_entry(Char const* first, Char const* las
 
 // The one parse of a text: each entry in turn, into the array of exactly that many lengths.
 template <values Text>
+    requires grid_lengths_text<Text>
 consteval std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_parse() {
     std::array<GridLength, grid_lengths_count<Text>()> lengths{};
     auto const* const text = Text.items;
@@ -173,11 +183,13 @@ struct grid_lengths_access {
 
 /// The rows of a Grid, parsed from the text when the code is compiled: `RowDefinitions<u"auto,*">`.
 template <impl::values Text>
+    requires impl::grid_lengths_text<Text>
 inline constexpr RowLengths RowDefinitions =
     impl::grid_lengths_access::make<RowLengths>(impl::grid_lengths_array<Text>);
 
 /// The columns of a Grid, parsed from the text when the code is compiled: `ColumnDefinitions<u"*,auto">`.
 template <impl::values Text>
+    requires impl::grid_lengths_text<Text>
 inline constexpr ColumnLengths ColumnDefinitions =
     impl::grid_lengths_access::make<ColumnLengths>(impl::grid_lengths_array<Text>);
 
