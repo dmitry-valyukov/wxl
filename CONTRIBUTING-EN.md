@@ -5,17 +5,21 @@
 This document describes how changes are made to the repository: branch
 naming, pull requests, CI checks and commit requirements. These
 requirements are enforced automatically by the GitHub ruleset of the `main`
-branch and by CI jobs.
+branch and by CI jobs. Only one requirement is not checked automatically: a
+branch that has already been pushed is not rewritten (see "Branch and pull
+request").
 
 ## The `main` branch
 
 - Changes reach `main` only through a pull request whose required CI checks
   have all passed.
 - The ruleset of `main` forbids direct pushes and force-pushes, requires
-  linear history and allows merging by rebase or squash only.
+  linear history and allows merging by squash only.
 - Pull requests are merged through the merge queue: before merging, CI
-  checks the state that `main` will have. After the merge, GitHub deletes
-  the pull request branch automatically.
+  checks the state that `main` will have, and the queue then squashes the
+  pull request into one commit. Each pull request therefore results in one
+  commit on `main`. After the merge, GitHub deletes the pull request branch
+  automatically.
 
 ## Branch and pull request
 
@@ -23,11 +27,19 @@ branch and by CI jobs.
   lowercase letters and hyphens, for example `wxl-effects-catalog`.
 - The pull request is opened from that branch into `main` and covers a
   single topic.
+- The pull request title becomes the subject of its commit on `main`, and
+  the description becomes the commit body. Write them by the same rules as
+  a commit message (see "Commits"); rule 2 applies to them as well.
 - There is no need to update a branch only because new commits have
   reached `main`: the merge queue applies the pull request on top of the
-  current `main` and checks the result. If an update is required, use the "Update with rebase"
-  button. Do not merge `main` into the branch: a merge commit violates the
-  linear history requirement.
+  current `main` and checks the result.
+- A branch that has already been pushed is not rewritten: force-pushes and
+  rebases of pushed commits are not allowed. If a branch is behind `main`
+  or conflicts with it, merge `main` into the branch with the "Update with
+  merge commit" option of the "Update branch" button (not "Update with
+  rebase"). Resolve a conflict in GitHub's "Resolve conflicts" editor or
+  locally: merge the current `main` of this repository into the branch,
+  resolve the conflict in the merge commit and push as usual.
 
 ## CI
 
@@ -56,23 +68,28 @@ branch and by CI jobs.
 
 ## Commits
 
-The `commits` job checks every commit of a pull request against rules 1–5;
-the error message gives the number of the violated rule.
+The `commits` job checks every commit of a pull request against rules 1–5,
+and in the merge queue it checks the commit the queue squashes the pull
+request into; the error message gives the number of the violated rule.
 
 1. Author and committer email addresses have the form
    `…@users.noreply.github.com` (GitHub's "Keep my email address private"
-   setting). When GitHub recreates a commit ("Update with rebase", rebase
-   merge, the merge queue), the user who pressed the button becomes the
-   committer, and their address must have the same form. The committer
-   `GitHub <noreply@github.com>` is accepted only on a commit with a
-   signature verified by GitHub.
+   setting). The committer `GitHub <noreply@github.com>` appears on commits
+   that GitHub creates itself (merges made with "Update with merge commit"
+   and "Resolve conflicts", the squash in the merge queue); such a commit is
+   accepted only with a signature verified by GitHub.
 2. The commit message contains no `Co-Authored-By` lines (a commit has one
-   author), no banner lines and no trailer lines with links.
+   author), no banner lines and no trailer lines with links. The same
+   applies to the pull request title and description, which form the
+   message of the squashed commit.
 3. Hidden directories and files (names starting with a dot) are not added
    to the repository, except those listed in the check.
 4. Signing a commit is optional; if a commit is signed, GitHub must verify
    the signature.
-5. Merge commits are not allowed: the history is linear.
+5. A merge commit is allowed only if it merges `main` into the branch: it
+   has two parents, and the second one is a commit of `main`. Any other
+   merge commit fails the check. The history of `main` itself stays linear,
+   because the queue squashes each pull request into one commit.
 
 Write the commit message in English in the conventional form: a short
 subject in the imperative mood, a blank line, then a description of what
