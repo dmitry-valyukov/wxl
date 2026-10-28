@@ -16,7 +16,7 @@
 #
 # This directory is also a project of its own, with no compiler behind it:
 #
-#   cmake -S docs -B build/docs
+#   cmake -S docs -B build/docs -G Ninja
 #   cmake --build build/docs --target docs
 #   ctest --test-dir build/docs
 #

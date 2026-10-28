@@ -450,10 +450,12 @@ ctest --preset x64-debug -R docs         # сайт документации к�
 `cmake --build --preset x64-debug --target docs`.
 
 Каталог `docs` также является самостоятельным проектом CMake без
-компилятора:
+компилятора. Генератор Ninja задаётся явно: без `-G` CMake на Windows берёт
+генератор Visual Studio с несколькими конфигурациями, и `ctest` без `-C` не
+запускает ни одного теста.
 
 ```
-cmake -S docs -B build/docs
+cmake -S docs -B build/docs -G Ninja
 cmake --build build/docs --target docs
 ctest --test-dir build/docs
 ```
