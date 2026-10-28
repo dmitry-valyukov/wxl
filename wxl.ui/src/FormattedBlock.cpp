@@ -178,7 +178,7 @@ void FormattedBlock::appendText(hstring_param const& text) const {
     // reference, and its contract -- a zero right after the view, or an
     // outright abort() (proven by test/param_hstring_test.cpp) -- is this
     // class's stated precondition for every text parameter. Literals,
-    // basic_strings and wxl.html's arena views all satisfy it for free;
+    // basic_strings and the HTML parser's arena views all satisfy it for free;
     // no copy is bought here to insure against the caller.
     run.Text(impl::to_winrt(text));
     apply(run, merged(self->styles_));

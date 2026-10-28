@@ -3,10 +3,9 @@
 // tag -- the stack, the recovery, the whitespace -- in tree_builder
 // (builder.cpp). The text is sacred, the tags are not.
 
-module wxl.html;
+module wxl.core;
 
 import std;
-import wxl.core;
 
 namespace wxl::html {
 
@@ -378,7 +377,7 @@ private:
 
     // The scratch below grows once per parse -- but a parse runs per chat
     // message, so the allocations repeat and the pool is the right home
-    // (unlike wxl.xml's per-document buffers, which stayed std:: for the
+    // (unlike the XML reader's per-document buffers, which stayed std:: for the
     // opposite reason).
     core::sta_u16string name_;
     core::sta_u16string value_;

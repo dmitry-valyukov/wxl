@@ -7,7 +7,6 @@
 #include <string>
 #include <string_view>
 
-import wxl.html;
 import wxl.core;
 
 using namespace wxl::html;

@@ -1,14 +1,31 @@
-// The door into the parser: parse() and the document that owns what it
-// built -- plus the family door, document_builder, through which the
-// sibling markups (wxl.bb, wxl.rsdn) build the same tree with the same
+// wxl::html -- the HTML subset behind HtmlBlock.
+//
+// A tolerant parser for foreign, often broken markup -- forum posts, chat
+// messages -- producing a lightweight DOM for one walk. The contract, in
+// full, is the area's design.md; the two rules everything here serves:
+//
+//  - the text is sacred, the tags are not: no input ever throws, an unknown
+//    tag disappears and leaves its content standing, a mismatched close
+//    closes and reopens the way browsers do;
+//  - every parse is complete in itself: the tree closes all its blocks, and
+//    neither the source nor any parser state survives the call -- content
+//    may arrive in independent chunks.
+//
+// A wxl::core::sta_memory_pool has to exist before the first parse and
+// outlive the last document: the tree is carved from an arena over that
+// pool, the storage scheme the XML reader proved out.
+//
+// This partition is the door into the parser: parse() and the document that
+// owns what it built -- plus the family door, document_builder, through which
+// the sibling markups (wxl.bb, wxl.rsdn) build the same tree with the same
 // recovery. The parsing itself is parse.cpp.
 
-export module wxl.html:parse;
+export module wxl.core:html.parse;
 
 import std;
-import :builder;
-import :node;
-import wxl.core;
+import :html.builder;
+import :html.node;
+import :unicode;
 
 export namespace wxl::html {
 
@@ -50,7 +67,7 @@ private:
 };
 
 /// The construction site of a document, for the parsers of the family:
-/// wxl.html itself and its siblings (wxl.bb, wxl.rsdn). A tokenizer drives
+/// this one itself and its siblings (wxl.bb, wxl.rsdn). A tokenizer drives
 /// tree() and takes the finished document; the arena, the error list and
 /// the recovery rules come with it.
 ///

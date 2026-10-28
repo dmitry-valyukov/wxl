@@ -217,9 +217,8 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         "${root}/samples/Trayed/README.md"
         "${root}/samples/Gallery/README.md"
         "${root}/wxl.core/src"
-        # The markup family: the HTML subset and the sibling tokenizers over
-        # the shared tree builder.
-        "${root}/wxl.html/src"
+        # The sibling tokenizers of the HTML subset, over its shared tree
+        # builder.
         "${root}/wxl.bb/src"
         "${root}/wxl.rsdn/src"
         "${root}/wxl.highlight/src"

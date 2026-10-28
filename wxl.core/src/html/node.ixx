@@ -1,9 +1,9 @@
 // The lightweight DOM the parser hands to the builder: one concrete node
 // type, children on an intrusive list through a field the node itself
 // carries, attributes as a span in the arena -- the storage scheme of
-// wxl.xml's tree, taken over deliberately (design.md, "Слои внутри").
+// the XML reader's tree, taken over deliberately (design.md, "Слои внутри").
 //
-// Unlike wxl.xml's tree, nothing here is a view into the source: entities
+// Unlike the XML reader's tree, nothing here is a view into the source: entities
 // and whitespace collapsing rewrite almost every piece of text anyway, so
 // every view points into the document's own arena and the tree owes the
 // input nothing once the parse returns.
@@ -13,10 +13,13 @@
 // cross into WinRT as a string reference (the hstring_param contract --
 // zero right after the text) without a copy at the call. The type says so.
 
-export module wxl.html:node;
+export module wxl.core:html.node;
 
 import std;
-export import wxl.core;
+import :compressed_optional;
+import :intrusive_slist;
+import :not_null;
+import :zstring_view;
 
 export namespace wxl::html {
 

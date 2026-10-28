@@ -9,9 +9,9 @@ add_library(wxl::bb ALIAS wxl.bb)
 
 # PUBLIC: parse() отвечает html::document — дерево семейства стоит в
 # интерфейсе, и с ним приезжает wxl::core.
-target_link_libraries(wxl.bb PUBLIC wxl::html)
+target_link_libraries(wxl.bb PUBLIC wxl::core)
 
-# Как в wxl.html: исключением может ответить только аллокация.
+# Как у разбора HTML в wxl.core: исключением может ответить только аллокация.
 if(MSVC AND NOT CMAKE_CXX_FLAGS MATCHES "/EHsc")
     target_compile_options(wxl.bb PUBLIC /EHsc)
 endif()

@@ -5,7 +5,7 @@
 #include "RsdnBlock.impl.h"
 #include "impl/activator.h"
 
-// Импорты последними — markup_build.h несёт wxl.html, wxl.rsdn добавляем
+// Импорты последними — markup_build.h несёт wxl.core, wxl.rsdn добавляем
 // сами.
 #include "impl/markup_build.h"
 

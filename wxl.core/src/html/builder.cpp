@@ -2,10 +2,9 @@
 // the family shares. The rules are the ones parse_test.cpp pins down; the
 // HTML tokenizer (parse.cpp) and the BB/RSDN tokenizers only feed it.
 
-module wxl.html;
+module wxl.core;
 
 import std;
-import wxl.core;
 
 namespace wxl::html {
 

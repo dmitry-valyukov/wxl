@@ -6,11 +6,14 @@
 // markup, and everything that happens *after* a tag is recognized is the
 // same for all of them -- carefully debugged once, here.
 
-export module wxl.html:builder;
+export module wxl.core:html.builder;
 
 import std;
-import :node;
-import wxl.core;
+import :html.node;
+import :xml.arena;  // the arena -- the XML reader's storage scheme, used as is
+import :xml.core;
+import :sta_stl;
+import :zstring_view;
 
 export namespace wxl::html {
 

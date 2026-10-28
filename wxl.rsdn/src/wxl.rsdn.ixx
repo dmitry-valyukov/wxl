@@ -1,5 +1,5 @@
 // wxl::rsdn -- разметка RSDN (rsdn.org, клиент Janus) поверх дерева
-// wxl.html. Родня wxl.bb: своя только запись тегов и то, чего у BB нет, --
+// HTML из wxl.core. Родня wxl.bb: своя только запись тегов и то, чего у BB нет, --
 // построчные цитаты с префиксом («AB> так и было»), языковые теги кода
 // ([c#], [nemerle]...) с подсветкой, смайлы, адреса прямо в тексте. Всё
 // после распознанного тега делает tree_builder семейства.
@@ -26,8 +26,7 @@
 export module wxl.rsdn;
 
 import std;
-export import wxl.html;
-import wxl.core;
+export import wxl.core;
 
 export namespace wxl::rsdn {
 

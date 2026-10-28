@@ -1,9 +1,9 @@
-// wxl::bb -- BB-код форумов поверх дерева wxl.html.
+// wxl::bb -- BB-код форумов поверх дерева HTML из wxl.core.
 //
 // Своя у BB только запись тегов: [b]...[/b], [url=...], [quote], [list] и
 // [*]. Всё, что после распознанного тега, -- стек, восстановление
 // вложенности, пробелы, арена с терминированными видами -- даёт
-// tree_builder семейства (wxl.html:builder), а дерево на выходе то же
+// tree_builder семейства (wxl.core:html.builder), а дерево на выходе то же
 // самое: один сборщик наполняет и HtmlBlock, и BbBlock.
 //
 // Отличия от HTML, зашитые в токенизатор:
@@ -17,13 +17,12 @@
 export module wxl.bb;
 
 import std;
-export import wxl.html;
-import wxl.core;
+export import wxl.core;
 
 export namespace wxl::bb {
 
 /// Разбирает BB-код. Не бросает ни на каком входе; восстановления пишутся
-/// в document::errors(), как у wxl.html.
+/// в document::errors(), как у разбора HTML.
 html::document parse(std::u16string_view input);
 
 /// То же для проверенного UTF-8: текст, пришедший из сети и заверенный

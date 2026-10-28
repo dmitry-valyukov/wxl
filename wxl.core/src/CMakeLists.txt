@@ -130,6 +130,14 @@ wxl_add_module_library(wxl.core STATIC
         json/exception.ixx
         json/value.ixx
         json/document.ixx
+
+        # html: the HTML subset behind HtmlBlock, a tolerant parser whose tree is
+        # carved from the arena of the XML reader. :html.builder is the family
+        # door: tree_builder hands the sibling tokenizers (wxl.bb, wxl.rsdn) the
+        # arena copies and the STA scratch types by name.
+        html/node.ixx
+        html/builder.ixx
+        html/parse.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are
         # part of the public interface: a consumer compiles those interfaces
@@ -202,6 +210,9 @@ wxl_add_module_library(wxl.core STATIC
 
         json/exception.cpp
         json/document.cpp
+
+        html/builder.cpp
+        html/parse.cpp
 )
 
 # The name consumers use, both in-tree (FetchContent / add_subdirectory) and
@@ -297,13 +308,14 @@ target_link_libraries(wxl.core PRIVATE ole32)
 target_link_libraries(wxl.core PRIVATE coremessaging runtimeobject)
 
 # Errors are reported by throwing: a broken document is an exception of the
-# XML and JSON readers; writing to a log output can fail -- a full disk, a file that went
-# away -- and multicast_output catches it to drop that output rather than the
-# program. MSVC unwinds nothing without /EHsc: the
-# destructors of everything on the stack between the throw and the catch are
-# simply skipped. CMake puts the flag in CMAKE_CXX_FLAGS itself, but a
-# toolchain file is free to replace those flags wholesale, so it is added here
-# only when it is missing, rather than duplicated on every source file.
+# XML and JSON readers, allocation is the one thing the HTML parser may throw,
+# and writing to a log output can fail -- a full disk, a file that went away --
+# which multicast_output catches to drop that output rather than the program.
+# MSVC unwinds nothing without /EHsc: the destructors of everything on the
+# stack between the throw and the catch are simply skipped. CMake puts the flag
+# in CMAKE_CXX_FLAGS itself, but a toolchain file is free to replace those
+# flags wholesale, so it is added here only when it is missing, rather than
+# duplicated on every source file.
 if(MSVC AND NOT CMAKE_CXX_FLAGS MATCHES "/EHsc")
     target_compile_options(wxl.core PUBLIC /EHsc)
 endif()

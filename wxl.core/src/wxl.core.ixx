@@ -117,3 +117,8 @@ export import :xml.document;
 export import :json.exception;
 export import :json.value;
 export import :json.document;
+
+// html -- the HTML subset behind HtmlBlock, a tolerant parser of foreign markup.
+export import :html.node;
+export import :html.builder;
+export import :html.parse;

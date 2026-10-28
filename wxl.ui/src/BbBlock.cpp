@@ -8,7 +8,7 @@
 #include "Object.impl.h"
 #include "impl/activator.h"
 
-// Импорты последними — markup_build.h несёт wxl.html, wxl.bb добавляем сами.
+// Импорты последними — markup_build.h несёт wxl.core, wxl.bb добавляем сами.
 #include "impl/markup_build.h"
 
 import wxl.bb;

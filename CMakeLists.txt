@@ -59,10 +59,9 @@ endif()
 # program.
 
 # ---- What is built ----
-# The core modules -- wxl.core, wxl.html, wxl.highlight, wxl.bb,
-# wxl.rsdn -- and the helpers of the
-# tests, wxl.test, are always added: they are what a project that adds wxl comes
-# for. The rest has a key of its own. The tree configured on its own builds all
+# The core modules -- wxl.core, wxl.highlight, wxl.bb, wxl.rsdn -- and the
+# helpers of the tests, wxl.test, are always added: they are what a project
+# that adds wxl comes for. The rest has a key of its own. The tree configured on its own builds all
 # of it; a project that adds the tree gets the WinUI backend and the generator it
 # is built with, and not the samples, the sandbox, the site or wxl's own tests.
 if(PROJECT_IS_TOP_LEVEL)
@@ -80,8 +79,8 @@ option(WXL_SANDBOX "Build the sandbox (sandbox/)." ${_wxl_own})
 
 # Off by default: the benchmarks are measurement tools, run deliberately, and an
 # ordinary build has no reason to spend time on them. Those of wxl.core and
-# wxl.ui; the benches of the XML reader in wxl.core and of wxl.gen.common are built
-# with the tree itself, and in a project that adds wxl with this key.
+# wxl.ui; the two benches of the XML reader in wxl.core and of wxl.gen.common
+# are built with the tree itself, and in a project that adds wxl with this key.
 option(WXL_BUILD_BENCHMARKS "Build the benchmark executables." OFF)
 
 if(WXL_UI AND NOT WXL_TOOLS)
@@ -227,24 +226,21 @@ if(WXL_TOOLS AND NOT TARGET winmd_reader)
     target_include_directories(winmd_reader INTERFACE ${winmd_SOURCE_DIR}/src)
 endif()
 
-# wxl.core first: wxl.ui links wxl::core, and the generated sources it
-# compiles import that module.
+# wxl.core first: the one module of the core, its areas fmt, async, logging,
+# xml, json and html among its partitions (wxl.core/README.md). Everything
+# below links wxl::core, and the generated sources wxl.ui compiles import it.
 add_subdirectory(wxl.core)
 
 # The helpers of the tests -- headers any target may link, the gtest fixture
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
 
-# The HTML subset behind HtmlBlock: a tolerant parser for foreign markup,
-# its tree carved from wxl.xml's arena. Specification: wxl.html/design.md.
-add_subdirectory(wxl.html)
-
 # Подсветка синтаксиса: таблицы языков и сканер без регулярных выражений;
 # ею пользуется wxl.rsdn, а зависит она только от std.
 add_subdirectory(wxl.highlight)
 
-# Братья wxl.html: свои токенизаторы (BB и RSDN-разметка форумов) над общим
-# tree_builder семейства и тем же деревом.
+# Братья разбора HTML из wxl.core: свои токенизаторы (BB и RSDN-разметка
+# форумов) над общим tree_builder семейства и тем же деревом.
 add_subdirectory(wxl.bb)
 add_subdirectory(wxl.rsdn)
 

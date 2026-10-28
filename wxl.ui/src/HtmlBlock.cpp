@@ -1,4 +1,4 @@
-// wxl::HtmlBlock: разметка в parse() модуля wxl.html, наполнение — общим
+// wxl::HtmlBlock: разметка в html::parse() из wxl.core, наполнение — общим
 // сборщиком семейства (MarkupBlock.cpp).
 
 // Проекция первой (см. MarkupBlock.cpp о порядке заголовков).

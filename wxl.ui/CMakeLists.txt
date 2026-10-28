@@ -320,10 +320,10 @@ target_link_libraries(wxl.ui
         # nothing else.
         wxl::core
     PRIVATE
-        # The markup parsers behind the family of blocks. Private like the
-        # projection: the DOM never crosses a control's public interface --
-        # markup goes in as a string, primitives come out.
-        wxl::html
+        # The markup parsers behind the family of blocks, beside the HTML one
+        # of wxl::core. Private like the projection: the DOM never crosses a
+        # control's public interface -- markup goes in as a string,
+        # primitives come out.
         wxl::bb
         wxl::rsdn
         Microsoft::CppWinRT

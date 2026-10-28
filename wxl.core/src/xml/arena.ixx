@@ -48,7 +48,7 @@ public:
 
     /// One arena per parse, and parses repeat -- a chat feed parses per
     /// message -- so the arena itself comes out of the STA pool, the way
-    /// wxl.html's per-parse state does.
+    /// the HTML parser's per-parse state does.
     inline static void* operator new(std::size_t size) {
         return core::sta_memory_pool::alloc(size);
     }
