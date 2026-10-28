@@ -1,9 +1,9 @@
-export module wxl.logging:console_output;
+export module wxl.core:logging.console_output;
 
-import :entry;
-import :output;
-import :severity;
-import wxl.core;
+import :logging.entry;
+import :logging.output;
+import :logging.severity;
+import :mutex;
 import std;
 
 export namespace wxl::logging {

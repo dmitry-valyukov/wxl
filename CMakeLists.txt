@@ -59,7 +59,7 @@ endif()
 # program.
 
 # ---- What is built ----
-# The core modules -- wxl.core, wxl.logging, wxl.xml,
+# The core modules -- wxl.core, wxl.xml,
 # wxl.json, wxl.html, wxl.highlight, wxl.bb, wxl.rsdn -- and the helpers of the
 # tests, wxl.test, are always added: they are what a project that adds wxl comes
 # for. The rest has a key of its own. The tree configured on its own builds all
@@ -234,10 +234,6 @@ add_subdirectory(wxl.core)
 # The helpers of the tests -- headers any target may link, the gtest fixture
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
-
-# The log: wxl.core's text_builder formats a line, its async area supplies
-# the thread the asynchronous half writes it from.
-add_subdirectory(wxl.logging)
 
 add_subdirectory(wxl.xml)
 

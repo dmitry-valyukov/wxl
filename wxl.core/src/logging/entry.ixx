@@ -1,7 +1,7 @@
-export module wxl.logging:entry;
+export module wxl.core:logging.entry;
 
-import :severity;
-import wxl.core;
+import :logging.severity;
+import :fmt.text_builder;
 import std;
 
 export namespace wxl::logging {

@@ -2,9 +2,9 @@ module;
 
 #include "abi.h"
 
-export module wxl.logging:severity;
+export module wxl.core:logging.severity;
 
-import wxl.core;
+import :checks;
 import std;
 
 export namespace wxl::logging {

@@ -2,7 +2,7 @@
 
 #include <string>
 
-import wxl.logging;
+import wxl.core;
 
 #include "recording_output.h"
 

@@ -97,6 +97,16 @@ wxl_add_module_library(wxl.core STATIC
         async/last_error.ixx
         async/stop_reason.ixx
         async/threaded_component.ixx
+
+        # logging: a log built around one call per message.
+        logging/severity.ixx
+        logging/entry.ixx
+        logging/facility.ixx
+        logging/output.ixx
+        logging/console_output.ixx
+        logging/file_output.ixx
+        logging/logger.ixx
+        logging/async_logger.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are
         # part of the public interface: a consumer compiles those interfaces
@@ -151,6 +161,13 @@ wxl_add_module_library(wxl.core STATIC
         async/last_error.cpp
         async/stop_reason.cpp
         async/threaded_component.cpp
+
+        logging/entry.cpp
+        logging/output.cpp
+        logging/console_output.cpp
+        logging/file_output.cpp
+        logging/logger.cpp
+        logging/async_logger.cpp
 )
 
 # The name consumers use, both in-tree (FetchContent / add_subdirectory) and
@@ -244,6 +261,17 @@ target_link_libraries(wxl.core PRIVATE ole32)
 # makes -- CreateDispatcherQueueController is coremessaging, the activation
 # factory and the string behind its name are runtimeobject.
 target_link_libraries(wxl.core PRIVATE coremessaging runtimeobject)
+
+# Errors are reported by throwing: writing to a log output can fail -- a full
+# disk, a file that went away -- and multicast_output catches it to drop that
+# output rather than the program. MSVC unwinds nothing without /EHsc: the
+# destructors of everything on the stack between the throw and the catch are
+# simply skipped. CMake puts the flag in CMAKE_CXX_FLAGS itself, but a
+# toolchain file is free to replace those flags wholesale, so it is added here
+# only when it is missing, rather than duplicated on every source file.
+if(MSVC AND NOT CMAKE_CXX_FLAGS MATCHES "/EHsc")
+    target_compile_options(wxl.core PUBLIC /EHsc)
+endif()
 
 # `import std;` support (CMake's std module target). Requires C++23 and a
 # toolchain that ships the std module sources (MSVC 17.10+).

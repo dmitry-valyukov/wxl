@@ -11,3 +11,4 @@ IntelliSense в VS Code для модулей — [«Работа в редак�
 - [fmt](src/fmt/README.md) — буфер и построитель текста поверх `fmt`, `format`.
 - [async](src/async/README.md) — корутины, `sta_loop`, отмена, `future`, потоки,
   lock-free очереди и каналы.
+- [logging](src/logging/README.md) — журнал, где строка — один вызов.

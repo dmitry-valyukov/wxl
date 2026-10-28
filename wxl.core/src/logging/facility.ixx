@@ -2,10 +2,11 @@ module;
 
 #include "abi.h"
 
-export module wxl.logging:facility;
+export module wxl.core:logging.facility;
 
-import :severity;
-import wxl.core;
+import :logging.severity;
+import :checks;
+import :noncopyable;
 import std;
 
 export namespace wxl::logging {

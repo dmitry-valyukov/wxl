@@ -93,3 +93,13 @@ export import :async.component;
 export import :async.stop_reason;
 export import :async.last_error;
 export import :async.threaded_component;
+
+// logging -- a log built around one call per message.
+export import :logging.severity;
+export import :logging.entry;
+export import :logging.facility;
+export import :logging.output;
+export import :logging.console_output;
+export import :logging.file_output;
+export import :logging.logger;
+export import :logging.async_logger;

@@ -1,7 +1,8 @@
-export module wxl.logging:output;
+export module wxl.core:logging.output;
 
-import :entry;
-import wxl.core;
+import :logging.entry;
+import :mutex;
+import :noncopyable;
 import std;
 
 export namespace wxl::logging {

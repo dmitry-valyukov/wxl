@@ -9,7 +9,6 @@
 #include <string_view>
 
 import wxl.core;
-import wxl.logging;
 
 using wxl::logging::file_options;
 using wxl::logging::file_output;

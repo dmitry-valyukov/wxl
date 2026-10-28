@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-import wxl.logging;
+import wxl.core;
 
 using wxl::logging::severity;
 using wxl::logging::severity_range;

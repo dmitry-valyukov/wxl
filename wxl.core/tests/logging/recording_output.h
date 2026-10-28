@@ -1,7 +1,7 @@
 #pragma once
 
 // An output that keeps what it is given, which is what most of these tests want
-// to look at. Include it *after* `import wxl.logging;` -- it names the module's
+// to look at. Include it *after* `import wxl.core;` -- it names the module's
 // types and does not import it itself, because a standard header pulled in
 // after a module import is what MSVC will not have.
 

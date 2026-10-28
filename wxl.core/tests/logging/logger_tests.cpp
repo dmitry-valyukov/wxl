@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-import wxl.logging;
+import wxl.core;
 import fmt;
 
 #include "recording_output.h"

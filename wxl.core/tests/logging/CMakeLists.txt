@@ -7,5 +7,5 @@ wxl_add_gtest(wxl.logging.tests
         file_output_tests.cpp
         async_logger_tests.cpp
     DEPS
-        wxl::logging
+        wxl::core
 )

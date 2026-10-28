@@ -1,4 +1,4 @@
-module wxl.logging;
+module wxl.core;
 
 import std;
 

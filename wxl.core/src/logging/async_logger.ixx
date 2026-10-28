@@ -1,10 +1,17 @@
-export module wxl.logging:async_logger;
+export module wxl.core:logging.async_logger;
 
-import :entry;
-import :logger;
-import :output;
-import :severity;
-import wxl.core;
+import :logging.entry;
+import :logging.logger;
+import :logging.output;
+import :logging.severity;
+import :async.mpsc_channel;
+import :async.safe_pool;
+import :async.thread_group;
+import :async.threaded_component;
+import :mutex;
+import :pool_ptr;
+import :semaphore;
+import :time;
 import std;
 
 export namespace wxl::logging {

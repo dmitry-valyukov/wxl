@@ -7,7 +7,6 @@
 #include <vector>
 
 import wxl.core;
-import wxl.logging;
 
 #include "recording_output.h"
 

@@ -2,9 +2,8 @@ module;
 
 #include "abi.h"
 
-module wxl.logging;
+module wxl.core;
 
-import wxl.core;
 import std;
 
 namespace wxl::logging {
