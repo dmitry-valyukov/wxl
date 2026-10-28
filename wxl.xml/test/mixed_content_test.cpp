@@ -54,14 +54,14 @@ TEST(mixed_content, keeps_the_order_text_and_elements_were_written_in) {
 
 TEST(mixed_content, text_of_an_element_without_children_is_a_node_too) {
     document doc;
-    const node& root = doc.load("<title>Anna Karenina</title>");
+    const node& root = doc.load("<title>Annual Report</title>");
 
     ASSERT_EQ(std::ranges::distance(root.children()), 1);
     EXPECT_EQ(root.children().begin()->type(), node_type::text);
 
     // One place to read text from, rather than two that disagree.
     EXPECT_TRUE(root.value().empty());
-    EXPECT_EQ(joined_text(root), "Anna Karenina");
+    EXPECT_EQ(joined_text(root), "Annual Report");
 }
 
 /// A reference is a piece of its own: what it stands for is not in the

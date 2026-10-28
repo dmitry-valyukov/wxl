@@ -18,7 +18,9 @@ std::wstring last_error::explanation() const {
     // Слова системы берёт wxl.core -- они нужны и тому, у кого wxl.async нет; здесь лишь
     // обратно в UTF-16, в котором их показывает интерфейс.
     return std::wstring{
-        core::environment::error_explanation(static_cast<std::uint32_t>(code().value())).to_utf16().wchars()};
+        core::environment::error_explanation(static_cast<std::uint32_t>(code().value()))
+            .to_utf16()
+            .wchars()};
 }
 
 }  // namespace wxl::async

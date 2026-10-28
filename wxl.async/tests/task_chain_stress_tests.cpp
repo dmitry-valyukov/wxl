@@ -54,7 +54,13 @@ std::uint64_t seed_of(std::uint64_t round_seed, std::uint32_t id) {
 }
 
 /// What a frame stands on between two deliveries.
-enum class waits_on : std::uint8_t { nothing, operation, idle, task };
+enum class waits_on : std::uint8_t
+{
+    nothing,
+    operation,
+    idle,
+    task
+};
 
 /// One frame of a round, as seen from outside the frame -- which is what is left to look
 /// at once the frame is gone.
@@ -116,7 +122,9 @@ struct round_state {
     std::atomic<int> wrote_into_gone_frame{0};
 
     /// Room for two more frames below this depth: a step starts at most two.
-    bool can_spawn(std::uint32_t depth) const { return depth < max_depth && next_id + 2 < max_frames; }
+    bool can_spawn(std::uint32_t depth) const {
+        return depth < max_depth && next_id + 2 < max_frames;
+    }
 
     std::uint32_t new_id() { return next_id++; }
 
@@ -186,9 +194,13 @@ private:
 class frame_write : public async_op_t<int>
 {
 public:
-    frame_write(round_state& c, std::uint32_t frame, std::span<std::byte> into,
-                std::uint32_t work, bool fails, bool stops_when_given_up)
-        : c_(c), frame_(frame), into_(into), work_(work), fails_(fails),
+    frame_write(round_state& c, std::uint32_t frame, std::span<std::byte> into, std::uint32_t work,
+                bool fails, bool stops_when_given_up)
+        : c_(c),
+          frame_(frame),
+          into_(into),
+          work_(work),
+          fails_(fails),
           stops_when_given_up_(stops_when_given_up) {
         ++c_.ops_alive;
     }
@@ -224,13 +236,13 @@ private:
 };
 
 task<int> start_write(round_state& c, std::uint32_t frame, std::span<std::byte> into,
-                           random_stream& r) {
+                      random_stream& r) {
     const std::uint32_t work = r.one_in(4) ? 0 : r.below(64);
     const bool fails = r.one_in(12);
     const bool stops = r.one_in(2);
 
-    return sta_loop::async_run(std::unique_ptr<async_op_t<int>>(
-        new frame_write(c, frame, into, work, fails, stops)));
+    return sta_loop::async_run(
+        std::unique_ptr<async_op_t<int>>(new frame_write(c, frame, into, work, fails, stops)));
 }
 
 /// A wait for this thread to have nothing more urgent, delivered by the round from its
@@ -558,11 +570,15 @@ protected:
             c->stored.clear();
 
             // Given-up operations wait in the return channel for the loop to delete them.
-            EXPECT_EQ(sta_loop::run_pending(), 0u) << "round " << i << ": a given-up operation resumed somebody";
+            EXPECT_EQ(sta_loop::run_pending(), 0u)
+                << "round " << i << ": a given-up operation resumed somebody";
 
-            ASSERT_EQ(c->wrote_into_gone_frame.load(), 0) << "round " << i << ": an operation wrote into a frame that was gone";
-            ASSERT_EQ(c->resumed_gone, 0) << "round " << i << ": a frame was resumed after it was gone";
-            ASSERT_EQ(c->resumed_not_waiting, 0) << "round " << i << ": a frame was resumed while not waiting";
+            ASSERT_EQ(c->wrote_into_gone_frame.load(), 0)
+                << "round " << i << ": an operation wrote into a frame that was gone";
+            ASSERT_EQ(c->resumed_gone, 0)
+                << "round " << i << ": a frame was resumed after it was gone";
+            ASSERT_EQ(c->resumed_not_waiting, 0)
+                << "round " << i << ": a frame was resumed while not waiting";
             ASSERT_EQ(c->scenarios_alive, 0) << "round " << i << ": a scenario never ended";
             ASSERT_EQ(c->frames_alive, 0) << "round " << i << ": a frame outlived the round";
             ASSERT_EQ(c->ops_alive, 0) << "round " << i << ": an operation outlived the round";

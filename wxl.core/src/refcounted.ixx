@@ -11,7 +11,12 @@ import std;
 
 export namespace wxl::core {
 
-// Single-threaded reference-counted base class
+/// Provides a single-threaded intrusive reference count to a derived class.
+///
+/// The count starts at 1 when the object is constructed, and the object deletes itself through
+/// its virtual destructor when the count reaches zero. The hidden friends
+/// `intrusive_ptr_add_ref` and `intrusive_ptr_release` make any derived type usable with
+/// `wxl::core::intrusive_ptr`. The class is not copyable.
 class refcounted
 {
 protected:
@@ -21,13 +26,16 @@ protected:
 
     virtual ~refcounted() noexcept = default;
 
+    /// Returns the current reference count.
     inline size_t ref_count() const noexcept {
         assume(ref_count_ > 0);
         return ref_count_;
     }
 
+    /// Increments the reference count.
     inline void add_ref() const noexcept { ++ref_count_; }
 
+    /// Decrements the reference count and deletes the object when the count reaches zero.
     inline void release_ref() const noexcept {
         if (--ref_count_ > 0) [[likely]]
             return;
@@ -45,11 +53,12 @@ private:
     mutable size_t ref_count_{1};
 };
 
-// Multi-threaded reference-counted base class: same shape as `refcounted`,
-// but the counter is atomic so add_ref()/release_ref() may be called
-// concurrently from multiple threads. The decrement uses release ordering
-// and only pays for an acquire fence on the path that actually deletes the
-// object, instead of paying acquire on every release_ref() call.
+/// Provides a thread-safe intrusive reference count to a derived class.
+///
+/// Has the same interface as `wxl::core::refcounted`, but the counter is atomic, so `add_ref()`
+/// and `release_ref()` may be called concurrently from multiple threads. The decrement uses
+/// release ordering, and an acquire fence is issued only on the path that deletes the object
+/// rather than on every `release_ref()` call.
 class refcounted_mt
 {
 protected:
@@ -59,14 +68,18 @@ protected:
 
     virtual ~refcounted_mt() noexcept = default;
 
+    /// Returns the current reference count, loaded with relaxed ordering.
     inline size_t ref_count() const noexcept {
         const size_t count = ref_count_.load(std::memory_order_relaxed);
         assume(count > 0);
         return count;
     }
 
+    /// Increments the reference count with relaxed ordering.
     inline void add_ref() const noexcept { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
+    /// Decrements the reference count with release ordering. When the count reaches zero, issues
+    /// an acquire fence and deletes the object.
     inline void release_ref() const noexcept {
         if (ref_count_.fetch_sub(1, std::memory_order_release) > 1) [[likely]]
             return;
@@ -87,31 +100,30 @@ private:
     mutable std::atomic<size_t> ref_count_{1};
 };
 
-// A counted object that lives in the STA pool -- which, on the one thread wxl
-// works on, is the ordinary place for one.
-//
-// The pool is what wxl allocates from: a preset per description, a handler per
-// subscription, an Impl per element, hundreds of them while an interface is
-// built and gone again with it. Written as a base rather than as two lines
-// repeated in every such class, because the two lines have to agree with each
-// other and with the destructor, and that agreement is worth stating once.
-//
-// The pool's terms come with it, and they are the holder's to meet: an object
-// is made and released on the pool's thread, and inside the pool's life. So
-// nothing of this kind at namespace scope, where the constructor would run
-// before the pool and the destructor after it -- one that must be written once
-// and reused is written as a function returning it -- and a holder that
-// outlives the pool gives its object back before the end, the way wWinMain
-// does with its teardown handler and sta_loop::stop() with its wake-up.
+/// Represents a single-threaded reference-counted object allocated from
+/// `wxl::core::sta_memory_pool`, the ordinary place for such an object on the one thread wxl
+/// works on.
+///
+/// The STA pool serves the many small, short-lived objects wxl allocates, such as the body of a
+/// handler and the `Impl` of an element. The allocation and deallocation functions are declared
+/// once in a base class because they must agree with each other and with the destructor.
+///
+/// The pool's terms are for the holder to meet: an object is created and released on the pool's
+/// thread and within the pool's lifetime. A holder that outlives the pool releases its object
+/// before the end, as `wWinMain` does with its teardown handler and `sta_loop::stop()` with its
+/// wake-up callback.
 class sta_refcounted : public refcounted
 {
 public:
+    /// Allocates \p size bytes from `wxl::core::sta_memory_pool`.
     inline static void* operator new(std::size_t size) { return sta_memory_pool::alloc(size); }
 
-    // Sized, and it has to be: the pool gives back to the size class it took
-    // from. The size is the complete object's, because the destructor is
-    // virtual and the deleting one the compiler writes knows which object it
-    // is freeing.
+    /// Returns the block at \p mem, of \p size bytes, to `wxl::core::sta_memory_pool`.
+    ///
+    /// The deallocation function is sized because the pool returns a block to the size class it
+    /// was allocated from. The size is that of the complete object: the destructor is virtual,
+    /// so the deleting destructor the compiler generates passes the size of the most derived
+    /// type.
     inline static void operator delete(void* mem, std::size_t size) noexcept {
         sta_memory_pool::free(mem, size);
     }

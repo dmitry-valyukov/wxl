@@ -3,6 +3,7 @@
 #include "documentation.h"
 
 import std;
+import wxl.core;
 
 namespace md = winmd::reader;
 
@@ -138,6 +139,18 @@ std::filesystem::path newest_version(std::filesystem::path const& directory) {
     return newest;
 }
 
+// The metadata file a database was read from. The reader keeps the name it was opened by
+// in UTF-8, its contract, and a name that is not UTF-8 is said rather than taken as a path.
+std::filesystem::path metadata_file(md::database const& database) {
+    auto const name = wxl::core::unicode::checked(database.path());
+    if (!name) {
+        throw std::runtime_error(
+            std::format("metadata opened by a name that is not UTF-8: {}",
+                        wxl::core::unicode::repaired(database.path()).chars()));
+    }
+    return wxl::core::unicode::to_path(*name);
+}
+
 // The contract a Windows type belongs to: its ContractVersionAttribute.
 std::string contract_of(md::TypeDef const& type) {
     for (auto&& attribute : type.CustomAttribute()) {
@@ -185,6 +198,15 @@ std::string constructor_documentation_id(md::TypeDef const& owner, md::MethodDef
     id.head('M', owner, "#ctor");
     id.parameters(method, dropped);
     return std::move(id).text();
+}
+
+documentation_language const* find_documentation_language(std::string_view code) noexcept {
+    for (auto&& language : documentation_languages) {
+        if (language.code == code) {
+            return &language;
+        }
+    }
+    return nullptr;
 }
 
 documentation_source::documentation_source(std::vector<std::wstring> languages, std::filesystem::path references)
@@ -246,7 +268,7 @@ documentation_source::source* documentation_source::source_of(md::TypeDef const&
     auto const& database = type.get_database();
     auto beside = beside_.find(&database);
     if (beside == beside_.end()) {
-        source opened = open(std::filesystem::path {database.path()}.replace_extension(L".xml"));
+        source opened = open(metadata_file(database).replace_extension(L".xml"), app_sdk_image_root);
         beside = beside_.emplace(&database, std::move(opened)).first;
         started(beside->second);
     }
@@ -266,7 +288,8 @@ documentation_source::source* documentation_source::source_of(md::TypeDef const&
         try {
             opened = open_reference(key.second);
         } catch (std::filesystem::filesystem_error const& error) {
-            opened.found.error = std::make_exception_ptr(std::runtime_error(error_message(error)));
+            opened.found.error = std::make_exception_ptr(std::runtime_error(
+                std::string {wxl::core::environment::error_message(error).chars()}));
         } catch (...) {
             opened.found.error = std::current_exception();
         }
@@ -286,7 +309,8 @@ documentation_source::source* documentation_source::source_of(md::TypeDef const&
 // Whether the file is there is asked inside the try too: exists() throws for
 // any answer but "not found" -- access denied, a network path gone -- and that
 // is an error about this file, kept with it like one met reading it.
-documentation_source::source documentation_source::open(std::filesystem::path const& file) {
+documentation_source::source documentation_source::open(std::filesystem::path const& file,
+                                                         std::string_view image_root) {
     if (file.empty()) {
         return {};
     }
@@ -295,9 +319,10 @@ documentation_source::source documentation_source::open(std::filesystem::path co
         if (!std::filesystem::exists(file)) {
             return {};
         }
-        opened.file = std::make_unique<documentation_file>(file);
+        opened.file = std::make_unique<documentation_file>(file, std::string {image_root});
     } catch (std::filesystem::filesystem_error const& error) {
-        opened.error = std::make_exception_ptr(std::runtime_error(error_message(error)));
+        opened.error = std::make_exception_ptr(std::runtime_error(
+            std::string {wxl::core::environment::error_message(error).chars()}));
     } catch (...) {
         // The file names itself in what it throws, as its reader does, so the
         // error is kept as thrown.
@@ -328,12 +353,12 @@ documentation_source::reference documentation_source::open_reference(std::string
     if (sdk.empty()) {
         return {};
     }
-    std::filesystem::path const versions = newest_version(sdk / contract);
+    std::filesystem::path const versions = newest_version(sdk / metadata_path(contract));
     if (versions.empty()) {
         return {};
     }
     for (std::wstring const& language : languages_) {
-        source found = open(versions / language / (contract + ".xml"));
+        source found = open(versions / language / metadata_path(contract + ".xml"), windows_sdk_image_root);
         if (found.file || found.error) {
             return {std::move(found), &language == &languages_.front()};
         }

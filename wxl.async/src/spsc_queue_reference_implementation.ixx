@@ -70,8 +70,10 @@ class spsc_queue_reference_implementation : public core::noncopyable
     };
 
 public:
+    /// The type of the elements of the queue.
     using element_type = element_t;
 
+    /// The number of elements in one block.
     static constexpr size_t elements_per_block = block_size;
 
     spsc_queue_reference_implementation() : write_cursor_(new block), first_(write_cursor_) {}
@@ -98,8 +100,10 @@ public:
         }
     }
 
+    /// Copies \p element into the queue, then publishes it. The producing thread's call.
     void write(const element_t& element) { emplace(element); }
 
+    /// Moves \p element into the queue, then publishes it. The producing thread's call.
     void write(element_t&& element) { emplace(std::move(element)); }
 
     /// The consuming thread's half: where it has read up to, and how far the writer had
@@ -233,10 +237,14 @@ spsc_queue_reference_implementation<element_t, block_size>::~spsc_queue_referenc
            "a reader outlived the spsc_queue_reference_implementation it was on");
 }
 
+/// Represents the consuming thread's half of the queue: where it has read up to, and how far
+/// the writer had published when it last looked.
 template <class element_t, size_t block_size>
 class spsc_queue_reference_implementation<element_t, block_size>::reader : public core::noncopyable
 {
 public:
+    /// Constructs the reader of \p queue, starting at the first block of the queue. A queue
+    /// takes a single reader.
     explicit reader(spsc_queue_reference_implementation& queue) noexcept
         : read_cursor_(queue.first_), queue_(&queue) {
         assert(!queue.has_reader_ &&

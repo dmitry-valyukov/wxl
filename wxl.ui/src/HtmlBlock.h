@@ -27,7 +27,8 @@
 
 namespace wxl {
 
-class HtmlBlock : public MarkupBlock {
+class HtmlBlock : public MarkupBlock
+{
     using base_t = MarkupBlock;
 
 public:
@@ -60,8 +61,7 @@ public:
     // attribute, by decision -- foreign markup's real CSS in style="..."
     // simply never finds a match.
     void registerStyle(hstring_param const& name, MarkupStyle const& style) const;
-    void registerStyles(
-        std::initializer_list<std::pair<zstring_view, MarkupStyle>> styles) const;
+    void registerStyles(std::initializer_list<std::pair<zstring_view, MarkupStyle>> styles) const;
 
     // A bare string in the declarative form is the markup:
     // HtmlBlock{ u"Привет, <b>мир</b>!" }.

@@ -15,6 +15,9 @@ class hevent : public noncopyable
     HANDLE handle_;
 
 public:
+    /// Creates an event object: manual-reset if \p manual_reset is `true` and auto-reset
+    /// otherwise, initially signaled if \p initial_state is `true`. Ends the process through
+    /// `wxl::core::abort` if the event cannot be created.
     explicit hevent(bool manual_reset, bool initial_state = false);
     ~hevent();
 
@@ -32,6 +35,8 @@ public:
     /// \return \c false only on timeout.
     bool wait_for(duration timeout) const;
 
+    /// Gets the handle of the event object. The object retains ownership and closes the
+    /// handle on destruction.
     inline HANDLE handle() const noexcept { return handle_; }
 };
 

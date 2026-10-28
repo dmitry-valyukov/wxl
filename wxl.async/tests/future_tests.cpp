@@ -4,14 +4,11 @@
 
 #include <gtest/gtest.h>
 
-
 #include "stress_test.h"
 
 import std;
 import wxl.core;
 import wxl.async;
-
-
 
 using namespace wxl::core;
 using namespace wxl::async;
@@ -19,22 +16,20 @@ using namespace wxl::async;
 typedef promise<void> test_promise;
 typedef future<void> test_future;
 
-static std::exception_ptr specific_exception_instance = std::make_exception_ptr(specific_exception());
+static std::exception_ptr specific_exception_instance =
+    std::make_exception_ptr(specific_exception());
 
 namespace {
 /// Returns \c true if the given Future object has the exception of the \e E type, \c false otherwise.
 template <typename E>
-bool has_exception(const test_future & f) {
-    if(!f.has_exception())
-        return false;
+bool has_exception(const test_future& f) {
+    if (!f.has_exception()) return false;
 
     try {
         f.get();
-    }
-    catch(const E &) {
+    } catch (const E&) {
         return true;
-    }
-    catch(...) {
+    } catch (...) {
         // ignore
     }
 
@@ -42,8 +37,7 @@ bool has_exception(const test_future & f) {
 }
 }
 
-STRESS_TEST_CASE(future, create_copy_move_dispose)
-{
+STRESS_TEST_CASE(future, create_copy_move_dispose) {
     {
         // Create and dispose
         test_future f;
@@ -61,7 +55,7 @@ STRESS_TEST_CASE(future, create_copy_move_dispose)
 
             f = p.get_future();
             ASSERT_TRUE(f.valid());
-            ASSERT_TRUE(! f.is_ready());
+            ASSERT_TRUE(!f.is_ready());
 
             ASSERT_EQ(future_status::timeout, f.wait_for(duration::from_ms(1)));
             ASSERT_TRUE(f.valid());
@@ -72,7 +66,7 @@ STRESS_TEST_CASE(future, create_copy_move_dispose)
         ASSERT_THROW(f.get(), std::future_error);
         ASSERT_TRUE(f.is_ready());
         ASSERT_TRUE(f.has_exception());
-        ASSERT_TRUE(! f.has_value());
+        ASSERT_TRUE(!f.has_value());
     }
 
     {
@@ -88,17 +82,17 @@ STRESS_TEST_CASE(future, create_copy_move_dispose)
             ASSERT_TRUE(p1.valid());
             ASSERT_TRUE(p2.valid());
 
-            ASSERT_TRUE(! f1.is_ready());
-            ASSERT_TRUE(! f2.is_ready());
+            ASSERT_TRUE(!f1.is_ready());
+            ASSERT_TRUE(!f2.is_ready());
 
             p2 = std::move(p1);
 
-            ASSERT_TRUE(! p1.valid());
+            ASSERT_TRUE(!p1.valid());
             ASSERT_TRUE(p2.valid());
 
             // Here the promise p2 was destroyed before the corresponding Future had been set to the Ready state.
             ASSERT_TRUE(has_exception<std::future_error>(f2));
-            ASSERT_TRUE(! f1.is_ready());
+            ASSERT_TRUE(!f1.is_ready());
         }
 
         // Here the promise p1 was destroyed before the corresponding Future had been set to the Ready state.
@@ -110,7 +104,7 @@ STRESS_TEST_CASE(future, create_copy_move_dispose)
         test_future f;
 
         test_promise p1;
-        test_promise p2 = p1;    // two owners over a single SharedState.
+        test_promise p2 = p1;  // two owners over a single SharedState.
 
         f = p1.get_future();
 
@@ -138,13 +132,11 @@ struct continuation {
     // A copy goes wherever the future keeps its continuations, and the future is let go of on
     // any thread: the count is atomic.
     struct state final : refcounted_mt {
-        bool volatile * run_flag_;
-        bool volatile * delete_flag_;
+        bool volatile* run_flag_;
+        bool volatile* delete_flag_;
 
-        state(bool volatile * run_flag, bool volatile * delete_flag)
-            : run_flag_(run_flag)
-            , delete_flag_(delete_flag)
-        {}
+        state(bool volatile* run_flag, bool volatile* delete_flag)
+            : run_flag_(run_flag), delete_flag_(delete_flag) {}
 
         ~state() override { *delete_flag_ = true; }
     };
@@ -152,16 +144,13 @@ struct continuation {
     continuation(bool volatile* run_flag, bool volatile* delete_flag)
         : state_(make_refcounted<state>(run_flag, delete_flag)) {}
 
-    void operator()() noexcept {
-        *state_->run_flag_ = true;
-    }
+    void operator()() noexcept { *state_->run_flag_ = true; }
 
     intrusive_ptr<state> state_;
 };
 }
 
-STRESS_TEST_CASE(future, memory_check)
-{
+STRESS_TEST_CASE(future, memory_check) {
     bool volatile run_flag = false;
     bool volatile delete_flag = false;
     {
@@ -173,8 +162,8 @@ STRESS_TEST_CASE(future, memory_check)
             f.when_ready(cont);
         }
 
-        ASSERT_TRUE(! run_flag);
-        ASSERT_TRUE(! delete_flag);
+        ASSERT_TRUE(!run_flag);
+        ASSERT_TRUE(!delete_flag);
 
         p.set_value();
 
@@ -183,8 +172,7 @@ STRESS_TEST_CASE(future, memory_check)
     }
 }
 
-STRESS_TEST_CASE(future, set_value_test)
-{
+STRESS_TEST_CASE(future, set_value_test) {
     test_promise p;
     p.set_value();
 
@@ -192,13 +180,12 @@ STRESS_TEST_CASE(future, set_value_test)
 
     ASSERT_TRUE(f.valid());
     f.get();
-    ASSERT_TRUE(f.valid()); // still valid
+    ASSERT_TRUE(f.valid());  // still valid
 
     ASSERT_THROW(f.get_exception_ptr(), std::logic_error);
 }
 
-STRESS_TEST_CASE(future, set_value_from_another_thread)
-{
+STRESS_TEST_CASE(future, set_value_from_another_thread) {
     test_promise p;
     test_future f = p.get_future();
 
@@ -210,15 +197,14 @@ STRESS_TEST_CASE(future, set_value_from_another_thread)
 }
 
 namespace {
-void set_value(barrier * enter_barrier, test_promise* promise) {
+void set_value(barrier* enter_barrier, test_promise* promise) {
     enter_barrier->enter();
 
     promise->set_value();
 }
 }
 
-STRESS_TEST_CASE(future, set_value_from_multiple_threads)
-{
+STRESS_TEST_CASE(future, set_value_from_multiple_threads) {
     test_promise p;
     test_future f = p.get_future();
 
@@ -236,14 +222,14 @@ STRESS_TEST_CASE(future, set_value_from_multiple_threads)
     ASSERT_TRUE(!f.has_exception());
 }
 
-STRESS_TEST_CASE(future, set_exception_test)
-{
+STRESS_TEST_CASE(future, set_exception_test) {
     test_promise p;
     test_future f = p.get_future();
 
     p.set_exception(specific_exception_instance);
 
-    std::exception_ptr second_exception = std::make_exception_ptr(std::logic_error("The second exception is ignored"));
+    std::exception_ptr second_exception =
+        std::make_exception_ptr(std::logic_error("The second exception is ignored"));
 
     p.set_exception(second_exception);
 
@@ -253,8 +239,7 @@ STRESS_TEST_CASE(future, set_exception_test)
     ASSERT_TRUE(f.has_exception());
 }
 
-STRESS_TEST_CASE(future, set_exception_from_another_thread)
-{
+STRESS_TEST_CASE(future, set_exception_from_another_thread) {
     test_promise p;
     test_future f = p.get_future();
 
@@ -263,31 +248,26 @@ STRESS_TEST_CASE(future, set_exception_from_another_thread)
     ASSERT_THROW(f.get(), specific_exception);
 }
 
-namespace{
+namespace {
 struct atomic_continuation {
     // Copied by every thread that adds it as a continuation: the count is atomic.
     struct state final : refcounted_mt {
-        state()
-            : counter_()
-        {}
+        state() : counter_() {}
 
-        void increase_counter() {
-            counter_.fetch_add(1, std::memory_order_relaxed);
-        }
+        void increase_counter() { counter_.fetch_add(1, std::memory_order_relaxed); }
 
         std::atomic<size_t> counter_;
     };
 
     atomic_continuation() : state_(make_refcounted<state>()) {}
 
-    void operator()() noexcept {
-        state_->increase_counter();
-    }
+    void operator()() noexcept { state_->increase_counter(); }
 
     intrusive_ptr<state> state_;
 };
 
-void add_continuation(barrier * enter_barrier, test_future& future, atomic_continuation& continuation, size_t number_of_cycles) {
+void add_continuation(barrier* enter_barrier, test_future& future,
+                      atomic_continuation& continuation, size_t number_of_cycles) {
     enter_barrier->enter();
 
     for (size_t i = 0; i < number_of_cycles; ++i) {
@@ -297,8 +277,7 @@ void add_continuation(barrier * enter_barrier, test_future& future, atomic_conti
 
 };
 
-STRESS_TEST_CASE(future, concurrent_continuations)
-{
+STRESS_TEST_CASE(future, concurrent_continuations) {
     test_promise promise;
     test_future future = promise.get_future();
 
@@ -324,21 +303,16 @@ STRESS_TEST_CASE(future, concurrent_continuations)
 }
 
 namespace {
-struct when_done_with_value{
-    when_done_with_value(int* value)
-        : value_(value)
-    {}
+struct when_done_with_value {
+    when_done_with_value(int* value) : value_(value) {}
 
-    void operator()(int value) noexcept {
-        *value_ = value;
-    }
+    void operator()(int value) noexcept { *value_ = value; }
 
     int* value_;
 };
 }
 
-STRESS_TEST_CASE(future, when_succeeded_with_value)
-{
+STRESS_TEST_CASE(future, when_succeeded_with_value) {
     promise<int> p;
     future<int> f = p.get_future();
 
@@ -348,7 +322,7 @@ STRESS_TEST_CASE(future, when_succeeded_with_value)
     int second_value = 0;
     when_done_with_value second_continuation(&second_value);
 
-    f.when_succeeded(first_continuation); // WhenDoneWithValue will be copied.
+    f.when_succeeded(first_continuation);  // WhenDoneWithValue will be copied.
     f.when_succeeded(second_continuation);
 
     p.set_value(7);
@@ -362,7 +336,6 @@ STRESS_TEST_CASE(future, when_succeeded_with_value)
     ASSERT_EQ(7, *third_continuation.value_);
 }
 
-
 namespace {
 class future_tester : public noncopyable
 {
@@ -375,88 +348,73 @@ class future_tester : public noncopyable
     std::exception_ptr exception2_;
     bool volatile ready2_;
 
-    void when_succeeded() {
-        succeeded_ = true;
-    }
+    void when_succeeded() { succeeded_ = true; }
 
     struct when_succeeded_func {
-        future_tester * this_;
-        void operator()() noexcept {
-            this_->when_succeeded();
-        }
+        future_tester* this_;
+        void operator()() noexcept { this_->when_succeeded(); }
     };
 
-    void when_failed(const std::exception_ptr & ex) {
+    void when_failed(const std::exception_ptr& ex) {
         failed_ = true;
         exception_ = ex;
     }
 
     struct when_failed_func {
-        future_tester * this_;
-        void operator()(const std::exception_ptr & ex) noexcept {
-            this_->when_failed(ex);
-        }
+        future_tester* this_;
+        void operator()(const std::exception_ptr& ex) noexcept { this_->when_failed(ex); }
     };
 
-    void when_ready() {
-        ready_ = true;
-    }
+    void when_ready() { ready_ = true; }
 
     void when_ready_with_future(test_future fut) {
         ready2_ = true;
 
-        if(fut.has_exception()) {
+        if (fut.has_exception()) {
             failed2_ = true;
             exception2_ = fut.get_exception_ptr();
-        }
-        else
+        } else
             succeeded2_ = true;
     }
 
     struct when_ready_func {
-        future_tester * this_;
-        void operator()() noexcept {
-            this_->when_ready();
-        }
+        future_tester* this_;
+        void operator()() noexcept { this_->when_ready(); }
     };
 
     struct when_ready_with_future_func {
-        future_tester * this_;
-        void operator()(test_future fut) noexcept {
-            this_->when_ready_with_future(fut);
-        }
+        future_tester* this_;
+        void operator()(test_future fut) noexcept { this_->when_ready_with_future(fut); }
     };
 
 public:
     future_tester() noexcept
-        : succeeded_()
-        , failed_()
-        , exception_()
-        , ready_()
-        , succeeded2_()
-        , failed2_()
-        , exception2_()
-        , ready2_()
-    {}
+        : succeeded_(),
+          failed_(),
+          exception_(),
+          ready_(),
+          succeeded2_(),
+          failed2_(),
+          exception2_(),
+          ready2_() {}
 
-    future_tester(test_future & f)
-        : succeeded_()
-        , failed_()
-        , exception_()
-        , ready_()
-        , succeeded2_()
-        , failed2_()
-        , exception2_()
-        , ready2_()
-    {
+    future_tester(test_future& f)
+        : succeeded_(),
+          failed_(),
+          exception_(),
+          ready_(),
+          succeeded2_(),
+          failed2_(),
+          exception2_(),
+          ready2_() {
         subscribe(f);
     }
 
     void subscribe(test_future f) {
-        const when_succeeded_func wd = { this };
-        const when_failed_func wf = { this };
-        const when_ready_func wc = { this };
-        const when_ready_with_future_func wc2 = { this };
+        const when_succeeded_func wd = {this};
+        const when_failed_func wf = {this};
+        const when_ready_func wc = {this};
+        const when_ready_with_future_func wc2 = {this};
         f.when_succeeded(wd);
         f.when_failed(wf);
         f.when_ready(wc);
@@ -464,7 +422,7 @@ public:
     }
 
     struct next_func {
-        future_tester * this_;
+        future_tester* this_;
 
         void operator()() noexcept {
             this_->when_succeeded();
@@ -474,7 +432,7 @@ public:
     };
 
     next_func make_next_func() {
-        next_func f = { this };
+        next_func f = {this};
         return f;
     }
 
@@ -513,8 +471,7 @@ public:
 };
 }
 
-STRESS_TEST_CASE(future, when_ready_by_value)
-{
+STRESS_TEST_CASE(future, when_ready_by_value) {
     test_promise p;
     test_future f = p.get_future();
 
@@ -525,8 +482,7 @@ STRESS_TEST_CASE(future, when_ready_by_value)
     tester.assert_value();
 }
 
-STRESS_TEST_CASE(future, when_ready_by_exception)
-{
+STRESS_TEST_CASE(future, when_ready_by_exception) {
     test_promise p;
     test_future f = p.get_future();
 
@@ -537,8 +493,7 @@ STRESS_TEST_CASE(future, when_ready_by_exception)
     tester.assert_exception();
 }
 
-STRESS_TEST_CASE(future, late_when_ready_by_value)
-{
+STRESS_TEST_CASE(future, late_when_ready_by_value) {
     test_promise p;
     test_future f = p.get_future();
     p.set_value();
@@ -548,8 +503,7 @@ STRESS_TEST_CASE(future, late_when_ready_by_value)
     tester.assert_value();
 }
 
-STRESS_TEST_CASE(future, late_when_ready_by_exception)
-{
+STRESS_TEST_CASE(future, late_when_ready_by_exception) {
     test_promise p;
     test_future f = p.get_future();
     p.set_exception(specific_exception_instance);
@@ -566,9 +520,9 @@ namespace {
 /// production code in the tree is shaped like this today, which is precisely why the rule needs
 /// a functor of its own here.
 struct both_forms_func {
-    int * no_arg_calls_;
-    int * future_calls_;
-    bool * saw_exception_;
+    int* no_arg_calls_;
+    int* future_calls_;
+    bool* saw_exception_;
 
     void operator()() noexcept { ++*no_arg_calls_; }
 
@@ -580,23 +534,22 @@ struct both_forms_func {
 
 // Guards the two tests below: drop either operator() and they would keep passing while
 // checking nothing, because a functor with one form has no choice to make.
-static_assert(std::is_nothrow_invocable_v<both_forms_func &>);
-static_assert(std::is_nothrow_invocable_v<both_forms_func &, test_future>);
+static_assert(std::is_nothrow_invocable_v<both_forms_func&>);
+static_assert(std::is_nothrow_invocable_v<both_forms_func&, test_future>);
 }
 
-STRESS_TEST_CASE(future, when_ready_prefers_the_form_with_future)
-{
+STRESS_TEST_CASE(future, when_ready_prefers_the_form_with_future) {
     int no_arg_calls = 0;
     int future_calls = 0;
     bool saw_exception = false;
-    const both_forms_func func = { &no_arg_calls, &future_calls, &saw_exception };
+    const both_forms_func func = {&no_arg_calls, &future_calls, &saw_exception};
 
     test_promise p;
     test_future f = p.get_future();
 
-    f.when_ready(func);   // pending: the callback is stored and called on resolution
+    f.when_ready(func);  // pending: the callback is stored and called on resolution
     p.set_value();
-    f.when_ready(func);   // ready already: the immediate path picks the same overload
+    f.when_ready(func);  // ready already: the immediate path picks the same overload
 
     ASSERT_EQ(future_calls, 2);
     ASSERT_EQ(no_arg_calls, 0);
@@ -609,12 +562,11 @@ STRESS_TEST_CASE(future, when_ready_prefers_the_form_with_future)
     ASSERT_EQ(future_calls, 2);
 }
 
-STRESS_TEST_CASE(future, when_ready_prefers_the_form_with_future_by_exception)
-{
+STRESS_TEST_CASE(future, when_ready_prefers_the_form_with_future_by_exception) {
     int no_arg_calls = 0;
     int future_calls = 0;
     bool saw_exception = false;
-    const both_forms_func func = { &no_arg_calls, &future_calls, &saw_exception };
+    const both_forms_func func = {&no_arg_calls, &future_calls, &saw_exception};
 
     test_promise p;
     test_future f = p.get_future();
@@ -625,7 +577,7 @@ STRESS_TEST_CASE(future, when_ready_prefers_the_form_with_future_by_exception)
 
     ASSERT_EQ(future_calls, 2);
     ASSERT_EQ(no_arg_calls, 0);
-    ASSERT_TRUE(saw_exception);   // the whole point: the failure reached the callback
+    ASSERT_TRUE(saw_exception);  // the whole point: the failure reached the callback
 
     // A failed future never calls the success subscription, so the no-argument form stays
     // unreached by this route as well.
@@ -634,8 +586,7 @@ STRESS_TEST_CASE(future, when_ready_prefers_the_form_with_future_by_exception)
     ASSERT_EQ(no_arg_calls, 0);
 }
 
-STRESS_TEST_CASE(future, next_completed_by_value)
-{
+STRESS_TEST_CASE(future, next_completed_by_value) {
     test_promise p;
     test_future f1 = p.get_future();
 
@@ -656,8 +607,7 @@ STRESS_TEST_CASE(future, next_completed_by_value)
     f3.get();
 }
 
-STRESS_TEST_CASE(future, next_completed_by_exception1)
-{
+STRESS_TEST_CASE(future, next_completed_by_exception1) {
     test_promise p;
     test_future f1 = p.get_future();
 
@@ -677,8 +627,7 @@ STRESS_TEST_CASE(future, next_completed_by_exception1)
 // path on ready(), so this one has to as well: the continuation must not run, the exception has
 // to reach the future next() returns, and the source future must stay failed -- attaching a
 // pending node over a resolved state would push it back to pending and lose the failure.
-STRESS_TEST_CASE(future, late_next_completed_by_exception)
-{
+STRESS_TEST_CASE(future, late_next_completed_by_exception) {
     test_promise p;
     test_future f1 = p.get_future();
 
@@ -701,14 +650,11 @@ STRESS_TEST_CASE(future, late_next_completed_by_exception)
 
 namespace {
 struct broken_continuation {
-    void operator()() {
-        throw specific_exception();
-    }
+    void operator()() { throw specific_exception(); }
 };
 }
 
-STRESS_TEST_CASE(future, next_completed_by_exception2)
-{
+STRESS_TEST_CASE(future, next_completed_by_exception2) {
     test_promise p;
     test_future first_f = p.get_future();
 
@@ -724,30 +670,29 @@ STRESS_TEST_CASE(future, next_completed_by_exception2)
 }
 
 namespace {
-    void next_completed_by_value_async_body(barrier * enter_barrier, barrier * exit_barrier) {
-        test_promise p;
-        test_future f1 = p.get_future();
+void next_completed_by_value_async_body(barrier* enter_barrier, barrier* exit_barrier) {
+    test_promise p;
+    test_future f1 = p.get_future();
 
-        future_tester tester;
+    future_tester tester;
 
-        test_future f2 = f1.next(tester.make_next_func());
-        ASSERT_EQ(future_status::timeout, f2.wait_for(duration::zero()));
+    test_future f2 = f1.next(tester.make_next_func());
+    ASSERT_EQ(future_status::timeout, f2.wait_for(duration::zero()));
 
-        tester.assert_nothing();
+    tester.assert_nothing();
 
-        enter_barrier->enter();
+    enter_barrier->enter();
 
-        joining_thread thread(&test_promise::set_value, &p);
+    joining_thread thread(&test_promise::set_value, &p);
 
-        f2.get();
-        tester.assert_value();
+    f2.get();
+    tester.assert_value();
 
-        exit_barrier->enter();
-    }
+    exit_barrier->enter();
+}
 }
 
-STRESS_TEST_CASE(future, next_completed_by_value_async_2)
-{
+STRESS_TEST_CASE(future, next_completed_by_value_async_2) {
     thread_scope manager;
 
 #ifdef NDEBUG
@@ -761,15 +706,14 @@ STRESS_TEST_CASE(future, next_completed_by_value_async_2)
     for (unsigned i = 0; i < thread_count; i++) {
         const std::string name = "nextCompletedByValueAsync_2 # " + std::to_string(i);
 
-        manager->spawn_named(wxl::core::unicode::assume_valid(name), next_completed_by_value_async_body,
-                             &enter_barrier, &exit_barrier);
+        manager->spawn_named(wxl::core::unicode::assume_valid(name),
+                             next_completed_by_value_async_body, &enter_barrier, &exit_barrier);
     }
 
     next_completed_by_value_async_body(&enter_barrier, &exit_barrier);
 }
 
-STRESS_TEST_CASE(future, next_completed_by_exception_async)
-{
+STRESS_TEST_CASE(future, next_completed_by_exception_async) {
     test_promise p;
     test_future f1 = p.get_future();
 
@@ -795,7 +739,7 @@ class async_future_tester : public future_tester
 public:
     /// Asynchronous continuation.
     struct async_func {
-        async_future_tester * this_;
+        async_future_tester* this_;
 
         test_future operator()() {
             this_->make_next_func()();
@@ -804,13 +748,11 @@ public:
     };
 
     async_func make_async_func() {
-        async_func f = { this };
+        async_func f = {this};
         return f;
     }
 
-    void set_value() {
-        promise_.set_value();
-    }
+    void set_value() { promise_.set_value(); }
 
 private:
     promise<void> promise_;
@@ -819,28 +761,22 @@ private:
 
 namespace {
 
-template<typename T>
+template <typename T>
 struct future_is_ready {
     future<T> f_;
 
-    future_is_ready(const wxl::async::future<T> & f)
-        : f_(f)
-    {}
+    future_is_ready(const wxl::async::future<T>& f) : f_(f) {}
 
-    bool operator()() const {
-        return f_.is_ready();
-    }
+    bool operator()() const { return f_.is_ready(); }
 };
 
-template<typename T>
-future_is_ready<T> is_ready(const wxl::async::future<T> & f)
-{
+template <typename T>
+future_is_ready<T> is_ready(const wxl::async::future<T>& f) {
     return future_is_ready<T>(f);
 }
 }
 
-STRESS_TEST_CASE(future, then_completed_by_value_async)
-{
+STRESS_TEST_CASE(future, then_completed_by_value_async) {
     test_promise p1;
     test_future f1 = p1.get_future();
 
@@ -854,7 +790,7 @@ STRESS_TEST_CASE(future, then_completed_by_value_async)
 
     WXL_REQUIRE_BECOME_TRUE(is_ready(f1), big_timeout);
 
-    f1.get(); // should not throw
+    f1.get();  // should not throw
 
     ASSERT_EQ(future_status::timeout, f2.wait_for(duration::zero()));
 
@@ -862,12 +798,11 @@ STRESS_TEST_CASE(future, then_completed_by_value_async)
 
     WXL_REQUIRE_BECOME_TRUE(is_ready(f2), big_timeout);
 
-    f2.get(); // should not throw
+    f2.get();  // should not throw
     tester.assert_value();
 }
 
-STRESS_TEST_CASE(future, then_completed_by_exception_async)
-{
+STRESS_TEST_CASE(future, then_completed_by_exception_async) {
     test_promise p1;
     test_future f1 = p1.get_future();
 
@@ -883,8 +818,7 @@ STRESS_TEST_CASE(future, then_completed_by_exception_async)
     tester.assert_nothing();
 }
 
-STRESS_TEST_CASE(future, when_all_completed_by_value)
-{
+STRESS_TEST_CASE(future, when_all_completed_by_value) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -901,8 +835,7 @@ STRESS_TEST_CASE(future, when_all_completed_by_value)
     ASSERT_TRUE(result.has_value());
 }
 
-STRESS_TEST_CASE(future, when_all_completed_by_exception1)
-{
+STRESS_TEST_CASE(future, when_all_completed_by_exception1) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -917,8 +850,7 @@ STRESS_TEST_CASE(future, when_all_completed_by_exception1)
     ASSERT_TRUE(result.has_exception());
 }
 
-STRESS_TEST_CASE(future, when_all_completed_by_exception2)
-{
+STRESS_TEST_CASE(future, when_all_completed_by_exception2) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -945,8 +877,7 @@ struct when_all_completed_by_value_async_func {
 };
 }
 
-STRESS_TEST_CASE(future, when_all_completed_by_value_async)
-{
+STRESS_TEST_CASE(future, when_all_completed_by_value_async) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -955,11 +886,11 @@ STRESS_TEST_CASE(future, when_all_completed_by_value_async)
     test_future result = when_all_succeeded_or_any_failed(f1, f2);
     ASSERT_TRUE(f1.wait_for(duration::zero()) == future_status::timeout);
 
-    when_all_completed_by_value_async_func func = { p1, p2, result };
+    when_all_completed_by_value_async_func func = {p1, p2, result};
 
     joining_thread thread(func);
 
-    ASSERT_EQ(future_status::ready , result.wait_for(big_timeout));
+    ASSERT_EQ(future_status::ready, result.wait_for(big_timeout));
     ASSERT_TRUE(result.has_value());
 }
 
@@ -977,8 +908,7 @@ struct when_all_completed_by_exception_async1_func {
 };
 }
 
-STRESS_TEST_CASE(future, when_all_completed_by_exception_async1)
-{
+STRESS_TEST_CASE(future, when_all_completed_by_exception_async1) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -987,7 +917,7 @@ STRESS_TEST_CASE(future, when_all_completed_by_exception_async1)
     test_future result = when_all_succeeded_or_any_failed(f1, f2);
     ASSERT_TRUE(result.wait_for(duration::zero()) == future_status::timeout);
 
-    when_all_completed_by_exception_async1_func func = { p1, p2, result };
+    when_all_completed_by_exception_async1_func func = {p1, p2, result};
 
     joining_thread thread(func);
 
@@ -995,8 +925,7 @@ STRESS_TEST_CASE(future, when_all_completed_by_exception_async1)
     ASSERT_TRUE(result.has_exception());
 }
 
-STRESS_TEST_CASE(future, when_all_completed_by_exception_async2)
-{
+STRESS_TEST_CASE(future, when_all_completed_by_exception_async2) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1007,12 +936,11 @@ STRESS_TEST_CASE(future, when_all_completed_by_exception_async2)
 
     joining_thread thread(&test_promise::set_exception, &p1, specific_exception_instance);
 
-    ASSERT_EQ(future_status::ready , result.wait_for(big_timeout));
+    ASSERT_EQ(future_status::ready, result.wait_for(big_timeout));
     ASSERT_TRUE(result.has_exception());
 }
 
-STRESS_TEST_CASE(future, when_any_completed_by_value)
-{
+STRESS_TEST_CASE(future, when_any_completed_by_value) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1025,8 +953,7 @@ STRESS_TEST_CASE(future, when_any_completed_by_value)
     ASSERT_TRUE(result.has_value());
 }
 
-STRESS_TEST_CASE(future, when_any_completed_by_exception)
-{
+STRESS_TEST_CASE(future, when_any_completed_by_exception) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1039,8 +966,7 @@ STRESS_TEST_CASE(future, when_any_completed_by_exception)
     ASSERT_TRUE(result.has_exception());
 }
 
-STRESS_TEST_CASE(future, when_any_completed_by_value_async)
-{
+STRESS_TEST_CASE(future, when_any_completed_by_value_async) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1055,8 +981,7 @@ STRESS_TEST_CASE(future, when_any_completed_by_value_async)
     ASSERT_TRUE(result.has_value());
 }
 
-STRESS_TEST_CASE(future, when_any_completed_by_exception_async)
-{
+STRESS_TEST_CASE(future, when_any_completed_by_exception_async) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1067,13 +992,12 @@ STRESS_TEST_CASE(future, when_any_completed_by_exception_async)
 
     joining_thread thread(&test_promise::set_exception, &p2, specific_exception_instance);
 
-    ASSERT_EQ(future_status::ready , result.wait_for(big_timeout));
+    ASSERT_EQ(future_status::ready, result.wait_for(big_timeout));
     ASSERT_TRUE(result.has_exception());
     ASSERT_TRUE(!result.has_value());
 }
 
-STRESS_TEST_CASE(future, when_all_completed_completed_by_value)
-{
+STRESS_TEST_CASE(future, when_all_completed_completed_by_value) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1089,8 +1013,7 @@ STRESS_TEST_CASE(future, when_all_completed_completed_by_value)
     ASSERT_TRUE(!result.has_exception());
 }
 
-STRESS_TEST_CASE(future, when_all_completed_completed_by_value_and_exception)
-{
+STRESS_TEST_CASE(future, when_all_completed_completed_by_value_and_exception) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1120,8 +1043,7 @@ struct when_all_completed_completed_by_value_async_func {
 };
 }
 
-STRESS_TEST_CASE(future, when_all_completed_completed_by_value_async)
-{
+STRESS_TEST_CASE(future, when_all_completed_completed_by_value_async) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1130,11 +1052,11 @@ STRESS_TEST_CASE(future, when_all_completed_completed_by_value_async)
     test_future result = when_all_ready(f1, f2);
     ASSERT_TRUE(result.wait_for(duration::zero()) == future_status::timeout);
 
-    when_all_completed_completed_by_value_async_func func = { p1, p2, result };
+    when_all_completed_completed_by_value_async_func func = {p1, p2, result};
 
     joining_thread thread(func);
 
-    ASSERT_EQ(future_status::ready , result.wait_for(big_timeout));
+    ASSERT_EQ(future_status::ready, result.wait_for(big_timeout));
     ASSERT_TRUE(result.has_value());
     ASSERT_TRUE(!result.has_exception());
 }
@@ -1153,8 +1075,7 @@ struct when_all_completed_completed_by_value_and_exception_async_func {
 };
 }
 
-STRESS_TEST_CASE(future, when_all_completed_completed_by_value_and_exception_async)
-{
+STRESS_TEST_CASE(future, when_all_completed_completed_by_value_and_exception_async) {
     test_promise p1;
     test_promise p2;
     test_future f1 = p1.get_future();
@@ -1163,31 +1084,23 @@ STRESS_TEST_CASE(future, when_all_completed_completed_by_value_and_exception_asy
     test_future result = when_all_ready(f1, f2);
     ASSERT_TRUE(result.wait_for(duration::zero()) == future_status::timeout);
 
-    when_all_completed_completed_by_value_and_exception_async_func func = { p1, p2, result };
+    when_all_completed_completed_by_value_and_exception_async_func func = {p1, p2, result};
 
     joining_thread thread(func);
 
-    ASSERT_EQ(future_status::ready , result.wait_for(big_timeout));
+    ASSERT_EQ(future_status::ready, result.wait_for(big_timeout));
     ASSERT_TRUE(result.has_value());
     ASSERT_TRUE(!result.has_exception());
 }
 
-
 namespace {
 struct complex_completed_by_value_func {
     complex_completed_by_value_func() noexcept
-        : counter_()
-        , first_callback_n_()
-        , second_callback_n_()
-    {}
+        : counter_(), first_callback_n_(), second_callback_n_() {}
 
-    void first_callback() {
-        first_callback_n_ = ++counter_;
-    }
+    void first_callback() { first_callback_n_ = ++counter_; }
 
-    void second_callback() {
-        second_callback_n_ = ++counter_;
-    }
+    void second_callback() { second_callback_n_ = ++counter_; }
 
     int counter_;
     int first_callback_n_;
@@ -1195,8 +1108,7 @@ struct complex_completed_by_value_func {
 };
 }
 
-STRESS_TEST_CASE(future, complex_completed_by_value)
-{
+STRESS_TEST_CASE(future, complex_completed_by_value) {
     test_promise p;
     test_future f = p.get_future();
 
@@ -1215,17 +1127,14 @@ STRESS_TEST_CASE(future, complex_completed_by_value)
 namespace {
 struct complex_completed_by_exception_func {
     complex_completed_by_exception_func() noexcept
-        : counter_()
-        , first_callback_n_()
-        , second_callback_n_()
-    {}
+        : counter_(), first_callback_n_(), second_callback_n_() {}
 
-    void first_callback(const std::exception_ptr & ex_ptr) {
+    void first_callback(const std::exception_ptr& ex_ptr) {
         first_callback_n_ = ++counter_;
         ex_ptr1 = ex_ptr;
     }
 
-    void second_callback(const std::exception_ptr & ex_ptr) {
+    void second_callback(const std::exception_ptr& ex_ptr) {
         second_callback_n_ = ++counter_;
         ex_ptr2 = ex_ptr;
     }
@@ -1238,8 +1147,7 @@ struct complex_completed_by_exception_func {
 };
 }
 
-STRESS_TEST_CASE(future, complex_completed_by_exception)
-{
+STRESS_TEST_CASE(future, complex_completed_by_exception) {
     test_promise p;
     test_future f = p.get_future();
 
@@ -1264,8 +1172,7 @@ STRESS_TEST_CASE(future, complex_completed_by_exception)
 // The combinators take a pack of any size, of futures of any mix of result types, or a range of
 // them -- the cases the fixed two- and three-argument overloads could not express.
 
-STRESS_TEST_CASE(future, when_all_ready_over_a_mixed_pack)
-{
+STRESS_TEST_CASE(future, when_all_ready_over_a_mixed_pack) {
     test_promise p1;
     promise<int> p2;
     promise<std::string> p3;
@@ -1282,8 +1189,7 @@ STRESS_TEST_CASE(future, when_all_ready_over_a_mixed_pack)
     ASSERT_TRUE(result.has_value());
 }
 
-STRESS_TEST_CASE(future, when_all_ready_over_a_container)
-{
+STRESS_TEST_CASE(future, when_all_ready_over_a_container) {
     std::vector<test_promise> promises(4);
     std::vector<test_future> futures;
 
@@ -1299,8 +1205,7 @@ STRESS_TEST_CASE(future, when_all_ready_over_a_container)
     ASSERT_EQ(future_status::ready, result.wait_for(duration::zero()));
 }
 
-STRESS_TEST_CASE(future, when_all_succeeded_over_a_mixed_pack)
-{
+STRESS_TEST_CASE(future, when_all_succeeded_over_a_mixed_pack) {
     test_promise p1;
     promise<int> p2;
     promise<std::string> p3;
@@ -1318,8 +1223,7 @@ STRESS_TEST_CASE(future, when_all_succeeded_over_a_mixed_pack)
     ASSERT_TRUE(result.has_value());
 }
 
-STRESS_TEST_CASE(future, when_all_succeeded_over_a_mixed_pack_failing)
-{
+STRESS_TEST_CASE(future, when_all_succeeded_over_a_mixed_pack_failing) {
     test_promise p1;
     promise<int> p2;
 
@@ -1330,8 +1234,7 @@ STRESS_TEST_CASE(future, when_all_succeeded_over_a_mixed_pack_failing)
     ASSERT_TRUE(result.has_exception());
 }
 
-STRESS_TEST_CASE(future, when_any_over_a_mixed_pack)
-{
+STRESS_TEST_CASE(future, when_any_over_a_mixed_pack) {
     test_promise p1;
     promise<int> p2;
 
@@ -1343,8 +1246,7 @@ STRESS_TEST_CASE(future, when_any_over_a_mixed_pack)
     ASSERT_TRUE(result.has_value());
 }
 
-STRESS_TEST_CASE(future, when_any_over_an_empty_container)
-{
+STRESS_TEST_CASE(future, when_any_over_an_empty_container) {
     const std::vector<test_future> futures;
 
     ASSERT_TRUE(when_any(futures).is_ready());
@@ -1354,8 +1256,7 @@ STRESS_TEST_CASE(future, when_any_over_an_empty_container)
 // a range or a pair of iterators. It never fails -- every outcome is read off the future it
 // belongs to, which is what lets the pack hold futures of differing result types.
 
-STRESS_TEST_CASE(future, when_all_over_a_mixed_pack)
-{
+STRESS_TEST_CASE(future, when_all_over_a_mixed_pack) {
     test_promise p1;
     promise<int> p2;
     promise<std::string> p3;
@@ -1378,8 +1279,7 @@ STRESS_TEST_CASE(future, when_all_over_a_mixed_pack)
     ASSERT_TRUE(std::get<2>(result.get()).has_exception());
 }
 
-STRESS_TEST_CASE(future, when_all_over_a_container)
-{
+STRESS_TEST_CASE(future, when_all_over_a_container) {
     std::vector<promise<int>> promises(3);
     std::vector<future<int>> futures;
 
@@ -1401,8 +1301,7 @@ STRESS_TEST_CASE(future, when_all_over_a_container)
     ASSERT_TRUE(futures[0].valid());  // copied in, not moved out of the caller's hands
 }
 
-STRESS_TEST_CASE(future, when_all_over_an_iterator_pair)
-{
+STRESS_TEST_CASE(future, when_all_over_an_iterator_pair) {
     std::vector<test_promise> promises(2);
     std::vector<test_future> futures;
 
@@ -1418,8 +1317,7 @@ STRESS_TEST_CASE(future, when_all_over_an_iterator_pair)
     ASSERT_EQ(2u, result.get().size());
 }
 
-STRESS_TEST_CASE(future, when_all_over_nothing)
-{
+STRESS_TEST_CASE(future, when_all_over_nothing) {
     const std::vector<test_future> none;
 
     ASSERT_TRUE(when_all(none).is_ready());
@@ -1450,15 +1348,15 @@ TEST(FutureTest, ADestroyedPromiseBreaksItsFuture) {
     try {
         f.get();
         FAIL() << "the future of a destroyed promise must not report success";
-    }
-    catch (const std::future_error & ex) {
+    } catch (const std::future_error& ex) {
         EXPECT_EQ(std::future_errc::broken_promise, ex.code());
     }
 }
 
 TEST(FutureTest, AbandonBreaksAPendingStateTheSameWay) {
     // Adopts the reference the state is born with, instead of adding a second one.
-    const future_shared_state_ptr state(new future_shared_state(future_shared_state::init_promise), false);
+    const future_shared_state_ptr state(new future_shared_state(future_shared_state::init_promise),
+                                        false);
     const test_future f(state);
 
     EXPECT_FALSE(f.is_ready());
@@ -1470,14 +1368,14 @@ TEST(FutureTest, AbandonBreaksAPendingStateTheSameWay) {
     try {
         f.get();
         FAIL() << "an abandoned state must not report success";
-    }
-    catch (const std::future_error & ex) {
+    } catch (const std::future_error& ex) {
         EXPECT_EQ(std::future_errc::broken_promise, ex.code());
     }
 }
 
 TEST(FutureTest, AbandonLeavesAResolvedStateAlone) {
-    const future_shared_state_ptr state(new future_shared_state(future_shared_state::init_promise), false);
+    const future_shared_state_ptr state(new future_shared_state(future_shared_state::init_promise),
+                                        false);
     const test_future f(state);
 
     state->set_value();

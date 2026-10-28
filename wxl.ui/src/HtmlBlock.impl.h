@@ -10,7 +10,8 @@
 
 namespace wxl {
 
-class HtmlBlock::Impl : public base_t::Impl {
+class HtmlBlock::Impl : public base_t::Impl
+{
 public:
     using base_t::Impl::Impl;
 };

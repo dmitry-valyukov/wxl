@@ -4,7 +4,6 @@
 
 #include <gtest/gtest.h>
 
-
 #include "stress_test.h"
 
 import std;
@@ -32,8 +31,7 @@ using namespace wxl::async;
 namespace some_handler::threading {
 
 /// State of a \c SharedFuture object (similar to std::future_status, @see http://en.cppreference.com/w/cpp/thread/future_status ).
-struct future_status
-{
+struct future_status {
     enum enum_
     {
         /// the shared state is ready.
@@ -56,9 +54,7 @@ public:
     /// Check if a future instance is associated with an asynchronous result.
     ///
     /// Returns \c true if the *this has an associated asynchronous result, false otherwise.
-    bool valid() const WXL_SOMEAPI_NOEXCEPT {
-        return state_ != nullptr;
-    }
+    bool valid() const WXL_SOMEAPI_NOEXCEPT { return state_ != nullptr; }
 
     /// Returns \c true if the asynchronous result associated with this Future is ready
     /// (has a value or exception stored in the shared state), \c false otherwise.
@@ -94,7 +90,10 @@ public:
 
 #endif
 
-    enum { infinite_timeout = -1 };
+    enum
+    {
+        infinite_timeout = -1
+    };
 
     /// Waits for the result to become available during the timeout.
     ///
@@ -105,52 +104,53 @@ public:
     WXL_SOMEAPI_EXPORTED future_status::enum_ wait(int timeout_in_ms) const;
 
 protected:
-    future_base()
-        : state_() {}
+    future_base() : state_() {}
 
-    WXL_SOMEAPI_EXPORTED future_base(const future_base & other) WXL_SOMEAPI_NOEXCEPT;
+    WXL_SOMEAPI_EXPORTED future_base(const future_base& other) WXL_SOMEAPI_NOEXCEPT;
 
-    WXL_SOMEAPI_EXPORTED future_base & operator=(const future_base & other) WXL_SOMEAPI_NOEXCEPT;
+    WXL_SOMEAPI_EXPORTED future_base& operator=(const future_base& other) WXL_SOMEAPI_NOEXCEPT;
 
 #ifdef WXL_SOMEAPI_CXX11
 
-    WXL_SOMEAPI_EXPORTED future_base(future_base && other) WXL_SOMEAPI_NOEXCEPT;
+    WXL_SOMEAPI_EXPORTED future_base(future_base&& other) WXL_SOMEAPI_NOEXCEPT;
 
-    WXL_SOMEAPI_EXPORTED future_base & operator=(future_base && other) WXL_SOMEAPI_NOEXCEPT;
+    WXL_SOMEAPI_EXPORTED future_base& operator=(future_base&& other) WXL_SOMEAPI_NOEXCEPT;
 
 #endif
 
-    struct moving_init_t {};
+    struct moving_init_t {
+    };
 
     /// Initializes the instance with shared state.
-    WXL_SOMEAPI_EXPORTED future_base(const future_shared_state * state) WXL_SOMEAPI_NOEXCEPT;
+    WXL_SOMEAPI_EXPORTED future_base(const future_shared_state* state) WXL_SOMEAPI_NOEXCEPT;
 
     /// Initializes the instance with shared state.
-    WXL_SOMEAPI_EXPORTED future_base(const future_shared_state * state, moving_init_t) WXL_SOMEAPI_NOEXCEPT;
+    WXL_SOMEAPI_EXPORTED future_base(const future_shared_state* state,
+                                     moving_init_t) WXL_SOMEAPI_NOEXCEPT;
 
     /// Destroys a future object.
     ///
     /// If this is the last reference to the asynchronous result associated with *this (if any), then destroy that asynchronous result.
     WXL_SOMEAPI_EXPORTED ~future_base() WXL_SOMEAPI_NOEXCEPT;
 
-    WXL_SOMEAPI_EXPORTED void swap(future_base & other) WXL_SOMEAPI_NOEXCEPT;
+    WXL_SOMEAPI_EXPORTED void swap(future_base& other) WXL_SOMEAPI_NOEXCEPT;
 
-    WXL_SOMEAPI_EXPORTED const void * get_value_ptr() const;
+    WXL_SOMEAPI_EXPORTED const void* get_value_ptr() const;
 
     WXL_SOMEAPI_EXPORTED void get_void() const;
 
 private:
-    const future_shared_state * state_;
+    const future_shared_state* state_;
 
     friend class future_helper;
 };
 
-template<typename T>
+template <typename T>
 struct future_get_return {
-    typedef const T & type;
+    typedef const T& type;
 };
 
-template<>
+template <>
 struct future_get_return<void> {
     typedef void type;
 };
@@ -185,25 +185,22 @@ template <typename T>
 class shared_future : public implementation::future_base
 {
 public:
-    shared_future() WXL_SOMEAPI_NOEXCEPT
-        : future_base() {}
+    shared_future() WXL_SOMEAPI_NOEXCEPT : future_base() {}
 
     /// Copy constructor.
-    shared_future(const shared_future<T> & other) WXL_SOMEAPI_NOEXCEPT
-        : future_base(other) {}
+    shared_future(const shared_future<T>& other) WXL_SOMEAPI_NOEXCEPT : future_base(other) {}
 
     /// Copy assignment.
-    shared_future<T> & operator=(const shared_future<T> & other) WXL_SOMEAPI_NOEXCEPT {
+    shared_future<T>& operator=(const shared_future<T>& other) WXL_SOMEAPI_NOEXCEPT {
         future_base::operator=(other);
         return *this;
     }
 
 #ifdef WXL_SOMEAPI_CXX11
 
-    shared_future(shared_future<T> && other) WXL_SOMEAPI_NOEXCEPT
-        : future_base(std::move(other)) {}
+    shared_future(shared_future<T>&& other) WXL_SOMEAPI_NOEXCEPT : future_base(std::move(other)) {}
 
-    future_base & operator=(shared_future<T> && other) WXL_SOMEAPI_NOEXCEPT {
+    future_base& operator=(shared_future<T>&& other) WXL_SOMEAPI_NOEXCEPT {
         future_base::operator=(std::move(other));
         return *this;
     }
@@ -216,27 +213,23 @@ public:
     ///
     /// \exception If an exception was stored in the shared state referenced by this Future (e.g. via a call to Promise::set_exception()) then that exception will be thrown.
     typename implementation::future_get_return<T>::type get() const {
-        return *reinterpret_cast<const T *>(get_value_ptr());
+        return *reinterpret_cast<const T*>(get_value_ptr());
     }
 
     /// swaps two SharedFuture objects
-    void swap(shared_future<T> & other) WXL_SOMEAPI_NOEXCEPT {
-        future_base::swap(other);
-    }
+    void swap(shared_future<T>& other) WXL_SOMEAPI_NOEXCEPT { future_base::swap(other); }
 
 private:
     /// Initializes the instance with shared state.
-    shared_future(const future_shared_state * state)
-        : future_base(state) {}
+    shared_future(const future_shared_state* state) : future_base(state) {}
 
     /// Initializes the instance with shared state.
-    shared_future(const future_shared_state * state, moving_init_t t)
-        : future_base(state, t) {}
+    shared_future(const future_shared_state* state, moving_init_t t) : future_base(state, t) {}
 
     friend class implementation::future_helper;
 };
 
-template<>
+template <>
 inline void shared_future<void>::get() const {
     get_void();
 }
@@ -250,13 +243,9 @@ namespace some_handler::threading::implementation {
 
 using detail::future_accessor;
 
-bool future_base::is_ready() const {
-    return future_accessor::checked(state_)->ready();
-}
+bool future_base::is_ready() const { return future_accessor::checked(state_)->ready(); }
 
-bool future_base::has_value() const {
-    return future_accessor::checked(state_)->has_value();
-}
+bool future_base::has_value() const { return future_accessor::checked(state_)->has_value(); }
 
 bool future_base::has_exception() const {
     return future_accessor::checked(state_)->has_exception();
@@ -271,7 +260,7 @@ std::exception_ptr future_base::get_exception_ptr() const {
 #endif
 
 future_status::enum_ future_base::wait(int timeout_in_ms) const {
-    const wxl::async::future_shared_state * state = future_accessor::checked(state_);
+    const wxl::async::future_shared_state* state = future_accessor::checked(state_);
 
     // The foreign convention -- milliseconds, and negative for "no deadline" -- is read here,
     // at the boundary that speaks it, and becomes the two calls wxl has. Past this point
@@ -283,23 +272,19 @@ future_status::enum_ future_base::wait(int timeout_in_ms) const {
     return future_status::ready;
 }
 
-future_base::future_base(const future_base & other) WXL_SOMEAPI_NOEXCEPT
-    : state_(other.state_) {
-    if(state_)
-        intrusive_ptr_add_ref(state_);
+future_base::future_base(const future_base& other) WXL_SOMEAPI_NOEXCEPT : state_(other.state_) {
+    if (state_) intrusive_ptr_add_ref(state_);
 }
 
-future_base & future_base::operator=(const future_base & other) WXL_SOMEAPI_NOEXCEPT {
-    if(state_ != other.state_) {
-        const future_shared_state * old_state = state_;
-        const future_shared_state * new_state = other.state_;
+future_base& future_base::operator=(const future_base& other) WXL_SOMEAPI_NOEXCEPT {
+    if (state_ != other.state_) {
+        const future_shared_state* old_state = state_;
+        const future_shared_state* new_state = other.state_;
         state_ = new_state;
 
-        if(new_state)
-            intrusive_ptr_add_ref(new_state);
+        if (new_state) intrusive_ptr_add_ref(new_state);
 
-        if(old_state)
-            intrusive_ptr_release(old_state);
+        if (old_state) intrusive_ptr_release(old_state);
     }
 
     return *this;
@@ -307,52 +292,45 @@ future_base & future_base::operator=(const future_base & other) WXL_SOMEAPI_NOEX
 
 #ifdef WXL_SOMEAPI_CXX11
 
-future_base::future_base(future_base && other) WXL_SOMEAPI_NOEXCEPT
-    : state_(other.state_) {
+future_base::future_base(future_base&& other) WXL_SOMEAPI_NOEXCEPT : state_(other.state_) {
     other.state_ = WXL_SOMEAPI_NULLPTR;
 }
 
-future_base & future_base::operator=(future_base && other) WXL_SOMEAPI_NOEXCEPT {
-    if(state_ != other.state_) {
-        const future_shared_state * old_state = state_;
+future_base& future_base::operator=(future_base&& other) WXL_SOMEAPI_NOEXCEPT {
+    if (state_ != other.state_) {
+        const future_shared_state* old_state = state_;
         state_ = other.state_;
         other.state_ = WXL_SOMEAPI_NULLPTR;
 
-        if(old_state)
-            intrusive_ptr_release(old_state);
+        if (old_state) intrusive_ptr_release(old_state);
     }
 
     return *this;
 }
 #endif
 
-future_base::future_base(const future_shared_state * state) WXL_SOMEAPI_NOEXCEPT
-    : state_(state) {
-    if(state_)
-        intrusive_ptr_add_ref(state_);
+future_base::future_base(const future_shared_state* state) WXL_SOMEAPI_NOEXCEPT : state_(state) {
+    if (state_) intrusive_ptr_add_ref(state_);
 }
 
-future_base::future_base(const future_shared_state * state, moving_init_t) WXL_SOMEAPI_NOEXCEPT
+future_base::future_base(const future_shared_state* state, moving_init_t) WXL_SOMEAPI_NOEXCEPT
     : state_(state) {}
 
 future_base::~future_base() WXL_SOMEAPI_NOEXCEPT {
-    if(state_)
-        intrusive_ptr_release(state_);
+    if (state_) intrusive_ptr_release(state_);
 }
 
-void future_base::swap(future_base & other) WXL_SOMEAPI_NOEXCEPT {
-    std::swap(state_, other.state_);
-}
+void future_base::swap(future_base& other) WXL_SOMEAPI_NOEXCEPT { std::swap(state_, other.state_); }
 
-const void * future_base::get_value_ptr() const {
-    const detail::state * state = future_accessor::checked(state_)->get();
+const void* future_base::get_value_ptr() const {
+    const detail::state* state = future_accessor::checked(state_)->get();
 
     assert(dynamic_cast<const detail::resolved_state_base*>(state));
     return static_cast<const detail::resolved_state_base*>(state)->raw_data();
 }
 
 void future_base::get_void() const {
-    const detail::state * state = future_accessor::checked(state_)->get();
+    const detail::state* state = future_accessor::checked(state_)->get();
     (void)state;
 }
 
@@ -368,13 +346,13 @@ class future_helper
 {
 public:
     template <typename T>
-    static shared_future<T> copy_to_public(const future<T> & f) {
+    static shared_future<T> copy_to_public(const future<T>& f) {
         return shared_future<T>(future_accessor::state_of(f));
     }
 
 #ifdef WXL_SOMEAPI_CXX11
     template <typename T>
-    static shared_future<T> move_to_public(future<T> && f) {
+    static shared_future<T> move_to_public(future<T>&& f) {
         return shared_future<T>(future_accessor::detach_state(f), future_base::moving_init_t());
     }
 #else
@@ -396,17 +374,14 @@ typedef promise<void> test_promise;
 namespace {
 /// Returns \c true if the given Future object has the exception of the \e E type, \c false otherwise.
 template <typename E, typename T>
-bool has_exception(const some_handler::threading::shared_future<T> & f) {
-    if(!f.has_exception())
-        return false;
+bool has_exception(const some_handler::threading::shared_future<T>& f) {
+    if (!f.has_exception()) return false;
 
     try {
         f.get();
-    }
-    catch(const E &) {
+    } catch (const E&) {
         return true;
-    }
-    catch(...) {
+    } catch (...) {
         // ignore
     }
 
@@ -415,26 +390,27 @@ bool has_exception(const some_handler::threading::shared_future<T> & f) {
 
 std::exception_ptr specific_exception_instance = std::make_exception_ptr(specific_exception());
 
-template<typename T>
+template <typename T>
 struct test_value_holder {
     static T instance;
 };
 
-template<> int test_value_holder<int>::instance = 42;
-template<> std::string test_value_holder<std::string>::instance = "Test string";
-template<> std::exception_ptr test_value_holder<std::exception_ptr>::instance = specific_exception_instance;
+template <>
+int test_value_holder<int>::instance = 42;
+template <>
+std::string test_value_holder<std::string>::instance = "Test string";
+template <>
+std::exception_ptr test_value_holder<std::exception_ptr>::instance = specific_exception_instance;
 
-template<typename T>
-const T & test_value()
-{
+template <typename T>
+const T& test_value() {
     return test_value_holder<T>::instance;
 }
 
 }
 
 // --run_test=System/publicFutureTest
-TEST(PublicFutureTest, public_future_test)
-{
+TEST(PublicFutureTest, public_future_test) {
     using namespace some_handler::threading::implementation;
     typedef some_handler::threading::shared_future<void> test_future;
 
@@ -520,7 +496,7 @@ TEST(PublicFutureTest, public_future_test)
 
         test_promise p1;
         // ReSharper disable once CppInitializedValueIsAlwaysRewritten
-        test_promise p2 = p1; // two owners over a single SharedState.
+        test_promise p2 = p1;  // two owners over a single SharedState.
 
         const test_future f = future_helper::move_to_public(p1.get_future());
 
@@ -550,7 +526,7 @@ TEST(PublicFutureTest, public_future_test)
 
         ASSERT_TRUE(f.valid());
         f.get();
-        ASSERT_TRUE(f.valid()); // still valid
+        ASSERT_TRUE(f.valid());  // still valid
 
         ASSERT_TRUE(f.is_ready());
         ASSERT_TRUE(f.has_value());
@@ -580,7 +556,8 @@ TEST(PublicFutureTest, public_future_test)
 
         p.set_exception(specific_exception_instance);
 
-        const std::exception_ptr second_exception = std::make_exception_ptr(std::logic_error("The second exception is ignored"));
+        const std::exception_ptr second_exception =
+            std::make_exception_ptr(std::logic_error("The second exception is ignored"));
 
         p.set_exception(second_exception);
 
@@ -612,19 +589,19 @@ TEST(PublicFutureTest, public_future_test)
 
 // Test case template for Future<T> specializations
 // where T is int/string/ExceptionPtr
-#define PUBLIC_FUTURE_T_TEST_CASE(test_name) \
-    template<typename T> void WXL_TEST_NAME(test_name, body)(); \
-    TEST(PublicFutureTest, test_name) \
-    { \
-        WXL_TEST_NAME(test_name, body)<int>(); \
-        WXL_TEST_NAME(test_name, body)<std::string>(); \
+#define PUBLIC_FUTURE_T_TEST_CASE(test_name)                  \
+    template <typename T>                                     \
+    void WXL_TEST_NAME(test_name, body)();                    \
+    TEST(PublicFutureTest, test_name) {                       \
+        WXL_TEST_NAME(test_name, body)<int>();                \
+        WXL_TEST_NAME(test_name, body)<std::string>();        \
         WXL_TEST_NAME(test_name, body)<std::exception_ptr>(); \
-    } \
-    template<typename T> void WXL_TEST_NAME(test_name, body)()
+    }                                                         \
+    template <typename T>                                     \
+    void WXL_TEST_NAME(test_name, body)()
 
 // --run_test=System/publicFutureTestT --log_level=test_suite
-PUBLIC_FUTURE_T_TEST_CASE(public_future_test_t)
-{
+PUBLIC_FUTURE_T_TEST_CASE(public_future_test_t) {
     using namespace some_handler::threading::implementation;
     using namespace some_handler::threading;
 
@@ -650,5 +627,4 @@ PUBLIC_FUTURE_T_TEST_CASE(public_future_test_t)
         ASSERT_TRUE(f.has_value());
         ASSERT_TRUE(!f.has_exception());
     }
-
 }

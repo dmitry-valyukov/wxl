@@ -32,8 +32,11 @@ public:
     /// copies it. That is what makes walking a directory cost no allocations at
     /// all.
     struct entry {
+        /// The name of the file or directory, without the directory that holds it.
         std::wstring_view name;
+        /// `true` if the entry is a directory; otherwise, `false`.
         bool is_directory = false;
+        /// The size of the file, in bytes.
         std::uint64_t size = 0;
 
         /// When the file was last written, from the same `WIN32_FIND_DATAW` as
@@ -45,11 +48,14 @@ public:
 
     directory() = default;
 
+    /// Constructs an enumeration that takes over the one of \p other, which is left closed.
     inline directory(directory&& other) noexcept
         : handle_(std::exchange(other.handle_, INVALID_HANDLE_VALUE)),
           found_(other.found_),
           pending_(std::exchange(other.pending_, false)) {}
 
+    /// Exchanges the enumerations of this object and \p other and returns a reference to this
+    /// object.
     inline directory& operator=(directory&& other) noexcept {
         std::swap(handle_, other.handle_);
         std::swap(found_, other.found_);
@@ -65,8 +71,8 @@ public:
     /// Starts an enumeration.
     ///
     /// \param pattern the directory and what to match in it, together, the way
-    ///        Windows wants them -- `C:\\books\\*` for everything, or
-    ///        `C:\\books\\*.fb3` for the only files a reader cares about.
+    ///        Windows wants them -- `C:\\data\\*` for everything, or
+    ///        `C:\\data\\*.xml` for the only files an application cares about.
     ///        Filtering by the system beats filtering by us: the names we never
     ///        see cost nothing.
     /// \return the enumeration, started or not -- ask opened().
@@ -76,15 +82,16 @@ public:
         // The newer of the two: FindExInfoBasic asks the system not to look up
         // the 8.3 name nobody here wants, and LARGE_FETCH lets it hand over more
         // than one entry per trip into the kernel.
-        result.handle_ = ::FindFirstFileExW(pattern, FindExInfoBasic, &result.found_,
-                                            FindExSearchNameMatch, nullptr,
-                                            FIND_FIRST_EX_LARGE_FETCH);
+        result.handle_ =
+            ::FindFirstFileExW(pattern, FindExInfoBasic, &result.found_, FindExSearchNameMatch,
+                               nullptr, FIND_FIRST_EX_LARGE_FETCH);
 
         result.pending_ = result.opened();
 
         return result;
     }
 
+    /// Tests whether the enumeration is open.
     inline bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
 
     /// The next name, or `false` when there are none left.
@@ -102,7 +109,8 @@ public:
 
             out.name = name;
             out.is_directory = (found_.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-            out.size = (static_cast<std::uint64_t>(found_.nFileSizeHigh) << 32) | found_.nFileSizeLow;
+            out.size =
+                (static_cast<std::uint64_t>(found_.nFileSizeHigh) << 32) | found_.nFileSizeLow;
 
             using std::chrono::file_clock;
 
@@ -124,6 +132,7 @@ public:
         return false;
     }
 
+    /// Closes the enumeration; does nothing when it is not open.
     inline void close() noexcept {
         if (opened()) ::FindClose(std::exchange(handle_, INVALID_HANDLE_VALUE));
 
@@ -146,8 +155,7 @@ public:
     ///         caller in this tree means, and a separate answer for "it already
     ///         was" would only be thrown away at each of them.
     inline static bool create(const wchar_t* path) noexcept {
-        return ::CreateDirectoryW(path, nullptr) != 0 ||
-               ::GetLastError() == ERROR_ALREADY_EXISTS;
+        return ::CreateDirectoryW(path, nullptr) != 0 || ::GetLastError() == ERROR_ALREADY_EXISTS;
     }
 
     /// Makes the whole chain, parents first.
@@ -202,7 +210,7 @@ private:
     /// Three shapes. A drive letter and its separator, `C:\`. A separator on its
     /// own, rooted on the current drive. And a UNC name, `\\server\share`, where
     /// the root runs to the end of the share: neither `\\server` nor a bare
-    /// `\\server\` is something `CreateDirectoryW` will make, and a books folder
+    /// `\\server\` is something `CreateDirectoryW` will make, and a data folder
     /// watched on a network share is written exactly this way.
     inline static std::size_t root_length(const path& p) noexcept {
         const std::wstring_view text = p.native();

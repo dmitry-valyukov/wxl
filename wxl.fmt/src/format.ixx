@@ -38,13 +38,18 @@ struct is_complex<std::complex<T>> : std::true_type {};
 
 }  // namespace wxl::core
 
-/// A complex number as (re+imi), the spec of a number applied to both parts:
-/// {:.9g} on a root prints nine digits of each. Always in this shape, so a
-/// real root still reads as a complex one.
 namespace fmt {
 
+/// Formats a complex number as `(re+imi)`, with the format spec of the number
+/// type applied to both parts: `{:.9g}` prints up to nine significant digits
+/// of each. The shape is always the same, so a value with a zero imaginary part
+/// still reads as a complex number.
 template <wxl::core::impl::number_argument T, typename Char>
 struct formatter<std::complex<T>, Char> : formatter<T, Char> {
+    /// Writes `value` to the output of `ctx` and returns the iterator past the
+    /// written text. The sign between the parts is `-` when the sign bit of the
+    /// imaginary part is set and `+` otherwise; the imaginary part follows as
+    /// its absolute value.
     template <typename Context>
     auto format(const std::complex<T>& value, Context& ctx) const -> typename Context::iterator {
         using part = formatter<T, Char>;

@@ -20,6 +20,11 @@
 //
 // Окно ставится в 1000, 500, 900, 500; через 1,2 с после каждого шага в PROBE_LOG пишется, что видно.
 
+// _wfopen объявлен в заголовке библиотеки C, и он включается раньше ui.h: core.h, до которого ui.h доходит
+// через свои заголовки, импортирует wxl.core, а стандартный заголовок, не встреченный до импорта, MSVC после
+// него не принимает.
+#include <cstdio>
+
 #include "ui.h"
 #include "Bind.h"
 #include "AvailableSizeLayout.h"
@@ -80,12 +85,11 @@ void report(char const* when) {
 }  // namespace
 
 wxl::Teardown wxl_launched() {
-    if (char const* const o = std::getenv("PROBE_OPTS")) {
-        for (auto const word : std::string_view {o} | std::views::split(',')) opts.insert(std::string(std::string_view(word)));
-    }
-    char const* const path = std::getenv("PROBE_LOG");
-    logFile = std::fopen(path ? path : "available-width.log", "w");
-    std::fprintf(logFile, "opts: %s\n", std::getenv("PROBE_OPTS") ? std::getenv("PROBE_OPTS") : "");
+    std::string const words {core::unicode::repaired(core::environment::variable(L"PROBE_OPTS")).to_utf8().chars()};
+    for (auto const word : std::string_view {words} | std::views::split(',')) opts.insert(std::string(std::string_view(word)));
+    std::filesystem::path const path {core::environment::variable(L"PROBE_LOG")};
+    logFile = _wfopen(path.empty() ? L"available-width.log" : path.c_str(), L"w");
+    std::fprintf(logFile, "opts: %s\n", words.c_str());
     std::fflush(logFile);
 
     model.emplace();

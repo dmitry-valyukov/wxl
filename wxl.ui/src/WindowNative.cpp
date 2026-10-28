@@ -58,7 +58,7 @@ namespace windowing = winrt::Microsoft::UI::Windowing;
 using drop_handler = std::function<void(std::vector<std::wstring> const&)>;
 
 // Three states, not two. Maximized apart from normal, because otherwise a
-// reader who always works maximized gets a restored window every launch;
+// user who always works maximized gets a restored window every launch;
 // full-screen apart from both, because Windows does not know it -- it is a
 // WinUI presenter, or a borderless cover the composited window puts up itself.
 constexpr std::u16string_view normal_state = u"normal";
@@ -108,9 +108,8 @@ HBITMAP load_image(const wchar_t* path, SIZE& size) {
                                             IID_PPV_ARGS(wic.put())));
 
     winrt::com_ptr<IWICBitmapDecoder> decoder;
-    winrt::check_hresult(wic->CreateDecoderFromFilename(path, nullptr, GENERIC_READ,
-                                                        WICDecodeMetadataCacheOnLoad,
-                                                        decoder.put()));
+    winrt::check_hresult(wic->CreateDecoderFromFilename(
+        path, nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, decoder.put()));
     winrt::com_ptr<IWICBitmapFrameDecode> frame;
     winrt::check_hresult(decoder->GetFrame(0, frame.put()));
 
@@ -126,14 +125,18 @@ HBITMAP load_image(const wchar_t* path, SIZE& size) {
 
     // Top-down, so CopyPixels' first row is the bitmap's first row.
     BITMAPINFO info{};
-    info.bmiHeader = {sizeof(BITMAPINFOHEADER), static_cast<LONG>(width),
-                      -static_cast<LONG>(height), 1, 32, BI_RGB};
+    info.bmiHeader = {sizeof(BITMAPINFOHEADER),
+                      static_cast<LONG>(width),
+                      -static_cast<LONG>(height),
+                      1,
+                      32,
+                      BI_RGB};
     void* bits = nullptr;
     HBITMAP const bitmap = ::CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
     if (!bitmap) winrt::throw_last_error();
 
-    winrt::check_hresult(converter->CopyPixels(nullptr, width * 4, width * height * 4,
-                                               static_cast<BYTE*>(bits)));
+    winrt::check_hresult(
+        converter->CopyPixels(nullptr, width * 4, width * height * 4, static_cast<BYTE*>(bits)));
     size = {static_cast<LONG>(width), static_cast<LONG>(height)};
     return bitmap;
 }
@@ -146,7 +149,7 @@ struct WindowNative::native_state {
     /// full-screen presenter overwrites rcNormalPosition with the size of the display, and after
     /// that Win32 no longer knows where the window came from -- so a window closed full-screen
     /// would be remembered as "fullscreen 0 0 1920 1080" and, on leaving full screen next time,
-    /// hand the reader a window the size of their monitor.
+    /// hand the user a window the size of their monitor.
     RECT restore{};
     bool restore_known = false;
 
@@ -265,7 +268,7 @@ struct WindowNative::subclass {
                 if (state.drops) {
                     auto const drop = reinterpret_cast<HDROP>(wparam);
                     auto const paths = paths_of(drop);
-                    // Before the handler, not after: the handler may open a book,
+                    // Before the handler, not after: the handler may open a document,
                     // put up a dialog or take a while, and the shell's memory has no
                     // business waiting for it.
                     ::DragFinish(drop);
@@ -327,7 +330,7 @@ hstring WindowNative::placement(Window const& window) {
     bool const full_screen =
         presenter && presenter.Kind() == windowing::AppWindowPresenterKind::FullScreen;
 
-    // A minimized window is not remembered as minimized: a reader who closed
+    // A minimized window is not remembered as minimized: a user who closed
     // it from the taskbar expects a window next time, not an icon.
     impl::placement_state const state = full_screen ? impl::placement_state::full_screen
                                         : placement.showCmd == SW_SHOWMAXIMIZED
@@ -497,9 +500,8 @@ std::u16string_view name_of(placement_state state) {
 }
 
 RECT fit_placement_to_displays(RECT const& wanted) {
-    winrt::Windows::Graphics::RectInt32 const asked{wanted.left, wanted.top,
-                                                    wanted.right - wanted.left,
-                                                    wanted.bottom - wanted.top};
+    winrt::Windows::Graphics::RectInt32 const asked{
+        wanted.left, wanted.top, wanted.right - wanted.left, wanted.bottom - wanted.top};
     auto const display =
         windowing::DisplayArea::GetFromRect(asked, windowing::DisplayAreaFallback::Nearest);
     if (!display) {
@@ -544,7 +546,7 @@ void window_placement_setter::set(winrt::Microsoft::UI::Xaml::Window const& wind
     // is already in work-area coordinates -- corrected for the taskbar. That
     // is the rectangle worth remembering: a window closed maximized would
     // report the size of the screen, and leaving the maximized state next
-    // time would hand the reader a window as large as their monitor.
+    // time would hand the user a window as large as their monitor.
     placement.rcNormalPosition = fit_placement_to_displays(wanted->restore);
     placement.showCmd =
         wanted->state == placement_state::maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;

@@ -48,8 +48,9 @@ winrt::Windows::Foundation::IReference<int32_t> bound(int32_t value) {
 }  // namespace
 
 void set_minimum_size(winrt::Microsoft::UI::Xaml::Window const& window, SizeInt32 const& size) {
-    auto const presenter =
-        window.AppWindow().Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
+    auto const presenter = window.AppWindow()
+                               .Presenter()
+                               .try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
     if (!presenter) {
         return;  // full-screen and compact-overlay windows have no bounds to set
     }
@@ -65,30 +66,32 @@ void set_size_to_content(winrt::Microsoft::UI::Xaml::Window const& window, SizeT
     // The first activation only: the handler takes itself off through the token it shares with
     // this function. The window reaches the handler as the sender, so nothing here holds it.
     auto const activated = std::make_shared<winrt::event_token>();
-    *activated = window.Activated([mode, activated](winrt::Windows::Foundation::IInspectable const& sender,
-                                                    xaml::WindowActivatedEventArgs const&) {
-        auto const shown = sender.as<xaml::Window>();
-        shown.Activated(*activated);
-        auto const content = shown.Content().try_as<xaml::FrameworkElement>();
-        if (!content) {
-            core::abort("wxl: sizeToContent on a window with no content to size to");
-        }
-        auto const appWindow = shown.AppWindow();
-        if (content.IsLoaded()) {
-            fit_to(appWindow, content, mode);
-            return;
-        }
-        // Loaded comes once. The handler names the content as its sender rather than capturing
-        // it, which would make the content own a handler that owns the content; it holds only
-        // the AppWindow, which the content does not own.
-        auto const loaded = std::make_shared<winrt::event_token>();
-        *loaded = content.Loaded([mode, appWindow, loaded](winrt::Windows::Foundation::IInspectable const& panel,
-                                                           xaml::RoutedEventArgs const&) {
-            auto const element = panel.as<xaml::FrameworkElement>();
-            element.Loaded(*loaded);
-            fit_to(appWindow, element, mode);
+    *activated =
+        window.Activated([mode, activated](winrt::Windows::Foundation::IInspectable const& sender,
+                                           xaml::WindowActivatedEventArgs const&) {
+            auto const shown = sender.as<xaml::Window>();
+            shown.Activated(*activated);
+            auto const content = shown.Content().try_as<xaml::FrameworkElement>();
+            if (!content) {
+                core::abort("wxl: sizeToContent on a window with no content to size to");
+            }
+            auto const appWindow = shown.AppWindow();
+            if (content.IsLoaded()) {
+                fit_to(appWindow, content, mode);
+                return;
+            }
+            // Loaded comes once. The handler names the content as its sender rather than capturing
+            // it, which would make the content own a handler that owns the content; it holds only
+            // the AppWindow, which the content does not own.
+            auto const loaded = std::make_shared<winrt::event_token>();
+            *loaded = content.Loaded(
+                [mode, appWindow, loaded](winrt::Windows::Foundation::IInspectable const& panel,
+                                          xaml::RoutedEventArgs const&) {
+                    auto const element = panel.as<xaml::FrameworkElement>();
+                    element.Loaded(*loaded);
+                    fit_to(appWindow, element, mode);
+                });
         });
-    });
 }
 
 void set_drag_region(winrt::Microsoft::UI::Xaml::UIElement const& element,

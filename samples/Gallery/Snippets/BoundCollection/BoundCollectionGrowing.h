@@ -16,14 +16,14 @@ struct Model {
 auto const model = gallery::hold<Model>();
 model->add();
 model->add();
-auto* const shelf = model.get();
+auto* const board = model.get();
 
 auto example = StackPanel {
     spacing = 8.0,
     StackPanel {orientation.horizontal, spacing = 8.0,
-                Button {content = u"Add", onClick += [shelf](auto&&...) { shelf->add(); }},
-                Button {content = u"Add first", onClick += [shelf](auto&&...) { shelf->addFirst(); }},
-                Button {content = u"Remove first", onClick += [shelf](auto&&...) { shelf->removeFirst(); }}},
+                Button {content = u"Add", onClick += [board](auto&&...) { board->add(); }},
+                Button {content = u"Add first", onClick += [board](auto&&...) { board->addFirst(); }},
+                Button {content = u"Remove first", onClick += [board](auto&&...) { board->removeFirst(); }}},
     TextBlock {text = BindOutput {model->names.count(), [](uint32_t count) { return core::format(u"{} items", count); }}},
     ListView {
         height = 200,
@@ -33,9 +33,9 @@ auto example = StackPanel {
         selectionMode = ListViewSelectionMode::None,
         isItemClickEnabled = true,
         itemsSource = BindOutput {model->names, [](core::u16_text const& name) { return TextBlock {text = name}; }},
-        onItemClick += [shelf](ListView const&, ItemClickEventArgs& args) {
-            if (core::u16_text const* name = boundItem(shelf->names, args.clickedItem())) {
-                shelf->clicked.set(*name);
+        onItemClick += [board](ListView const&, ItemClickEventArgs& args) {
+            if (core::u16_text const* name = boundItem(board->names, args.clickedItem())) {
+                board->clicked.set(*name);
             }
         },
     },

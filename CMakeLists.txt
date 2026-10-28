@@ -9,11 +9,6 @@
 # shared by all three projects.
 cmake_minimum_required(VERSION 4.3)
 
-# Resolves VCPKG_ROOT (from the vcpkg-managed path file, or the environment)
-# and sets the toolchain file itself -- which is why no preset here has to
-# name CMAKE_TOOLCHAIN_FILE. It has to run before project().
-include(cmake/vcpkg_bootstrap.cmake)
-
 # Opens CMake's experimental `import std;` gate, which wxl.core's module build
 # needs. Only the top-level project can open it, and only before project().
 # CMAKE_CXX_MODULE_STD below is the request; this is the permission, and CMake
@@ -54,11 +49,11 @@ set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 # program.
 
 # Off by default, and the presets say nothing about it: building the library
-# is what a tree is configured for, and GTest is asked of vcpkg only by
-# someone who is going to run the tests. It used to be OFF here and ON in the
-# preset -- which meant the declared default was never what anyone got, and
-# the requirement list said "optional" about a package without which even the
-# configure step failed. One place says it now, and it is this one.
+# is what a tree is configured for, and GoogleTest is fetched and built only
+# for someone who is going to run the tests. It used to be OFF here and ON in
+# the preset -- which meant the declared default was never what anyone got,
+# and the requirement list said "optional" about a package without which even
+# the configure step failed. One place says it now, and it is this one.
 #
 #     cmake --preset x64 -DBUILD_TESTING=ON      (sticks in CMakeCache.txt)
 #     tools\build.ps1 -Define BUILD_TESTING=ON
@@ -66,14 +61,43 @@ option(BUILD_TESTING "Build the testing tree." OFF)
 
 if(BUILD_TESTING)
     enable_testing()
+
+    # GoogleTest from its own sources at a pinned tag; find_package(GTest)
+    # below and in the subprojects resolves to it.
+    include(cmake/wxl_gtest.cmake)
     find_package(GTest REQUIRED CONFIG)
     include(GoogleTest)
+
+    # The narrow interfaces of a path, kept out of the sources: a scan of what
+    # git tracks, which cmake/wxl_narrow_paths.cmake describes. A tree copied
+    # without its repository has no list of its own sources to scan, and says
+    # so; on CI (the CI variable, which GitHub Actions sets) the check is the
+    # point of the run, and its absence stops the configure.
+    find_package(Git QUIET)
+    if(Git_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+        add_test(NAME narrow-paths
+            COMMAND "${CMAKE_COMMAND}"
+                    "-DWXL_TREE=${CMAKE_CURRENT_SOURCE_DIR}"
+                    "-DWXL_GIT=${GIT_EXECUTABLE}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wxl_narrow_paths.cmake")
+    elseif(NOT "$ENV{CI}" STREQUAL "")
+        message(FATAL_ERROR "narrow-paths: ${CMAKE_CURRENT_SOURCE_DIR} is not a git checkout, "
+                            "or git is not found, and a CI build has to scan the sources")
+    else()
+        message(STATUS "narrow-paths: ${CMAKE_CURRENT_SOURCE_DIR} is not a git checkout, "
+                       "or git is not found; the scan of the sources is not registered")
+    endif()
 endif()
 
-find_package(cppwinrt CONFIG REQUIRED)
+# The NuGet packages and the C++/WinRT projection over them, made by the MSBuild
+# of the developer environment (cmake/wxl_packages.cmake): the target
+# Microsoft::CppWinRT and wxl_nuget_package_dir(). Here and not in wxl.ui: the
+# generator reads the packages from the NuGet package folder, and a fresh clone
+# configures it before the wrappers, and with them wxl.ui, exist.
+include(cmake/wxl_packages.cmake)
 
-# winmd::reader is a header-only WinMD metadata parsing library; not packaged
-# by vcpkg, so it's fetched directly from its upstream repo.
+# winmd::reader is a header-only WinMD metadata parsing library, fetched from
+# its upstream repository at a pinned commit.
 include(FetchContent)
 FetchContent_Declare(
     winmd
@@ -85,8 +109,6 @@ FetchContent_MakeAvailable(winmd)
 # Shared infrastructure plus the wxl_* helper functions (wxl_add_module_library,
 # wxl_add_gtest, wxl_set_target_folders) every subproject uses.
 include(cmake/config.cmake)
-
-option(WXL_BACKEND "Backend to be used for WXL." "WinUI3")
 
 if(NOT TARGET winmd_reader)
     add_library(winmd_reader INTERFACE)

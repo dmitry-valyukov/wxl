@@ -17,7 +17,6 @@ cmake_minimum_required(VERSION 3.28)
 set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    include(${WXL_CMAKE_SCRIPT_DIR}/vcpkg_bootstrap.cmake)
     include(${WXL_CMAKE_SCRIPT_DIR}/wxl_import_std_gate.cmake)
     project(wxl-ui VERSION 0.1.0 LANGUAGES CXX)
     set(CMAKE_CXX_STANDARD 23)
@@ -52,28 +51,13 @@ if(NOT TARGET wxl::core)
     find_package(wxl CONFIG REQUIRED COMPONENTS core)
 endif()
 
-# ---- cppwinrt: the WinUI3 projection headers ----
-# vcpkg's cppwinrt package covers the OS namespaces (winrt/base.h,
-# winrt/Windows.*.h) only; the Microsoft.UI.Xaml.* projection is generated
-# from the WindowsAppSDK metadata by tools/projection.ps1 into the tree's
-# generated/, which git ignores -- it is not in the repository.
-find_package(cppwinrt CONFIG REQUIRED)
-
-# Where the NuGet packages are, and at which versions: cmake/wxl_packages.cmake.
-include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/wxl_packages.cmake")
-
-# Relative to this directory, not CMAKE_SOURCE_DIR: wxl.ui builds both
-# standalone and as a subdirectory, and the projection sits in the tree next
-# to both.
-set(WXL_CPPWINRT_PROJECTION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../generated"
-    CACHE PATH "Directory holding the generated WinUI3 cppwinrt projection (winrt/Microsoft.UI.Xaml.h, ...)")
-
-if(NOT EXISTS "${WXL_CPPWINRT_PROJECTION_DIR}/winrt/Microsoft.UI.Xaml.h")
-    message(FATAL_ERROR
-        "No WinUI3 cppwinrt projection at ${WXL_CPPWINRT_PROJECTION_DIR}. "
-        "Run tools/projection.ps1, or point WXL_CPPWINRT_PROJECTION_DIR at the "
-        "directory produced by cppwinrt.exe for the WindowsAppSDK metadata.")
-endif()
+# ---- The NuGet packages and the cppwinrt projection ----
+# Restored and built at configure by cmake/wxl_packages.cmake, in the build
+# directory: Microsoft::CppWinRT is the target over the projection of the
+# Windows SDK and of the packages, wxl_nuget_package_dir() gives the directory
+# of a package. The top level of the wxl tree includes the file already; a
+# build that adds this directory on its own gets it here.
+include("${WXL_CMAKE_SCRIPT_DIR}/wxl_packages.cmake")
 
 # The Windows App Runtime bootstrapper -- wxl owns its own runtime
 # dependencies, so this is wired here
@@ -85,7 +69,8 @@ endif()
 # be seen from the sample and sandbox directories. As ordinary cache entries they
 # kept the path of the first configure for good, and a build directory made before
 # a version changed went on building against the old package -- the version is
-# changed in the pins (wxl.gen/profiles/base.json, tools/packages.json), never here.
+# changed in the pins (wxl.gen/profiles/base.json, tools/packages.json) and resolved
+# by the restore, never here.
 wxl_nuget_package_dir(_wxl_foundation_dir Microsoft.WindowsAppSDK.Foundation)
 set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
     "${_wxl_foundation_dir}"
@@ -105,7 +90,7 @@ set(WXL_WINDOWSAPPSDK_WINUI_DIR
     CACHE INTERNAL "WindowsAppSDK.WinUI NuGet package (native interop headers)")
 
 # Win2D (Microsoft.Graphics.Canvas) -- CompositionWindow grabs textures with it
-# (TextureCache: covers, backdrops) asynchronously into video memory. The native
+# (TextureCache: backdrops, illustrations) asynchronously into video memory. The native
 # DLL activates unpackaged and, like the bootstrapper above, must sit next to the
 # consumer's executable -- or the window's constructor faults building the shared
 # CanvasDevice. wxl declares the path; the consumer copies the DLL.
@@ -338,10 +323,10 @@ target_include_directories(wxl.ui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# The projection is PRIVATE on purpose: consuming code must never need a
-# winrt header -- that is the whole compile-time argument.
+# The projection (Microsoft::CppWinRT, linked below) and these headers are
+# PRIVATE on purpose: consuming code must never need a winrt header -- that is
+# the whole compile-time argument.
 target_include_directories(wxl.ui PRIVATE
-    ${WXL_CPPWINRT_PROJECTION_DIR}
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include
     ${WXL_WINDOWSAPPSDK_WINUI_DIR}/include
 )
@@ -396,16 +381,20 @@ target_link_libraries(wxl.ui
         dwmapi.lib
 )
 
-# The channel of the Windows App Runtime the application starts on. The WinUI
-# metadata the wrappers are generated from is the experimental channel's (see
-# tools/packages.json: WrapPanel, TitleBar.RecomputeDragRegions and the Window
-# size properties are declared nowhere else), and a stable runtime answers a call
-# to any of them with "no such interface". So the default is the experimental
-# framework package, Microsoft.WindowsAppRuntime.2-experimentalF (tag experimentalF), which
-# tools/restore-packages.ps1 fetches the installer of and tools/install-runtime.ps1 installs. An empty value is the
-# stable channel, for a tree whose metadata is the stable package's.
+# The version tag of the Windows App SDK release the tree builds against
+# ("windowsAppSdk" in wxl.gen/profiles/base.json). With the major version it names
+# the release's framework package, the one the application starts on: experimentalF
+# names Microsoft.WindowsAppRuntime.2-experimentalF. Every release has its own tag,
+# WINDOWSAPPSDK_RELEASE_VERSION_TAG in include/WindowsAppSDK-VersionInfo.h of its
+# Microsoft.WindowsAppSDK.Runtime package, and a stable release has an empty one.
+# The value is kept here by hand and has to change together with the release. The
+# release is an experimental one because a stable runtime answers a call to
+# WrapPanel, TitleBar.RecomputeDragRegions or the Window size properties with "no
+# such interface"; the installers of its framework package are in the
+# Microsoft.WindowsAppSDK.Runtime package the configure restores, and
+# tools/install-runtime.ps1 installs them.
 set(WXL_WINDOWSAPPSDK_VERSION_TAG "experimentalF"
-    CACHE STRING "Version tag of the Windows App Runtime framework package: experimentalF, or empty for the stable channel")
+    CACHE STRING "Version tag of the Windows App SDK release the tree builds against (WINDOWSAPPSDK_RELEASE_VERSION_TAG of its Runtime package); empty for a stable release")
 
 # The bootstrapper as a target, not as a path to its import library: then
 # CMake knows the DLL behind it, and $<TARGET_RUNTIME_DLLS> of an application
@@ -420,7 +409,7 @@ if(EXISTS "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsA
         IMPORTED_IMPLIB
             "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib"
         # Whoever compiles impl/bootstrap.cpp -- wxl.ui, or a sandbox that takes the
-        # file directly -- asks for the same channel.
+        # file directly -- asks for the same release.
         INTERFACE_COMPILE_DEFINITIONS
             "WXL_WINDOWSAPPSDK_VERSION_TAG=L\"${WXL_WINDOWSAPPSDK_VERSION_TAG}\"")
 
@@ -471,6 +460,15 @@ target_link_libraries(wxl.ui.surface-test PRIVATE wxl.ui)
 # Last: the generated sources add themselves to the two targets above. The
 # directory is there -- the check at the top of this file stopped otherwise.
 add_subdirectory(src/wxl)
+
+# The generated Controls translation unit (Microsoft.UI.Xaml.Controls.cpp) exceeds
+# the 65 279-section limit of the default object format: MSVC stops with C1128
+# unless the object is written as /bigobj. Set here, on the generated sources of
+# this target, because the CMakeLists.txt that adds them is itself generated.
+get_target_property(_wxl_ui_generated_sources wxl.ui SOURCES)
+list(FILTER _wxl_ui_generated_sources INCLUDE REGEX "/src/wxl/[^/]+\\.cpp$")
+set_property(SOURCE ${_wxl_ui_generated_sources} APPEND PROPERTY
+    COMPILE_OPTIONS $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
 
 # After that subdirectory and not before it: this reads the targets' SOURCES to
 # lay them out in the IDE, and until the generated sources are in, half of what
@@ -572,7 +570,6 @@ if(BUILD_TESTING)
     )
     target_include_directories(wxl.ui.tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${WXL_CPPWINRT_PROJECTION_DIR}
     )
 
     # Teardown is header-only over core::function, so its test needs only the

@@ -1,9 +1,8 @@
 # ---- CMakeList.txt : wxl.core ----
 #
 # Builds both as part of the tree's common top-level project and on its own.
-# Standalone, it has to do the setup the top level otherwise does: resolve
-# vcpkg, open the `import std;` gate, call project(), find the shared
-# dependencies.
+# Standalone, it has to do the setup the top level otherwise does: open the
+# `import std;` gate, call project(), find the shared dependencies.
 cmake_minimum_required(VERSION 4.3)
 
 # Every CMake script in this tree is shared, one level up.
@@ -11,9 +10,6 @@ set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(WXL_CORE_STANDALONE ON)
-
-    # Resolves VCPKG_ROOT and the toolchain file; must run before project().
-    include(${WXL_CMAKE_SCRIPT_DIR}/vcpkg_bootstrap.cmake)
 
     # src/CMakeLists.txt sets CXX_MODULE_STD ON, which CMake keeps behind an
     # experimental gate that only the top-level project can open, and only
@@ -58,23 +54,25 @@ option(WXL_INSTALL "Generate install and export rules for wxl." ${WXL_CORE_STAND
 
 # Refresh .vscode/c_cpp_properties.json after building, so that the editor sees
 # the module interfaces of the configuration just built (see tools/
-# gen-intellisense-config.ps1 and docs/editor.md). The post-build step is a no-op
-# unless the build was started from an IDE, and it is off entirely when wxl is
-# somebody else's subproject: its editor configuration is none of our business.
+# gen-intellisense-config.ps1 and docs/editor.md). Off unless asked for: the step
+# rewrites a file in the source tree, which a build does only on request. It is
+# for wxl.core configured on its own: the script path and the build directory it
+# reads are taken from PROJECT_SOURCE_DIR and PROJECT_BINARY_DIR, which are
+# wxl.core's only when wxl.core is the project. Even then the step is a no-op
+# unless the build was started from an IDE.
 option(WXL_UPDATE_INTELLISENSE
     "Refresh .vscode/c_cpp_properties.json after an IDE-driven build."
-    ${WXL_CORE_STANDALONE})
+    OFF)
 
 if(BUILD_TESTING)
     enable_testing()
+    include(${WXL_CMAKE_SCRIPT_DIR}/wxl_gtest.cmake)
     find_package(GTest REQUIRED CONFIG)
     include(GoogleTest)
 endif()
 
-find_package(cppwinrt CONFIG REQUIRED)
-
-# winmd::reader is a header-only WinMD metadata parsing library; not packaged
-# by vcpkg, so it's fetched directly from its upstream repo.
+# winmd::reader is a header-only WinMD metadata parsing library, fetched from
+# its upstream repository at a pinned commit.
 include(FetchContent)
 FetchContent_Declare(
     winmd
@@ -84,8 +82,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(winmd)
 
 include(${WXL_CMAKE_SCRIPT_DIR}/config.cmake)
-
-option(WXL_BACKEND "Backend to be used for WXL." "WinUI3")
 
 # The top-level project defines the same target when this is a subproject.
 if(NOT TARGET winmd_reader)

@@ -21,7 +21,8 @@
 
 namespace wxl {
 
-class AppZoom final : public core::sta_refcounted {
+class AppZoom final : public core::sta_refcounted
+{
 public:
     /// Нижняя и верхняя ступени -- пределы и для жеста масштабирования.
     static constexpr double minZoomFactor = 0.5;

@@ -1,13 +1,10 @@
 /**
-* \file
-* \brief Unit tests for \c wxl::async::pool
-* \todo Use fixtures instead of uncertain tests' "preconditions"
-*/
-
+ * \file
+ * \brief Unit tests for \c wxl::async::pool
+ * \todo Use fixtures instead of uncertain tests' "preconditions"
+ */
 
 #include <gtest/gtest.h>
-
-
 
 import std;
 import wxl.core;
@@ -19,7 +16,7 @@ using namespace wxl::async;
 
 namespace {
 
-typedef std::map <size_t /* item ID */, bool> id_map;
+typedef std::map<size_t /* item ID */, bool> id_map;
 
 // this mape is used to track the item lifetime (when it is created or destroyed.
 id_map static_item_map;
@@ -35,42 +32,30 @@ class pool_item : public intrusive_slist_node<pool_item>
 public:
     const size_t id;
 
-    explicit pool_item(pool_type * owner)
-        : id(static_item_id_counter++)
-        , owner_(owner) {
+    explicit pool_item(pool_type* owner) : id(static_item_id_counter++), owner_(owner) {
         static_item_map[id] = true;
     }
 
-    ~pool_item() {
-        static_item_map.erase(id);
-    }
+    ~pool_item() { static_item_map.erase(id); }
 
-    pool_type * owner() const {
-        return owner_;
-    }
+    pool_type* owner() const { return owner_; }
 
 private:
-    pool_type * const owner_;
+    pool_type* const owner_;
 };
 
 // Allocator defined in this file in order to involve the memory tracking mechanism
 class item_allocator
 {
 public:
-    explicit item_allocator(pool_type * pool_ref)
-        : owner_(pool_ref)
-    {}
+    explicit item_allocator(pool_type* pool_ref) : owner_(pool_ref) {}
 
-    pool_item * alloc() {
-        return new pool_item(owner_);
-    }
+    pool_item* alloc() { return new pool_item(owner_); }
 
-    static void free(pool_item * element) {
-        delete element;
-    }
+    static void free(pool_item* element) { delete element; }
 
 private:
-    pool_type * owner_;
+    pool_type* owner_;
 };
 
 typedef pool<pool_item, item_allocator> base_pool;
@@ -79,13 +64,11 @@ typedef pool<pool_item, item_allocator> base_pool;
 class pool_type : public base_pool
 {
     typedef base_pool base;
-    pool_type * avoid_this_warning() {
-        return this;
-    }
+    pool_type* avoid_this_warning() { return this; }
+
 public:
     explicit pool_type(const size_t desired_pool_size)
-        : base(desired_pool_size, item_allocator(avoid_this_warning()))
-    {}
+        : base(desired_pool_size, item_allocator(avoid_this_warning())) {}
 };
 
 typedef pool_ptr<pool_item, intrusive_owner_deleter<pool_item>> item_ptr_intrusive;
@@ -95,28 +78,28 @@ template <typename ptr_type>
 typename ptr_type::deleter_type create_deleter(pool_type*);
 
 template <>
-item_ptr_intrusive::deleter_type create_deleter<item_ptr_intrusive>(pool_type*)
-{
+item_ptr_intrusive::deleter_type create_deleter<item_ptr_intrusive>(pool_type*) {
     return item_ptr_intrusive::deleter_type();
 }
 
 template <>
-item_ptr_provided::deleter_type create_deleter<item_ptr_provided>(pool_type* pool)
-{
+item_ptr_provided::deleter_type create_deleter<item_ptr_provided>(pool_type* pool) {
     return item_ptr_provided::deleter_type(pool);
 }
 
 using pool_ptr_types = ::testing::Types<item_ptr_intrusive, item_ptr_provided>;
 
 template <typename T>
-class PoolPtrTest : public ::testing::Test {};
+class PoolPtrTest : public ::testing::Test
+{
+};
 
 TYPED_TEST_SUITE(PoolPtrTest, pool_ptr_types);
 
 }  // namespace
 
 //// --run_test=System/poolAndStandardContainors
-//TEST(PoolTest, pool_and_standard_containors)
+// TEST(PoolTest, pool_and_standard_containors)
 //{
 //    PoolType pool(8);
 //
@@ -145,8 +128,7 @@ TYPED_TEST_SUITE(PoolPtrTest, pool_ptr_types);
 //}
 
 // --run_test=System/poolTest0
-TYPED_TEST(PoolPtrTest, pool_test0)
-{
+TYPED_TEST(PoolPtrTest, pool_test0) {
     using item_ptr = TypeParam;
     {
         pool_type pool(8);
@@ -190,8 +172,7 @@ TYPED_TEST(PoolPtrTest, pool_test0)
 }
 
 // --run_test=System/poolOverflowTest
-TYPED_TEST(PoolPtrTest, pool_overflow_test)
-{
+TYPED_TEST(PoolPtrTest, pool_overflow_test) {
     using item_ptr = TypeParam;
     {
         pool_type pool(8);
@@ -202,50 +183,44 @@ TYPED_TEST(PoolPtrTest, pool_overflow_test)
         static_item_map.clear();
 
         {
-            pool_item * buffer[16];
+            pool_item* buffer[16];
 
             // make twice more items than preffered size
-            for(int i = 0; i < 16; i++)
-                buffer[i] = pool.get();
+            for (int i = 0; i < 16; i++) buffer[i] = pool.get();
 
             EXPECT_EQ(pool.underflow_counter(), 8);
             EXPECT_EQ(static_item_map.size(), 16u);
 
             // return items back to the pool.
-            for(int i = 0; i < 16; i++)
-                item_ptr ptr(buffer[i], create_deleter<item_ptr>(&pool));
+            for (int i = 0; i < 16; i++) item_ptr ptr(buffer[i], create_deleter<item_ptr>(&pool));
 
             EXPECT_EQ(pool.underflow_counter(), 8);
             EXPECT_EQ(static_item_map.size(), 16u);
         }
 
         // roll all items in the overflowed pool
-        for(int i = 0; i < 16; i++)
-            item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
+        for (int i = 0; i < 16; i++) item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
 
         // make sure underflowCounter was reset
         EXPECT_EQ(pool.underflow_counter(), 0);
         EXPECT_EQ(static_item_map.size(), 16u);
 
         // roll all items in overflowed pool again
-        for(int i = 0; i < 16; i++)
-            item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
+        for (int i = 0; i < 16; i++) item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
 
         // make sure the half of overflowed items are returned to system memory
         EXPECT_EQ(pool.underflow_counter(), 0);
         EXPECT_EQ(static_item_map.size(), 12u);
 
         // roll the rest of items again
-        for(int i = 0; i < 12; i++)
-            item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
+        for (int i = 0; i < 12; i++) item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
 
         // make sure the half of overflowed items are returned to system memory
         EXPECT_EQ(pool.underflow_counter(), 0);
         EXPECT_EQ(static_item_map.size(), 10u);
 
         // roll the rest of items again
-        for(int i = 0; i < 10; i++)
-            item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
+        for (int i = 0; i < 10; i++) item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
 
         // make sure the half of overflowed items are returned to the system memory again.
         EXPECT_EQ(pool.underflow_counter(), 0);
@@ -254,8 +229,7 @@ TYPED_TEST(PoolPtrTest, pool_overflow_test)
     EXPECT_EQ(static_item_map.size(), 0u);
 }
 
-TYPED_TEST(PoolPtrTest, safe_pool_test0)
-{
+TYPED_TEST(PoolPtrTest, safe_pool_test0) {
     using item_ptr = TypeParam;
     {
         pool_type pool(8);
@@ -285,8 +259,7 @@ TYPED_TEST(PoolPtrTest, safe_pool_test0)
     EXPECT_EQ(static_item_map.size(), 0u);
 }
 
-TYPED_TEST(PoolPtrTest, safe_pool_test1)
-{
+TYPED_TEST(PoolPtrTest, safe_pool_test1) {
     using item_ptr = TypeParam;
     {
         pool_type pool(8);
@@ -295,8 +268,7 @@ TYPED_TEST(PoolPtrTest, safe_pool_test1)
 
         item_ptr ptr(pool.get(), create_deleter<item_ptr>(&pool));
 
-        for(int i = 0; i < 10; i++)
-            ptr.reset(pool.get());
+        for (int i = 0; i < 10; i++) ptr.reset(pool.get());
 
         EXPECT_EQ(static_item_map.size(), 2u);
     }
@@ -308,34 +280,25 @@ namespace {
 struct base_command {
     const size_t id;
 
-    base_command() noexcept
-        : id(static_item_id_counter++) {
-        static_item_map[id] = true;
-    }
+    base_command() noexcept : id(static_item_id_counter++) { static_item_map[id] = true; }
 
-    ~base_command() {
-        static_item_map.erase(id);
-    }
+    ~base_command() { static_item_map.erase(id); }
 };
 
-typedef safe_pool <base_command> command_pool;
+typedef safe_pool<base_command> command_pool;
 typedef command_pool::element_type command;
-typedef pool_ptr <command> command_ptr;
+typedef pool_ptr<command> command_ptr;
 
-
-command_ptr get_item(command_pool& pool)
-{
+command_ptr get_item(command_pool& pool) {
     command_ptr ptr(pool.get());
 
     return std::move(ptr);
 }
 
-
 }
 
 /// \bug CPPCOMMONLIBS-125
-TEST(PoolTest, pool_overflow)
-{
+TEST(PoolTest, pool_overflow) {
     command_pool pool(3);
     static_item_id_counter = 0;
     static_item_map.clear();
@@ -352,20 +315,18 @@ TEST(PoolTest, pool_overflow)
         EXPECT_EQ(static_item_map.size(), 5u);
     }
 
-    //here is the pool overflow
+    // here is the pool overflow
 
     command_ptr ptr(pool.get());
 
-    for(int i = 0; i < 1000; i++)
-        ptr.reset(pool.get());
+    for (int i = 0; i < 1000; i++) ptr.reset(pool.get());
 
-    //here the pool size should be not greater then the pool preferred size
+    // here the pool size should be not greater then the pool preferred size
 
-    //EXPECT_LE(static_item_map.size(), pool.preferredSize());
+    // EXPECT_LE(static_item_map.size(), pool.preferredSize());
 }
 
-TEST(PoolTest, pool_get)
-{
+TEST(PoolTest, pool_get) {
     command_pool pool;
     static_item_id_counter = 0;
     static_item_map.clear();
@@ -417,8 +378,7 @@ using counted_pool = safe_pool<pooled_value, counted_allocator>;
 
 // The state a safe_pool shares with its elements goes with the last of its holders: with the
 // pool itself when every element is back, with the last element when one outlives the pool.
-TEST(PoolTest, SafePoolStateGoesWithItsLastHolder)
-{
+TEST(PoolTest, SafePoolStateGoesWithItsLastHolder) {
     const int before = allocators_alive.load();
 
     {
@@ -428,7 +388,7 @@ TEST(PoolTest, SafePoolStateGoesWithItsLastHolder)
 
     EXPECT_EQ(allocators_alive.load(), before);
 
-    counted_pool::element_type * survivor = nullptr;
+    counted_pool::element_type* survivor = nullptr;
 
     {
         counted_pool pool;

@@ -54,10 +54,10 @@ task<> overlapped(const wchar_t* path, std::span<std::byte> buffer, outcome& out
                                                             f.native_handle(), buffer.data(),
                                                             buffer.size(), at, skips_port));
 
-        auto reading = started_here
-                           ? sta_loop::async_start(std::move(op))
-                           : sta_loop::async_run(
-                                 std::unique_ptr<async_op_t<std::size_t>>(std::move(op)));
+        auto reading =
+            started_here
+                ? sta_loop::async_start(std::move(op))
+                : sta_loop::async_run(std::unique_ptr<async_op_t<std::size_t>>(std::move(op)));
 
         out.over_at_once += reading.await_ready();
 
@@ -93,13 +93,13 @@ outcome measure(reader read, const wchar_t* path, std::size_t chunk, int rounds)
 void row(const char* name, reader read, const wchar_t* path, int rounds) {
     std::printf("  %-34s", name);
 
-    for (const std::size_t chunk : {std::size_t{4} * 1024, std::size_t{64} * 1024,
-                                    std::size_t{1024} * 1024}) {
+    for (const std::size_t chunk :
+         {std::size_t{4} * 1024, std::size_t{64} * 1024, std::size_t{1024} * 1024}) {
         const outcome out = measure(read, path, chunk, rounds);
 
-        std::printf(" %9.1f %5.0f%%", out.microseconds_per_chunk,
-                    100.0 * static_cast<double>(out.over_at_once) /
-                        static_cast<double>(out.chunks + 1));
+        std::printf(
+            " %9.1f %5.0f%%", out.microseconds_per_chunk,
+            100.0 * static_cast<double>(out.over_at_once) / static_cast<double>(out.chunks + 1));
     }
 
     std::putchar('\n');
@@ -123,9 +123,10 @@ int wmain(int argc, wchar_t** argv) {
 
     sta_loop::start("benchmark: I/O");
 
-    std::printf("a cached 4 MB file read in chunks -- microseconds per chunk, best of %d rounds,\n"
-                "and how many of the reads were over before they were awaited\n\n",
-                rounds);
+    std::printf(
+        "a cached 4 MB file read in chunks -- microseconds per chunk, best of %d rounds,\n"
+        "and how many of the reads were over before they were awaited\n\n",
+        rounds);
     std::printf("  %-34s %9s %6s %9s %6s %9s %6s\n", "", "4 KB", "", "64 KB", "", "1 MB", "");
 
     row("on the calling thread", on_the_calling_thread, path.c_str(), rounds);

@@ -18,7 +18,8 @@ struct tallied : Base {
 };
 
 template <class Count>
-struct linked_owner : weak_linked<linked_owner<Count>, Count> {};
+struct linked_owner : weak_linked<linked_owner<Count>, Count> {
+};
 
 template <class Count>
 class WeakLinkTest : public ::testing::Test
@@ -88,7 +89,8 @@ static_assert(std::is_same_v<weak_linked_mt<int>, weak_linked<int, refcounted_mt
 
 // An owner that counts its own references keeps its link beside its count.
 TEST(WeakLinkAliasTest, an_owner_counted_on_its_own_keeps_its_link_beside_its_count) {
-    struct counted_owner final : sta_refcounted, sta_weak_linked<counted_owner> {};
+    struct counted_owner final : sta_refcounted, sta_weak_linked<counted_owner> {
+    };
 
     intrusive_ptr<sta_weak_link<counted_owner>> held;
     {
@@ -101,7 +103,8 @@ TEST(WeakLinkAliasTest, an_owner_counted_on_its_own_keeps_its_link_beside_its_co
 
 // The case the atomic count is for: a copy of the link let go of on another thread.
 TEST(WeakLinkAliasTest, a_copy_goes_on_another_thread) {
-    struct shared_owner : weak_linked_mt<shared_owner> {};
+    struct shared_owner : weak_linked_mt<shared_owner> {
+    };
 
     intrusive_ptr<weak_link_mt<shared_owner>> held;
     {

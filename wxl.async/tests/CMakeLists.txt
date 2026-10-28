@@ -21,6 +21,8 @@ add_executable(wxl.async.tests
     async_directory_tests.cpp
     async_file_pipe_tests.cpp
     async_file_tests.cpp
+    async_mutex_tests.cpp
+    async_semaphore_tests.cpp
     orphan_under_token_tests.cpp
     task_operation_tests.cpp
     spsc_channel_tests.cpp
@@ -72,6 +74,7 @@ target_link_libraries(wxl.async.tests
     PRIVATE
         wxl::async
         wxl::test-support
+        wxl::test
 )
 
 # The queues keep their hot fields on cache lines of their own with alignas, and C4324
@@ -101,11 +104,15 @@ gtest_discover_tests(
 # The loop on a dispatcher queue -- start_dispatched(), the mode an application with a
 # window runs -- in a binary of its own, for the same reason as the one below. The file,
 # directory and orphan suites are built here a second time: under this loop what goes by a
-# name is carried out on the thread pool and comes back through the queue.
+# name is carried out on the thread pool and comes back through the queue. So are the
+# semaphore and mutex suites: their waiters are resumed by a turn the loop owes, which under
+# this loop is a drain posted to the queue.
 add_executable(wxl.async.dispatched-tests
     async_directory_tests.cpp
     async_file_pipe_tests.cpp
     async_file_tests.cpp
+    async_mutex_tests.cpp
+    async_semaphore_tests.cpp
     orphan_under_token_tests.cpp
     sta_loop_dispatched_tests.cpp
 )

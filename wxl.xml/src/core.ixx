@@ -14,26 +14,31 @@ export import wxl.core;
 
 export namespace wxl::xml {
 
-// The aliases below differ from their std counterparts in one way: the
-// allocator. sta_allocator hands out memory from the STA pool, 10-15x faster
-// than the default heap and legitimate here because everything this reader
-// allocates for its own bookkeeping is created, used and destroyed on the
-// single main STA thread.
-//
-// Worth having only where allocation actually repeats. A buffer the parse
-// keeps and refills grows once and then never allocates again, so the pool
-// would save it a single call per document: those members are ordinary std::
-// containers, and so is anything a document decides the size of, which a pool
-// for small objects has nothing to give anyway. As it stands the reader takes
-// nothing per call either -- the tree it builds lives in the arena, and the
-// walks over it allocate nothing -- so these are here for whoever needs to
-// say "a container on the pool", not because the reader is holding one.
 /// @{
+/// The type of a `std::vector` that allocates from the STA pool through
+/// `wxl::core::sta_allocator`.
+///
+/// The aliases in this group differ from their standard counterparts only in the allocator.
+/// The STA pool is 10 to 15 times faster than the default heap, and it is usable here because
+/// everything that the reader allocates for its own use is created, used and
+/// destroyed on the single STA thread.
+///
+/// The pool is used only where allocation repeats. A buffer that the parse keeps and refills
+/// grows once and then does not allocate again, so the pool would save it one call per
+/// document; such members are ordinary standard containers. So is any container whose size a
+/// document decides, since a pool for small objects gives nothing at that size. The reader
+/// itself allocates nothing per call: the tree lives in the arena, and the walks over it
+/// allocate nothing. The aliases are provided for code that needs a container on the pool,
+/// not because the reader holds one.
 template <typename T>
 using sta_vector = std::vector<T, core::sta_allocator<T>>;
 
+/// The type of a `std::wstring` that allocates from the STA pool through
+/// `wxl::core::sta_allocator`.
 using sta_wstring = std::basic_string<wchar_t, std::char_traits<wchar_t>, core::sta_allocator<wchar_t>>;
 
+/// The type of a `std::string` that allocates from the STA pool through
+/// `wxl::core::sta_allocator`.
 using sta_string = std::basic_string<char, std::char_traits<char>, core::sta_allocator<char>>;
 /// @}
 

@@ -1,6 +1,5 @@
 module;
 
-
 #include "platform.h"
 #include <intrin.h>
 
@@ -10,6 +9,7 @@ import wxl.stdint;
 
 export namespace wxl::core {
 
+/// The type of an OS thread identifier, as `wxl::core::current_thread_id` returns it.
 using thread_id = uint32_t;
 
 /// Returns the calling thread's OS identifier.

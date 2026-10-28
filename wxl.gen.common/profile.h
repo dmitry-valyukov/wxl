@@ -1,6 +1,5 @@
 #pragma once
 
-#include <exception>
 #include <filesystem>
 #include <map>
 #include <set>
@@ -287,6 +286,8 @@ profile load_profile(std::filesystem::path const& path);
 // Where a profile named in `extends` lives. A reference is either a path (has
 // a directory part or a .json suffix), relative to the referring profile's
 // directory, or a bare profile name sitting next to the profile that named it.
+// The reference is a profile's own text, checked UTF-8, as load_profile() puts
+// it in `extends`.
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer);
 
@@ -314,10 +315,3 @@ struct symbol {
 // malformed JSON, on a code point that is not four hex digits, and on a name
 // or a code point used twice.
 std::vector<symbol> load_symbol_names(std::filesystem::path const& path);
-
-// An error as a person reads it, in UTF-8: what the generator prints and the
-// editor shows. A file system error is rebuilt from its paths and the
-// system's words for its code, since its own what() spells both through the
-// ANSI code page. Any other error is its what(), with U+FFFD where that is not
-// UTF-8: nothing of it is dropped on the way to the screen.
-std::string error_message(std::exception const& error);

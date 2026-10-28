@@ -19,6 +19,7 @@ using thread_group_ptr = core::intrusive_ptr<thread_group>;
 class thread_group : public core::refcounted_mt
 {
 public:
+    /// The type of a thread body: a callable that takes no arguments and returns nothing.
     using thread_proc = std::function<void()>;
 
     /// thread_group can be created only on the heap and its lifetime should be managed by
@@ -37,6 +38,9 @@ public:
         at_thread_exit_impl(cleanup_func, nullptr, nullptr);
     }
 
+    /// Registers \p cleanup_func to be called with \p arg when the current thread exits.
+    /// \throw std::logic_error if the current thread is neither the main thread nor one
+    ///        started by `wxl::async::thread_group`.
     template <typename t_arg>
     static void at_thread_exit(void (*cleanup_func)(void*), t_arg* arg) {
         at_thread_exit_impl(nullptr, cleanup_func, arg);
@@ -58,7 +62,7 @@ public:
 
     /// \param thread_name is also the debugger-visible name of the OS thread. Checked text,
     ///        so that a name nobody has vouched for is refused here rather than inside the
-    ///        thread that was started with it: u8"reader io" needs no call at all, and a name
+    ///        thread that was started with it: u8"disk io" needs no call at all, and a name
     ///        built at run time goes through wxl::core::unicode::checked() where it is built.
     future<void> spawn_named(core::u8_view thread_name, const thread_proc& thread_proc);
     /// @}
@@ -70,6 +74,7 @@ public:
         return spawn_detached_named({}, thread_proc);
     }
 
+    /// Starts a new detached thread named \p thread_name, with \p thread_proc as its entry.
     static future<void> spawn_detached_named(core::u8_view thread_name,
                                              const thread_proc& thread_proc);
     /// @}
@@ -100,8 +105,8 @@ public:
     /// decay-copied into the returned callable, as that binder did.
     template <typename t_func, typename... t_args>
     static thread_proc bind_thread_proc(t_func&& func, t_args&&... args) {
-        return [f = std::forward<t_func>(func),
-                bound = std::tuple<std::decay_t<t_args>...>(std::forward<t_args>(args)...)]() mutable {
+        return [f = std::forward<t_func>(func), bound = std::tuple<std::decay_t<t_args>...>(
+                                                    std::forward<t_args>(args)...)]() mutable {
             std::apply(f, bound);
         };
     }
@@ -116,13 +121,14 @@ public:
                                       std::forward<t_args>(args)...));
     }
 
+    /// Starts a new thread named \p thread_name that calls \p func with the bound arguments.
     template <typename t_func, typename t_arg, typename... t_args>
         requires std::invocable<t_func&, t_arg&, t_args&...>
     future<void> spawn_named(core::u8_view thread_name, t_func&& func, t_arg&& arg,
                              t_args&&... args) {
-        return spawn_named(thread_name, bind_thread_proc(std::forward<t_func>(func),
-                                                         std::forward<t_arg>(arg),
-                                                         std::forward<t_args>(args)...));
+        return spawn_named(thread_name,
+                           bind_thread_proc(std::forward<t_func>(func), std::forward<t_arg>(arg),
+                                            std::forward<t_args>(args)...));
     }
     /// @}
 
@@ -130,22 +136,25 @@ public:
     template <typename t_func, typename t_arg, typename... t_args>
         requires std::invocable<t_func&, t_arg&, t_args&...>
     static future<void> spawn_detached(t_func&& func, t_arg&& arg, t_args&&... args) {
-        return spawn_detached(bind_thread_proc(std::forward<t_func>(func),
-                                               std::forward<t_arg>(arg),
+        return spawn_detached(bind_thread_proc(std::forward<t_func>(func), std::forward<t_arg>(arg),
                                                std::forward<t_args>(args)...));
     }
 
+    /// Starts a new detached thread named \p thread_name that calls \p func with the bound
+    /// arguments.
     template <typename t_func, typename t_arg, typename... t_args>
         requires std::invocable<t_func&, t_arg&, t_args&...>
-    static future<void> spawn_detached_named(core::u8_view thread_name, t_func&& func,
-                                             t_arg&& arg, t_args&&... args) {
-        return spawn_detached_named(thread_name, bind_thread_proc(std::forward<t_func>(func),
-                                                                  std::forward<t_arg>(arg),
-                                                                  std::forward<t_args>(args)...));
+    static future<void> spawn_detached_named(core::u8_view thread_name, t_func&& func, t_arg&& arg,
+                                             t_args&&... args) {
+        return spawn_detached_named(
+            thread_name, bind_thread_proc(std::forward<t_func>(func), std::forward<t_arg>(arg),
+                                          std::forward<t_args>(args)...));
     }
     /// @}
 
+    /// The type of a cleanup function that takes no argument.
     using cleanup_func = void (*)();
+    /// The type of a cleanup function that takes one pointer argument.
     using cleanup_func1 = void (*)(void*);
 
 protected:
@@ -167,16 +176,20 @@ private:
 class thread_scope : public core::noncopyable
 {
 public:
+    /// The type of a thread body; the same as `wxl::async::thread_group::thread_proc`.
     using thread_proc = thread_group::thread_proc;
 
     inline thread_scope() : group_(thread_group::create()) {}
 
     ~thread_scope();
 
+    /// Gets the group that the scope owns.
     inline thread_group* get() { return group_.get(); }
 
+    /// Provides member access to the group that the scope owns.
     inline thread_group* operator->() { return group_.get(); }
 
+    /// Converts the scope to a pointer to the group that it owns.
     inline operator thread_group*() { return group_.get(); }
 
 private:
@@ -188,11 +201,12 @@ private:
 class joining_thread : public core::noncopyable
 {
 public:
+    /// Starts the thread, which calls \p func with the bound arguments \p args.
     template <typename t_func, typename... t_args>
         requires std::invocable<t_func&, t_args&...>
     explicit joining_thread(t_func&& func, t_args&&... args)
-        : scope_(), result_(scope_->spawn(std::forward<t_func>(func),
-                                          std::forward<t_args>(args)...)) {}
+        : scope_(),
+          result_(scope_->spawn(std::forward<t_func>(func), std::forward<t_args>(args)...)) {}
 
     /// Waits for the thread here rather than at the end of the scope.
     inline void join() { scope_->join_all(); }

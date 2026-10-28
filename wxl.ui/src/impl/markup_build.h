@@ -16,7 +16,6 @@ namespace wxl::impl {
 
 // Сливает восстановления парсера в onError и обходит дерево примитивами
 // FormattedBlock. Реализация — MarkupBlock.cpp.
-void build_markup(MarkupBlock const& block, MarkupBlock::Impl& impl,
-                  const html::document& parsed);
+void build_markup(MarkupBlock const& block, MarkupBlock::Impl& impl, const html::document& parsed);
 
 }  // namespace wxl::impl

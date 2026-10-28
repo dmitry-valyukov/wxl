@@ -1,14 +1,13 @@
 # ---- CMakeList.txt : wxl.highlight ----
 #
-# Подсветка синтаксиса: таблицы языков и сканер без регулярных выражений.
-# Ни от чего в wxl не зависит -- только std. Устройство сборки — как у
-# братьев рядом.
+# Syntax highlighting: language tables and a scanner without regular expressions.
+# Depends on nothing else in wxl, only on the standard library. The build is set
+# up in the same way as for the other modules of the tree.
 cmake_minimum_required(VERSION 3.28)
 
 set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    include(${WXL_CMAKE_SCRIPT_DIR}/vcpkg_bootstrap.cmake)
     include(${WXL_CMAKE_SCRIPT_DIR}/wxl_import_std_gate.cmake)
 
     project(
@@ -28,6 +27,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
     if(BUILD_TESTING)
         enable_testing()
+        include(${WXL_CMAKE_SCRIPT_DIR}/wxl_gtest.cmake)
         find_package(GTest REQUIRED CONFIG)
         include(GoogleTest)
     endif()

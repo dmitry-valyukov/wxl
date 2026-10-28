@@ -115,7 +115,7 @@ task<> first_read_fails_second_is_with_the_kernel(path refusing, path pipe_name)
 /// Opens, lets the test write, and only then reads: the data is in the pipe before the
 /// read starts, so the system can finish the read inside the call.
 task<> reads_what_is_already_there(path pipe_name, bool& opened, hevent& written, bool& inline_done,
-                                 std::string& got) {
+                                   std::string& got) {
     async_file in = co_await async_file::open_read(pipe_name);
 
     opened = true;
@@ -196,8 +196,8 @@ public:
                                   std::to_wstring(::GetCurrentProcessId()) + L"-" +
                                   std::to_wstring(++made);
 
-        reader_ = ::CreateNamedPipeW(name.c_str(), PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_WAIT, 1,
-                                     0, capacity, 0, nullptr);
+        reader_ = ::CreateNamedPipeW(name.c_str(), PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_WAIT,
+                                     1, 0, capacity, 0, nullptr);
         writer_ = ::CreateFileW(name.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
     }
 
@@ -226,7 +226,8 @@ public:
         char buffer[capacity];
         DWORD got = 0;
 
-        while (::ReadFile(reader_, buffer, sizeof(buffer), &got, nullptr) && got != 0) {}
+        while (::ReadFile(reader_, buffer, sizeof(buffer), &got, nullptr) && got != 0) {
+        }
     }
 
 private:

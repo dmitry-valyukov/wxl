@@ -49,13 +49,15 @@ struct grid_lengths_access;
 
 // What both RowLengths and ColumnLengths are: a view on the static array the compiler made from a
 // text. Made only by the parse below (grid_lengths_access), so it never views anything shorter-lived.
-class grid_lengths_view {
+class grid_lengths_view
+{
 public:
     constexpr std::span<GridLength const> lengths() const noexcept { return lengths_; }
     constexpr std::size_t size() const noexcept { return lengths_.size(); }
 
 protected:
-    constexpr explicit grid_lengths_view(std::span<GridLength const> lengths) noexcept : lengths_(lengths) {}
+    constexpr explicit grid_lengths_view(std::span<GridLength const> lengths) noexcept
+        : lengths_(lengths) {}
 
 private:
     std::span<GridLength const> lengths_;
@@ -64,13 +66,15 @@ private:
 }  // namespace impl
 
 /// The rows of a Grid: RowDefinitions<u"...">, written unnamed in the Grid's braces.
-class RowLengths : public impl::grid_lengths_view {
+class RowLengths : public impl::grid_lengths_view
+{
     friend struct impl::grid_lengths_access;
     using grid_lengths_view::grid_lengths_view;
 };
 
 /// The columns of a Grid: ColumnDefinitions<u"...">, written unnamed in the Grid's braces.
-class ColumnLengths : public impl::grid_lengths_view {
+class ColumnLengths : public impl::grid_lengths_view
+{
     friend struct impl::grid_lengths_access;
     using grid_lengths_view::grid_lengths_view;
 };
@@ -80,6 +84,12 @@ namespace impl {
 // Called only where a text is wrong, and not constexpr: reached while the array below is being
 // evaluated, it makes the evaluation fail, and the compiler names this function.
 inline void grid_lengths_entry_is_not_a_length() {}
+
+// The same, where an entry has more digits than a double holds exactly (see the parse below).
+inline void grid_lengths_entry_has_too_many_digits() {}
+
+// The same, where the text is not a string literal (see the parse below).
+inline void grid_lengths_text_is_not_a_string_literal() {}
 
 template <typename Char>
 constexpr bool grid_lengths_is_digit(Char unit) noexcept {
@@ -91,11 +101,11 @@ constexpr bool grid_lengths_is_space(Char unit) noexcept {
     return unit == Char(' ') || unit == Char('\t');
 }
 
-// How many lengths a text has: one more than its commas. The type of the array needs the number
-// before the parse fills it; whether each entry is a length is the parse's to say.
 template <values Text>
 using grid_lengths_char = typename std::remove_cvref_t<decltype(Text)>::element_t;
 
+// How many lengths a text has: one more than its commas. The type of the array needs the number
+// before the parse fills it; whether each entry is a length is the parse's to say.
 template <values Text>
 consteval std::size_t grid_lengths_count() {
     std::size_t count = 1;
@@ -124,27 +134,48 @@ consteval GridLength grid_lengths_parse_entry(Char const* first, Char const* las
     if (star) --last;
     if (star && first == last) return {1.0, GridUnitType::Star};
 
-    // Digits, then a point and digits if there is a fraction; nothing else.
+    // Digits, then a point and digits if there is a fraction; nothing else. All the digits make one
+    // whole number, divided once by ten to the power of the fraction's digits. Both are exact in a
+    // double -- the number up to 2^53, the power up to 10^22, and more digits than that are the
+    // compile error -- so the one division rounds correctly: "0.3" is the double nearest 0.3, as
+    // std::from_chars reads it. Adding digit times a tenth each step rounds at every step and made
+    // 0.30000000000000004.
     if (first == last || !grid_lengths_is_digit(*first)) grid_lengths_entry_is_not_a_length();
-    double value = 0;
-    for (; first != last && grid_lengths_is_digit(*first); ++first) value = value * 10 + (*first - Char('0'));
+    unsigned long long whole = 0;
+    auto const take = [&whole](Char digit) {
+        whole = whole * 10 + static_cast<unsigned long long>(digit - Char('0'));
+        if (whole > (1ull << 53)) grid_lengths_entry_has_too_many_digits();
+    };
+    for (; first != last && grid_lengths_is_digit(*first); ++first) take(*first);
+    double power = 1;
     if (first != last) {
         if (*first != Char('.')) grid_lengths_entry_is_not_a_length();
         ++first;
         if (first == last) grid_lengths_entry_is_not_a_length();
-        double scale = 1;
-        for (; first != last; ++first) {
+        for (int fraction_digits = 1; first != last; ++first, ++fraction_digits) {
             if (!grid_lengths_is_digit(*first)) grid_lengths_entry_is_not_a_length();
-            scale /= 10;
-            value += (*first - Char('0')) * scale;
+            if (fraction_digits > 22) grid_lengths_entry_has_too_many_digits();
+            take(*first);
+            power *= 10;
         }
     }
-    return {value, star ? GridUnitType::Star : GridUnitType::Pixel};
+    return {static_cast<double>(whole) / power, star ? GridUnitType::Star : GridUnitType::Pixel};
 }
 
 // The one parse of a text: each entry in turn, into the array of exactly that many lengths.
+//
+// The text is a string literal, and nothing else values takes. values drops the terminator a
+// literal ends in from the count but keeps its slot, and gives characters one spare slot besides,
+// so a literal is the one run whose capacity is two more than its count. A lone character -- '*'
+// -- and an array of characters with no terminator are one more; numbers are not characters at
+// all. Asked here, in the evaluation, and not as a constraint of RowDefinitions: MSVC 14.53 does
+// not evaluate a constraint on the text where RowDefinitions<...> stands in a default member
+// initializer -- it reports a read of an uninitialized symbol.
 template <values Text>
 consteval std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_parse() {
+    if (!is_character<grid_lengths_char<Text>> || std::size(Text.items) != Text.count + 2) {
+        grid_lengths_text_is_not_a_string_literal();
+    }
     std::array<GridLength, grid_lengths_count<Text>()> lengths{};
     auto const* const text = Text.items;
     std::size_t entry = 0;
@@ -160,7 +191,8 @@ consteval std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_parse(
 
 // The array itself: a constant of the program, one for each text.
 template <values Text>
-inline constexpr std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_array = grid_lengths_parse<Text>();
+inline constexpr std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_array =
+    grid_lengths_parse<Text>();
 
 struct grid_lengths_access {
     template <typename Lengths, std::size_t Count>
@@ -214,30 +246,29 @@ inline constexpr bool borrows_items<grid_lengths_op<key, Owner>> = true;
 template <PropertyKey key, typename Owner>
 inline constexpr bool describes<grid_lengths_op<key, Owner>> = true;
 
-// The named tags of a Grid's rows and columns: the parsed value as any property takes its own type,
-// and the lengths a program computed, borrowed. No deduced assignment: text is not a value of these
-// tags any more -- it is a template argument of RowDefinitions and ColumnDefinitions.
-template <PropertyKey key, typename Lengths, typename Owner>
+// The named tags of a Grid's rows and columns: the lengths a program computed, borrowed, and nothing
+// else. A text is not assigned to them: RowDefinitions<...> and ColumnDefinitions<...> are written
+// unnamed in the Grid's braces.
+template <PropertyKey key, typename Owner>
 struct grid_lengths_tag {
-    constexpr setter_op<key, Lengths, Owner> operator=(Lengths lengths) const { return {lengths}; }
-
     constexpr grid_lengths_op<key, Owner> operator=(std::span<GridLength const> lengths) const {
         return {lengths};
     }
 
-    constexpr grid_lengths_op<key, Owner> operator=(std::initializer_list<GridLength> lengths) const {
+    constexpr grid_lengths_op<key, Owner> operator=(
+        std::initializer_list<GridLength> lengths) const {
         return {{lengths.begin(), lengths.size()}};
     }
 };
 
 template <PropertyKey key, typename Owner>
-struct property_tag<key, RowLengths, Owner> : grid_lengths_tag<key, RowLengths, Owner> {
-    using grid_lengths_tag<key, RowLengths, Owner>::operator=;
+struct property_tag<key, RowLengths, Owner> : grid_lengths_tag<key, Owner> {
+    using grid_lengths_tag<key, Owner>::operator=;
 };
 
 template <PropertyKey key, typename Owner>
-struct property_tag<key, ColumnLengths, Owner> : grid_lengths_tag<key, ColumnLengths, Owner> {
-    using grid_lengths_tag<key, ColumnLengths, Owner>::operator=;
+struct property_tag<key, ColumnLengths, Owner> : grid_lengths_tag<key, Owner> {
+    using grid_lengths_tag<key, Owner>::operator=;
 };
 
 }  // namespace impl

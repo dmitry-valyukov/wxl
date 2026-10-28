@@ -21,7 +21,8 @@ namespace wxl {
 // count, no Impl allocation on a path an event raised on every mouse move takes --
 // and non-copyable, which is what makes "only valid inside the handler"
 // something the compiler enforces rather than something a comment asks for.
-class EventArgs {
+class EventArgs
+{
 public:
     EventArgs(EventArgs const&) = delete;
     EventArgs& operator=(EventArgs const&) = delete;
@@ -51,8 +52,7 @@ protected:
 // sender: non-const would offer to replace the caller's object, which is not
 // something a handler may do.
 template <typename Args>
-using EventArgsRef = std::conditional_t<std::derived_from<Args, EventArgs>, Args&,
-                                        Args const&>;
+using EventArgsRef = std::conditional_t<std::derived_from<Args, EventArgs>, Args&, Args const&>;
 
 namespace impl {
 
@@ -85,20 +85,18 @@ using handler_sender_t = typename handler_sender_of<F>::type;
 // reached only once that sender is known to be a wrapper, never with void.
 template <typename Fn, typename Args>
 concept typed_sender_handler =
-    !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>>
-    && std::derived_from<handler_sender_t<Fn>, Object>
-    && std::is_invocable_v<Fn const&, handler_sender_t<Fn> const&, EventArgsRef<Args>>;
-
+    !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>> &&
+    std::derived_from<handler_sender_t<Fn>, Object> &&
+    std::is_invocable_v<Fn const&, handler_sender_t<Fn> const&, EventArgsRef<Args>>;
 
 // A handler that wants the control and nothing else -- `[](Button const& self)
 // { ... }`. Most events carry args a handler never reads, and a parameter
 // written only to be ignored is noise; arity alone tells this form from the
 // one above, so neither concept has to exclude the other.
 template <typename Fn, typename Args>
-concept sender_only_handler =
-    !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>>
-    && std::derived_from<handler_sender_t<Fn>, Object>
-    && std::is_invocable_v<Fn const&, handler_sender_t<Fn> const&>;
+concept sender_only_handler = !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>> &&
+                              std::derived_from<handler_sender_t<Fn>, Object> &&
+                              std::is_invocable_v<Fn const&, handler_sender_t<Fn> const&>;
 
 // A handler that wants neither -- `onClick += [type, symbol] { type(symbol); }`.
 // What is left when everything it needs is in its own capture, and the
@@ -106,9 +104,8 @@ concept sender_only_handler =
 // form from the two above as well: a callable taking nothing names no sender,
 // so it fails their second clause and they fail its last one.
 template <typename Fn, typename Args>
-concept nullary_handler =
-    !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>>
-    && std::is_invocable_v<Fn const&>;
+concept nullary_handler = !std::is_invocable_v<Fn const&, Object const&, EventArgsRef<Args>> &&
+                          std::is_invocable_v<Fn const&>;
 
 }  // namespace impl
 
@@ -134,7 +131,8 @@ concept nullary_handler =
 // `method(this, &Screen::clicked)` (method.h) rather than by a lambda that
 // calls it.
 template <typename Args>
-class EventHandler : public std::function<void(Object const&, EventArgsRef<Args>)> {
+class EventHandler : public std::function<void(Object const&, EventArgsRef<Args>)>
+{
     using base_t = std::function<void(Object const&, EventArgsRef<Args>)>;
 
 public:

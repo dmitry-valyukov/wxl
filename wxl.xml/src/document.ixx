@@ -32,6 +32,7 @@ std::string read_file(const std::filesystem::path& path);
 /// hiding behind a pointer, because there is nothing left to hide.
 class document {
 public:
+    /// Constructs a document that holds no tree yet and parses with the options \p opts.
     inline explicit document(const options& opts = {}) : options_(opts) {}
 
     document(const document&) = delete;

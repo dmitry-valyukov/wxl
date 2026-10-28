@@ -15,9 +15,6 @@ cmake_minimum_required(VERSION 3.28)
 set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    # Resolves VCPKG_ROOT and the toolchain file; must run before project().
-    include(${WXL_CMAKE_SCRIPT_DIR}/vcpkg_bootstrap.cmake)
-
     # Only the top-level project may open the `import std;` gate, and only
     # before project() -- wxl.core's module interfaces are built with it.
     include(${WXL_CMAKE_SCRIPT_DIR}/wxl_import_std_gate.cmake)
@@ -41,6 +38,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
     if(BUILD_TESTING)
         enable_testing()
+        include(${WXL_CMAKE_SCRIPT_DIR}/wxl_gtest.cmake)
         find_package(GTest REQUIRED CONFIG)
         include(GoogleTest)
     endif()

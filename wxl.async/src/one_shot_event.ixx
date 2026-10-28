@@ -20,6 +20,8 @@ export namespace wxl::async {
 class one_shot_event : public core::noncopyable
 {
 public:
+    /// Constructs the event, signaled if \p initial_state is `true`; no kernel object is
+    /// created here.
     inline explicit one_shot_event(bool initial_state = false) noexcept
         : state_(initial_state), event_obj_(nullptr) {}
 
@@ -81,8 +83,7 @@ private:
 
     using handle = HANDLE;
 
-    mutable std::atomic<handle>
-        event_obj_;  ///< the underlying OS waitable object, lazily created.
+    mutable std::atomic<handle> event_obj_;  ///< the underlying OS waitable object, lazily created.
 
     static handle create_event();
     static void destroy_event(handle event_obj);

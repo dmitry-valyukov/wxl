@@ -273,6 +273,14 @@ namespace {{
                     break;
 
                 case schema::member::kind_t::Property:
+                    if (member.positional) {
+                        std::print(file, R"([[maybe_unused]] void {0}_{1}_positional({2}, {3} value) {{
+    ::wxl::impl::apply_argument(object, value);
+}}
+)",
+                                   klass.name, member.name, object, qualified(member.type));
+                        break;
+                    }
                     std::print(file, R"([[maybe_unused]] void {0}_{1}_assigned({2}, {4} value) {{
     ::wxl::impl::apply_argument(object, {3} = {5});
 }}

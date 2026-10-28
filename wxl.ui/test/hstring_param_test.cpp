@@ -33,15 +33,15 @@ static_assert(alignof(wxl::hstring) == alignof(winrt::hstring));
 static_assert(std::is_standard_layout_v<wxl::hstring>);
 
 TEST(hstring_param, an_hstring_is_lent_as_the_handle_it_is) {
-    wxl::hstring const text{u"Буквица"};
+    wxl::hstring const text{u"Образец"};
     wxl::hstring_param const param{text};
 
     EXPECT_EQ(winrt::get_abi(lend(param)), text.get_abi());
-    EXPECT_EQ(std::wstring_view{lend(param)}, std::wstring_view{L"Буквица"});
+    EXPECT_EQ(std::wstring_view{lend(param)}, std::wstring_view{L"Образец"});
 }
 
 TEST(hstring_param, text_is_lent_by_a_header_over_the_callers_characters) {
-    std::u16string const owner = u"Буквица";
+    std::u16string const owner = u"Образец";
     wxl::hstring_param const param{owner};
 
     // No copy: cppwinrt sees the characters where the owner keeps them.
@@ -53,13 +53,13 @@ TEST(hstring_param, text_is_lent_by_a_header_over_the_callers_characters) {
 // Above the BMP, where a code point is two units: the count is what makes the
 // unit real, and it has to survive the crossing.
 TEST(hstring_param, a_surrogate_pair_stays_two_units) {
-    wxl::hstring_param const param{u"\U0001F4D6"};
+    wxl::hstring_param const param{u"\U0001F4C4"};
 
     EXPECT_EQ(lend(param).size(), 2u);
 }
 
 TEST(hstring_param, a_borrowed_string_that_is_kept_is_duplicated_for_real) {
-    std::u16string const owner = u"Буквица";
+    std::u16string const owner = u"Образец";
     wxl::hstring_param const param{owner};
 
     // What a property does with a string it keeps: cppwinrt duplicates the
@@ -67,7 +67,7 @@ TEST(hstring_param, a_borrowed_string_that_is_kept_is_duplicated_for_real) {
     winrt::hstring const kept = lend(param);
     EXPECT_NE(winrt::get_abi(kept), winrt::get_abi(lend(param)));
     EXPECT_NE(static_cast<void const*>(kept.c_str()), static_cast<void const*>(owner.c_str()));
-    EXPECT_EQ(std::wstring_view{kept}, std::wstring_view{L"Буквица"});
+    EXPECT_EQ(std::wstring_view{kept}, std::wstring_view{L"Образец"});
 }
 
 TEST(hstring_param, empty_is_the_null_handle_both_ways) {
@@ -82,13 +82,13 @@ TEST(hstring_param, empty_is_the_null_handle_both_ways) {
 // Crossing back: a string read off WinRT keeps the very HSTRING, one reference
 // more, and reads the same text.
 TEST(hstring_param, a_string_read_from_winrt_shares_the_handle) {
-    winrt::hstring const from_winrt{L"Буквица"};
+    winrt::hstring const from_winrt{L"Образец"};
 
     wxl::hstring result;
     winrt::copy_to_abi(from_winrt, *result.put_abi());
 
     EXPECT_EQ(result.get_abi(), winrt::get_abi(from_winrt));
-    EXPECT_TRUE(result == u"Буквица");
+    EXPECT_TRUE(result == u"Образец");
 }
 
 }  // namespace

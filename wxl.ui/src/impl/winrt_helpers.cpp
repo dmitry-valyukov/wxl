@@ -27,12 +27,14 @@ winrt::Windows::Storage::StorageFile get_file(winrt::hstring const& path) {
         done->event.set();
     });
     done->event.wait();
-    return operation.GetResults();  // throws what the operation failed with: no such file, no access
+    return operation
+        .GetResults();  // throws what the operation failed with: no such file, no access
 }
 
 }  // namespace
 
-winrt::Windows::Storage::Streams::RandomAccessStreamReference stream_reference_from_uri(winrt::Windows::Foundation::Uri const& uri) {
+winrt::Windows::Storage::Streams::RandomAccessStreamReference stream_reference_from_uri(
+    winrt::Windows::Foundation::Uri const& uri) {
     using winrt::Windows::Storage::Streams::RandomAccessStreamReference;
 
     // The scheme as the platform parsed it; the path from the text it was written as.
@@ -42,10 +44,14 @@ winrt::Windows::Storage::Streams::RandomAccessStreamReference stream_reference_f
     winrt::hstring const raw = uri.RawUri();
     std::wstring_view const text = raw;
     std::u16string path;
-    if (!try_path_of_file_uri(std::u16string_view {reinterpret_cast<char16_t const*>(text.data()), text.size()}, path)) {
-        throw winrt::hresult_invalid_argument(L"The address is not a file address that names a file: its escapes are not UTF-8.");
+    if (!try_path_of_file_uri(
+            std::u16string_view{reinterpret_cast<char16_t const*>(text.data()), text.size()},
+            path)) {
+        throw winrt::hresult_invalid_argument(
+            L"The address is not a file address that names a file: its escapes are not UTF-8.");
     }
-    return RandomAccessStreamReference::CreateFromFile(get_file(winrt::hstring {std::wstring_view {reinterpret_cast<wchar_t const*>(path.data()), path.size()}}));
+    return RandomAccessStreamReference::CreateFromFile(get_file(winrt::hstring{
+        std::wstring_view{reinterpret_cast<wchar_t const*>(path.data()), path.size()}}));
 }
 
 }  // namespace wxl::impl

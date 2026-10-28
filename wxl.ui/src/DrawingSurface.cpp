@@ -16,7 +16,7 @@
 #include <d3d11_4.h>
 #include <dxgi.h>
 #include <inspectable.h>
-#include <windows.ui.composition.interop.h>   // the system compositor's interop
+#include <windows.ui.composition.interop.h>  // the system compositor's interop
 
 #include <algorithm>
 #include <cstdint>
@@ -54,11 +54,11 @@ namespace system_interop = ABI::Windows::UI::Composition;
 /// replacement, on the UI thread, while everything is alive.
 struct watched_device {
     ID2D1Device* d2d = nullptr;
-    ID3D11Device4* d3d = nullptr;   // the one that says it was removed
-    HANDLE removed = nullptr;       // set by the D3D device when it is removed
-    DWORD cookie = 0;               // its registration, to take back from the old device
-    HANDLE wait = nullptr;          // the system pool's wait on `removed`
-    std::int32_t max_update_side = 0;   // of `d3d`, by its feature level
+    ID3D11Device4* d3d = nullptr;      // the one that says it was removed
+    HANDLE removed = nullptr;          // set by the D3D device when it is removed
+    DWORD cookie = 0;                  // its registration, to take back from the old device
+    HANDLE wait = nullptr;             // the system pool's wait on `removed`
+    std::int32_t max_update_side = 0;  // of `d3d`, by its feature level
 };
 
 /// What impl::rendering_devices makes and moves: the device above, and graphics devices and
@@ -79,7 +79,9 @@ struct device_backend {
     ::IInspectable* queue = nullptr;
 
     watched_device make(std::uint64_t generation);
-    bool lost(watched_device const& device) noexcept { return device.d3d->GetDeviceRemovedReason() != S_OK; }
+    bool lost(watched_device const& device) noexcept {
+        return device.d3d->GetDeviceRemovedReason() != S_OK;
+    }
     void unwatch(watched_device& device) noexcept;
     void release(watched_device& device) noexcept;
     void move(::IInspectable* graphics, impl::composition_api api, watched_device const& device);
@@ -101,7 +103,8 @@ struct device_backend {
 /// The graphics devices are wxl's own and nobody else replaces their device, so the event says
 /// nothing wxl does not know here, and nothing listens to it.
 impl::rendering_devices<device_backend>& devices() {
-    static impl::rendering_devices<device_backend>& kept = *new impl::rendering_devices<device_backend>{};
+    static impl::rendering_devices<device_backend>& kept =
+        *new impl::rendering_devices<device_backend>{};
     return kept;
 }
 
@@ -167,7 +170,8 @@ winrt::com_ptr<ID3D11Device> new_d3d_device() {
     winrt::com_ptr<IDXGIFactory1> factory;
     HRESULT const made = ::CreateDXGIFactory1(winrt::guid_of<IDXGIFactory1>(), factory.put_void());
     if (FAILED(made)) {
-        stop_on("wxl: no DXGI factory to find a rendering device in", static_cast<std::uint32_t>(made));
+        stop_on("wxl: no DXGI factory to find a rendering device in",
+                static_cast<std::uint32_t>(made));
     }
 
     winrt::com_ptr<ID3D11Device> d3d;
@@ -181,8 +185,8 @@ winrt::com_ptr<ID3D11Device> new_d3d_device() {
                     static_cast<std::uint32_t>(found));
         }
         // An adapter of its own means the driver type is UNKNOWN: the adapter says it.
-        last = ::D3D11CreateDevice(adapter.get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags,
-                                   nullptr, 0, D3D11_SDK_VERSION, d3d.put(), nullptr, nullptr);
+        last = ::D3D11CreateDevice(adapter.get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, nullptr,
+                                   0, D3D11_SDK_VERSION, d3d.put(), nullptr, nullptr);
     }
     if (!d3d) {
         last = ::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags, nullptr, 0,
@@ -213,7 +217,8 @@ watched_device device_backend::make(std::uint64_t generation) {
         // Never taken off: the queue goes with it. close() does not wait for a removal callback under
         // way, which posts to this queue from the pool: unwatch takes the wait back without waiting
         // (device_removed says why it may run late), so the handler blocks on nothing the queue holds.
-        static_cast<void>(current.ShutdownStarting([](auto&&, auto&&) noexcept { devices().close(); }));
+        static_cast<void>(
+            current.ShutdownStarting([](auto&&, auto&&) noexcept { devices().close(); }));
         queue = static_cast<::IInspectable*>(winrt::detach_abi(current));
     }
 
@@ -227,8 +232,7 @@ watched_device device_backend::make(std::uint64_t generation) {
                                               D2D1_DEBUG_LEVEL_NONE,
                                               D2D1_DEVICE_CONTEXT_OPTIONS_NONE};
     winrt::com_ptr<ID2D1Device> d2d;
-    winrt::check_hresult(
-        ::D2D1CreateDevice(d3d.as<IDXGIDevice>().get(), &properties, d2d.put()));
+    winrt::check_hresult(::D2D1CreateDevice(d3d.as<IDXGIDevice>().get(), &properties, d2d.put()));
 
     // ID3D11Device4 is Windows 10's; the Windows App SDK runs on nothing older.
     // Not const: its reference goes to the device made below, which owns it raw (detach).
@@ -238,14 +242,17 @@ watched_device device_backend::make(std::uint64_t generation) {
     DWORD cookie = 0;
     winrt::check_hresult(removable->RegisterDeviceRemovedEvent(removed, &cookie));
     HANDLE wait = nullptr;
-    if (!::RegisterWaitForSingleObject(&wait, removed, &device_removed,
-                                       reinterpret_cast<void*>(static_cast<std::uintptr_t>(generation)),
-                                       INFINITE, WT_EXECUTEONLYONCE)) {
+    if (!::RegisterWaitForSingleObject(
+            &wait, removed, &device_removed,
+            reinterpret_cast<void*>(static_cast<std::uintptr_t>(generation)), INFINITE,
+            WT_EXECUTEONLYONCE)) {
         winrt::throw_last_error();
     }
 
-    return watched_device{d2d.detach(), removable.detach(), removed, cookie, wait,
-                          impl::rendering_device::max_update_side(d3d->GetFeatureLevel())};
+    return watched_device{
+        d2d.detach(), removable.detach(),
+        removed,      cookie,
+        wait,         impl::rendering_device::max_update_side(d3d->GetFeatureLevel())};
 }
 
 /// The watch taken back: from a replacement -- the wait ran once (WT_EXECUTEONLYONCE) and its
@@ -286,8 +293,11 @@ void set_rendering_device(::IInspectable* graphics, ID2D1Device* d2d) {
     winrt::check_hresult(graphics->QueryInterface(winrt::guid_of<Interop>(), interop.put_void()));
     HRESULT const set = interop->SetRenderingDevice(d2d);
     if (set == RO_E_CLOSED) {
-        core::abort("wxl: a compositor a drawing surface was made on is closed before the UI thread's queue began "
-                    "to shut down, and its graphics device cannot take the new rendering device (RO_E_CLOSED)");
+        core::abort(
+            "wxl: a compositor a drawing surface was made on is closed before the UI thread's "
+            "queue began "
+            "to shut down, and its graphics device cannot take the new rendering device "
+            "(RO_E_CLOSED)");
     }
     winrt::check_hresult(set);
 }
@@ -297,7 +307,8 @@ void device_backend::move(::IInspectable* graphics, impl::composition_api api,
     if (api == impl::composition_api::winui)
         set_rendering_device<impl::ICompositionGraphicsDeviceInterop>(graphics, device.d2d);
     else
-        set_rendering_device<system_interop::ICompositionGraphicsDeviceInterop>(graphics, device.d2d);
+        set_rendering_device<system_interop::ICompositionGraphicsDeviceInterop>(graphics,
+                                                                                device.d2d);
 }
 
 /// The turn that calls the holders after a replacement graphics_of ran, on the queue taken with the
@@ -310,7 +321,9 @@ void device_backend::post() noexcept {
     dispatching::DispatcherQueue current{nullptr};
     winrt::copy_from_abi(current, queue);
     if (!current.TryEnqueue([]() noexcept { devices().notify(); })) {
-        core::abort("wxl: the UI thread's queue refused the turn that calls the holders of a new rendering device");
+        core::abort(
+            "wxl: the UI thread's queue refused the turn that calls the holders of a new rendering "
+            "device");
     }
 }
 
@@ -360,11 +373,11 @@ composition::CompositionGraphicsDevice graphics_device(composition::Compositor c
 /// B8G8R8A8 because that is what D2D draws into.
 composition::CompositionDrawingSurface allocate(composition::Compositor const& compositor,
                                                 SizeInt32 sizePixels) {
-    return graphics_device(compositor).CreateDrawingSurface2(
-        winrt::Windows::Graphics::SizeInt32{std::max(sizePixels.width, 0),
-                                           std::max(sizePixels.height, 0)},
-        directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
-        directx::DirectXAlphaMode::Premultiplied);
+    return graphics_device(compositor)
+        .CreateDrawingSurface2(winrt::Windows::Graphics::SizeInt32{std::max(sizePixels.width, 0),
+                                                                   std::max(sizePixels.height, 0)},
+                               directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                               directx::DirectXAlphaMode::Premultiplied);
 }
 
 /// BeginDraw, the paint, EndDraw -- what every drawing of a surface shares, with what a lost
@@ -464,10 +477,11 @@ SizeInt32 virtual_size(SizeInt32 sizePixels) {
 /// asks for the virtual one.
 composition::CompositionDrawingSurface allocate_virtual(composition::Compositor const& compositor,
                                                         SizeInt32 sizePixels) {
-    return graphics_device(compositor).CreateVirtualDrawingSurface(
-        winrt::Windows::Graphics::SizeInt32{sizePixels.width, sizePixels.height},
-        directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
-        directx::DirectXAlphaMode::Premultiplied);
+    return graphics_device(compositor)
+        .CreateVirtualDrawingSurface(
+            winrt::Windows::Graphics::SizeInt32{sizePixels.width, sizePixels.height},
+            directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            directx::DirectXAlphaMode::Premultiplied);
 }
 
 /// A brush showing a surface of either kind. Named, not nested: the surface converts to the
@@ -487,9 +501,7 @@ DrawingSurface::DrawingSurface(Compositor const& compositor, SizeInt32 sizePixel
       surface_(Object::Impl::wrap<CompositionDrawingSurface>(
           allocate(*Object::Impl::get_typed<Compositor>(compositor), sizePixels))) {}
 
-SizeInt32 DrawingSurface::size() const {
-    return surface_.sizeInt32();
-}
+SizeInt32 DrawingSurface::size() const { return surface_.sizeInt32(); }
 
 void DrawingSurface::resize(SizeInt32 sizePixels) {
     surface_.resize({std::max(sizePixels.width, 0), std::max(sizePixels.height, 0)});
@@ -512,18 +524,14 @@ void DrawingSurface::throwIfDeviceLost(std::int32_t result) {
     if (confirmed_loss(result)) throw DeviceLost{};
 }
 
-CompositionSurfaceBrush DrawingSurface::brush() const {
-    return brush_of(compositor_, surface_);
-}
+CompositionSurfaceBrush DrawingSurface::brush() const { return brush_of(compositor_, surface_); }
 
 VirtualDrawingSurface::VirtualDrawingSurface(Compositor const& compositor, SizeInt32 sizePixels)
     : compositor_(compositor),
       surface_(Object::Impl::wrap<CompositionDrawingSurface>(allocate_virtual(
           *Object::Impl::get_typed<Compositor>(compositor), virtual_size(sizePixels)))) {}
 
-SizeInt32 VirtualDrawingSurface::size() const {
-    return surface_.sizeInt32();
-}
+SizeInt32 VirtualDrawingSurface::size() const { return surface_.sizeInt32(); }
 
 void VirtualDrawingSurface::resize(SizeInt32 sizePixels) {
     surface_.resize(virtual_size(sizePixels));
@@ -595,7 +603,8 @@ namespace impl {
 // entry without a graphics device, and a watch taken off finds the entry its attach made -- and
 // the last one off lets that entry go, if no surface was made on the compositor.
 
-EventToken rendering_device_replaced::add(Compositor const& compositor, EventHandler<Object> handler) {
+EventToken rendering_device_replaced::add(Compositor const& compositor,
+                                          EventHandler<Object> handler) {
     return devices()
         .handlers_of(identity_of(compositor).get(), composition_api::winui)
         .add(next_event_token(), std::move(handler));
@@ -606,17 +615,15 @@ bool rendering_device_replaced::remove(Compositor const& compositor, EventToken&
 }
 
 ::IInspectable* rendering_device::system_graphics_device(system_compositor compositor) {
-    return devices().graphics_of(compositor.identity, composition_api::system,
-                                 [&](watched_device const& device) {
-                                     winrt::com_ptr<system_interop::ICompositorInterop> interop;
-                                     winrt::check_hresult(compositor.identity->QueryInterface(
-                                         winrt::guid_of<system_interop::ICompositorInterop>(),
-                                         interop.put_void()));
-                                     winrt::com_ptr<system_interop::ICompositionGraphicsDevice> graphics;
-                                     winrt::check_hresult(
-                                         interop->CreateGraphicsDevice(device.d2d, graphics.put()));
-                                     return static_cast<::IInspectable*>(graphics.detach());
-                                 });
+    return devices().graphics_of(
+        compositor.identity, composition_api::system, [&](watched_device const& device) {
+            winrt::com_ptr<system_interop::ICompositorInterop> interop;
+            winrt::check_hresult(compositor.identity->QueryInterface(
+                winrt::guid_of<system_interop::ICompositorInterop>(), interop.put_void()));
+            winrt::com_ptr<system_interop::ICompositionGraphicsDevice> graphics;
+            winrt::check_hresult(interop->CreateGraphicsDevice(device.d2d, graphics.put()));
+            return static_cast<::IInspectable*>(graphics.detach());
+        });
 }
 
 bool rendering_device::draw_system_surface(::IUnknown* surface,
@@ -629,7 +636,8 @@ bool rendering_device::draw_system_surface(::IUnknown* surface,
     return draw_on(*interop, nullptr, paint);
 }
 
-EventToken system_rendering_device_replaced::add(system_compositor compositor, EventHandler<Object> handler) {
+EventToken system_rendering_device_replaced::add(system_compositor compositor,
+                                                 EventHandler<Object> handler) {
     return devices()
         .handlers_of(compositor.identity, composition_api::system)
         .add(next_event_token(), std::move(handler));
@@ -639,13 +647,9 @@ bool system_rendering_device_replaced::remove(system_compositor compositor, Even
     return devices().remove(compositor.identity, token);
 }
 
-std::uint64_t rendering_device::replacements() noexcept {
-    return devices().replacements();
-}
+std::uint64_t rendering_device::replacements() noexcept { return devices().replacements(); }
 
-void rendering_device::ensure() {
-    static_cast<void>(devices().device());
-}
+void rendering_device::ensure() { static_cast<void>(devices().device()); }
 
 void rendering_device::signal_removed() {
     // The event the D3D device sets when it is removed is ours, made in device_backend::make:

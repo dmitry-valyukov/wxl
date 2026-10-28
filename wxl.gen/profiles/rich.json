@@ -1,11 +1,11 @@
 {
     "name": "rich",
-    "description": "The extended profile plus what an application needs to put its own drawing into a XAML tree and animate it: the composition surface (visuals, brushes, clips, shadows, key-frame animations) reached through ElementCompositionPreview, full-screen presentation, and the display a window happens to be on. Written for an application that draws its page itself, glyph by glyph with Direct2D, and turns it as a flat sheet moved by the compositor -- neither of which any control can do.",
+    "description": "The extended profile plus what an application needs to put its own drawing into a XAML tree and animate it: the composition surface (visuals, brushes, clips, shadows, key-frame animations) reached through ElementCompositionPreview, full-screen presentation, and the display a window happens to be on. For content no control draws: text laid out glyph by glyph with Direct2D, moved by the compositor as one flat sheet.",
     "extends": [
         "extended"
     ],
 
-    "windowsAppSdk": "2.5.1",
+    "windowsAppSdk": "2.5.4-experimental",
     "windowsMetadata": true,
 
     "types": {

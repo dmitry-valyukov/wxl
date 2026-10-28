@@ -60,7 +60,7 @@ double back_amplitude(double past) {
     }
     return high;
 }
-} // namespace
+}  // namespace
 
 struct MagnifyEffect::Impl : core::sta_refcounted {
     // ---- The settings ----
@@ -87,7 +87,8 @@ struct MagnifyEffect::Impl : core::sta_refcounted {
     // The axis that moves further from 1: what maximum and minimum are
     // measured on. Below 1 on it the effect shrinks under the pointer.
     double leading() const {
-        return std::abs(scale.width - 1.0f) >= std::abs(scale.height - 1.0f) ? scale.width : scale.height;
+        return std::abs(scale.width - 1.0f) >= std::abs(scale.height - 1.0f) ? scale.width
+                                                                             : scale.height;
     }
 
     void changed() {
@@ -155,29 +156,31 @@ struct MagnifyEffect::Impl : core::sta_refcounted {
         // key frames glued at the far point would stop there twice. The
         // amplitude is found from the far point once, here.
         auto const motion = [&](float to, double past, std::chrono::milliseconds natural,
-                                 std::chrono::milliseconds natural_swing) {
+                                std::chrono::milliseconds natural_swing) {
             auto const animation = compositor.CreateScalarKeyFrameAnimation();
             animation.Duration(duration ? timespan(*duration)
-                                        : winrt::Windows::Foundation::TimeSpan{past != 0.0 ? natural_swing : natural});
+                                        : winrt::Windows::Foundation::TimeSpan{
+                                              past != 0.0 ? natural_swing : natural});
             composition::CompositionEasingFunction easing = curve;
             if (past != 0.0) {
                 easing = composition::CompositionEasingFunction::CreateBackEasingFunction(
-                    compositor, composition::CompositionEasingFunctionMode::Out, static_cast<float>(back_amplitude(past)));
+                    compositor, composition::CompositionEasingFunctionMode::Out,
+                    static_cast<float>(back_amplitude(past)));
             }
             animation.InsertKeyFrame(1.0f, to, easing);
             return animation;
         };
-        grow = motion(1.0f, past_top, std::chrono::milliseconds{140}, std::chrono::milliseconds{300});
+        grow =
+            motion(1.0f, past_top, std::chrono::milliseconds{140}, std::chrono::milliseconds{300});
         grow.DelayTime(timespan(delay));
-        shrink = motion(0.0f, past_bottom, std::chrono::milliseconds{180}, std::chrono::milliseconds{360});
+        shrink = motion(0.0f, past_bottom, std::chrono::milliseconds{180},
+                        std::chrono::milliseconds{360});
     }
 };
 
 MagnifyEffect::MagnifyEffect() : impl_{new Impl, /*add_ref=*/false} {}
 
-MagnifyEffect::MagnifyEffect(double scale) : MagnifyEffect() {
-    this->scale(scale);
-}
+MagnifyEffect::MagnifyEffect(double scale) : MagnifyEffect() { this->scale(scale); }
 
 MagnifyEffect::MagnifyEffect(MagnifyEffect const& other) noexcept = default;
 MagnifyEffect& MagnifyEffect::operator=(MagnifyEffect const& other) noexcept = default;
@@ -208,9 +211,7 @@ void MagnifyEffect::delayTime(core::duration value) const {
     impl_->changed();
 }
 
-void MagnifyEffect::target(MagnifyTarget value) const {
-    impl_->target = value;
-}
+void MagnifyEffect::target(MagnifyTarget value) const { impl_->target = value; }
 
 namespace {
 // One attached element: the progress on its own visual's property set, and
@@ -262,7 +263,7 @@ xaml::UIElement content_of(xaml::UIElement const& element) {
     }
     return nullptr;
 }
-} // namespace
+}  // namespace
 
 void MagnifyEffect::operator()(UIElement const& wrapper) const {
     auto const element = Object::Impl::as<xaml::UIElement>(wrapper);

@@ -24,4 +24,4 @@ namespace wxl::impl {
 template <typename T>
 struct runtime_class_name_of;
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

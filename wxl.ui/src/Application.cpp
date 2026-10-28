@@ -15,8 +15,10 @@
 #undef small
 
 #include <winrt/base.h>
+#include <winrt/Microsoft.UI.Xaml.h>
 
 #include "Application.h"
+#include "UiThread.h"
 
 namespace wxl {
 
@@ -80,7 +82,8 @@ bool put_details(core::impl::terminate_report& report, winrt::hresult_error cons
     system_string restricted;
     system_string capability;
     HRESULT code = S_OK;
-    if (FAILED(info->GetErrorDetails(&description.text, &code, &restricted.text, &capability.text)) ||
+    if (FAILED(
+            info->GetErrorDetails(&description.text, &code, &restricted.text, &capability.text)) ||
         code != static_cast<std::int32_t>(error.code())) {
         return false;
     }
@@ -99,9 +102,9 @@ bool put_details(core::impl::terminate_report& report, winrt::hresult_error cons
 // A text longer than the buffer is refused rather than truncated, and the code then stands alone.
 void put_system_text(core::impl::terminate_report& report, std::uint32_t const code) noexcept {
     wchar_t text[512];
-    DWORD const size = ::FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                                        nullptr, code, 0, text, static_cast<DWORD>(std::size(text)),
-                                        nullptr);
+    DWORD const size =
+        ::FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, code,
+                         0, text, static_cast<DWORD>(std::size(text)), nullptr);
 
     std::wstring_view const said = core::trim_back(std::wstring_view{text, size});
     if (said.empty()) return;
@@ -119,6 +122,11 @@ bool Application::isPackaged() noexcept {
 
 std::filesystem::path Application::makeAbsolute(std::filesystem::path const& path) {
     return path.is_absolute() ? path : core::environment::application_folder() / path;
+}
+
+void Application::exit() {
+    UiThread::ensureCurrent();
+    if (loopRunning()) winrt::Microsoft::UI::Xaml::Application::Current().Exit();
 }
 
 void Application::install_terminate_report() noexcept {

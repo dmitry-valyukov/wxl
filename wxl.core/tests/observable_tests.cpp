@@ -19,7 +19,10 @@ TEST(Observable, set_notifies_on_a_real_change) {
     observable<int> value{1};
     int seen = 0;
     int calls = 0;
-    value.on_change([&](int const& v) noexcept { ++calls; seen = v; });
+    value.on_change([&](int const& v) noexcept {
+        ++calls;
+        seen = v;
+    });
 
     value.set(2);
     EXPECT_EQ(calls, 1);
@@ -172,7 +175,10 @@ TEST(Observable, works_for_nullable_bool) {
     observable<nullable<bool>> tri{nullable<bool>{}};
     int calls = 0;
     nullable<bool> seen;
-    tri.on_change([&](nullable<bool> const& v) noexcept { ++calls; seen = v; });
+    tri.on_change([&](nullable<bool> const& v) noexcept {
+        ++calls;
+        seen = v;
+    });
 
     tri.set(true);
     EXPECT_EQ(calls, 1);

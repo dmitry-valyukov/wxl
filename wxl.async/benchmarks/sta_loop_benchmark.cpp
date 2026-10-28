@@ -472,7 +472,7 @@ task<> fan_task(loop_t& loop, int count, std::uint64_t& sum, int& remaining) {
 /// round trip. The buffer lives outside so the frame stays the size of a real one.
 template <class loop_t>
 task<> read_file(loop_t& loop, const wchar_t* path, std::span<std::byte> buffer, std::size_t& total,
-               int& chunks, latency_samples& samples, int& remaining) {
+                 int& chunks, latency_samples& samples, int& remaining) {
     wxl::core::file f =
         co_await loop.async_call([path] { return wxl::core::file::open_read(path); });
 

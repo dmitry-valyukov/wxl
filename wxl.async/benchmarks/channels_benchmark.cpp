@@ -203,7 +203,8 @@ public:
 
     /// The writing thread's call.
     node* take() noexcept {
-        if (taken_ == limit_) [[unlikely]] wait_for_room();
+        if (taken_ == limit_) [[unlikely]]
+            wait_for_room();
 
         return &nodes_[taken_++ & mask_];
     }
@@ -550,8 +551,8 @@ public:
     latency_result latency(const std::size_t warmup, const std::size_t samples,
                            const std::chrono::nanoseconds pause) {
         const std::size_t total = warmup + samples;
-        const auto pause_ticks = static_cast<std::uint64_t>(
-            static_cast<double>(pause.count()) * ticks_per_ns_);
+        const auto pause_ticks =
+            static_cast<std::uint64_t>(static_cast<double>(pause.count()) * ticks_per_ns_);
 
         // Sized and touched before the stream starts, so that nothing in it allocates.
         arrived_.assign(total, 0);
@@ -649,7 +650,8 @@ private:
                 }
             } else if (current.kind == job_kind::idle_waits) {
                 if constexpr (requires { reader.idle_wait(); })
-                    for (std::size_t i = 0; i < current.count; ++i) arrived_[i] = reader.idle_wait();
+                    for (std::size_t i = 0; i < current.count; ++i)
+                        arrived_[i] = reader.idle_wait();
             } else {
                 for (std::size_t i = 0; i < current.count; ++i)
                     out_of_order_ += reader.receive().sequence != i;
@@ -740,17 +742,16 @@ void latency_row(const session<contender_t>& queue, const latency_rounds& rounds
         out_of_order += r.out_of_order;
     }
 
-    std::printf("  %-24s %7.2f %7.2f %7.2f %7.2f %7.2f %8.2f   %6.0f %7.0f   %5.1f\n",
-                queue.name(), m([](auto& r) { return r.latency_ns.min; }) / 1000,
-                m([](auto& r) { return r.latency_ns.median; }) / 1000,
-                m([](auto& r) { return r.latency_ns.p90; }) / 1000,
-                m([](auto& r) { return r.latency_ns.p99; }) / 1000,
-                m([](auto& r) { return r.latency_ns.p999; }) / 1000,
-                m([](auto& r) { return r.latency_ns.max; }) / 1000,
-                m([](auto& r) { return r.send_ns.median; }),
-                m([](auto& r) { return r.send_ns.p99; }),
-                100.0 * static_cast<double>(waited) /
-                    static_cast<double>(per_round * rounds.taken.size()));
+    std::printf(
+        "  %-24s %7.2f %7.2f %7.2f %7.2f %7.2f %8.2f   %6.0f %7.0f   %5.1f\n", queue.name(),
+        m([](auto& r) { return r.latency_ns.min; }) / 1000,
+        m([](auto& r) { return r.latency_ns.median; }) / 1000,
+        m([](auto& r) { return r.latency_ns.p90; }) / 1000,
+        m([](auto& r) { return r.latency_ns.p99; }) / 1000,
+        m([](auto& r) { return r.latency_ns.p999; }) / 1000,
+        m([](auto& r) { return r.latency_ns.max; }) / 1000,
+        m([](auto& r) { return r.send_ns.median; }), m([](auto& r) { return r.send_ns.p99; }),
+        100.0 * static_cast<double>(waited) / static_cast<double>(per_round * rounds.taken.size()));
 
     if (out_of_order) std::printf("  %zu elements arrived out of order\n", out_of_order);
 }
@@ -758,8 +759,8 @@ void latency_row(const session<contender_t>& queue, const latency_rounds& rounds
 /// One pause of the stream, every queue given: the rounds go round the queues in turn, so
 /// that whatever else the machine does during the run falls on all of them alike.
 template <class... sessions_t>
-void latency_table(const std::chrono::nanoseconds pause, const int rounds,
-                   const std::size_t warmup, const std::size_t samples, sessions_t&... queues) {
+void latency_table(const std::chrono::nanoseconds pause, const int rounds, const std::size_t warmup,
+                   const std::size_t samples, sessions_t&... queues) {
     std::array<latency_rounds, sizeof...(sessions_t)> taken;
 
     for (int round = 0; round < rounds; ++round) {
@@ -866,8 +867,7 @@ struct matched {
 /// shorter than the same attempt in the stream; the count is scaled by the ratio and timed
 /// again until the two agree within a percent.
 template <class paused_t, class running_t>
-matched match_waits(session<paused_t>& paused, session<running_t>& running,
-                    const double pause) {
+matched match_waits(session<paused_t>& paused, session<running_t>& running, const double pause) {
     constexpr std::size_t waits = 2'001;
 
     const double target = paused.idle_wait_ns(waits);
@@ -949,8 +949,8 @@ int main(int argc, char** argv) {
     const matched mpsc_waits = match_waits(mpsc_paused, mpsc_unpaused, pause);
 
     std::printf("wxl.async channels, one writer and one reader\n");
-    std::printf("writer on cpu %zu, reader on cpu %zu, TSC at %.3f GHz\n\n", writer_cpu,
-                reader_cpu, ticks_per_ns);
+    std::printf("writer on cpu %zu, reader on cpu %zu, TSC at %.3f GHz\n\n", writer_cpu, reader_cpu,
+                ticks_per_ns);
 
     std::printf(
         "the wait before sleeping: attempts to take an element, then receive(). The pause\n"

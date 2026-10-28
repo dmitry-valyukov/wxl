@@ -67,7 +67,8 @@ winrt::Windows::Foundation::Collections::IIterable<typename vector_element<T>::w
     using item_t = typename vector_element<T>::winrt_t;
     if (auto const* list = value.list()) {
         return Object::Impl::get_typed(*list)
-            ->inspectable_.template as<winrt::Windows::Foundation::Collections::IIterable<item_t>>();
+            ->inspectable_
+            .template as<winrt::Windows::Foundation::Collections::IIterable<item_t>>();
     }
 
     std::vector<item_t> items;

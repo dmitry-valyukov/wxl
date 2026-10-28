@@ -24,20 +24,23 @@ struct CustomLayoutCore : xaml::Controls::NonVirtualizingLayoutT<CustomLayoutCor
     // Имя для дерева элементов (Live Visual Tree).
     winrt::hstring GetRuntimeClassName() const { return L"wxl.CustomLayout"; }
 
-    winrt::Windows::Foundation::Size MeasureOverride(xaml::Controls::NonVirtualizingLayoutContext const& context,
-                                                     winrt::Windows::Foundation::Size available) {
+    winrt::Windows::Foundation::Size MeasureOverride(
+        xaml::Controls::NonVirtualizingLayoutContext const& context,
+        winrt::Windows::Foundation::Size available) {
         return impl::to_winrt(measure_(children(context), impl::from_winrt(available)));
     }
 
-    winrt::Windows::Foundation::Size ArrangeOverride(xaml::Controls::NonVirtualizingLayoutContext const& context,
-                                                     winrt::Windows::Foundation::Size final) {
+    winrt::Windows::Foundation::Size ArrangeOverride(
+        xaml::Controls::NonVirtualizingLayoutContext const& context,
+        winrt::Windows::Foundation::Size final) {
         return impl::to_winrt(arrange_(children(context), impl::from_winrt(final)));
     }
 
     void invalidate() { InvalidateMeasure(); }
 
 private:
-    static Collection<UIElement> children(xaml::Controls::NonVirtualizingLayoutContext const& context) {
+    static Collection<UIElement> children(
+        xaml::Controls::NonVirtualizingLayoutContext const& context) {
         return Object::Impl::wrap<Collection<UIElement>>(context.Children());
     }
 
@@ -47,7 +50,8 @@ private:
 
 }  // namespace
 
-class CustomLayout::Impl : public base_t::Impl {
+class CustomLayout::Impl : public base_t::Impl
+{
 public:
     explicit Impl(winrt::com_ptr<CustomLayoutCore> const& object)
         : base_t::Impl(object.as<xaml::Controls::Layout>()), object_(object.get()) {}
@@ -61,12 +65,11 @@ private:
 };
 
 CustomLayout::CustomLayout(Measure measure, Arrange arrange)
-    : base_t(new Impl {winrt::make_self<CustomLayoutCore>(std::move(measure), std::move(arrange))}) {}
+    : base_t(new Impl{winrt::make_self<CustomLayoutCore>(std::move(measure), std::move(arrange))}) {
+}
 
 CustomLayout::CustomLayout(Impl* impl) noexcept : base_t(impl) {}
 
-void CustomLayout::invalidate() const {
-    Impl::of(impl()).invalidate();
-}
+void CustomLayout::invalidate() const { Impl::of(impl()).invalidate(); }
 
 }  // namespace wxl

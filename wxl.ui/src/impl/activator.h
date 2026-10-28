@@ -92,25 +92,23 @@ struct composable_slot : activation_slot {
 };
 
 // Activates instances of Obj, handing back the raw IInspectable* the
-// activation ABI produces without adapting it to any particular interface: the
-// activating constructor of Object::Impl, given the activator's type as a tag
-// (impl::activation), writes it straight into its own IInspectable field, with
-// no temporary smart pointer and no extra AddRef/Release on the way, and every
-// other interface is queried lazily off that field later.
+// activation ABI produces without adapting it to any particular interface: a
+// generated constructor writes it straight into its own object's IInspectable
+// field, with no temporary smart pointer and no extra AddRef/Release on the
+// way, and queries every other interface lazily off that field later.
 //
 // wxl activates through this rather than cppwinrt's winrt::make<T>() for the
 // same reason it avoids winrt::implements<>: a single-threaded, STA-tuned path
 // written once here, without the generality -- and the atomics -- the
 // general-purpose machinery pays for.
 template <typename Obj>
-class activator {
+class activator
+{
 public:
     // Not noexcept: a class that cannot be activated is an ordinary error, and
     // check_hresult throws so its HRESULT -- the one thing that says why --
     // reaches the caller instead of terminating the process.
-    static void activate(::IInspectable** result) {
-        check_hresult(slot_.fn_(slot_.fac_, result));
-    }
+    static void activate(::IInspectable** result) { check_hresult(slot_.fn_(slot_.fac_, result)); }
 
 private:
     // Out of class, because the initializer names the object itself, and
@@ -120,8 +118,7 @@ private:
 
 template <typename Obj>
 inline constinit activation_slot activator<Obj>::slot_{
-    &activator<Obj>::slot_,
-    reinterpret_cast<activation_slot::activate_fn>(&activation_slot::init),
+    &activator<Obj>::slot_, reinterpret_cast<activation_slot::activate_fn>(&activation_slot::init),
     const_cast<wchar_t*>(runtime_class_name_of<Obj>::value)};
 
 // `Factory` is the projection's own factory interface, and the only thing wanted
@@ -131,12 +128,11 @@ inline constinit activation_slot activator<Obj>::slot_{
 // why it matters: a slot that is not constant-initialized becomes a startup
 // function and a .CRT$XCU entry per class instead of ready bytes in .data.
 template <typename Obj, typename Factory>
-class composable_activator {
+class composable_activator
+{
 public:
     // Not noexcept, for the same reason as above.
-    static void activate(::IInspectable** result) {
-        check_hresult(slot_.fn_(slot_.fac_, result));
-    }
+    static void activate(::IInspectable** result) { check_hresult(slot_.fn_(slot_.fac_, result)); }
 
 private:
     // Out of class, because the initializer names the object itself, and
@@ -151,4 +147,4 @@ inline constinit composable_slot composable_activator<Obj, Factory>::slot_{
      const_cast<wchar_t*>(runtime_class_name_of<Obj>::value)},
     const_cast<winrt::guid*>(&winrt::impl::guid_v<Factory>)};
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

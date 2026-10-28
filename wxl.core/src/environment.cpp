@@ -8,6 +8,23 @@ import std;
 
 using namespace wxl::core;
 
+namespace {
+
+// The system's words for the code. Not std::error_code::message(): MSVC's STL takes them
+// from FormatMessageA, in the ANSI code page. A code of another category -- the generic
+// one, iostream's -- is rare here, the file system reporting the system's own codes; MSVC
+// words those from its own table, and they are repaired all the same, since nothing
+// promises that table is ASCII.
+u8_text explanation(std::error_code const& code) {
+    if (code.category() == std::system_category()) {
+        auto words = environment::error_explanation(static_cast<std::uint32_t>(code.value()));
+        if (!words.empty()) return words;
+    }
+    return unicode::repaired(code.message());
+}
+
+}  // namespace
+
 size_t environment::processor_count() {
     SYSTEM_INFO sysinfo;
     ::GetSystemInfo(&sysinfo);
@@ -38,8 +55,8 @@ sta_vector<sta_wstring> environment::command_line() {
     };
 
     int argc = 0;
-    std::unique_ptr<LPWSTR[], local_free_deleter> argv{::CommandLineToArgvW(::GetCommandLineW(), &argc),
-                                                       local_free_deleter{}};
+    std::unique_ptr<LPWSTR[], local_free_deleter> argv{
+        ::CommandLineToArgvW(::GetCommandLineW(), &argc), local_free_deleter{}};
 
     if (!argv) {
         throw std::system_error{static_cast<int>(::GetLastError()), std::system_category(),
@@ -52,6 +69,39 @@ sta_vector<sta_wstring> environment::command_line() {
     for (int i = 0; i < argc; ++i) result.emplace_back(argv[i]);
 
     return result;
+}
+
+std::wstring environment::variable(wchar_t const* const name) {
+    // Asked with no room, the call answers with the room the value needs, its terminator
+    // included; given that room, with the length it wrote. Zero is a value of no characters
+    // and a failure alike, and only the last error tells them apart -- cleared before each
+    // call, so that one left by an earlier call decides nothing. A length that does not fit
+    // the room is a value another thread lengthened in between, and the size is asked again.
+    auto const empty_unless_failed = [] {
+        DWORD const error = ::GetLastError();
+        if (error != ERROR_SUCCESS && error != ERROR_ENVVAR_NOT_FOUND) {
+            throw std::system_error{static_cast<int>(error), std::system_category(),
+                                    "GetEnvironmentVariableW"};
+        }
+        return std::wstring{};
+    };
+
+    std::wstring value;
+    for (;;) {
+        ::SetLastError(ERROR_SUCCESS);
+        DWORD const room = ::GetEnvironmentVariableW(name, nullptr, 0);
+        if (room == 0) return empty_unless_failed();
+        if (room == 1) return {};
+
+        value.resize(room);
+        ::SetLastError(ERROR_SUCCESS);
+        DWORD const length = ::GetEnvironmentVariableW(name, value.data(), room);
+        if (length == 0) return empty_unless_failed();
+        if (length < room) {
+            value.resize(length);
+            return value;
+        }
+    }
 }
 
 u8_text environment::error_explanation(std::uint32_t const code) {
@@ -74,4 +124,19 @@ u8_text environment::error_explanation(std::uint32_t const code) {
     }
     // The system's own text, but nothing promises it is well-formed UTF-16.
     return unicode::repaired(std::wstring_view{buffer, length}).to_utf8();
+}
+
+u8_text environment::error_message(std::exception const& error) {
+    auto const* const failed = dynamic_cast<std::filesystem::filesystem_error const*>(&error);
+    if (!failed) return unicode::repaired(error.what());
+
+    u8_text message;
+    for (std::filesystem::path const* const path : {&failed->path1(), &failed->path2()}) {
+        if (path->empty()) continue;
+        if (!message.empty()) message += u8", ";
+        message += unicode::to_utf8(*path);
+    }
+    if (!message.empty()) message += u8": ";
+    message += explanation(failed->code());
+    return message;
 }

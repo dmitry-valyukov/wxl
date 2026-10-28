@@ -24,12 +24,13 @@ export namespace wxl::core {
 /// therefore walks into the CRT heap -- a lock and an unpredictable amount of
 /// time -- for something it is going to hand to `CreateFileW` and forget.
 ///
-/// So this one is `sta_wstring` and a handful of operations, and the handful is
-/// not a first version: it is what a whole reader actually asks of a path. c_str()
-/// for every call into the system, joining a directory with a name, the text
-/// itself for storing and showing, and -- one call site each -- filename() and
-/// parent_path(). Nothing here normalizes, resolves, compares case-insensitively
-/// or walks components, because nothing asked.
+/// So this one is `sta_wstring` and a handful of operations: c_str() for every
+/// call into the system, joining a directory with a name, the text itself for
+/// storing and showing, filename() and parent_path(). That is what a path
+/// needs on its way to the system and back. Nothing here normalizes, resolves,
+/// compares case-insensitively or walks components: the system does that
+/// itself to the text it is given, and rules of its own here would be a
+/// second set that can disagree with the system's.
 ///
 /// **Wide characters, and not by habit.** Every path in Windows reaches us as
 /// UTF-16 (a dialog, a drop, a known folder) and leaves as UTF-16, and it is
@@ -43,7 +44,7 @@ export namespace wxl::core {
 ///
 /// **And it wants the pool from the first moment, empty or not.** In a debug
 /// build a container allocates as it is constructed -- MSVC's
-/// `_Container_proxy`, the bookkeeping behind checked iterators, comes out of
+/// `_Container_proxy`, the record-keeping behind checked iterators, comes out of
 /// the container's own allocator -- so even a default-constructed path reaches
 /// into the pool. An object with a path member therefore cannot be built before
 /// the pool is, which is a thing to know when the object is a global, or a test
@@ -51,13 +52,17 @@ export namespace wxl::core {
 class path
 {
 public:
+    /// The type that stores the text of the path.
     using string_type = sta_wstring;
+    /// The type of a view of the text of the path.
     using view_type = std::wstring_view;
 
     path() = default;
 
+    /// Constructs a path from \p text.
     inline path(view_type text) : text_(text) {}
 
+    /// Constructs a path from the null-terminated \p text.
     inline path(const wchar_t* text) : text_(text) {}
 
     /// What the system is called with. Null-terminated, which is why this class
@@ -75,8 +80,10 @@ public:
     /// level. See `directory::create_all()`, which puts back what it truncated.
     inline wchar_t* data() noexcept { return text_.data(); }
 
+    /// Tests whether the path is empty.
     inline bool empty() const noexcept { return text_.empty(); }
 
+    /// Returns the length of the path, in `wchar_t` units.
     inline std::size_t size() const noexcept { return text_.size(); }
 
     /// Appends one component, with a separator where one is needed.
@@ -108,6 +115,7 @@ public:
         return *this;
     }
 
+    /// Returns \p left with the component \p right appended, as `operator/=` appends it.
     inline friend path operator/(path left, view_type right) {
         left /= right;
         return left;
@@ -143,8 +151,10 @@ public:
         return left.text_ == right.text_;
     }
 
+    /// The separator that `operator/=` inserts: a backslash.
     static constexpr wchar_t preferred_separator = L'\\';
 
+    /// Tests whether \p c is a path separator: a backslash or a forward slash.
     static constexpr bool is_separator(wchar_t c) noexcept { return c == L'\\' || c == L'/'; }
 
 private:

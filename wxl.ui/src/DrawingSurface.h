@@ -13,8 +13,8 @@
 // and the compositor shows.
 //
 // Everything a XAML control puts on the screen is drawn by the framework.
-// This is the other case: the application has drawing of its own to do -- a
-// page of a book, glyph by glyph -- and needs somewhere to put it that the
+// This is the other case: the application has drawing of its own to do -- text
+// it lays out itself, glyph by glyph -- and needs somewhere to put it that the
 // compositor will then move, turn and fade like any other visual.
 //
 // Getting there is a chain of four links, and every one of them is interop
@@ -82,7 +82,8 @@ struct ID2D1DeviceContext;
 
 namespace wxl {
 
-class DrawingSurface {
+class DrawingSurface
+{
 public:
     /// Allocates a surface of that many pixels.
     ///
@@ -115,7 +116,8 @@ public:
     /// What ends a paint whose Direct2D call the lost device refused: thrown by
     /// throwIfDeviceLost, caught by draw(), which then answers false. Outside
     /// a paint nobody catches it, and the process stops naming it.
-    class DeviceLost : public std::exception {
+    class DeviceLost : public std::exception
+    {
     public:
         char const* what() const noexcept override { return "wxl: the rendering device is lost"; }
     };
@@ -157,7 +159,8 @@ private:
 /// paint hands its answer to DrawingSurface::throwIfDeviceLost, and a RenderingDeviceWatch
 /// on the compositor is called once the new device stands. Every pixel goes with the old
 /// device: the owner draws again what is near the view.
-class VirtualDrawingSurface {
+class VirtualDrawingSurface
+{
 public:
     /// The longest side a virtual surface may have, 2^24 pixels: the remarks of
     /// CompositionVirtualDrawingSurface set it from the float precision of the coordinates,

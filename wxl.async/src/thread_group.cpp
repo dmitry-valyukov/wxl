@@ -1,6 +1,6 @@
 module;
 #include "pch.h"
-#include <objbase.h>   // CoInitializeEx/CoUninitialize: WIN32_LEAN_AND_MEAN прячет их с ole2.h
+#include <objbase.h>  // CoInitializeEx/CoUninitialize: WIN32_LEAN_AND_MEAN прячет их с ole2.h
 
 module wxl.async;
 import wxl.core;
@@ -159,9 +159,7 @@ public:
             assert(false && "should never be here");
     }
 
-    bool contains(thread_info* element) const {
-        return container_.contains(element);
-    }
+    bool contains(thread_info* element) const { return container_.contains(element); }
 
     thread_info_ptr find_and_remove_first_finished() {
         for (auto it = container_.begin(), e = container_.end(); it != e; ++it) {
@@ -280,6 +278,8 @@ private:
 class thread_starter : public core::noncopyable
 {
 public:
+    /// Constructs the starter of a thread named \p thread_name, with \p thread_proc as its
+    /// body, for \p group, or for a detached thread if \p group is null.
     thread_starter(thread_group* group, core::u8_view thread_name,
                    const std::function<void()>& thread_proc)
         : group_(group),
@@ -287,17 +287,25 @@ public:
           thread_proc_(thread_proc),
           info_(group ? core::make_refcounted<thread_info>() : nullptr) {}
 
+    /// Gets the group of the thread, or `nullptr` for a detached thread.
     thread_group* group() { return group_.get(); }
 
+    /// Gets the information about the managed thread, or `nullptr` for a detached thread.
     thread_info* info() { return info_.get(); }
 
+    /// Returns the future of the promise that the thread body reports through.
     future<void> get_future() const { return result_.get_future(); }
 
+    /// Starts the thread. A thread of a group starts suspended and is resumed once its handle
+    /// is stored in its `thread_info`; a detached thread runs at once.
+    /// \throw std::runtime_error if the thread cannot be started.
+    /// \throw last_error if `ResumeThread` fails.
     void start_thread();
 
-    // noexcept: an exception must not leave a thread's entry point for the system frames
-    // below it -- what the body throws goes to the promise -- so a failure outside the body
-    // is std::terminate.
+    /// The entry point of the thread; \p arg is the starter, which the thread takes over and
+    /// deletes. The function is `noexcept` because an exception must not leave the entry point
+    /// for the system frames below it: what the body throws goes to the promise, and a failure
+    /// outside the body calls `std::terminate`.
     static unsigned __stdcall thread_proc(void* arg) noexcept;
 
 private:
@@ -326,8 +334,7 @@ future<void> thread_group::spawn_named(const core::u8_view thread_name,
 
 future<void> thread_group::spawn_detached_named(const core::u8_view thread_name,
                                                 const std::function<void()>& thread_proc) {
-    std::unique_ptr<thread_starter> starter(
-        new thread_starter(nullptr, thread_name, thread_proc));
+    std::unique_ptr<thread_starter> starter(new thread_starter(nullptr, thread_name, thread_proc));
 
     future<void> result = starter->get_future();
 
@@ -595,8 +602,8 @@ void thread_starter::start_thread() {
 
 namespace {
 struct cleanup_func_node {
-    cleanup_func_node(thread_group::cleanup_func func, thread_group::cleanup_func1 func1,
-                      void* arg, cleanup_func_node* prev)
+    cleanup_func_node(thread_group::cleanup_func func, thread_group::cleanup_func1 func1, void* arg,
+                      cleanup_func_node* prev)
         : cleanup_func_(func), cleanup_func1_(func1), arg_(arg), prev_(prev) {
         assert(func || func1);
     }
@@ -667,8 +674,8 @@ void register_main_thread_cleanup(thread_group::cleanup_func f, thread_group::cl
 
 }  // namespace
 
-void thread_group::at_thread_exit_impl(thread_group::cleanup_func f,
-                                         thread_group::cleanup_func1 f1, void* arg) {
+void thread_group::at_thread_exit_impl(thread_group::cleanup_func f, thread_group::cleanup_func1 f1,
+                                       void* arg) {
     if (core::current_thread_id() == main_thread_id()) {
         register_main_thread_cleanup(f, f1, arg);
         return;

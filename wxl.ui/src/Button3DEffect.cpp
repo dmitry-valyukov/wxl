@@ -199,7 +199,8 @@ struct Button3DEffect::Impl : core::sta_refcounted {
         scene.distant.Color(std::bit_cast<winrt::Windows::UI::Color>(lampColor));
         scene.distant.Intensity(static_cast<float>(shadow / std::sin(e)));
         scene.distant.Direction({static_cast<float>(-std::cos(a) * std::cos(e)),
-                                 static_cast<float>(std::sin(a) * std::cos(e)), static_cast<float>(-std::sin(e))});
+                                 static_cast<float>(std::sin(a) * std::cos(e)),
+                                 static_cast<float>(-std::sin(e))});
     }
 
     void relight() {
@@ -245,7 +246,8 @@ struct Button3DEffect::Impl : core::sta_refcounted {
     // The maps live in pixels; the shape they picture is the key in layout
     // units, and its rounding is the body's.
     void draw(Maps const& made) const {
-        float const width = static_cast<float>(made.width) / density, height = static_cast<float>(made.height) / density;
+        float const width = static_cast<float>(made.width) / density,
+                    height = static_cast<float>(made.height) / density;
         float const corner = corner_of(made);
         impl::draw_key_map(made.normals, relief_of(width, height, corner, false));
         impl::draw_face_mask(made.faceShape, relief_of(width, height, corner, false));
@@ -255,8 +257,10 @@ struct Button3DEffect::Impl : core::sta_refcounted {
     }
 
     void shade(Maps const& made) const {
-        float const width = static_cast<float>(made.width) / density, height = static_cast<float>(made.height) / density;
-        impl::draw_hole_shadow(made.holeShadow, relief_of(width, height, corner_of(made), true), hole());
+        float const width = static_cast<float>(made.width) / density,
+                    height = static_cast<float>(made.height) / density;
+        impl::draw_hole_shadow(made.holeShadow, relief_of(width, height, corner_of(made), true),
+                               hole());
     }
 
     // Keys of one size share one rounding too: the maps are looked up by
@@ -327,8 +331,8 @@ struct Button3DEffect::Impl : core::sta_refcounted {
     }
 
     void dress(Maps& made) const {
-        auto const brushOf = [&](composition::CompositionEffectFactory const& factory, DrawingSurface const& normals,
-                                 DrawingSurface const& shape) {
+        auto const brushOf = [&](composition::CompositionEffectFactory const& factory,
+                                 DrawingSurface const& normals, DrawingSurface const& shape) {
             auto const brush = factory.CreateBrush();
             brush.SetSourceParameter(L"NormalMap", picture(normals));
             brush.SetSourceParameter(L"Base", base);
@@ -350,13 +354,16 @@ struct Button3DEffect::Impl : core::sta_refcounted {
         }
         if (!base) {
             base = compositor.CreateColorBrush(std::bit_cast<winrt::Windows::UI::Color>(albedo));
-            shadowBrush = compositor.CreateColorBrush({static_cast<uint8_t>(std::lround(shadow * 255.0)), 0, 0, 0});
+            shadowBrush = compositor.CreateColorBrush(
+                {static_cast<uint8_t>(std::lround(shadow * 255.0)), 0, 0, 0});
             make_factories(compositor);
         }
-        Compositor const wrapped = Object::Impl::wrap<Compositor>(composition::Compositor{compositor});
+        Compositor const wrapped =
+            Object::Impl::wrap<Compositor>(composition::Compositor{compositor});
         SizeInt32 const size{width, height};
-        maps.push_back(Maps{width, height, DrawingSurface{wrapped, size}, DrawingSurface{wrapped, size},
-                            DrawingSurface{wrapped, size}, DrawingSurface{wrapped, size}, DrawingSurface{wrapped, size}});
+        maps.push_back(Maps{width, height, DrawingSurface{wrapped, size},
+                            DrawingSurface{wrapped, size}, DrawingSurface{wrapped, size},
+                            DrawingSurface{wrapped, size}, DrawingSurface{wrapped, size}});
         maps.back().users = 1;
         dress(maps.back());
         return static_cast<int>(maps.size() - 1);
@@ -477,16 +484,17 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
         cast.Casters().InsertAtTop(caster);
         blur();
 
-        impl::when_drawn(host.as<composition::ContainerVisual>(),
-                         [link = weak_link(), layer = outline](auto const& children) {
-                             core::intrusive_ptr<Attachment> const self = link->get();
-                             // Unloaded before the frame came: nothing to put there.
-                             if (!self || self->outline != layer) return;
-                             impl::insert_layer(children, self->panel, panelZ);
-                             for (auto const& sprite : {self->outline, self->rim, self->face, self->shade}) {
-                                 impl::insert_layer(children, sprite, bodyZ);
-                             }
-                         });
+        impl::when_drawn(
+            host.as<composition::ContainerVisual>(),
+            [link = weak_link(), layer = outline](auto const& children) {
+                core::intrusive_ptr<Attachment> const self = link->get();
+                // Unloaded before the frame came: nothing to put there.
+                if (!self || self->outline != layer) return;
+                impl::insert_layer(children, self->panel, panelZ);
+                for (auto const& sprite : {self->outline, self->rim, self->face, self->shade}) {
+                    impl::insert_layer(children, sprite, bodyZ);
+                }
+            });
 
         sized = fe.SizeChanged(winrt::auto_revoke, [link = weak_link()](auto&&, auto const& args) {
             if (core::intrusive_ptr<Attachment> const self = link->get()) {
@@ -498,7 +506,8 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
             xaml::Controls::Primitives::ButtonBase::IsPressedProperty(),
             [link = weak_link()](xaml::DependencyObject const& sender, auto&&) {
                 if (core::intrusive_ptr<Attachment> const self = link->get()) {
-                    self->set_pressed(sender.as<xaml::Controls::Primitives::ButtonBase>().IsPressed());
+                    self->set_pressed(
+                        sender.as<xaml::Controls::Primitives::ButtonBase>().IsPressed());
                 }
             });
     }
@@ -532,8 +541,9 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
         int const was = mapsIndex;
         mapsIndex = -1;
         impl->release_maps(was);
-        bool const fresh = std::ranges::none_of(
-            impl->maps, [&](Maps const& made) { return made.width == pixelsWide && made.height == pixelsHigh; });
+        bool const fresh = std::ranges::none_of(impl->maps, [&](Maps const& made) {
+            return made.width == pixelsWide && made.height == pixelsHigh;
+        });
         mapsIndex = impl->maps_for(compositor(), pixelsWide, pixelsHigh);
         // Drawn after the attachment wears it: the drawing reads the rounding off
         // the attachments of that size.
@@ -574,14 +584,17 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
         // The release puts back everything a press could have touched,
         // whatever the flags say now.
         if (!down || impl->pressShades) {
-            shade.StartAnimation(L"Opacity", toward(compositor, down ? static_cast<float>(impl->shadeAmount) : 0.0f, time));
+            shade.StartAnimation(
+                L"Opacity",
+                toward(compositor, down ? static_cast<float>(impl->shadeAmount) : 0.0f, time));
         }
         if (!down || impl->pressMovesLabel) {
             float const by = down ? pressShift : 0.0f;
             face.Offset({outlineWidth + by, outlineWidth + by, 0.0f});
             if (auto const fe = element.get()) {
                 if (xaml::Media::VisualTreeHelper::GetChildrenCount(fe) > 0) {
-                    if (auto const content = xaml::Media::VisualTreeHelper::GetChild(fe, 0).try_as<xaml::UIElement>()) {
+                    if (auto const content = xaml::Media::VisualTreeHelper::GetChild(fe, 0)
+                                                 .try_as<xaml::UIElement>()) {
                         content.Translation({by, by, 0.0f});
                     }
                 }
@@ -596,13 +609,15 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
             island ? spot_light.island_light_of(island) : nullptr;
         if (!island_light) return;
         bool const dives = down && impl->pressDivesLamp;
-        float const height = spot_light.height * (dives ? static_cast<float>(impl->diveDepth) : 1.0f);
+        float const height =
+            spot_light.height * (dives ? static_cast<float>(impl->diveDepth) : 1.0f);
         if (!down || impl->pressDivesLamp) {
             island_light->light.Properties().StartAnimation(
                 impl::pointer_spot_light::height_property, toward(compositor, height, time));
         }
         if (!island_light->shining) return;
-        float const intensity = spot_light.intensity * (dives ? static_cast<float>(impl->diveGain) : 1.0f);
+        float const intensity =
+            spot_light.intensity * (dives ? static_cast<float>(impl->diveGain) : 1.0f);
         if (down && impl->pressFlashes) {
             auto const pulse = compositor.CreateScalarKeyFrameAnimation();
             pulse.InsertKeyFrame(0.0f, intensity * impl::pointer_spot_light::flash_gain);
@@ -621,8 +636,8 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
         if (!outline) return;
         sized.revoke();
         if (auto const fe = element.get()) {
-            fe.UnregisterPropertyChangedCallback(xaml::Controls::Primitives::ButtonBase::IsPressedProperty(),
-                                                 pressedToken);
+            fe.UnregisterPropertyChangedCallback(
+                xaml::Controls::Primitives::ButtonBase::IsPressedProperty(), pressedToken);
         }
         for (auto const& sprite : {panel, outline, rim, face, shade}) {
             if (auto const parent = sprite.Parent()) parent.Children().Remove(sprite);
@@ -637,7 +652,8 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
                     scene.distant.Targets().Remove(sprite);
                 }
             }
-            std::erase_if(impl->scenes, [](Scene const& scene) { return scene.ambient.Targets().Count() == 0; });
+            std::erase_if(impl->scenes,
+                          [](Scene const& scene) { return scene.ambient.Targets().Count() == 0; });
         }
         std::erase(impl->attachments, this);
         int const was = mapsIndex;
@@ -658,7 +674,8 @@ struct Button3DEffect::Impl::Attachment : core::sta_refcounted, core::sta_weak_l
 
 float Button3DEffect::Impl::corner_of(Maps const& made) const {
     for (Attachment const* attachment : attachments) {
-        if (attachment->mapsIndex >= 0 && &maps[attachment->mapsIndex] == &made) return attachment->bodyCorner;
+        if (attachment->mapsIndex >= 0 && &maps[attachment->mapsIndex] == &made)
+            return attachment->bodyCorner;
     }
     return 0.0f;
 }
@@ -690,7 +707,8 @@ void Button3DEffect::Impl::reblur() {
 void Button3DEffect::Impl::refit() {
     for (Attachment* attachment : attachments) {
         if (auto const fe = attachment->element.get()) {
-            attachment->fit(static_cast<float>(fe.ActualWidth()), static_cast<float>(fe.ActualHeight()));
+            attachment->fit(static_cast<float>(fe.ActualWidth()),
+                            static_cast<float>(fe.ActualHeight()));
         }
     }
 }
@@ -794,9 +812,13 @@ void Button3DEffect::pressMovesLabel(bool value) const {
     impl_->reshape();
 }
 void Button3DEffect::pressShades(bool value) const { impl_->pressShades = value; }
-void Button3DEffect::diveDepth(double value) const { impl_->diveDepth = std::clamp(value, 0.0, 1.0); }
+void Button3DEffect::diveDepth(double value) const {
+    impl_->diveDepth = std::clamp(value, 0.0, 1.0);
+}
 void Button3DEffect::diveGain(double value) const { impl_->diveGain = std::max(value, 0.0); }
-void Button3DEffect::shadeAmount(double value) const { impl_->shadeAmount = std::clamp(value, 0.0, 1.0); }
+void Button3DEffect::shadeAmount(double value) const {
+    impl_->shadeAmount = std::clamp(value, 0.0, 1.0);
+}
 void Button3DEffect::labelShade(double value) const {
     impl_->labelShade = std::clamp(value, 0.0, 1.0);
     impl_->redye();

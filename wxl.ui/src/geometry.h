@@ -221,7 +221,6 @@ inline Point bottom_right(Rect r) {
     return {r.offset.x + r.size.width, r.offset.y + r.size.height};
 }
 
-
 // ---- The numerics the composition surface speaks ----
 //
 // A visual's offset, scale and centre are Vector3; a brush's gradient ends

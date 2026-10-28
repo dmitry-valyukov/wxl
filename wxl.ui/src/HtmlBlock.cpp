@@ -25,7 +25,7 @@ struct runtime_class_name_of<HtmlBlock> {
 
 HtmlBlock::HtmlBlock(Impl* impl) noexcept : base_t(impl) {}
 
-HtmlBlock::HtmlBlock() : base_t(new Impl{impl::activation<impl::activator<HtmlBlock>>{}}) {}
+HtmlBlock::HtmlBlock() : base_t(new Impl{}) { impl::activator<HtmlBlock>::activate(put_abi()); }
 
 void HtmlBlock::html(hstring_param const& markup) const {
     clear();

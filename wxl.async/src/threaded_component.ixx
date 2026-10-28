@@ -48,7 +48,6 @@ protected:
     void on_starting() override;
 
 private:
-
     class impl_t;
 
     core::not_null<impl_t> impl();

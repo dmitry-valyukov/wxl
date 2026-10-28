@@ -48,7 +48,6 @@ static_assert(!std::is_convertible_v<std::u16string_view, hstring_param>);
 static_assert(!std::is_convertible_v<std::wstring_view, hstring_param>);
 static_assert(!std::is_convertible_v<u16_view, hstring_param>);
 
-
 // A parameter, as a function takes it: no overload to choose, however the text comes.
 std::size_t length_of(hstring_param text) { return text.size(); }
 
@@ -195,7 +194,8 @@ TEST(hstring_and_the_system, reads_its_string_and_frees_it_with_our_release) {
     // the system allocated, with HeapFree, and nothing crashed.
 }
 
-TEST(hstring_and_the_system, a_string_made_by_the_system_can_be_duplicated_by_us_and_dropped_by_it) {
+TEST(hstring_and_the_system,
+     a_string_made_by_the_system_can_be_duplicated_by_us_and_dropped_by_it) {
     HSTRING made = nullptr;
     ASSERT_EQ(::WindowsCreateString(L"Привет", 6, &made), S_OK);
 

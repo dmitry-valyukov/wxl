@@ -399,8 +399,8 @@ int main() {
     report("a pooled coroutine, 1K of locals", pooled_wide, eternal, count);
     report("an eternal coroutine, resumed", eternal, eternal, count);
 
-    std::printf("\n%u thread(s) churning the heap meanwhile (%llu blocks through it):\n",
-                churners, churned);
+    std::printf("\n%u thread(s) churning the heap meanwhile (%llu blocks through it):\n", churners,
+                churned);
     report("a fresh coroutine (new/delete)", fresh_busy, eternal, count);
     report("a fresh coroutine (sta pool)", pooled_busy, eternal, count);
     report("a fresh coroutine, 1K of locals", wide_busy, eternal, count);

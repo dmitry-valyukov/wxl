@@ -27,7 +27,8 @@ target_sources({} PRIVATE
                out.cmake_target);
 
     for (auto&& name : em.files_of({})) {
-        std::print(file, "    ${{CMAKE_CURRENT_SOURCE_DIR}}/{}\n", name);
+        std::print(file, "    ${{CMAKE_CURRENT_SOURCE_DIR}}/{}\n",
+                   wxl::core::unicode::to_utf8(name).chars());
     }
 
     std::print(file, ")\n");
@@ -48,12 +49,13 @@ if(TARGET {})
 )",
                    target, target);
         for (auto&& name : em.files_of(target)) {
-            std::print(file, "        ${{CMAKE_CURRENT_SOURCE_DIR}}/{}\n", name);
+            std::print(file, "        ${{CMAKE_CURRENT_SOURCE_DIR}}/{}\n",
+                       wxl::core::unicode::to_utf8(name).chars());
         }
         std::print(file, "    )\nelse()\n    message(FATAL_ERROR\n        \"{} is generated for "
                          "the target {}, which does not exist yet -- create it before \"\n"
                          "        \"add_subdirectory() of this directory.\")\nendif()\n",
-                   em.files_of(target).front(), target);
+                   wxl::core::unicode::to_utf8(em.files_of(target).front()).chars(), target);
     }
 
     // No include directory of its own: the sources are reached as <wxl/X.h>

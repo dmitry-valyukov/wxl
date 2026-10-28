@@ -18,9 +18,9 @@ namespace {
 static_assert(std::is_convertible_v<const char16_t*, zstring_view>);
 static_assert(std::is_convertible_v<const char16_t (&)[4], zstring_view>);
 static_assert(std::is_convertible_v<const std::u16string&, zstring_view>);
-static_assert(std::is_convertible_v<
-              const std::basic_string<char16_t, std::char_traits<char16_t>, sta_allocator<char16_t>>&,
-              zstring_view>);
+static_assert(std::is_convertible_v<const std::basic_string<char16_t, std::char_traits<char16_t>,
+                                                            sta_allocator<char16_t>>&,
+                                    zstring_view>);
 static_assert(std::is_convertible_v<const u16_text&, zstring_view>);
 static_assert(std::is_convertible_v<const hstring&, zstring_view>);
 

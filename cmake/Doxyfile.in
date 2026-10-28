@@ -57,11 +57,45 @@ EXTRACT_STATIC         = YES
 SORT_MEMBER_DOCS       = NO
 HAVE_DOT               = NO
 
+# ---- Automatic links ----
+#
+# A module is named like its namespace, wxl.core beside wxl::core, and Doxygen
+# links the word to the namespace page -- in prose, inside backticks as well,
+# and in the middle of a path: wxl.core/CMakePresets.json comes out as a link
+# on wxl.core followed by plain /CMakePresets.json. A module name is not a
+# namespace, so a word that starts with one is left as text. The list is the
+# module directories of the wxl tree (wxl_add_doxygen_site() in
+# wxl_doxygen.cmake), not a copy kept here. Doxygen matches the start of a
+# word and nothing else, so a file named after its module, wxl.core.ixx, is
+# text too. wxl::core and wxl::async::task are other words and keep their
+# links; wxl alone cannot be listed, since every wxl::... starts with it.
+AUTOLINK_IGNORE_WORDS  = @DOXY_AUTOLINK_IGNORE_WORDS@
+
+# Doxygen does not parse the conditional explicit(...) of C++20: it reads
+# `explicit` as the name of a function whose parameters are the condition, and
+# a comma in the template arguments of the real parameter then ends the
+# declaration, losing the doc comment that follows. A variadic macro replaces
+# the specifier, condition and all, with a plain `explicit`; variadic because a
+# condition such as is_convertible_v<U, T> has a comma of its own. No other
+# macro is expanded.
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = "explicit(...)=explicit"
+
 # ---- Output ----
 GENERATE_HTML          = YES
 GENERATE_LATEX         = NO
 GENERATE_XML           = NO
 HTML_OUTPUT            = html
+
+# Pinned rather than left at the default, SYSTEM, which is NO on Windows and
+# YES on Linux and decides how a page file is named: wxl::Button3DEffect is
+# classwxl_1_1Button3DEffect.html under YES and
+# classwxl_1_1_button3_d_effect.html under NO. The published site is built on
+# Windows and the pull request check on Linux, and both have to give a page
+# the same address. NO is the one that also holds on a case-insensitive file
+# system.
+CASE_SENSE_NAMES       = NO
 
 # Sidebar tree plus the stock client-side search. FULL_SIDEBAR must stay NO:
 # doxygen-awesome-css is explicitly incompatible with it.

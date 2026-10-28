@@ -22,10 +22,14 @@ inline void cpu_pause() noexcept {
 #endif
 }
 
-/// SpinLock is like a guard for the mutexes but for a plain atomic flag.
+/// Provides a scoped guard, like the guards for mutexes, over a lock word held in a
+/// `std::atomic<ssize_t>`: `0` means free and `1` means held. Acquisition spins with
+/// `wxl::core::cpu_pause` between attempts and never waits in the kernel.
 class spin_lock : public noncopyable
 {
 public:
+    /// Constructs the guard over \p target and, if \p acquire_lock is `true`, spins until the
+    /// lock is acquired.
     inline explicit spin_lock(std::atomic<ssize_t>& target, bool acquire_lock = true)
         : target_(target), locked_by_me_(acquire_lock) {
         if (acquire_lock) lock_impl();
@@ -38,23 +42,29 @@ public:
         }
     }
 
+    /// Spins until the lock is acquired. The guard must not hold the lock.
     inline void lock() {
         assert(!locked_by_me_);
         lock_impl();
         locked_by_me_ = true;
     }
 
+    /// Attempts to acquire the lock up to \p spin_count times, with `wxl::core::cpu_pause`
+    /// between attempts. The guard must not hold the lock.
+    /// \return `true` if the lock was acquired.
     inline bool try_lock(size_t spin_count = 128) {
         assert(!locked_by_me_);
         return (locked_by_me_ = try_lock_impl(spin_count));
     }
 
+    /// Releases the lock. The guard must hold it.
     inline void unlock() {
         assert(locked_by_me_);
         unlock_impl();
         locked_by_me_ = false;
     }
 
+    /// Tests whether this guard holds the lock.
     inline bool locked() const { return locked_by_me_; }
 
 private:

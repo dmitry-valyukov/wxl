@@ -6,7 +6,7 @@
 // do nothing else: children pinned to an edge or stretched over the free
 // space are Grid territory, at the price of declaring the definitions and
 // numbering a row onto every child by hand. These two keep the Grid and drop
-// the bookkeeping: each child dropped into the braces claims a fresh star
+// both: each child dropped into the braces claims a fresh star
 // row (column) of its own, so the panel's extent is dealt out in equal
 // shares and the declaration reads like a StackPanel.
 //
@@ -21,7 +21,8 @@
 
 namespace wxl {
 
-class Rows : public Grid {
+class Rows : public Grid
+{
 public:
     Rows() = default;
 
@@ -53,7 +54,8 @@ protected:
     friend class Object::Impl;
 };
 
-class Columns : public Grid {
+class Columns : public Grid
+{
 public:
     Columns() = default;
 

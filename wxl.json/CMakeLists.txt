@@ -1,13 +1,12 @@
 # ---- CMakeList.txt : wxl.json ----
 #
-# Читатель JSON: дерево из видов в присвоенный буфер, арена из wxl.xml.
-# Устройство сборки -- как у братьев рядом.
+# The JSON reader: a tree of views into a buffer the reader owns, in an arena
+# from wxl.xml. The build is set up the same way as in the sibling modules.
 cmake_minimum_required(VERSION 3.28)
 
 set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    include(${WXL_CMAKE_SCRIPT_DIR}/vcpkg_bootstrap.cmake)
     include(${WXL_CMAKE_SCRIPT_DIR}/wxl_import_std_gate.cmake)
 
     project(
@@ -27,6 +26,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 
     if(BUILD_TESTING)
         enable_testing()
+        include(${WXL_CMAKE_SCRIPT_DIR}/wxl_gtest.cmake)
         find_package(GTest REQUIRED CONFIG)
         include(GoogleTest)
     endif()

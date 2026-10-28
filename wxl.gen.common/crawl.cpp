@@ -3,11 +3,21 @@
 #include "crawl.h"
 
 import std;
+import wxl.core;
 
 using namespace winmd::reader;
 
 std::string full_name(TypeDef const& type) {
     return std::format("{}.{}", type.TypeNamespace(), type.TypeName());
+}
+
+std::filesystem::path metadata_path(std::string_view name) {
+    auto const text = wxl::core::unicode::checked(name);
+    if (!text) {
+        throw std::runtime_error(std::format("a name in the metadata is not UTF-8: {}",
+                                             wxl::core::unicode::repaired(name).chars()));
+    }
+    return wxl::core::unicode::to_path(*text);
 }
 
 bool is_plain_method(MethodDef const& method) {

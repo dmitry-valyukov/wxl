@@ -20,7 +20,8 @@ class UIElement;
 
 namespace wxl::impl {
 
-class automation_properties {
+class automation_properties
+{
 public:
     automation_properties() = delete;
 

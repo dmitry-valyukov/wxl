@@ -10,7 +10,8 @@
 
 namespace wxl {
 
-enum class SizeToContent : int32_t {
+enum class SizeToContent : int32_t
+{
     Manual,
     Width,
     Height,

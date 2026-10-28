@@ -69,9 +69,8 @@ IDispatcherQueue* queue_of_this_thread() {
 
     // Fails on a thread that has not entered an apartment yet, which is a thread with
     // no queue; making one below enters it.
-    if (SUCCEEDED(::WindowsCreateStringReference(class_name,
-                                                 static_cast<UINT32>(std::size(class_name) - 1),
-                                                 &header, &name)) &&
+    if (SUCCEEDED(::WindowsCreateStringReference(
+            class_name, static_cast<UINT32>(std::size(class_name) - 1), &header, &name)) &&
         SUCCEEDED(::RoGetActivationFactory(name, __uuidof(IDispatcherQueueStatics),
                                            reinterpret_cast<void**>(&statics)))) {
         statics->GetForCurrentThread(&queue);
@@ -323,8 +322,9 @@ void sta_loop::post_if_pending() noexcept {
 void sta_loop::post_drain_for_turn() noexcept {
     const bool taken = post(drain);
 
-    ensure(taken && "sta_loop: the dispatcher queue refused the drain for a waiter's turn -- it "
-                    "is shutting down while the loop runs, and the waiter would never be resumed");
+    ensure(taken &&
+           "sta_loop: the dispatcher queue refused the drain for a waiter's turn -- it "
+           "is shutting down while the loop runs, and the waiter would never be resumed");
 }
 
 void sta_loop::send_to_pool(async_op& op) {

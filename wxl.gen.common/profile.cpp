@@ -11,16 +11,17 @@ using wxl::json::value;
 
 namespace {
 
-std::string env(char const* name) {
-    // getenv rather than _dupenv_s: this is a build-time tool, the value is
-    // read once at startup and never written back.
-    char const* value = std::getenv(name);
-    return value ? std::string{value} : std::string{};
-}
-
 [[noreturn]] void fail(std::filesystem::path const& source, std::string_view message) {
     throw std::runtime_error(
         std::format("{}: {}", wxl::core::unicode::to_utf8(source).chars(), message));
+}
+
+// A name a profile or a package spells, as a path: a file, a folder, a version. Each
+// is a copy of a string wxl.json or wxl.xml checked with the whole document, a piece
+// of one cut at an ASCII character, or a literal; the std::string it is kept in no
+// longer says so, and assume_valid() records it here.
+std::filesystem::path path_of(std::string_view name) {
+    return wxl::core::unicode::to_path(wxl::core::unicode::assume_valid(name));
 }
 
 
@@ -344,8 +345,8 @@ std::vector<std::filesystem::path> resolve_package(package_ref const& package,
                                                    std::string_view version,
                                                    std::filesystem::path const& nuget_root,
                                                    std::filesystem::path const& source) {
-    auto const dir = nuget_root / wxl::core::ascii_lower(package.id) / version /
-                     (package.metadata_dir.empty() ? "metadata" : package.metadata_dir);
+    auto const dir = nuget_root / path_of(wxl::core::ascii_lower(package.id)) / path_of(version) /
+                     path_of(package.metadata_dir.empty() ? "metadata" : package.metadata_dir);
     if (!std::filesystem::is_directory(dir)) {
         fail(source, std::format("package '{}' {}: no metadata directory at {}", package.id,
                                  version, wxl::core::unicode::to_utf8(dir).chars()));
@@ -367,7 +368,7 @@ std::vector<std::filesystem::path> resolve_package(package_ref const& package,
     }
 
     for (auto&& name : package.metadata) {
-        auto path = dir / name;
+        auto path = dir / path_of(name);
         if (!std::filesystem::is_regular_file(path)) {
             fail(source, std::format("package '{}' {}: no such metadata file: {}", package.id,
                                      version, wxl::core::unicode::to_utf8(path).chars()));
@@ -384,11 +385,11 @@ std::vector<std::filesystem::path> resolve_resources(package_ref const& package,
                                                      std::string_view version,
                                                      std::filesystem::path const& nuget_root,
                                                      std::filesystem::path const& source) {
-    auto const root = nuget_root / wxl::core::ascii_lower(package.id) / version;
+    auto const root = nuget_root / path_of(wxl::core::ascii_lower(package.id)) / path_of(version);
 
     std::vector<std::filesystem::path> files;
     for (auto&& name : package.resources) {
-        auto path = root / name;
+        auto path = root / path_of(name);
         if (!std::filesystem::is_regular_file(path)) {
             fail(source, std::format("package '{}' {}: no such resource file: {}", package.id,
                                      version, wxl::core::unicode::to_utf8(path).chars()));
@@ -402,24 +403,11 @@ std::vector<std::filesystem::path> resolve_resources(package_ref const& package,
 // IVector<T>, EventHandler<T>, ...). WinUI's own .winmd only *references*
 // those; without them the walk stops at every such edge.
 std::filesystem::path windows_metadata_dir() {
-    return std::filesystem::path{env("SystemRoot").empty() ? "C:/Windows" : env("SystemRoot")} /
-           "System32" / "WinMetadata";
-}
-
-// The system's words for the code, in UTF-8. Not std::error_code::message(): MSVC's STL
-// takes them from FormatMessageA, in the ANSI code page. A code of another category -- the
-// generic one, iostream's -- is rare here, the file system reporting the system's own
-// codes; MSVC words those from its own table, and they are repaired all the same, since
-// nothing promises that table is ASCII.
-std::string explanation(std::error_code const& code) {
-    if (code.category() == std::system_category()) {
-        auto const words =
-            wxl::core::environment::error_explanation(static_cast<std::uint32_t>(code.value()));
-        if (!words.empty()) {
-            return std::string{words.chars()};
-        }
+    std::filesystem::path root{wxl::core::environment::variable(L"SystemRoot")};
+    if (root.empty()) {
+        root = L"C:/Windows";
     }
-    return std::string{wxl::core::unicode::repaired(code.message()).chars()};
+    return root / L"System32" / L"WinMetadata";
 }
 
 std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path const& dir) {
@@ -437,11 +425,12 @@ std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path 
 
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer) {
-    std::filesystem::path path{reference};
+    auto path = path_of(reference);
     if (path.has_extension() || path.has_parent_path()) {
         return path.is_absolute() ? path : referrer.parent_path() / path;
     }
-    return referrer.parent_path() / (std::string(reference) + ".json");
+    path += L".json";
+    return referrer.parent_path() / path;
 }
 
 bool member_filter::allows(std::string_view name) const {
@@ -496,7 +485,7 @@ profile load_profile(std::filesystem::path const& path) {
 
     profile prof;
     prof.source = path;
-    prof.name = string_or(document, path, "name", path.stem().string());
+    prof.name = string_or(document, path, "name", wxl::core::unicode::to_utf8(path.stem()).chars());
     prof.description = string_or(document, path, "description", {});
 
     if (value const* const extends = document.find("extends")) {
@@ -699,8 +688,10 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
 
     std::map<std::string, std::string> package_versions;
     if (chose_sdk) {
-        auto const dir = nuget_root / wxl::core::ascii_lower(windows_app_sdk_id) / chose_sdk->windows_app_sdk;
-        auto const nuspec = dir / std::format("{}.nuspec", wxl::core::ascii_lower(windows_app_sdk_id));
+        auto const dir = nuget_root / path_of(wxl::core::ascii_lower(windows_app_sdk_id)) /
+                         path_of(chose_sdk->windows_app_sdk);
+        auto const nuspec =
+            dir / path_of(std::format("{}.nuspec", wxl::core::ascii_lower(windows_app_sdk_id)));
         if (!std::filesystem::is_regular_file(nuspec)) {
             fail(chose_sdk->source, std::format("{} {} is not in the package root: no {}",
                                                 windows_app_sdk_id, chose_sdk->windows_app_sdk,
@@ -801,12 +792,13 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
 // A targeted scan rather than a parse: one key, one attribute, and the
 // alternative is linking the whole XML reader into the generator for it.
 std::filesystem::path nuget_config_packages_folder() {
-    auto const appdata = env("APPDATA");
+    std::filesystem::path const appdata{wxl::core::environment::variable(L"APPDATA")};
     if (appdata.empty()) {
         return {};
     }
 
-    std::ifstream file{std::filesystem::path{appdata} / "NuGet" / "NuGet.Config"};
+    auto const config = appdata / L"NuGet" / L"NuGet.Config";
+    std::ifstream file{config};
     if (!file) {
         return {};
     }
@@ -825,7 +817,15 @@ std::filesystem::path nuget_config_packages_folder() {
     if (close == std::string::npos) {
         return {};
     }
-    return std::filesystem::path{text.substr(open + 1, close - open - 1)};
+    // Checked as any text from outside: a value that is not UTF-8 is said,
+    // rather than passed over for the default it exists to replace.
+    auto const folder =
+        wxl::core::unicode::checked(std::string_view{text}.substr(open + 1, close - open - 1));
+    if (!folder) {
+        throw std::runtime_error(std::format("{}: globalPackagesFolder is not UTF-8",
+                                             wxl::core::unicode::to_utf8(config).chars()));
+    }
+    return wxl::core::unicode::to_path(*folder);
 }
 
 
@@ -920,14 +920,16 @@ type_map load_type_map(std::filesystem::path const& path) {
 
 std::filesystem::path default_nuget_root() {
     // The environment first: it is the documented override, and CI sets it.
-    if (auto const packages = env("NUGET_PACKAGES"); !packages.empty()) {
+    if (std::filesystem::path packages{wxl::core::environment::variable(L"NUGET_PACKAGES")};
+        !packages.empty()) {
         return packages;
     }
     if (auto const configured = nuget_config_packages_folder();
         !configured.empty() && std::filesystem::is_directory(configured)) {
         return configured;
     }
-    return std::filesystem::path{env("USERPROFILE")} / ".nuget" / "packages";
+    return std::filesystem::path{wxl::core::environment::variable(L"USERPROFILE")} / L".nuget" /
+           L"packages";
 }
 
 std::vector<symbol> load_symbol_names(std::filesystem::path const& path) {
@@ -969,20 +971,4 @@ std::vector<symbol> load_symbol_names(std::filesystem::path const& path) {
     // only order the reader of the generated enum can predict.
     std::ranges::sort(names, {}, &symbol::code);
     return names;
-}
-
-std::string error_message(std::exception const& error) {
-    auto const* const failed = dynamic_cast<std::filesystem::filesystem_error const*>(&error);
-    if (!failed) {
-        return std::string{wxl::core::unicode::repaired(error.what()).chars()};
-    }
-    std::string paths;
-    for (std::filesystem::path const* const path : {&failed->path1(), &failed->path2()}) {
-        if (!path->empty()) {
-            paths += std::format("{}{}", paths.empty() ? "" : ", ",
-                                 wxl::core::unicode::to_utf8(*path).chars());
-        }
-    }
-    std::string const words = explanation(failed->code());
-    return paths.empty() ? words : std::format("{}: {}", paths, words);
 }

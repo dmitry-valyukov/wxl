@@ -64,8 +64,9 @@ void write_includes(std::ostream& out, std::set<std::string> const& includes);
 // `indent`: the summary, then @deprecated, a @param for each of `params` the
 // documentation describes and @return when `has_result` -- a @param only for a
 // parameter the wxl declaration has, since Doxygen refuses one it does not.
-// The text is escaped for Doxygen and wrapped at 100 columns. Documentation
-// that says nothing writes nothing.
+// The text is escaped for Doxygen and wrapped at 100 columns, and its markup
+// written as the HTML and Markdown Doxygen renders. Documentation that says
+// nothing writes nothing.
 void write_doc(std::ostream& out, std::string_view indent, member_documentation const& doc,
                std::span<std::string_view const> params = {}, bool has_result = false);
 
@@ -117,7 +118,9 @@ std::vector<Item> topological_sort(std::vector<Item> items, Edges edges) {
 class emitted {
 public:
     // `path` is the file just written; only its name is recorded, since
-    // the generated CMakeLists.txt sits in the same directory.
+    // the generated CMakeLists.txt sits in the same directory. The name stays
+    // a path: it is compared with the names a listing of the directory hands
+    // out, and becomes text only where it is written into the CMakeLists.
     //
     // `target` is which target compiles it, and it is empty for all but one:
     // everything generated belongs to the consuming library, except the
@@ -125,18 +128,18 @@ public:
     // empty one means the library named by --target.
     void add(std::filesystem::path const& path, std::string_view target = {});
 
-    inline std::vector<std::string> const& files() const noexcept { return files_; }
+    inline std::vector<std::filesystem::path> const& files() const noexcept { return files_; }
 
     // The files of one target, in the order they were written. An empty
     // `target` asks for the ones that named none.
-    std::vector<std::string> files_of(std::string_view target) const;
+    std::vector<std::filesystem::path> files_of(std::string_view target) const;
 
     // Every target some file named, the empty one included, so the
     // CMakeLists writer can walk them without knowing which exist.
     std::vector<std::string> targets() const;
 
 private:
-    std::vector<std::string> files_;
+    std::vector<std::filesystem::path> files_;
     std::vector<std::string> targets_;  // parallel to files_
 };
 

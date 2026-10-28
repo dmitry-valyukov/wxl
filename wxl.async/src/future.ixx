@@ -233,7 +233,8 @@ public:
     ///
     /// \note The callback must be noexcept: a subscription has nowhere to report an exception.
     template <class t_when_failed>
-        requires detail::nothrow_callback<std::remove_cvref_t<t_when_failed>, const std::exception_ptr&>
+        requires detail::nothrow_callback<std::remove_cvref_t<t_when_failed>,
+                                          const std::exception_ptr&>
     const future<T>& when_failed(t_when_failed&& when_failed_callback) const {
         checked_state()->when_failed(std::forward<t_when_failed>(when_failed_callback));
         return *this;
@@ -255,6 +256,8 @@ public:
         return *this;
     }
 
+    /// Subscribes to the completion of the asynchronous operation with a callback that takes no
+    /// argument, `void()`.
     template <class t_when_ready>
         requires detail::nothrow_callback<std::remove_cvref_t<t_when_ready>> &&
                  (!std::invocable<std::remove_cvref_t<t_when_ready>&, future<T>>)
@@ -309,17 +312,22 @@ public:
 
         future_shared_state_ptr ticket = core::make_refcounted<future_shared_state>();
 
-        when_succeeded(detail::next_async_task<t_task, T>(
-            std::forward<t_next_async_task>(task), ticket));
+        when_succeeded(
+            detail::next_async_task<t_task, T>(std::forward<t_next_async_task>(task), ticket));
         when_failed(detail::set_exception_func(ticket));
 
         return future<void>(ticket.get());
     }
 
 protected:
+    /// The type of the untyped base class.
     using base = detail::future_base;
 };
 
+/// Waits for the result of a `future<void>`. If an exception is stored in the shared state,
+/// throws it.
+///
+/// \throw std::logic_error if this instance does not refer to a shared state.
 template <>
 inline void future<void>::get() const {
     checked_state()->get();
@@ -395,11 +403,15 @@ inline future<void> when_all_succeeded_or_any_failed(t_iterator begin, t_sentine
     return all.get_future();
 }
 
+/// Creates a combined operation that succeeds once all futures of the range \p futures have
+/// succeeded, and fails as soon as any one of them fails.
 template <std::ranges::input_range t_range>
 inline future<void> when_all_succeeded_or_any_failed(t_range&& futures) {
     return when_all_succeeded_or_any_failed(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
+/// Creates a combined operation that succeeds once all of \p futures have succeeded, and fails
+/// as soon as any one of them fails. The futures may differ in result type; none is copied.
 template <detail::future_like... t_futures>
 inline future<void> when_all_succeeded_or_any_failed(const t_futures&... futures) {
     detail::countdown all;
@@ -422,11 +434,15 @@ inline future<void> when_all_ready(t_iterator begin, t_sentinel end) {
     return all.get_future();
 }
 
+/// Creates a future that becomes ready once all futures of the range \p futures are ready,
+/// whether they succeeded or failed.
 template <std::ranges::input_range t_range>
 inline future<void> when_all_ready(t_range&& futures) {
     return when_all_ready(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
+/// Creates a future that becomes ready once all of \p futures are ready, whether they succeeded
+/// or failed. The futures may differ in result type; none is copied.
 template <detail::future_like... t_futures>
 inline future<void> when_all_ready(const t_futures&... futures) {
     detail::countdown all;
@@ -460,16 +476,21 @@ inline future<std::vector<std::iter_value_t<t_iterator>>> when_all(t_iterator be
     return ready.next([futures = std::move(futures)]() mutable { return std::move(futures); });
 }
 
+/// Creates a future that becomes ready once all futures of the range \p futures are ready, and
+/// holds a vector of copies of them. The combination itself never fails.
 template <std::ranges::input_range t_range>
     requires detail::future_like<std::ranges::range_value_t<t_range>>
 inline future<std::vector<std::ranges::range_value_t<t_range>>> when_all(t_range&& futures) {
     return when_all(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
+/// Creates a future that becomes ready once all of \p futures are ready, and holds a tuple of
+/// copies of them. The combination itself never fails.
 template <detail::future_like... t_futures>
 inline future<std::tuple<t_futures...>> when_all(const t_futures&... futures) {
-    return when_all_ready(futures...).next(
-        [futures...]() { return std::tuple<t_futures...>(futures...); });
+    return when_all_ready(futures...).next([futures...]() {
+        return std::tuple<t_futures...>(futures...);
+    });
 }
 ///@}
 
@@ -488,11 +509,15 @@ inline future<void> when_any(t_iterator begin, t_sentinel end) {
     return first.get_future();
 }
 
+/// Creates a future that becomes ready as soon as any future of the range \p futures does, and
+/// takes that first outcome. With an empty range, the result is ready at once.
 template <std::ranges::input_range t_range>
 inline future<void> when_any(t_range&& futures) {
     return when_any(std::ranges::begin(futures), std::ranges::end(futures));
 }
 
+/// Creates a future that becomes ready as soon as any one of \p futures does, and takes that
+/// first outcome. With no futures, the result is ready at once.
 template <detail::future_like... t_futures>
 inline future<void> when_any(const t_futures&... futures) {
     if constexpr (sizeof...(futures) == 0) {
@@ -609,8 +634,7 @@ class promise : public detail::promise_base
 
 public:
     /// Constructor.
-    promise() noexcept
-        : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
+    promise() noexcept : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
 
     /// Copy constructor.
     promise(const promise<T>& other) : base(other) {}
@@ -638,6 +662,7 @@ public:
     ///         another concurrent set_value()/set_exception() call. May be ignored.
     bool set_value(const T& value) { return checked_state()->set_value(value); }
 
+    /// Returns a promise without a shared state.
     static promise<T> invalid_promise() { return promise(nullptr); }
 
 private:
@@ -655,17 +680,26 @@ public:
     inline promise() noexcept
         : base(core::make_refcounted<future_shared_state>(init_tag()), init_tag()) {}
 
+    /// Constructs a promise that refers to the same shared state as the given one, and counts
+    /// one more promise of that state.
     promise(const promise<void>&) = default;
 
-    inline promise(promise<void>&& other) noexcept  // Move ctor
-        : base(std::move(other)) {}
+    /// Constructs a promise that takes over the shared state of \p other, leaving \p other
+    /// without one.
+    inline promise(promise<void>&& other) noexcept : base(std::move(other)) {}
 
-    inline promise<void>& operator=(const promise<void>& other) {  // Copy assign
+    /// Makes this promise refer to the shared state of \p other. The promise count of that state
+    /// grows by one, and the count of the state this promise referred to drops by one; an
+    /// unresolved state left without promises fails with `std::future_errc::broken_promise`.
+    inline promise<void>& operator=(const promise<void>& other) {
         base::operator=(other);
         return *this;
     }
 
-    inline promise<void>& operator=(promise<void>&& other) noexcept {  // Move assign
+    /// Takes over the shared state of \p other, leaving \p other without one. The promise count
+    /// of the state this promise referred to drops by one; an unresolved state left without
+    /// promises fails with `std::future_errc::broken_promise`.
+    inline promise<void>& operator=(promise<void>&& other) noexcept {
         base::operator=(std::move(other));
         return *this;
     }
@@ -674,10 +708,13 @@ public:
     ///         another concurrent set_value()/set_exception() call. May be ignored.
     inline bool set_value() { return checked_state()->set_value(); }
 
+    /// Returns a future associated with the promised result.
     inline future<void> get_future() const { return future<void>(checked_state()); }
 
+    /// Exchanges the shared states of this promise and \p other.
     inline void swap(promise<void>& other) { promise_base::swap(other); }
 
+    /// Returns a promise without a shared state.
     inline static promise<void> invalid_promise() { return promise(nullptr); }
 
 private:
@@ -699,6 +736,7 @@ inline future<void> make_ready_future() {
     return future<void>(future_shared_state::void_ready_future_);
 }
 
+/// Creates a ready future that holds a copy of \p value.
 template <typename T>
 inline future<T> make_ready_future(const T& value) {
     promise<T> p;

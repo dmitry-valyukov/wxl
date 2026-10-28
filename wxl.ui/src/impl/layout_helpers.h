@@ -24,7 +24,8 @@ namespace wxl::impl {
 // syntheticMembers). The text was parsed when the code was compiled (GridLengths.h): what arrives
 // is GridLength values, and building the rows has nothing left to refuse.
 
-void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid, RowLengths const& rows);
+void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
+                         RowLengths const& rows);
 void set_column_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
                             ColumnLengths const& columns);
 

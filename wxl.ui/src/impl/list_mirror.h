@@ -27,8 +27,8 @@ namespace wxl::impl {
 
 /// Above this many items, a run inserted or erased goes to the view as one reset. A guess
 /// to be refined by measurement in the probe: ListView and ItemsRepeater re-realise only
-/// what is on screen after a reset, while each item of a run costs a notification and the
-/// bookkeeping of every position after it.
+/// what is on screen after a reset, while each item of a run costs a notification and an
+/// update of every position after it.
 inline constexpr uint32_t list_reset_threshold = 64;
 
 /// What a view does for the mirror. Positions are the view's own, as they stand when the
@@ -64,27 +64,30 @@ public:
 
     void operator()(core::list_change const& change) const {
         switch (change.kind) {
-        case core::list_change::inserted:
-            if (change.count > threshold_) {
-                sink_->reset(static_cast<uint32_t>(sink_->size()) + change.count);
-            } else {
-                for (uint32_t k = 0; k != change.count; ++k) sink_->insert(change.at + k, change.count - 1 - k);
-            }
-            break;
-        case core::list_change::erased:
-            assert(change.count <= sink_->size() && "wxl: the view of a list holds fewer items than were erased");
-            if (change.count > threshold_) {
-                sink_->reset(static_cast<uint32_t>(sink_->size()) - change.count);
-            } else {
-                for (uint32_t k = 0; k != change.count; ++k) sink_->erase(change.at, change.count - 1 - k);
-            }
-            break;
-        case core::list_change::replaced:
-            sink_->replace(change.at);
-            break;
-        case core::list_change::reset:
-            sink_->reset(change.count);
-            break;
+            case core::list_change::inserted:
+                if (change.count > threshold_) {
+                    sink_->reset(static_cast<uint32_t>(sink_->size()) + change.count);
+                } else {
+                    for (uint32_t k = 0; k != change.count; ++k)
+                        sink_->insert(change.at + k, change.count - 1 - k);
+                }
+                break;
+            case core::list_change::erased:
+                assert(change.count <= sink_->size() &&
+                       "wxl: the view of a list holds fewer items than were erased");
+                if (change.count > threshold_) {
+                    sink_->reset(static_cast<uint32_t>(sink_->size()) - change.count);
+                } else {
+                    for (uint32_t k = 0; k != change.count; ++k)
+                        sink_->erase(change.at, change.count - 1 - k);
+                }
+                break;
+            case core::list_change::replaced:
+                sink_->replace(change.at);
+                break;
+            case core::list_change::reset:
+                sink_->reset(change.count);
+                break;
         }
     }
 

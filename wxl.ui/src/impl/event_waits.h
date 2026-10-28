@@ -213,8 +213,8 @@ private:
 ///
 /// Neither copied nor moved, like the awaiter: it is co_awaited where it is made.
 template <typename Awaiter, typename Token>
-class [[nodiscard("a wait under a token does nothing until it is co_awaited")]] cancelable_event_wait
-    : public async::detail::cancelable_wait<cancelable_event_wait<Awaiter, Token>>
+class [[nodiscard("a wait under a token does nothing until it is co_awaited")]]
+cancelable_event_wait : public async::detail::cancelable_wait<cancelable_event_wait<Awaiter, Token>>
 {
     using base = async::detail::cancelable_wait<cancelable_event_wait>;
 

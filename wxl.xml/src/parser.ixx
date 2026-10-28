@@ -36,7 +36,7 @@ struct options {
     /// Whether the text between markup becomes text nodes. On, because that is
     /// the only way a tree can say where text stands among its siblings, and
     /// mixed content -- `<p>a<em>b</em>c</p>`, which is what a paragraph of a
-    /// book is -- means nothing without it.
+    /// document is -- means nothing without it.
     ///
     /// Off, text is read and dropped: nothing here joins it into a value of
     /// its own, since a reader that copied the bytes between the tags would be
@@ -60,6 +60,16 @@ struct options {
     bool keep_comments = false;
 };
 
+/// Provides the grammar of the reader. A parser carries out one parse and is built on the
+/// stack of the load that needs it. Besides what the parse was given (the arena, the options
+/// and the file name), it holds the state of the parse, such as the reading position, the
+/// elements whose content is half-read, the attributes of the element being read, the
+/// namespace declarations in scope, and the version that the XML declaration announced,
+/// which the document reads after the parse.
+///
+/// The rules that stand alone are public, so that a caller such as a test can point a parser
+/// at a fragment and ask it for a name, a reference or a comment. The rules that only mean
+/// anything inside a running parse are private, and `parse()` runs them.
 class parser {
 public:
     /// \param source the document, byte order mark already dropped and the
@@ -121,14 +131,27 @@ public:
     /// their beginning.
     /// @{
     bool parse_spaces() noexcept;
+    /// Matches \p text at the current position and steps over it.
     bool parse_string(std::string_view text) noexcept;
+    /// Matches \p text at the current position, ignoring the case of ASCII letters, and steps
+    /// over it.
     bool parse_string_no_case(std::string_view text) noexcept;
+    /// Reads a run of decimal digits into \p number. The value stops accumulating once it
+    /// exceeds the largest code point, so that a long number stays out of range instead of
+    /// wrapping around.
     bool parse_number(char32_t& number) noexcept;
+    /// Reads a run of hexadecimal digits into \p number, with the same bound as
+    /// `parse_number()`.
     bool parse_hex_number(char32_t& number) noexcept;
+    /// Matches the byte \p character at the current position and steps over it.
     bool parse_char(char character) noexcept;
+    /// Reads a `Name` at the current position into \p name and steps over it.
     bool parse_name(std::string_view& name) noexcept;
+    /// Matches an equal sign, with optional spaces on either side, and steps over it.
     bool parse_eq() noexcept;
+    /// Reads a version number at the current position into \p version and steps over it.
     bool parse_version_num(std::string_view& version) noexcept;
+    /// Steps over an encoding name at the current position; the name is not kept.
     bool parse_enc_name() noexcept;
 
     /// A reference, `&amp;` or `&#x41;`, into the bytes it stands for. What a
@@ -136,8 +159,13 @@ public:
     /// answer is built in the arena.
     std::string_view parse_reference_text();
 
+    /// Reads a quoted attribute value into \p value, with each reference replaced by the text
+    /// it stands for, and steps over it.
     bool parse_attribute_value(std::string_view& value);
+    /// Reads a CDATA section into \p text, the content between `<![CDATA[` and `]]>`, and
+    /// steps over it.
     bool parse_cdata(std::string_view& text);
+    /// Reads a comment into \p text, the content between `<!--` and `-->`, and steps over it.
     bool parse_comment(std::string_view& text);
     /// @}
 

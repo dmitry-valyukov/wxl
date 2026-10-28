@@ -23,20 +23,26 @@ template <class T>
 class not_null
 {
 public:
+    /// Constructs a `not_null` that holds \p ptr. A null \p ptr aborts the process in every
+    /// build, as `ensure()` does.
     explicit not_null(T* ptr) : ptr_(ptr) { ensure(ptr && "not_null was given a null pointer"); }
 
+    /// Constructs a `not_null` from a `not_null` to a type whose pointer converts to `T*`.
     template <class T2>
         requires std::convertible_to<T2*, T*>
     not_null(const not_null<T2>& ptr) : ptr_(ptr.get()) {}
 
+    /// Returns the held pointer, which is never null.
     [[nodiscard]] T* get() const noexcept {
         T* tmp = ptr_;
         assume(tmp);
         return tmp;
     }
 
+    /// Returns the held pointer for member access.
     [[nodiscard]] T* operator->() const noexcept { return get(); }
 
+    /// Returns a reference to the object the held pointer refers to.
     [[nodiscard]] T& operator*() const {
         T* tmp = ptr_;
         assume(tmp);
@@ -59,19 +65,25 @@ template <>
 class not_null<const void>
 {
 public:
+    /// Constructs a `not_null` that holds \p ptr. A null \p ptr aborts the process in every
+    /// build, as `ensure()` does.
     inline explicit not_null(const void* ptr) : ptr_(ptr) {
         ensure(ptr && "not_null was given a null pointer");
     }
 
+    /// Constructs a `not_null` from the pointer held by another `not_null`.
     template <class T2>
     not_null(const not_null<T2>& ptr) : ptr_(ptr.get()) {}
 
+    /// Returns the held pointer, which is never null.
     [[nodiscard]] inline const void* get() const noexcept {
         const void* tmp = ptr_;
         assume(tmp);
         return tmp;
     }
 
+    /// Returns the held pointer as `const void*`, the nullable type, for passing it to an API
+    /// written in that type.
     inline explicit operator const void*() const noexcept { return get(); }
 
 private:
@@ -98,34 +110,46 @@ template <class T>
 class not_null<intrusive_ptr<T>>
 {
 public:
+    /// The type of the held smart pointer, `intrusive_ptr<T>`.
     using SmartPtr = intrusive_ptr<T>;
 
-    // Adopts ptr's already-implicit first reference (refcounted/refcounted_mt objects
-    // start at ref_count() == 1 on construction) rather than adding a second one.
-    explicit not_null(T* ptr) : ptr_(ptr, false) { ensure(ptr && "not_null was given a null pointer"); }
+    /// Constructs a `not_null` that adopts the reference \p ptr already holds instead of adding
+    /// a second one: objects derived from `wxl::core::refcounted` or `wxl::core::refcounted_mt`
+    /// start with a reference count of 1. A null \p ptr aborts the process in every build.
+    explicit not_null(T* ptr) : ptr_(ptr, false) {
+        ensure(ptr && "not_null was given a null pointer");
+    }
 
+    /// Constructs a `not_null` from another `not_null` and adds a reference to the object.
+    ///
+    /// The pointer is obtained through `operator->`, which returns the element pointer whatever
+    /// the source holds, so one constructor serves a `not_null` over a raw pointer and one over a
+    /// smart pointer.
     template <class T2>
-    // Through the arrow, which every wrapper answers with the element pointer
-    // whatever it holds -- so one line serves a plain source and a smart one.
     not_null(const not_null<T2>& ptr) : ptr_(ptr.operator->()) {}
 
+    /// Constructs a `not_null` from \p ptr and adds a reference to the object. A null \p ptr
+    /// aborts the process in every build.
     template <class T2>
     explicit not_null(const intrusive_ptr<T2>& ptr) : ptr_(ptr) {
         ensure(ptr && "not_null was given a null intrusive_ptr");
     }
 
+    /// Returns the held object as a `not_null` raw pointer. The reference count does not change.
     [[nodiscard]] not_null<T> get() const noexcept {
         T* tmp = ptr_.get();
         assume(tmp);
         return not_null<T>(tmp);
     }
 
+    /// Returns the raw pointer to the held object for member access.
     [[nodiscard]] T* operator->() const noexcept {
         T* tmp = ptr_.get();
         assume(tmp);
         return tmp;
     }
 
+    /// Converts to `intrusive_ptr<T>`, the nullable type, and adds a reference to the object.
     operator SmartPtr() const { return ptr_; }
 
 private:
@@ -133,48 +157,15 @@ private:
 };
 
 /* ------------------------------------------------------ */
-/// not_null specialization for release_only_ptr: the owning field that never was and
-/// never will be null. Poorer than the others on purpose -- there is no conversion to the
-/// smart pointer and no construction from one, because a release_only_ptr cannot be copied.
-template <class T>
-class not_null<release_only_ptr<T>>
-{
-public:
-    using SmartPtr = release_only_ptr<T>;
-
-    // Adopts ptr's already-implicit first reference, as the intrusive_ptr specialization
-    // above does -- release_only_ptr never adds one.
-    explicit not_null(T* ptr) : ptr_(ptr) { ensure(ptr && "not_null was given a null pointer"); }
-
-    [[nodiscard]] not_null<T> get() const noexcept {
-        T* tmp = ptr_.get();
-        assume(tmp);
-        return not_null<T>(tmp);
-    }
-
-    [[nodiscard]] T* operator->() const noexcept {
-        T* tmp = ptr_.get();
-        assume(tmp);
-        return tmp;
-    }
-
-    [[nodiscard]] T& operator*() const noexcept { return *operator->(); }
-
-    /// By reference, and only here: a release_only_ptr cannot be copied, so
-    /// this is the one specialization whose conversion cannot hand out a copy.
-    operator const SmartPtr&() const noexcept { return ptr_; }
-
-private:
-    SmartPtr ptr_;
-};
-
-/* ------------------------------------------------------ */
-// operator!=, <, <=, > and >= are all synthesized from these two.
+/// Tests whether \p l and \p r refer to the same object. The compiler synthesizes
+/// `operator!=` from this operator.
 template <class T>
 bool operator==(const not_null<T>& l, const not_null<T>& r) {
     return l.get() == r.get();
 }
 
+/// Compares the pointers held by \p l and \p r. The compiler synthesizes `operator<`,
+/// `operator<=`, `operator>` and `operator>=` from this operator.
 template <class T>
 auto operator<=>(const not_null<T>& l, const not_null<T>& r) {
     return l.get() <=> r.get();

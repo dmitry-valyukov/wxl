@@ -36,7 +36,8 @@ struct HICON__;
 
 namespace wxl {
 
-class TrayIcon {
+class TrayIcon
+{
 public:
     /// One line of the menu. Empty text is a separator; an item with children
     /// is a submenu, and then nothing is called when it is opened.

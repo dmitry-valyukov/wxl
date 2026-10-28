@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -18,8 +16,7 @@ struct test_node : intrusive_slist_node<test_node> {
 
 std::vector<int> collect_values(test_node* chain) {
     std::vector<int> values;
-    for (test_node* n = chain; n; n = n->next_)
-        values.push_back(n->value);
+    for (test_node* n = chain; n; n = n->next_) values.push_back(n->value);
     return values;
 }
 
@@ -59,14 +56,12 @@ TEST(DrainStackTest, PopAllClaimsEveryNodePushedConcurrentlyExactlyOnce) {
     constexpr int total = producers * per_producer;
 
     std::vector<test_node> nodes(total);
-    for (int i = 0; i < total; ++i)
-        nodes[i].value = i;
+    for (int i = 0; i < total; ++i) nodes[i].value = i;
 
     std::vector<std::thread> threads;
     for (int p = 0; p < producers; ++p) {
         threads.emplace_back([&, p] {
-            for (int i = 0; i < per_producer; ++i)
-                stack.push(&nodes[p * per_producer + i]);
+            for (int i = 0; i < per_producer; ++i) stack.push(&nodes[p * per_producer + i]);
         });
     }
     for (auto& t : threads) t.join();
@@ -77,32 +72,4 @@ TEST(DrainStackTest, PopAllClaimsEveryNodePushedConcurrentlyExactlyOnce) {
 
     EXPECT_EQ(seen.size(), static_cast<size_t>(total));
     EXPECT_TRUE(stack.empty());
-}
-
-namespace {
-
-struct payload {
-    int value;
-    explicit payload(int v) : value(v) {}
-};
-
-}  // namespace
-
-TEST(AsNodeTest, AdaptsATypeThatDoesNotItselfDeriveFromIntrusiveListNode) {
-    using wrapped_node = as_node<payload>;
-
-    drain_stack<wrapped_node> stack;
-
-    wrapped_node a(1);
-    wrapped_node b(2);
-
-    stack.push(&a);
-    stack.push(&b);
-
-    wrapped_node* chain = stack.pop_all();
-    ASSERT_NE(chain, nullptr);
-    EXPECT_EQ(chain->value, 2);
-
-    ASSERT_NE(chain->next_, nullptr);
-    EXPECT_EQ(chain->next_->value, 1);
 }

@@ -57,14 +57,14 @@ task<int> ask_the_worker(hevent* gate = nullptr) {
 /// this is how one comes to await it from another thread.
 struct to_another_thread {
     bool await_ready() const noexcept { return false; }
-    void await_suspend(std::coroutine_handle<> here) const { std::thread([here] { here.resume(); }).join(); }
+    void await_suspend(std::coroutine_handle<> here) const {
+        std::thread([here] { here.resume(); }).join();
+    }
     void await_resume() const noexcept {}
 };
 
 /// Joins an operation somebody else keeps: co_await of an lvalue.
-task<> joins(task<int>& kept, int& got) {
-    got = co_await kept;
-}
+task<> joins(task<int>& kept, int& got) { got = co_await kept; }
 
 task<int> awaits_twice(task<int>& op) {
     (void)co_await op;
@@ -74,20 +74,30 @@ task<int> awaits_twice(task<int>& op) {
 // Each misuse a strict build reports with the line of the co_await sits alone on the line
 // below the one that records it.
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_await = std::source_location::current().line() + 1;
 task<int> awaits(task<int>& op) { co_return co_await op; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_join = std::source_location::current().line() + 1;
 task<> joins_second(task<int>& kept) { (void)co_await kept; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_foreign_join = std::source_location::current().line() + 1;
 task<> joins_there(task<int>& kept) { co_await to_another_thread{}; (void)co_await kept; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_second_take = std::source_location::current().line() + 1;
 task<int> takes_twice(task<int>& op) { (void)co_await op; co_return co_await op; }
+// clang-format on
 
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_early_ask = std::source_location::current().line() + 1;
 void ask(task<int>& op) { (void)op.result(); }
+// clang-format on
 
 void await_a_moved_from_one() {
     report_failures_to_stderr();
@@ -284,12 +294,13 @@ TEST_F(TaskOperationStrictDeathTest, ASecondJoinNamesItsCoAwait) {
 }
 
 TEST_F(TaskOperationStrictDeathTest, AForeignJoinNamesItsCoAwait) {
-    EXPECT_DEATH(await_from_another_thread(),
-                 place_of(line_of_the_foreign_join) + "task: awaited from a thread other than its own");
+    EXPECT_DEATH(await_from_another_thread(), place_of(line_of_the_foreign_join) +
+                                                  "task: awaited from a thread other than its own");
 }
 
 // What the loop starts and what a coroutine returns are one type, one pointer wide.
 static_assert(std::is_same_v<decltype(sta_loop::async_call(std::declval<int (*)()>())), task<int>>);
-static_assert(std::is_same_v<decltype(sta_loop::async_call(orphanable, std::declval<int (*)()>())), task<int>>);
+static_assert(std::is_same_v<decltype(sta_loop::async_call(orphanable, std::declval<int (*)()>())),
+                             task<int>>);
 static_assert(std::is_same_v<decltype(sta_loop::call_here(std::declval<int (*)()>())), task<int>>);
 static_assert(sizeof(task<int>) == sizeof(void*));

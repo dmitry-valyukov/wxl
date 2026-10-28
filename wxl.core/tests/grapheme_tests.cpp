@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <sstream>
@@ -17,8 +18,8 @@ namespace {
 struct conformance_case {
     std::u16string text;
     std::vector<char32_t> code_points;
-    std::vector<bool> breaks_before;       ///< per code point
-    std::vector<std::size_t> boundaries;   ///< unit offsets, the start and the end included
+    std::vector<bool> breaks_before;      ///< per code point
+    std::vector<std::size_t> boundaries;  ///< unit offsets, the start and the end included
     std::string line;
 };
 
@@ -33,7 +34,9 @@ void append_utf16(std::u16string& out, const char32_t code_point) {
 }
 
 std::vector<conformance_case> read_conformance() {
-    std::ifstream file(WXL_CORE_TESTDATA_DIR "/GraphemeBreakTest.txt", std::ios::binary);
+    // u8, so that the path reads the directory as UTF-8 and not in the ANSI code page.
+    std::ifstream file(std::filesystem::path(u8"" WXL_CORE_TESTDATA_DIR "/GraphemeBreakTest.txt"),
+                       std::ios::binary);
     std::vector<conformance_case> cases;
     std::string line;
 
@@ -59,7 +62,8 @@ std::vector<conformance_case> read_conformance() {
                 const auto code_point = static_cast<char32_t>(std::stoul(token, nullptr, 16));
                 entry.code_points.push_back(code_point);
                 entry.breaks_before.push_back(pending_break);
-                if (pending_break && !entry.text.empty()) entry.boundaries.push_back(entry.text.size());
+                if (pending_break && !entry.text.empty())
+                    entry.boundaries.push_back(entry.text.size());
                 append_utf16(entry.text, code_point);
             }
         }
@@ -122,10 +126,12 @@ TEST(grapheme, the_floor_is_the_last_boundary_not_after_the_offset) {
     }
 }
 
-TEST(grapheme, the_letters_a_book_is_made_of) {
+TEST(grapheme, the_letters_a_text_is_made_of) {
     // и with a separate breve, a flag, a family joined by ZWJ, and a
     // Devanagari conjunct: each one letter, and the next letter after it.
-    const std::wstring_view short_i = L"\x0438\x0306" L"x";
+    const std::wstring_view short_i =
+        L"\x0438\x0306"
+        L"x";
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(short_i, 0), 2u);
     EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(short_i, 1), 0u);
 
@@ -135,16 +141,22 @@ TEST(grapheme, the_letters_a_book_is_made_of) {
     EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(flags, 6), 4u);
 
     // MAN ZWJ WOMAN ZWJ GIRL
-    const std::wstring_view family = L"\xD83D\xDC68\x200D\xD83D\xDC69\x200D\xD83D\xDC67" L"a";
+    const std::wstring_view family =
+        L"\xD83D\xDC68\x200D\xD83D\xDC69\x200D\xD83D\xDC67"
+        L"a";
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(family, 0), 8u);
 
     // KA VIRAMA SSA
-    const std::wstring_view kssa = L"\x0915\x094D\x0937" L"a";
+    const std::wstring_view kssa =
+        L"\x0915\x094D\x0937"
+        L"a";
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(kssa, 0), 3u);
 }
 
 TEST(grapheme, a_lone_surrogate_is_a_letter_of_its_own) {
-    const std::wstring_view broken = L"a\xDC00" L"b";
+    const std::wstring_view broken =
+        L"a\xDC00"
+        L"b";
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(broken, 0), 1u);
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(broken, 1), 2u);
 }
@@ -188,7 +200,8 @@ void expect_the_rules(const std::u16string_view text) {
     for (std::size_t at = 0; at < text.size();)
         found.push_back(at = wxl::core::unicode::next_grapheme_boundary(text, at));
     for (std::size_t at = 0; at < wide.size();)
-        found_wide.push_back(at = wxl::core::unicode::next_grapheme_boundary(std::wstring_view(wide), at));
+        found_wide.push_back(
+            at = wxl::core::unicode::next_grapheme_boundary(std::wstring_view(wide), at));
 
     ASSERT_EQ(found, expected) << "next over" << units_of(text);
     ASSERT_EQ(found_wide, expected) << "next over wchar_t" << units_of(text);
@@ -234,8 +247,9 @@ TEST(grapheme, beside_marks_joiners_and_jamo_the_rules_decide) {
     // classes, a regional indicator and a pictograph (both as surrogate
     // pairs), a virama and a consonant, CR and LF.
     const std::u16string_view joining[] = {
-        u"\u0301", u"\u200D", u"\u0903", u"\u0600", u"\u1100", u"\u1161", u"\u11A8",
-        u"\uAC00", u"\uAC01", u"\U0001F1E6", u"\U0001F600", u"\u094D", u"\u0915", u"\r", u"\n",
+        u"\u0301",     u"\u200D", u"\u0903", u"\u0600", u"\u1100",
+        u"\u1161",     u"\u11A8", u"\uAC00", u"\uAC01", u"\U0001F1E6",
+        u"\U0001F600", u"\u094D", u"\u0915", u"\r",     u"\n",
     };
 
     for (char16_t plain = 0; plain < 0x600; ++plain) {
@@ -257,7 +271,9 @@ TEST(grapheme, beside_marks_joiners_and_jamo_the_rules_decide) {
 }
 
 TEST(grapheme, checked_text_is_asked_as_it_is) {
-    constexpr wxl::core::u16_view short_i = u"\x0438\x0306" u"x";
+    constexpr wxl::core::u16_view short_i =
+        u"\x0438\x0306"
+        u"x";
     EXPECT_EQ(wxl::core::unicode::next_grapheme_boundary(short_i, 0), 2u);
     EXPECT_EQ(wxl::core::unicode::floor_grapheme_boundary(short_i, 1), 0u);
 
@@ -269,31 +285,31 @@ TEST(grapheme, checked_text_is_asked_as_it_is) {
 TEST(grapheme, is_letter_is_general_category_l) {
     using wxl::core::unicode::is_letter;
 
-    EXPECT_TRUE(is_letter(U'A'));             // Lu
-    EXPECT_TRUE(is_letter(U'z'));             // Ll
-    EXPECT_TRUE(is_letter(U'я'));        // я, Ll
-    EXPECT_TRUE(is_letter(U'Ё'));        // Ё, Lu
-    EXPECT_TRUE(is_letter(U'ḥ'));        // ḥ, Ll
-    EXPECT_TRUE(is_letter(U'ễ'));        // ễ, Ll
-    EXPECT_TRUE(is_letter(U'\U0001D51E'));    // 𝔞 MATHEMATICAL FRAKTUR SMALL A, Ll
-    EXPECT_TRUE(is_letter(U'中'));        // 中, Lo
-    EXPECT_TRUE(is_letter(U'ℓ'));        // ℓ SCRIPT SMALL L, Ll
-    EXPECT_TRUE(is_letter(U'ⁿ'));        // ⁿ SUPERSCRIPT LATIN SMALL LETTER N, Lm
-    EXPECT_TRUE(is_letter(U'ǅ'));        // ǅ, Lt
+    EXPECT_TRUE(is_letter(U'A'));           // Lu
+    EXPECT_TRUE(is_letter(U'z'));           // Ll
+    EXPECT_TRUE(is_letter(U'я'));           // я, Ll
+    EXPECT_TRUE(is_letter(U'Ё'));           // Ё, Lu
+    EXPECT_TRUE(is_letter(U'ḥ'));           // ḥ, Ll
+    EXPECT_TRUE(is_letter(U'ễ'));           // ễ, Ll
+    EXPECT_TRUE(is_letter(U'\U0001D51E'));  // 𝔞 MATHEMATICAL FRAKTUR SMALL A, Ll
+    EXPECT_TRUE(is_letter(U'中'));          // 中, Lo
+    EXPECT_TRUE(is_letter(U'ℓ'));           // ℓ SCRIPT SMALL L, Ll
+    EXPECT_TRUE(is_letter(U'ⁿ'));           // ⁿ SUPERSCRIPT LATIN SMALL LETTER N, Lm
+    EXPECT_TRUE(is_letter(U'ǅ'));           // ǅ, Lt
 }
 
 TEST(grapheme, is_letter_refuses_marks_digits_symbols_and_the_unassigned) {
     using wxl::core::unicode::is_letter;
 
-    EXPECT_FALSE(is_letter(U'№'));       // № NUMERO SIGN, So
-    EXPECT_FALSE(is_letter(U'—'));       // — EM DASH, Pd
-    EXPECT_FALSE(is_letter(U'٣'));       // ٣ ARABIC-INDIC DIGIT THREE, Nd
-    EXPECT_FALSE(is_letter(U''));       // private use, Co
-    EXPECT_FALSE(is_letter(U'　'));       // IDEOGRAPHIC SPACE, Zs
-    EXPECT_FALSE(is_letter(U'́'));       // COMBINING ACUTE ACCENT, Mn
-    EXPECT_FALSE(is_letter(U'\U0010FFFF'));   // a noncharacter, Cn
-    EXPECT_FALSE(is_letter(char32_t{0xD800}));     // a surrogate, Cs
-    EXPECT_FALSE(is_letter(char32_t{0x110000}));   // past the code space
+    EXPECT_FALSE(is_letter(U'№'));                // № NUMERO SIGN, So
+    EXPECT_FALSE(is_letter(U'—'));                // — EM DASH, Pd
+    EXPECT_FALSE(is_letter(U'٣'));                // ٣ ARABIC-INDIC DIGIT THREE, Nd
+    EXPECT_FALSE(is_letter(U''));              // private use, Co
+    EXPECT_FALSE(is_letter(U'　'));               // IDEOGRAPHIC SPACE, Zs
+    EXPECT_FALSE(is_letter(U'́'));                 // COMBINING ACUTE ACCENT, Mn
+    EXPECT_FALSE(is_letter(U'\U0010FFFF'));       // a noncharacter, Cn
+    EXPECT_FALSE(is_letter(char32_t{0xD800}));    // a surrogate, Cs
+    EXPECT_FALSE(is_letter(char32_t{0x110000}));  // past the code space
 }
 
 }  // namespace

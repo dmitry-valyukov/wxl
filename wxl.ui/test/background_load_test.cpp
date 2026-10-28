@@ -34,7 +34,8 @@ using wxl::impl::show_when_loaded;
 
 /// Where a load waits until the test lets it on. The wait takes itself off the gate if its frame
 /// goes first -- a load stopped with the wait that held it -- so that opening finds nobody.
-class gate {
+class gate
+{
 public:
     struct waiter {
         gate& at;
@@ -112,15 +113,15 @@ TEST(BackgroundLoadTest, TheWaitIsABodyUnderWayUntilItShowsWhatWasLoaded) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
-    loads_of_window.hold(load, show_when_loaded(loads(at, "cover"), load, shows(shown)));
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
+    loads_of_window.hold(load, show_when_loaded(loads(at, "picture"), load, shows(shown)));
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before + 2) << "the call has returned, and the wait is under way";
     }
     EXPECT_TRUE(shown.empty());
 
     at.open();
-    EXPECT_EQ(shown, shown_t{"cover"});
+    EXPECT_EQ(shown, shown_t{"picture"});
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before);
     }
@@ -136,8 +137,8 @@ TEST(BackgroundLoadTest, AnotherChangeCancelsTheLoadAndStopsItsWait) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
-    loads_of_window.hold(load, show_when_loaded(loads(at, "cover"), load, shows(shown)));
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
+    loads_of_window.hold(load, show_when_loaded(loads(at, "picture"), load, shows(shown)));
 
     loads_of_window.cancel();
     EXPECT_TRUE(load.is_canceled());
@@ -159,8 +160,8 @@ TEST(BackgroundLoadTest, ALateAnswerAfterTheCancellationIsNotShown) {
     gate at;
     shown_t shown;
 
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
-    task<> wait = show_when_loaded(loads(at, "cover"), load, shows(shown));
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
+    task<> wait = show_when_loaded(loads(at, "picture"), load, shows(shown));
 
     loads_of_window.cancel();
     at.open();
@@ -182,7 +183,8 @@ TEST(BackgroundLoadTest, TheNextLoadCancelsTheOneBeforeIt) {
     cancellation_token const first = loads_of_window.start(application.token(), "first");
     loads_of_window.hold(first, show_when_loaded(loads(first_at, "first"), first, shows(shown)));
     cancellation_token const second = loads_of_window.start(application.token(), "second");
-    loads_of_window.hold(second, show_when_loaded(loads(second_at, "second"), second, shows(shown)));
+    loads_of_window.hold(second,
+                         show_when_loaded(loads(second_at, "second"), second, shows(shown)));
     EXPECT_TRUE(first.is_canceled());
     EXPECT_FALSE(second.is_canceled());
     EXPECT_FALSE(first_at.waited()) << "the wait of the first load was not stopped";
@@ -206,8 +208,8 @@ TEST(BackgroundLoadTest, TheOwnersTokenCancelsTheLoad) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
-    loads_of_window.hold(load, show_when_loaded(loads(at, "cover"), load, shows(shown)));
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
+    loads_of_window.hold(load, show_when_loaded(loads(at, "picture"), load, shows(shown)));
 
     application.cancel();
     EXPECT_TRUE(load.is_canceled());
@@ -217,7 +219,7 @@ TEST(BackgroundLoadTest, TheOwnersTokenCancelsTheLoad) {
         EXPECT_EQ(live_frames(), before) << "the wait under the cancelled token did not end";
     }
 
-    EXPECT_TRUE(loads_of_window.start(application.token(), "cover").is_canceled());
+    EXPECT_TRUE(loads_of_window.start(application.token(), "picture").is_canceled());
 }
 
 // A wait whose load was replaced before it is held -- what its start reached asked for the
@@ -234,7 +236,8 @@ TEST(BackgroundLoadTest, AWaitWhoseLoadWasReplacedMeanwhileGoes) {
     cancellation_token const first = loads_of_window.start(application.token(), "first");
     task<> first_wait = show_when_loaded(loads(first_at, "first"), first, shows(shown));
     cancellation_token const second = loads_of_window.start(application.token(), "second");
-    loads_of_window.hold(second, show_when_loaded(loads(second_at, "second"), second, shows(shown)));
+    loads_of_window.hold(second,
+                         show_when_loaded(loads(second_at, "second"), second, shows(shown)));
 
     loads_of_window.hold(first, std::move(first_wait));
     EXPECT_FALSE(first_at.waited()) << "the wait of the replaced load was kept";
@@ -259,14 +262,14 @@ TEST(BackgroundLoadTest, TheLastLoadIsRememberedUntilTheBackgroundIsSetAnotherWa
     shown_t shown;
     EXPECT_FALSE(loads_of_window.last());
 
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
-    loads_of_window.hold(load, show_when_loaded(loads(at, "cover"), load, shows(shown)));
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
+    loads_of_window.hold(load, show_when_loaded(loads(at, "picture"), load, shows(shown)));
     at.open();
-    ASSERT_EQ(shown, shown_t{"cover"});
+    ASSERT_EQ(shown, shown_t{"picture"});
 
     auto const kept = loads_of_window.last();
     ASSERT_TRUE(kept);
-    EXPECT_EQ(kept->request, "cover");
+    EXPECT_EQ(kept->request, "picture");
     EXPECT_FALSE(kept->owner.is_canceled());
 
     // The token kept is the owner's own, not the load's: cancelling the application reaches it.
@@ -288,18 +291,20 @@ TEST(BackgroundLoadTest, AskedForAgainItIsShownAgain) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    cancellation_token const first = loads_of_window.start(application.token(), "cover");
-    loads_of_window.hold(first, show_when_loaded(loads(first_at, "cover"), first, shows(shown)));
+    cancellation_token const first = loads_of_window.start(application.token(), "picture");
+    loads_of_window.hold(first, show_when_loaded(loads(first_at, "picture"), first, shows(shown)));
     first_at.open();
 
     auto again = loads_of_window.last();
     ASSERT_TRUE(again);
-    cancellation_token const reload = loads_of_window.start(std::move(again->owner), std::move(again->request));
-    loads_of_window.hold(reload, show_when_loaded(loads(again_at, loads_of_window.last()->request), reload, shows(shown)));
+    cancellation_token const reload =
+        loads_of_window.start(std::move(again->owner), std::move(again->request));
+    loads_of_window.hold(reload, show_when_loaded(loads(again_at, loads_of_window.last()->request),
+                                                  reload, shows(shown)));
     EXPECT_FALSE(reload.is_canceled());
     again_at.open();
 
-    EXPECT_EQ(shown, (shown_t{"cover", "cover"}));
+    EXPECT_EQ(shown, (shown_t{"picture", "picture"}));
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before);
     }
@@ -317,7 +322,7 @@ TEST(BackgroundLoadTest, AFailedLoadEndsTheWaitWithItsFailure) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
     task<> wait = show_when_loaded(fails(at), load, shows(shown));
     at.open();
 
@@ -339,7 +344,7 @@ TEST(BackgroundLoadTest, ALoadTheLostDeviceCutShortEndsTheWaitQuietly) {
     [[maybe_unused]] std::size_t before = 0;
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
     task<> wait = show_when_loaded(loses_the_device(at), load, shows(shown));
     if constexpr (wxl::async::detail::checked) {
         EXPECT_EQ(live_frames(), before + 2);
@@ -364,8 +369,9 @@ TEST(BackgroundLoadTest, ACancelledLoadEndsTheWaitWithTheCancellation) {
     if constexpr (wxl::async::detail::checked) before = live_frames();
 
     application.cancel();
-    cancellation_token const load = loads_of_window.start(application.token(), "cover");
-    task<> wait = show_when_loaded(wxl::async::detail::canceled_task<std::string>(), load, shows(shown));
+    cancellation_token const load = loads_of_window.start(application.token(), "picture");
+    task<> wait =
+        show_when_loaded(wxl::async::detail::canceled_task<std::string>(), load, shows(shown));
 
     ASSERT_TRUE(wait.done());
     EXPECT_EQ(end_of(wait), "cancelled");

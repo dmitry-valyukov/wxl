@@ -16,26 +16,36 @@ namespace {
 
 // The WinUI object of the layout: a VirtualizingLayout by aggregation, both overrides
 // hand the work to the functions the wrapper brought.
-struct CustomVirtualizingLayoutCore : xaml::Controls::VirtualizingLayoutT<CustomVirtualizingLayoutCore> {
-    CustomVirtualizingLayoutCore(CustomVirtualizingLayout::Measure measure, CustomVirtualizingLayout::Arrange arrange,
-                                  CustomVirtualizingLayout::ItemsChanged itemsChanged)
-        : measure_(std::move(measure)), arrange_(std::move(arrange)), itemsChanged_(std::move(itemsChanged)) {}
+struct CustomVirtualizingLayoutCore
+    : xaml::Controls::VirtualizingLayoutT<CustomVirtualizingLayoutCore> {
+    CustomVirtualizingLayoutCore(CustomVirtualizingLayout::Measure measure,
+                                 CustomVirtualizingLayout::Arrange arrange,
+                                 CustomVirtualizingLayout::ItemsChanged itemsChanged)
+        : measure_(std::move(measure)),
+          arrange_(std::move(arrange)),
+          itemsChanged_(std::move(itemsChanged)) {}
 
     // The name in the element tree (Live Visual Tree).
     winrt::hstring GetRuntimeClassName() const { return L"wxl.CustomVirtualizingLayout"; }
 
-    winrt::Windows::Foundation::Size MeasureOverride(xaml::Controls::VirtualizingLayoutContext const& context,
-                                                     winrt::Windows::Foundation::Size available) {
-        return impl::to_winrt(measure_(Object::Impl::wrap<VirtualizingLayoutContext>(context), impl::from_winrt(available)));
+    winrt::Windows::Foundation::Size MeasureOverride(
+        xaml::Controls::VirtualizingLayoutContext const& context,
+        winrt::Windows::Foundation::Size available) {
+        return impl::to_winrt(measure_(Object::Impl::wrap<VirtualizingLayoutContext>(context),
+                                       impl::from_winrt(available)));
     }
 
-    winrt::Windows::Foundation::Size ArrangeOverride(xaml::Controls::VirtualizingLayoutContext const& context,
-                                                     winrt::Windows::Foundation::Size final) {
-        return impl::to_winrt(arrange_(Object::Impl::wrap<VirtualizingLayoutContext>(context), impl::from_winrt(final)));
+    winrt::Windows::Foundation::Size ArrangeOverride(
+        xaml::Controls::VirtualizingLayoutContext const& context,
+        winrt::Windows::Foundation::Size final) {
+        return impl::to_winrt(arrange_(Object::Impl::wrap<VirtualizingLayoutContext>(context),
+                                       impl::from_winrt(final)));
     }
 
-    void OnItemsChangedCore(xaml::Controls::VirtualizingLayoutContext const& context, winrt::Windows::Foundation::IInspectable const&,
-                            winrt::Microsoft::UI::Xaml::Interop::NotifyCollectionChangedEventArgs const&) {
+    void OnItemsChangedCore(
+        xaml::Controls::VirtualizingLayoutContext const& context,
+        winrt::Windows::Foundation::IInspectable const&,
+        winrt::Microsoft::UI::Xaml::Interop::NotifyCollectionChangedEventArgs const&) {
         if (itemsChanged_) {
             itemsChanged_(Object::Impl::wrap<VirtualizingLayoutContext>(context));
         }
@@ -53,12 +63,15 @@ private:
 
 }  // namespace
 
-class CustomVirtualizingLayout::Impl : public base_t::Impl {
+class CustomVirtualizingLayout::Impl : public base_t::Impl
+{
 public:
     explicit Impl(winrt::com_ptr<CustomVirtualizingLayoutCore> const& object)
         : base_t::Impl(object.as<xaml::Controls::Layout>()), object_(object.get()) {}
 
-    static CustomVirtualizingLayoutCore& of(Object::Impl* impl) { return *static_cast<Impl*>(impl)->object_; }
+    static CustomVirtualizingLayoutCore& of(Object::Impl* impl) {
+        return *static_cast<Impl*>(impl)->object_;
+    }
 
 private:
     // The object itself is held by the inspectable_ of the base; this is its implementation,
@@ -69,13 +82,13 @@ private:
 CustomVirtualizingLayout::CustomVirtualizingLayout(Measure measure, Arrange arrange)
     : CustomVirtualizingLayout(std::move(measure), std::move(arrange), ItemsChanged{}) {}
 
-CustomVirtualizingLayout::CustomVirtualizingLayout(Measure measure, Arrange arrange, ItemsChanged itemsChanged)
-    : base_t(new Impl {winrt::make_self<CustomVirtualizingLayoutCore>(std::move(measure), std::move(arrange), std::move(itemsChanged))}) {}
+CustomVirtualizingLayout::CustomVirtualizingLayout(Measure measure, Arrange arrange,
+                                                   ItemsChanged itemsChanged)
+    : base_t(new Impl{winrt::make_self<CustomVirtualizingLayoutCore>(
+          std::move(measure), std::move(arrange), std::move(itemsChanged))}) {}
 
 CustomVirtualizingLayout::CustomVirtualizingLayout(Impl* impl) noexcept : base_t(impl) {}
 
-void CustomVirtualizingLayout::invalidate() const {
-    Impl::of(impl()).invalidate();
-}
+void CustomVirtualizingLayout::invalidate() const { Impl::of(impl()).invalidate(); }
 
 }  // namespace wxl

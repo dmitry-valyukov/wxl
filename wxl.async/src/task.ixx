@@ -52,7 +52,8 @@ public:
     /// Down before the hand-over: past it, the frame may already have been
     /// resumed elsewhere, or destroyed.
     template <class Promise>
-    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> self, site where = site::current()) {
+    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> self,
+                                        site where = site::current()) {
         continuation_.set_running(false);
 
         if constexpr (requires { awaiter_.await_suspend(self, where); }) {
@@ -113,7 +114,8 @@ public:
     /// already ended with co_return, and what threw after it is the destructor of a local:
     /// a broken rule, which a build that checks stops at rather than keep both answers.
     inline void keep_current_exception() noexcept {
-        coro_check(!this->value_made(), "task: a destructor threw after co_return", detail::site::current());
+        coro_check(!this->value_made(), "task: a destructor threw after co_return",
+                   detail::site::current());
         this->set_current_exception();
     }
 
@@ -166,7 +168,8 @@ private:
 /// link of the chain the promise derives through rather than a second base, so that it
 /// takes no room in any compiler's layout.
 template <class Base, bool = detail::checked>
-struct body_tracking : Base {};
+struct body_tracking : Base {
+};
 
 template <class Base>
 struct body_tracking<Base, true> : Base {
@@ -244,7 +247,8 @@ public:
             inline bool await_ready() const noexcept { return !producer->continuation.waited(); }
 
             /// Reached only past await_ready(), which has found the waiter there.
-            inline std::coroutine_handle<> await_suspend(std::coroutine_handle<> self) const noexcept {
+            inline std::coroutine_handle<> await_suspend(
+                std::coroutine_handle<> self) const noexcept {
                 const std::coroutine_handle<> waiter = producer->continuation.waiter();
                 self.destroy();
                 return waiter;
@@ -302,11 +306,15 @@ class awaiter
 {
 public:
     /// A task whose result is here already is awaited without suspending.
-    inline bool await_ready() const noexcept requires(!detail::strict) {
+    inline bool await_ready() const noexcept
+        requires(!detail::strict)
+    {
         return ready(site::current());
     }
 
-    inline bool await_ready(site where = site::current()) const noexcept requires(detail::strict) {
+    inline bool await_ready(site where = site::current()) const noexcept
+        requires(detail::strict)
+    {
         return ready(where);
     }
 
@@ -320,15 +328,20 @@ public:
 
     template <class Promise>
         requires(task_coroutine_promise<Promise> && detail::strict)
-    inline void await_suspend(std::coroutine_handle<Promise> awaiting, site where = site::current()) noexcept {
+    inline void await_suspend(std::coroutine_handle<Promise> awaiting,
+                              site where = site::current()) noexcept {
         park(awaiting, false, where);
     }
 
-    inline decltype(auto) await_resume() requires(!detail::strict) {
+    inline decltype(auto) await_resume()
+        requires(!detail::strict)
+    {
         return producer_->take_result(site::current());
     }
 
-    inline decltype(auto) await_resume(site where = site::current()) requires(detail::strict) {
+    inline decltype(auto) await_resume(site where = site::current())
+        requires(detail::strict)
+    {
         return producer_->take_result(where);
     }
 
@@ -337,11 +350,13 @@ protected:
 
     inline bool ready([[maybe_unused]] site where) const noexcept {
         coro_check(producer_, "task: empty -- default-constructed or moved-from", where);
-        coro_check(core::sta_memory_pool::is_safe(), "task: awaited from a thread other than its own", where);
+        coro_check(core::sta_memory_pool::is_safe(),
+                   "task: awaited from a thread other than its own", where);
         return producer_->ready();
     }
 
-    inline void park(std::coroutine_handle<> awaiting, bool by_join, [[maybe_unused]] site where) noexcept {
+    inline void park(std::coroutine_handle<> awaiting, bool by_join,
+                     [[maybe_unused]] site where) noexcept {
         coro_check(!producer_->continuation.waited(),
                    "task: awaited by a second coroutine while the first one still waits", where);
         producer_->continuation.park(awaiting, by_join);
@@ -381,7 +396,8 @@ public:
 
     template <class Promise>
         requires(task_coroutine_promise<Promise> && detail::strict)
-    inline void await_suspend(std::coroutine_handle<Promise> awaiting, site where = site::current()) noexcept {
+    inline void await_suspend(std::coroutine_handle<Promise> awaiting,
+                              site where = site::current()) noexcept {
         this->park(awaiting, true, where);
     }
 };
@@ -391,7 +407,7 @@ public:
 /// What a coroutine awaits, and the one thing it ever sees of asynchronous work: a
 /// result in the making, handed back to its caller to be kept, swept and read -- or
 /// awaited by another coroutine, which reads it for them. `file f = co_await
-/// async_file::open_read(path);` and `co_await load(book)` are the same co_await.
+/// async_file::open_read(path);` and `co_await load(document)` are the same co_await.
 ///
 /// Two kinds of producer stand behind it, and the awaiting coroutine cannot tell them
 /// apart: an operation of this module (`async_op_t`), carried out on the worker, on the
@@ -483,6 +499,7 @@ class [[nodiscard("a task nobody keeps is destroyed at once, and its work with i
     : public detail::awaiter<R>
 {
 public:
+    /// The promise type of a coroutine that returns this task.
     using promise_type = detail::task_promise<R>;
 
     /// An empty task: nothing to wait for, nothing to give.
@@ -494,6 +511,7 @@ public:
     inline explicit task(std::unique_ptr<async_op_t<R>> started) noexcept
         : detail::awaiter<R>(started.release()) {}
 
+    /// Takes over what \p other holds, and leaves \p other empty.
     inline task(task&& other) noexcept
         : detail::awaiter<R>(std::exchange(other.producer_, nullptr)) {}
 
@@ -518,11 +536,12 @@ public:
     /// so a check here names its own.
     inline ~task() {
         if (this->producer_) {
-            coro_check(!this->producer_->continuation.running(),
-                       "task: destroyed while its coroutine runs -- dropped from inside its own chain",
-                       detail::site::current());
-            coro_check(!this->producer_->continuation.joined(), "task: destroyed while a coroutine joins it",
-                       detail::site::current());
+            coro_check(
+                !this->producer_->continuation.running(),
+                "task: destroyed while its coroutine runs -- dropped from inside its own chain",
+                detail::site::current());
+            coro_check(!this->producer_->continuation.joined(),
+                       "task: destroyed while a coroutine joins it", detail::site::current());
 
             this->producer_->release();
         }
@@ -543,7 +562,9 @@ public:
     /// \return the value, moved out: ask once, after done().
     /// \throw whatever left the producer.
     /// \param where the caller's line, for a strict build's report; left to its default.
-    inline R result(detail::site where = detail::site::current()) requires(!std::is_void_v<R>) {
+    inline R result(detail::site where = detail::site::current())
+        requires(!std::is_void_v<R>)
+    {
         check_ended(where);
         return this->producer_->take_result(where);
     }
@@ -585,10 +606,11 @@ public:
     ///         of a task that ended with its value it is a broken rule, as with wxl's future.
     ///         result() and co_await still throw it, as often as they are asked.
     /// \param where the caller's line, for a strict build's report; left to its default.
-    inline const std::exception_ptr& get_exception_ptr(detail::site where = detail::site::current()) const noexcept {
+    inline const std::exception_ptr& get_exception_ptr(
+        detail::site where = detail::site::current()) const noexcept {
         check_answered(where);
-        coro_check(this->producer_->has_exception(), "task: get_exception_ptr() asked of a task that ended with its value",
-                   where);
+        coro_check(this->producer_->has_exception(),
+                   "task: get_exception_ptr() asked of a task that ended with its value", where);
         return this->producer_->exception();
     }
 
@@ -599,7 +621,8 @@ public:
     /// waiting writes into it. The last condition keeps out whatever else
     /// argument-dependent lookup brings here, such as an optional of a task.
     template <class Self>
-        requires(std::is_lvalue_reference_v<Self> && !std::is_const_v<std::remove_reference_t<Self>> &&
+        requires(std::is_lvalue_reference_v<Self> &&
+                 !std::is_const_v<std::remove_reference_t<Self>> &&
                  std::derived_from<std::remove_reference_t<Self>, task>)
     inline friend detail::join_awaiter<R> operator co_await(Self&& kept) noexcept {
         return detail::join_awaiter<R>(kept.producer_);

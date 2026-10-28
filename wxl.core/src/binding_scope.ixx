@@ -61,9 +61,10 @@ class linked_watch<Event, Fn, func_body<void(Args...) noexcept, Base>> final
 {
     using body_t = func_body<void(Args...) noexcept, Base>;
 
-    static_assert(invocable<Fn, void(Args...) noexcept>,
-                  "wxl: a binding's watch is called from inside the event's call, which has nobody to "
-                  "hand an exception to -- it has to be noexcept");
+    static_assert(
+        invocable<Fn, void(Args...) noexcept>,
+        "wxl: a binding's watch is called from inside the event's call, which has nobody to "
+        "hand an exception to -- it has to be noexcept");
 
 public:
     template <class F>

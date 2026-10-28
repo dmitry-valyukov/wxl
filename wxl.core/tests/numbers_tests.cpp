@@ -14,7 +14,8 @@ namespace {
 /// Sets a locale whose decimal separator is a comma for as long as it lives.
 /// The point of this partition is that nothing it does changes when this is in
 /// force, and the only way to show that is to put it in force.
-class comma_locale {
+class comma_locale
+{
 public:
     comma_locale() {
         try {
@@ -49,7 +50,7 @@ TEST(numbers, try_parse_fills_the_result_only_for_a_whole_number) {
     EXPECT_EQ(value, -42);
 
     EXPECT_FALSE(wxl::core::try_parse("42px"sv, value));  // half a number is not one
-    EXPECT_EQ(value, -42);                                   // and the result is untouched
+    EXPECT_EQ(value, -42);                                // and the result is untouched
     EXPECT_FALSE(wxl::core::try_parse(" 42"sv, value));
     EXPECT_FALSE(wxl::core::try_parse(""sv, value));
     EXPECT_FALSE(wxl::core::try_parse("x"sv, value));

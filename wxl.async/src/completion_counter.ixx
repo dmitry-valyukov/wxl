@@ -27,6 +27,7 @@ export namespace wxl::async {
 class completion_counter : core::noncopyable
 {
 public:
+    /// Constructs the counter with \p expected places held, which must be greater than zero.
     inline explicit completion_counter(ssize_t expected = 1) : counter_(expected) {
         ensure(expected > 0);
     }
@@ -77,6 +78,7 @@ private:
 class completion_counter_guard : core::noncopyable
 {
 public:
+    /// Constructs the guard and registers one operation in \p counter.
     inline explicit completion_counter_guard(completion_counter& counter) : counter_(counter) {
         counter.start_one();
     }

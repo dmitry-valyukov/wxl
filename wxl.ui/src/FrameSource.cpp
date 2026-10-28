@@ -11,7 +11,8 @@
 namespace wxl {
 
 MediaFrameSource frameSource(MediaCapture const& capture, hstring_param const& id) {
-    auto const sources = Object::Impl::as<winrt::Windows::Media::Capture::MediaCapture>(capture).FrameSources();
+    auto const sources =
+        Object::Impl::as<winrt::Windows::Media::Capture::MediaCapture>(capture).FrameSources();
     return Object::Impl::wrap<MediaFrameSource>(sources.Lookup(impl::to_winrt(id)));
 }
 

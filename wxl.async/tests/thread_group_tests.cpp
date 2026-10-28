@@ -2,9 +2,6 @@
 
 #include <gtest/gtest.h>
 
-
-
-
 import std;
 import wxl.core;
 import wxl.async;
@@ -14,40 +11,31 @@ using namespace wxl::async;
 
 namespace {
 
-void managed_thread_proc(std::atomic<size_t> * enter_counter, std::atomic<size_t> * exit_counter)
-{
+void managed_thread_proc(std::atomic<size_t>* enter_counter, std::atomic<size_t>* exit_counter) {
     enter_counter->fetch_add(1, std::memory_order_relaxed);
     thread::yield();
     exit_counter->fetch_add(1, std::memory_order_relaxed);
 }
 
-void detached_thread_proc(semaphore * enter_sema)
-{
+void detached_thread_proc(semaphore* enter_sema) {
     thread::yield();
 
     enter_sema->release();
 }
 
-void detached_thread_proc2(semaphore * enter_sema)
-{
-    enter_sema->acquire();
-}
+void detached_thread_proc2(semaphore* enter_sema) { enter_sema->acquire(); }
 
-void detached_thread_proc3(std::atomic<size_t> * counter)
-{
+void detached_thread_proc3(std::atomic<size_t>* counter) {
     counter->fetch_add(1, std::memory_order_relaxed);
 }
 
-void broken_thread_proc(thread_group_ptr manager)
-{
+void broken_thread_proc(thread_group_ptr manager) {
     try {
         manager->join_all();
         FAIL() << "std::exception should be thrown";
-    }
-    catch(const std::exception &) {
+    } catch (const std::exception&) {
         // ok
-    }
-    catch(...) {
+    } catch (...) {
         FAIL() << "std::exception should be thrown";
     }
 }
@@ -64,24 +52,21 @@ void broken_thread_proc(thread_group_ptr manager)
 // }
 
 // --run_test=System/ThreadManagerSuite/simpleCreateDestroyTest --log_level=test_suite
-TEST(ThreadGroupTest, simple_create_destroy_test)
-{
+TEST(ThreadGroupTest, simple_create_destroy_test) {
     thread_group_ptr manager = thread_group::create();
 
     EXPECT_EQ(1, 1);
 }
 
 // --run_test=System/ThreadManagerSuite/simpleCreateDestroy2Test --log_level=test_suite
-TEST(ThreadGroupTest, simple_create_destroy2_test)
-{
+TEST(ThreadGroupTest, simple_create_destroy2_test) {
     thread_scope manager;
 
     EXPECT_EQ(1, 1);
 }
 
 // --run_test=System/ThreadManagerSuite/simpleManagedThreadTest --log_level=test_suite
-TEST(ThreadGroupTest, simple_managed_thread_test)
-{
+TEST(ThreadGroupTest, simple_managed_thread_test) {
     std::atomic<size_t> enter_counter{0};
     std::atomic<size_t> exit_counter{0};
 
@@ -95,8 +80,7 @@ TEST(ThreadGroupTest, simple_managed_thread_test)
 }
 
 // --run_test=System/ThreadManagerSuite/simpleDetachedThreadTest  --log_level=test_suite
-TEST(ThreadGroupTest, simple_detached_thread_test)
-{
+TEST(ThreadGroupTest, simple_detached_thread_test) {
     const duration big_enough_timeout = duration::from_ms(5000);
     const duration small_timeout = duration::from_ms(10);
 
@@ -115,8 +99,7 @@ TEST(ThreadGroupTest, simple_detached_thread_test)
 }
 
 // --run_test=System/ThreadManagerSuite/simpleDetachedThread2Test --log_level=test_suite
-TEST(ThreadGroupTest, simple_detached_thread2_test)
-{
+TEST(ThreadGroupTest, simple_detached_thread2_test) {
     semaphore thread_enter_sem(0);
 
     thread_group::spawn_detached(detached_thread_proc, &thread_enter_sem);
@@ -128,8 +111,7 @@ TEST(ThreadGroupTest, simple_detached_thread2_test)
 }
 
 // --run_test=System/ThreadManagerSuite/managedThreadStressTest --log_level=test_suite
-TEST(ThreadGroupTest, managed_thread_stress_test)
-{
+TEST(ThreadGroupTest, managed_thread_stress_test) {
 #ifdef NDEBUG
     const int max_thread_count = 1024;
 #else
@@ -140,7 +122,9 @@ TEST(ThreadGroupTest, managed_thread_stress_test)
     std::atomic<size_t> enter_counter{0};
     std::atomic<size_t> exit_counter{0};
 
-    std::function<void()> thread_proc = [&enter_counter, &exit_counter] { managed_thread_proc(&enter_counter, &exit_counter); };
+    std::function<void()> thread_proc = [&enter_counter, &exit_counter] {
+        managed_thread_proc(&enter_counter, &exit_counter);
+    };
 
     {
         thread_scope manager;
@@ -157,8 +141,7 @@ TEST(ThreadGroupTest, managed_thread_stress_test)
 }
 
 // --run_test=System/ThreadManagerSuite/detachedThreadStressTest --log_level=test_suite
-TEST(ThreadGroupTest, detached_thread_stress_test)
-{
+TEST(ThreadGroupTest, detached_thread_stress_test) {
 #ifdef NDEBUG
     const int max_thread_count = 1024;
 #else
@@ -180,8 +163,7 @@ TEST(ThreadGroupTest, detached_thread_stress_test)
 }
 
 // --run_test=System/ThreadManagerSuite/closeTest --log_level=test_suite
-TEST(ThreadGroupTest, close_test)
-{
+TEST(ThreadGroupTest, close_test) {
     // Test that we cannot call to close/joinAll from managed thread spawned from the same ThreadManager exemplar
     thread_group_ptr manager = thread_group::create();
     manager->spawn_named(u8"brokenThreadProc", [manager] { broken_thread_proc(manager); });
@@ -192,17 +174,13 @@ TEST(ThreadGroupTest, close_test)
 
 namespace {
 
-void nop() {
-}
+void nop() {}
 
-void start_detached() {
-    thread_group::spawn_detached(nop);
-}
+void start_detached() { thread_group::spawn_detached(nop); }
 }
 
 // --run_test=System/ThreadManagerSuite/detachedThreadStartTest --log_level=test_suite
-TEST(ThreadGroupTest, detached_thread_start_test)
-{
+TEST(ThreadGroupTest, detached_thread_start_test) {
     const unsigned thread_count = 64;
 
     for (unsigned i = 0; i < thread_count; i++) {

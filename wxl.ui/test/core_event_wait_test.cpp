@@ -34,7 +34,8 @@ std::string ending(operation_canceled_exception const& e) {
 }
 
 /// Waits for the next count, and logs it or how the wait ended.
-task<> takes_count(event<void(int)>& counted, cancellation_token token, std::vector<std::string>& log) {
+task<> takes_count(event<void(int)>& counted, cancellation_token token,
+                   std::vector<std::string>& log) {
     try {
         int const count = co_await wxl::on_event(counted, std::move(token));
         log.push_back(std::to_string(count));
@@ -86,8 +87,8 @@ task<> takes_by_value(event<void(copy_count)>& passed, cancellation_token token)
 
 /// Kept in a variable, ended by its token; the invocation that comes first resumes it into the
 /// cancellation, and its handler ends the event, from inside the event's own call.
-task<> holds_the_wait_then_ends_the_event(std::unique_ptr<event<void(int)>>& owner, cancellation_token token,
-                                          std::vector<std::string>& log) {
+task<> holds_the_wait_then_ends_the_event(std::unique_ptr<event<void(int)>>& owner,
+                                          cancellation_token token, std::vector<std::string>& log) {
     {
         auto wait = wxl::on_event(*owner, std::move(token));
         try {
@@ -116,7 +117,8 @@ task<> holds_the_wait_through_going_down(event<void(int)>& counted, cancellation
 
 /// The wait kept in a variable and awaited twice. It leaves the event as it resumes; ended by
 /// its token, it leaves only with the variable, and an invocation before that resumes nothing.
-task<> holds_the_wait(event<void(int)>& counted, cancellation_token token, std::vector<std::string>& log) {
+task<> holds_the_wait(event<void(int)>& counted, cancellation_token token,
+                      std::vector<std::string>& log) {
     auto wait = wxl::on_event(counted, std::move(token));
 
     int const count = co_await wait;
@@ -134,22 +136,31 @@ task<> holds_the_wait(event<void(int)>& counted, cancellation_token token, std::
 
 using token = cancellation_token;
 
-static_assert(std::is_same_v<decltype(wxl::on_event(std::declval<event<void(int)>&>(), token{}).await_resume()),
-                             int>);
 static_assert(
-    std::is_same_v<decltype(wxl::on_event(std::declval<event<void(int&) noexcept>&>(), token{}).await_resume()),
+    std::is_same_v<
+        decltype(wxl::on_event(std::declval<event<void(int)>&>(), token{}).await_resume()), int>);
+static_assert(
+    std::is_same_v<decltype(wxl::on_event(std::declval<event<void(int&) noexcept>&>(), token{})
+                                .await_resume()),
                    int&>);
-static_assert(std::is_same_v<decltype(wxl::on_event(std::declval<event<void(std::string const&, int)>&>(), token{})
-                                          .await_resume()),
-                             std::tuple<std::string, int>>);
+static_assert(std::is_same_v<
+              decltype(wxl::on_event(std::declval<event<void(std::string const&, int)>&>(), token{})
+                           .await_resume()),
+              std::tuple<std::string, int>>);
 static_assert(
-    std::is_same_v<decltype(wxl::on_event(std::declval<event<void(std::string const&)>&>(), token{}).await_resume()),
+    std::is_same_v<decltype(wxl::on_event(std::declval<event<void(std::string const&)>&>(), token{})
+                                .await_resume()),
                    std::string>);
-static_assert(std::is_same_v<decltype(wxl::on_event(std::declval<event<void(int&, std::string const&)>&>(), token{})
-                                          .await_resume()),
-                             std::tuple<int&, std::string>>);
-static_assert(std::is_same_v<decltype(wxl::on_event(std::declval<event<void()>&>(), token{}).await_resume()), void>);
-static_assert(wxl::async::detail::cancelable_awaiter<wxl::impl::core_event_wait<event<void(int)>, int>>);
+static_assert(
+    std::is_same_v<decltype(wxl::on_event(std::declval<event<void(int&, std::string const&)>&>(),
+                                          token{})
+                                .await_resume()),
+                   std::tuple<int&, std::string>>);
+static_assert(
+    std::is_same_v<decltype(wxl::on_event(std::declval<event<void()>&>(), token{}).await_resume()),
+                   void>);
+static_assert(
+    wxl::async::detail::cancelable_awaiter<wxl::impl::core_event_wait<event<void(int)>, int>>);
 
 /// A reference to const is answered by copy: a type that would be sliced, or cannot be copied, is
 /// refused by a static_assert on this concept where the wait is made.
@@ -178,7 +189,8 @@ protected:
 
     void TearDown() override {
         EXPECT_TRUE(wxl::impl::event_wait::all_drained()) << "a wait was left in a list";
-        EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted()) << "a turn was left in the queue";
+        EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted())
+            << "a turn was left in the queue";
 
         wxl::impl::event_wait_test::set_closing(false);
         wxl::impl::event_wait_test::set_canceled_posted(false);

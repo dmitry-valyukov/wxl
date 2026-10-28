@@ -23,10 +23,10 @@ namespace {
 struct Converter : winrt::implements<Converter, xaml::Data::IValueConverter> {
     explicit Converter(std::function<Object(Object const&)> make) : make_(std::move(make)) {}
 
-    winrt::Windows::Foundation::IInspectable Convert(winrt::Windows::Foundation::IInspectable const& value,
-                                                     winrt::Windows::UI::Xaml::Interop::TypeName const&,
-                                                     winrt::Windows::Foundation::IInspectable const&,
-                                                     winrt::hstring const&) const {
+    winrt::Windows::Foundation::IInspectable Convert(
+        winrt::Windows::Foundation::IInspectable const& value,
+        winrt::Windows::UI::Xaml::Interop::TypeName const&,
+        winrt::Windows::Foundation::IInspectable const&, winrt::hstring const&) const {
         Object const result = make_(Object::Impl::wrap<Object>(value));
         winrt::Windows::Foundation::IInspectable native{nullptr};
         if (result) {
@@ -35,10 +35,10 @@ struct Converter : winrt::implements<Converter, xaml::Data::IValueConverter> {
         return native;
     }
 
-    winrt::Windows::Foundation::IInspectable ConvertBack(winrt::Windows::Foundation::IInspectable const&,
-                                                         winrt::Windows::UI::Xaml::Interop::TypeName const&,
-                                                         winrt::Windows::Foundation::IInspectable const&,
-                                                         winrt::hstring const&) const {
+    winrt::Windows::Foundation::IInspectable ConvertBack(
+        winrt::Windows::Foundation::IInspectable const&,
+        winrt::Windows::UI::Xaml::Interop::TypeName const&,
+        winrt::Windows::Foundation::IInspectable const&, winrt::hstring const&) const {
         throw winrt::hresult_not_implemented();
     }
 
@@ -47,7 +47,8 @@ private:
 };
 
 winrt::hstring text_of(std::u16string_view text) {
-    return winrt::hstring{reinterpret_cast<wchar_t const*>(text.data()), static_cast<uint32_t>(text.size())};
+    return winrt::hstring{reinterpret_cast<wchar_t const*>(text.data()),
+                          static_cast<uint32_t>(text.size())};
 }
 
 }  // namespace
@@ -58,18 +59,21 @@ DataTemplate boundTemplate(hstring_param const& root, std::vector<BoundProperty>
     static std::atomic<int> counter{0};
     auto const resources = xaml::Application::Current().Resources();
 
-    std::wstring xaml_text = L"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><";
+    std::wstring xaml_text =
+        L"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><";
     xaml_text += impl::to_winrt(root).c_str();
     for (auto& binding : bindings) {
         auto const key = L"wxl.bound." + std::to_wstring(++counter);
-        resources.Insert(winrt::box_value(winrt::hstring{key}), winrt::make<Converter>(std::move(binding.make)));
+        resources.Insert(winrt::box_value(winrt::hstring{key}),
+                         winrt::make<Converter>(std::move(binding.make)));
         xaml_text += L" ";
         xaml_text += text_of(binding.property).c_str();
         xaml_text += L"='{Binding Converter={StaticResource " + key + L"}}'";
     }
     xaml_text += L"/></DataTemplate>";
 
-    return Object::Impl::wrap<DataTemplate>(xaml::Markup::XamlReader::Load(xaml_text).as<xaml::DataTemplate>());
+    return Object::Impl::wrap<DataTemplate>(
+        xaml::Markup::XamlReader::Load(xaml_text).as<xaml::DataTemplate>());
 }
 
 core::nullable<UIElement> itemElement(ListViewBase const& list, Object const& item) {
@@ -78,10 +82,13 @@ core::nullable<UIElement> itemElement(ListViewBase const& list, Object const& it
 
     // The container's content is a placeholder control (see impl/item_template.cpp) that holds the element; a miss at any step
     // leaves the element null.
-    auto const container = Object::Impl::as<xaml::Controls::ListViewBase>(list).ContainerFromItem(native_item).try_as<xaml::Controls::ContentControl>();
+    auto const container = Object::Impl::as<xaml::Controls::ListViewBase>(list)
+                               .ContainerFromItem(native_item)
+                               .try_as<xaml::Controls::ContentControl>();
     xaml::UIElement element{nullptr};
     if (container) {
-        if (auto const place = container.ContentTemplateRoot().try_as<xaml::Controls::ContentControl>()) {
+        if (auto const place =
+                container.ContentTemplateRoot().try_as<xaml::Controls::ContentControl>()) {
             element = place.Content().try_as<xaml::UIElement>();
         }
     }

@@ -8,7 +8,7 @@ using namespace wxl::xml;
 
 namespace {
 
-constexpr std::string_view fb3_body = "http://www.fictionbook.org/FictionBook3/body";
+constexpr std::string_view ns1_body = "http://example.com/ns1/body";
 constexpr std::string_view xlink = "http://www.w3.org/1999/xlink";
 
 }  // namespace
@@ -18,21 +18,21 @@ constexpr std::string_view xlink = "http://www.w3.org/1999/xlink";
 /// say the same thing, and code that reads them says it once.
 TEST(namespaces, the_same_document_written_with_and_without_a_prefix) {
     document plain;
-    const node& a = plain.load(R"(<fb3-body xmlns=")" + std::string(fb3_body) + R"("><p/></fb3-body>)");
+    const node& a = plain.load(R"(<ns1-body xmlns=")" + std::string(ns1_body) + R"("><p/></ns1-body>)");
 
-    EXPECT_EQ(a.name(), "fb3-body");
+    EXPECT_EQ(a.name(), "ns1-body");
     EXPECT_EQ(a.prefix(), "");
-    EXPECT_EQ(a.namespace_uri(), fb3_body);
-    EXPECT_EQ(a.child("p")->namespace_uri(), fb3_body);
+    EXPECT_EQ(a.namespace_uri(), ns1_body);
+    EXPECT_EQ(a.child("p")->namespace_uri(), ns1_body);
 
     document prefixed;
     const node& b =
-        prefixed.load(R"(<fb3:fb3-body xmlns:fb3=")" + std::string(fb3_body) + R"("><fb3:p/></fb3:fb3-body>)");
+        prefixed.load(R"(<ns1:ns1-body xmlns:ns1=")" + std::string(ns1_body) + R"("><ns1:p/></ns1:ns1-body>)");
 
-    EXPECT_EQ(b.name(), "fb3-body");
-    EXPECT_EQ(b.prefix(), "fb3");
-    EXPECT_EQ(b.qualified_name(), "fb3:fb3-body");
-    EXPECT_EQ(b.namespace_uri(), fb3_body);
+    EXPECT_EQ(b.name(), "ns1-body");
+    EXPECT_EQ(b.prefix(), "ns1");
+    EXPECT_EQ(b.qualified_name(), "ns1:ns1-body");
+    EXPECT_EQ(b.namespace_uri(), ns1_body);
     EXPECT_NE(b.child("p"), nullptr);
 }
 

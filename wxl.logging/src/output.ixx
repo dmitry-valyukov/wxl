@@ -80,6 +80,8 @@ protected:
     /// that already holds it and is flushing a batch of lines through.
     void write_unlocked(const log_entry& entry);
 
+    /// Gets the mutex that guards the list of end-points; write_unlocked() expects the
+    /// caller to hold it.
     inline core::mutex& outputs_mutex() const noexcept { return mutex_; }
 
 private:

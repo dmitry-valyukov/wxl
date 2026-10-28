@@ -15,19 +15,19 @@ with no prior deployment step.
 ## Documentation
 
 The full documentation is available both as an
-[online reference](https://dmitry-valyukov.github.io/wxl/index.html) and
+[online reference](https://wxl-project.github.io/wxl/index.html) and
 locally in the `docs/` directory:
 
 - **Architecture and layers:** the rationale behind the engineering
   decisions and a walkthrough of the structure —
   [`docs/index.md`](docs/index.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/index.html)
+  [Web](https://wxl-project.github.io/wxl/index.html)
 - **Setup:** instructions for building the library and integrating it into
   other projects — [`docs/building.md`](docs/building.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2building.html)
+  [Web](https://wxl-project.github.io/wxl/md_docs_2building.html)
 - **Media:** a series of in-depth technical publications on Habr (in
   Russian) — [`docs/articles.md`](docs/articles.md) |
-  [Web](https://dmitry-valyukov.github.io/wxl/md_docs_2articles.html)
+  [Web](https://wxl-project.github.io/wxl/md_docs_2articles.html)
 
 ## Architectural manifesto
 
@@ -163,40 +163,39 @@ To build the library and the sample projects, you will need:
 - **OS:** Windows x64
 - **Compiler toolchain:** Visual Studio 2026 (Insiders channel) with the
   MSVC toolset 14.53.36911 or newer
+- **WinUI tools:** in the same installation, the workload "WinUI application
+  development" with the component "C++ WinUI app development tools"; in
+  Build Tools for Visual Studio 2026, the workload "WinUI application
+  development build tools" with the component "C++ WinUI app development
+  build tools". The configure gets the NuGet packages and the cppwinrt
+  projection from the MSBuild of that installation
+- **Windows SDK:** 10.0.26100.0 or newer
 - **Build:** CMake (version 4.3 / 4.4) and Ninja
 - **Environment:** PowerShell 7 (`pwsh`)
-- **Dependency management:** an installed `vcpkg` with the one-time
-  integration command (`vcpkg integrate install`) already run. The build
-  scripts locate the package manager automatically via the
-  `vcpkg.path.txt` file, or when the `-DVCPKG_ROOT=<path>` flag is passed
-  explicitly.
 
 ### Step-by-step setup
 
 Start a `pwsh` session in the root directory of the cloned repository and run
-the following commands to prepare the environment, generate the projection
-and run a sample:
+the following commands to prepare the environment, generate the wrappers and
+run a sample:
 
 ```powershell
-# 1. Restore the required NuGet packages (versions are pinned in tools/packages.json)
-pwsh -NoProfile -File tools\restore-packages.ps1
-
-# 2. Generate the base cppwinrt projection into the generated\ directory
-pwsh -NoProfile -File tools\projection.ps1
-
-# 3. Deploy the experimental Windows App Runtime
-pwsh -NoProfile -File tools\install-runtime.ps1
-
-# 4. Build the winui-srcgen tool without generating its accompanying documentation
+# 1. Configure the tree and build the winui-srcgen tool without the documentation site.
+#    The configure restores the NuGet packages (pinned in wxl.gen/profiles/base.json and
+#    tools/packages.json, resolved into tools/packages.lock.json) and builds the cppwinrt
+#    projection in the build directory
 tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
 
-# 5. Run the generator to build the full profile of WinUI wrappers
+# 2. Deploy the experimental Windows App Runtime from the package the configure restored
+pwsh -NoProfile -File tools\install-runtime.ps1
+
+# 3. Run the generator to build the full profile of WinUI wrappers
 build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
 
-# 6. Configure CMake and build the Quadratic sample project
+# 4. Configure CMake and build the Quadratic sample project
 tools\build.ps1 -Configure -Target sample.quadratic
 
-# 7. Run the built application
+# 5. Run the built application
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 

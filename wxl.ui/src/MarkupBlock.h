@@ -102,7 +102,8 @@ struct MarkupTheme {
     Thickness detailsMargin{0, 8, 0, 8};
 };
 
-class MarkupBlock : public FormattedBlock {
+class MarkupBlock : public FormattedBlock
+{
     using base_t = FormattedBlock;
 
 public:

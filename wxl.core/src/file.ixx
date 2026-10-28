@@ -34,9 +34,11 @@ public:
     /// exactly one thing to check.
     file() = default;
 
+    /// Constructs a file that takes over the handle of \p other, which is left closed.
     inline file(file&& other) noexcept
         : handle_(std::exchange(other.handle_, INVALID_HANDLE_VALUE)) {}
 
+    /// Exchanges the handles of this file and \p other and returns a reference to this file.
     inline file& operator=(file&& other) noexcept {
         std::swap(handle_, other.handle_);
         return *this;
@@ -61,9 +63,9 @@ public:
     /// \return the file, opened or not -- ask opened(), and ask the system
     ///         (`GetLastError`) why not, before anything else is called.
     inline static file open_read(const wchar_t* path) noexcept {
-        return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                  nullptr, OPEN_EXISTING,
-                                  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr));
+        return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+                                  nullptr));
     }
 
     /// Creates a file for writing, emptying one that is already there.
@@ -82,13 +84,14 @@ public:
     /// such a file: they pass none.
     ///@{
     inline static file open_read_overlapped(const wchar_t* path) noexcept {
-        return file(::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                  nullptr, OPEN_EXISTING,
-                                  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN |
-                                      FILE_FLAG_OVERLAPPED,
-                                  nullptr));
+        return file(::CreateFileW(
+            path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN | FILE_FLAG_OVERLAPPED, nullptr));
     }
 
+    /// Creates a file for overlapped writing, emptying one that is already there, for a caller
+    /// that passes its own `OVERLAPPED` to every call and keeps the position itself. `read()`
+    /// and `write()` are not for such a file: they pass no `OVERLAPPED`.
     inline static file create_overlapped(const wchar_t* path) noexcept {
         return file(::CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                                   FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr));
@@ -104,6 +107,7 @@ public:
                (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
     }
 
+    /// Tests whether the file is open.
     inline bool opened() const noexcept { return handle_ != INVALID_HANDLE_VALUE; }
 
     /// The file's length, or none when it cannot be had.
@@ -168,6 +172,7 @@ public:
     /// content not.
     inline bool flush() noexcept { return opened() && ::FlushFileBuffers(handle_) != 0; }
 
+    /// Closes the handle; does nothing when the file is not open.
     inline void close() noexcept {
         if (opened()) ::CloseHandle(std::exchange(handle_, INVALID_HANDLE_VALUE));
     }

@@ -41,12 +41,14 @@ bool Object::is_text() const {
 }
 
 Object Object::from_text(hstring_param const& text) {
-    return copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(winrt::box_value(impl::to_winrt(text)))));
+    return copy_from_abi(
+        static_cast<::IInspectable*>(winrt::get_abi(winrt::box_value(impl::to_winrt(text)))));
 }
 
 hstring Object::text() const {
     assert(is_text() && "wxl: text() of an object that is not a boxed string");
-    return impl::from_winrt(impl_->inspectable_.as<winrt::Windows::Foundation::IPropertyValue>().GetString());
+    return impl::from_winrt(
+        impl_->inspectable_.as<winrt::Windows::Foundation::IPropertyValue>().GetString());
 }
 
 ::IInspectable* Object::get_abi() const noexcept {
@@ -59,16 +61,16 @@ hstring Object::text() const {
 // there is something behind it.
 Object Object::copy_from_abi(::IInspectable* object) noexcept {
     if (!object) return Impl::empty<Object>();
-    winrt::Windows::Foundation::IInspectable copied{nullptr};
-    winrt::copy_from_abi(copied, object);
-    return Object{new Impl{std::move(copied)}};
+    auto impl = new Impl{};
+    winrt::copy_from_abi(impl->inspectable_, object);
+    return Object{impl};
 }
 
 Object Object::attach_abi(::IInspectable* object) noexcept {
     if (!object) return Impl::empty<Object>();
-    winrt::Windows::Foundation::IInspectable attached{nullptr};
-    winrt::attach_abi(attached, object);
-    return Object{new Impl{std::move(attached)}};
+    auto impl = new Impl{};
+    winrt::attach_abi(impl->inspectable_, object);
+    return Object{impl};
 }
 
 DependencyObject::DependencyObject(Impl* impl) noexcept : base_t(impl) {}

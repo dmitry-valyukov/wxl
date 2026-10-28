@@ -15,11 +15,11 @@
 // dropping its arena, which is also the only place the pages go back.
 //
 // The pages come from arena_pool and go back to it: one size, kept for the
-// life of the process, so the second book of a session is built in the first
-// book's pages, warm. The one thing that does not come from there is a single
-// request too big for a page -- a value the markup tore into pieces and the
-// arena has to put back together -- which gets a page of its own from the
-// ordinary allocator, where a lone huge object belongs.
+// life of the process, so the second document of a session is built in the
+// first document's pages, warm. The one thing that does not come from there
+// is a single request too big for a page -- a value the markup tore into
+// pieces and the arena has to put back together -- which gets a page of its
+// own from the ordinary allocator, where a lone huge object belongs.
 
 export module wxl.xml:arena;
 
@@ -27,6 +27,11 @@ import :core;
 
 export namespace wxl::xml {
 
+/// Provides the storage that a parsed tree is made of. Memory comes in pages from
+/// `wxl::xml::arena_pool`, objects are carved out by moving a cursor, and all the pages are
+/// released together when the arena is destroyed. No destructor of a stored object is run,
+/// so only trivially destructible types may be stored. A request too large for a page gets a
+/// block of its own from `std::malloc`.
 class arena {
 public:
     /// Takes its first page. An arena with no page in it is a state this class
@@ -47,6 +52,7 @@ public:
         return core::sta_memory_pool::alloc(size);
     }
 
+    /// Releases the memory of an arena to the STA pool, which `operator new` takes it from.
     inline static void operator delete(void* ptr, std::size_t size) noexcept {
         core::sta_memory_pool::free(ptr, size);
     }

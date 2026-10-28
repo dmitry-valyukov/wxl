@@ -26,7 +26,12 @@ export namespace wxl::async {
 class overlapped_op : public async_op_t<std::size_t>
 {
 public:
-    enum class kind : std::uint8_t { read, write };
+    /// Specifies whether the operation is a read or a write.
+    enum class kind : std::uint8_t
+    {
+        read,
+        write
+    };
 
     /// The most one call to the system is given. Bigger buys nothing -- the storage
     /// stack splits a request anyway, and this much is already all copying -- while the
@@ -36,7 +41,7 @@ public:
     /// \param at where in the file; an overlapped handle keeps no position of its own.
     /// \param skips_port what io_port::attach() answered for this file.
     overlapped_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
-          bool skips_port) noexcept;
+                  bool skips_port) noexcept;
 
     /// Starts the operation on the calling thread.
     /// \return `true` if it is over, with its result or its failure in place; `false`
@@ -55,8 +60,7 @@ public:
 #ifndef NDEBUG
     /// Debug tallies for the tests, which cannot otherwise tell where an operation ran
     /// or whether it took more than one call. Not in a Release build.
-    struct tally
-    {
+    struct tally {
         /// Calls issued beyond the first one of an operation.
         std::atomic<std::size_t> chained{0};
 
@@ -64,6 +68,7 @@ public:
         std::atomic<std::size_t> started_on_worker{0};
     };
 
+    /// The tallies of all operations.
     static inline tally debug;
 #endif
 

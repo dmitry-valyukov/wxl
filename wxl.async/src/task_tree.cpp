@@ -85,7 +85,6 @@ private:
 
 }  // namespace detail
 
-
 using detail::task_tree_state;
 
 task_tree::task_tree() noexcept : base(nullptr) {}
@@ -154,7 +153,9 @@ task_tree_handle task_tree::create_subtask() const {
     return task_tree_handle(core::make_refcounted<detail::task_tree_state>(st));
 }
 
-task_tree task_tree::create_subtask(const future<void>& f) const { return follow(create_subtask(), f); }
+task_tree task_tree::create_subtask(const future<void>& f) const {
+    return follow(create_subtask(), f);
+}
 
 task_tree_handle task_tree::create(const task_tree& parent) {
     detail::task_tree_state* parent_state = parent.state();
@@ -258,13 +259,14 @@ core::nullable<size_t> update(std::atomic<size_t>& counter, t_next next) {
 /// Counts one more unresolved task in.
 /// \return `false` if the task is already finished.
 bool try_increment_counter(std::atomic<size_t>& counter) {
-    return update(counter, [](size_t value) -> core::nullable<size_t> {
-               if (is_finished(value)) return {};
+    return update(counter,
+                  [](size_t value) -> core::nullable<size_t> {
+                      if (is_finished(value)) return {};
 
-               assert(counter_value(value) >= 1);
+                      assert(counter_value(value) >= 1);
 
-               return counter_value(value) + 1;
-           })
+                      return counter_value(value) + 1;
+                  })
         .has_value();
 }
 
@@ -280,13 +282,14 @@ size_t decrement_counter(std::atomic<size_t>& counter) {
 /// Decrements the counter and raises the 'finished' flag.
 /// \return the number of unresolved tasks left, or nothing if the task was already finished.
 core::nullable<size_t> finish_counter(std::atomic<size_t>& counter) {
-    const core::nullable<size_t> stored = update(counter, [](size_t value) -> core::nullable<size_t> {
-        if (is_finished(value)) return {};
+    const core::nullable<size_t> stored =
+        update(counter, [](size_t value) -> core::nullable<size_t> {
+            if (is_finished(value)) return {};
 
-        assert(counter_value(value) >= 1);
+            assert(counter_value(value) >= 1);
 
-        return (counter_value(value) - 1) | is_finished_bit;
-    });
+            return (counter_value(value) - 1) | is_finished_bit;
+        });
 
     return stored ? core::nullable<size_t>(counter_value(*stored)) : core::nullable<size_t>{};
 }
@@ -387,8 +390,7 @@ task_tree_state* task_tree_state::root() {
 }
 
 void task_tree_state::decrement_task_handle_count() {
-    if (0 == decrement_promise_count() &&
-        !is_finished(counter_.load(std::memory_order_relaxed)))
+    if (0 == decrement_promise_count() && !is_finished(counter_.load(std::memory_order_relaxed)))
         set_failed(std::make_exception_ptr(std::future_error(std::future_errc::broken_promise)));
 }
 

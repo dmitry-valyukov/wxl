@@ -11,7 +11,8 @@ namespace {
 // GCB / INCB / LETTER of gen-grapheme-table.py -- and GraphemeBreakTest.txt is
 // what notices when the two stop agreeing; for the letter bit, the is_letter
 // tests are.
-enum class break_class : std::uint8_t {
+enum class break_class : std::uint8_t
+{
     other,
     cr,
     lf,
@@ -28,7 +29,13 @@ enum class break_class : std::uint8_t {
     lvt,
 };
 
-enum class conjunct_class : std::uint8_t { none, linker, consonant, extend };
+enum class conjunct_class : std::uint8_t
+{
+    none,
+    linker,
+    consonant,
+    extend
+};
 
 constexpr std::uint8_t extended_pictographic = 0x40;
 
@@ -79,31 +86,31 @@ constexpr bool breaks(const break_class previous, const break_class current,
                       const bool after_linker) noexcept {
     using enum break_class;
 
-    if (previous == cr && current == lf) return false;                         // GB3
-    if (is_control(previous)) return true;                                      // GB4
-    if (is_control(current)) return true;                                       // GB5
+    if (previous == cr && current == lf) return false;  // GB3
+    if (is_control(previous)) return true;              // GB4
+    if (is_control(current)) return true;               // GB5
 
     if (previous == l && (current == l || current == v || current == lv || current == lvt))
-        return false;                                                           // GB6
-    if ((previous == lv || previous == v) && (current == v || current == t))
-        return false;                                                           // GB7
-    if ((previous == lvt || previous == t) && current == t) return false;       // GB8
+        return false;                                                                       // GB6
+    if ((previous == lv || previous == v) && (current == v || current == t)) return false;  // GB7
+    if ((previous == lvt || previous == t) && current == t) return false;                   // GB8
 
-    if (current == extend || current == zwj) return false;                      // GB9
-    if (current == spacing_mark) return false;                                  // GB9a
-    if (previous == prepend) return false;                                      // GB9b
+    if (current == extend || current == zwj) return false;  // GB9
+    if (current == spacing_mark) return false;              // GB9a
+    if (previous == prepend) return false;                  // GB9b
 
-    if (conjunct == conjunct_class::consonant && after_linker) return false;    // GB9c
-    if (pictographic && emoji == 2) return false;                               // GB11
+    if (conjunct == conjunct_class::consonant && after_linker) return false;  // GB9c
+    if (pictographic && emoji == 2) return false;                             // GB11
 
     if (previous == regional_indicator && current == regional_indicator && odd_regional)
-        return false;                                                           // GB12, GB13
+        return false;  // GB12, GB13
 
-    return true;                                                                // GB999
+    return true;  // GB999
 }
 
 template <typename CharT>
-constexpr char32_t unit_at(const std::basic_string_view<CharT> text, const std::size_t at) noexcept {
+constexpr char32_t unit_at(const std::basic_string_view<CharT> text,
+                           const std::size_t at) noexcept {
     return static_cast<char32_t>(static_cast<std::uint16_t>(text[at]));
 }
 
@@ -149,7 +156,8 @@ std::size_t next_boundary(const std::basic_string_view<CharT> text, std::size_t 
 }
 
 template <typename CharT>
-std::size_t floor_boundary(const std::basic_string_view<CharT> text, const std::size_t at) noexcept {
+std::size_t floor_boundary(const std::basic_string_view<CharT> text,
+                           const std::size_t at) noexcept {
     if (at >= text.size()) return text.size();
 
     // A boundary between two plain units leaves the rules in the state a
@@ -182,9 +190,9 @@ bool grapheme_breaker::breaks_before(const char32_t code_point) noexcept {
     const auto conjunct = static_cast<conjunct_class>((properties >> 4) & 0x03);
     const bool pictographic = (properties & extended_pictographic) != 0;
 
-    const bool result = previous_ == no_code_point_yet ||                       // GB1
-                        breaks(static_cast<break_class>(previous_), current, conjunct,
-                               pictographic, odd_regional_, emoji_, after_linker_);
+    const bool result = previous_ == no_code_point_yet ||  // GB1
+                        breaks(static_cast<break_class>(previous_), current, conjunct, pictographic,
+                               odd_regional_, emoji_, after_linker_);
 
     // A run of regional indicators pairs up from its start, so what matters is
     // whether the run so far is odd.
@@ -201,8 +209,8 @@ bool grapheme_breaker::breaks_before(const char32_t code_point) noexcept {
     else if (!(emoji_ == 1 && current == break_class::extend))
         emoji_ = 0;
 
-    after_linker_ = conjunct == conjunct_class::linker ||
-                    (after_linker_ && conjunct == conjunct_class::extend);
+    after_linker_ =
+        conjunct == conjunct_class::linker || (after_linker_ && conjunct == conjunct_class::extend);
 
     previous_ = static_cast<std::uint8_t>(current);
 
@@ -213,6 +221,9 @@ std::size_t next_grapheme_boundary(const std::wstring_view text, const std::size
     return next_boundary(text, at);
 }
 
+/// Returns the start of the grapheme cluster after the one that starts at \p at, or the end of
+/// the text; the overload for `std::u16string_view`, with the behavior of the overload for
+/// `std::wstring_view`.
 std::size_t next_grapheme_boundary(const std::u16string_view text, const std::size_t at) noexcept {
     return next_boundary(text, at);
 }
@@ -221,6 +232,8 @@ std::size_t floor_grapheme_boundary(const std::wstring_view text, const std::siz
     return floor_boundary(text, at);
 }
 
+/// Returns the nearest grapheme cluster boundary at or before \p at; the overload for
+/// `std::u16string_view`, with the behavior of the overload for `std::wstring_view`.
 std::size_t floor_grapheme_boundary(const std::u16string_view text, const std::size_t at) noexcept {
     return floor_boundary(text, at);
 }
@@ -229,9 +242,7 @@ bool is_letter(const char32_t code_point) noexcept {
     return (properties_of(code_point) & letter_category) != 0;
 }
 
-std::string_view grapheme_unicode_version() noexcept {
-    return grapheme_table_version;
-}
+std::string_view grapheme_unicode_version() noexcept { return grapheme_table_version; }
 
 }  // namespace unicode
 

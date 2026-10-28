@@ -39,11 +39,10 @@ concept void_result = requires {
 // check that promise at the subscription instead of leaving it to std::terminate.
 template <class F, class R, class... Args>
 struct invocable_t<F, R(Args...) noexcept>
-    : std::bool_constant<
-          (std::is_nothrow_invocable_r_v<R, F&, Args...> &&
-           (!std::is_void_v<R> || void_result<F, Args...>)) ||
-          (optional_like<R> && std::is_nothrow_invocable_v<F&, Args...> &&
-           void_result<F, Args...>)> {
+    : std::bool_constant<(std::is_nothrow_invocable_r_v<R, F&, Args...> &&
+                          (!std::is_void_v<R> || void_result<F, Args...>)) ||
+                         (optional_like<R> && std::is_nothrow_invocable_v<F&, Args...> &&
+                          void_result<F, Args...>)> {
 };
 
 template <class F, class R, class... Args>
@@ -114,8 +113,7 @@ class func_body;
 // list and let go of by token. `Base` is where they differ and all they
 // differ in.
 template <typename R, typename... T, bool NX, template <class> class Base>
-class func_body<R(T...) noexcept(NX), Base>
-    : public Base<func_body<sig_t<NX, R, T...>, Base>>
+class func_body<R(T...) noexcept(NX), Base> : public Base<func_body<sig_t<NX, R, T...>, Base>>
 {
     using body_type = func_body<sig_t<NX, R, T...>, Base>;
 
@@ -181,7 +179,8 @@ using counted = sta_refcounted;
 // has to be an ordinary substitution failure, so that the deduction guide at
 // the end is passed over rather than hard-erroring on, say, an int.
 template <class M>
-struct signature_from {};
+struct signature_from {
+};
 
 template <class R, class C, class... A, bool NX>
 struct signature_from<R (C::*)(A...) noexcept(NX)> {
@@ -208,11 +207,13 @@ struct signature_from<R (*)(A...) noexcept(NX)> {
 // `function` that promises it too. The two spellings are different types, and
 // deducing the weaker one would quietly drop a promise the author wrote down.
 template <class F, class = void>
-struct declared_signature : signature_from<F> {};
+struct declared_signature : signature_from<F> {
+};
 
 template <class F>
 struct declared_signature<F, std::void_t<decltype(&F::operator())>>
-    : signature_from<decltype(&F::operator())> {};
+    : signature_from<decltype(&F::operator())> {
+};
 
 // Defined below the class it is about: the one thing that may make a function
 // with nothing in it, and the one thing that can tell.
@@ -259,8 +260,9 @@ struct func_sentinel;
 template <class Signature>
 class function;
 
-// Both spellings, one body, the way func_body above does it: `function<void()>`
-// and `function<void() noexcept>` stay two distinct types.
+/// Implements `wxl::core::function` for both spellings of a signature, with and without
+/// `noexcept`, in one body, as `func_body` does: `function<void()>` and
+/// `function<void() noexcept>` remain two distinct types.
 template <class R, class... T, bool NX>
 class function<R(T...) noexcept(NX)>
 {
@@ -269,6 +271,7 @@ class function<R(T...) noexcept(NX)>
     friend struct impl::func_sentinel<impl::sig_t<NX, R, T...>>;
 
 public:
+    /// The type of the result of a call.
     using result_type = R;
 
     /// From any callable the signature fits, checked here rather than inside the
@@ -288,9 +291,7 @@ public:
     /// one of them could not say anything about that body anyway -- and a function
     /// captured by a lambda is const inside it, which is where most of them are
     /// called from.
-    R operator()(T... args) const noexcept(NX) {
-        return (*body_.get())(std::forward<T>(args)...);
-    }
+    R operator()(T... args) const noexcept(NX) { return (*body_.get())(std::forward<T>(args)...); }
 
 private:
     not_null<intrusive_ptr<body_t>> body_;
@@ -340,12 +341,14 @@ struct func_sentinel {
 
 }  // namespace impl
 
-// The extension point compressed_optional.ixx documents, keyed on every
-// function at once. Its effect is the whole reason the empty function could be
-// taken away: what used to be a state of the type is now a state of the holder
-// that admits to having one, and it still fits in the same pointer.
+/// Specializes the `optional_selector` extension point for every `wxl::core::function`: the
+/// nullable form is a `compressed_optional` whose empty state is the null body pointer, so that
+/// it still fits in one pointer. This is what allows `function` to have no empty state of its
+/// own: the empty state belongs to the holder that declares it.
 template <class Signature>
 struct optional_selector<function<Signature>> {
+    /// The type of a nullable `function`: a `compressed_optional` with the null body as its
+    /// empty state.
     using nullable = compressed_optional<function<Signature>, impl::func_sentinel<Signature>>;
 };
 

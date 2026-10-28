@@ -57,8 +57,7 @@ inline void barrier() noexcept { std::atomic_signal_fence(std::memory_order_seq_
 
 double pure_pop(unsigned depth, unsigned rounds) {
     std::vector<void*> blocks(depth);
-    for (unsigned i = 0; i < depth; ++i)
-        blocks[i] = pool::alloc<Size>();
+    for (unsigned i = 0; i < depth; ++i) blocks[i] = pool::alloc<Size>();
 
     std::chrono::steady_clock::duration total{};
 
@@ -134,8 +133,7 @@ double fresh(unsigned count) {
 template <typename Fn>
 double best_of(Fn run, int repeats) {
     double best = run();
-    for (int r = 1; r < repeats; ++r)
-        best = std::min(best, run());
+    for (int r = 1; r < repeats; ++r) best = std::min(best, run());
     return best;
 }
 

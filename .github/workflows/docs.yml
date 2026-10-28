@@ -1,28 +1,44 @@
-# The documentation site: built on every push to main and published to GitHub
-# Pages; on a pull request only built, as the check that no comment in the
-# tree is malformed (the Doxyfile makes warnings fatal).
+# The documentation site.
 #
-# docs/ is a CMake project of its own with no compiler behind it: Doxygen
-# reads the sources without building them, so a Linux runner without MSVC is
-# enough. The generated WinUI wrappers are not part of this site -- producing
-# them needs the toolchain -- and the site's main page says so.
+# The published site is built by the author on his own machine, together with
+# the generated WinUI wrappers, and published by him: with each release, and
+# until the first one whenever it changes. The build is attached to the
+# release, or to a draft release, as wxl-docs.zip, and this workflow, run by
+# hand with the release's tag and the commit the site was built from, deploys
+# it to GitHub Pages. The deploy builds nothing: it checks that the archive is
+# the one the run was started for, made from a commit on the default branch,
+# and publishes its html/ as is.
+#
+# On a pull request the site is only built, as the check that no comment in
+# the tree is malformed (the Doxyfile makes warnings fatal), and nothing is
+# published. docs/ is a CMake project of its own with no compiler behind it:
+# Doxygen reads the sources without building them, so a Linux runner without
+# MSVC is enough. The wrappers are not part of this check -- producing them
+# needs the toolchain.
 name: docs
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  merge_group:
   workflow_dispatch:
+    inputs:
+      release:
+        description: Tag of the release, or of the draft release, that carries wxl-docs.zip
+        required: true
+        type: string
+      # Named by the run, not only by the archive: an asset replaced after the
+      # run was started, or left over from an earlier build, does not match it.
+      commit:
+        description: Full SHA of the commit the site in wxl-docs.zip was built from
+        required: true
+        type: string
 
 permissions:
   contents: read
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
   build:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,22 +54,125 @@ jobs:
       - name: Test (warnings are fatal)
         run: ctest --test-dir build/docs --output-on-failure
 
-      - name: Upload the site
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: build/docs/docs/wxl/html
-
   deploy:
-    if: github.event_name != 'pull_request'
-    needs: build
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # On the deploy alone: a pull request check queued in the same group would
+    # cancel a deploy still waiting for its turn.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
+      # A draft release is visible only to a token that can write to the
+      # repository; reading is all the job does with it.
+      contents: write
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        shell: bash
     steps:
+      # The inputs reach the shell as variables, never spliced into a script,
+      # and are checked before anything uses them.
+      - name: Check the inputs
+        env:
+          RELEASE: ${{ inputs.release }}
+          RUN_COMMIT: ${{ inputs.commit }}
+        run: |
+          if ! [[ "$RELEASE" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::release: not a tag name"
+            exit 1
+          fi
+          if ! [[ "$RUN_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit: not a full SHA"
+            exit 1
+          fi
+
+      # The whole history and the tags: the manifest's commit is checked
+      # against them. The job pushes nothing, so no token stays in .git.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          gh release download --repo "$GITHUB_REPOSITORY" \
+            --pattern wxl-docs.zip --dir "$RUNNER_TEMP" -- "$RELEASE"
+
+      # A symbolic link in the archive would let the Pages artifact pick up a
+      # file from outside it.
+      - name: Unpack
+        run: |
+          unzip -q "$RUNNER_TEMP/wxl-docs.zip" -d "$RUNNER_TEMP/site"
+          for required in manifest.json html/index.html; do
+            if [ ! -f "$RUNNER_TEMP/site/$required" ]; then
+              echo "::error::wxl-docs.zip has no $required"
+              exit 1
+            fi
+          done
+          if [ -n "$(find "$RUNNER_TEMP/site" -type l)" ]; then
+            echo "::error::wxl-docs.zip carries symbolic links"
+            exit 1
+          fi
+
+      # Only code that is already public goes on the site: the commit the
+      # archive was built from has to be on the default branch, and a release
+      # that already has its tag has to be the release of that commit. A draft
+      # has no tag yet and is not held to the second rule.
+      - name: Check the manifest
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE: ${{ inputs.release }}
+          RUN_COMMIT: ${{ inputs.commit }}
+        run: |
+          manifest="$RUNNER_TEMP/site/manifest.json"
+          if ! jq . "$manifest"; then
+            echo "::error::manifest.json is not valid JSON"
+            exit 1
+          fi
+          if ! commit=$(jq -er '.commit' "$manifest"); then
+            echo "::error::manifest.json has no commit"
+            exit 1
+          fi
+          if [ "$commit" != "$RUN_COMMIT" ]; then
+            echo "::error::manifest.json names another commit than the run was started for ($RUN_COMMIT)"
+            exit 1
+          fi
+          if ! git cat-file -e "$commit^{commit}" 2>/dev/null; then
+            echo "::error::commit $commit is not in this repository"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$commit" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::commit $commit is not on $DEFAULT_BRANCH; the site is not deployed"
+            exit 1
+          fi
+          # rev-parse -q --verify answers 1 for a ref that does not exist and
+          # anything else for a failure; the peel below stops on a tag that is
+          # not a commit.
+          status=0
+          git rev-parse -q --verify "refs/tags/$RELEASE" > /dev/null || status=$?
+          if [ "$status" -eq 0 ]; then
+            tagged=$(git rev-parse --verify "refs/tags/$RELEASE^{commit}")
+            if [ "$tagged" != "$commit" ]; then
+              echo "::error::tag $RELEASE is on $tagged, the site was built from $commit"
+              exit 1
+            fi
+          elif [ "$status" -ne 1 ]; then
+            echo "::error::git rev-parse failed on tag $RELEASE"
+            exit 1
+          fi
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site/html
+
       - id: deployment
         uses: actions/deploy-pages@v4

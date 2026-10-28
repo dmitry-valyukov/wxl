@@ -107,9 +107,7 @@ TEST(ChangeWatch, watches_a_list) {
 // Each broken rule stops the process: what would follow is an event holding a node that
 // is gone, or a watch calling an owner that did not ask. The report goes to stderr rather
 // than to a dialog that would hang the run.
-void without_a_dialog() {
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-}
+void without_a_dialog() { _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT); }
 
 // A watch that outlives its field: the field lets go of the node as it ends, and the watch
 // would take itself off a field that is gone.
@@ -147,7 +145,8 @@ TEST(ChangeWatchDeathTest, taken_off_by_someone_else_stops) {
 struct SelfDestroying {
     void valueChanged(int const&) noexcept { watch.reset(); }
 
-    using watch_box = wxl::test::sta_box<change_watch<observable<int const>, &SelfDestroying::valueChanged>>;
+    using watch_box =
+        wxl::test::sta_box<change_watch<observable<int const>, &SelfDestroying::valueChanged>>;
     std::unique_ptr<watch_box> watch;
 };
 

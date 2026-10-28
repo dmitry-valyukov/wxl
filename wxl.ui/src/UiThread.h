@@ -7,7 +7,8 @@
 
 // wxl::UiThread -- when work runs on the UI thread: post() hands it over from
 // another thread, and onIdle() lets a coroutine on the UI thread step aside for
-// what is more urgent.
+// what is more urgent. isCurrent() and ensureCurrent() tell whether the calling
+// thread is that thread.
 //
 // DispatcherQueue.tryEnqueue already takes a lambda: a delegate parameter is
 // projected as std::function of the delegate's own signature, so handing work
@@ -27,7 +28,7 @@
 //
 //     UiThread const ui{window.dispatcherQueue()};   // on the UI thread
 //     ...
-//     ui.post([found = std::move(books)] { shelf.add(found); });   // anywhere
+//     ui.post([found = std::move(files)] { fileList.add(found); });   // anywhere
 //
 // The work is copied into the queue, as it must be: it runs after post() has
 // returned, so nothing it needs may be held by reference.
@@ -54,7 +55,8 @@ struct IInspectable;
 
 namespace wxl {
 
-class UiThread {
+class UiThread
+{
 public:
     /// An empty handle: post() does nothing and says so. Exists so that an
     /// object can hold one before the window is up.
@@ -85,6 +87,17 @@ public:
     [[nodiscard]] static impl::cancelable_event_wait<Idle, async::cancellation_token> onIdle(
         async::cancellation_token token);
 
+    /// Whether the calling thread is the UI thread: the one wxl runs on, whose STA pool it is.
+    static bool isCurrent() noexcept { return core::sta_memory_pool::is_safe(); }
+
+    /// Stops the process when the calling thread is not the UI thread: a call from another
+    /// thread to what lives on the UI thread is a broken rule. The report names the caller's line.
+    static void ensureCurrent(
+        std::source_location where = std::source_location::current()) noexcept {
+        if (!isCurrent()) [[unlikely]]
+            core::abort("called from a thread other than the UI thread", where);
+    }
+
 private:
     ::IInspectable* queue_ = nullptr;
 };
@@ -102,7 +115,8 @@ struct idle_link final : core::sta_refcounted {
 
 }  // namespace impl
 
-class UiThread::Idle : impl::event_wait {
+class UiThread::Idle : impl::event_wait
+{
 public:
     Idle() = default;
     ~Idle();
@@ -144,9 +158,7 @@ private:
     bool skipped_ = false;
 };
 
-inline UiThread::Idle UiThread::onIdle() {
-    return {};
-}
+inline UiThread::Idle UiThread::onIdle() { return {}; }
 
 inline impl::cancelable_event_wait<UiThread::Idle, async::cancellation_token> UiThread::onIdle(
     async::cancellation_token token) {

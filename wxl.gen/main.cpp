@@ -1,6 +1,8 @@
 #include <format>
 #include <print>
 
+#include "documentation.h"
+
 #include "wxl.gen.h"
 
 import std;
@@ -8,6 +10,8 @@ import wxl.core;
 
 namespace {
 
+// The help, with the codes --doc-language takes filled in from the one list of
+// them (documentation_languages).
 constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers from WinUI3 metadata.
 
   winui-srcgen --profile <file.json> [--profile <file.json>]...
@@ -33,68 +37,116 @@ constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers fro
                  the Windows SDK's reference, Windows App SDK types from
                  the .xml beside their .winmd, which is in English only.
                  A .winmd with no documentation is said; a documentation
-                 file that does not read stops the run.
+                 file that does not read stops the run. The language's code
+                 and Doxygen's name for it are written to doc_language.txt in
+                 the output directory, and the documentation site (docs/)
+                 takes its language from there.
   --doc-language Language of the Windows SDK's reference, as its folders
-                 name it: en, ru, de, jp, zh-hans, zh-hant (default: en).
+                 name it: {}
+                 (default: en); any other code is refused before the run.
                  Where a contract has no file in it, English is used and
                  said. Needs --docs.
 )";
+
+// "de, en, ...": the codes of documentation_languages, for the help and for
+// the error that refuses any other.
+std::string language_codes() {
+    std::string codes;
+    for (auto&& language : documentation_languages) {
+        if (!codes.empty()) {
+            codes += ", ";
+        }
+        codes += language.code;
+    }
+    return codes;
+}
 
 struct options {
     std::vector<std::filesystem::path> profiles;
     std::vector<std::filesystem::path> extra_metadata;
     // Default output lands in the library that consumes it; the generated
     // directory carries its own CMakeLists.txt (see gen/cmake.cpp).
-    std::filesystem::path out_dir{"wxl.ui/src/wxl"};
+    std::filesystem::path out_dir{L"wxl.ui/src/wxl"};
     std::string cmake_target{"wxl.ui"};
     std::filesystem::path nuget_root;
     std::filesystem::path type_map;
     std::filesystem::path symbols;
     bool docs = false;
-    std::string doc_language;
+    // The entry of documentation_languages --doc-language named, English when
+    // --docs names none; null without --docs.
+    documentation_language const* doc_language = nullptr;
     bool help = false;
 };
 
-options parse_options(int argc, char** argv) {
-    options opts;
+// An argument as text, for a message or for an option that takes text: UTF-8, as
+// the rest of the run spells text, with U+FFFD where the system's UTF-16 is not
+// well-formed.
+std::string text_of(std::wstring_view argument) {
+    return std::string{wxl::core::unicode::repaired(argument).to_utf8().chars()};
+}
 
-    auto const value = [&](int& i, std::string_view option) {
+// The arguments in UTF-16, as the system hands them over: a path among them goes
+// to the file system as it came, with no code page on the way.
+options parse_options(int argc, wchar_t** argv) {
+    options opts;
+    // Absent when --doc-language is not given: an empty code that is given is
+    // refused like any other the reference lacks, not taken for the default.
+    std::optional<std::string> language;
+
+    auto const value = [&](int& i, std::wstring_view option) {
         if (++i >= argc) {
-            throw std::runtime_error(std::format("{} needs a value", option));
+            throw std::runtime_error(std::format("{} needs a value", text_of(option)));
         }
-        return std::string{argv[i]};
+        return std::wstring_view{argv[i]};
+    };
+    // A value that is text, not a path: UTF-16 that does not spell anything is
+    // refused, not carried on with U+FFFD in it.
+    auto const text_value = [&](int& i, std::wstring_view option) {
+        auto const text = wxl::core::unicode::checked(value(i, option));
+        if (!text) {
+            throw std::runtime_error(
+                std::format("{}: the value is not well-formed UTF-16", text_of(option)));
+        }
+        return std::string{text->to_utf8().chars()};
     };
 
     for (int i = 1; i < argc; ++i) {
-        std::string_view const argument{argv[i]};
-        if (argument == "--profile" || argument == "-p") {
+        std::wstring_view const argument{argv[i]};
+        if (argument == L"--profile" || argument == L"-p") {
             opts.profiles.emplace_back(value(i, argument));
-        } else if (argument == "--out" || argument == "-o") {
+        } else if (argument == L"--out" || argument == L"-o") {
             opts.out_dir = value(i, argument);
-        } else if (argument == "--target") {
-            opts.cmake_target = value(i, argument);
-        } else if (argument == "--nuget-root") {
+        } else if (argument == L"--target") {
+            opts.cmake_target = text_value(i, argument);
+        } else if (argument == L"--nuget-root") {
             opts.nuget_root = value(i, argument);
-        } else if (argument == "--types") {
+        } else if (argument == L"--types") {
             opts.type_map = value(i, argument);
-        } else if (argument == "--winmd") {
+        } else if (argument == L"--winmd") {
             opts.extra_metadata.emplace_back(value(i, argument));
-        } else if (argument == "--docs") {
+        } else if (argument == L"--docs") {
             opts.docs = true;
-        } else if (argument == "--doc-language") {
-            opts.doc_language = value(i, argument);
-        } else if (argument == "--help" || argument == "-h") {
+        } else if (argument == L"--doc-language") {
+            language = text_value(i, argument);
+        } else if (argument == L"--help" || argument == L"-h") {
             opts.help = true;
         } else {
-            throw std::runtime_error(std::format("unknown argument: {}", argument));
+            throw std::runtime_error(std::format("unknown argument: {}", text_of(argument)));
         }
     }
 
-    if (!opts.doc_language.empty() && !opts.docs) {
+    if (language && !opts.docs) {
         throw std::runtime_error("--doc-language needs --docs");
     }
-    if (opts.docs && opts.doc_language.empty()) {
-        opts.doc_language = "en";
+    if (opts.docs) {
+        if (!language) {
+            language = "en";
+        }
+        opts.doc_language = find_documentation_language(*language);
+        if (!opts.doc_language) {
+            throw std::runtime_error(std::format("--doc-language {} is not a language of the reference: {}",
+                                                 *language, language_codes()));
+        }
     }
 
     if (opts.nuget_root.empty()) {
@@ -114,11 +166,11 @@ options parse_options(int argc, char** argv) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int wmain(int argc, wchar_t** argv) {
     try {
         auto const opts = parse_options(argc, argv);
         if (opts.help || opts.profiles.empty()) {
-            std::print("{}", usage);
+            std::print(usage, language_codes());
             return opts.help ? 0 : 1;
         }
 
@@ -147,7 +199,7 @@ int main(int argc, char** argv) {
             opts.doc_language);
     } catch (std::exception const& e) {
         // Covers profile loading, metadata reading and file writing alike.
-        std::print(stderr, "Error: {}\n", error_message(e));
+        std::print(stderr, "Error: {}\n", wxl::core::environment::error_message(e).chars());
         return 1;
     }
 

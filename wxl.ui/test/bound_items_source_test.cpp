@@ -41,19 +41,23 @@ int value_of(IInspectable const& element) {
 
 // A list bound as a control would bind it, and what the control would have heard.
 struct bound_list {
-    explicit bound_list(std::vector<int> items) : list(wxl::core::sta_vector<int>(items.begin(), items.end())) {
+    explicit bound_list(std::vector<int> items)
+        : list(wxl::core::sta_vector<int>(items.begin(), items.end())) {
         observable_list<int const>& seen = list;
-        bound_list_watch source{&seen, list.size(), [&seen](uint32_t at) { return element_of(seen[at]); }};
+        bound_list_watch source{&seen, list.size(),
+                                [&seen](uint32_t at) { return element_of(seen[at]); }};
         vector = source.source().as_interface<IObservableVector<IInspectable>>();
         list.watch_for_binding(std::move(source));
-        vector.VectorChanged([this](IObservableVector<IInspectable> const&, IVectorChangedEventArgs const& args) {
-            heard.emplace_back(args.CollectionChange(), args.Index());
-        });
+        vector.VectorChanged(
+            [this](IObservableVector<IInspectable> const&, IVectorChangedEventArgs const& args) {
+                heard.emplace_back(args.CollectionChange(), args.Index());
+            });
     }
 
     int64_t position(IInspectable const& slot) const {
-        return wxl::impl::bound_position(static_cast<observable_list<int const> const*>(&list),
-                                         wxl::Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(slot))));
+        return wxl::impl::bound_position(
+            static_cast<observable_list<int const> const*>(&list),
+            wxl::Object::copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(slot))));
     }
 
     observable_list<int> list;
@@ -141,22 +145,25 @@ TEST(bound_items_source, a_slot_leads_to_its_item_inside_a_run) {
     bound_list bound{{1, 2, 3, 4, 5}};
     std::vector<std::vector<int>> built;
     std::vector<std::vector<int64_t>> places;
-    bound.vector.VectorChanged([&](IObservableVector<IInspectable> const& vector, IVectorChangedEventArgs const&) {
-        std::vector<int> elements;
-        std::vector<int64_t> positions;
-        for (IInspectable const& slot : vector) {
-            elements.push_back(value_of(wxl::impl::bound_element(slot)));
-            positions.push_back(bound.position(slot));
-        }
-        built.push_back(std::move(elements));
-        places.push_back(std::move(positions));
-    });
+    bound.vector.VectorChanged(
+        [&](IObservableVector<IInspectable> const& vector, IVectorChangedEventArgs const&) {
+            std::vector<int> elements;
+            std::vector<int64_t> positions;
+            for (IInspectable const& slot : vector) {
+                elements.push_back(value_of(wxl::impl::bound_element(slot)));
+                positions.push_back(bound.position(slot));
+            }
+            built.push_back(std::move(elements));
+            places.push_back(std::move(positions));
+        });
 
     bound.list.erase(1, 2);
     bound.list.insert_range(1, std::vector<int>{7, 8});
 
-    EXPECT_EQ(built, (std::vector<std::vector<int>>{{1, -1, 4, 5}, {1, 4, 5}, {1, 7, 4, 5}, {1, 7, 8, 4, 5}}));
-    EXPECT_EQ(places, (std::vector<std::vector<int64_t>>{{0, -1, 1, 2}, {0, 1, 2}, {0, 1, 3, 4}, {0, 1, 2, 3, 4}}));
+    EXPECT_EQ(built, (std::vector<std::vector<int>>{
+                         {1, -1, 4, 5}, {1, 4, 5}, {1, 7, 4, 5}, {1, 7, 8, 4, 5}}));
+    EXPECT_EQ(places, (std::vector<std::vector<int64_t>>{
+                          {0, -1, 1, 2}, {0, 1, 2}, {0, 1, 3, 4}, {0, 1, 2, 3, 4}}));
 }
 
 // A replaced item is another object at that place, so the control shows it anew.

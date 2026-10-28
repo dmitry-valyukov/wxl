@@ -5,8 +5,8 @@
 // time, as far as the coroutine waiting can tell.
 //
 // For the work that follows a change after a quiet moment, and must still be done when
-// there is no more waiting to be had: a position written to disk a second after the
-// last page turned, written at once when the reader leaves the book, and written on
+// there is no more waiting to be had: a draft written to disk a second and a half after
+// the last keystroke, written at once when the user closes the document, and written on
 // the way out whatever the timer says.
 //
 //     WaitableTimer timer{window.dispatcherQueue(), 1500ms, source.token()};

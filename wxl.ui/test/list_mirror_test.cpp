@@ -51,15 +51,16 @@ struct vector_view {
 
 static_assert(wxl::impl::list_sink<vector_view>);
 
-std::vector<int> items_of(observable_list<int> const& list) {
-    return {list.begin(), list.end()};
-}
+std::vector<int> items_of(observable_list<int> const& list) { return {list.begin(), list.end()}; }
 
 // A view that starts as the list is, and follows it from here on.
 struct mirrored {
-    explicit mirrored(observable_list<int>& source, uint32_t threshold = wxl::impl::list_reset_threshold)
+    explicit mirrored(observable_list<int>& source,
+                      uint32_t threshold = wxl::impl::list_reset_threshold)
         : list(source), view{&source, items_of(source), {}, {}} {
-        list.on_change([this, threshold](list_change const& change) noexcept { list_mirror{view, threshold}(change); });
+        list.on_change([this, threshold](list_change const& change) noexcept {
+            list_mirror{view, threshold}(change);
+        });
     }
 
     observable_list<int>& list;
@@ -127,8 +128,14 @@ TEST(list_mirror, each_call_is_one_item_from_the_last) {
         vector_view* view;
         std::vector<uint32_t>* sizes;
         uint32_t size() const { return view->size(); }
-        void insert(uint32_t at, uint32_t still) { view->insert(at, still); sizes->push_back(view->size()); }
-        void erase(uint32_t at, uint32_t still) { view->erase(at, still); sizes->push_back(view->size()); }
+        void insert(uint32_t at, uint32_t still) {
+            view->insert(at, still);
+            sizes->push_back(view->size());
+        }
+        void erase(uint32_t at, uint32_t still) {
+            view->erase(at, still);
+            sizes->push_back(view->size());
+        }
         void replace(uint32_t at) { view->replace(at); }
         void reset(uint32_t size) { view->reset(size); }
     } sink{&view, &sizes};
@@ -165,7 +172,8 @@ TEST(list_mirror, a_long_run_is_one_reset) {
     list.erase(0, 3);
 
     EXPECT_EQ(m.view.items, items_of(list));
-    EXPECT_EQ(m.view.calls, (std::vector<std::string>{"insert 1", "insert 2", "reset 7", "reset 4"}));
+    EXPECT_EQ(m.view.calls,
+              (std::vector<std::string>{"insert 1", "insert 2", "reset 7", "reset 4"}));
 }
 
 }  // namespace

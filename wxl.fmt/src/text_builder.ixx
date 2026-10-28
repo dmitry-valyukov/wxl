@@ -4,7 +4,7 @@
 // Formatting and appending are two calls and not one overload set, and that
 // is deliberate. A format string and a piece of text are different things --
 // a brace in the first is an argument and in the second is a brace -- so a
-// single append() that guessed by type would turn a book title with a "{" in
+// single append() that guessed by type would turn a file name with a "{" in
 // it into an error at run time. What one wrote is what one gets: format()
 // formats, append() copies.
 
@@ -73,14 +73,17 @@ public:
     /// Appends the text as it stands, braces and all.
     void append(std::string_view text) { buffer_.append(text.data(), text.data() + text.size()); }
 
+    /// Appends one character.
     void append(char character) { buffer_.push_back(character); }
 
     /// What has been assembled so far, as a view into the buffer: valid until
     /// the next append and no longer.
     std::string_view view() const noexcept { return view_of(buffer_); }
 
+    /// Returns the length of the text assembled so far, in `char` units.
     std::size_t size() const noexcept { return buffer_.size(); }
 
+    /// Tests whether the builder holds no text.
     bool empty() const noexcept { return buffer_.size() == 0; }
 
     /// Forgets the text, keeps the memory.
@@ -91,6 +94,7 @@ public:
     /// use anything else that writes into an fmt buffer.
     text_buffer<Allocator>& buffer() noexcept { return buffer_; }
 
+    /// Gets the buffer itself, read-only.
     const text_buffer<Allocator>& buffer() const noexcept { return buffer_; }
 
 private:

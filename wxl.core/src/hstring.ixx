@@ -80,15 +80,13 @@ inline void release_hstring(hstring_header* header) noexcept {
 }
 
 inline zstring_view text_of(const hstring_header* header) noexcept {
-    return header == nullptr
-               ? zstring_view{}
-               : zstring_view{terminated{}, header->ptr, header->length};
+    return header == nullptr ? zstring_view{}
+                             : zstring_view{terminated{}, header->ptr, header->length};
 }
 
 }  // namespace impl
 
 export {
-
 class hstring_param;
 
 /// A WinRT string, owned: a reference to an HSTRING. Copying it is an increment,
@@ -98,17 +96,26 @@ class hstring_param;
 /// an HSTRING is a sequence of sixteen-bit units and neither the system nor any
 /// component checks it. Checked text out of one is a door of its own --
 /// unicode::checked() or repaired() -- not a conversion.
-class hstring {
+class hstring
+{
 public:
+    /// The type that represents an element of the string, a 16-bit code unit.
     using value_type = char16_t;
+    /// The type that iterates over the code units of the string.
     using const_iterator = const char16_t*;
 
     hstring() noexcept = default;
 
+    /// Constructs a copy of \p other that shares its string: the reference count is
+    /// incremented, and the text is not copied.
     hstring(const hstring& other) : header_(impl::duplicate_hstring(other.header_)) {}
 
+    /// Constructs a string that takes over the reference held by \p other and leaves
+    /// \p other empty.
     hstring(hstring&& other) noexcept : header_(std::exchange(other.header_, nullptr)) {}
 
+    /// Assigns a copy of \p other: the reference count of its string is incremented, and
+    /// the reference held before is released.
     hstring& operator=(const hstring& other) {
         if (this != &other) {
             hstring copy(other);
@@ -117,6 +124,8 @@ public:
         return *this;
     }
 
+    /// Releases the reference held and takes over the reference of \p other, which is left
+    /// empty. Assigning a string to itself has no effect.
     hstring& operator=(hstring&& other) noexcept {
         if (this != &other) {
             impl::release_hstring(header_);
@@ -149,12 +158,15 @@ public:
     /// conversion each, and none of them would be the better one.
     explicit hstring(const char16_t* text) : header_(create(std::u16string_view(text))) {}
 
-    // The seam of wchar_t, the same units under the other name.
+    /// Constructs a string from a copy of the null-terminated text \p text. The `wchar_t`
+    /// units are the same 16-bit units as `char16_t` and are reinterpreted, not converted.
     explicit hstring(const wchar_t* text)
         : header_(create(std::u16string_view(reinterpret_cast<const char16_t*>(text)))) {}
 
+    /// Constructs a string from a copy of the well-formed UTF-16 text \p text.
     explicit hstring(u16_view text) : header_(create(text.plain())) {}
 
+    /// Constructs a string from a copy of the well-formed UTF-16 text \p text.
     explicit hstring(const u16_text& text) : header_(create(text.plain())) {}
 
     /// Takes over a reference the caller already owns: what a method of WinRT
@@ -179,16 +191,26 @@ public:
         return reinterpret_cast<void**>(&header_);
     }
 
+    /// Exchanges the references held by this string and \p other.
     void swap(hstring& other) noexcept { std::swap(header_, other.header_); }
 
+    /// Returns a pointer to the code units of the string. A null terminator follows them,
+    /// also when the string is empty.
     const char16_t* data() const noexcept { return text().data(); }
+    /// Returns a pointer to the null-terminated code units of the string.
     const char16_t* c_str() const noexcept { return text().data(); }
+    /// Returns the number of code units, not counting the null terminator.
     std::size_t size() const noexcept { return header_ == nullptr ? 0 : header_->length; }
+    /// Returns the number of code units; the same value as `size()`.
     std::size_t length() const noexcept { return size(); }
+    /// Tests whether the string is empty.
     bool empty() const noexcept { return header_ == nullptr; }
 
+    /// Returns an iterator to the first code unit.
     const_iterator begin() const noexcept { return data(); }
+    /// Returns an iterator past the last code unit.
     const_iterator end() const noexcept { return data() + size(); }
+    /// Returns the code unit at position \p at. No bounds checking is performed.
     char16_t operator[](std::size_t at) const noexcept { return data()[at]; }
 
     /// Terminated, and known to be so without a look: an HSTRING always is. This
@@ -196,12 +218,15 @@ public:
     /// nothing.
     operator zstring_view() const noexcept { return text(); }
 
+    /// Converts the string to a `std::u16string_view` over its code units.
     operator std::u16string_view() const noexcept { return text().view(); }
 
+    /// Tests whether two strings contain the same code units.
     friend bool operator==(const hstring& left, const hstring& right) noexcept {
         return left.text().view() == right.text().view();
     }
 
+    /// Tests whether the string \p left contains the same code units as the view \p right.
     friend bool operator==(const hstring& left, std::u16string_view right) noexcept {
         return left.text().view() == right;
     }
@@ -213,6 +238,8 @@ public:
         return left.text().view() == right.view();
     }
 
+    /// Tests whether the string \p left contains the same code units as the null-terminated
+    /// text \p right.
     friend bool operator==(const hstring& left, const char16_t* right) noexcept {
         return left.text().view() == std::u16string_view(right);
     }
@@ -252,7 +279,8 @@ private:
 /// the end of the call, which is exactly how long a method of WinRT may borrow
 /// the string. One that keeps it must duplicate it, and duplicating a fast-pass
 /// string is what makes a real one.
-class hstring_param {
+class hstring_param
+{
 public:
     /// Written out rather than defaulted: the header is left as it is until a
     /// text arrives, and a const object may only be default-initialized when the
@@ -262,8 +290,13 @@ public:
     hstring_param(const hstring_param&) = delete;
     hstring_param& operator=(const hstring_param&) = delete;
 
+    /// Constructs a parameter that borrows the handle of \p value. The reference count does
+    /// not change.
     hstring_param(const hstring& value) noexcept : handle_(value.header_) {}
 
+    /// Constructs a parameter over the null-terminated text \p text. A fast-pass string
+    /// header that points at the characters of \p text is written into the parameter
+    /// itself, and nothing is copied. Empty text yields a null handle, the empty string.
     hstring_param(zstring_view text) noexcept { reference(text); }
 
     /// Anything that is a zstring_view on its own, in one step. A template
@@ -278,7 +311,9 @@ public:
     /// The text, with its terminator, for the code that also wants to read it.
     zstring_view text() const noexcept { return impl::text_of(handle_); }
 
+    /// Returns the number of code units, not counting the null terminator.
     std::size_t size() const noexcept { return handle_ == nullptr ? 0 : handle_->length; }
+    /// Tests whether the string is empty.
     bool empty() const noexcept { return handle_ == nullptr; }
 
     /// The handle to lend to a call, for the layer that speaks WinRT.
@@ -288,7 +323,9 @@ public:
     /// holds first, in the layout of an hstring. For the layer that speaks WinRT,
     /// which reinterprets it once more as its own hstring const& and lends it to
     /// a method that borrows: no count moves and nothing is copied.
-    const hstring& as_hstring() const noexcept { return *reinterpret_cast<const hstring*>(&handle_); }
+    const hstring& as_hstring() const noexcept {
+        return *reinterpret_cast<const hstring*>(&handle_);
+    }
 
 private:
     void reference(zstring_view text) noexcept {

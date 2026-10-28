@@ -62,6 +62,8 @@ IReference<bool> const true_reference{
 
 }  // namespace
 
-IReference<bool> const& bool_reference(bool value) { return value ? true_reference : false_reference; }
+IReference<bool> const& bool_reference(bool value) {
+    return value ? true_reference : false_reference;
+}
 
 }  // namespace wxl::impl

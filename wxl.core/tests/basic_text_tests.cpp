@@ -10,12 +10,12 @@ import wxl.core;
 
 using namespace std::string_view_literals;
 
-using wxl::core::unicode::assume_valid;
-using wxl::core::unicode::checked;
 using wxl::core::u16_text;
 using wxl::core::u16_view;
 using wxl::core::u8_text;
 using wxl::core::u8_view;
+using wxl::core::unicode::assume_valid;
+using wxl::core::unicode::checked;
 
 namespace {
 
@@ -216,15 +216,15 @@ TEST(basic_text, a_string_grows_by_whole_code_points) {
     EXPECT_EQ(narrow.chars(), "aё𠮷😀"sv);
     EXPECT_EQ(narrow.size(), 11u);  // 1 + 2 + 4 + 4
     EXPECT_EQ(wide.wchars(), L"aё𠮷😀"sv);
-    EXPECT_EQ(wide.size(), 6u);     // 1 + 1 + a pair + a pair
+    EXPECT_EQ(wide.size(), 6u);  // 1 + 1 + a pair + a pair
 }
 
 TEST(basic_text, a_string_grows_by_checked_text) {
-    u16_text title{u"Отцы"};
+    u16_text title{u"Окно"};
     title += u" и ";
     title.append(wide_greeting.substr(14));
 
-    EXPECT_EQ(title.wchars(), L"Отцы и 😀"sv);
+    EXPECT_EQ(title.wchars(), L"Окно и 😀"sv);
 
     u8_text line;
     line.reserve(64);
@@ -342,9 +342,8 @@ TEST(basic_text, a_string_gives_up_its_text_when_asked) {
 
     const std::u8string text = std::move(owned).plain();
 
-    // Read back through assume_valid rather than compared as a std::u8string:
-    // the gtest in vcpkg is built without char8_t printing, so an EXPECT_EQ on
-    // one fails to link rather than to compile.
+    // Read back through assume_valid and compared as chars(), the way the other
+    // tests of this file compare text.
     EXPECT_EQ(assume_valid(text).chars(), "мягких"sv);
     EXPECT_TRUE(owned.empty());  // still a valid basic_text, just an empty one
 }
@@ -378,6 +377,35 @@ TEST(basic_text, a_path_is_utf8_whatever_the_code_page) {
     const std::filesystem::path path = L"m:/wxl/тест.xml";
 
     EXPECT_EQ(wxl::core::unicode::to_utf8(path), "m:/wxl/тест.xml"sv);
+}
+
+// Above the basic plane a name is a surrogate pair in the path and one code point
+// of four bytes in the text -- a character no ANSI code page but UTF-8 has.
+TEST(basic_text, a_path_beyond_the_basic_plane_is_utf8_too) {
+    const std::filesystem::path path = L"m:/wxl/😀.xml";
+
+    EXPECT_EQ(wxl::core::unicode::to_utf8(path), "m:/wxl/\xF0\x9F\x98\x80.xml"sv);
+}
+
+// A file name the system allows and UTF-16 does not: the unpaired half is marked,
+// and the rest of the name is kept.
+TEST(basic_text, a_lone_surrogate_in_a_path_becomes_a_replacement_character) {
+    const std::filesystem::path path = with_unit(L"m:/wxl/a", 0xD800, L"b.xml");
+
+    EXPECT_EQ(wxl::core::unicode::to_utf8(path), replaced("m:/wxl/a", "b.xml"));
+}
+
+// Text becomes the path it spells, unit for unit -- Cyrillic and a name beyond the
+// basic plane -- and to_utf8() gives the text back.
+TEST(basic_text, checked_text_is_the_path_it_spells) {
+    const std::filesystem::path path = wxl::core::unicode::to_path(u8"m:/wxl/тест 😀.xml");
+
+    EXPECT_EQ(std::wstring_view(path.native()), L"m:/wxl/тест 😀.xml"sv);
+    EXPECT_EQ(wxl::core::unicode::to_utf8(path), "m:/wxl/тест 😀.xml"sv);
+}
+
+TEST(basic_text, empty_text_is_an_empty_path) {
+    EXPECT_TRUE(wxl::core::unicode::to_path(u8"").empty());
 }
 
 }  // namespace

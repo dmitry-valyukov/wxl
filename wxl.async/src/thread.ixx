@@ -15,8 +15,10 @@ export namespace wxl::async {
 class thread
 {
 public:
+    /// Returns the identifier of the calling thread.
     inline static core::thread_id current_thread_id() noexcept { return core::current_thread_id(); }
 
+    /// Returns the identifier of the calling thread; the same as `current_thread_id()`.
     inline static core::thread_id self() noexcept { return core::current_thread_id(); }
 
     /// Index of the processor the calling thread is currently running on.
@@ -25,6 +27,7 @@ public:
     /// Suspends the calling thread for the given number of milliseconds.
     static void sleep(size_t milliseconds);
 
+    /// Suspends the calling thread for \p timeout, truncated to whole milliseconds.
     inline static void sleep(core::duration timeout) {
         sleep(static_cast<size_t>(timeout.total_milliseconds()));
     }
@@ -45,10 +48,20 @@ public:
     /// Logical processors a thread is allowed to run on (the first has index 0).
     using cpu_indexes = std::set<size_t>;
 
+    /// Restricts the calling thread to the logical processors in \p indexes.
+    /// \throw std::invalid_argument if an index does not fit in the affinity mask.
+    /// \throw std::system_error if `SetThreadAffinityMask` fails.
     static void set_affinity(const cpu_indexes& indexes);
+    /// Restricts the calling thread to the logical processor \p cpu_index.
+    /// \throw std::invalid_argument if the index does not fit in the affinity mask.
+    /// \throw std::system_error if `SetThreadAffinityMask` fails.
     static void set_affinity(size_t cpu_index);
 
+    /// Sets the priority of the calling thread to \p value, a `SetThreadPriority` priority.
+    /// \throw std::system_error if `SetThreadPriority` fails.
     static void priority(int value);
+    /// Gets the priority of the calling thread.
+    /// \throw std::system_error if `GetThreadPriority` fails.
     static int priority();
 
     static constexpr size_t max_thread_name_len = 32;
@@ -62,7 +75,8 @@ inline void thread::spin_wait_micro(size_t usec) { spin_wait_nano(usec * 1000); 
 
 inline void thread::spin_wait_nano(size_t nanosec) {
     const core::time_stamp start = core::time_stamp::now();
-    const core::time_span budget = core::time_span::from_ticks(static_cast<int64_t>((nanosec + 99) / 100));
+    const core::time_span budget =
+        core::time_span::from_ticks(static_cast<int64_t>((nanosec + 99) / 100));
 
     bool first_iteration = true;
 

@@ -125,7 +125,9 @@ winrt::Windows::Foundation::Uri to_uri(winrt::hstring const& source) {
 
 FormattedBlock::FormattedBlock(Impl* impl) noexcept : base_t(impl) {}
 
-FormattedBlock::FormattedBlock() : base_t(new Impl{impl::activation<impl::activator<FormattedBlock>>{}}) {}
+FormattedBlock::FormattedBlock() : base_t(new Impl{}) {
+    impl::activator<FormattedBlock>::activate(put_abi());
+}
 
 void FormattedBlock::clear() const {
     get<&Impl::richTextBlock_>().Blocks().Clear();
@@ -151,9 +153,7 @@ void reopen_split_link(FormattedBlock const& block, FormattedBlock::Impl* self) 
 
 }  // namespace
 
-void FormattedBlock::appendParagraph() const {
-    appendParagraph(BlockStyle{});
-}
+void FormattedBlock::appendParagraph() const { appendParagraph(BlockStyle{}); }
 
 void FormattedBlock::appendParagraph(BlockStyle const& style) const {
     // A link belongs to one paragraph; a new paragraph closes it.
@@ -349,7 +349,8 @@ void refit(xaml::Controls::RichTextBlock const& block, impl::wide_elements& wide
 // One fold's hidden paragraphs and the paragraph they return after, shared
 // by the toggle's two closures. The block is held weakly: the toggle lives
 // inside it, and a strong reference back would be a cycle.
-class fold_state : public core::sta_refcounted {
+class fold_state : public core::sta_refcounted
+{
 public:
     winrt::weak_ref<xaml::Controls::RichTextBlock> block;
     docs::Block anchor{nullptr};
@@ -362,6 +363,12 @@ void FormattedBlock::appendWideElement(FrameworkElement const& element, WideWidt
     Impl* self = static_cast<Impl*>(impl());
     auto block = get<&Impl::richTextBlock_>();
     const docs::Paragraph paragraph = last_paragraph(block);
+    // The line that holds the element grows to it. Under the block's
+    // BlockLineHeight -- an even step for its text lines -- that line keeps
+    // the fixed height, the element's bottom sits on the line's baseline, and
+    // the element rises over the text above. The strategy is the paragraph's
+    // own, so the text paragraphs around keep the block's.
+    paragraph.LineStackingStrategy(xaml::LineStackingStrategy::MaxHeight);
     appendElement(element);
 
     const xaml::Thickness margin = paragraph.Margin();
@@ -373,11 +380,11 @@ void FormattedBlock::appendWideElement(FrameworkElement const& element, WideWidt
         // wide elements keeps its size while the slot around it grows, so
         // SizeChanged would never come. The pass is cheap when the slot
         // has not moved.
-        block.LayoutUpdated([weak = winrt::make_weak(block), wide = self->wide_](auto const&,
-                                                                                  auto const&) {
-            auto strong = weak.get();
-            if (strong && text_area(strong) != wide->area) refit(strong, *wide);
-        });
+        block.LayoutUpdated(
+            [weak = winrt::make_weak(block), wide = self->wide_](auto const&, auto const&) {
+                auto strong = weak.get();
+                if (strong && text_area(strong) != wide->area) refit(strong, *wide);
+            });
     }
     refit(block, *self->wide_);
 }
@@ -409,7 +416,8 @@ void FormattedBlock::endFold() const {
     core::intrusive_ptr<fold_state> state{new fold_state, /*add_ref=*/false};
     state->block = winrt::make_weak(block);
     state->anchor = blocks.GetAt(fold.start - 1);
-    for (std::uint32_t i = fold.start; i < blocks.Size(); ++i) state->hidden.push_back(blocks.GetAt(i));
+    for (std::uint32_t i = fold.start; i < blocks.Size(); ++i)
+        state->hidden.push_back(blocks.GetAt(i));
     if (!fold.toggle.IsExpanded()) {
         while (blocks.Size() > fold.start) blocks.RemoveAt(blocks.Size() - 1);
     }

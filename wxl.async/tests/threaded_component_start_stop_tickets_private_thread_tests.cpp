@@ -10,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/startStopTicketsUsingPrivateThread --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, startStopTicketsUsingPrivateThread)
-{
+STRESS_TEST_CASE(ThreadedComponent, startStopTicketsUsingPrivateThread) {
     thread_scope manager;
     threaded_test_component component(tracer.name(), manager);
 

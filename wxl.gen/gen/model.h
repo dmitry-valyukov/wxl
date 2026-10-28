@@ -102,7 +102,7 @@ struct struct_file {
 
 // How the real WinRT class is created, which is also how its constructor is
 // declared -- the C# view of it (dotPeek) is `public extern Button()` against
-// `protected extern Control()`, and wxl mirrors the public side exactly.
+// `protected extern Control()`, and wxl mirrors that access exactly.
 //
 //   ActivatableAttribute, bare      -> public, plain activation
 //   ActivatableAttribute(factory)   -> public, but no default constructor:
@@ -115,10 +115,9 @@ struct struct_file {
 //                                      the attribute names: an instance with
 //                                      no outer object, which is what a class
 //                                      nobody derives from is
-//   ComposableAttribute(.., Protected) -> no default constructor, and no
-//                                      factory: nobody creates one directly,
-//                                      so a derived type builds its own Impl,
-//                                      whole, and hands it to `X(Impl*)`
+//   ComposableAttribute(.., Protected) -> protected, and no factory at all:
+//                                      nobody can create one directly, so
+//                                      there is nothing to activate
 //   neither                         -> no default constructor
 //
 // The composable path is not an optimisation to skip: a composable class is
@@ -334,6 +333,10 @@ struct schema {
         // The tag builds its value from braces too (see dsl::braced).
         bool braced = false;
 
+        // A synthetic property whose value is written unnamed (the profile's "positional") and
+        // is not assigned to the tag: the test line hands it to the class's positional route.
+        bool positional = false;
+
         // Bound only: "input", "output" or "both" -- which Bind form the
         // pair takes, and so which one the test line writes.
         std::string direction;
@@ -397,6 +400,7 @@ struct event_args_file {
 }  // namespace gen
 
 class documentation_source;
+struct documentation_language;
 
 // Everything the writers write, in the order write_all() writes it.
 struct model {
@@ -449,6 +453,11 @@ struct model {
 
     // FluentSymbol.h, by code point; empty when the run has no symbol table.
     std::vector<symbol> symbols;
+
+    // doc_language.txt: the language the documentation was asked in, the entry
+    // of documentation_languages the arguments found; null when the run
+    // documents nothing.
+    documentation_language const* doc_language = nullptr;
 };
 
 // Works out the model from what the walk found, what the profiles name and

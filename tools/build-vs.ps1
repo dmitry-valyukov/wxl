@@ -5,11 +5,10 @@
 # itself: it runs vcvars64.bat in a child cmd, reads back the variables it
 # set, and applies them to the current process.
 #
-# The VCPKG_ROOT vcvars64.bat overwrites on the way (it points at Visual
-# Studio's own bundled vcpkg, which carries no cppwinrt port) needs no
-# undoing here: cmake/vcpkg_bootstrap.cmake resolves the real root from
-# vcpkg's own vcpkg.path.txt and never reads the environment variable on
-# Windows. That is what the bootstrap file exists for.
+# The same environment names the Visual Studio installation whose MSBuild the
+# configure runs to restore the NuGet packages and build the C++/WinRT
+# projection (VSINSTALLDIR), and the Windows SDK of both the projection and the
+# compiler (WindowsSDKVersion): see cmake/wxl_packages.cmake.
 #
 # Usage:
 #   tools\build.ps1                 # configure (if needed) and build Debug
@@ -42,10 +41,27 @@ function Import-VisualStudioEnvironment {
 
     # -prerelease so an Insiders/preview installation counts; the tree needs a
     # toolset new enough for `import std;`, which is where those tend to be.
-    $install = & $vswhere -latest -prerelease -products * `
+    # The installation also needs the C++ WinUI tools, which the configure
+    # checks (cmake/wxl_packages.cmake): the component of Visual Studio or the
+    # component group of Build Tools. vswhere applies -requiresAny to every ID
+    # it is given, so the two conditions are two lists, and the newest
+    # installation of the first list that is also in the second is taken.
+    $withCpp = @(& $vswhere -prerelease -products * -sort `
         -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-        -property installationPath
-    if (-not $install) { throw 'No Visual Studio installation with the C++ toolset was found.' }
+        -property installationPath)
+    $withWinUI = @(& $vswhere -prerelease -products * -requiresAny `
+        -requires Microsoft.VisualStudio.Component.WindowsAppSdkSupport.Cpp `
+                  Microsoft.VisualStudio.ComponentGroup.WindowsAppDevelopment.VC.BuildTools `
+        -property installationPath)
+    $install = $withCpp | Where-Object { $withWinUI -contains $_ } | Select-Object -First 1
+    if (-not $install) {
+        throw ('No Visual Studio installation with the C++ toolset and the C++ WinUI tools was found. ' +
+            'Visual Studio 2026: the workload "WinUI application development" with "C++ WinUI app ' +
+            'development tools" (Microsoft.VisualStudio.Component.WindowsAppSdkSupport.Cpp). Build Tools ' +
+            'for Visual Studio 2026: the workload "WinUI application development build tools" with ' +
+            '"C++ WinUI app development build tools" ' +
+            '(Microsoft.VisualStudio.ComponentGroup.WindowsAppDevelopment.VC.BuildTools).')
+    }
 
     $vcvars = Join-Path $install 'VC\Auxiliary\Build\vcvars64.bat'
     if (-not (Test-Path $vcvars)) { throw "vcvars64.bat not found: $vcvars" }

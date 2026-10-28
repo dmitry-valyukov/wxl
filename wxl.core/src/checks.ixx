@@ -54,7 +54,8 @@ namespace impl {
  * dropped, and a report that was truncated ends in "...", after the last whole code point that
  * fits. Nothing is allocated -- the terminate may have come from a std::bad_alloc.
  */
-class terminate_report {
+class terminate_report
+{
 public:
     /// Room for "..." at least, which a truncated report ends in.
     template <std::size_t N>

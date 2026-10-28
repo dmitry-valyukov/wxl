@@ -37,7 +37,7 @@ namespace wxl {
 struct TextStyle {
     core::nullable<Color> color;
     core::nullable<double> fontSize;
-    FontFamily fontFamily;   // its own empty value is "inherit": a null FontFamily to WinUI
+    FontFamily fontFamily;  // its own empty value is "inherit": a null FontFamily to WinUI
     core::nullable<bool> bold;
     core::nullable<bool> italic;
     core::nullable<bool> underline;
@@ -58,7 +58,8 @@ struct BlockStyle {
 // for the developer wondering why the output is not what the markup said.
 // Named for its first and main source; a future BB/RSDN parser pours the
 // same kinds into the same sink.
-enum class MarkupErrorKind : std::uint8_t {
+enum class MarkupErrorKind : std::uint8_t
+{
     UnknownTag,     // tag outside the subset dropped, its content kept
     UnpairedClose,  // close tag with nothing open to match, ignored
     MisnestedTags,  // close matched below the top; recovered browser-fashion
@@ -85,12 +86,14 @@ struct MarkupError {
 
 // How a wide element (appendWideElement) takes the width of the text area:
 // always, or only while the block wraps text.
-enum class WideWidth : std::uint8_t {
+enum class WideWidth : std::uint8_t
+{
     Always,
     WhileWrapping,
 };
 
-class FormattedBlock : public RichTextBlock {
+class FormattedBlock : public RichTextBlock
+{
     using base_t = RichTextBlock;
 
 public:
@@ -160,7 +163,11 @@ public:
     // through every resize -- the width a browser gives a block box. With
     // WhileWrapping the element goes back to its natural width under
     // TextWrapping::NoWrap, like everything else on an unwrapped line; a
-    // rule has no natural width and asks for Always.
+    // rule has no natural width and asks for Always. Its paragraph stacks
+    // its lines by MaxHeight, whatever the block's lineStackingStrategy, so
+    // that the element's line grows to it; text sharing that paragraph
+    // would stack so too, and the element is best given a paragraph of its
+    // own.
     void appendWideElement(FrameworkElement const& element,
                            WideWidth width = WideWidth::WhileWrapping) const;
 

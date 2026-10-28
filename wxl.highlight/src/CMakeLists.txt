@@ -8,8 +8,8 @@ wxl_add_module_library(wxl.highlight STATIC
 
 add_library(wxl::highlight ALIAS wxl.highlight)
 
-# Как у соседей: исключением здесь не отвечает никто, но модульный std
-# собирается с раскруткой, и один набор ключей на всё дерево дешевле.
+# Nothing here throws, but the standard library module is built with unwinding,
+# and one set of options for the whole tree is cheaper, as in the other modules.
 if(MSVC AND NOT CMAKE_CXX_FLAGS MATCHES "/EHsc")
     target_compile_options(wxl.highlight PUBLIC /EHsc)
 endif()

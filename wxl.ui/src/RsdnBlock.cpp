@@ -24,7 +24,7 @@ struct runtime_class_name_of<RsdnBlock> {
 
 RsdnBlock::RsdnBlock(Impl* impl) noexcept : base_t(impl) {}
 
-RsdnBlock::RsdnBlock() : base_t(new Impl{impl::activation<impl::activator<RsdnBlock>>{}}) {}
+RsdnBlock::RsdnBlock() : base_t(new Impl{}) { impl::activator<RsdnBlock>::activate(put_abi()); }
 
 void RsdnBlock::rsdn(hstring_param const& markup) const {
     clear();

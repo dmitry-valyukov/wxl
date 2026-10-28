@@ -665,10 +665,15 @@ public:
                    "    {}(Object const& object);\n",
                    info.name, info.name);
     }
-    // `protected extern X()` of the real class has no mirror here: an
-    // Impl it made would be empty, a wrapper of nothing. A deriving type
-    // builds its own Impl, whole, and hands it to the constructor below.
     std::print(out, "\nprotected:\n");
+    if (info.construction == construction_t::ProtectedOnly) {
+        // Mirrors `protected extern X()` in the real class: only a type
+        // deriving from it can construct one, so there is no activation
+        // to do here.
+        write_doc(out, "    ", info.constructor_doc);
+        std::print(out, "    {}();\n\n", info.name);
+    }
+
     std::print(out, R"(    explicit {}(Impl* impl) noexcept;
 
     friend class Object::Impl;
@@ -955,13 +960,14 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
 
     switch (info.construction) {
         case construction_t::PublicActivation:
-            // Activated by the Impl's own constructor, into its own field:
-            // the cached factory writes the raw pointer into the slot
-            // cppwinrt stores it in, so there is no temporary smart pointer
-            // and no extra AddRef/Release on the way. The class comes as
-            // the activator's type in the tag (Object.impl.h).
+            // Activated straight into the Impl's own field: the cached
+            // factory writes the raw pointer into the slot cppwinrt
+            // stores it in, so there is no temporary smart pointer and
+            // no extra AddRef/Release on the way.
             std::print(out, R"(
-{}::{}() : base_t(new Impl{{impl::activation<impl::activator<{}>>{{}}}}) {{}}
+{}::{}() : base_t(new Impl{{}}) {{
+    impl::activator<{}>::activate(put_abi());
+}}
 )",
                        info.name, info.name, info.name);
             break;
@@ -972,11 +978,17 @@ void write_constructor_bodies(std::ostream& out, class_info const& info) {
             // its IID is what the composing path asks the factory object
             // for.
             std::print(out, R"(
-{}::{}() : base_t(new Impl{{impl::activation<impl::composable_activator<{}, {}>>{{}}}}) {{}}
+{}::{}() : base_t(new Impl{{}}) {{
+    impl::composable_activator<{}, {}>::activate(put_abi());
+}}
 )",
                        info.name, info.name, info.name, winrt_type_name(info.composable_factory));
             break;
         case construction_t::ProtectedOnly:
+            // No activation: the real class has no public constructor,
+            // so an instance can only come from a derived type.
+            std::print(out, "\n{}::{}() : base_t(new Impl{{}}) {{}}\n", info.name, info.name);
+            break;
         case construction_t::PublicFactory:
         case construction_t::None:
             break;
@@ -1797,6 +1809,7 @@ private:
             klass_.members.push_back({schema::member::kind_t::Property, member.winrt_name,
                                       member.name, value.value_type});
             klass_.members.back().braced = member.braced;
+            klass_.members.back().positional = member.positional;
         }
         if (member.braced) {
             d.braced.insert(member.winrt_name);
@@ -2126,15 +2139,15 @@ void write_classes(output const& out, model const& m, emitted& em) {
     size_t constructors = 0;
     size_t members = 0;
     for (auto&& group : m.class_groups) {
-        auto const header = out.dir / (group.name + ".h");
-        auto const source = out.dir / (group.name + ".cpp");
+        auto const header = out.dir / metadata_path(group.name + ".h");
+        auto const source = out.dir / metadata_path(group.name + ".cpp");
 
         write_public_header(header, group.name, group.classes, m.group_of, group.collections_used,
                             group.dropped);
         em.add(header);
 
         if (has_impl(group.classes)) {
-            auto const impl_header = out.dir / (group.name + ".impl.h");
+            auto const impl_header = out.dir / metadata_path(group.name + ".impl.h");
             write_impl_header(impl_header, group.name, group.classes, m.group_of);
             em.add(impl_header);
         }

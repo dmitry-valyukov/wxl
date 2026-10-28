@@ -19,7 +19,11 @@ export namespace wxl::logging {
 /// is the whole reason this is a safe_pool and not a plain one.
 ///@{
 using entry_pool = async::safe_pool<log_entry>;
+/// The type that the pool hands out: a `log_entry` with a counted reference to the state
+/// of the pool it came from.
 using pooled_entry = entry_pool::element_type;
+/// The type that owns a pooled entry, in the manner of `std::unique_ptr`, and returns it
+/// to the pool it came from when reset or destroyed.
 using entry_ptr = core::pool_ptr<pooled_entry>;
 ///@}
 
@@ -71,6 +75,8 @@ class async_output final : public async::threaded_component,
                            private multicast_output
 {
 public:
+    /// Constructs the output with \p window as its ordering window. Its thread is named
+    /// `wxl.logging` and belongs to \p group, or is detached when \p group is `nullptr`.
     explicit async_output(core::duration window = default_window,
                           async::thread_group* group = nullptr);
 
@@ -99,6 +105,7 @@ public:
     /// lines still inside their window where they are.
     void flush_window();
 
+    /// Gets the window: how long the logging thread holds a line before writing it.
     inline core::duration window() const noexcept { return window_; }
 
 protected:

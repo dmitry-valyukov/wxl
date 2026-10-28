@@ -19,3 +19,7 @@ BraceWrapping:
   SplitEmptyFunction: true
   SplitEmptyRecord: true
   SplitEmptyNamespace: true
+SortIncludes: Never
+ReflowComments: IndentOnly
+IndentExportBlock: false
+FixNamespaceComments: false

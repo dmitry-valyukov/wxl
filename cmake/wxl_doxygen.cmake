@@ -10,8 +10,8 @@
 #   wxl_add_doxygen_site(...) -- one target per site
 #
 # Both are meant to be used from outside this tree as well: an application
-# includes this file the same way it already includes vcpkg_bootstrap.cmake and
-# wxl_helpers.cmake, and builds its own site plus wxl's tag file with it.
+# includes this file the same way it already includes wxl_helpers.cmake, and
+# builds its own site plus wxl's tag file with it.
 
 include_guard(GLOBAL)
 include(FetchContent)
@@ -28,7 +28,8 @@ set(WXL_DOXYGEN_MIN_VERSION 1.18.0)
 # the normal case rather than the exception: 1.18.0 is weeks old, so requiring
 # a system install would mean requiring an install nobody has yet.
 # Two builds, one per host the site is built on: the developer's Windows
-# machine and the Linux runner that publishes it. Doxygen lexes rather than
+# machine, where the published site is built together with the wrappers, and
+# the Linux runner that checks a pull request. Doxygen lexes rather than
 # compiles, so the Linux build renders this tree without MSVC or anything of
 # the toolchain -- which is what lets the site be built where the code cannot.
 if(WIN32)
@@ -225,6 +226,26 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         PARENT_SCOPE)
 endfunction()
 
+# _wxl_doxygen_module_names(<var> <root>)
+#
+# The names of the modules of the wxl tree rooted at <root>, for
+# AUTOLINK_IGNORE_WORDS (Doxyfile.in): every wxl.* directory with a
+# CMakeLists.txt of its own. Read off the tree rather than listed, so a module
+# added to it is in the list without anyone remembering to add it there;
+# CONFIGURE_DEPENDS makes the build that follows its arrival configure again
+# instead of running Doxygen with the list it had before.
+function(_wxl_doxygen_module_names var root)
+    file(GLOB _lists CONFIGURE_DEPENDS "${root}/wxl.*/CMakeLists.txt")
+    set(_names "")
+    foreach(_list IN LISTS _lists)
+        cmake_path(GET _list PARENT_PATH _dir)
+        cmake_path(GET _dir FILENAME _name)
+        list(APPEND _names "${_name}")
+    endforeach()
+    list(SORT _names)
+    set(${var} "${_names}" PARENT_SCOPE)
+endfunction()
+
 # wxl_add_doxygen_site(<target>
 #     PROJECT_NAME <name> [BRIEF <text>] [LANGUAGE <Doxygen language>]
 #     INPUT <path>...  [EXCLUDE <pattern>...]  [STRIP_FROM <dir>]
@@ -257,6 +278,15 @@ function(wxl_add_doxygen_site target)
     _wxl_doxygen_quote(DOXY_TAGFILES ${A_TAGS})
     _wxl_doxygen_quote(DOXY_IMAGE_PATH ${A_IMAGES})
 
+    # The module names are those of the wxl tree this file belongs to, whatever
+    # tree the site itself is of: a site that reads wxl's tag file mentions
+    # wxl.core as often as wxl's own does, and the tag file turns the mention
+    # into the same link to the namespace page. Taken from here rather than from
+    # the caller, so a site built with this function needs no argument for it.
+    cmake_path(GET WXL_DOXYGEN_CMAKE_DIR PARENT_PATH _wxl_root)
+    _wxl_doxygen_module_names(_modules "${_wxl_root}")
+    _wxl_doxygen_quote(DOXY_AUTOLINK_IGNORE_WORDS ${_modules})
+
     set(DOXY_PROJECT_NAME     "${A_PROJECT_NAME}")
     set(DOXY_PROJECT_BRIEF    "${A_BRIEF}")
     set(DOXY_LANGUAGE         "${A_LANGUAGE}")
@@ -284,9 +314,12 @@ function(wxl_add_doxygen_site target)
 
     # No OUTPUT/DEPENDS pair: a stale site is worse than a redundant two-second
     # run, and getting the dependency list right would mean globbing every tree
-    # the site reads on every build anyway.
+    # the site reads on every build anyway. Doxygen runs through
+    # wxl_doxygen_run.cmake, which also stops on the warnings that bypass the
+    # warning log.
+    _wxl_doxygen_run_command(_run "${_doxyfile}")
     add_custom_target(${target}
-        COMMAND "${WXL_DOXYGEN_EXECUTABLE}" "${_doxyfile}"
+        COMMAND ${_run}
         COMMENT "Doxygen: ${A_PROJECT_NAME} -> ${A_OUTPUT}/html"
         VERBATIM)
     if(A_DEPENDS)
@@ -298,11 +331,23 @@ function(wxl_add_doxygen_site target)
 endfunction()
 
 # A test that the documentation builds clean. It runs the same Doxyfile the
-# target does, and the Doxyfile makes warnings fatal, so what it asserts is that
-# no comment in the tree is malformed -- an unclosed <code>, a Windows path
-# whose backslash reads as a command, a @param naming an argument that was
-# renamed. Those are invisible in the source and visible only here.
+# target does, the same way, and the Doxyfile makes warnings fatal, so what it
+# asserts is that no comment in the tree is malformed -- an unclosed <code>, a
+# Windows path whose backslash reads as a command, a @param naming an argument
+# that was renamed -- and that Doxygen took the configuration as it is written.
+# Those are invisible in the source and visible only here.
 function(wxl_add_doxygen_test target)
     get_target_property(_doxyfile ${target} WXL_DOXYFILE)
-    add_test(NAME ${target} COMMAND "${WXL_DOXYGEN_EXECUTABLE}" "${_doxyfile}")
+    _wxl_doxygen_run_command(_run "${_doxyfile}")
+    add_test(NAME ${target} COMMAND ${_run})
+endfunction()
+
+# The command that runs Doxygen on <doxyfile> through wxl_doxygen_run.cmake.
+function(_wxl_doxygen_run_command out doxyfile)
+    set(${out}
+        "${CMAKE_COMMAND}"
+        "-DWXL_DOXYGEN=${WXL_DOXYGEN_EXECUTABLE}"
+        "-DWXL_DOXYFILE=${doxyfile}"
+        -P "${WXL_DOXYGEN_CMAKE_DIR}/wxl_doxygen_run.cmake"
+        PARENT_SCOPE)
 endfunction()

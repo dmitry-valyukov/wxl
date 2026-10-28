@@ -1,10 +1,10 @@
-# Where the NuGet packages the tree reads live -- dot-sourced by the scripts
-# that need to know.
+# The global packages folder of NuGet, where the packages the tree reads are --
+# dot-sourced by the scripts that need to know.
 #
-# NuGet's own order of preference, so the answer matches what a restore would
-# have used: the environment variable, then the configured global folder,
-# then the default beside the profile. The C++ side (cmake/nuget_root.cmake and
-# winui-srcgen) asks in the same order.
+# It follows NuGet's own order for the global packages folder: the
+# environment variable NUGET_PACKAGES, then globalPackagesFolder of the user's
+# NuGet.Config, then the default beside the profile. winui-srcgen asks in the
+# same order.
 function Resolve-NuGetRoot([string]$Override) {
     if ($Override) { return $Override }
     if ($env:NUGET_PACKAGES) { return $env:NUGET_PACKAGES }

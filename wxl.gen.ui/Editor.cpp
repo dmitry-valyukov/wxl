@@ -100,12 +100,9 @@ void append_filter(std::wstring& html, member_filter const* filter) {
     html += L"</p>";
 }
 
+// Имя из метаданных: не UTF-8 — выходит со знаками U+FFFD, как у append_text.
 std::u16string to_u16(std::string_view utf8) {
-    std::wstring wide;
-    if (auto const text = wxl::core::unicode::checked(utf8)) {
-        wxl::core::unicode::append_utf16(wide, *text);
-    }
-    return {wide.begin(), wide.end()};
+    return wxl::core::unicode::repaired(utf8).to_utf16().plain();
 }
 
 // Отметка члена в фильтре типа. Тип, которого в профиле нет, входит в него со
@@ -169,10 +166,25 @@ void mark_member(profile& prof, std::string const& type, std::string_view member
 
 namespace {
 
-// Язык интерфейса — именем папки справочника Windows SDK: ru, de, jp,
-// zh-hans; справочник на английском есть всегда.
-std::vector<std::wstring> documentation_languages() {
+// Язык интерфейса Windows — папками справочника Windows SDK, только теми, что
+// есть в documentation_languages: у японского и китайского папка называется не
+// так, как язык локали, у остальных — так же. Справочник на английском есть
+// всегда, он последний.
+std::vector<std::wstring> interface_documentation_languages() {
     std::vector<std::wstring> languages;
+    auto const add = [&](std::wstring_view folder) {
+        // Имена локалей и коды таблицы — ASCII, сужение — копия.
+        std::string code(folder.size(), '\0');
+        std::ranges::transform(folder, code.begin(), [](wchar_t c) { return static_cast<char>(c); });
+        documentation_language const* const known = find_documentation_language(code);
+        if (!known) {
+            return;
+        }
+        std::wstring candidate(known->code.begin(), known->code.end());
+        if (std::ranges::find(languages, candidate) == languages.end()) {
+            languages.push_back(std::move(candidate));
+        }
+    };
     wchar_t locale[LOCALE_NAME_MAX_LENGTH] {};
     if (::LCIDToLocaleName(::GetUserDefaultUILanguage(), locale, LOCALE_NAME_MAX_LENGTH, 0) > 0) {
         std::wstring name {locale};
@@ -180,46 +192,142 @@ std::vector<std::wstring> documentation_languages() {
         std::wstring_view const language = std::wstring_view {name}.substr(0, name.find(L'-'));
         if (language == L"zh") {
             bool const traditional = name == L"zh-tw" || name == L"zh-hk" || name == L"zh-mo" || name.contains(L"hant");
-            languages.emplace_back(traditional ? L"zh-hant" : L"zh-hans");
+            add(traditional ? L"zh-hant" : L"zh-hans");
         } else if (language == L"ja") {
-            languages.emplace_back(L"jp");
+            add(L"jp");
         } else {
-            languages.emplace_back(name);
-            languages.emplace_back(language);
+            add(name);
+            add(language);
         }
     }
-    languages.emplace_back(L"en");
+    add(L"en");
     return languages;
+}
+
+void append_inline(std::wstring& html, doc_run const& run);
+
+void append_inline_runs(std::wstring& html, doc_text const& text) {
+    for (doc_run const& run : text) {
+        append_inline(html, run);
+    }
+}
+
+void append_tagged(std::wstring& html, std::wstring_view tag, doc_text const& text) {
+    html += std::format(L"<{}>", tag);
+    append_inline_runs(html, text);
+    html += std::format(L"</{}>", tag);
+}
+
+// Код в обратных кавычках — тегом code, как его показывает Doxygen: текст между
+// серией кавычек в начале и такой же в конце, как написан, с пробелами у кавычек.
+void append_code(std::wstring& html, std::string_view span) {
+    std::size_t const ticks = span.find_first_not_of('`');
+    html += L"<code>";
+    append_text(html, span.substr(ticks, span.size() - 2 * ticks));
+    html += L"</code>";
+}
+
+// Строчная часть описания в разметку HtmlBlock: жирный, курсив, индексы,
+// перенос и код — её тегами, картинка — своей подписью, сети у панели нет, а без
+// подписи — адресом: картинка не пропадает бесследно.
+void append_inline(std::wstring& html, doc_run const& run) {
+    using kind = doc_run::kind_t;
+    switch (run.kind) {
+        case kind::text: append_text(html, run.text); break;
+        case kind::code: append_code(html, run.text); break;
+        case kind::bold: append_tagged(html, L"b", run.runs); break;
+        case kind::italic: append_tagged(html, L"i", run.runs); break;
+        case kind::superscript: append_tagged(html, L"sup", run.runs); break;
+        case kind::subscript: append_tagged(html, L"sub", run.runs); break;
+        case kind::line_break: html += L"<br>"; break;
+        case kind::image: append_text(html, run.text.empty() ? run.url : run.text); break;
+        // Блоки — у append_markup: внутри строчного их не бывает.
+        case kind::definitions:
+        case kind::definition:
+        case kind::table:
+        case kind::row:
+        case kind::header_cell:
+        case kind::cell: break;
+    }
+}
+
+// Описание в абзац раздела сведений. Таблица и список терминов — блоки HtmlBlock:
+// перед ними абзац закрывается, а строчное после них открывает новый; открыт ли
+// абзац — в open, закрывает его раздел. Термин — код: в справочниках это схемы
+// адресов, ms-appx:///.
+void append_markup(std::wstring& html, doc_text const& text, bool& open) {
+    using kind = doc_run::kind_t;
+    for (doc_run const& run : text) {
+        bool const block = run.kind == kind::table || run.kind == kind::definitions;
+        if (block && open) {
+            html += L"</p>";
+            open = false;
+        } else if (!block && !open) {
+            html += L"<p>";
+            open = true;
+        }
+        if (run.kind == kind::definitions) {
+            html += L"<ul>";
+            for (doc_run const& definition : run.runs) {
+                html += L"<li><code>";
+                append_text(html, definition.text);
+                html += L"</code> — ";
+                append_inline_runs(html, definition.runs);
+                html += L"</li>";
+            }
+            html += L"</ul>";
+        } else if (run.kind == kind::table) {
+            html += L"<table>";
+            for (doc_run const& row : run.runs) {
+                html += L"<tr>";
+                for (doc_run const& cell : row.runs) {
+                    append_tagged(html, cell.kind == kind::header_cell ? L"th" : L"td", cell.runs);
+                }
+                html += L"</tr>";
+            }
+            html += L"</table>";
+        } else {
+            append_inline(html, run);
+        }
+    }
+}
+
+// Раздел сведений: `head` открывает его абзац, за ним — описание.
+void append_section(std::wstring& html, std::wstring_view head, doc_text const& text) {
+    html += head;
+    bool open = true;
+    append_markup(html, text, open);
+    if (open) {
+        html += L"</p>";
+    }
 }
 
 // Документация члена или типа под сведениями о нём.
 void append_documentation(std::wstring& html, member_documentation const& documentation) {
     if (!documentation.deprecated.empty()) {
-        html += L"<p><b>Deprecated:</b> ";
-        append_text(html, documentation.deprecated);
-        html += L"</p>";
+        append_section(html, L"<p><b>Deprecated:</b> ", documentation.deprecated);
     }
     if (!documentation.summary.empty()) {
-        html += L"<p><b>Summary:</b><br>";
-        append_text(html, documentation.summary);
-        html += L"</p>";
+        append_section(html, L"<p><b>Summary:</b><br>", documentation.summary);
     }
     // Параметр без описания — такие в файлах есть — не показывается.
     auto const described = [](auto const& param) { return !param.second.empty(); };
     if (std::ranges::any_of(documentation.params, described)) {
         html += L"<p><b>Parameters:</b>";
+        bool open = true;
         for (auto const& [name, text] : documentation.params | std::views::filter(described)) {
-            html += L"<br><i>";
+            html += open ? L"<br><i>" : L"<p><i>";
+            open = true;
             append_text(html, name);
             html += L"</i> — ";
-            append_text(html, text);
+            append_markup(html, text, open);
         }
-        html += L"</p>";
+        if (open) {
+            html += L"</p>";
+        }
     }
     if (!documentation.returns.empty()) {
-        html += L"<p><b>Returns:</b><br>";
-        append_text(html, documentation.returns);
-        html += L"</p>";
+        append_section(html, L"<p><b>Returns:</b><br>", documentation.returns);
     }
 }
 
@@ -240,7 +348,7 @@ public:
             }
         } catch (std::exception const& error) {
             html += L"<p><b>Documentation:</b> ";
-            append_text(html, error_message(error));
+            append_text(html, wxl::core::environment::error_message(error).chars());
             html += L"</p>";
         }
         if (!parsing && source_.parsing()) {
@@ -252,7 +360,7 @@ public:
     // файлы справочника закрываются: при следующей нужде открывается файл
     // нужного языка. Документация рядом с .winmd одна и остаётся.
     void english(bool value) {
-        source_.languages(value ? std::vector<std::wstring> {L"en"} : documentation_languages());
+        source_.languages(value ? std::vector<std::wstring> {L"en"} : interface_documentation_languages());
     }
 
     // Разбирает члены открытых файлов до срока; остались ли неразобранные.
@@ -260,7 +368,7 @@ public:
 
 private:
     wxl::core::function<void()> opened_;
-    documentation_source source_ {documentation_languages()};
+    documentation_source source_ {interface_documentation_languages()};
 };
 
 // Корни обхода из `own`, которых в замыкании нет без них самих: никакой другой
@@ -2695,14 +2803,12 @@ bool Editor::prepareDocumentation() {
 }
 
 wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) {
-    std::string utf8;
-    if (auto const text = wxl::core::unicode::checked(type)) {
-        wxl::core::unicode::append_utf8(utf8, *text);
-    }
-    if (auto const row = types_->reveal(utf8)) {
+    // Имя из ссылки страницы: сломанная пара — U+FFFD, как у append_text.
+    auto const utf8 = wxl::core::unicode::repaired(type).to_utf8();
+    if (auto const row = types_->reveal(utf8.chars())) {
         return row;
     }
-    if (md::TypeDef const def = find_type(data_->db, utf8)) {
+    if (md::TypeDef const def = find_type(data_->db, utf8.chars())) {
         intrusive_ptr<TreeModel> const card {new TypeCard {*this, def}, /*add_ref=*/false};
         selection.set({card, card.get()});
     }
@@ -2711,9 +2817,8 @@ wxl::core::nullable<uint32_t> Editor::reveal(std::wstring_view type) {
 Editor::~Editor() = default;
 
 std::wstring errorText(std::exception const& error) {
-    // error_message() отдаёт UTF-8: пути и слова системы — через to_utf8, прочее — repaired.
     std::wstring wide;
-    wxl::core::unicode::append_utf16(wide, wxl::core::unicode::assume_valid(error_message(error)));
+    wxl::core::unicode::append_utf16(wide, wxl::core::environment::error_message(error));
     return wide;
 }
 
@@ -2724,7 +2829,7 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     std::vector<std::string> files;
     files.reserve(resolved.metadata.size());
     for (auto&& file : resolved.metadata) {
-        files.push_back(file.string());
+        files.push_back(std::string{wxl::core::unicode::to_utf8(file).chars()});
     }
     auto const resources = resolved.resources;
 

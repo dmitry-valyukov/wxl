@@ -21,8 +21,7 @@ namespace {
 task<> read_all(path file_path, std::string& out, std::thread::id& worker_thread) {
     // Proof, from inside the coroutine, that the other side of the loop really
     // is another thread -- and the shortest possible use of async_call.
-    worker_thread =
-        co_await sta_loop::async_call([] { return std::this_thread::get_id(); });
+    worker_thread = co_await sta_loop::async_call([] { return std::this_thread::get_id(); });
 
     async_file f = co_await async_file::open_read(file_path);
 
@@ -55,8 +54,8 @@ task<> open_and_catch(path file_path, std::string& message) {
 
 /// The writing half, through the same machinery: create, write, flush, close,
 /// and then read the whole thing back and compare.
-task<> write_then_read_back(path file_path, std::string_view content,
-                          std::string& got, std::uint64_t& reported_size) {
+task<> write_then_read_back(path file_path, std::string_view content, std::string& got,
+                            std::uint64_t& reported_size) {
     {
         async_file out = co_await async_file::create(file_path);
 
@@ -102,9 +101,7 @@ protected:
         ASSERT_TRUE(directory::create(root_.c_str()));
     }
 
-    void TearDown() override {
-        std::filesystem::remove_all(root_.native());
-    }
+    void TearDown() override { std::filesystem::remove_all(root_.native()); }
 
     void given_a_file(const wchar_t* name, std::string_view content) {
         file out = file::create((root_ / name).c_str());
@@ -122,12 +119,12 @@ protected:
 TEST_F(AsyncFileTest, ReadsAFileInACoroutine) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     std::string got;
     std::thread::id worker_thread;
 
-    sta_loop::run_until(read_all(root_ / L"book.bin", got, worker_thread));
+    sta_loop::run_until(read_all(root_ / L"data.bin", got, worker_thread));
 
     EXPECT_EQ(got, content);
     EXPECT_NE(worker_thread, std::thread::id{});
@@ -217,15 +214,15 @@ task<> reads_in_large_pieces(path file_path, std::string& out) {
 
     std::vector<char> buffer(async_file::direct_read_limit * 2);
 
-    while (const std::size_t n = co_await f.read(
-               std::as_writable_bytes(std::span(buffer.data(), buffer.size()))))
+    while (const std::size_t n =
+               co_await f.read(std::as_writable_bytes(std::span(buffer.data(), buffer.size()))))
         out.append(buffer.data(), n);
 }
 
 /// Writes the whole of `content` in one write and reads it back in one read, each of
 /// them more than one call to the system carries.
 task<> writes_and_reads_in_one_go(path file_path, std::span<const std::byte> content,
-                                std::vector<std::byte>& got, std::size_t& brought) {
+                                  std::vector<std::byte>& got, std::size_t& brought) {
     {
         async_file out = co_await async_file::create(file_path);
 
@@ -439,8 +436,8 @@ TEST_F(AsyncFileTest, AFileMadeByAnOrphanGivenUpWhileItRunsIsLetGoOfOnTheSpot) {
     std::atomic<bool> deleted{false};
 
     {
-        auto making = sta_loop::async_call(
-            orphanable, [&made, &gate, target, mark = deletion_mark(deleted)] {
+        auto making =
+            sta_loop::async_call(orphanable, [&made, &gate, target, mark = deletion_mark(deleted)] {
                 file out = file::create(target.c_str());
 
                 made.set();
@@ -512,7 +509,8 @@ task<> asks_whether_exists(path file_path, bool& out) {
     out = co_await async_file::exists(file_path);
 }
 
-task<> cancelable_reads_whole(path file_path, cancellation_token token, std::string& out, bool& cancelled) {
+task<> cancelable_reads_whole(path file_path, cancellation_token token, std::string& out,
+                              bool& cancelled) {
     try {
         out = co_await async_file::read_all(file_path, token);
     } catch (const operation_canceled_exception&) {
@@ -520,7 +518,8 @@ task<> cancelable_reads_whole(path file_path, cancellation_token token, std::str
     }
 }
 
-task<> cancelable_writes_whole(path file_path, std::string bytes, cancellation_token token, bool& cancelled) {
+task<> cancelable_writes_whole(path file_path, std::string bytes, cancellation_token token,
+                               bool& cancelled) {
     try {
         co_await async_file::write_all(file_path, std::move(bytes), token);
     } catch (const operation_canceled_exception&) {
@@ -557,11 +556,11 @@ task<> reads_then_writes(path from, path to, std::string& got) {
 TEST_F(AsyncFileTest, TheLoopRunsUntilAFrameStillReadingAndWritingIsGone) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     std::string got;
 
-    task<> copying = reads_then_writes(root_ / L"book.bin", root_ / L"copy.bin", got);
+    task<> copying = reads_then_writes(root_ / L"data.bin", root_ / L"copy.bin", got);
     EXPECT_NE(sta_loop::outstanding(), 0u);
 
     sta_loop::run_until([] { return sta_loop::outstanding() == 0; });
@@ -578,11 +577,11 @@ TEST_F(AsyncFileTest, TheLoopRunsUntilAFrameStillReadingAndWritingIsGone) {
 TEST_F(AsyncFileTest, ReadAllBringsTheWholeFileInOneOperation) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     std::string got;
 
-    sta_loop::run_until(reads_whole(root_ / L"book.bin", got));
+    sta_loop::run_until(reads_whole(root_ / L"data.bin", got));
 
     EXPECT_EQ(got, content);
 }
@@ -636,13 +635,14 @@ TEST_F(AsyncFileTest, WriteAllOfNothingLeavesAnEmptyFile) {
 TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
     const std::string content = test_content();
 
-    given_a_file(L"book.bin", content);
+    given_a_file(L"data.bin", content);
 
     cancellation_source source;
     std::string got;
     bool cancelled = false;
 
-    sta_loop::run_until(cancelable_reads_whole(root_ / L"book.bin", source.token(), got, cancelled));
+    sta_loop::run_until(
+        cancelable_reads_whole(root_ / L"data.bin", source.token(), got, cancelled));
 
     EXPECT_EQ(got, content);
     EXPECT_FALSE(cancelled);
@@ -650,7 +650,7 @@ TEST_F(AsyncFileTest, ReadAllUnderATokenReadsUntilAskedAndStartsNothingAfter) {
     source.cancel();
 
     std::string again;
-    task<> asked = cancelable_reads_whole(root_ / L"book.bin", source.token(), again, cancelled);
+    task<> asked = cancelable_reads_whole(root_ / L"data.bin", source.token(), again, cancelled);
 
     EXPECT_TRUE(asked.done()) << "an operation was started under a cancelled token";
     sta_loop::run_until(asked);
@@ -667,7 +667,8 @@ TEST_F(AsyncFileTest, WriteAllUnderACancelledTokenLeavesTheFileAsItWas) {
 
     bool cancelled = false;
 
-    sta_loop::run_until(cancelable_writes_whole(root_ / L"state.txt", "new", source.token(), cancelled));
+    sta_loop::run_until(
+        cancelable_writes_whole(root_ / L"state.txt", "new", source.token(), cancelled));
 
     EXPECT_TRUE(cancelled);
     EXPECT_EQ(on_disk(root_ / L"state.txt"), "the old state");
@@ -691,7 +692,8 @@ TEST_F(AsyncFileTest, WriteAllCancelledThenRepeatedNeverMeetsTheFirstWrite) {
         cancellation_source source;
         bool cancelled = false;
 
-        task<> writing = cancelable_writes_whole(root_ / L"state.txt", first, source.token(), cancelled);
+        task<> writing =
+            cancelable_writes_whole(root_ / L"state.txt", first, source.token(), cancelled);
         source.cancel();
         sta_loop::run_until(writing);
 
@@ -757,7 +759,8 @@ TEST_F(AsyncFileTest, ExistsUnderATokenAnswersLikeThePlainOne) {
     cancellation_source source;
     bool is_file = false, is_nothing = true;
 
-    sta_loop::run_until(cancelable_asks_whether_exists(root_ / L"here.bin", source.token(), is_file));
+    sta_loop::run_until(
+        cancelable_asks_whether_exists(root_ / L"here.bin", source.token(), is_file));
     sta_loop::run_until(
         cancelable_asks_whether_exists(root_ / L"nowhere.bin", source.token(), is_nothing));
 

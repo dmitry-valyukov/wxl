@@ -26,10 +26,13 @@ template <class T>
 class intrusive_ptr
 {
 public:
+    /// The type of the object the pointer refers to.
     using element_type = T;
 
+    /// Constructs an empty pointer.
     constexpr intrusive_ptr() noexcept = default;
 
+    /// Constructs an empty pointer.
     constexpr intrusive_ptr(std::nullptr_t) noexcept {}
 
     /// Implicit by design -- `return new foo();` into an `intrusive_ptr<foo>` has to work.
@@ -39,18 +42,25 @@ public:
         if (ptr_ && add_ref) intrusive_ptr_add_ref(ptr_);
     }
 
+    /// Constructs a pointer to the object held by \p other and adds a reference to it, if any.
     intrusive_ptr(const intrusive_ptr& other) noexcept : ptr_(other.ptr_) {
         if (ptr_) intrusive_ptr_add_ref(ptr_);
     }
 
+    /// Constructs a pointer that takes over the reference held by \p other and leaves \p other
+    /// empty.
     intrusive_ptr(intrusive_ptr&& other) noexcept : ptr_(std::exchange(other.ptr_, nullptr)) {}
 
+    /// Constructs a pointer from a pointer to a type whose pointer converts to `T*`, and adds a
+    /// reference to the object, if any.
     template <class U>
         requires(!std::same_as<U, T>) && std::convertible_to<U*, T*>
     intrusive_ptr(const intrusive_ptr<U>& other) noexcept : ptr_(other.get()) {
         if (ptr_) intrusive_ptr_add_ref(ptr_);
     }
 
+    /// Constructs a pointer from a pointer to a type whose pointer converts to `T*`, taking over
+    /// the reference held by \p other and leaving \p other empty.
     template <class U>
         requires(!std::same_as<U, T>) && std::convertible_to<U*, T*>
     intrusive_ptr(intrusive_ptr<U>&& other) noexcept : ptr_(other.detach()) {}
@@ -59,16 +69,22 @@ public:
         if (ptr_) intrusive_ptr_release(ptr_);
     }
 
+    /// Replaces the held object with the one held by \p other: adds a reference to the new
+    /// object, then releases the previous one.
     intrusive_ptr& operator=(const intrusive_ptr& other) noexcept {
         intrusive_ptr(other).swap(*this);
         return *this;
     }
 
+    /// Takes over the reference held by \p other, leaves \p other empty and releases the
+    /// previously held object.
     intrusive_ptr& operator=(intrusive_ptr&& other) noexcept {
         intrusive_ptr(std::move(other)).swap(*this);
         return *this;
     }
 
+    /// Replaces the held object with the one held by \p other, a pointer to a type whose pointer
+    /// converts to `T*`: adds a reference to the new object, then releases the previous one.
     template <class U>
         requires(!std::same_as<U, T>) && std::convertible_to<U*, T*>
     intrusive_ptr& operator=(const intrusive_ptr<U>& other) noexcept {
@@ -76,11 +92,14 @@ public:
         return *this;
     }
 
+    /// Replaces the held object with \p p: adds a reference to \p p, if not null, then releases
+    /// the previous object.
     intrusive_ptr& operator=(T* p) noexcept {
         intrusive_ptr(p).swap(*this);
         return *this;
     }
 
+    /// Releases the held object, if any, and leaves the pointer empty.
     intrusive_ptr& operator=(std::nullptr_t) noexcept {
         intrusive_ptr().swap(*this);
         return *this;
@@ -96,81 +115,52 @@ public:
     /// and becomes responsible for it (pair with `intrusive_ptr(p, false)`).
     [[nodiscard]] T* detach() noexcept { return std::exchange(ptr_, nullptr); }
 
+    /// Returns the stored pointer, which may be null. The reference count does not change.
     [[nodiscard]] T* get() const noexcept { return ptr_; }
 
+    /// Returns a reference to the held object. The pointer must not be empty; this is asserted
+    /// in debug builds and assumed in release builds.
     T& operator*() const noexcept {
         assume(ptr_);
         return *ptr_;
     }
 
+    /// Returns the stored pointer for member access. The pointer must not be empty; this is
+    /// asserted in debug builds and assumed in release builds.
     T* operator->() const noexcept {
         assume(ptr_);
         return ptr_;
     }
 
+    /// Tests whether the pointer holds an object.
     [[nodiscard]] explicit operator bool() const noexcept { return ptr_ != nullptr; }
 
+    /// Tests whether the pointer is empty.
     [[nodiscard]] bool operator!() const noexcept { return ptr_ == nullptr; }
 
+    /// Exchanges the stored pointers of this object and \p other. No reference count changes.
     void swap(intrusive_ptr& other) noexcept { std::swap(ptr_, other.ptr_); }
 
 private:
     T* ptr_ = nullptr;
 };
 
-/**
- * Owns one reference to an intrusively counted object and does nothing else with it: it
- * takes the reference it is handed and releases it when it goes.
- *
- * Deliberately poorer than `intrusive_ptr` -- no copying, no moving, no reassignment, no
- * `intrusive_ptr_add_ref` anywhere in it. That is the whole point: a field set once in the
- * member initializer and released with its owner, where a second reference would be a
- * mistake rather than a convenience. `component` holds its state this way, so the state's
- * reference count reads as "one for the component, plus one per keeper out there".
- */
-template <class T>
-class release_only_ptr
-{
-public:
-    /// Takes over `ptr`'s existing reference -- the implicit first one, if `ptr` was just
-    /// created (refcounted objects start at ref_count() == 1).
-    explicit release_only_ptr(T* ptr) noexcept : ptr_(ptr) {}
-
-    ~release_only_ptr() {
-        if (ptr_) intrusive_ptr_release(ptr_);
-    }
-
-    [[nodiscard]] T* get() const noexcept { return ptr_; }
-
-    T* operator->() const noexcept {
-        assume(ptr_);
-        return ptr_;
-    }
-
-    T& operator*() const noexcept {
-        assume(ptr_);
-        return *ptr_;
-    }
-
-    [[nodiscard]] explicit operator bool() const noexcept { return ptr_ != nullptr; }
-
-private:
-    // const, so that the absence of assignment is the type's own doing rather than a rule
-    // to remember; it makes the class non-copyable and non-movable at the same time.
-    T* const ptr_;
-};
-
-// operator!=, <, <=, > and >= are all synthesized from these.
+/// Tests whether \p a and \p b store the same pointer. The compiler synthesizes `operator!=`
+/// from this operator.
 template <class T, class U>
 bool operator==(const intrusive_ptr<T>& a, const intrusive_ptr<U>& b) noexcept {
     return a.get() == b.get();
 }
 
+/// Tests whether \p p is empty. The compiler synthesizes the reversed and the negated forms
+/// from this operator.
 template <class T>
 bool operator==(const intrusive_ptr<T>& p, std::nullptr_t) noexcept {
     return !p;
 }
 
+/// Compares the pointers stored in \p a and \p b. The compiler synthesizes `operator<`,
+/// `operator<=`, `operator>` and `operator>=` from this operator.
 template <class T, class U>
 auto operator<=>(const intrusive_ptr<T>& a, const intrusive_ptr<U>& b) noexcept {
     return a.get() <=> b.get();

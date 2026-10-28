@@ -54,7 +54,8 @@
 
 namespace wxl {
 
-class Card : public Border {
+class Card : public Border
+{
 public:
     template <typename... Setters>
         requires impl::setter_pack<Card, Setters...>
@@ -100,7 +101,7 @@ protected:
 //
 // The scrim is neutral on purpose. A page whose picture has a colour of its
 // own tints it in one line -- `background = SolidColorBrush{rgb(...)}` --
-// the way the book reader warms it to the brown of its own cover art.
+// a warm brown over a sepia photograph, say, or a cool grey over a seascape.
 //
 // The ink on it is the dark theme's ink, whatever theme the window wears:
 // the scrim is dark in both, so `foreground = brushes.Text.FillColor.Primary`
@@ -109,7 +110,8 @@ protected:
 // for: `brushes.Text.FillColor.Primary(ElementTheme::Dark)`. A control that
 // paints itself from the accent colour, ProgressRing among them, needs the
 // same treatment for the same reason.
-class OverlayCard : public Border {
+class OverlayCard : public Border
+{
 public:
     template <typename... Setters>
         requires impl::setter_pack<OverlayCard, Setters...>

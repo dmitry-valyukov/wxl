@@ -17,7 +17,8 @@
 namespace wxl::impl {
 
 template <typename List>
-class index_iterator {
+class index_iterator
+{
 public:
     // An element is made on demand -- a wrapper built, a string referenced --
     // so it is handed out by value and there is nothing to point into.

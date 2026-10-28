@@ -404,7 +404,7 @@ void write_enums_and_structs(output const& out, model const& m, emitted& em) {
     std::vector<std::string> enum_files;
     for (auto&& file : m.enum_files) {
         std::string const filename = file.ns + ".Enums.h";
-        auto const path = out.dir / filename;
+        auto const path = out.dir / metadata_path(filename);
         write_enums_file(path, file.enums);
         em.add(path);
         std::print("generated {} ({} enums)\n", wxl::core::unicode::to_utf8(path).chars(),
@@ -415,7 +415,7 @@ void write_enums_and_structs(output const& out, model const& m, emitted& em) {
     std::vector<std::string> struct_files;
     for (auto&& file : m.struct_files) {
         std::string const filename = file.ns + ".Structs.h";
-        auto const path = out.dir / filename;
+        auto const path = out.dir / metadata_path(filename);
         write_structs_file(path, m, file);
         em.add(path);
         std::print("generated {} ({} structs)\n", wxl::core::unicode::to_utf8(path).chars(),

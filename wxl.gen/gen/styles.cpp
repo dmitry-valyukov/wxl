@@ -331,7 +331,7 @@ void write_brush_paths(std::ostream& header, std::string_view group_suffix,
 // src/resource_lookup.cpp, where the lookup lives -- and several hundred
 // wide-string literals have no business in a header every user of a path
 // includes.
-void write_name_table(output const& out, emitted& em, std::string_view file,
+void write_name_table(output const& out, emitted& em, std::filesystem::path const& file,
                       std::string_view array, std::vector<std::string> const& names) {
     auto table = open_output(out.dir / file);
     std::print(table, "{}#pragma once\n\nnamespace wxl::impl {{\n\n", banner);
@@ -429,7 +429,7 @@ void write_styles(output const& out, model const& m, emitted& em) {
         em.add("styles.h");
     }
 
-    write_name_table(out, em, "style_names.h", "style_names", names);
+    write_name_table(out, em, L"style_names.h", "style_names", names);
 
     std::print("generated {}\\styles.h ({} styles in {} groups, {} dropped for a target type "
                "that is not generated{}{})\n",
@@ -505,7 +505,7 @@ void write_brushes(output const& out, model const& m, emitted& em) {
         em.add("brushes.h");
     }
 
-    write_name_table(out, em, "brush_names.h", "brush_names", names);
+    write_name_table(out, em, L"brush_names.h", "brush_names", names);
 
     std::print("generated {}\\brushes.h ({} brushes, {} theme brushes{}{})\n",
                wxl::core::unicode::to_utf8(out.dir).chars(), stems.size(), theme_stems.size(),

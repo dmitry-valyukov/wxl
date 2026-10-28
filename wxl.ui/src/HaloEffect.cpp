@@ -47,7 +47,8 @@ void HaloEffect::attach(UIElement const& wrapper, std::function<CompositionBrush
 
     // The layer is made once the element is drawn, from the compositor the
     // element's own visual was made by, and the mask is taken then too.
-    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf), impl = impl_](auto const& children) {
+    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf),
+                                                               impl = impl_](auto const& children) {
         auto const compositor = host.Compositor();
         auto const mask = Object::Impl::as<composition::CompositionBrush>(maskOf());
 

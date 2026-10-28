@@ -21,12 +21,11 @@ namespace wxl::impl {
 // the UI thread's queue; an exception has nowhere to go from any of them. The sender is not
 // offered: the sources raise an empty one.
 template <auto Listener, class Owner, class Args>
-concept event_listener =
-    requires(Owner& owner, EventArgsRef<Args> args) {
-        { (owner.*Listener)(args) } noexcept -> std::same_as<void>;
-    } || requires(Owner& owner) {
-        { (owner.*Listener)() } noexcept -> std::same_as<void>;
-    };
+concept event_listener = requires(Owner& owner, EventArgsRef<Args> args) {
+    { (owner.*Listener)(args) } noexcept -> std::same_as<void>;
+} || requires(Owner& owner) {
+    { (owner.*Listener)() } noexcept -> std::same_as<void>;
+};
 
 // `Source` is a handle, copied by value; `Adder` is the pair of calls for one event, as the
 // generated event_adder has it: add(source, handler) gives a token, remove(source, token) takes
@@ -41,7 +40,8 @@ concept event_listener =
 // -- a member built in the owner's initializer list -- and is on it until it goes. A watch that
 // has to wait for its source is a part of its owner that appears then, built whole.
 template <class Source, class Adder, auto Listener>
-class event_watch {
+class event_watch
+{
     using owner_t = typename core::impl::member_owner<decltype(Listener)>::type;
 
 public:
@@ -56,7 +56,8 @@ public:
     /// Takes the handler off the source. The source answering that the token was not there --
     /// somebody took the handler off by it -- stops the process.
     ~event_watch() {
-        if (!Adder::remove(source_, token_)) core::abort("wxl: an event watch is no longer on its source");
+        if (!Adder::remove(source_, token_))
+            core::abort("wxl: an event watch is no longer on its source");
     }
 
 private:

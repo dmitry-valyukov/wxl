@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The helper project of cmake/wxl_packages.cmake, written from cmake/wxl_packages.vcxproj.in
+  into the build directory at configure. It has no sources. MSBuild restores its
+  PackageReference items and then builds the C++/WinRT projection with the targets that the
+  Microsoft.Windows.CppWinRT package imports into it.
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <Configuration>Release</Configuration>
+    <Platform>x64</Platform>
+    <!-- Switched off: the vcpkg integration that `vcpkg integrate install` imports into each
+         .vcxproj, and the import of Directory.Build.props, Directory.Build.targets and
+         Directory.Packages.props from the directories above the build directory. -->
+    <VcpkgEnabled>false</VcpkgEnabled>
+    <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps>
+    <ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets>
+    <ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>
+    <!-- The toolset and the Windows SDK of the developer environment that runs the configure,
+         the same ones the compiler of the tree uses. -->
+    <VCToolsVersion>@WXL_PACKAGES_VC_TOOLS_VERSION@</VCToolsVersion>
+    <WindowsTargetPlatformVersion>@WXL_PACKAGES_WINDOWS_SDK_VERSION@</WindowsTargetPlatformVersion>
+    <!-- The restore writes what it resolved into the lock file of the tree. With
+         RestoreLockedMode=true and the file there, it resolves the versions the file records and
+         does not write it: references that the file does not match stop the restore. Without the
+         file a locked restore writes one, so cmake/wxl_packages.cmake stops a locked configure
+         without the file before it runs MSBuild. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath>@WXL_PACKAGES_LOCK_FILE@</NuGetLockFilePath>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+    <!-- The response files of the projection targets are $(IntDir)$(MSBuildProjectFile)
+         .cppwinrt_plat.rsp and .cppwinrt_ref.rsp; cmake/wxl_packages.cmake reads them there. -->
+    <IntDir>@WXL_PACKAGES_INT_DIR@\</IntDir>
+    <!-- Where CppWinRTMakePlatformProjection and CppWinRTMakeReferenceProjection write the
+         headers (cppwinrt.exe -out "$(GeneratedFilesDir)."). -->
+    <GeneratedFilesDir>@WXL_PACKAGES_PROJECTION_DIR@\</GeneratedFilesDir>
+    <!-- The component projection is for a project that implements runtime classes of its own.
+         This one has none, and the target would only write a response file. -->
+    <CppWinRTEnableComponentProjection>false</CppWinRTEnableComponentProjection>
+  </PropertyGroup>
+
+  <ItemGroup>
+@WXL_PACKAGES_REFERENCES@
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

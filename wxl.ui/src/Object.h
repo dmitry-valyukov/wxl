@@ -36,7 +36,8 @@ namespace wxl {
 // there is nothing to inherit for: an instance cannot be made, so an Object
 // wrapper for one would be a smart pointer that is always null over an Impl
 // field that is never filled.
-class Statics {
+class Statics
+{
 public:
     Statics() = delete;
     Statics(Statics const&) = delete;
@@ -58,7 +59,8 @@ public:
 // own Impl the same way and defines it in wxl/<Namespace>.impl.h, so
 // a generated public header never names a winrt:: type either and including
 // one stays cheap.
-class Object {
+class Object
+{
 public:
     // Declared, never defined in a public header. Publishing the name gives
     // a consumer nothing -- every use of it goes through a
@@ -196,6 +198,11 @@ public:
 protected:
     explicit Object(Impl* impl) noexcept;
 
+    // Where the activation factory writes: the raw slot of the root's
+    // wrapped IInspectable, so a generated constructor activates straight
+    // into it with no temporary smart pointer and no extra AddRef.
+    ::IInspectable** put_abi() noexcept;
+
     Impl* impl() const noexcept { return impl_.get(); }
 
 private:
@@ -205,7 +212,8 @@ private:
 // The second pre-defined level. Every generated wrapper that wraps a
 // real DependencyObject-derived WinUI3 class inherits (directly or not)
 // from this one.
-class DependencyObject : public Object {
+class DependencyObject : public Object
+{
     using base_t = Object;
 
 public:

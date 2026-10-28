@@ -88,15 +88,15 @@ TEST_F(DirectoryTest, AnEmptyDirectoryListsNothingAtAll) {
 }
 
 TEST_F(DirectoryTest, ListsFilesAndDirectories) {
-    given_a_file(L"one.fb3");
-    given_a_file(L"two.fb3");
+    given_a_file(L"one.dat");
+    given_a_file(L"two.dat");
     given_a_directory(L"nested");
 
-    EXPECT_EQ(names_in(), (std::vector<std::wstring>{L"nested", L"one.fb3", L"two.fb3"}));
+    EXPECT_EQ(names_in(), (std::vector<std::wstring>{L"nested", L"one.dat", L"two.dat"}));
 }
 
 TEST_F(DirectoryTest, TellsADirectoryFromAFileAndKnowsItsSize) {
-    given_a_file(L"book.fb3", "0123456789");
+    given_a_file(L"file.dat", "0123456789");
     given_a_directory(L"nested");
 
     directory listing = directory::open((root_ / L"*").c_str());
@@ -106,7 +106,7 @@ TEST_F(DirectoryTest, TellsADirectoryFromAFileAndKnowsItsSize) {
     bool seen_directory = false;
 
     while (listing.next(entry)) {
-        if (entry.name == L"book.fb3") {
+        if (entry.name == L"file.dat") {
             seen_file = true;
             EXPECT_FALSE(entry.is_directory);
             EXPECT_EQ(entry.size, 10u);
@@ -121,11 +121,11 @@ TEST_F(DirectoryTest, TellsADirectoryFromAFileAndKnowsItsSize) {
 }
 
 TEST_F(DirectoryTest, KnowsWhenAFileWasLastWrittenToTheTick) {
-    given_a_file(L"book.fb3", "0123456789");
+    given_a_file(L"file.dat", "0123456789");
     given_a_directory(L"nested");
 
     const std::filesystem::file_time_type written =
-        std::filesystem::last_write_time((root_ / L"book.fb3").native());
+        std::filesystem::last_write_time((root_ / L"file.dat").native());
 
     directory listing = directory::open((root_ / L"*").c_str());
 
@@ -136,7 +136,7 @@ TEST_F(DirectoryTest, KnowsWhenAFileWasLastWrittenToTheTick) {
     // To the tick: std::filesystem::last_write_time puts the file system's FILETIME count
     // into the same clock unchanged. Compared as counts, so that a miss says by how many.
     while (listing.next(entry)) {
-        if (entry.name == L"book.fb3") {
+        if (entry.name == L"file.dat") {
             seen_file = true;
             EXPECT_EQ(entry.last_write.time_since_epoch().count(),
                       written.time_since_epoch().count());
@@ -151,16 +151,16 @@ TEST_F(DirectoryTest, KnowsWhenAFileWasLastWrittenToTheTick) {
 }
 
 TEST_F(DirectoryTest, TheMaskIsTheSystemsToApply) {
-    given_a_file(L"one.fb3");
-    given_a_file(L"two.fb3");
+    given_a_file(L"one.dat");
+    given_a_file(L"two.dat");
     given_a_file(L"notes.txt");
 
-    EXPECT_EQ(names_in(L"*.fb3"), (std::vector<std::wstring>{L"one.fb3", L"two.fb3"}));
+    EXPECT_EQ(names_in(L"*.dat"), (std::vector<std::wstring>{L"one.dat", L"two.dat"}));
 }
 
 TEST_F(DirectoryTest, ANameIsGoodUntilTheNextStep) {
-    given_a_file(L"first.fb3");
-    given_a_file(L"second.fb3");
+    given_a_file(L"first.dat");
+    given_a_file(L"second.dat");
 
     directory listing = directory::open((root_ / L"*").c_str());
 
@@ -178,7 +178,7 @@ TEST_F(DirectoryTest, ANameIsGoodUntilTheNextStep) {
 }
 
 TEST_F(DirectoryTest, ClosingEndsTheListing) {
-    given_a_file(L"one.fb3");
+    given_a_file(L"one.dat");
 
     directory listing = directory::open((root_ / L"*").c_str());
 
@@ -196,8 +196,8 @@ TEST_F(DirectoryTest, ClosingEndsTheListing) {
 }
 
 TEST_F(DirectoryTest, MovingTakesTheListingAndLeavesTheOtherClosed) {
-    given_a_file(L"one.fb3");
-    given_a_file(L"two.fb3");
+    given_a_file(L"one.dat");
+    given_a_file(L"two.dat");
 
     directory first = directory::open((root_ / L"*").c_str());
 
@@ -217,12 +217,12 @@ TEST_F(DirectoryTest, MovingTakesTheListingAndLeavesTheOtherClosed) {
 }
 
 TEST_F(DirectoryTest, ExistsAnswersForDirectoriesOnly) {
-    given_a_file(L"book.fb3");
+    given_a_file(L"file.dat");
     given_a_directory(L"nested");
 
     EXPECT_TRUE(directory::exists(root_.c_str()));
     EXPECT_TRUE(directory::exists((root_ / L"nested").c_str()));
-    EXPECT_FALSE(directory::exists((root_ / L"book.fb3").c_str()));
+    EXPECT_FALSE(directory::exists((root_ / L"file.dat").c_str()));
     EXPECT_FALSE(directory::exists((root_ / L"no_such_thing").c_str()));
 }
 
@@ -276,7 +276,7 @@ TEST_F(DirectoryTest, RemoveTakesAnEmptyDirectoryAndLeavesAFullOne) {
     EXPECT_FALSE(directory::exists(nested.c_str()));
 
     ASSERT_TRUE(directory::create(nested.c_str()));
-    file out = file::create((nested / L"book.fb3").c_str());
+    file out = file::create((nested / L"file.dat").c_str());
     ASSERT_TRUE(out.opened());
     out.close();
 

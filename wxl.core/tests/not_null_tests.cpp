@@ -13,7 +13,8 @@ struct Thing {
     int value = 7;
 };
 
-struct Derived : Thing {};
+struct Derived : Thing {
+};
 
 class Counted : public refcounted
 {
@@ -113,8 +114,6 @@ void die_on_null() {
     (void)as_not_null(nothing);
 }
 
-TEST(NotNullDeathTest, a_null_pointer_takes_the_process_down) {
-    EXPECT_DEATH(die_on_null(), "");
-}
+TEST(NotNullDeathTest, a_null_pointer_takes_the_process_down) { EXPECT_DEATH(die_on_null(), ""); }
 
 }  // namespace

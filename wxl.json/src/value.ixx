@@ -1,23 +1,21 @@
-// Дерево, которое получается из разбора: значения, их имена и то немногое,
-// что у них можно спросить. Всё здесь -- вид в документ, которым владеет
-// читатель, и потому живёт ровно столько же, сколько он.
+// The tree a parse produces: values, their names and the few queries they
+// answer. Everything here is a view into the document the reader owns, and so
+// lives exactly as long as the document does.
 //
-// Вид проверенный. Документ проверяется целиком до того, как по нему пойдёт
-// грамматика, так что всякая строка, вырезанная из него, -- заведомо
-// правильный UTF-8, и wxl::core::u8_view говорит это вызывающему, которому
-// иначе пришлось бы писать assume_valid() снова и снова. Сравнение с
-// обычным литералом от этого не меняется.
+// The views are checked text: the document is validated whole before parsing,
+// so every string taken from it is well-formed UTF-8, and wxl::core::u8_view
+// states that without the caller writing assume_valid(). Comparison with an
+// ordinary literal is unaffected.
 //
-// Один тип на все шесть видов значения. Разделять их классами было бы не за
-// что: у значения одно поле нагрузки и тег, наследование добавило бы vptr
-// ради экономии восьми байт, а вызывающему -- приведение типа на каждом
-// шаге.
+// One type for all six kinds of value. Separate classes would gain nothing: a
+// value has one payload field and a tag; inheritance would add a vptr to every
+// value, and a cast at every step for the caller.
 //
-// Поле объекта -- такое же значение, только с именем. Отдельного типа
-// «пара имя-значение» нет нарочно: массив и объект тогда хранились бы
-// по-разному, разбору понадобились бы два стека вместо одного, а обходу --
-// две записи вместо одной. Цена -- пустое имя у элемента массива, то есть
-// два слова на элемент; выгода -- вдвое меньше кода в разборе.
+// An object member is a value like any other, with a name. There is no
+// separate name-value pair type: with one, arrays and objects would be stored
+// differently, the parser would need two stacks instead of one and a traversal
+// two code paths. The cost is an empty name on each array element, two words
+// per element.
 
 export module wxl.json:value;
 
@@ -26,45 +24,50 @@ import wxl.core;
 
 export namespace wxl::json {
 
-/// Чем является значение. Шесть видов JSON, и седьмого не бывает.
+/// Specifies the type of a value: one of the six types JSON defines.
 enum class value_type : std::uint8_t {
     null,     ///< `null`
     boolean,  ///< `true`, `false`
     number,   ///< `-1`, `0.5`, `1e9`
-    string,   ///< `"текст"`
+    string,   ///< `"text"`
     array,    ///< `[…]`
     object,   ///< `{…}`
 };
 
-/// Значение документа: что оно такое, как его зовут (если оно поле
-/// объекта) и что в нём лежит.
+/// Represents a value of a document: its type, its name (when it is an object
+/// member) and its content.
 class value {
 public:
-    /// Значение по умолчанию -- `null` без имени. Такое же, каким отвечает
-    /// поиск поля, которого нет.
+    /// Creates a `null` value without a name, the same value that a lookup of a
+    /// missing member returns.
     constexpr value() noexcept = default;
 
-    /// @name Из чего значение делается
-    /// Публично, потому что дерево -- обычные данные: собрать такое же
-    /// руками должен уметь и тест, и тот, кто отдаёт готовый ответ вместо
-    /// запроса к сети.
+    /// @name Construction
+    /// Public because the tree is plain data: a test, or code that supplies a prepared
+    /// response instead of a network request, has to be able to build one by hand.
     /// @{
+
+    /// Creates a `null` value with the name `name`.
     static constexpr value of_null(core::u8_view name = {}) noexcept {
         return value(value_type::null, name, payload_t());
     }
+    /// Creates a Boolean value `flag` with the name `name`.
     static constexpr value of_boolean(bool flag, core::u8_view name = {}) noexcept {
         return value(value_type::boolean, name, payload_t(flag));
     }
+    /// Creates a number value `number` with the name `name`.
     static constexpr value of_number(double number, core::u8_view name = {}) noexcept {
         return value(value_type::number, name, payload_t(number));
     }
+    /// Creates a string value `text` with the name `name`. The text is not copied: the
+    /// value holds a view into it.
     static constexpr value of_string(core::u8_view text, core::u8_view name = {}) noexcept {
         return value(value_type::string, name, payload_t(text));
     }
 
-    /// Массив или объект над готовым куском памяти: значения лежат подряд,
-    /// и владеет ими тот, кто их туда положил, -- при разборе это арена
-    /// документа.
+    /// Creates an array or an object over existing contiguous storage. The values are
+    /// owned by whoever placed them there; for a parsed document, that is the
+    /// document's arena.
     static constexpr value of_items(value_type kind, std::span<const value> items,
                                     core::u8_view name = {}) noexcept {
         return value(kind, name,
@@ -72,74 +75,80 @@ public:
     }
     /// @}
 
+    /// Returns the type of the value.
     constexpr value_type type() const noexcept { return type_; }
 
-    /// Имя, под которым значение лежит в объекте. Пусто у элемента массива
-    /// и у корня документа.
+    /// Returns the name of the value as an object member; empty for an array element
+    /// and for the document root.
     constexpr core::u8_view name() const noexcept { return name_; }
 
-    /// @name Что это
+    /// @name Type tests
     /// @{
+
+    /// Determines whether the value is `null`.
     constexpr bool is_null() const noexcept { return type_ == value_type::null; }
+    /// Determines whether the value is a Boolean: `true` or `false`.
     constexpr bool is_boolean() const noexcept { return type_ == value_type::boolean; }
+    /// Determines whether the value is a number.
     constexpr bool is_number() const noexcept { return type_ == value_type::number; }
+    /// Determines whether the value is a string.
     constexpr bool is_string() const noexcept { return type_ == value_type::string; }
+    /// Determines whether the value is an array.
     constexpr bool is_array() const noexcept { return type_ == value_type::array; }
+    /// Determines whether the value is an object.
     constexpr bool is_object() const noexcept { return type_ == value_type::object; }
     /// @}
 
-    /// @name Что внутри
+    /// @name Content
     ///
-    /// Каждая отвечает подставленным значением, когда значение другого
-    /// вида, и это не снисходительность к документу, а признание того, как
-    /// устроен обмен: поле, которого сервер не прислал, и поле, которое он
-    /// прислал пустым, -- обычное дело, и писать проверку типа над каждым
-    /// из двух десятков полей DTO значит писать её двадцать раз зря. Кому
-    /// разница важна, тот спрашивает type() или find().
+    /// Each accessor returns the fallback when the value is of another type. A missing
+    /// or empty member is common in exchanged data, and a type check on each field of a
+    /// DTO would be redundant. Code that needs the distinction calls `type()` or `find()`.
     /// @{
+
+    /// Returns the Boolean value, or `fallback` if the value is not a Boolean.
     constexpr bool as_bool(bool fallback = false) const noexcept {
         return type_ == value_type::boolean ? payload_.boolean : fallback;
     }
+    /// Returns the number, or `fallback` if the value is not a number.
     constexpr double as_number(double fallback = 0.0) const noexcept {
         return type_ == value_type::number ? payload_.number : fallback;
     }
 
-    /// Число, приведённое к целому. Ровно до 2^53 -- дальше double считает
-    /// с шагом больше единицы; в обмене, где целые это идентификаторы,
-    /// счётчики и смещения, столько не бывает.
+    /// Returns the number converted to an integer. The result is exact up to 2^53,
+    /// beyond which adjacent doubles are more than one apart.
     constexpr std::int64_t as_int(std::int64_t fallback = 0) const noexcept {
         return type_ == value_type::number ? static_cast<std::int64_t>(payload_.number) : fallback;
     }
 
+    /// Returns the text of the string, or `fallback` if the value is not a string.
     constexpr core::u8_view as_string(core::u8_view fallback = {}) const noexcept {
         return type_ == value_type::string ? payload_.text : fallback;
     }
     /// @}
 
-    /// Элементы массива, по порядку. Пусто у всего остального.
+    /// Returns the elements of an array, in order; empty for any other type.
     constexpr std::span<const value> elements() const noexcept {
         return type_ == value_type::array ? items() : std::span<const value>();
     }
 
-    /// Поля объекта, в порядке документа. Пусто у всего остального.
+    /// Returns the members of an object, in document order; empty for any other type.
     constexpr std::span<const value> members() const noexcept {
         return type_ == value_type::object ? items() : std::span<const value>();
     }
 
-    /// Сколько внутри -- элементов у массива, полей у объекта, ноль у
-    /// остальных.
+    /// Returns the number of elements of an array or members of an object; zero for
+    /// other types.
     constexpr std::size_t size() const noexcept {
         return type_ == value_type::array || type_ == value_type::object ? payload_.items.count : 0;
     }
 
-    /// Поле объекта по имени, или nullptr, когда такого поля нет. Это
-    /// дверь для того, кому важно отличить «поля не было» от «поле было
-    /// null»: operator[] эту разницу нарочно стирает.
+    /// Returns the object member named `field`, or `nullptr` if there is none. It
+    /// distinguishes a missing member from a member that is `null`, a difference that
+    /// `operator[]` deliberately hides.
     ///
-    /// Перебором, а не поиском: у объекта обмена полей десяток-другой, и
-    /// на таком счёте таблица проигрывает подряд лежащим именам.
-    /// Одноимённых полей JSON не запрещает; отвечает первое, как читают
-    /// все.
+    /// The search is linear over the contiguous members; no lookup table is built. JSON
+    /// does not forbid duplicate names; the first one is returned.
     inline const value* find(std::string_view field) const noexcept {
         for (const value& member : members())
             if (member.name_ == field) return &member;
@@ -147,24 +156,23 @@ public:
         return nullptr;
     }
 
-    /// Поле объекта по имени. Поля нет -- ответом `null`, и потому цепочка
-    /// вида `root["author"]["displayName"].as_string()` дописывается до
-    /// конца, не спрашивая по дороге, был ли автор.
+    /// Returns the object member named `field`, or a `null` value if there is none, so a
+    /// chain such as `root["author"]["displayName"].as_string()` can be written in full
+    /// without checking each step.
     const value& operator[](std::string_view field) const noexcept;
 
-    /// Элемент массива или поле объекта по номеру. За краем -- `null`.
+    /// Returns the array element or object member at `index`; `null` past the end.
     const value& operator[](std::size_t index) const noexcept;
 
 private:
-    /// Кусок памяти, где лежат элементы. Не std::span: span требует
-    /// полного типа элемента, а он тут ещё не полон -- определяется прямо
-    /// сейчас.
+    /// The contiguous storage of the elements. Not `std::span`: it requires a complete
+    /// element type, and `value` is still being defined here.
     struct run {
         const value* first = nullptr;
         std::uint32_t count = 0;
     };
 
-    /// Нагрузка: у каждого вида своя, и больше одной у значения не бывает.
+    /// The payload: each type has its own, and a value holds only one.
     union payload_t {
         constexpr payload_t() noexcept : number(0.0) {}
         constexpr explicit payload_t(bool flag) noexcept : boolean(flag) {}
@@ -190,10 +198,9 @@ private:
     value_type type_ = value_type::null;
 };
 
-/// Значение, которым отвечает поиск, когда искомого нет. Это настоящий
-/// `null`, а не особая метка: документ, где поле выписано как `null`, и
-/// документ, где его нет вовсе, для читающего DTO -- одно и то же, а кому
-/// не одно и то же, у того есть find().
+/// Represents the value a lookup returns when nothing is found. It is an ordinary
+/// `null`, not a special marker: to code that reads a DTO, a member written as `null`
+/// and a missing member are the same, and `find()` tells them apart.
 inline constexpr value absent;
 
 inline const value& value::operator[](const std::string_view field) const noexcept {

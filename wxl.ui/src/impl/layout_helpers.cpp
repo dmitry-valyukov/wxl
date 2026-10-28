@@ -27,7 +27,8 @@ namespace {
 
 // The one building of a grid's definitions, whether the lengths were parsed from a text or
 // computed: the old ones go, and one definition per length is appended in order.
-void build_rows(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid, std::span<GridLength const> lengths) {
+void build_rows(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
+                std::span<GridLength const> lengths) {
     auto const rows = grid.RowDefinitions();
     rows.Clear();
     for (GridLength const length : lengths) {
@@ -37,7 +38,8 @@ void build_rows(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid, std::spa
     }
 }
 
-void build_columns(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid, std::span<GridLength const> lengths) {
+void build_columns(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
+                   std::span<GridLength const> lengths) {
     auto const columns = grid.ColumnDefinitions();
     columns.Clear();
     for (GridLength const length : lengths) {
@@ -49,7 +51,8 @@ void build_columns(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid, std::
 
 }  // namespace
 
-void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid, RowLengths const& rows) {
+void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
+                         RowLengths const& rows) {
     build_rows(grid, rows.lengths());
 }
 
@@ -80,7 +83,8 @@ controls::AnnotatedScrollBar native(AnnotatedScrollBar const& bar) {
 // its Loaded, once -- the handler takes itself off, and with it lets go of the
 // bar.
 template <typename Give>
-void give_when_loaded(controls::ScrollView const& view, controls::AnnotatedScrollBar const& bar, Give give) {
+void give_when_loaded(controls::ScrollView const& view, controls::AnnotatedScrollBar const& bar,
+                      Give give) {
     if (auto const presenter = view.ScrollPresenter()) {
         give(presenter, bar);
         return;
@@ -96,13 +100,15 @@ void give_when_loaded(controls::ScrollView const& view, controls::AnnotatedScrol
 
 }  // namespace
 
-void set_vertical_scroll_controller(controls::ScrollView const& view, AnnotatedScrollBar const& bar) {
+void set_vertical_scroll_controller(controls::ScrollView const& view,
+                                    AnnotatedScrollBar const& bar) {
     give_when_loaded(view, native(bar), [](auto const& presenter, auto const& scrollBar) {
         presenter.VerticalScrollController(scrollBar.ScrollController());
     });
 }
 
-void set_horizontal_scroll_controller(controls::ScrollView const& view, AnnotatedScrollBar const& bar) {
+void set_horizontal_scroll_controller(controls::ScrollView const& view,
+                                      AnnotatedScrollBar const& bar) {
     give_when_loaded(view, native(bar), [](auto const& presenter, auto const& scrollBar) {
         presenter.HorizontalScrollController(scrollBar.ScrollController());
     });
@@ -122,11 +128,13 @@ winrt::Microsoft::UI::Xaml::Media::PointCollection points_from_text(hstring_para
 
 }  // namespace
 
-void set_points(winrt::Microsoft::UI::Xaml::Shapes::Polyline const& shape, hstring_param const& text) {
+void set_points(winrt::Microsoft::UI::Xaml::Shapes::Polyline const& shape,
+                hstring_param const& text) {
     shape.Points(points_from_text(text));
 }
 
-void set_points(winrt::Microsoft::UI::Xaml::Shapes::Polygon const& shape, hstring_param const& text) {
+void set_points(winrt::Microsoft::UI::Xaml::Shapes::Polygon const& shape,
+                hstring_param const& text) {
     shape.Points(points_from_text(text));
 }
 
@@ -135,8 +143,9 @@ winrt::Microsoft::UI::Xaml::Media::Geometry geometry_from_text(hstring_param con
     using winrt::Windows::UI::Xaml::Interop::TypeKind;
     using winrt::Windows::UI::Xaml::Interop::TypeName;
 
-    return XamlBindingHelper::ConvertValue(TypeName{L"Microsoft.UI.Xaml.Media.Geometry", TypeKind::Metadata},
-                                           winrt::box_value(to_winrt(text)))
+    return XamlBindingHelper::ConvertValue(
+               TypeName{L"Microsoft.UI.Xaml.Media.Geometry", TypeKind::Metadata},
+               winrt::box_value(to_winrt(text)))
         .as<winrt::Microsoft::UI::Xaml::Media::Geometry>();
 }
 

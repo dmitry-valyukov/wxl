@@ -16,10 +16,10 @@ namespace {
 // carrying the generator's own banner are removed -- anything a human put
 // in the output directory is left alone.
 void prune_stale(output const& out, gen::emitted const& em) {
-    std::set<std::string> const current{em.files().begin(), em.files().end()};
+    std::set<std::filesystem::path> const current{em.files().begin(), em.files().end()};
 
     for (auto&& entry : std::filesystem::directory_iterator{out.dir}) {
-        if (!entry.is_regular_file() || current.count(entry.path().filename().string())) {
+        if (!entry.is_regular_file() || current.contains(entry.path().filename())) {
             continue;
         }
 
@@ -86,7 +86,7 @@ void document(documentation_source* docs, md::TypeDef const& type, member_info& 
     document(docs, type, member.doc_id, member.doc);
     if (member.out_result && member.doc.returns.empty()) {
         auto const out = std::ranges::find(member.doc.params, member.out_param,
-                                           &std::pair<std::string, std::string>::first);
+                                           &std::pair<std::string, doc_text>::first);
         if (out != member.doc.params.end()) {
             member.doc.returns = out->second;
         }
@@ -149,6 +149,7 @@ void write_all(output const& out, model const& m) {
     gen::write_brushes(out, m, em);
     gen::write_alias_index(out, m.resources, em);
     gen::write_symbols(out, m, em);
+    gen::write_doc_language(out, m, em);
 
     // Last: drop whatever a previous run left behind, then list everything
     // this run produced.

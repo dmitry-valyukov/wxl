@@ -17,13 +17,11 @@ using namespace wxl::core;
 class sync_test_component : public test_component_impl<sync_component>
 {
 public:
-    explicit sync_test_component(std::string_view name = "sync component", thread_group * = nullptr) noexcept
-        : test_component_impl<sync_component>(name)
-    {}
+    explicit sync_test_component(std::string_view name = "sync component",
+                                 thread_group* = nullptr) noexcept
+        : test_component_impl<sync_component>(name) {}
 
-    ~sync_test_component() override {
-        dispose();
-    }
+    ~sync_test_component() override { dispose(); }
 };
 
 }  // namespace wxl::async

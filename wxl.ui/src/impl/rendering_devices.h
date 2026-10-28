@@ -19,7 +19,11 @@ namespace wxl::impl {
 /// compositors every DrawingSurface is made on, or the system's (Windows.UI.Composition), on
 /// which WindowShade flies a window outside any window. Their interop is the same calls under
 /// IIDs of their own, so a graphics device is moved through the interface of its API.
-enum class composition_api { winui, system };
+enum class composition_api
+{
+    winui,
+    system
+};
 
 /// The device in use, the graphics devices made on it and the holders -- the handlers of the
 /// watches -- of each compositor; and the replacement, which runs in this order: the old device's
@@ -68,7 +72,8 @@ enum class composition_api { winui, system };
 ///
 /// One thread, the UI thread: every call, the replacement included, is made there.
 template <class Backend>
-class rendering_devices {
+class rendering_devices
+{
 public:
     using owner_t = typename Backend::owner_t;
     using device_t = typename Backend::device_t;
@@ -189,7 +194,8 @@ private:
     std::size_t index_of(owner_t owner, composition_api api) {
         for (std::size_t at = 0; at < entries_.size(); ++at) {
             if (entries_[at].owner != owner) continue;
-            if (entries_[at].api != api) core::abort("wxl: one compositor is asked for under two composition APIs");
+            if (entries_[at].api != api)
+                core::abort("wxl: one compositor is asked for under two composition APIs");
             return at;
         }
         backend_.keep(owner);
@@ -218,7 +224,8 @@ private:
         told_ = generation_;
         ++calling_;
         std::size_t const known = entries_.size();
-        for (std::size_t at = 0; at < known; ++at) entries_[at].replaced->raise(Object::Impl::empty<Object>());
+        for (std::size_t at = 0; at < known; ++at)
+            entries_[at].replaced->raise(Object::Impl::empty<Object>());
         if (--calling_ == 0) sweep();
     }
 
@@ -235,9 +242,9 @@ private:
     device_t device_{};
     bool made_ = false;
     bool closed_ = false;
-    std::uint64_t generation_ = 0;   // of the device in use; 0 before the first
-    std::uint64_t told_ = 0;         // the generation the holders were last called for
-    int calling_ = 0;                // tell() under way, one inside another included
+    std::uint64_t generation_ = 0;  // of the device in use; 0 before the first
+    std::uint64_t told_ = 0;        // the generation the holders were last called for
+    int calling_ = 0;               // tell() under way, one inside another included
     std::vector<entry> entries_;
 };
 

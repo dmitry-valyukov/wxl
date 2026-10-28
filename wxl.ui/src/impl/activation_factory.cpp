@@ -5,11 +5,9 @@ namespace {
 
 // The settled state: the interface sits in arg1_, and the slot hands out the
 // address of that storage, which the proxy reads as the projection object.
-void* settled(statics_slot* slot) noexcept {
-    return &slot->arg1_;
-}
+void* settled(statics_slot* slot) noexcept { return &slot->arg1_; }
 
-} // namespace
+}  // namespace
 
 void* statics_slot::init(statics_slot* slot) {
     void* itf = nullptr;
@@ -23,4 +21,4 @@ void* statics_slot::init(statics_slot* slot) {
     return &slot->arg1_;
 }
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

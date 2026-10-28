@@ -19,7 +19,12 @@ namespace wxl::impl {
 
 struct SettingsCardCore : winrt::Microsoft::UI::Xaml::Controls::ContentControlT<SettingsCardCore> {
     // How the card is dressed: on its own, flat inside an expander, or square below as the head of an open one.
-    enum class Surface { Standalone, Flat, OpenHeader };
+    enum class Surface
+    {
+        Standalone,
+        Flat,
+        OpenHeader
+    };
     void surface(Surface value);
     // The name by which a card is told from any other ContentControl (a runtime class that metadata does not know).
     static constexpr wchar_t const* className = L"wxl.SettingsCard";
@@ -33,7 +38,8 @@ struct SettingsCardCore : winrt::Microsoft::UI::Xaml::Controls::ContentControlT<
     void OnPointerExited(winrt::Microsoft::UI::Xaml::Input::PointerRoutedEventArgs const& args);
     void OnPointerPressed(winrt::Microsoft::UI::Xaml::Input::PointerRoutedEventArgs const& args);
     void OnPointerReleased(winrt::Microsoft::UI::Xaml::Input::PointerRoutedEventArgs const& args);
-    void OnPointerCaptureLost(winrt::Microsoft::UI::Xaml::Input::PointerRoutedEventArgs const& args);
+    void OnPointerCaptureLost(
+        winrt::Microsoft::UI::Xaml::Input::PointerRoutedEventArgs const& args);
     void OnKeyDown(winrt::Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const& args);
     void OnKeyUp(winrt::Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const& args);
 
@@ -48,16 +54,25 @@ struct SettingsCardCore : winrt::Microsoft::UI::Xaml::Controls::ContentControlT<
     void actionIcon(winrt::Microsoft::UI::Xaml::UIElement const& value);
     bool isClickEnabled() const { return clickable_; }
     void isClickEnabled(bool value);
-    bool isActionIconVisible() const { return actionIconVisible_ == Tri::Unset ? clickable_ : actionIconVisible_ == Tri::Yes; }
+    bool isActionIconVisible() const {
+        return actionIconVisible_ == Tri::Unset ? clickable_ : actionIconVisible_ == Tri::Yes;
+    }
     void isActionIconVisible(bool value);
     SettingsCardContentAlignment contentAlignment() const { return alignment_; }
     void contentAlignment(SettingsCardContentAlignment value);
 
-    winrt::event_token Click(winrt::Microsoft::UI::Xaml::RoutedEventHandler const& handler) { return click_.add(handler); }
+    winrt::event_token Click(winrt::Microsoft::UI::Xaml::RoutedEventHandler const& handler) {
+        return click_.add(handler);
+    }
     void Click(winrt::event_token const& token) noexcept { click_.remove(token); }
 
 private:
-    enum class Tri { Unset, No, Yes };
+    enum class Tri
+    {
+        Unset,
+        No,
+        Yes
+    };
 
     void apply();
     void go_to_state();

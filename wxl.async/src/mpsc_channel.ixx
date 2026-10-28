@@ -36,7 +36,9 @@ template <typename t_element, typename t_wait_object = core::hevent>
 class mpsc_channel : public core::noncopyable
 {
 public:
+    /// The type of the elements that the channel carries.
     using element_type = t_element;
+    /// The type of the primitive that the reader sleeps on.
     using wait_object = t_wait_object;
 
     mpsc_channel()

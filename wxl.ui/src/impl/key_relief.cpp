@@ -40,7 +40,8 @@ struct Edge {
 
 Edge edge_of(double halfWidth, double halfHeight, double corner, double px, double py) {
     double const radius = std::clamp(corner, 0.0, std::min(halfWidth, halfHeight));
-    double const qx = std::abs(px) - (halfWidth - radius), qy = std::abs(py) - (halfHeight - radius);
+    double const qx = std::abs(px) - (halfWidth - radius),
+                 qy = std::abs(py) - (halfHeight - radius);
     double const ox = std::max(qx, 0.0), oy = std::max(qy, 0.0);
 
     Edge edge{radius - std::sqrt(ox * ox + oy * oy) - std::min(std::max(qx, qy), 0.0), 0.0, 0.0};
@@ -72,8 +73,9 @@ double face_depth(key_relief const& key, Edge const& outer, double px, double py
     if (key.shiftX == 0.0 && key.shiftY == 0.0) {
         return outer.inside - key.rim;
     }
-    return edge_of(std::max(key.width / 2.0 - key.rim, 0.0), std::max(key.height / 2.0 - key.rim, 0.0),
-                   std::max(key.corner - key.rim, 0.0), px - key.shiftX, py - key.shiftY)
+    return edge_of(std::max(key.width / 2.0 - key.rim, 0.0),
+                   std::max(key.height / 2.0 - key.rim, 0.0), std::max(key.corner - key.rim, 0.0),
+                   px - key.shiftX, py - key.shiftY)
         .inside;
 }
 
@@ -144,17 +146,21 @@ std::uint32_t channel(double value) {
 }
 
 // One bitmap, copied without smoothing: a pixel holds a number, not a colour.
-void blit(DrawingSurface const& surface, std::vector<std::uint32_t> const& pixels, int width, int height) {
+void blit(DrawingSurface const& surface, std::vector<std::uint32_t> const& pixels, int width,
+          int height) {
     surface.draw([&](ID2D1DeviceContext* context) {
         D2D1_BITMAP_PROPERTIES1 const properties = D2D1::BitmapProperties1(
-            D2D1_BITMAP_OPTIONS_NONE, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+            D2D1_BITMAP_OPTIONS_NONE,
+            D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
         winrt::com_ptr<ID2D1Bitmap1> bitmap;
-        winrt::check_hresult(context->CreateBitmap(D2D1::SizeU(static_cast<UINT32>(width), static_cast<UINT32>(height)),
-                                                   pixels.data(), static_cast<UINT32>(width) * 4, &properties,
-                                                   bitmap.put()));
+        winrt::check_hresult(context->CreateBitmap(
+            D2D1::SizeU(static_cast<UINT32>(width), static_cast<UINT32>(height)), pixels.data(),
+            static_cast<UINT32>(width) * 4, &properties, bitmap.put()));
         context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_COPY);
-        context->DrawBitmap(bitmap.get(), D2D1::RectF(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)),
-                            1.0f, D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
+        context->DrawBitmap(
+            bitmap.get(),
+            D2D1::RectF(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)), 1.0f,
+            D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
         context->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
     });
 }
@@ -168,11 +174,12 @@ void draw_pixels(DrawingSurface const& surface, key_relief const& key, Pixel pix
     if (width <= 0 || height <= 0) {
         return;
     }
-    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+    std::vector<std::uint32_t> pixels(static_cast<std::size_t>(width) *
+                                      static_cast<std::size_t>(height));
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
-            pixels[static_cast<std::size_t>(y) * width + x] =
-                pixel(((x + 0.5) / width - 0.5) * key.width, ((y + 0.5) / height - 0.5) * key.height);
+            pixels[static_cast<std::size_t>(y) * width + x] = pixel(
+                ((x + 0.5) / width - 0.5) * key.width, ((y + 0.5) / height - 0.5) * key.height);
         }
     }
     blit(surface, pixels, width, height);
@@ -184,7 +191,8 @@ void draw_key_map(DrawingSurface const& surface, key_relief const& key) {
     draw_pixels(surface, key, [&](double px, double py) {
         Normal const normal = key_normal_at(key, px, py);
         // Green up the screen: the screen's y changes sign.
-        return 0xFF000000u | (channel(normal.x) << 16) | (channel(-normal.y) << 8) | channel(normal.z);
+        return 0xFF000000u | (channel(normal.x) << 16) | (channel(-normal.y) << 8) |
+               channel(normal.z);
     });
 }
 
@@ -197,13 +205,15 @@ void draw_face_mask(DrawingSurface const& surface, key_relief const& key) {
     double const band = std::max(key.smooth, key.width / size.width);
     draw_pixels(surface, key, [&](double px, double py) {
         Edge const edge = edge_at(key, px, py);
-        auto const value = static_cast<std::uint32_t>(std::lround(face_share(edge.inside - key.rim, band) * 255.0));
+        auto const value = static_cast<std::uint32_t>(
+            std::lround(face_share(edge.inside - key.rim, band) * 255.0));
         // White with premultiplied alpha: all four channels alike.
         return (value << 24) | (value << 16) | (value << 8) | value;
     });
 }
 
-void draw_hole_shadow(DrawingSurface const& surface, key_relief const& key, hole_shadow const& shadow) {
+void draw_hole_shadow(DrawingSurface const& surface, key_relief const& key,
+                      hole_shadow const& shadow) {
     SizeInt32 const size = surface.size();
     if (size.width <= 0) {
         return;
@@ -239,7 +249,8 @@ void draw_hole_shadow(DrawingSurface const& surface, key_relief const& key, hole
         // The shadow takes the lamp's share of the light at this point; the
         // rest is ambient.
         Normal const normal = key_normal_at(key, px, py);
-        double const lit = lamp * std::max(normal.x * toLamp.x + normal.y * toLamp.y + normal.z * toLamp.z, 0.0);
+        double const lit =
+            lamp * std::max(normal.x * toLamp.x + normal.y * toLamp.y + normal.z * toLamp.z, 0.0);
         double const alpha = cover * shadow.amount * lit / std::max(ambient + lit, 1e-6);
         return static_cast<std::uint32_t>(std::lround(std::clamp(alpha, 0.0, 1.0) * 255.0)) << 24;
     });
@@ -249,9 +260,11 @@ void draw_shape(DrawingSurface const& surface, float radius) {
     SizeInt32 const size = surface.size();
     surface.draw([&](ID2D1DeviceContext* context) {
         winrt::com_ptr<ID2D1SolidColorBrush> white;
-        winrt::check_hresult(context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), white.put()));
-        D2D1_ROUNDED_RECT const shape{
-            D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width), static_cast<float>(size.height)), radius, radius};
+        winrt::check_hresult(
+            context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), white.put()));
+        D2D1_ROUNDED_RECT const shape{D2D1::RectF(0.0f, 0.0f, static_cast<float>(size.width),
+                                                  static_cast<float>(size.height)),
+                                      radius, radius};
         context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
         context->FillRoundedRectangle(shape, white.get());
     });

@@ -68,11 +68,11 @@ export namespace wxl::core {
 template <typename T>
 bool try_parse(std::string_view text, T& result) noexcept {
     T value{};
-    const char * first = text.data();
-    const char * last = first + text.size();
-    const std::from_chars_result ok {last, std::errc{}};
+    const char* first = text.data();
+    const char* last = first + text.size();
+    const std::from_chars_result ok{last, std::errc{}};
 
-    if(std::from_chars(first, last, value) == ok) [[likely]] {
+    if (std::from_chars(first, last, value) == ok) [[likely]] {
         result = value;
         return true;
     }
@@ -84,6 +84,7 @@ bool try_parse(std::string_view text, T& result) noexcept {
 /// version needs, where the unit is glued to the digits.
 template <typename T>
 struct number_prefix {
+    /// The number read from the start of the text.
     T value;
 
     /// The text left over, starting at the first character the number did not
@@ -190,6 +191,7 @@ std::string to_string(T value, Format... format) {
     return result;
 }
 
+/// Returns the number as a `std::wstring`, in whatever format `std::to_chars` is given.
 template <typename T, typename... Format>
 std::wstring to_wstring(T value, Format... format) {
     std::wstring result;
@@ -205,11 +207,21 @@ u16_text to_u16(T value, Format... format) {
 
 /// The unit a byte count was scaled into, in steps of 1024 -- the steps
 /// Windows itself shows sizes in.
-enum class byte_unit { bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes };
+enum class byte_unit
+{
+    bytes,
+    kilobytes,
+    megabytes,
+    gigabytes,
+    terabytes,
+    petabytes
+};
 
 /// A byte count and the unit it is worth saying out loud in.
 struct scaled_bytes {
+    /// The byte count, expressed in `unit`.
     double value;
+    /// The unit that `value` is expressed in.
     byte_unit unit;
 };
 
