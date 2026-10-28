@@ -12,19 +12,19 @@
 # projection with the MSBuild of that installation (cmake/wxl_packages.cmake).
 #
 # The WinUI half needs what the repository does not carry: the NuGet packages,
-# the cppwinrt projection and the wrappers winui-srcgen writes into
-# wxl.ui/src/wxl. The job produces them the way a fresh clone does: seed the
-# wrapper directory with an empty CMakeLists.txt, configure (which restores the
-# packages and builds the projection in the build directory), build the
-# generator, run it with the full profile, configure again and build
-# everything.
+# the cppwinrt projection and the wrappers winui-srcgen writes. The job makes
+# them the way a fresh clone does, with one configure and one build: the
+# configure restores the packages and builds the projection in the build
+# directory, and the build builds the generator, runs it with the full profile
+# into build\x64\wxl.ui\full\wxl (cmake/wxl_ui_profile.cmake) and compiles
+# what it wrote with the rest.
 #
 # A third row keeps the coroutine checks of wxl.async in the build
 # (WXL_STRICT_CORO): the tests that expect a broken rule to stop the process
 # with the line of the call are skipped by every other configuration, and
 # only run here. It builds and tests the three programs of wxl.async/tests
 # alone -- the checks live there, and the wrappers are not needed for them --
-# so the generator, the second configure and the sample are left out.
+# so the wrappers are not generated and the sample is left out.
 #
 # The rows build in the merge queue and on a run by hand, not on the pull
 # request: the queue's candidate is what becomes main, so its run is the check
@@ -112,12 +112,6 @@ jobs:
           Get-ChildItem 'C:\BuildToolsInsiders\VC\Tools\MSVC' | ForEach-Object { $_.Name }
           if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "Build Tools install failed: $($p.ExitCode)" }
 
-      - name: Seed the wrapper directory
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force wxl.ui\src\wxl | Out-Null
-          New-Item -ItemType File wxl.ui\src\wxl\CMakeLists.txt | Out-Null
-
       # One shell for the developer environment and every CMake call: VsDevCmd
       # puts the toolset and Ninja on PATH, as tools/build.ps1 does at home.
       - name: Configure
@@ -126,26 +120,9 @@ jobs:
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
           cmake --preset x64 -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF ${{ matrix.strict && '-DWXL_STRICT_CORO=ON' || '' }}
 
-      - name: Build winui-srcgen
-        if: ${{ !matrix.strict }}
-        shell: cmd
-        run: |
-          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --build build\x64 --config ${{ matrix.config }} --target winui-srcgen
-
-      - name: Generate the wrappers
-        if: ${{ !matrix.strict }}
-        shell: cmd
-        run: build\x64\wxl.gen\${{ matrix.config }}\winui-srcgen.exe --profile wxl.gen\profiles\full.winxl-profile --packages build\x64\wxl.packages\restored-packages.json
-
-      - name: Configure with the wrappers
-        if: ${{ !matrix.strict }}
-        shell: cmd
-        run: |
-          call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --preset x64
-
-      # -k 0: every compile error of the change at once, not only the first.
+      # -k 0: every compile error of the change at once, not only the first. A
+      # failed generation still stops everything built on the wrappers: their
+      # compiles wait for it.
       - name: Build
         id: build
         shell: cmd
