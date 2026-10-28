@@ -322,10 +322,11 @@ endfunction()
 # The version of the pin `id` that the lock file records or the restore resolved
 # (`what` says which), checked against the pin, `minimum` -- a minimum or one
 # held version. A version the pin does not admit stops the configure with the
-# remedy; `updating` says
-# whether this configure is the update, which takes the newest versions the
-# NuGet sources hold, so that the update is not the remedy.
-function(_wxl_packages_check_version what id version minimum updating)
+# remedy, which `context` chooses: "lock" for the lock file read before the
+# restore, which git or the update puts right; "restore" for the result of an
+# ordinary restore; "update" for the result of the update, which takes the
+# newest versions the NuGet sources hold, so that the update is not the remedy.
+function(_wxl_packages_check_version what id version minimum context)
     wxl_nuget_version_mismatch(mismatch "${version}" "${minimum}")
     if(mismatch STREQUAL "")
         return()
@@ -354,13 +355,18 @@ function(_wxl_packages_check_version what id version minimum updating)
         set(own "write a minimum on the channel you mean to take")
     endif()
 
-    if(updating AND mismatch STREQUAL "exact")
+    if(context STREQUAL "update" AND mismatch STREQUAL "exact")
         string(CONCAT remedy
             "The update does not choose a held version: check the NuGet sources of the restore")
-    elseif(updating)
+    elseif(context STREQUAL "update")
         string(CONCAT remedy
             "The update takes the newest versions the NuGet sources hold, so they hold none that "
             "the minimum admits: check the minimum and the NuGet sources of the restore")
+    elseif(context STREQUAL "lock")
+        string(CONCAT remedy
+            "The lock file tools/packages.lock.json does not match the pins. Take it back from "
+            "git, or run the update, tools\\build.ps1 -UpdatePackages (a configure with "
+            "-DWXL_UPDATE_PACKAGES=ON), and commit the lock file it writes")
     else()
         string(CONCAT remedy
             "The lock file tools/packages.lock.json does not match the pins. Run the update, "
@@ -636,11 +642,17 @@ function(_wxl_packages)
                     "The pins changed: tools/packages.json pins ${id}, which the lock file "
                     "${lock} has no direct entry of. ${pins_changed}")
             endif()
+            # The version the lock file records has to be one the pin admits,
+            # for every pin: a version a held pin does not name, recorded under
+            # the right request, makes NuGet drop the package from the restore
+            # without an error. A prerelease minimum's is checked first, since
+            # its reference is made of it.
             set(requested "${locked_REQUESTED_${lower}}")
+            set(resolved "${locked_RESOLVED_${lower}}")
             if(version STREQUAL "")
                 _wxl_packages_check_version("The lock file ${lock} records"
-                    "${id}" "${locked_RESOLVED_${lower}}" "${minimum}" FALSE)
-                set(version "[${locked_RESOLVED_${lower}}]")
+                    "${id}" "${resolved}" "${minimum}" lock)
+                set(version "[${resolved}]")
             endif()
             wxl_nuget_requested_matches(matches "${version}" "${requested}")
             if(NOT matches)
@@ -649,6 +661,8 @@ function(_wxl_packages)
                     "${version}, and the lock file ${lock} was written for the reference "
                     "${requested}. ${pins_changed}")
             endif()
+            _wxl_packages_check_version("The lock file ${lock} records"
+                "${id}" "${resolved}" "${minimum}" lock)
         endif()
         string(APPEND WXL_PACKAGES_REFERENCES
             "    <PackageReference Include=\"${id}\" Version=\"${version}\" />\n")
@@ -775,8 +789,12 @@ function(_wxl_packages)
                     "an earlier one. Delete ${helper}/obj and configure again.")
             endif()
         endif()
+        set(context restore)
+        if(WXL_UPDATE_PACKAGES)
+            set(context update)
+        endif()
         _wxl_packages_check_version("The restore of ${project} resolved"
-            "${id}" "${version}" "${minimum}" "${WXL_UPDATE_PACKAGES}")
+            "${id}" "${version}" "${minimum}" ${context})
         if(WXL_UPDATE_PACKAGES)
             message(STATUS "NuGet update: ${id} ${before_${i}} -> ${version}")
         endif()

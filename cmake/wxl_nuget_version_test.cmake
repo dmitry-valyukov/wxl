@@ -219,7 +219,9 @@ endforeach()
 
 # What keeps a pin from admitting a version. A prerelease pin admits the labels
 # that begin with its word, so that experimentala and experimental9 are on the
-# channel experimental, as the Windows App SDK names its releases.
+# channel experimental, as the Windows App SDK names its releases. A lock file
+# whose "resolved" was changed by hand (1.0.4 for a pin of 1.4.0) is caught by
+# the same check, held pin or minimum.
 foreach(case
         "2.5.4-experimental 2.5.4-experimental ok"
         "2.6.0-Experimental3 2.5.4-experimental ok"
@@ -244,6 +246,8 @@ foreach(case
         "1.4.1 [1.4.0] exact"
         "1.3.9 [1.4.0] exact"
         "1.4.0-rc [1.4.0] exact"
+        "1.0.4 [1.4.0] exact"
+        "1.0.4 1.4.0 below"
         "2.5.4-Experimental [2.5.4-experimental] ok"
         "1.x [1.4.0] invalid")
     string(REPLACE " " ";" case "${case}")
