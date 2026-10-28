@@ -37,8 +37,9 @@ add_executable(wxl.core.tests
 
 target_link_libraries(wxl.core.tests
     PRIVATE
+        GTest::gtest_main
         wxl::core
-        wxl::test-support
+        wxl::test.gtest
         wxl::test
         runtimeobject
 )

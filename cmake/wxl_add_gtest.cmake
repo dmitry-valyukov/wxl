@@ -2,6 +2,10 @@
 
 include_guard(GLOBAL)
 
+# gtest_discover_tests, for a project that adds wxl and declares its tests with
+# wxl_add_gtest without having included the module itself.
+include(GoogleTest)
+
 macro(wxl_add_gtest target)
     cmake_parse_arguments(ARG "" "" "SRC;DEPS" ${ARGN})
 

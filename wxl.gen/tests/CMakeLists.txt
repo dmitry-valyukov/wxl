@@ -10,7 +10,7 @@ wxl_add_gtest(wxl.gen.tests
     DEPS
         wxl.gen
         # test_directory() for the tests that write the generator's output.
-        wxl::test-support
+        wxl::test.gtest
 )
 
 # The type mapping is tested on the generator's real profiles and the metadata
