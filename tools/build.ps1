@@ -10,12 +10,22 @@
 # projection (VSINSTALLDIR), and the Windows SDK of both the projection and the
 # compiler (WindowsSDKVersion): see cmake/wxl_packages.cmake.
 #
+# -UpdatePackages runs the update of the NuGet packages: a configure with
+# WXL_UPDATE_PACKAGES=ON, which takes the newest version every minimum of
+# tools/packages.json admits (the same major version and channel as the
+# minimum), keeps a package held at one version in brackets ([1.4.0]) at that
+# version, writes tools/packages.lock.json anew and prints every pin with its
+# version before and after. The configure removes the option from the cache
+# when the update succeeds, so the next one is an ordinary configure that takes
+# the versions of the lock file. Review the versions and commit the lock file.
+#
 # Usage:
 #   tools\build.ps1                 # configure (if needed) and build Debug
 #   tools\build.ps1 -Config Release
 #   tools\build.ps1 -Configure      # force a re-configure first
 #   tools\build.ps1 -Target winui-srcgen
 #   tools\build.ps1 -Configure -Define WXL_BUILD_BENCHMARKS=ON
+#   tools\build.ps1 -UpdatePackages # update the NuGet packages and the lock file, then build
 #   tools\build.ps1 -Toolset 14.52  # another installed MSVC toolset; the default is pinned below
 
 [CmdletBinding()]
@@ -34,7 +44,11 @@ param(
 
     # Cache entries passed on to the configure step, without the -D. They stick
     # in CMakeCache.txt, so a later run without them keeps whatever was set.
-    [string[]]$Define
+    [string[]]$Define,
+
+    # A configure that updates the NuGet packages and writes the lock file
+    # anew (see the top of this file); unlike -Define, it does not stick.
+    [switch]$UpdatePackages
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,9 +97,11 @@ function Import-VisualStudioEnvironment {
 Import-VisualStudioEnvironment
 
 $buildDir = Join-Path $root "build\$Preset"
-if ($Configure -or $Define -or -not (Test-Path (Join-Path $buildDir 'CMakeCache.txt'))) {
+if ($Configure -or $Define -or $UpdatePackages -or
+    -not (Test-Path (Join-Path $buildDir 'CMakeCache.txt'))) {
     $configureArgs = @('--preset', $Preset, '-S', $root)
     foreach ($d in $Define) { $configureArgs += "-D$d" }
+    if ($UpdatePackages) { $configureArgs += '-DWXL_UPDATE_PACKAGES=ON' }
     cmake @configureArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }

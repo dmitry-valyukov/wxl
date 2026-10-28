@@ -798,16 +798,17 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
         if (!release) {
             fail(needs_release->source,
                  std::format("'minimumWindowsAppSdk' asks for {} {} or newer, and {} has no {}: "
-                             "add a reference to {} {} or newer to the restore of the build (in "
-                             "the wxl tree, tools/packages.json) and configure it again",
+                             "add a reference to {} {} or newer to the restore of the build (a "
+                             "minimum in tools/packages.json) and run tools\\build.ps1 "
+                             "-UpdatePackages in the wxl tree",
                              windows_app_sdk_id, minimum, restore_of(restored), windows_app_sdk_id,
                              windows_app_sdk_id, minimum));
         }
         if (version_of(release->version) < version_of(minimum)) {
             fail(needs_release->source,
                  std::format("'minimumWindowsAppSdk' asks for {} {} or newer, and {} resolved {} "
-                             "{}: raise the release the build restores (in the wxl tree, {} in "
-                             "tools/packages.json) and configure it again",
+                             "{}: raise the minimum of {} in tools/packages.json and run "
+                             "tools\\build.ps1 -UpdatePackages in the wxl tree",
                              windows_app_sdk_id, minimum, restore_of(restored), release->id,
                              release->version, windows_app_sdk_id));
         }
@@ -823,16 +824,16 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
                                                       package.minimum_version);
                 fail(prof.source,
                      std::format("package '{}' is not in {}: add a reference to {} to the restore "
-                                 "of the build (in the wxl tree, tools/packages.json) and "
-                                 "configure it again",
+                                 "of the build (a minimum in tools/packages.json) and run "
+                                 "tools\\build.ps1 -UpdatePackages in the wxl tree",
                                  package.id, restore_of(restored), wanted));
             }
             if (!package.minimum_version.empty() &&
                 version_of(found->version) < version_of(package.minimum_version)) {
                 fail(prof.source,
                      std::format("package '{}': 'minimumVersion' asks for {} or newer, and {} "
-                                 "resolved {}: raise the version the build restores (in the wxl "
-                                 "tree, tools/packages.json) and configure it again",
+                                 "resolved {}: raise the minimum in tools/packages.json and run "
+                                 "tools\\build.ps1 -UpdatePackages in the wxl tree",
                                  package.id, package.minimum_version, restore_of(restored),
                                  found->version));
             }
