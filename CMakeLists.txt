@@ -143,9 +143,9 @@ endif()
 if(WXL_TESTS)
     # GoogleTest from its own sources at a pinned tag; find_package(GTest)
     # below resolves to it, and wxl.test defines its fixture over it.
+    # gtest_discover_tests comes with wxl_add_gtest (cmake/config.cmake).
     include(cmake/wxl_gtest.cmake)
     find_package(GTest REQUIRED CONFIG)
-    include(GoogleTest)
 
     # The list of the restore that cmake/wxl_restored_packages.cmake writes,
     # checked on a restore result, a response file and package folders the
@@ -230,7 +230,7 @@ endif()
 # compiles import that module.
 add_subdirectory(wxl.core)
 
-# Helpers for the tests and the benchmarks alike, and the gtest fixture
+# The helpers of the tests -- headers any target may link, the gtest fixture
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
 
