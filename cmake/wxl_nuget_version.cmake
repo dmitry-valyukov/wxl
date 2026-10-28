@@ -440,8 +440,9 @@ function(wxl_nuget_requested_matches out reference requested)
         endif()
     elseif(requested STREQUAL "[${reference}, )" OR reference STREQUAL requested)
         # NuGet writes a floating reference M.* as the range [M.*, ): a
-        # restore wrote [1.*, ) and [2.*, ) for 1.* and 2.*. The bare M.* is
-        # taken as well, in case another NuGet writes that.
+        # restore wrote [1.*, ) and [2.*, ) for 1.* and 2.*, and
+        # [2.5.4-experimental, 2.5.4-experimental] for [2.5.4-experimental].
+        # The bare M.* is taken as well, in case another NuGet writes that.
         set(matches TRUE)
     endif()
     set(${out} ${matches} PARENT_SCOPE)

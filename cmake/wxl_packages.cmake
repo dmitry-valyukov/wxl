@@ -384,9 +384,10 @@ endfunction()
 # downloaded into the directory `dir`. The index lists every version the source
 # ever published, unlisted ones included, without saying which are unlisted,
 # and the newest version of it is taken. NuGet's floating references are
-# assumed to resolve over the same list. What the update chose is reviewed in the versions it prints and in
-# the change of the lock file before it is committed. A failed download, or an
-# index without such a version, stops the configure.
+# assumed to resolve over the same list. What the update chose is reviewed in
+# the versions it prints and in the change of the lock file before it is
+# committed. A failed download, or an index without such a version, stops the
+# configure.
 function(_wxl_packages_newest out id minimum dir)
     wxl_nuget_version_parse(pin "${minimum}")
     list(GET pin_NUMBERS 0 major)
@@ -560,7 +561,9 @@ function(_wxl_packages)
                 "update from an environment without RestoreLockedMode.")
         endif()
         # NuGet takes a floating version from the lock file while the
-        # references match it; RestoreForceEvaluate resolves it anew.
+        # references match it; RestoreForceEvaluate resolves it anew. Observed:
+        # with a matching lock file [1.*, ) kept WebView2 1.0.4258.31 while
+        # 1.0.4314.35 was there, and the update took 1.0.4314.35.
         set(update_arguments "-p:RestoreForceEvaluate=true")
         message(STATUS "NuGet packages: the update, WXL_UPDATE_PACKAGES=ON")
     endif()
@@ -700,9 +703,12 @@ function(_wxl_packages)
     # them (RestoreCommand's no-op check reads the hash of the dependency graph
     # and only asks that the lock file exist), so the restore result of the
     # earlier versions would stay. Without the cache file NuGet restores for
-    # real and takes the versions the lock file records -- from the global
-    # packages folder without the network when the packages are there, it is
-    # assumed.
+    # real and takes the versions the lock file records, the packages from the
+    # global packages folder when they are there. Such a restore -- like every
+    # restore NuGet runs, the update's too -- consults the vulnerability index
+    # of NuGetAudit (v3/vulnerabilities/index.json and the files it names),
+    # from NuGet's HTTP cache while that is fresh, about 30 minutes, and from
+    # the network after that. The audit stays on.
     # IS_NEWER_THAN is true for equal times as well, so the test is asked the
     # other way round: the cache older than the lock file, strictly.
     set(nuget_cache "${helper}/obj/project.nuget.cache")
@@ -780,7 +786,8 @@ function(_wxl_packages)
     # one -- writes it after obj/project.nuget.cache, so the lock file would be
     # newer than the cache and the next configure would take it for one a pull
     # brought and restore once more for nothing. The cache is touched to put the
-    # two in step.
+    # two in step; after an update it was then 1.1 to 2.7 seconds newer than
+    # the lock file.
     if(WXL_UPDATE_PACKAGES OR lock_json STREQUAL "")
         file(TOUCH "${nuget_cache}")
     endif()
