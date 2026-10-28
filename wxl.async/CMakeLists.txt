@@ -10,14 +10,8 @@
 # IOCP port and the task queue -- had no caller in any built tree and is kept
 # outside this one, together with wxl.io, the module it was written for.
 #
-# Built as part of the tree's common top-level project; it has no standalone
-# configuration of its own, because consuming wxl.core means consuming a C++20
-# module and that setup already lives at the root.
+# A subdirectory of the tree's project (the root CMakeLists.txt).
 option(WXL_ENABLE_PCH "Use a precompiled header (src/pch.h)." ON)
-
-# Off by default: the benchmarks are measurement tools, run deliberately, and
-# an ordinary build has no reason to spend time on them.
-option(WXL_BUILD_BENCHMARKS "Build the wxl.async benchmark executables." OFF)
 
 # Off by default: the checks of how coroutines are used -- a task awaited twice at
 # once, a value read twice, a task dropped while it runs or while somebody joins it,
@@ -30,7 +24,7 @@ option(WXL_STRICT_CORO "Keep the coroutine checks of wxl.async in every build (d
 
 add_subdirectory(src)
 
-if(BUILD_TESTING)
+if(WXL_TESTS)
     add_subdirectory(tests)
 endif()
 

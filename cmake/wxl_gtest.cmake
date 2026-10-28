@@ -1,9 +1,9 @@
 # ---- GoogleTest, built inside the tree ----
 #
-# Included by every configure that builds tests: the top level of the tree and
-# each module that is also configured on its own (wxl.core, wxl.xml, ...).
-# The guard makes the second include a no-op, so a module added by the top
-# level reuses what the top level made available.
+# Included by the root of the tree under WXL_TESTS, or by a project that adds
+# wxl and wants its GoogleTest, before the add_subdirectory of wxl. The guard
+# makes a second include a no-op, so the root reuses what such a project made
+# available.
 #
 # GoogleTest is built from its own sources, at a pinned tag, with the language
 # standard and runtime of the configure that includes this file, not taken

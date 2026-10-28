@@ -9,60 +9,67 @@
 #   wxl_doxygen_bootstrap()   -- resolve the tool and the theme, once per tree
 #   wxl_add_doxygen_site(...) -- one target per site
 #
-# Both are meant to be used from outside this tree as well: an application
-# includes this file the same way it already includes wxl_helpers.cmake, and
-# builds its own site plus wxl's tag file with it.
+# Both are meant to be used from outside this tree as well: a project that adds
+# wxl gets them with it (cmake/config.cmake includes this file), and builds its
+# own site plus wxl's tag file with them.
 
 include_guard(GLOBAL)
 include(FetchContent)
 
 set(WXL_DOXYGEN_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE INTERNAL "")
 
-# 1.18.0 is the first release that turns `export module` into a module page.
-# Earlier ones parse .ixx happily and quietly produce nothing for the module
-# itself, which is the half-working case worth failing on rather than living
-# with.
-set(WXL_DOXYGEN_MIN_VERSION 1.18.0)
+# The pins of the tool and the theme, set in the function that calls this, so
+# that the functions below see them from whatever scope they are called: a
+# project that adds wxl calls them from its own directory, where the variables
+# of the scope that included this file -- wxl's root -- are not visible.
+macro(_wxl_doxygen_pins)
+    # 1.18.0 is the first release that turns `export module` into a module page.
+    # Earlier ones parse .ixx happily and quietly produce nothing for the module
+    # itself, which is the half-working case worth failing on rather than living
+    # with.
+    set(WXL_DOXYGEN_MIN_VERSION 1.18.0)
 
-# The pinned fallback build, used when the host has nothing new enough. That is
-# the normal case rather than the exception: 1.18.0 is weeks old, so requiring
-# a system install would mean requiring an install nobody has yet.
-# Two builds, one per host the site is built on: the developer's Windows
-# machine, where the published site is built together with the wrappers, and
-# the Linux runner that checks a pull request. Doxygen lexes rather than
-# compiles, so the Linux build renders this tree without MSVC or anything of
-# the toolchain -- which is what lets the site be built where the code cannot.
-if(WIN32)
-    set(WXL_DOXYGEN_URL
-        "https://www.doxygen.nl/files/doxygen-1.18.0.windows.x64.bin.zip")
-    set(WXL_DOXYGEN_SHA256
-        "e84f54cfd49ef06b0b16536056dbec0c496323de28abcce53a4269463de35eaf")
-    set(WXL_DOXYGEN_FETCHED_EXECUTABLE "doxygen.exe")
-elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-    set(WXL_DOXYGEN_URL
-        "https://www.doxygen.nl/files/doxygen-1.18.0.linux.bin.tar.gz")
-    set(WXL_DOXYGEN_SHA256
-        "14fa81bdc34171edb5f1f02b1d60e74802f0439b77fa44e592565d517d72df90")
-    set(WXL_DOXYGEN_FETCHED_EXECUTABLE "bin/doxygen")
-endif()
+    # The pinned fallback build, used when the host has nothing new enough. That
+    # is the normal case rather than the exception: 1.18.0 is weeks old, so
+    # requiring a system install would mean requiring an install nobody has yet.
+    # Two builds, one per host the site is built on: the developer's Windows
+    # machine, where the published site is built together with the wrappers, and
+    # the Linux runner that checks a pull request. Doxygen lexes rather than
+    # compiles, so the Linux build renders this tree without MSVC or anything of
+    # the toolchain -- which is what lets the site be built where the code
+    # cannot.
+    if(WIN32)
+        set(WXL_DOXYGEN_URL
+            "https://www.doxygen.nl/files/doxygen-1.18.0.windows.x64.bin.zip")
+        set(WXL_DOXYGEN_SHA256
+            "e84f54cfd49ef06b0b16536056dbec0c496323de28abcce53a4269463de35eaf")
+        set(WXL_DOXYGEN_FETCHED_EXECUTABLE "doxygen.exe")
+    elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+        set(WXL_DOXYGEN_URL
+            "https://www.doxygen.nl/files/doxygen-1.18.0.linux.bin.tar.gz")
+        set(WXL_DOXYGEN_SHA256
+            "14fa81bdc34171edb5f1f02b1d60e74802f0439b77fa44e592565d517d72df90")
+        set(WXL_DOXYGEN_FETCHED_EXECUTABLE "bin/doxygen")
+    endif()
 
-# jothepro/doxygen-awesome-css, master at 2026-05-31 (past the v2.4.2 tag).
-# Pinned by commit for the same reason winmd is in the root CMakeLists: a tag
-# can move, a commit cannot, and a theme that changes under us changes every
-# page at once.
-set(WXL_DOXYGEN_AWESOME_COMMIT "82d315e34ac419a81caccf470cc2fbc2ec8ee524")
+    # jothepro/doxygen-awesome-css, master at 2026-05-31 (past the v2.4.2 tag).
+    # Pinned by commit for the same reason winmd is in the root CMakeLists: a
+    # tag can move, a commit cannot, and a theme that changes under us changes
+    # every page at once.
+    set(WXL_DOXYGEN_AWESOME_COMMIT "82d315e34ac419a81caccf470cc2fbc2ec8ee524")
 
-set(WXL_DOXYGEN_AWESOME_SCRIPTS
-    doxygen-awesome-darkmode-toggle.js
-    doxygen-awesome-fragment-copy-button.js
-    doxygen-awesome-paragraph-link.js
-    doxygen-awesome-interactive-toc.js)
+    set(WXL_DOXYGEN_AWESOME_SCRIPTS
+        doxygen-awesome-darkmode-toggle.js
+        doxygen-awesome-fragment-copy-button.js
+        doxygen-awesome-paragraph-link.js
+        doxygen-awesome-interactive-toc.js)
 
-# Where the pages fetch mermaid from. One place, for the header patched below
-# and for the Doxyfile: Doxygen's own header block is replaced with ours (see
-# the patch), so the two had better name the same script.
-set(WXL_DOXYGEN_MERMAID_JS_URL
-    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")
+    # Where the pages fetch mermaid from. One place, for the header patched
+    # below and for the Doxyfile: Doxygen's own header block is replaced with
+    # ours (see the patch), so the two had better name the same script.
+    set(WXL_DOXYGEN_MERMAID_JS_URL
+        "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")
+endmacro()
 
 # The theme's JavaScript has to be pulled in from the page header, and Doxygen
 # offers no "extra head" setting -- HTML_HEADER replaces the whole header.
@@ -71,6 +78,8 @@ set(WXL_DOXYGEN_MERMAID_JS_URL
 # at configure time rather than as a build step keeps the site target a single
 # command, and lets a test run Doxygen directly without building anything first.
 function(wxl_doxygen_bootstrap)
+    _wxl_doxygen_pins()
+
     # Everything the cache remembers is checked, not just believed: a fetch that
     # failed halfway leaves the cache entry pointing at a directory that is gone,
     # and the site then fails at build time with seven "does not exist" errors
@@ -276,6 +285,7 @@ function(wxl_add_doxygen_site target)
         "INPUT;EXCLUDE;IMAGES;TAGS;DEPENDS;STRIP_FROM"
         ${ARGN})
 
+    _wxl_doxygen_pins()
     wxl_doxygen_bootstrap()
 
     if(NOT A_OUTPUT)

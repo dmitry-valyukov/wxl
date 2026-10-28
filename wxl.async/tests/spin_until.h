@@ -12,7 +12,7 @@ namespace wxl::async {
 /// polls a flag in a loop, it blocks on a signal and is woken when the thing it waits for
 /// changes. Tests are where a predicate legitimately has nothing to be woken by.
 ///
-/// The companion in test-support, become_true(), yields between attempts instead of
+/// The companion in wxl.test/stress_test.h, become_true(), yields between attempts instead of
 /// pausing; prefer it for waits long enough for the scheduler to matter.
 template <class unary_predicate>
 inline void spin_until(unary_predicate p) {

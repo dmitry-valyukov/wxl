@@ -11,6 +11,6 @@
 
 add_subdirectory(src)
 
-if(BUILD_TESTING)
+if(WXL_TESTS)
     add_subdirectory(tests)
 endif()

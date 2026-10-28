@@ -16,7 +16,7 @@
 #
 # This directory is also a project of its own, with no compiler behind it:
 #
-#   cmake -S docs -B build/docs
+#   cmake -S docs -B build/docs -G Ninja
 #   cmake --build build/docs --target docs
 #   ctest --test-dir build/docs
 #
@@ -35,6 +35,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     if(BUILD_TESTING)
         enable_testing()
     endif()
+    # The site's test is one of wxl's own, which WXL_TESTS gates in the tree.
+    set(WXL_TESTS ${BUILD_TESTING})
 endif()
 
 # The generated wrappers the site documents, with the doc_language.txt the
@@ -120,7 +122,7 @@ wxl_add_doxygen_site(docs
 # The test runs the site's Doxyfile as it is, so it builds first what that
 # Doxyfile reads and includes: docs.language, after the generation of the
 # wrappers in the tree.
-if(BUILD_TESTING)
+if(WXL_TESTS)
     wxl_add_doxygen_test(docs)
     add_test(NAME docs.language
         COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --config $<CONFIG>

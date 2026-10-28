@@ -484,10 +484,20 @@ function(_wxl_packages)
             "(find_package(cppwinrt) and its package) and link wxl's Microsoft::CppWinRT.")
     endif()
 
-    # The top-level source directory is the wxl tree itself (its root, or
-    # wxl.ui configured on its own), or a project that adds wxl as a
-    # subdirectory or through FetchContent.
-    cmake_path(IS_PREFIX _WXL_PACKAGES_TREE "${CMAKE_SOURCE_DIR}" NORMALIZE wxl_is_top_level)
+    # The wxl tree is the top-level project, or a project adds it as a
+    # subdirectory or through FetchContent: PROJECT_IS_TOP_LEVEL of the root's
+    # project(), which every directory of the tree shares. Included from
+    # anywhere else -- a project that includes this file itself, ahead of the
+    # root -- the variable would be about that project, which would take the
+    # restore of a tree on its own and write the lock file of wxl; so the file
+    # stops there.
+    if(NOT PROJECT_NAME STREQUAL "wxl-project")
+        message(FATAL_ERROR
+            "cmake/wxl_packages.cmake is included by the project ${PROJECT_NAME}, outside the "
+            "wxl tree ${_WXL_PACKAGES_TREE}. The packages are restored by the root of the tree: "
+            "add it (add_subdirectory(<wxl>) or FetchContent) instead of including the file.")
+    endif()
+    set(wxl_is_top_level ${PROJECT_IS_TOP_LEVEL})
 
     # The tree is configured without a toolchain file. A cache that still names
     # vcpkg's would load it into every configure of the build directory.

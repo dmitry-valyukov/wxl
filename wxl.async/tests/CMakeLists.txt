@@ -73,8 +73,9 @@ add_executable(wxl.async.tests
 
 target_link_libraries(wxl.async.tests
     PRIVATE
+        GTest::gtest_main
         wxl::async
-        wxl::test-support
+        wxl::test.gtest
         wxl::test
 )
 
@@ -122,8 +123,9 @@ target_compile_definitions(wxl.async.dispatched-tests PRIVATE WXL_ASYNC_TESTS_DI
 
 target_link_libraries(wxl.async.dispatched-tests
     PRIVATE
+        GTest::gtest_main
         wxl::async
-        wxl::test-support
+        wxl::test.gtest
 )
 
 wxl_set_target_folders(wxl.async.dispatched-tests)
@@ -144,8 +146,9 @@ add_executable(wxl.async.driven-tests
 
 target_link_libraries(wxl.async.driven-tests
     PRIVATE
+        GTest::gtest_main
         wxl::async
-        wxl::test-support
+        wxl::test.gtest
 )
 
 wxl_set_target_folders(wxl.async.driven-tests)
