@@ -104,6 +104,6 @@ target_sources(winui-srcgen PRIVATE ${_wxl_gen_profiles})
 source_group("profiles" FILES ${_wxl_gen_profiles})
 set_source_files_properties(${_wxl_gen_profiles} PROPERTIES HEADER_FILE_ONLY ON)
 
-if(BUILD_TESTING)
+if(WXL_TESTS)
     add_subdirectory(tests)
 endif()

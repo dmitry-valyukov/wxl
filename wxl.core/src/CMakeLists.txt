@@ -119,32 +119,6 @@ endif()
 
 wxl_set_target_folders(wxl.core)
 
-# ---- IntelliSense configuration refresh (see WXL_UPDATE_INTELLISENSE) ----
-# Attached to wxl.core rather than run at configure time on purpose: the
-# generator reads the *.obj.modmap files and the .ifc they point at, so it can
-# only run once the build has produced them.
-if(WXL_UPDATE_INTELLISENSE AND WIN32)
-    find_program(WXL_POWERSHELL NAMES pwsh powershell)
-    if(WXL_POWERSHELL)
-        add_custom_command(TARGET wxl.core POST_BUILD
-            COMMAND "${WXL_POWERSHELL}" -NoProfile -ExecutionPolicy Bypass
-                    -File "${PROJECT_SOURCE_DIR}/tools/gen-intellisense-config.ps1"
-                    -IfIde
-                    -Config $<CONFIG>
-                    -BuildDir "${PROJECT_BINARY_DIR}"
-                    -Log "${PROJECT_BINARY_DIR}/intellisense-config.log"
-            COMMENT "Refreshing IntelliSense configuration ($<CONFIG>)"
-            VERBATIM
-        )
-    else()
-        message(WARNING
-            "\n[WARNING]: PowerShell not found; .vscode/c_cpp_properties.json will\n"
-            "not be refreshed after builds. Run tools/gen-intellisense-config.ps1 by hand.\n"
-        )
-    endif()
-endif()
-
-
 target_compile_definitions(wxl.core
     PUBLIC
         WXL_VERSION="${PROJECT_VERSION}"

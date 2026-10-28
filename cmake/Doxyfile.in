@@ -61,8 +61,8 @@ HAVE_DOT               = NO
 #
 # A module is named like its namespace, wxl.core beside wxl::core, and Doxygen
 # links the word to the namespace page -- in prose, inside backticks as well,
-# and in the middle of a path: wxl.core/CMakePresets.json comes out as a link
-# on wxl.core followed by plain /CMakePresets.json. A module name is not a
+# and in the middle of a path: wxl.core/CMakeLists.txt comes out as a link
+# on wxl.core followed by plain /CMakeLists.txt. A module name is not a
 # namespace, so a word that starts with one is left as text. The list is the
 # module directories of the wxl tree (wxl_add_doxygen_site() in
 # wxl_doxygen.cmake), not a copy kept here. Doxygen matches the start of a

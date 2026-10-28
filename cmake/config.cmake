@@ -21,6 +21,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
 # The same file is installed with the package, so keep it free of global state --
 # everything above this line is what makes config.cmake project-local.
 include("${CMAKE_CURRENT_LIST_DIR}/wxl_helpers.cmake")
+# The documentation site (wxl_add_doxygen_site, wxl_doxygen_tree_inputs): the
+# tree's own docs/ and the site of a project that adds wxl. Not installed with
+# the package, hence not among the helpers.
+include("${CMAKE_CURRENT_LIST_DIR}/wxl_doxygen.cmake")
 # --- includes end ----
 
 set(CMAKE_MODULE_PATH ${_old_module_path})

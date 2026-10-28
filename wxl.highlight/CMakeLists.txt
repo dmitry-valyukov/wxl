@@ -1,42 +1,15 @@
 # ---- CMakeList.txt : wxl.highlight ----
 #
 # Syntax highlighting: language tables and a scanner without regular expressions.
-# Depends on nothing else in wxl, only on the standard library. The build is set
-# up in the same way as for the other modules of the tree.
+# Depends on nothing else in wxl, only on the standard library.
+
+# The policies of this directory are those of CMake 3.28, and not the root's:
+# the later ones change what its targets compile (CMP0204, for one, defines
+# _MBCS in each target created under it).
 cmake_minimum_required(VERSION 3.28)
-
-set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
-
-if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    include(${WXL_CMAKE_SCRIPT_DIR}/wxl_import_std_gate.cmake)
-
-    project(
-        wxl-highlight VERSION 0.1.0
-        DESCRIPTION "Winui Xaml-Less library (wxl) -- syntax highlighting"
-        LANGUAGES CXX
-    )
-
-    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-    set(CMAKE_CXX_STANDARD 23)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    set(CMAKE_CXX_EXTENSIONS OFF)
-    set(CMAKE_CXX_MODULE_STD 1)
-    set(CMAKE_CXX_SCAN_FOR_MODULES ON)
-
-    option(BUILD_TESTING "Build the testing tree." ON)
-
-    if(BUILD_TESTING)
-        enable_testing()
-        include(${WXL_CMAKE_SCRIPT_DIR}/wxl_gtest.cmake)
-        find_package(GTest REQUIRED CONFIG)
-        include(GoogleTest)
-    endif()
-
-    include(${WXL_CMAKE_SCRIPT_DIR}/config.cmake)
-endif()
 
 add_subdirectory(src)
 
-if(BUILD_TESTING)
+if(WXL_TESTS)
     add_subdirectory(tests)
 endif()
