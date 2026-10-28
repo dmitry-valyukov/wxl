@@ -195,9 +195,11 @@ build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 
 A detailed walkthrough of each automation step, the supported CMake
-configuration options, running the unit tests, and a guide to integrating
-`wxl` into your own projects are covered in
-[docs/building.md](docs/building.md).
+configuration options and running the unit tests are covered in
+[docs/building.md](docs/building.md). Your own project adds the root of the
+`wxl` tree — `add_subdirectory` or `FetchContent` — and sets the language
+options of `wxl` before it (see
+[«Подключение wxl»](docs/building.md#подключение-wxl), in Russian).
 
 ## Repository layout
 
@@ -210,7 +212,7 @@ configuration options, running the unit tests, and a guide to integrating
 | **`wxl.html`** / related | Modules for parsing HTML, BB-code and RSDN text markup for the `HtmlBlock`, `BbBlock`, `RsdnBlock` visual components. The `wxl.highlight` syntax highlighting subsystem. |
 | **`wxl.gen.*`** | Source code of the `winui-srcgen` projection generator (`wxl.gen`, `wxl.gen.common`) and `wxl.gen.ui`, a GUI for visually editing code generation profiles (launched via `run-gen-ui.cmd`). |
 | **`wxl.ui`** | The **WinUI** graphics stack without XAML: public object wrappers, the declarative DSL syntax, window management, data binding and visual effects. |
-| **Auxiliary** | `samples` — sample projects; `sandbox` — isolated experiments with **WinUI** mechanisms; `test-support` — unit testing infrastructure; `cmake`, `tools`, `docs` — build and automation scripts and documentation sources. |
+| **Auxiliary** | `samples` — sample projects; `sandbox` — isolated experiments with **WinUI** mechanisms; `wxl.test` — unit testing infrastructure; `cmake`, `tools`, `docs` — build and automation scripts and documentation sources. |
 
 ## Current status and limitations
 

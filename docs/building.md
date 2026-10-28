@@ -12,7 +12,8 @@
   интринсик, и пул отвергает процессор без неё при старте. Ключей `/arch` в
   дереве нет: под `/arch:AVX` MSVC 14.53 не компилирует корутину с
   симметричной передачей, переносящую 32-байтный объект (ошибка C4737).
-- **Ключ `/Zc:throwingNew`:** его задаёт `cmake/config.cmake` на всё дерево.
+- **Ключ `/Zc:throwingNew`:** он входит в ключи языка `cmake/wxl_language.cmake`,
+  которые корень задаёт на всё дерево.
   Ключ сообщает компилятору, что функции выделения памяти следуют стандарту:
   функция, объявленная без `noexcept`, нуля не возвращает. Пул
   `wxl::core::sta_memory_pool` нуля не возвращает тоже: при нехватке памяти
@@ -30,8 +31,9 @@
   4.4.1–4.4.4 в генераторе Ninja Multi-Config делает копии для Debug и
   Release зависимыми друг от друга и останавливает генерацию на этом цикле.
   Ключ на всё дерево попадает и в цель модуля: в Debug потребители берут
-  модуль как есть, и копия остаётся одна, для Release. В свой проект этот
-  ключ добавлять не нужно.
+  модуль как есть, и копия остаётся одна, для Release. Проект, который
+  подключает **wxl**, задаёт этот ключ вместе с остальными ключами языка
+  (см. «Подключение wxl»).
 - **Компилятор:** Visual Studio 2026 (канал Insiders) с поддержкой C++ и
   набором инструментов MSVC версии 14.53.36911 или новее; он необходим для
   работы `import std;` в модулях C++20, а более ранние сборки тулсета собирают
@@ -148,14 +150,18 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 
 | Ключ | По умолчанию | Что делает |
 | --- | --- | --- |
-| `BUILD_TESTING` | `OFF` | Включает тесты GTest; пресеты этот ключ не задают. |
-| `WXL_BUILD_DOCS` | `ON` | Включает сайт документации Doxygen: цель `docs`, результат — `build/x64/docs/wxl/html/index.html`. На то, что компилирует библиотека, не влияет. |
+| `BUILD_TESTING` | `OFF` | Включает тесты, когда дерево настраивается само: с ним включается `WXL_TESTS`; пресеты этот ключ не задают. В проекте, который подключает **wxl**, ключ принадлежит проекту. |
+| `WXL_TESTS` | значение `BUILD_TESTING`; в проекте, который подключает **wxl**, — `OFF` | Тесты **wxl**: GTest модулей и тесты сценариев `cmake/`, а с ними загрузка GoogleTest. Без `BUILD_TESTING` в самом дереве не включается. |
+| `WXL_UI` | `ON` | Бэкенд **WinUI**: `wxl.ui` и редактор профилей `wxl.gen.ui`. Без `WXL_TOOLS` настройка останавливается: обёртки `wxl.ui` генерирует шаг её сборки. |
+| `WXL_TOOLS` | `ON` | Генератор `winui-srcgen` (`wxl.gen.common`, `wxl.gen`), а с ним восстановление пакетов NuGet и загрузка `winmd`. |
+| `WXL_SAMPLES` | `ON`; в проекте, который подключает **wxl**, — `OFF` | Примеры `samples/`. Требует `WXL_UI`. |
+| `WXL_SANDBOX` | `ON`; в проекте, который подключает **wxl**, — `OFF` | Песочница `sandbox/`. Требует `WXL_UI`. |
+| `WXL_BUILD_DOCS` | `ON`; в проекте, который подключает **wxl**, — `OFF` | Включает сайт документации Doxygen: цель `docs`, результат — `build/x64/docs/wxl/html/index.html`. На то, что компилирует библиотека, не влияет. |
 | `WXL_DOC_LANGUAGE` | `en` | Язык сайта и описаний в обёртках, которые генерирует для него цель `docs`: код папки справочника Windows SDK, который сборка передаёт генератору как `--doc-language` (см. «Сайт документации»). |
-| `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui`. |
+| `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui`. Бенчмарки `wxl.xml` и `wxl.gen.common` дерево, настроенное само, собирает всегда, а проект, который подключает **wxl**, — с этим ключом. |
 | `WXL_STRICT_CORO` | `OFF` | Оставляет проверки корутин `wxl.async` в любой конфигурации сборки, а не только в Debug (см. [«Асинхронность»](async.md)). |
 | `WXL_ENABLE_PCH` | `ON` | Включает предкомпилированный заголовок `src/pch.h` у `wxl.core` и `wxl.async`. Модульные единицы из него исключены (MSVC не принимает его перед объявлением модуля), поэтому ключ влияет только на время сборки обычных единиц трансляции. |
-| `WXL_INSTALL` | `ON` у `wxl.core`, настроенного самостоятельно; в общем дереве — `OFF`, чтобы `cmake --install` потребителя не переносил файлы **wxl** в его префикс | Включает правила установки `wxl.core` (см. ниже, «`wxl.core` отдельно»). |
-| `WXL_UPDATE_INTELLISENSE` | `OFF` | Только у `wxl.core`, настроенного самостоятельно: после сборки из среды разработки обновляет конфигурацию IntelliSense VS Code (см. [«Работа в редакторе»](editor.md)). |
+| `WXL_INSTALL` | `OFF`, чтобы `cmake --install` потребителя не переносил файлы **wxl** в его префикс | Включает правила установки и экспорта `wxl.core`. |
 
 Сквозная оптимизация (`/GL`, LTCG) не используется. Это решение принято по
 замеру, записанному в корневом `CMakeLists.txt` (сентябрь 2026). Без неё пул
@@ -402,11 +408,11 @@ ctest --preset x64-debug -R docs         # сайт документации к�
 ```
 
 - **Тесты GTest:** расположены по модулям (`<модуль>/tests` или `/test`);
-  общая обвязка находится в `test-support/`. Она включает фикстуру, стенд
+  общая обвязка находится в `wxl.test/`. Цель `wxl::test` — заголовки: стенд
   нагрузочных тестов и отдельный каталог для каждого теста и процесса, чтобы
-  тесты не мешали друг другу при запуске `ctest -j`.
-- **GoogleTest:** версия 1.18.0 приходит с деревом при любой настройке —
-  всего дерева или модуля самостоятельно (`wxl.core`, `wxl.xml` и другие):
+  тесты не мешали друг другу при запуске `ctest -j`; цель `wxl::test.gtest` —
+  глобальная фикстура (см. «Цели и функции»).
+- **GoogleTest:** версия 1.18.0 приходит с деревом при `WXL_TESTS`:
   сценарий `cmake/wxl_gtest.cmake` загружает её через `FetchContent` и
   собирает тем же стандартом C++23 и с той же CRT, что и тесты, а
   `find_package(GTest)` находит именно эту сборку.
@@ -495,9 +501,115 @@ Doxygen записаны в одном месте — в таблице гене
 `doxygen-awesome-css`, закреплённая по коммиту, также загружается при
 настройке (`cmake/wxl_doxygen.cmake`).
 
-## Свой проект
+## Подключение wxl
 
-Приложение на **wxl** объявляется функциями из каталога `cmake/`. Так выглядит
+Проект на **wxl** подключает корень дерева — `add_subdirectory(<wxl>)` или
+`FetchContent` — и получает все цели, которые линкует. Модули по отдельности
+не подключаются и самостоятельно не настраиваются: их каталоги — подкаталоги
+корневого проекта. Так выглядит проект, лежащий рядом с деревом **wxl**:
+
+```cmake
+cmake_minimum_required(VERSION 4.3)
+
+set(WXL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../wxl")
+
+# До project(): ворота `import std;`.
+include("${WXL_ROOT}/cmake/wxl_import_std_gate.cmake")
+
+project(MyApp LANGUAGES CXX)
+
+# Язык wxl, для всего каталога и до подключения дерева.
+add_compile_options(/permissive- /utf-8 /Zc:throwingNew)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_MODULE_STD 1)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
+add_subdirectory("${WXL_ROOT}" wxl)
+
+wxl_add_executable(myapp main.cpp)
+wxl_target_assets(myapp Assets)
+```
+
+- **Ворота `import std;`:** открываются до `project()`, и открыть их может
+  только верхний уровень. UUID ворот привязан к выпуску CMake; сценарий
+  `cmake/wxl_import_std_gate.cmake` знает его для каждого поддерживаемого
+  выпуска и задаёт сам. Если ворота не открыты или открыты UUID другого
+  выпуска, настройка корня **wxl** останавливается и называет нужный UUID.
+- **Язык:** ключи компиляции `/permissive- /utf-8 /Zc:throwingNew` и уровень
+  языка — C++23 без расширений, модуль `std` и сканирование исходников на
+  импорты — общие у **wxl** и у каждой единицы трансляции, которая
+  импортирует модуль **wxl**: CMake сравнивает ключи цели, импортирующей
+  `std`, с ключами цели модуля `std` и при расхождении собирает для неё свою
+  копию модуля. Поэтому ключи задаются на весь каталог, а не на цель, и
+  проектом, а не **wxl**: ключи каталога доходят только до целей, созданных
+  после них в нём и в его подкаталогах. Список и причины записаны в
+  `cmake/wxl_language.cmake`. Если чего-то не хватает, настройка
+  останавливается и выводит недостающие строки, готовые для вставки над
+  `add_subdirectory`; сама **wxl** их проекту не добавляет, потому что это
+  изменило бы и другие его цели.
+- **Через `FetchContent`:** сценарий ворот до `project()` ещё не скачан,
+  поэтому UUID задаётся строкой, а дерево закрепляется хешем коммита:
+
+  ```cmake
+  # UUID выпуска CMake, которым настраивается проект, -- из
+  # cmake/wxl_import_std_gate.cmake внутри wxl.
+  set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "<UUID>")
+
+  project(MyApp LANGUAGES CXX)
+
+  # ... язык wxl, как выше ...
+
+  include(FetchContent)
+  FetchContent_Declare(wxl
+      GIT_REPOSITORY https://github.com/wxl-project/wxl.git
+      GIT_TAG <хеш коммита>)
+  FetchContent_MakeAvailable(wxl)
+  ```
+
+- **Ключи корня:** проект, который подключает **wxl**, получает бэкенд
+  WinUI и генератор (`WXL_UI`, `WXL_TOOLS`), но не примеры, песочницу, сайт
+  документации и тесты **wxl** (`WXL_SAMPLES`, `WXL_SANDBOX`, `WXL_BUILD_DOCS`,
+  `WXL_TESTS`); любой из них задаётся до `add_subdirectory`, например
+  `set(WXL_UI OFF)` и `set(WXL_TOOLS OFF)` для проекта без окон. Таблица ключей — в разделе
+  «Сборка». `BUILD_TESTING` и `enable_testing()` остаются делом проекта.
+- **Что нужно настройке:** с `WXL_TOOLS` (а `WXL_UI` без него не
+  настраивается) настройка восстанавливает пакеты NuGet и строит проекцию
+  cppwinrt в каталоге сборки проекта (см. «Пакеты NuGet и проекция
+  cppwinrt»). Поэтому проект настраивается из окружения разработчика той
+  установки Visual Studio, в которой есть компонент C++ WinUI (см.
+  «Требования»), а пресет проекта задаёт Ninja; проще всего взять
+  `CMakePresets.json` из **wxl**. Восстановление идёт в режиме блокировки:
+  настройка передаёт MSBuild `-p:RestoreLockedMode=true`, берёт версии из
+  файла блокировки дерева **wxl**, `tools/packages.lock.json`, и этот файл не
+  переписывает. Если файла в дереве **wxl** нет или в нём не записана версия
+  минимума с меткой, настройка проекта останавливается; обновление пакетов
+  (`WXL_UPDATE_PACKAGES`) в таком проекте тоже останавливает настройку и
+  выполняется в дереве **wxl**. Своей цели `Microsoft::CppWinRT` (её
+  определяет, например, пакет `cppwinrt` из vcpkg) в проекте быть не должно:
+  две проекции в одной сборке останавливают настройку. Без `WXL_TOOLS`,
+  `WXL_UI` и `WXL_BUILD_BENCHMARKS` пакеты не восстанавливаются, и настройке
+  не нужны ни MSBuild, ни компонент C++ WinUI.
+
+### Цели и функции
+
+После подключения проекту доступны цели модулей `wxl::core`, `wxl::fmt`,
+`wxl::async`, `wxl::logging`, `wxl::xml`, `wxl::json`, `wxl::html`,
+`wxl::highlight`, `wxl::bb`, `wxl::rsdn`; при `WXL_UI` — `wxl::ui`; при
+`WXL_TOOLS` — `Microsoft::CppWinRT`, проекция C++/WinRT для приложения, которое
+само к ней обращается (`target_link_libraries(<цель> PRIVATE
+Microsoft::CppWinRT)`, как в `sandbox/LightingLab/CMakeLists.txt`). Для тестов — `wxl::test`, заголовки
+вспомогательных средств (`sta_box.h`, стенд нагрузочных тестов
+`stress_test.h`, отдельный каталог теста `test_directory.h`), и
+`wxl::test.gtest`, глобальная фикстура GoogleTest. Цель `wxl::test.gtest`
+есть, когда в сборке есть GoogleTest: у самой **wxl** при `WXL_TESTS`, у
+проекта — свой, ставший доступным до `add_subdirectory`, например сценарием
+`cmake/wxl_gtest.cmake` из дерева **wxl**. Её линкует сама программа теста:
+объекты объектной библиотеки попадают только в цель, которая линкует её
+напрямую.
+
+Приложение объявляется функциями из каталога `cmake/`. Так выглядит
 `samples/Quadratic/CMakeLists.txt`:
 
 ```cmake
@@ -529,101 +641,19 @@ wxl_target_assets(sample.quadratic Assets)
 - **`wxl_target_assets(<цель> <папка>)`:** размещает папку рядом с exe, по
   правилу на каждый файл. Адрес ресурса без схемы (`u"Assets/logo.png"`)
   ищется там же.
+- **`wxl_add_gtest(<цель> SRC <исходники>… DEPS <цели>…)`:** объявляет
+  программу GoogleTest с `main()` из `GTest::gtest_main` и регистрирует её
+  тесты для `ctest`; фикстуру **wxl** программа получает, если в `DEPS`
+  названа `wxl::test.gtest`.
+- **`wxl_add_module_library`, `wxl_add_ui_profile`, `wxl_add_doxygen_site`,
+  `wxl_doxygen_tree_inputs`:** библиотека из модулей C++, обёртки своего
+  профиля генератора (при `WXL_UI`, `cmake/wxl_ui_profile.cmake`) и сайт
+  документации проекта, читающий файл тегов **wxl** (`cmake/wxl_doxygen.cmake`).
 
 В исходниках подключаются заголовки `wxl.ui` (`ui.h` и соседние, как в
 `samples/HelloHere/pch.h`) и определяется функция
-`wxl::Teardown wxl_launched()`, объявленная в `launch.h`. Проще всего
-создать папку в `samples/` и добавить строку в `samples/CMakeLists.txt`.
-Приложению, которое само обращается к проекции C++/WinRT, её заголовки даёт
-цель `Microsoft::CppWinRT`: `target_link_libraries(<цель> PRIVATE
-Microsoft::CppWinRT)`, как в `sandbox/LightingLab/CMakeLists.txt`.
-
-### Рядом с деревом wxl
-
-Проект, расположенный рядом с деревом **wxl**, подключает его подкаталоги.
-Порядок при этом важен. Ворота `import std;` открываются до `project()`: UUID
-ворот привязан к выпуску CMake, и открыть их может только верхний уровень.
-Стандарт и модули задаются до первого подкаталога. Обёртки дерева **wxl** к
-этому моменту должны быть сгенерированы, а пресет проекта должен задавать
-Ninja; проще всего взять `CMakePresets.json` из wxl.
-
-Пакеты NuGet и проекцию `wxl.ui` получает сама: её `CMakeLists.txt`
-подключает `cmake/wxl_packages.cmake`, и вспомогательный проект появляется в
-каталоге сборки проекта. Поэтому проект настраивается из окружения
-разработчика с компонентом C++ WinUI (см. «Требования»). Своей цели
-`Microsoft::CppWinRT` (её определяет, например, пакет `cppwinrt` из vcpkg) в
-проекте быть не должно: две проекции в одной сборке останавливают настройку.
-
-Проект, который подключает **wxl** (подкаталогом или через `FetchContent`),
-восстанавливает пакеты в режиме блокировки: настройка передаёт MSBuild
-`-p:RestoreLockedMode=true`, берёт версии из файла блокировки дерева **wxl**,
-`tools/packages.lock.json`, и этот файл не переписывает. Если файла в дереве
-**wxl** нет или в нём не записана версия минимума с меткой, настройка
-проекта останавливается; обновление пакетов (`WXL_UPDATE_PACKAGES`) в таком
-проекте тоже останавливает настройку и выполняется в дереве **wxl**.
-
-```cmake
-cmake_minimum_required(VERSION 4.3)
-
-set(WXL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../wxl")
-include("${WXL_ROOT}/cmake/wxl_import_std_gate.cmake")
-
-project(MyApp LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_MODULE_STD 1)
-set(CMAKE_CXX_SCAN_FOR_MODULES ON)
-add_compile_options(/permissive- /utf-8)
-
-include("${WXL_ROOT}/cmake/wxl_helpers.cmake")
-
-foreach(module wxl.core wxl.xml wxl.fmt wxl.async wxl.html wxl.bb wxl.highlight wxl.rsdn)
-    add_subdirectory("${WXL_ROOT}/${module}/src" "${module}" EXCLUDE_FROM_ALL)
-endforeach()
-add_subdirectory("${WXL_ROOT}/wxl.ui" wxl.ui EXCLUDE_FROM_ALL)
-
-wxl_add_executable(myapp main.cpp)
-wxl_target_assets(myapp Assets)
-```
-
-### FetchContent
-
-Исходники **wxl** собираются вместе с проектом потребителя, тем же компилятором
-и с теми же флагами. Поэтому каждый `.ixx` на всё дерево сборки компилируется
-лишь однажды — при сборке самой библиотеки:
-
-```cmake
-cmake_minimum_required(VERSION 4.3)
-
-# ДО project(): гейт CMake для `import std;`. UUID привязан к версии CMake:
-# этот — для 4.1–4.3, у 4.4 свой; актуальные лежат в
-# cmake/wxl_import_std_gate.cmake внутри wxl.
-set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
-
-project(my_app LANGUAGES CXX)
-
-include(FetchContent)
-FetchContent_Declare(wxl GIT_REPOSITORY <url> GIT_TAG <tag>)
-FetchContent_MakeAvailable(wxl)
-
-add_executable(app main.cpp)
-target_link_libraries(app PRIVATE wxl::core)
-```
-
-Корневой `CMakeLists.txt` **wxl** при настройке восстанавливает пакеты NuGet и
-строит проекцию cppwinrt в каталоге сборки потребителя, в режиме блокировки
-(см. «Рядом с деревом wxl»). Поэтому настройка потребителя тоже выполняется из
-окружения разработчика той установки Visual Studio, в которой есть компонент
-C++ WinUI (см. «Требования»).
-
-### `wxl.core` отдельно
-
-Библиотеку `wxl.core` можно настроить и самостоятельно, с её собственными
-пресетами (`wxl.core/CMakePresets.json`, каталог сборки
-`wxl.core/build/x64`). В этом случае у неё включён `WXL_INSTALL`, и она
-формирует правила установки. Приложению на `wxl.ui` необходим вариант
-«рядом с деревом».
+`wxl::Teardown wxl_launched()`, объявленная в `launch.h`. Пример в самом
+дереве — папка в `samples/` и строка в `samples/CMakeLists.txt`.
 
 ## Release и дефект MSVC
 
