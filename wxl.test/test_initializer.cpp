@@ -11,6 +11,7 @@
 
 #include <crtdbg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <gtest/gtest.h>
 
@@ -66,14 +67,18 @@ void print_stack(const char * what) {
     std::fflush(stderr);
 }
 
-int assert_report_hook(int report_type, char * message, int * return_value) {
-    if (report_type == _CRT_ASSERT) print_stack(message ? message : "assertion failed");
+int assert_report_hook(int report_type, char * message, int * /*return_value*/) {
+    // Другие отчёты идут своим обычным путём: наше дело -- проваленный assert.
+    if (report_type != _CRT_ASSERT) return FALSE;
 
-    // Возвращаем FALSE, чтобы отчёт пошёл своим обычным путём: наше дело --
-    // дописать стек, а не подменить поведение assert.
-    if (return_value) *return_value = 0;
+    print_stack(message ? message : "assertion failed");
 
-    return FALSE;
+    // Проваленный отладочный assert CRT заканчивает процесс, как assert() UCRT:
+    // gtest переводит отчёты CRT в stderr, и без этого выполнение шло бы дальше,
+    // а тест с проваленной проверкой проходил. Без окна и без диалога отчёта,
+    // чтобы прогон не повис.
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    std::abort();
 }
 
 /**
