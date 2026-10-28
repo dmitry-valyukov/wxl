@@ -23,14 +23,24 @@ project(
     LANGUAGES CXX
 )
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Whether the wxl tree is the top-level project or a project adds it (through
+# add_subdirectory or FetchContent): the same test as cmake/wxl_packages.cmake
+# makes, the top-level source directory inside the tree or not.
+cmake_path(IS_PREFIX CMAKE_CURRENT_SOURCE_DIR "${CMAKE_SOURCE_DIR}" NORMALIZE _wxl_top_level)
 
-# ---- Set global compiler options ----
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_MODULE_STD 1)
-set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+# ---- The language ----
+# The compile options and the language level every translation unit that
+# imports a wxl module shares with wxl (cmake/wxl_language.cmake). Set here when
+# the tree is the project; a project that adds it sets them itself, above the
+# add_subdirectory, and the check stops its configure with the lines to add when
+# anything is missing.
+include(cmake/wxl_language.cmake)
+if(_wxl_top_level)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+    wxl_apply_language_options()
+else()
+    wxl_check_language_options()
+endif()
 
 # ---- No link-time optimization ----
 # Measured on this tree, and the measurement went the other way from what one
@@ -75,6 +85,12 @@ if(BUILD_TESTING)
         COMMAND "${CMAKE_COMMAND}"
                 "-DWXL_TEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/restored-packages-test"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wxl_restored_packages_test.cmake")
+
+    # The check of the language options a project that adds wxl makes
+    # (cmake/wxl_language.cmake), on directories set up the way such a project
+    # leaves them.
+    add_test(NAME language-options
+        COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wxl_language_test.cmake")
 
     # NuGet versions as cmake/wxl_nuget_version.cmake reads and orders them, and
     # the version a pin of tools/packages.json admits out of the index of a
