@@ -80,8 +80,9 @@ jobs:
     env:
       DEVCMD: C:\BuildToolsInsiders\Common7\Tools\VsDevCmd.bat
       VCVARS: -vcvars_ver=14.53
-      # The restore of the configure, tools/install-runtime.ps1 and winui-srcgen
-      # all read this variable first.
+      # The global packages folder the restore of the configure puts the
+      # packages into; winui-srcgen and tools/install-runtime.ps1 find them
+      # through the list of the restore the configure writes.
       NUGET_PACKAGES: C:\nuget-packages
       # MSBuild reads the environment variables as properties, so the restore of
       # the configure runs in locked mode: it resolves the versions that
@@ -135,7 +136,7 @@ jobs:
       - name: Generate the wrappers
         if: ${{ !matrix.strict }}
         shell: cmd
-        run: build\x64\wxl.gen\${{ matrix.config }}\winui-srcgen.exe --profile wxl.gen\profiles\full.json
+        run: build\x64\wxl.gen\${{ matrix.config }}\winui-srcgen.exe --profile wxl.gen\profiles\full.winxl-profile --packages build\x64\wxl.packages\restored-packages.json
 
       - name: Configure with the wrappers
         if: ${{ !matrix.strict }}
@@ -161,8 +162,8 @@ jobs:
           ctest ${{ matrix.strict && '--test-dir build\x64\wxl.async\tests -C Debug' || format('--preset {0}', matrix.preset) }} --output-on-failure --timeout 300 --output-junit ctest.xml
 
       # No test opens a WinUI window; a sample does. The experimental runtime
-      # the wrappers ask for, from the installers the restore of the configure
-      # put into the NuGet package folder, then the hello sample for twenty
+      # the wrappers ask for, from the installers of the Runtime package the
+      # restore of the configure resolved, then the hello sample for twenty
       # seconds: it has to start and show its window on the runner's desktop.
       # After a red test step as well -- the two answer different questions --
       # but not after a red build, which left nothing to start.

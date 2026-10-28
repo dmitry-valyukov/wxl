@@ -332,11 +332,14 @@ void append_documentation(std::wstring& html, member_documentation const& docume
 }
 
 // Документация метаданных (documentation_source) на языке интерфейса, а без
-// него на английском. Открылся файл, где разобрано ещё не всё, — зовётся
-// opened: остальное окно дочитывает в фоне, шагами parseSome().
+// него на английском; справочник — того Windows SDK, из которого прочитаны
+// метаданные Windows (`windowsSdk`, версия из списка восстановления). Открылся
+// файл, где разобрано ещё не всё, — зовётся opened: остальное окно дочитывает в
+// фоне, шагами parseSome().
 class Documentation {
 public:
-    explicit Documentation(wxl::core::function<void()> opened) : opened_(std::move(opened)) {}
+    Documentation(std::string_view windowsSdk, wxl::core::function<void()> opened)
+        : opened_(std::move(opened)), source_ {interface_documentation_languages(), windowsSdk} {}
 
     // Документация типа или члена под сведениями о нём, а файл, который не
     // читается, — своей ошибкой на её месте: имя файла и что с ним не так.
@@ -368,7 +371,7 @@ public:
 
 private:
     wxl::core::function<void()> opened_;
-    documentation_source source_ {interface_documentation_languages()};
+    documentation_source source_;
 };
 
 // Корни обхода из `own`, которых в замыкании нет без них самих: никакой другой
@@ -470,7 +473,8 @@ std::set<md::TypeDef> unpulled_roots(closure const& walked, std::set<md::TypeDef
 
 struct Editor::Data {
     Data(profile own, profile_set all, std::vector<std::string> const& files, wxl::core::function<void()> opened)
-        : prof(std::move(own)), resolved(std::move(all)), db(files), documentation(std::move(opened)) {}
+        : prof(std::move(own)), resolved(std::move(all)), db(files),
+          documentation(resolved.windows_sdk_version, std::move(opened)) {}
 
     // Отметки — то, что говорит сам файл, без профилей, которые он продолжает.
     profile prof;
@@ -2822,10 +2826,13 @@ std::wstring errorText(std::exception const& error) {
     return wide;
 }
 
-intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
+intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof, std::filesystem::path const& packages) {
     intrusive_ptr<Editor> editor {new Editor {}, /*add_ref=*/false};
 
-    auto resolved = resolve_profiles({prof}, default_nuget_root());
+    // Пакеты и Windows SDK — той сборки, из которой редактор запущен: версии
+    // решило её восстановление NuGet, редактор их не выводит.
+    auto const restored = load_restored_packages(packages);
+    auto resolved = resolve_profiles({prof}, restored);
     std::vector<std::string> files;
     files.reserve(resolved.metadata.size());
     for (auto&& file : resolved.metadata) {
@@ -2844,7 +2851,7 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     editor->data_ = std::make_unique<Data>(std::move(own), std::move(resolved), files,
                                          [raw = editor.get()] { raw->documentationPending.set(true); });
     if (!parents.empty()) {
-        auto inherited = resolve_profiles(parents, default_nuget_root());
+        auto inherited = resolve_profiles(parents, restored);
         editor->data_->inheritedTypes = std::move(inherited.types);
         editor->data_->inheritedStyles = std::move(inherited.styles);
     }
@@ -2857,6 +2864,11 @@ intrusive_ptr<Editor> Editor::open(std::filesystem::path const& prof) {
     if (auto const map = prof.parent_path() / "types.json"; std::filesystem::exists(map)) {
         editor->data_->typeMap = load_type_map(map);
     }
+    // Первый обход — здесь, при открытии: тип профиля, которого нет в метаданных
+    // восстановления, останавливает обход ошибкой, и окно показывает её вместо
+    // редактора. Позже обход идёт из отрисовки деревьев, и ошибку оттуда окно не
+    // показывает.
+    editor->data_->walk();
     editor->types_ = intrusive_ptr<TypesModel> {new TypesModel {*editor}, /*add_ref=*/false};
     editor->resources_ = intrusive_ptr<ResourcesModel> {new ResourcesModel {*editor, *editor->types_}, /*add_ref=*/false};
     editor->info.follow(editor->selection, editor->revision, [](Selection const& chosen, uint32_t) {

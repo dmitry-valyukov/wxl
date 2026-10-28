@@ -91,9 +91,10 @@ endif()
 
 # The NuGet packages and the C++/WinRT projection over them, made by the MSBuild
 # of the developer environment (cmake/wxl_packages.cmake): the target
-# Microsoft::CppWinRT and wxl_nuget_package_dir(). Here and not in wxl.ui: the
-# generator reads the packages from the NuGet package folder, and a fresh clone
-# configures it before the wrappers, and with them wxl.ui, exist.
+# Microsoft::CppWinRT, wxl_nuget_package_dir() and the list of the restore that
+# wxl_restored_packages_file() names. Here and not in wxl.ui: the generator
+# reads the packages through that list, and a fresh clone configures it before
+# the wrappers, and with them wxl.ui, exist.
 include(cmake/wxl_packages.cmake)
 
 # winmd::reader is a header-only WinMD metadata parsing library, fetched from
@@ -195,7 +196,8 @@ else()
         "then configure again:\n"
         "  tools\\build.ps1 -Target winui-srcgen\n"
         "  ${CMAKE_BINARY_DIR}/wxl.gen/Debug/winui-srcgen.exe "
-        "--profile ${CMAKE_CURRENT_SOURCE_DIR}/wxl.gen/profiles/full.json "
+        "--profile ${CMAKE_CURRENT_SOURCE_DIR}/wxl.gen/profiles/full.winxl-profile "
+        "--packages ${CMAKE_BINARY_DIR}/wxl.packages/restored-packages.json "
         "--out ${CMAKE_CURRENT_SOURCE_DIR}/wxl.ui/src/wxl\n"
         "  tools\\build.ps1 -Configure")
 endif()

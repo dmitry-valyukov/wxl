@@ -1,38 +1,40 @@
 # Installs the experimental Windows App Runtime on this machine, for the current
 # user: the framework package, the main and singleton packages and the
 # dynamic-dependency lifetime manager, from the installers of the
-# Microsoft.WindowsAppSDK.Runtime package that the Windows App SDK release of
-# wxl.gen/profiles/base.json declares. The packages come from the configure of
-# the tree: its restore (cmake/wxl_packages.cmake) puts them into the NuGet
-# package folder, so this script runs after a configure.
+# Microsoft.WindowsAppSDK.Runtime package that the restore of the tree's build
+# resolved. The package and its directory are read from the list of that restore,
+# <build>\wxl.packages\restored-packages.json, which the configure writes
+# (cmake/wxl_packages.cmake), so this script runs after a configure.
 #
 #   cmake --preset x64                                # in a developer prompt; tools\build.ps1 configures as well
-#   pwsh -NoProfile -File tools\install-runtime.ps1
+#   pwsh -NoProfile -File tools\install-runtime.ps1   # -Packages <list> for a build directory other than build\x64
 #
 # Why: the WinUI metadata the wrappers are generated from is the experimental
 # channel's, and only the experimental framework package (Microsoft.WindowsAppRuntime
 # .2-experimentalF) has what it declares -- the stable runtime answers a call to
 # WrapPanel, to the Window size properties or to TitleBar.RecomputeDragRegions with
 # "no such interface". An application started by wxl asks for that framework by its
-# version tag (WXL_WINDOWSAPPSDK_VERSION_TAG in wxl.ui/CMakeLists.txt). Installed
-# next to the stable runtime, not instead of it: other applications keep theirs.
+# version tag, WINDOWSAPPSDK_RELEASE_VERSION_TAG_W of include\WindowsAppSDK-VersionInfo.h
+# in the same Runtime package, which wxl.ui/src/impl/bootstrap.cpp hands the
+# bootstrapper. Installed next to the stable runtime, not instead of it: other
+# applications keep theirs.
 #
 # Every run hands each installer to Add-AppxPackage; Windows leaves a package already
 # installed at the same version as it is.
 [CmdletBinding()]
-param([string]$NuGetRoot)
+param([string]$Packages = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\x64\wxl.packages\restored-packages.json'))
 
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'nuget-root.ps1')
-. (Join-Path $PSScriptRoot 'windows-app-sdk.ps1')
-$root = Resolve-NuGetRoot $NuGetRoot
-$sdk = Get-WindowsAppSdkRelease (Split-Path -Parent $PSScriptRoot)
-$version = (Get-WindowsAppSdkPackageVersion $root $sdk)['microsoft.windowsappsdk.runtime']
-if (-not $version) { throw "Windows App SDK $sdk declares no Microsoft.WindowsAppSDK.Runtime" }
+if (-not (Test-Path -LiteralPath $Packages)) {
+    throw "No list of the restored packages at $Packages -- configure the tree first: its configure writes the list"
+}
+$runtime = (Get-Content -LiteralPath $Packages -Raw | ConvertFrom-Json).packages |
+    Where-Object { $_.id -eq 'Microsoft.WindowsAppSDK.Runtime' }
+if (-not $runtime) { throw "The restore of $Packages resolved no Microsoft.WindowsAppSDK.Runtime" }
 
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) { 'ARM64' { 'win10-arm64' } 'x86' { 'win10-x86' } default { 'win10-x64' } }
-$dir = Join-Path $root "microsoft.windowsappsdk.runtime\$version\tools\MSIX\$arch"
-if (-not (Test-Path $dir)) { throw "No installers at $dir -- configure the tree first: its restore puts the package there" }
+$dir = Join-Path $runtime.directory "tools\MSIX\$arch"
+if (-not (Test-Path $dir)) { throw "No installers at $dir, in Microsoft.WindowsAppSDK.Runtime $($runtime.version)" }
 
 # The order Windows App SDK's own installer uses: the framework first, the
 # packages that depend on it after.

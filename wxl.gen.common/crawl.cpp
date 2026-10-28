@@ -903,21 +903,33 @@ closure crawl(profile_set const& raw_profiles, type_map const& types, cache cons
         profiles.types.try_emplace(root, member_filter::all());
     }
 
-    crawler cr{profiles, types, db};
-
+    std::string missing;
     for (auto&& [name, filter] : profiles.types) {
         if (!db.find(name)) {
-            cr.result.missing_types.push_back(name);
+            auto const listed = profiles.listed_by.find(name);
+            missing += listed == profiles.listed_by.end()
+                           ? std::format("\n  {}, a root of every run in the type map (types.json)",
+                                         name)
+                           : std::format("\n  {}, listed by {}", name,
+                                         wxl::core::unicode::to_utf8(listed->second).chars());
         }
     }
+    if (!missing.empty()) {
+        auto const release = profiles.windows_app_sdk.empty()
+                                 ? std::format("no {}", windows_app_sdk_id)
+                                 : std::format("{} {}", windows_app_sdk_id, profiles.windows_app_sdk);
+        throw std::runtime_error(std::format(
+            "the metadata read does not declare these types, with {} in the restore of the build "
+            "({}):{}\nRestore a release that declares them, or take them out of the profiles",
+            release, wxl::core::unicode::to_utf8(profiles.restored_from).chars(), missing));
+    }
+
+    crawler cr{profiles, types, db};
 
     cr.route_inherited_members();
 
     for (auto&& [name, filter] : profiles.types) {
-        auto const type = db.find(name);
-        if (!type) {
-            continue;
-        }
+        auto const type = db.find_required(name);
         cr.enqueue(type, cr.listed_filter(type));
     }
 

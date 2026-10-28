@@ -63,9 +63,9 @@
   собирает сайт документации на Linux; любое предупреждение Doxygen
   считается ошибкой.
 - Пакеты NuGet CI восстанавливает в режиме блокировки
-  (`RestoreLockedMode=true`): изменение закреплений
-  (`wxl.gen/profiles/base.json`, `tools/packages.json`) приходит в одном
-  коммите с файлом `tools/packages.lock.json`, который записала настройка.
+  (`RestoreLockedMode=true`): изменение закреплений (`tools/packages.json`)
+  приходит в одном коммите с файлом `tools/packages.lock.json`, который
+  записала настройка.
   Файл, который не соответствует закреплениям, останавливает восстановление
   NuGet, а отсутствие файла останавливает настройку
   (`cmake/wxl_packages.cmake`; см.

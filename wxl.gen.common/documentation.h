@@ -75,9 +75,15 @@ documentation_language const* find_documentation_language(std::string_view code)
 // folder, one of documentation_languages.
 class documentation_source {
 public:
-    // `references` is the Windows SDK's References directory; empty, it is
-    // found under the SDK's installed root when first needed.
-    explicit documentation_source(std::vector<std::wstring> languages, std::filesystem::path references = {});
+    // `windows_sdk` is the version of the Windows SDK whose reference is read --
+    // the one the build projects and reads the metadata of Windows from
+    // (restored_packages::windows_sdk_version); a reference of another version
+    // installed beside it is not read. `references` is the Windows SDK's
+    // References directory; empty, it is found under the SDK's installed root
+    // when first needed. A version that is empty or not UTF-8 throws
+    // std::invalid_argument.
+    documentation_source(std::vector<std::wstring> languages, std::string_view windows_sdk,
+                         std::filesystem::path references = {});
     documentation_source(documentation_source const&) = delete;
     documentation_source& operator=(documentation_source const&) = delete;
     ~documentation_source();
@@ -128,6 +134,7 @@ private:
     void started(source& opened);  // a file with members to parse joins unfinished_
 
     std::vector<std::wstring> languages_;
+    std::filesystem::path windows_sdk_;  // the folder of the version under references_
     std::filesystem::path references_;
     std::map<winmd::reader::database const*, source> beside_;
     std::map<std::string, reference> contracts_;

@@ -14,28 +14,34 @@ namespace {
 // them (documentation_languages).
 constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers from WinUI3 metadata.
 
-  winui-srcgen --profile <file.json> [--profile <file.json>]...
-               [--out <dir>] [--target <cmake target>]
-               [--nuget-root <dir>] [--winmd <file.winmd>]...
+  winui-srcgen --profile <file.winxl-profile> [--profile <file.winxl-profile>]...
+               --packages <restored-packages.json>
+               [--out <dir>] [--target <cmake target>] [--winmd <file.winmd>]...
                [--types <file.json>] [--docs [--doc-language <code>]]
 
   --profile      Input profile; may be repeated. Profiles say which NuGet
                  packages to read, which types are the roots of the
                  dependency walk, and which of their members take part.
+  --packages     What the NuGet restore of the build resolved: every package
+                 with its version and directory, and the Windows SDK of the
+                 build's projection with its .winmd files. The configure of
+                 the build writes it into
+                 <build>/wxl.packages/restored-packages.json. Each package a
+                 profile names is read at the version listed there, and the
+                 Windows metadata is that SDK's.
   --out          Output directory for the generated sources
                  (default: wxl.ui/src/wxl).
   --target       CMake target the generated CMakeLists.txt adds its sources
                  to (default: wxl.ui).
-  --nuget-root   NuGet package cache holding the packages the profiles name
-                 (default: %NUGET_PACKAGES%, else %USERPROFILE%\.nuget\packages).
   --winmd        Extra .winmd file to read, on top of what the profiles resolve to.
   --types        What wxl implements itself: the types it supplies by hand,
                  the ones it already has an equivalent of, and the properties
                  carrying a tag (default: types.json beside the first profile).
   --docs         Write the metadata's documentation into the generated
                  headers as /// comments. Windows types are documented from
-                 the Windows SDK's reference, Windows App SDK types from
-                 the .xml beside their .winmd, which is in English only.
+                 the reference of the Windows SDK the --packages list names,
+                 Windows App SDK types from the .xml beside their .winmd,
+                 which is in English only.
                  A .winmd with no documentation is said; a documentation
                  file that does not read stops the run. The language's code
                  and Doxygen's name for it are written to doc_language.txt in
@@ -68,7 +74,7 @@ struct options {
     // directory carries its own CMakeLists.txt (see gen/cmake.cpp).
     std::filesystem::path out_dir{L"wxl.ui/src/wxl"};
     std::string cmake_target{"wxl.ui"};
-    std::filesystem::path nuget_root;
+    std::filesystem::path packages;
     std::filesystem::path type_map;
     std::filesystem::path symbols;
     bool docs = false;
@@ -118,8 +124,8 @@ options parse_options(int argc, wchar_t** argv) {
             opts.out_dir = value(i, argument);
         } else if (argument == L"--target") {
             opts.cmake_target = text_value(i, argument);
-        } else if (argument == L"--nuget-root") {
-            opts.nuget_root = value(i, argument);
+        } else if (argument == L"--packages") {
+            opts.packages = value(i, argument);
         } else if (argument == L"--types") {
             opts.type_map = value(i, argument);
         } else if (argument == L"--winmd") {
@@ -149,9 +155,6 @@ options parse_options(int argc, wchar_t** argv) {
         }
     }
 
-    if (opts.nuget_root.empty()) {
-        opts.nuget_root = default_nuget_root();
-    }
     // Beside the first profile: the map belongs to the same tree the profiles
     // do, and naming it on every run would be noise.
     if (opts.type_map.empty() && !opts.profiles.empty()) {
@@ -173,6 +176,15 @@ int wmain(int argc, wchar_t** argv) {
             std::print(usage, language_codes());
             return opts.help ? 0 : 1;
         }
+        // The versions and the directories of the packages are the restore's,
+        // and a run without them has nothing to read the profiles from.
+        if (opts.packages.empty()) {
+            throw std::runtime_error(
+                "no list of the restored packages: pass --packages "
+                "<build>/wxl.packages/restored-packages.json, which the configure of the build "
+                "writes from its NuGet restore (in the wxl tree, tools\\build.ps1 or "
+                "cmake --preset x64 writes build/x64/wxl.packages/restored-packages.json)");
+        }
 
         auto const types = load_type_map(opts.type_map);
         std::vector<symbol> symbols;
@@ -180,7 +192,7 @@ int wmain(int argc, wchar_t** argv) {
             symbols = load_symbol_names(opts.symbols);
         }
 
-        auto profiles = resolve_profiles(opts.profiles, opts.nuget_root);
+        auto profiles = resolve_profiles(opts.profiles, load_restored_packages(opts.packages));
         for (auto&& file : opts.extra_metadata) {
             if (!std::filesystem::is_regular_file(file)) {
                 throw std::runtime_error(std::format("no such metadata file: {}",

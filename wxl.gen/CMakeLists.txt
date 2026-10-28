@@ -83,8 +83,9 @@ wxl_target_manifest(winui-srcgen)
 # the one that wins.
 wxl_set_target_folders(winui-srcgen)
 
-# Input profiles -- not compiled, listed so they show up in the IDE tree.
-file(GLOB _wxl_gen_profiles CONFIGURE_DEPENDS "profiles/*.json")
+# Input profiles and the tables beside them (types.json, fluent-symbols.json) --
+# not compiled, listed so they show up in the IDE tree.
+file(GLOB _wxl_gen_profiles CONFIGURE_DEPENDS "profiles/*.winxl-profile" "profiles/*.json")
 target_sources(winui-srcgen PRIVATE ${_wxl_gen_profiles})
 source_group("profiles" FILES ${_wxl_gen_profiles})
 set_source_files_properties(${_wxl_gen_profiles} PROPERTIES HEADER_FILE_ONLY ON)

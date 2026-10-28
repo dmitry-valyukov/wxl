@@ -209,8 +209,24 @@ documentation_language const* find_documentation_language(std::string_view code)
     return nullptr;
 }
 
-documentation_source::documentation_source(std::vector<std::wstring> languages, std::filesystem::path references)
-    : languages_(std::move(languages)), references_(std::move(references)) {}
+namespace {
+
+// The folder of a Windows SDK version under References, by the version's name.
+std::filesystem::path sdk_version_folder(std::string_view version) {
+    auto const name = wxl::core::unicode::checked(version);
+    if (!name || version.empty()) {
+        throw std::invalid_argument(std::format("not a Windows SDK version: \"{}\"",
+                                                wxl::core::unicode::repaired(version).chars()));
+    }
+    return wxl::core::unicode::to_path(*name);
+}
+
+}  // namespace
+
+documentation_source::documentation_source(std::vector<std::wstring> languages, std::string_view windows_sdk,
+                                           std::filesystem::path references)
+    : languages_(std::move(languages)), windows_sdk_(sdk_version_folder(windows_sdk)),
+      references_(std::move(references)) {}
 
 documentation_source::~documentation_source() = default;
 
@@ -344,16 +360,12 @@ documentation_source::reference documentation_source::open_reference(std::string
     if (references_.empty()) {
         references_ = sdk_references();
     }
-    // No SDK, or no version of it, or no folder of the contract: no reference, and nothing
-    // wrong -- that is the type undocumented.
+    // No SDK, or no reference of the version, or no folder of the contract in it: no
+    // reference, and nothing wrong -- that is the type undocumented, which is said.
     if (references_.empty()) {
         return {};
     }
-    std::filesystem::path const sdk = newest_version(references_);
-    if (sdk.empty()) {
-        return {};
-    }
-    std::filesystem::path const versions = newest_version(sdk / metadata_path(contract));
+    std::filesystem::path const versions = newest_version(references_ / windows_sdk_ / metadata_path(contract));
     if (versions.empty()) {
         return {};
     }

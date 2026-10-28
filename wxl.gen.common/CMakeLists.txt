@@ -29,11 +29,12 @@ target_link_libraries(wxl.gen.common
         winmd_reader
         wxl::core
     PRIVATE
-        # The profiles are read with wxl's own JSON reader -- comments and
-        # all, which is the shape our settings files are written in.
+        # The profiles, the tables beside them and the list of the restored
+        # packages are read with wxl's own JSON reader -- comments and all,
+        # which is the shape our settings files are written in.
         wxl::json
-        # The nuspec of a WindowsAppSDK release and the XAML dictionaries are
-        # read with wxl's own XML reader.
+        # The XAML dictionaries and the documentation files are read with
+        # wxl's own XML reader.
         wxl::xml
 )
 

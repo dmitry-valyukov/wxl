@@ -63,9 +63,8 @@ request").
   builds the documentation site on Linux; any Doxygen warning is treated as
   an error.
 - CI restores the NuGet packages in locked mode (`RestoreLockedMode=true`):
-  a change of the pins (`wxl.gen/profiles/base.json`, `tools/packages.json`)
-  comes in one commit with the `tools/packages.lock.json` that the configure
-  wrote. A lock file that does not match the pins stops the NuGet restore,
+  a change of the pins (`tools/packages.json`) comes in one commit with the
+  `tools/packages.lock.json` that the configure wrote. A lock file that does not match the pins stops the NuGet restore,
   and a missing one stops the configure (`cmake/wxl_packages.cmake`; see
   [docs/building.md](docs/building.md#пакеты-nuget-и-проекция-cppwinrt)).
 - Required checks: `build (Debug)`, `build (Release)`, `build (Strict)`,

@@ -16,6 +16,10 @@ namespace {
 // u8, so that the path reads the directory as UTF-8 and not in the ANSI code page.
 std::filesystem::path const profiles_dir{u8"" WXL_GEN_PROFILES_DIR};
 
+// The list the configure of this build wrote: the packages its restore resolved
+// and the Windows SDK of its projection.
+std::filesystem::path const restored_packages_file{u8"" WXL_RESTORED_PACKAGES};
+
 // The type map, which the mapping asks which types are projected.
 type_map const& types() {
     static type_map const map = load_type_map(profiles_dir / "types.json");
@@ -25,7 +29,8 @@ type_map const& types() {
 // The metadata the rich profile names, read once for the whole suite.
 md::cache const& metadata() {
     static std::vector<std::string> const files = [] {
-        auto const profiles = resolve_profiles({profiles_dir / "rich.json"}, default_nuget_root());
+        auto const profiles = resolve_profiles({profiles_dir / "rich.winxl-profile"},
+                                               load_restored_packages(restored_packages_file));
         std::vector<std::string> paths;
         for (auto&& file : profiles.metadata) {
             paths.push_back(std::string{wxl::core::unicode::to_utf8(file).chars()});

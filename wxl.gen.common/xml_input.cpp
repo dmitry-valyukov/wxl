@@ -10,41 +10,6 @@
 import wxl.core;
 import wxl.xml;
 
-std::vector<std::pair<std::string, std::string>> nuspec_dependencies(
-    std::filesystem::path const& nuspec) {
-    std::vector<std::pair<std::string, std::string>> found;
-
-    auto const collect = [&found](wxl::xml::node const& node) {
-        auto const id = node.attribute("id");
-        auto const version = node.attribute("version");
-        if (id && version) {
-            found.emplace_back(std::string{id->chars()}, std::string{version->chars()});
-        }
-    };
-
-    wxl::xml::document document;
-    auto const& root = document.load_file(nuspec);
-    auto const* dependencies = root.find("dependencies");
-    if (!dependencies) {
-        return found;
-    }
-
-    // Dependencies are listed either directly or split into <group> elements
-    // by target framework. The umbrella package uses the flat form, but the
-    // grouped one is what nuspec generally allows, and either way every
-    // <dependency> under here names the same package set.
-    for (auto&& node : dependencies->children()) {
-        if (node.name() == "group") {
-            for (auto&& grouped : node.children()) {
-                collect(grouped);
-            }
-        } else {
-            collect(node);
-        }
-    }
-    return found;
-}
-
 std::vector<dictionary_resource> dictionary_resources(std::filesystem::path const& dictionary) {
     std::vector<dictionary_resource> found;
 
