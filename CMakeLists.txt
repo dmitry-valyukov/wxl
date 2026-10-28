@@ -171,8 +171,9 @@ if(WXL_TESTS)
     # The narrow interfaces of a path, kept out of the sources: a scan of what
     # git tracks, which cmake/wxl_narrow_paths.cmake describes. A tree copied
     # without its repository has no list of its own sources to scan, and says
-    # so; on CI (the CI variable, which GitHub Actions sets) the check is the
-    # point of the run, and its absence stops the configure.
+    # so; on the tree's own CI (the CI variable, which GitHub Actions sets) the
+    # check is the point of the run, and its absence stops the configure -- not
+    # in a project that adds wxl, whose CI is not about wxl's sources.
     find_package(Git QUIET)
     if(Git_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
         add_test(NAME narrow-paths
@@ -180,7 +181,7 @@ if(WXL_TESTS)
                     "-DWXL_TREE=${CMAKE_CURRENT_SOURCE_DIR}"
                     "-DWXL_GIT=${GIT_EXECUTABLE}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wxl_narrow_paths.cmake")
-    elseif(NOT "$ENV{CI}" STREQUAL "")
+    elseif(PROJECT_IS_TOP_LEVEL AND NOT "$ENV{CI}" STREQUAL "")
         message(FATAL_ERROR "narrow-paths: ${CMAKE_CURRENT_SOURCE_DIR} is not a git checkout, "
                             "or git is not found, and a CI build has to scan the sources")
     else()
