@@ -113,9 +113,14 @@ endforeach()
 # WXL_TESTS builds wxl's own tests -- of the modules, of the scripts in cmake/ --
 # and fetches GoogleTest for them. At the top level it follows BUILD_TESTING
 # (cmake_dependent_option: ON with it, unless turned off, and OFF without it, so
-# a tree configured once without tests gets them with -DBUILD_TESTING=ON). In a
-# project that adds wxl it is OFF unless the project turns it on, and
-# BUILD_TESTING and enable_testing() are the project's own.
+# a tree configured once without tests gets them with -DBUILD_TESTING=ON).
+# BUILD_TESTING is the switch there: without it a -DWXL_TESTS=ON is dropped,
+# forced OFF with its cache entry made INTERNAL.
+#
+# In a project that adds wxl it is OFF unless the project turns it on, and
+# BUILD_TESTING and enable_testing() are the project's own. enable_testing()
+# comes above the add_subdirectory of wxl: called after it, or never, it leaves
+# the tests of wxl registered and never run, so the configure stops instead.
 if(PROJECT_IS_TOP_LEVEL)
     option(BUILD_TESTING "Build the testing tree." OFF)
     include(CMakeDependentOption)
@@ -125,6 +130,14 @@ if(PROJECT_IS_TOP_LEVEL)
     endif()
 else()
     option(WXL_TESTS "Build the tests of wxl." OFF)
+    if(WXL_TESTS AND NOT CMAKE_TESTING_ENABLED)
+        message(FATAL_ERROR
+            "WXL_TESTS is ON in ${CMAKE_SOURCE_DIR}, which adds wxl, and testing is not enabled "
+            "where it adds it: wxl's tests would be registered and never run. Call "
+            "enable_testing() ABOVE the add_subdirectory (or FetchContent_MakeAvailable) of wxl, "
+            "or turn WXL_TESTS off. BUILD_TESTING is the project's own, and wxl does not read it "
+            "there.")
+    endif()
 endif()
 
 if(WXL_TESTS)
