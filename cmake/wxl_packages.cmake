@@ -9,10 +9,8 @@
 # -restore restores the PackageReference items of the project first: the
 # "packages" of tools/packages.json, among them the umbrella package
 # Microsoft.WindowsAppSDK of the Windows App SDK release the tree builds
-# against, whose dependencies are the packages of that release. Every version
-# is a minimum: NuGet takes the lowest version that satisfies every reference,
-# and the lock file tools/packages.lock.json records the versions it took. The
-# targets are those of the Microsoft.Windows.CppWinRT package.
+# against, whose dependencies are the packages of that release. The targets are
+# those of the Microsoft.Windows.CppWinRT package.
 # ResolveReferences adds the metadata of the Windows SDK to the references:
 # CppWinRTImplicitlyExpandTargetPlatform is in ResolveReferencesDependsOn, and
 # CppWinRTMakeProjections alone does not run it, which leaves the projection of
@@ -25,6 +23,40 @@
 # and the targets whose outputs are up to date, so a repeated configure stays
 # short.
 #
+# Each version of tools/packages.json is a minimum, and the restore takes the
+# newest version of the minimum's major version on the minimum's channel --
+# cmake/wxl_nuget_version.cmake says which versions a minimum admits. The
+# major version is raised only by hand, by editing the minimum. The lock file
+# tools/packages.lock.json records the versions the restore took, and a newer
+# version comes only with an update, which writes that file anew:
+#
+#   - a stable minimum M.m.p is referenced as M.*, NuGet's floating version of
+#     the stable versions of major M;
+#   - a prerelease minimum is referenced as the exact version [X]. NuGet has no
+#     floating version of one channel: M.*-<word>* takes the stable versions as
+#     well, and a stable version orders above every prerelease of the same or
+#     lower numbers. X is the version the lock file records for the pin. The
+#     update chooses it anew, and so does an unlocked configure for a pin the
+#     file does not record: the newest version the minimum admits in the index
+#     of the package in the flat container of the NuGet source,
+#     WXL_NUGET_FLAT_CONTAINER.
+#
+# After the restore the version of every pin is checked against its minimum: of
+# another major version, on another channel or below the minimum, it stops the
+# configure with what to do. An ordinary configure reads the lock file once,
+# and while the file records every prerelease pin it downloads no index; a
+# prerelease pin the file does not record yet is resolved through the source as
+# the update resolves it, unless the restore is locked, which stops on it.
+#
+# The update is a configure with WXL_UPDATE_PACKAGES=ON, as tools\build.ps1
+# -UpdatePackages runs it. It chooses the versions of the prerelease pins
+# anew, restores with RestoreForceEvaluate=true, so that NuGet resolves the
+# floating versions anew instead of taking those of the lock file, prints every
+# pin with its version before and after, and removes WXL_UPDATE_PACKAGES from
+# the cache when it succeeds: the next configure is an ordinary one. The
+# rewritten lock file is then committed. A locked configure and the configure
+# of a project that adds wxl refuse the update.
+#
 # What the restore resolved, and the Windows SDK of the projection, are then
 # written into the list <build>/wxl.packages/restored-packages.json, which
 # winui-srcgen and wxl.gen.ui take with --packages. Its format, the reading of
@@ -36,6 +68,16 @@
 # the wxl tree records and does not write that file.
 #
 # Defined here:
+#
+#   WXL_UPDATE_PACKAGES
+#       a cache option, OFF by default; ON makes one configure the update.
+#
+#   WXL_NUGET_FLAT_CONTAINER
+#       a cache variable, the flat container of the NuGet source the update
+#       chooses the versions of prerelease pins from, by default nuget.org's,
+#       https://api.nuget.org/v3-flatcontainer. The restore takes the packages
+#       from the sources of the NuGet configuration, and the two have to hold
+#       the same versions.
 #
 #   Microsoft::CppWinRT
 #       an INTERFACE IMPORTED GLOBAL target over the projection, the C++/WinRT
@@ -60,7 +102,15 @@ include_guard(GLOBAL)
 set(_WXL_PACKAGES_SCRIPT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 cmake_path(GET _WXL_PACKAGES_SCRIPT_DIR PARENT_PATH _WXL_PACKAGES_TREE)
 
+include("${_WXL_PACKAGES_SCRIPT_DIR}/wxl_nuget_version.cmake")
 include("${_WXL_PACKAGES_SCRIPT_DIR}/wxl_restored_packages.cmake")
+
+# A one-shot switch, unset by a successful update (above); a failed update
+# leaves it set, and the next configure tries again.
+option(WXL_UPDATE_PACKAGES
+    "Update the NuGet packages once, rewriting tools/packages.lock.json; unset when done" OFF)
+set(WXL_NUGET_FLAT_CONTAINER "https://api.nuget.org/v3-flatcontainer" CACHE STRING
+    "The NuGet flat container the update chooses the versions of prerelease pins from")
 
 # The oldest Windows SDK the tree builds against. The developer environment
 # selects the newest installed one, and the configure stops when that is older.
@@ -198,6 +248,17 @@ function(_wxl_packages_pins out_pins)
         if(NOT id MATCHES "^[A-Za-z0-9._-]+$" OR NOT version MATCHES "^[A-Za-z0-9.+-]+$")
             message(FATAL_ERROR "Not a NuGet package id and version: \"${id}\" \"${version}\" (${manifest_file}).")
         endif()
+        wxl_nuget_version_parse(minimum "${version}")
+        if(NOT minimum_VALID)
+            message(FATAL_ERROR "${manifest_file} pins ${id} at \"${version}\", which is not a NuGet version.")
+        endif()
+        if(NOT minimum_LABEL STREQUAL "" AND minimum_CHANNEL STREQUAL "")
+            message(FATAL_ERROR
+                "${manifest_file} pins ${id} at ${version}, a prerelease whose label begins with "
+                "no letter. A prerelease minimum names its channel by the word its label begins with, "
+                "as 2.5.4-experimental names the channel \"experimental\", and the restore takes "
+                "the versions of that channel only.")
+        endif()
         if(id STREQUAL "Microsoft.Windows.CppWinRT")
             set(has_cppwinrt TRUE)
         endif()
@@ -220,6 +281,129 @@ function(_wxl_packages_check_path what path)
             "${what} ${path} has a character that MSBuild or XML reads as syntax (% $ @ ; ' \" & < >), "
             "so the helper project of cmake/wxl_packages.cmake cannot name it. Use a path without one.")
     endif()
+endfunction()
+
+# The channel of the minimum `minimum`, in a message.
+function(_wxl_packages_channel out minimum)
+    wxl_nuget_version_parse(pin "${minimum}")
+    if(pin_LABEL STREQUAL "")
+        set(${out} "the stable versions" PARENT_SCOPE)
+    else()
+        set(${out} "the prereleases whose label begins with \"${pin_CHANNEL}\"" PARENT_SCOPE)
+    endif()
+endfunction()
+
+# The version of the pin `id` that the lock file records or the restore resolved
+# (`what` says which), checked against the pin's minimum. A version the
+# minimum does not admit stops the configure with the remedy; `updating` says
+# whether this configure is the update, which takes the newest versions the
+# NuGet sources hold, so that the update is not the remedy.
+function(_wxl_packages_check_version what id version minimum updating)
+    wxl_nuget_version_mismatch(mismatch "${version}" "${minimum}")
+    if(mismatch STREQUAL "")
+        return()
+    endif()
+
+    set(pinned "${id} ${version}, which the minimum ${minimum} of tools/packages.json does not admit")
+    set(own "")
+    if(mismatch STREQUAL "invalid")
+        set(cause "${id} ${version}, which is not a NuGet version.")
+    elseif(mismatch STREQUAL "below")
+        set(cause "${pinned}: it is below the minimum.")
+        set(own "lower the minimum")
+    elseif(mismatch STREQUAL "major")
+        wxl_nuget_version_parse(pin "${minimum}")
+        list(GET pin_NUMBERS 0 major)
+        set(cause "${pinned}: its major version is not ${major}.")
+        string(CONCAT own
+            "edit the minimum by hand to one of the major version you mean to take, since the "
+            "major version is raised only by hand")
+    else()
+        _wxl_packages_channel(channel "${minimum}")
+        set(cause "${pinned}: it is not on the channel of the minimum, ${channel}.")
+        set(own "write a minimum on the channel you mean to take")
+    endif()
+
+    if(updating)
+        string(CONCAT remedy
+            "The update takes the newest versions the NuGet sources hold, so they hold none that "
+            "the minimum admits: check the minimum and the NuGet sources of the restore")
+    else()
+        string(CONCAT remedy
+            "The lock file tools/packages.lock.json does not match the pins. Run the update, "
+            "tools\\build.ps1 -UpdatePackages (a configure with -DWXL_UPDATE_PACKAGES=ON), and "
+            "commit the lock file it writes")
+    endif()
+    if(NOT own STREQUAL "")
+        string(APPEND remedy ", or ${own}")
+    endif()
+    message(FATAL_ERROR "${what} ${cause} ${remedy}.")
+endfunction()
+
+# The newest version of the prerelease pin `id` that its minimum admits, out of
+# the index of the package in the flat container of the NuGet source, which is
+# downloaded into the directory `dir`. The index lists every version the source
+# ever published, unlisted ones included, without saying which are unlisted;
+# NuGet's floating references resolve over the same list, and the newest
+# version of it is taken as they take it. What the update chose is reviewed in
+# the versions it prints and in the change of the lock file before it is
+# committed. A failed download, or an index without such a version, stops the
+# configure.
+function(_wxl_packages_newest out id minimum dir)
+    wxl_nuget_version_parse(pin "${minimum}")
+    list(GET pin_NUMBERS 0 major)
+    set(mask "${major}.*-${pin_CHANNEL}*")
+    string(TOLOWER "${id}" lower)
+    string(REGEX REPLACE "/+$" "" container "${WXL_NUGET_FLAT_CONTAINER}")
+    set(url "${container}/${lower}/index.json")
+    set(index_file "${dir}/${lower}.index.json")
+    file(DOWNLOAD "${url}" "${index_file}" STATUS status TLS_VERIFY ON)
+    list(GET status 0 code)
+    if(NOT code EQUAL 0)
+        list(GET status 1 reason)
+        message(FATAL_ERROR
+            "The configure could not download the versions of ${id} from ${url} (${code}, "
+            "${reason}). The update, and an unlocked configure for a pin the lock file does not "
+            "record, take the version of a prerelease pin (${minimum}: the newest of ${mask} that "
+            "is not below the minimum) from the index of the package in the flat container of the "
+            "NuGet source, WXL_NUGET_FLAT_CONTAINER (${WXL_NUGET_FLAT_CONTAINER}). Check the network and "
+            "that variable, then configure again.")
+    endif()
+    file(READ "${index_file}" index)
+    string(JSON type ERROR_VARIABLE error TYPE "${index}" versions)
+    if(error OR NOT type STREQUAL "ARRAY")
+        message(FATAL_ERROR
+            "${url} has no array \"versions\": it is not the index of a package in a NuGet flat "
+            "container. Check WXL_NUGET_FLAT_CONTAINER (${WXL_NUGET_FLAT_CONTAINER}).")
+    endif()
+    string(JSON versions GET "${index}" versions)
+    wxl_nuget_newest_of_major(newest "${versions}" "${minimum}")
+    if(newest STREQUAL "")
+        # The index lists the versions in ascending order: the last ones are
+        # the newest.
+        string(JSON count LENGTH "${versions}")
+        set(seen "")
+        set(separator "")
+        set(first 0)
+        if(count GREATER 5)
+            math(EXPR first "${count} - 5")
+        endif()
+        if(count GREATER 0)
+            math(EXPR last "${count} - 1")
+            foreach(at RANGE ${first} ${last})
+                string(JSON version GET "${versions}" ${at})
+                string(APPEND seen "${separator}${version}")
+                set(separator ", ")
+            endforeach()
+        endif()
+        message(FATAL_ERROR
+            "${url} lists no version of ${id} that the minimum ${minimum} of tools/packages.json "
+            "admits: one of ${mask}, the major version ${major} on the channel \"${pin_CHANNEL}\", "
+            "that is not below the minimum. The newest versions it lists: ${seen}. Write a minimum "
+            "that a version of the source meets into tools/packages.json, or check "
+            "WXL_NUGET_FLAT_CONTAINER, then configure again.")
+    endif()
+    set(${out} "${newest}" PARENT_SCOPE)
 endfunction()
 
 # The response file of a projection target and what it has to name: inputs of
@@ -304,24 +488,101 @@ function(_wxl_packages)
             message(FATAL_ERROR
                 "RestoreLockedMode is true in the environment, and there is no lock file ${lock}. "
                 "A locked restore without the file resolves the versions anew and writes it instead "
-                "of checking them. Commit the lock file that a configure without RestoreLockedMode "
-                "writes.")
+                "of checking them. Commit the lock file that the update writes, "
+                "tools\\build.ps1 -UpdatePackages without RestoreLockedMode.")
         else()
             message(FATAL_ERROR
                 "${CMAKE_SOURCE_DIR} adds the wxl tree ${_WXL_PACKAGES_TREE}, which has no lock file "
                 "${lock}. The configure of a project that adds wxl restores the packages of wxl in "
                 "locked mode, so that it does not rewrite the lock file of the wxl tree, and the "
-                "file has to be there: a configure of the wxl tree on its own writes it.")
+                "file has to be there: the update of the wxl tree on its own writes it, "
+                "tools\\build.ps1 -UpdatePackages.")
         endif()
     endif()
 
+    # The update rewrites the lock file, which neither a locked restore nor the
+    # restore of a project that adds wxl does.
+    set(update_arguments "")
+    if(WXL_UPDATE_PACKAGES)
+        if(NOT wxl_is_top_level)
+            message(FATAL_ERROR
+                "WXL_UPDATE_PACKAGES is ON in ${CMAKE_SOURCE_DIR}, which adds the wxl tree "
+                "${_WXL_PACKAGES_TREE}. The update writes the lock file of the wxl tree anew, and "
+                "the configure of a project that adds wxl restores in locked mode so as not to "
+                "change it: run the update in the wxl tree on its own, tools\\build.ps1 "
+                "-UpdatePackages, and configure this project with WXL_UPDATE_PACKAGES=OFF.")
+        endif()
+        if(locked STREQUAL "true")
+            message(FATAL_ERROR
+                "WXL_UPDATE_PACKAGES is ON, and RestoreLockedMode is true in the environment. The "
+                "update writes the lock file anew, which a locked restore does not do: run the "
+                "update from an environment without RestoreLockedMode.")
+        endif()
+        # NuGet takes a floating version from the lock file while the
+        # references match it; RestoreForceEvaluate resolves it anew.
+        set(update_arguments "-p:RestoreForceEvaluate=true")
+        message(STATUS "NuGet packages: the update, WXL_UPDATE_PACKAGES=ON")
+    endif()
+
+    # The lock file, read once: the version of a prerelease pin, and on the
+    # update the versions before it.
+    set(lock_json "")
+    if(EXISTS "${lock}")
+        file(READ "${lock}" lock_json)
+    endif()
+
+    # A stable minimum is referenced as the floating version of its major
+    # version, a prerelease one as the exact version that the lock file records
+    # or the update chooses (see the top of this file). Either is made of what
+    # a NuGet version is written in, as wxl_nuget_version_parse() checks it.
     set(WXL_PACKAGES_REFERENCES "")
     list(LENGTH pins length)
     math(EXPR last "${length} - 1")
     foreach(i RANGE 0 ${last} 2)
         math(EXPR j "${i} + 1")
         list(GET pins ${i} id)
-        list(GET pins ${j} version)
+        list(GET pins ${j} minimum)
+        wxl_nuget_version_parse(pin "${minimum}")
+        set(locked_version "")
+        if(NOT lock_json STREQUAL "" AND (WXL_UPDATE_PACKAGES OR NOT pin_LABEL STREQUAL ""))
+            _wxl_packages_locked_version(locked_version "${lock}" "${lock_json}" "${id}")
+        endif()
+        if(pin_LABEL STREQUAL "")
+            list(GET pin_NUMBERS 0 major)
+            set(version "${major}.*")
+        elseif(WXL_UPDATE_PACKAGES)
+            _wxl_packages_newest(chosen "${id}" "${minimum}" "${helper}/index")
+            set(version "[${chosen}]")
+        elseif(locked_version STREQUAL "")
+            # A pin the lock file does not record yet, or no lock file: an
+            # unlocked restore resolves the pin anew and writes the file, and
+            # reaches the network for it anyway, so the version is chosen as
+            # the update chooses it. A locked one would stop on the reference.
+            if(locked STREQUAL "true")
+                message(FATAL_ERROR
+                    "The lock file ${lock} records no version of ${id}, which tools/packages.json "
+                    "pins at the prerelease minimum ${minimum}. In locked mode "
+                    "(RestoreLockedMode=true in the environment, as on CI, or the configure of a "
+                    "project that adds wxl) the version of a prerelease pin is the one the lock "
+                    "file records: run the update in the wxl tree, tools\\build.ps1 "
+                    "-UpdatePackages, and commit the lock file it writes.")
+            endif()
+            _wxl_packages_newest(chosen "${id}" "${minimum}" "${helper}/index")
+            message(STATUS
+                "NuGet packages: ${lock} records no version of ${id}; the restore takes ${chosen}, "
+                "the newest version the minimum ${minimum} admits.")
+            set(version "[${chosen}]")
+        else()
+            _wxl_packages_check_version("The lock file ${lock} records"
+                "${id}" "${locked_version}" "${minimum}" FALSE)
+            set(version "[${locked_version}]")
+        endif()
+        if(WXL_UPDATE_PACKAGES)
+            if(locked_version STREQUAL "")
+                set(locked_version "none")
+            endif()
+            set(before_${i} "${locked_version}")
+        endif()
         string(APPEND WXL_PACKAGES_REFERENCES
             "    <PackageReference Include=\"${id}\" Version=\"${version}\" />\n")
     endforeach()
@@ -348,7 +609,7 @@ function(_wxl_packages)
                 -t:ResolveReferences,CppWinRTMakeProjections
                 -nologo -noAutoResponse -nodeReuse:false -verbosity:minimal
                 "-fileLoggerParameters:LogFile=${log_native};Verbosity=normal;Encoding=UTF-8"
-                ${lock_arguments}
+                ${lock_arguments} ${update_arguments}
         WORKING_DIRECTORY "${helper}"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
@@ -358,9 +619,9 @@ function(_wxl_packages)
             "MSBuild failed (${result}) on ${project}, restoring the NuGet packages or building the "
             "C++/WinRT projection. In locked mode (RestoreLockedMode=true in the environment, as on "
             "CI, or the configure of a project that adds wxl) the restore stops when "
-            "tools/packages.lock.json does not match the pins. A configure of the wxl tree without "
-            "locked mode writes the lock file anew, and the changed file is committed together with "
-            "the pins.\n"
+            "tools/packages.lock.json does not match the pins. The update of the wxl tree, "
+            "tools\\build.ps1 -UpdatePackages without locked mode, writes the lock file anew, and "
+            "the changed file is committed together with the pins.\n"
             "${output}\nThe whole log: ${log}")
     endif()
     if(output MATCHES "warning")
@@ -376,11 +637,19 @@ function(_wxl_packages)
 
     _wxl_packages_read_assets("${helper}/obj/project.assets.json" count)
     foreach(i RANGE 0 ${last} 2)
+        math(EXPR j "${i} + 1")
         list(GET pins ${i} id)
+        list(GET pins ${j} minimum)
         string(TOLOWER "${id}" lower)
         get_property(restored GLOBAL PROPERTY _WXL_NUGET_PACKAGE_${lower} SET)
         if(NOT restored)
             message(FATAL_ERROR "The restore of ${project} did not resolve ${id}, which the helper project references.")
+        endif()
+        get_property(version GLOBAL PROPERTY _WXL_NUGET_PACKAGE_VERSION_${lower})
+        _wxl_packages_check_version("The restore of ${project} resolved"
+            "${id}" "${version}" "${minimum}" "${WXL_UPDATE_PACKAGES}")
+        if(WXL_UPDATE_PACKAGES)
+            message(STATUS "NuGet update: ${id} ${before_${i}} -> ${version}")
         endif()
     endforeach()
 
@@ -414,6 +683,13 @@ function(_wxl_packages)
     message(STATUS
         "NuGet packages: ${count} restored (${lock}), listed in ${restored_list}; C++/WinRT projection: "
         "${projection}")
+
+    if(WXL_UPDATE_PACKAGES)
+        message(STATUS
+            "NuGet update: done. Commit ${lock} if it changed; WXL_UPDATE_PACKAGES is removed from "
+            "the cache, and the next configure takes the versions it records.")
+        unset(WXL_UPDATE_PACKAGES CACHE)
+    endif()
 endfunction()
 
 function(wxl_nuget_package_dir variable id)

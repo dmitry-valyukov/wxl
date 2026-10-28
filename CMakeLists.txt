@@ -76,6 +76,14 @@ if(BUILD_TESTING)
                 "-DWXL_TEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/restored-packages-test"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wxl_restored_packages_test.cmake")
 
+    # NuGet versions as cmake/wxl_nuget_version.cmake reads and orders them, and
+    # the version a pin of tools/packages.json admits out of the index of a
+    # package, checked without the network.
+    add_test(NAME nuget-version
+        COMMAND "${CMAKE_COMMAND}"
+                "-DWXL_TEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/nuget-version-test"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wxl_nuget_version_test.cmake")
+
     # The narrow interfaces of a path, kept out of the sources: a scan of what
     # git tracks, which cmake/wxl_narrow_paths.cmake describes. A tree copied
     # without its repository has no list of its own sources to scan, and says

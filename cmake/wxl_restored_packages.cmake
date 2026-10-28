@@ -1,6 +1,7 @@
-# The result of the NuGet restore of cmake/wxl_packages.cmake and the list
-# written from it: functions only, which that file calls and
-# cmake/wxl_restored_packages_test.cmake tests on a restore result of its own.
+# The result of the NuGet restore of cmake/wxl_packages.cmake, the list
+# written from it and the versions its lock file records: functions only, which
+# that file calls and cmake/wxl_restored_packages_test.cmake tests on a restore
+# result and a lock file of its own.
 #
 # The list, <build>/wxl.packages/restored-packages.json:
 #
@@ -104,6 +105,38 @@ function(_wxl_packages_read_assets assets out_count)
 
     set_property(GLOBAL PROPERTY _WXL_NUGET_ASSETS "${assets}")
     set(${out_count} ${count} PARENT_SCOPE)
+endfunction()
+
+# The version the lock file `lock`, of the text `json`, records for the pin
+# `id`: the "resolved" of the direct entry of `id` in the section of the target
+# framework, which is the first member of "dependencies" -- the sections of the
+# runtime identifiers, named <framework>/<runtime>, follow it. The id is
+# matched as the helper project writes it, the way the restore writes it into
+# the file. Empty when the section has no direct entry of `id`: the pin is new,
+# or the file was written before it.
+function(_wxl_packages_locked_version out lock json id)
+    string(JSON type ERROR_VARIABLE error TYPE "${json}" dependencies)
+    if(error OR NOT type STREQUAL "OBJECT")
+        message(FATAL_ERROR "The lock file ${lock} has no object \"dependencies\".")
+    endif()
+    string(JSON framework ERROR_VARIABLE error MEMBER "${json}" dependencies 0)
+    if(error)
+        message(FATAL_ERROR "The lock file ${lock} names no target framework in \"dependencies\".")
+    endif()
+    set(resolved "")
+    string(JSON entry ERROR_VARIABLE missing GET "${json}" dependencies "${framework}" "${id}")
+    if(NOT missing)
+        string(JSON type ERROR_VARIABLE error GET "${entry}" type)
+        if(NOT error AND type STREQUAL "Direct")
+            string(JSON resolved ERROR_VARIABLE error GET "${entry}" resolved)
+            if(error)
+                message(FATAL_ERROR
+                    "The lock file ${lock} has a direct entry of ${id} in \"${framework}\" without "
+                    "a \"resolved\" version.")
+            endif()
+        endif()
+    endif()
+    set(${out} "${resolved}" PARENT_SCOPE)
 endfunction()
 
 # Text as a JSON string, quotes included: a \ and a " escaped. A control

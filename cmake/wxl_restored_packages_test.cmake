@@ -1,6 +1,7 @@
-# A test of cmake/wxl_restored_packages.cmake: the restore result it reads and
-# the list of the restore it writes, on a restore result, a response file and
-# package folders made up under WXL_TEST_DIR. Run as a test (ctest -R
+# A test of cmake/wxl_restored_packages.cmake: the restore result it reads, the
+# list of the restore it writes and the versions a lock file records, on a
+# restore result, a response file and package folders made up under
+# WXL_TEST_DIR and the text of a lock file. Run as a test (ctest -R
 # restored-packages), and by hand:
 #
 #     cmake -DWXL_TEST_DIR=<directory> -P wxl_restored_packages_test.cmake
@@ -8,10 +9,10 @@
 # The directory is emptied first. What is checked: the escaping of a backslash
 # and a quote in a JSON string; package folders and Windows SDK files whose
 # paths hold Cyrillic, a space and a ; arriving in the list as they are; the
-# list left untouched when its text is the same; and a response file that
-# names what is not a .winmd file stopping the writer with the remedy. That
-# last one runs in a cmake process of its own (WXL_TEST_STEP=stop), since a
-# stop ends the script it happens in.
+# list left untouched when its text is the same; the version the lock file
+# records for a pin; and a response file that names what is not a .winmd file
+# stopping the writer with the remedy. That last one runs in a cmake process
+# of its own (WXL_TEST_STEP=stop), since a stop ends the script it happens in.
 
 include("${CMAKE_CURRENT_LIST_DIR}/wxl_restored_packages.cmake")
 
@@ -124,6 +125,37 @@ file(TIMESTAMP "${list}" changed "%Y-%m-%dT%H:%M:%S" UTC)
 if(changed STREQUAL before)
     message(FATAL_ERROR "restored-packages: a list with another text kept its time ${before}.")
 endif()
+
+# The lock file: the version of a direct entry in the section of the target
+# framework, the first one, and nothing for a package that is only a
+# dependency there or is not there. The section of a runtime that follows
+# names other versions, which are not read.
+set(lock "${WXL_TEST_DIR}/packages.lock.json")
+set(lock_json [=[{
+  "version": 1,
+  "dependencies": {
+    "native,Version=v0.0": {
+      "Microsoft.WindowsAppSDK": {
+        "type": "Direct", "requested": "[2.5.4-experimental, 2.5.4-experimental]",
+        "resolved": "2.5.4-experimental" },
+      "Microsoft.Graphics.Win2D": { "type": "Direct", "requested": "1.*", "resolved": "1.4.0" },
+      "Microsoft.WindowsAppSDK.Base": { "type": "Transitive", "resolved": "2.0.5-experimental2" }
+    },
+    "native,Version=v0.0/win-x64": {
+      "Microsoft.Graphics.Win2D": { "type": "Direct", "requested": "1.*", "resolved": "1.9.9" },
+      "Microsoft.Web.WebView2": { "type": "Direct", "requested": "1.*", "resolved": "1.0.1" }
+    }
+  }
+}]=])
+foreach(case
+        "Microsoft.WindowsAppSDK=2.5.4-experimental" "Microsoft.Graphics.Win2D=1.4.0"
+        "Microsoft.WindowsAppSDK.Base=" "Microsoft.Web.WebView2=" "Microsoft.Windows.CppWinRT=")
+    string(REGEX MATCH "^([^=]+)=(.*)$" case "${case}")
+    set(id "${CMAKE_MATCH_1}")
+    set(expected "${CMAKE_MATCH_2}")
+    _wxl_packages_locked_version(resolved "${lock}" "${lock_json}" "${id}")
+    _wxl_test_expect("the locked version of ${id}" "${resolved}" "${expected}")
+endforeach()
 
 # A response file that names a directory where a .winmd should be stops with
 # the remedy: delete the intermediate directory and configure again.
