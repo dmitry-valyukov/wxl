@@ -197,9 +197,12 @@ foreach(case
 endforeach()
 
 # The requested range NuGet writes into a lock file for a reference: a floating
-# version as it is, one version as [X, X], compared by NuGet's rules.
+# version M.* as [M.*, ), as the restore of the Windows machine wrote it, or as
+# M.* itself; one version as [X, X], compared by NuGet's rules.
 foreach(case
-        "1.*|1.*|TRUE" "2.*|2.*|TRUE" "1.*|[1.4.0, )|FALSE" "1.*|2.*|FALSE"
+        "1.*|[1.*, )|TRUE" "2.*|[2.*, )|TRUE" "1.*|1.*|TRUE" "2.*|2.*|TRUE"
+        "1.*|[2.*, )|FALSE" "1.*|[1.*,)|FALSE" "1.*|[1.*, 2.0.0)|FALSE" "1.*|(1.*, )|FALSE"
+        "1.*|[1.4.0, )|FALSE" "1.*|2.*|FALSE"
         "[2.5.4-experimental]|[2.5.4-experimental, 2.5.4-experimental]|TRUE"
         "[2.5.4-experimental]|[2.5.4-Experimental, 2.5.4-experimental]|TRUE"
         "[1.4.0]|[1.4.0, 1.4.0]|TRUE" "[1.4.0]|[1.4.0.0, 1.4]|TRUE"

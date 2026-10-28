@@ -51,8 +51,8 @@
 #   wxl_nuget_requested_matches(<variable> <reference> <requested>)
 #       sets <variable> to TRUE when <requested>, the range a lock file records
 #       as requested for a reference, is the one NuGet writes for <reference>,
-#       and to FALSE when it is not: M.* as M.*, [X] as [X, X], the versions
-#       compared by NuGet's rules.
+#       and to FALSE when it is not: M.* as [M.*, ) (or M.*), [X] as [X, X],
+#       the versions compared by NuGet's rules.
 #
 #   wxl_nuget_version_parse(<prefix> <text>)
 #       sets <prefix>_VALID to TRUE when <text> is a version and to FALSE when
@@ -438,7 +438,10 @@ function(wxl_nuget_requested_matches out reference requested)
                 endif()
             endif()
         endif()
-    elseif(reference STREQUAL requested)
+    elseif(requested STREQUAL "[${reference}, )" OR reference STREQUAL requested)
+        # NuGet writes a floating reference M.* as the range [M.*, ), as the
+        # restore of the Windows machine wrote [1.*, ) and [2.*, ); the bare
+        # M.* is taken as well, in case another NuGet writes that.
         set(matches TRUE)
     endif()
     set(${out} ${matches} PARENT_SCOPE)

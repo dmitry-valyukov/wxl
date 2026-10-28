@@ -37,7 +37,9 @@
 #   - a pin [X] is referenced as it is written, and no configure chooses
 #     another version;
 #   - a stable minimum M.m.p is referenced as M.*, NuGet's floating version of
-#     the stable versions of major M;
+#     the stable versions of major M (on the Windows machine 1.* took
+#     WebView2 from 1.0.4078.44 to 1.0.4314.35, the newest stable 1.x, and
+#     passed over prereleases such as 1.0.4312-prerelease);
 #   - a prerelease minimum is referenced as the exact version [X]. NuGet has no
 #     floating version of one channel: M.*-<word>* takes the stable versions as
 #     well, and a stable version orders above every prerelease of the same or
@@ -50,8 +52,8 @@
 # and a newer version comes only with the update, which writes that file anew.
 # Outside the update that is an invariant: every pin has a direct entry in the
 # file, the file has none that is not a pin, and the reference of every pin is
-# the one the entry was written for, its "requested" range (M.* as M.*, [X] as
-# [X, X]). Otherwise the pins changed -- a pin added or removed, a hold set or
+# the one the entry was written for, its "requested" range (M.* as [M.*, ),
+# [X] as [X, X]). Otherwise the pins changed -- a pin added or removed, a hold set or
 # released, a major version raised -- and NuGet would resolve every package
 # anew, floating ones included, and rewrite the file without saying what
 # moved; so the configure stops before MSBuild and names the update. The one

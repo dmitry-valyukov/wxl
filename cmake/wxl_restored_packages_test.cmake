@@ -139,12 +139,12 @@ set(lock_json [=[{
       "Microsoft.WindowsAppSDK": {
         "type": "Direct", "requested": "[2.5.4-experimental, 2.5.4-experimental]",
         "resolved": "2.5.4-experimental" },
-      "microsoft.graphics.WIN2D": { "type": "Direct", "requested": "1.*", "resolved": "1.4.0" },
+      "microsoft.graphics.WIN2D": { "type": "Direct", "requested": "[1.*, )", "resolved": "1.4.0" },
       "Microsoft.WindowsAppSDK.Base": { "type": "Transitive", "resolved": "2.0.5-experimental2" }
     },
     "native,Version=v0.0/win-x64": {
-      "Microsoft.Graphics.Win2D": { "type": "Direct", "requested": "1.*", "resolved": "1.9.9" },
-      "Microsoft.Web.WebView2": { "type": "Direct", "requested": "1.*", "resolved": "1.0.1" }
+      "Microsoft.Graphics.Win2D": { "type": "Direct", "requested": "[1.*, )", "resolved": "1.9.9" },
+      "Microsoft.Web.WebView2": { "type": "Direct", "requested": "[1.*, )", "resolved": "1.0.1" }
     }
   }
 }]=])
@@ -155,7 +155,7 @@ _wxl_test_expect("the direct entries" "${locked_IDS}"
                  "microsoft.windowsappsdk;microsoft.graphics.win2d")
 foreach(case
         "Microsoft.WindowsAppSDK|[2.5.4-experimental, 2.5.4-experimental]|2.5.4-experimental"
-        "Microsoft.Graphics.Win2D|1.*|1.4.0")
+        "Microsoft.Graphics.Win2D|[1.*, )|1.4.0")
     string(REGEX MATCH "^([^|]+)\\|([^|]+)\\|([^|]+)$" case "${case}")
     set(id "${CMAKE_MATCH_1}")
     set(requested "${CMAKE_MATCH_2}")
