@@ -71,3 +71,12 @@ foreach(_wxl_gen_count IN ITEMS 0 101 eight)
         COMMAND ${_wxl_gen_parts} ${_wxl_gen_count})
     set_tests_properties(winui-srcgen.parts-${_wxl_gen_count}.fails PROPERTIES WILL_FAIL TRUE)
 endforeach()
+
+# Every test above runs the winui-srcgen executable, and the setup of the
+# documentation site's test (docs.language, docs/CMakeLists.txt) builds the site's
+# generation, which may link that executable anew. Windows does not let a running
+# executable be replaced, so under ctest -j the link would fail while one of these
+# runs; the shared lock keeps them apart.
+get_property(_wxl_gen_tests DIRECTORY PROPERTY TESTS)
+list(FILTER _wxl_gen_tests INCLUDE REGEX "^winui-srcgen\\.")
+set_tests_properties(${_wxl_gen_tests} PROPERTIES RESOURCE_LOCK winui-srcgen)
