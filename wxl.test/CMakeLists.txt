@@ -8,8 +8,10 @@
 #                    target brings no GoogleTest, and sta_box.h includes none, so a program without
 #                    it -- a benchmark -- may use that header; the other two include gtest and are
 #                    for a test, which links wxl::test.gtest.
-#   wxl::test.gtest  the global fixture of a GoogleTest program (test_initializer.cpp): the C locale
-#                    set before the tests, and the call stack printed on a failed assert. Brings
+#   wxl::test.gtest  the global fixture of a GoogleTest program (test_initializer.cpp): the C
+#                    library's locale set to the user's before the tests (setlocale(LC_ALL, "")),
+#                    and the call stack, with symbols, printed on a failed CRT debug assertion
+#                    (_ASSERTE). Brings
 #                    wxl::test and GTest::gtest; the program takes its main() from GTest::gtest_main,
 #                    as wxl_add_gtest links it, or defines its own.
 #
