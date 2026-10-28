@@ -9,10 +9,12 @@
 # the generator. The index is that of Microsoft.WindowsAppSDK on nuget.org
 # (2026-10-28), its 2.x versions with one below and one above them. A pin is
 # a minimum or one version held in brackets, [X]: a held pin is referenced as
-# written and admits that version only, and any other range is no pin. A pin
-# that is neither stops the comparison, and a held pin stops the search of the
-# index; each runs in a cmake process of its own (WXL_TEST_STEP), since a stop
-# ends the script it happens in.
+# written and admits that version only, and any other range is no pin. The
+# requested range a lock file records is matched with a reference. A pin that
+# is neither stops the comparison, a held pin stops the search of the index,
+# and so does an entry of the index that is not a version or not a string;
+# each runs in a cmake process of its own (WXL_TEST_STEP), since a stop ends
+# the script it happens in.
 
 include("${CMAKE_CURRENT_LIST_DIR}/wxl_nuget_version.cmake")
 
@@ -25,6 +27,14 @@ if(WXL_TEST_STEP STREQUAL "range")
     return()
 elseif(WXL_TEST_STEP STREQUAL "held")
     wxl_nuget_newest_of_major(newest "[\"1.4.0\", \"1.5.0\"]" "[1.4.0]")
+    return()
+elseif(WXL_TEST_STEP STREQUAL "entry")
+    wxl_nuget_newest_of_major(newest "[\"2.6.0\", \"2.6.4.x\", \"2.7.0\"]" "2.5.1"
+                              "https://example.org/flat/test.package/index.json")
+    return()
+elseif(WXL_TEST_STEP STREQUAL "number")
+    wxl_nuget_newest_of_major(newest "[\"2.6.0\", 27]" "2.5.1"
+                              "https://example.org/flat/test.package/index.json")
     return()
 endif()
 
@@ -186,6 +196,25 @@ foreach(case
     _wxl_test_expect("the reference of the pin ${text}" "${reference}" "${expected}")
 endforeach()
 
+# The requested range NuGet writes into a lock file for a reference: a floating
+# version as it is, one version as [X, X], compared by NuGet's rules.
+foreach(case
+        "1.*|1.*|TRUE" "2.*|2.*|TRUE" "1.*|[1.4.0, )|FALSE" "1.*|2.*|FALSE"
+        "[2.5.4-experimental]|[2.5.4-experimental, 2.5.4-experimental]|TRUE"
+        "[2.5.4-experimental]|[2.5.4-Experimental, 2.5.4-experimental]|TRUE"
+        "[1.4.0]|[1.4.0, 1.4.0]|TRUE" "[1.4.0]|[1.4.0.0, 1.4]|TRUE"
+        "[1.4.0]|[1.4.0, )|FALSE" "[1.4.0]|[1.4.0, 1.5.0]|FALSE" "[1.4.0]|[1.4.0]|FALSE"
+        "[2.5.4-experimental]|[2.4.1-experimental, 2.4.1-experimental]|FALSE"
+        "[1.4.0]|1.*|FALSE")
+    # Split by hand: a [ in a CMake list holds the ; after it.
+    string(REGEX MATCH "^([^|]*)\\|([^|]*)\\|([^|]*)$" case "${case}")
+    set(reference "${CMAKE_MATCH_1}")
+    set(requested "${CMAKE_MATCH_2}")
+    set(expected "${CMAKE_MATCH_3}")
+    wxl_nuget_requested_matches(matches "${reference}" "${requested}")
+    _wxl_test_expect("${requested} as the request of ${reference}" "${matches}" "${expected}")
+endforeach()
+
 # What keeps a pin from admitting a version. A prerelease pin admits the labels
 # that begin with its word, so that experimentala and experimental9 are on the
 # channel experimental, as the Windows App SDK names its releases.
@@ -229,7 +258,7 @@ endforeach()
 # The newest version of the major on the channel, in the index of
 # Microsoft.WindowsAppSDK as nuget.org lists it, ascending, with 1.7.0 and
 # 3.0.0-experimental1 around the 2.x versions and a version nuget.org would
-# not list, which is passed over.
+# not list.
 set(index [=[{
   "versions": [
     "1.7.0",
@@ -254,7 +283,6 @@ set(index [=[{
     "2.5.1",
     "2.5.4-experimental",
     "2.6.4",
-    "2.6.4.x",
     "3.0.0-experimental1"
   ]
 }]=])
@@ -287,7 +315,9 @@ _wxl_test_expect("the newest version of an empty index" "${newest}" "")
 # with what the pin has to be.
 foreach(case
         "range=is neither a minimum NuGet version nor exactly one version in brackets"
-        "held=holds one version, and a held pin is not searched")
+        "held=holds one version, and a held pin is not searched"
+        "entry=index.json lists 2.6.4.x (entry 1, a JSON STRING), which is not the string of a"
+        "number=index.json lists 27 (entry 1, a JSON NUMBER), which is not the string of a")
     string(REGEX MATCH "^([^=]+)=(.*)$" case "${case}")
     set(step "${CMAKE_MATCH_1}")
     set(part "${CMAKE_MATCH_2}")

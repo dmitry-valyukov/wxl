@@ -1,5 +1,5 @@
 # A test of cmake/wxl_restored_packages.cmake: the restore result it reads, the
-# list of the restore it writes and the versions a lock file records, on a
+# list of the restore it writes and the entries a lock file records, on a
 # restore result, a response file and package folders made up under
 # WXL_TEST_DIR and the text of a lock file. Run as a test (ctest -R
 # restored-packages), and by hand:
@@ -9,10 +9,11 @@
 # The directory is emptied first. What is checked: the escaping of a backslash
 # and a quote in a JSON string; package folders and Windows SDK files whose
 # paths hold Cyrillic, a space and a ; arriving in the list as they are; the
-# list left untouched when its text is the same; the version the lock file
-# records for a pin; and a response file that names what is not a .winmd file
-# stopping the writer with the remedy. That last one runs in a cmake process
-# of its own (WXL_TEST_STEP=stop), since a stop ends the script it happens in.
+# list left untouched when its text is the same; the entries a lock file
+# records, and a broken lock file; and a response file that names what is not
+# a .winmd file stopping the writer with the remedy. That last one runs in a
+# cmake process of its own (WXL_TEST_STEP=stop), since a stop ends the script
+# it happens in.
 
 include("${CMAKE_CURRENT_LIST_DIR}/wxl_restored_packages.cmake")
 
@@ -126,10 +127,10 @@ if(changed STREQUAL before)
     message(FATAL_ERROR "restored-packages: a list with another text kept its time ${before}.")
 endif()
 
-# The lock file: the version of a direct entry in the section of the target
-# framework, the first one, and nothing for a package that is only a
-# dependency there or is not there. The section of a runtime that follows
-# names other versions, which are not read.
+# The lock file: the direct entries of the section of the target framework,
+# the first one, by id in lower case. A package that is only a dependency
+# there is not one of them, and the section of a runtime that follows names
+# other versions, which are not read. An id is matched ignoring case.
 set(lock "${WXL_TEST_DIR}/packages.lock.json")
 set(lock_json [=[{
   "version": 1,
@@ -138,7 +139,7 @@ set(lock_json [=[{
       "Microsoft.WindowsAppSDK": {
         "type": "Direct", "requested": "[2.5.4-experimental, 2.5.4-experimental]",
         "resolved": "2.5.4-experimental" },
-      "Microsoft.Graphics.Win2D": { "type": "Direct", "requested": "1.*", "resolved": "1.4.0" },
+      "microsoft.graphics.WIN2D": { "type": "Direct", "requested": "1.*", "resolved": "1.4.0" },
       "Microsoft.WindowsAppSDK.Base": { "type": "Transitive", "resolved": "2.0.5-experimental2" }
     },
     "native,Version=v0.0/win-x64": {
@@ -147,14 +148,38 @@ set(lock_json [=[{
     }
   }
 }]=])
+_wxl_packages_lock_problem(problem "${lock_json}")
+_wxl_test_expect("what keeps the lock file from being one" "${problem}" "")
+_wxl_packages_read_lock(locked "${lock}" "${lock_json}")
+_wxl_test_expect("the direct entries" "${locked_IDS}"
+                 "microsoft.windowsappsdk;microsoft.graphics.win2d")
 foreach(case
-        "Microsoft.WindowsAppSDK=2.5.4-experimental" "Microsoft.Graphics.Win2D=1.4.0"
-        "Microsoft.WindowsAppSDK.Base=" "Microsoft.Web.WebView2=" "Microsoft.Windows.CppWinRT=")
-    string(REGEX MATCH "^([^=]+)=(.*)$" case "${case}")
+        "Microsoft.WindowsAppSDK|[2.5.4-experimental, 2.5.4-experimental]|2.5.4-experimental"
+        "Microsoft.Graphics.Win2D|1.*|1.4.0")
+    string(REGEX MATCH "^([^|]+)\\|([^|]+)\\|([^|]+)$" case "${case}")
     set(id "${CMAKE_MATCH_1}")
+    set(requested "${CMAKE_MATCH_2}")
+    set(resolved "${CMAKE_MATCH_3}")
+    string(TOLOWER "${id}" lower)
+    _wxl_test_expect("the request of ${id}" "${locked_REQUESTED_${lower}}" "${requested}")
+    _wxl_test_expect("the version of ${id}" "${locked_RESOLVED_${lower}}" "${resolved}")
+endforeach()
+_wxl_test_expect("the id of Win2D as the file writes it" "${locked_ID_microsoft.graphics.win2d}"
+                 "microsoft.graphics.WIN2D")
+
+# A broken lock file -- conflict markers, no "dependencies" -- is named as one.
+foreach(case
+        "<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> other=is not JSON with an object \"dependencies\""
+        "{\"dependencies\": {}}=names no target framework in \"dependencies\""
+        "{\"dependencies\": {\"native,Version=v0.0\": []}}=has no object for the target framework")
+    string(REGEX MATCH "^(.*)=([^=]+)$" case "${case}")
+    set(text "${CMAKE_MATCH_1}")
     set(expected "${CMAKE_MATCH_2}")
-    _wxl_packages_locked_version(resolved "${lock}" "${lock_json}" "${id}")
-    _wxl_test_expect("the locked version of ${id}" "${resolved}" "${expected}")
+    _wxl_packages_lock_problem(problem "${text}")
+    string(FIND "${problem}" "${expected}" at)
+    if(NOT at EQUAL 0)
+        message(FATAL_ERROR "restored-packages: the broken lock file ${text} said \"${problem}\".")
+    endif()
 endforeach()
 
 # A response file that names a directory where a .winmd should be stops with

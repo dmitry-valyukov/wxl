@@ -20,13 +20,18 @@
 # NuGet's exact range. A held pin admits that version only. A minimum admits
 # the versions that have the major version of the minimum, are not below it
 # and are on its channel. A stable minimum (no label) is on the stable
-# channel, which admits the versions without a label. A prerelease minimum names its channel by the word its label
-# begins with, the letters before the first character that is not one, and
-# admits the prerelease versions whose label begins with that word, ignoring
-# case -- what NuGet's floating label <word>* matches. The Windows App SDK
-# counts the releases of a channel in a character after the word, a digit or a
-# letter: 2.2.2-experimental9, 2.3.2-experimentala and 2.5.4-experimental are
-# all on the channel of 2.5.4-experimental, "experimental".
+# channel, which admits the versions without a label. A prerelease minimum
+# names its channel by the word its label begins with, the letters before the
+# first character that is not one, and admits the prerelease versions whose
+# label begins with that word, ignoring case -- what NuGet's floating label
+# <word>* matches. The Windows App SDK counts the releases of a channel in a
+# character after the word, a digit or a letter: 2.2.2-experimental9,
+# 2.3.2-experimentala and 2.5.4-experimental are all on the channel of
+# 2.5.4-experimental, "experimental". So the minimum of a channel is written
+# with the bare word of the channel, as 2.5.4-experimental is; a minimum whose
+# label carries a release suffix (2.3.2-experimentala, 2.2.2-experimental9)
+# names that one suffix as its word and admits none of the other releases of
+# the channel.
 #
 # Defined here:
 #
@@ -42,6 +47,12 @@
 #       M, NuGet's floating version of the stable versions of M, and [X] for a
 #       pin held at X. Empty for a prerelease minimum, whose exact version is
 #       taken from the lock file or chosen out of the index of the source.
+#
+#   wxl_nuget_requested_matches(<variable> <reference> <requested>)
+#       sets <variable> to TRUE when <requested>, the range a lock file records
+#       as requested for a reference, is the one NuGet writes for <reference>,
+#       and to FALSE when it is not: M.* as M.*, [X] as [X, X], the versions
+#       compared by NuGet's rules.
 #
 #   wxl_nuget_version_parse(<prefix> <text>)
 #       sets <prefix>_VALID to TRUE when <text> is a version and to FALSE when
@@ -60,15 +71,15 @@
 #       "major", "channel" or "below"; empty when the pin admits it. A pin
 #       that is neither a minimum nor one held version stops the configure.
 #
-#   wxl_nuget_newest_of_major(<variable> <versions> <minimum>)
+#   wxl_nuget_newest_of_major(<variable> <versions> <minimum> [<source>])
 #       sets <variable> to the highest of the versions the JSON array
 #       <versions> lists that the minimum <minimum> admits, empty when there
-#       is none. A held pin is not searched, and passing one stops the
-#       configure. The array is "versions" of the index of a package in NuGet's flat
-#       container (<flat container>/<id in lower case>/index.json). An entry
-#       that is not a version is passed over: the index lists whatever the
-#       source holds, and a pin admits no text this file does not read as a
-#       version.
+#       is none. The array is "versions" of the index of a package in NuGet's
+#       flat container (<flat container>/<id in lower case>/index.json), and
+#       <source>, its URL, is named in the messages. An entry that is not a
+#       string or not a version stops the configure: the choice would be made
+#       over a list this file does not read whole. A held pin is not searched,
+#       and passing one stops the configure.
 
 include_guard(GLOBAL)
 
@@ -361,6 +372,10 @@ function(wxl_nuget_version_mismatch out version pin)
 endfunction()
 
 function(wxl_nuget_newest_of_major out versions minimum)
+    set(source "the versions")
+    if(ARGC GREATER 3)
+        set(source "${ARGV3}")
+    endif()
     _wxl_nuget_read_pin(pin "${minimum}")
     if(pin_FORM STREQUAL "exact")
         message(FATAL_ERROR
@@ -369,15 +384,24 @@ function(wxl_nuget_newest_of_major out versions minimum)
     endif()
     string(JSON type ERROR_VARIABLE error TYPE "${versions}")
     if(error OR NOT type STREQUAL "ARRAY")
-        message(FATAL_ERROR "wxl_nuget_newest_of_major: the versions are not a JSON array: ${versions}")
+        message(FATAL_ERROR "${source}: the versions are not a JSON array: ${versions}")
     endif()
     string(JSON count LENGTH "${versions}")
     set(newest "")
     if(count GREATER 0)
         math(EXPR last "${count} - 1")
         foreach(at RANGE ${last})
+            string(JSON type TYPE "${versions}" ${at})
             string(JSON text GET "${versions}" ${at})
             wxl_nuget_version_parse(candidate "${text}")
+            if(NOT type STREQUAL "STRING" OR NOT candidate_VALID)
+                message(FATAL_ERROR
+                    "${source} lists ${text} (entry ${at}, a JSON ${type}), which is not the "
+                    "string of a NuGet version, so the newest version ${minimum} admits cannot be "
+                    "chosen out of it. Check "
+                    "WXL_NUGET_FLAT_CONTAINER, which has to name the flat container of a NuGet "
+                    "source.")
+            endif()
             _wxl_nuget_mismatch(mismatch candidate pin)
             if(NOT mismatch STREQUAL "")
                 continue()
@@ -397,4 +421,25 @@ function(wxl_nuget_newest_of_major out versions minimum)
         endforeach()
     endif()
     set(${out} "${newest}" PARENT_SCOPE)
+endfunction()
+
+function(wxl_nuget_requested_matches out reference requested)
+    set(matches FALSE)
+    if(reference MATCHES "^\\[([^],]+)\\]$")
+        wxl_nuget_version_parse(held "${CMAKE_MATCH_1}")
+        if(requested MATCHES "^\\[([^],]+), ([^],]+)\\]$")
+            wxl_nuget_version_parse(lower "${CMAKE_MATCH_1}")
+            wxl_nuget_version_parse(upper "${CMAKE_MATCH_2}")
+            if(held_VALID AND lower_VALID AND upper_VALID)
+                _wxl_nuget_order(first lower held)
+                _wxl_nuget_order(second upper held)
+                if(first EQUAL 0 AND second EQUAL 0)
+                    set(matches TRUE)
+                endif()
+            endif()
+        endif()
+    elseif(reference STREQUAL requested)
+        set(matches TRUE)
+    endif()
+    set(${out} ${matches} PARENT_SCOPE)
 endfunction()

@@ -66,9 +66,9 @@ request").
   a change of the pins (`tools/packages.json`) comes in one commit with the
   `tools/packages.lock.json` that the package update
   (`tools\build.ps1 -UpdatePackages`) wrote; newer versions under the same
-  pins come the same way, with that file alone. A lock file that does
-  not match the pins stops the NuGet restore, and a missing one stops the
-  configure (`cmake/wxl_packages.cmake`; see
+  pins come the same way, with that file alone. A lock file that does not
+  match the pins and a missing one stop the configure
+  (`cmake/wxl_packages.cmake`; see
   [docs/building.md](docs/building.md#пакеты-nuget-и-проекция-cppwinrt)).
 - Required checks: `build (Debug)`, `build (Release)`, `build (Strict)`,
   `build` (the documentation site) and `commits`. A pull request is merged
