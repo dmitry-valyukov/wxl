@@ -61,9 +61,10 @@ endif()
 # ---- What is built ----
 # The core modules -- wxl.core, wxl.highlight, wxl.bb, wxl.rsdn -- and the
 # helpers of the tests, wxl.test, are always added: they are what a project
-# that adds wxl comes for. The rest has a key of its own. The tree configured on its own builds all
-# of it; a project that adds the tree gets the WinUI backend and the generator it
-# is built with, and not the samples, the sandbox, the site or wxl's own tests.
+# that adds wxl comes for. The rest has a key of its own. The tree configured
+# on its own builds all of it; a project that adds the tree gets the WinUI
+# backend and the generator it is built with, and not the samples, the sandbox,
+# the site or wxl's own tests.
 if(PROJECT_IS_TOP_LEVEL)
     set(_wxl_own ON)
 else()
@@ -227,8 +228,8 @@ if(WXL_TOOLS AND NOT TARGET winmd_reader)
 endif()
 
 # wxl.core first: the one module of the core, its areas fmt, async, logging,
-# xml, json and html among its partitions (wxl.core/README.md). Everything
-# below links wxl::core, and the generated sources wxl.ui compiles import it.
+# xml, json and html among its partitions (wxl.core/README.md). wxl.ui links
+# wxl::core, and the generated sources it compiles import that module.
 add_subdirectory(wxl.core)
 
 # The helpers of the tests -- headers any target may link, the gtest fixture
