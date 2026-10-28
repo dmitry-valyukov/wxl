@@ -383,6 +383,18 @@ if(WXL_INSTALL)
         FILE_SET modules DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wxl COMPONENT core
         FILE_SET headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wxl COMPONENT core
     )
+
+    # wxl.core links fmt::module PUBLIC, so an export of wxl.core has to carry
+    # it: the fmt.module made above travels in the same export set, its module
+    # source beside wxl's. A fmt::module the project brought itself is the
+    # project's to export.
+    if(TARGET fmt.module)
+        install(TARGETS fmt.module
+            EXPORT wxl-core-targets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT core
+            FILE_SET fmt DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wxl/fmt COMPONENT core
+        )
+    endif()
 endif()
 
 # Beyond the `std` module, wxl.core depends on fmt alone, taken as a module above
