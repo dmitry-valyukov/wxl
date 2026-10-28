@@ -103,3 +103,12 @@ export import :logging.console_output;
 export import :logging.file_output;
 export import :logging.logger;
 export import :logging.async_logger;
+
+// xml -- an XML reader whose tree is views into the document it takes over.
+export import :xml.arena;
+export import :xml.core;
+export import :xml.exception;
+export import :xml.node;
+export import :xml.encoding;
+export import :xml.parser;
+export import :xml.document;

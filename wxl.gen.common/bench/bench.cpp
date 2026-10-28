@@ -13,7 +13,6 @@
 #include "xml_input.h"
 
 import wxl.core;
-import wxl.xml;
 
 namespace {
 

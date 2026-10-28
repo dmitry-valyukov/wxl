@@ -7,7 +7,6 @@ export module wxl.json:document;
 import :value;
 import std;
 import wxl.core;
-import wxl.xml;  // the arena: the storage scheme of wxl.xml, used as is
 
 export namespace wxl::json {
 

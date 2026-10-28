@@ -71,3 +71,4 @@ gtest_discover_tests(
 add_subdirectory(fmt)
 add_subdirectory(async)
 add_subdirectory(logging)
+add_subdirectory(xml)

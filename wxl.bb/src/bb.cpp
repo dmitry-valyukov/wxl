@@ -7,7 +7,6 @@ module wxl.bb;
 import std;
 import wxl.core;
 import wxl.html;
-import wxl.xml;
 
 namespace wxl::bb {
 

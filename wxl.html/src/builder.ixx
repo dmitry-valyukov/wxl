@@ -11,7 +11,6 @@ export module wxl.html:builder;
 import std;
 import :node;
 import wxl.core;
-import wxl.xml;  // the arena -- wxl.xml's storage scheme, used as is
 
 export namespace wxl::html {
 

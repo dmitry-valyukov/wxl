@@ -59,8 +59,8 @@ endif()
 # program.
 
 # ---- What is built ----
-# The core modules -- wxl.core, wxl.xml,
-# wxl.json, wxl.html, wxl.highlight, wxl.bb, wxl.rsdn -- and the helpers of the
+# The core modules -- wxl.core, wxl.json, wxl.html, wxl.highlight, wxl.bb,
+# wxl.rsdn -- and the helpers of the
 # tests, wxl.test, are always added: they are what a project that adds wxl comes
 # for. The rest has a key of its own. The tree configured on its own builds all
 # of it; a project that adds the tree gets the WinUI backend and the generator it
@@ -80,7 +80,7 @@ option(WXL_SANDBOX "Build the sandbox (sandbox/)." ${_wxl_own})
 
 # Off by default: the benchmarks are measurement tools, run deliberately, and an
 # ordinary build has no reason to spend time on them. Those of wxl.core and
-# wxl.ui; the two of wxl.xml and wxl.gen.common are built
+# wxl.ui; the benches of the XML reader in wxl.core and of wxl.gen.common are built
 # with the tree itself, and in a project that adds wxl with this key.
 option(WXL_BUILD_BENCHMARKS "Build the benchmark executables." OFF)
 
@@ -234,8 +234,6 @@ add_subdirectory(wxl.core)
 # The helpers of the tests -- headers any target may link, the gtest fixture
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
-
-add_subdirectory(wxl.xml)
 
 # Читатель JSON -- брат wxl.xml с той же схемой хранения: дерево из видов в
 # присвоенный буфер, вырезанное из его же арены.

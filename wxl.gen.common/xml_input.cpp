@@ -8,7 +8,6 @@
 #include <stdexcept>
 
 import wxl.core;
-import wxl.xml;
 
 std::vector<dictionary_resource> dictionary_resources(std::filesystem::path const& dictionary) {
     std::vector<dictionary_resource> found;

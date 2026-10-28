@@ -42,6 +42,10 @@ endif()
 
 if(WXL_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
+elseif(PROJECT_IS_TOP_LEVEL)
+    # The bench of the XML reader alone: built whenever the tree is the
+    # project, and in a project that adds wxl only with the other benchmarks.
+    add_subdirectory(benchmarks/xml)
 endif()
 
 # ---- Package: find_package(wxl CONFIG) ----

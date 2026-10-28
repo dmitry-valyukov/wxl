@@ -9,7 +9,6 @@ import std;
 import :builder;
 import :node;
 import wxl.core;
-import wxl.xml;
 
 export namespace wxl::html {
 

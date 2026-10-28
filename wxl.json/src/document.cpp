@@ -2,7 +2,6 @@ module wxl.json;
 
 import std;
 import wxl.core;
-import wxl.xml;
 
 namespace wxl::json {
 namespace {

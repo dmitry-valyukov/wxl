@@ -12,3 +12,4 @@ IntelliSense в VS Code для модулей — [«Работа в редак�
 - [async](src/async/README.md) — корутины, `sta_loop`, отмена, `future`, потоки,
   lock-free очереди и каналы.
 - [logging](src/logging/README.md) — журнал, где строка — один вызов.
+- [xml](src/xml/README.md) — читатель XML: дерево видов в буфер, узлы в арене.

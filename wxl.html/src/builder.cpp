@@ -6,7 +6,6 @@ module wxl.html;
 
 import std;
 import wxl.core;
-import wxl.xml;
 
 namespace wxl::html {
 

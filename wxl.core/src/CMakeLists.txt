@@ -107,6 +107,24 @@ wxl_add_module_library(wxl.core STATIC
         logging/file_output.ixx
         logging/logger.ixx
         logging/async_logger.ixx
+
+        # xml: the XML reader -- the tree is views into the buffer it takes over.
+        xml/core.ixx
+        xml/exception.ixx
+        xml/encoding.ixx
+        xml/node.ixx
+        xml/document.ixx
+        xml/parser.ixx
+
+        # The arena is the storage scheme itself -- blocks from the STA pool,
+        # objects carved by a cursor, the lot released whole -- and the html area
+        # takes it up for its own tree rather than keeping a second copy of it.
+        xml/arena.ixx
+
+        # Internal -- only the arena asks it for pages. Listed all the same:
+        # a partition belongs to the module whether or not the primary
+        # interface re-exports it.
+        xml/arena_pool.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are
         # part of the public interface: a consumer compiles those interfaces
@@ -168,6 +186,14 @@ wxl_add_module_library(wxl.core STATIC
         logging/file_output.cpp
         logging/logger.cpp
         logging/async_logger.cpp
+
+        xml/arena.cpp
+        xml/arena_pool.cpp
+        xml/encoding.cpp
+        xml/exception.cpp
+        xml/node.cpp
+        xml/document.cpp
+        xml/parser.cpp
 )
 
 # The name consumers use, both in-tree (FetchContent / add_subdirectory) and
@@ -262,9 +288,10 @@ target_link_libraries(wxl.core PRIVATE ole32)
 # factory and the string behind its name are runtimeobject.
 target_link_libraries(wxl.core PRIVATE coremessaging runtimeobject)
 
-# Errors are reported by throwing: writing to a log output can fail -- a full
-# disk, a file that went away -- and multicast_output catches it to drop that
-# output rather than the program. MSVC unwinds nothing without /EHsc: the
+# Errors are reported by throwing: a broken document is an exception of the
+# XML reader; writing to a log output can fail -- a full disk, a file that went
+# away -- and multicast_output catches it to drop that output rather than the
+# program. MSVC unwinds nothing without /EHsc: the
 # destructors of everything on the stack between the throw and the catch are
 # simply skipped. CMake puts the flag in CMAKE_CXX_FLAGS itself, but a
 # toolchain file is free to replace those flags wholesale, so it is added here
