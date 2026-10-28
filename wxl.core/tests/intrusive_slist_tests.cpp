@@ -3,8 +3,6 @@
 import std;
 import wxl.core;
 
-
-
 namespace {
 
 using wxl::core::as_not_null;
@@ -18,8 +16,7 @@ struct Item : intrusive_slist_node<Item> {
 
 std::vector<int> values(const intrusive_slist<Item>& list) {
     std::vector<int> result;
-    for (const Item& item : list)
-        result.push_back(item.value);
+    for (const Item& item : list) result.push_back(item.value);
     return result;
 }
 

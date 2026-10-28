@@ -109,7 +109,8 @@ public:
 
     /// Constructs a `pool_ptr` that takes ownership of the element held by \p x and moves its
     /// deleter, leaving \p x empty.
-    pool_ptr(pool_ptr&& x) noexcept : t_deleter(std::move(x)), ptr_(std::exchange(x.ptr_, nullptr)) {}
+    pool_ptr(pool_ptr&& x) noexcept
+        : t_deleter(std::move(x)), ptr_(std::exchange(x.ptr_, nullptr)) {}
 
     /// Move-assigns the deleter from \p x, then takes ownership of the element held by \p x,
     /// leaving \p x empty. The previously held element, if any, is freed through the deleter

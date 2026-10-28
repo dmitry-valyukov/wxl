@@ -34,7 +34,8 @@
 
 namespace wxl {
 
-class CustomVirtualizingLayout : public Layout {
+class CustomVirtualizingLayout : public Layout
+{
     using base_t = Layout;
 
 public:

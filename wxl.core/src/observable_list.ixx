@@ -16,7 +16,8 @@ export namespace wxl::core {
 /// itself: one operation of the view per change, nothing to compare or guess.
 struct list_change {
     /// Specifies the kind of a change.
-    enum kind_t : uint8_t {
+    enum kind_t : uint8_t
+    {
         /// `count` items now stand from `at` on; what stood there moved up.
         inserted,
         /// The `count` items that stood from `at` on are gone; what followed moved down.
@@ -266,15 +267,18 @@ public:
     /// there whenever a source changes -- as it is when all of them are fields of one
     /// model. They are application watches, which unbind() leaves alone.
     template <class... Args>
-        requires (sizeof...(Args) >= 2)
+        requires(sizeof...(Args) >= 2)
     observable_list& follow(Args&&... args) {
         auto wire = [this]<std::size_t... I>(std::index_sequence<I...>, auto sources_and_fn) {
             auto recompute = [this, fn = std::get<sizeof...(I)>(std::move(sources_and_fn)),
-                              ...sources = &std::get<I>(sources_and_fn)]() noexcept {
+                              ... sources = &std::get<I>(sources_and_fn)]() noexcept {
                 assign(fn(sources->get()...));
             };
             recompute();
-            (std::get<I>(sources_and_fn).on_change([recompute](auto const&) noexcept { recompute(); }), ...);
+            (std::get<I>(sources_and_fn).on_change([recompute](auto const&) noexcept {
+                recompute();
+            }),
+             ...);
         };
         wire(std::make_index_sequence<sizeof...(Args) - 1>{},
              std::forward_as_tuple(std::forward<Args>(args)...));

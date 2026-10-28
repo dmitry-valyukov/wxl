@@ -16,7 +16,8 @@
 
 namespace wxl {
 
-class Uri {
+class Uri
+{
 public:
     Uri() = default;
 

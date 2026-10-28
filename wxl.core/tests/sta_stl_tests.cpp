@@ -74,13 +74,11 @@ TEST(StaStlTest, VectorGrowsPastTheLargestPoolBlock) {
     // from the pool's size classes to the ordinary allocator and keeps what it
     // held.
     sta_vector<int> numbers;
-    for (int i = 0; i < 10000; ++i)
-        numbers.push_back(i);
+    for (int i = 0; i < 10000; ++i) numbers.push_back(i);
 
     ASSERT_EQ(numbers.size(), 10000u);
     EXPECT_GT(numbers.capacity() * sizeof(int), sta_memory_pool::MaxBlockSize);
-    for (int i = 0; i < 10000; ++i)
-        ASSERT_EQ(numbers[static_cast<std::size_t>(i)], i);
+    for (int i = 0; i < 10000; ++i) ASSERT_EQ(numbers[static_cast<std::size_t>(i)], i);
 }
 
 TEST(StaStlTest, DequeDoesNotMoveWhatItHolds) {
@@ -88,8 +86,7 @@ TEST(StaStlTest, DequeDoesNotMoveWhatItHolds) {
     numbers.push_back(42);
     const int* first = &numbers.front();
 
-    for (int i = 0; i < 10000; ++i)
-        numbers.push_back(i);
+    for (int i = 0; i < 10000; ++i) numbers.push_back(i);
 
     EXPECT_EQ(&numbers.front(), first);
     EXPECT_EQ(*first, 42);
@@ -157,12 +154,10 @@ TEST(StaStlTest, HashBucketsGrowPastTheLargestPoolBlock) {
     // Ten thousand keys take more buckets than a pool block has room for, so
     // the bucket array leaves the pool while the nodes stay in it.
     sta_unordered_map<int, int> squares;
-    for (int i = 0; i < 10000; ++i)
-        squares.emplace(i, i * i);
+    for (int i = 0; i < 10000; ++i) squares.emplace(i, i * i);
 
     EXPECT_GT(squares.bucket_count() * sizeof(void*), sta_memory_pool::MaxBlockSize);
-    for (int i = 0; i < 10000; ++i)
-        ASSERT_EQ(squares.at(i), i * i);
+    for (int i = 0; i < 10000; ++i) ASSERT_EQ(squares.at(i), i * i);
 
     sta_unordered_set<int> set(evens.begin(), evens.end());
     sta_unordered_multiset<int> multiset{1, 1, 2};
@@ -197,8 +192,7 @@ TEST(StaStlTest, U16TextGrowsByCodePointsAndIsCutBetweenThem) {
     text.reserve(64);
     EXPECT_GE(text.plain().capacity(), 64u);
 
-    for (const char32_t code_point : {U'ё', U'ж', U'😀'})
-        text.push_back(code_point);
+    for (const char32_t code_point : {U'ё', U'ж', U'😀'}) text.push_back(code_point);
 
     EXPECT_EQ(text.size(), 4u);  // 1 + 1 + a pair
     EXPECT_EQ(text.wchars(), L"ёж😀"sv);

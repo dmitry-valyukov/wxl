@@ -1,7 +1,5 @@
 #pragma once
 
-
-
 #include "test_component.h"
 
 import std;
@@ -21,32 +19,34 @@ class exception_matrix_helper : public traceable
     typedef traceable base;
 
 protected:
-    exception_matrix_helper() noexcept
-        : base(unit_test_tracer::name())
-    {}
+    exception_matrix_helper() noexcept : base(unit_test_tracer::name()) {}
 
 public:
     virtual ~exception_matrix_helper() = default;
 
-    exception_matrix_helper & run_and_throw(method_throw_order::enum_ throw_order, component_method::enum_ method_where_throw);
+    exception_matrix_helper& run_and_throw(method_throw_order::enum_ throw_order,
+                                           component_method::enum_ method_where_throw);
 
-    exception_matrix_helper & should_be_called(std::initializer_list<component_method::enum_> methods);
+    exception_matrix_helper& should_be_called(
+        std::initializer_list<component_method::enum_> methods);
 
-    exception_matrix_helper & should_not_be_called(std::initializer_list<component_method::enum_> methods);
+    exception_matrix_helper& should_not_be_called(
+        std::initializer_list<component_method::enum_> methods);
 
-    exception_matrix_helper & on_start(expected::enum_ expectation);
+    exception_matrix_helper& on_start(expected::enum_ expectation);
 
-    exception_matrix_helper & start_ticket(expected::enum_ expectation);
+    exception_matrix_helper& start_ticket(expected::enum_ expectation);
 
-    exception_matrix_helper & stop_ticket(expected::enum_ expectation);
+    exception_matrix_helper& stop_ticket(expected::enum_ expectation);
 
 protected:
     struct component_interfaces {
-        test_component * test;
-        component * comp;
+        test_component* test;
+        component* comp;
     };
 
-    virtual void set_throw_method(method_throw_order::enum_ throw_order, component_method::enum_ method_where_throw);
+    virtual void set_throw_method(method_throw_order::enum_ throw_order,
+                                  component_method::enum_ method_where_throw);
 
     virtual component_interfaces create_component(std::string_view suffix) = 0;
 

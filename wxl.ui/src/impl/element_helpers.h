@@ -34,8 +34,7 @@ void set_tool_tip(winrt::Microsoft::UI::Xaml::UIElement const& element, hstring_
 
 /// The tip as an element of its own -- content that is not text, a placement, an offset. Only
 /// the hover half: an element has no words to give a screen reader.
-void set_tool_tip_element(winrt::Microsoft::UI::Xaml::UIElement const& element,
-                          ToolTip const& tip);
+void set_tool_tip_element(winrt::Microsoft::UI::Xaml::UIElement const& element, ToolTip const& tip);
 
 /// `wheelToParent = true` on a ScrollViewer. A viewer takes the wheel and marks it handled even
 /// when it has nothing to scroll along it, so a horizontal code block stops the page around it.
@@ -68,9 +67,11 @@ inline bool is_blank(winrt::Windows::Foundation::IInspectable const& content) {
 // What stands behind `entry = Resource {...}` on a ResourceDictionary: the
 // value, boxed as the framework's own type, under the key. An entry with a key
 // that is already there replaces it, as `Insert` on the dictionary does.
-void add_resource(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, Resource const& entry);
+void add_resource(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary,
+                  Resource const& entry);
 
 // The same under a theme: the entries go in a dictionary of their own that ThemeDictionaries keeps under the theme's name.
-void add_theme_dictionary(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, ThemeDictionary const& theme);
+void add_theme_dictionary(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary,
+                          ThemeDictionary const& theme);
 
 }  // namespace wxl::impl

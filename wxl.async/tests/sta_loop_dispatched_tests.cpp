@@ -67,7 +67,7 @@ private:
 
 /// Starts an opening and gives it up once the pool is inside it.
 task<> opens_and_changes_its_mind(hevent& started, hevent& gate, release_record& record,
-                                std::atomic<bool>& deleted) {
+                                  std::atomic<bool>& deleted) {
     auto opening =
         sta_loop::async_call(orphanable, [&started, &gate, &record, mark = deletion_mark(deleted)] {
             started.set();
@@ -122,7 +122,8 @@ TEST(StaLoopDispatchedTest, AnOrphanGivenUpWhileItRunsLetsGoOfWhatItMakesAsSoonA
     unwound.release();
     watchdog.join();
 
-    EXPECT_FALSE(had_to_wait.load()) << "the frame waited for an operation that touches nothing of it";
+    EXPECT_FALSE(had_to_wait.load())
+        << "the frame waited for an operation that touches nothing of it";
     EXPECT_TRUE(work.done());
     EXPECT_THROW(work.result(), std::runtime_error);
     EXPECT_EQ(record.times.load(), 0);
@@ -294,14 +295,10 @@ TEST(StaLoopDispatchedDeathTest, AQuitPostedWhileTheLoopWaitsIsABrokenRule) {
     EXPECT_DEATH(quit_while_the_loop_waits(), "WM_QUIT");
 }
 
-[[noreturn]] void fail_on_the_pool() {
-    throw std::runtime_error("проба пула");
-}
+[[noreturn]] void fail_on_the_pool() { throw std::runtime_error("проба пула"); }
 
 // A call with no way out for an exception, inside the body the pool runs.
-void listen_on_the_pool() noexcept {
-    fail_on_the_pool();
-}
+void listen_on_the_pool() noexcept { fail_on_the_pool(); }
 
 // The body's own exceptions go back to the co_await; one that leaves a noexcept call inside
 // it ends the process on the pool's thread, which the callback gives the handler that names

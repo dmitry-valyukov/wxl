@@ -101,7 +101,8 @@ struct FocusEffect::Impl : core::sta_refcounted {
         auto const curve = compositor.CreateCubicBezierEasingFunction({0.33f, 0.0f}, {0.67f, 1.0f});
         auto const spring = composition::CompositionEasingFunction::CreateBackEasingFunction(
             compositor, composition::CompositionEasingFunctionMode::Out, 0.4f);
-        auto const motion = [this](float to, composition::CompositionEasingFunction const& easing, int ms) {
+        auto const motion = [this](float to, composition::CompositionEasingFunction const& easing,
+                                   int ms) {
             auto const animation = compositor.CreateScalarKeyFrameAnimation();
             animation.Duration(std::chrono::milliseconds{ms});
             animation.InsertKeyFrame(1.0f, to, easing);
@@ -115,7 +116,9 @@ struct FocusEffect::Impl : core::sta_refcounted {
 
     Attachment* find(xaml::UIElement const& element) {
         std::erase_if(attachments, [](Attachment const& each) { return !each.element.get(); });
-        auto const found = std::ranges::find_if(attachments, [&element](Attachment const& each) { return each.element.get() == element; });
+        auto const found = std::ranges::find_if(attachments, [&element](Attachment const& each) {
+            return each.element.get() == element;
+        });
         return found == attachments.end() ? nullptr : &*found;
     }
 
@@ -162,10 +165,11 @@ struct FocusEffect::Impl : core::sta_refcounted {
         cast.Shadow(shadow);
         cast.RelativeSizeAdjustment({1.0f, 1.0f});
 
-        impl::when_drawn(visual.as<composition::ContainerVisual>(), [cast, plate](auto const& children) {
-            impl::insert_layer(children, cast, -2);
-            impl::insert_layer(children, plate, -1);
-        });
+        impl::when_drawn(visual.as<composition::ContainerVisual>(),
+                         [cast, plate](auto const& children) {
+                             impl::insert_layer(children, cast, -2);
+                             impl::insert_layer(children, plate, -1);
+                         });
 
         return attachments.emplace_back(Attachment{winrt::make_weak(element), shadow});
     }
@@ -213,7 +217,8 @@ struct FocusEffect::Impl : core::sta_refcounted {
             own.StartAnimation(L"FocusScale", scaleUp);
         } else {
             winrt::Windows::UI::ViewManagement::UISettings const settings;
-            shadow.Color(settings.GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Accent));
+            shadow.Color(
+                settings.GetColorValue(winrt::Windows::UI::ViewManagement::UIColorType::Accent));
             shadow.StopAnimation(L"Offset");
             shadow.Offset({0.0f, 0.0f, 0.0f});
             shadow.StartAnimation(L"BlurRadius", glowBlur);
@@ -236,17 +241,13 @@ struct FocusEffect::Impl : core::sta_refcounted {
 
 FocusEffect::FocusEffect() : impl_{new Impl, /*add_ref=*/false} {}
 
-FocusEffect::FocusEffect(FocusLook look) : FocusEffect() {
-    this->look(look);
-}
+FocusEffect::FocusEffect(FocusLook look) : FocusEffect() { this->look(look); }
 
 FocusEffect::FocusEffect(FocusEffect const& other) noexcept = default;
 FocusEffect& FocusEffect::operator=(FocusEffect const& other) noexcept = default;
 FocusEffect::~FocusEffect() = default;
 
-void FocusEffect::look(FocusLook value) const {
-    impl_->look = value;
-}
+void FocusEffect::look(FocusLook value) const { impl_->look = value; }
 
 void FocusEffect::operator()(CompositionWindow const&) const {
     if (impl_->got) {
@@ -254,21 +255,24 @@ void FocusEffect::operator()(CompositionWindow const&) const {
     }
     // The handlers hold the state by address: the state revokes them when the
     // last copy of the effect goes.
-    impl_->got = xaml::Input::FocusManager::GotFocus([impl = impl_.get()](auto&&, xaml::Input::FocusManagerGotFocusEventArgs const& args) {
-        if (auto const element = args.NewFocusedElement().try_as<xaml::UIElement>()) {
-            impl->focused(element);
-        }
-    });
-    impl_->lost = xaml::Input::FocusManager::LostFocus([impl = impl_.get()](auto&&, xaml::Input::FocusManagerLostFocusEventArgs const& args) {
-        if (auto const element = args.OldFocusedElement().try_as<xaml::UIElement>()) {
-            impl->unfocused(element);
-        }
-    });
+    impl_->got = xaml::Input::FocusManager::GotFocus(
+        [impl = impl_.get()](auto&&, xaml::Input::FocusManagerGotFocusEventArgs const& args) {
+            if (auto const element = args.NewFocusedElement().try_as<xaml::UIElement>()) {
+                impl->focused(element);
+            }
+        });
+    impl_->lost = xaml::Input::FocusManager::LostFocus(
+        [impl = impl_.get()](auto&&, xaml::Input::FocusManagerLostFocusEventArgs const& args) {
+            if (auto const element = args.OldFocusedElement().try_as<xaml::UIElement>()) {
+                impl->unfocused(element);
+            }
+        });
 }
 
 void FocusEffect::exclude(UIElement const& wrapper) {
     auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
-    xaml::Hosting::ElementCompositionPreview::GetElementVisual(element).Properties().InsertScalar(L"FocusExcluded", 1.0f);
+    xaml::Hosting::ElementCompositionPreview::GetElementVisual(element).Properties().InsertScalar(
+        L"FocusExcluded", 1.0f);
     if (auto const framed = element.try_as<xaml::FrameworkElement>()) {
         framed.FocusVisualPrimaryThickness({0, 0, 0, 0});
         framed.FocusVisualSecondaryThickness({0, 0, 0, 0});

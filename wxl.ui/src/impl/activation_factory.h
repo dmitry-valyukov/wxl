@@ -45,7 +45,8 @@ struct statics_slot {
 // variable template, not the class template itself: operator-> cannot be
 // static, so this has to be an *object* for that call syntax to work at all).
 template <typename I>
-class activation_factory_proxy {
+class activation_factory_proxy
+{
 public:
     // The projection type is one pointer and nothing else, so the raw pointer
     // in the slot *is* the object: viewing it as one hands generated code the
@@ -67,11 +68,10 @@ private:
 // constant expression, and the constinit above is what says why it matters.
 template <typename I>
 inline constinit statics_slot activation_factory_proxy<I>::slot_{
-    &statics_slot::init,
-    const_cast<wchar_t*>(runtime_class_name_of<I>::value),
+    &statics_slot::init, const_cast<wchar_t*>(runtime_class_name_of<I>::value),
     const_cast<winrt::guid*>(&winrt::impl::guid_v<I>)};
 
 template <typename I>
 inline constexpr activation_factory_proxy<I> activation_factory{};
 
-} // namespace wxl::impl
+}  // namespace wxl::impl

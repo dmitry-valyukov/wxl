@@ -15,7 +15,8 @@
 
 namespace wxl {
 
-class BbBlock : public MarkupBlock {
+class BbBlock : public MarkupBlock
+{
     using base_t = MarkupBlock;
 
 public:

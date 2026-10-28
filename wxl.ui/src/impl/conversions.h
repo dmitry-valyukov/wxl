@@ -177,7 +177,7 @@ inline Uri from_winrt(winrt::Windows::Foundation::Uri const& value) {
 // framework reads as "inherit".
 inline winrt::Microsoft::UI::Xaml::Media::FontFamily to_winrt(FontFamily const& value) {
     return value.empty() ? nullptr
-                        : winrt::Microsoft::UI::Xaml::Media::FontFamily{to_winrt(value.name())};
+                         : winrt::Microsoft::UI::Xaml::Media::FontFamily{to_winrt(value.name())};
 }
 
 inline FontFamily from_winrt(winrt::Microsoft::UI::Xaml::Media::FontFamily const& value) {
@@ -224,7 +224,6 @@ core::nullable<T> from_reference(WinRT const& value, Convert convert) {
 winrt::Microsoft::UI::Xaml::Media::ImageSource to_winrt(ImageSource const& value);
 ImageSource from_winrt(winrt::Microsoft::UI::Xaml::Media::ImageSource const& value);
 
-
 // The four edges. Margin, Padding and BorderThickness are tags over this
 // same type, and each of them is one, so the pair below covers them too.
 inline winrt::Microsoft::UI::Xaml::Thickness to_winrt(Thickness const& value) {
@@ -235,7 +234,6 @@ inline Thickness from_winrt(winrt::Microsoft::UI::Xaml::Thickness const& value) 
     return std::bit_cast<Thickness>(value);
 }
 
-
 // The four corners, arranged like the edges above.
 inline winrt::Microsoft::UI::Xaml::CornerRadius to_winrt(CornerRadius const& value) {
     return std::bit_cast<winrt::Microsoft::UI::Xaml::CornerRadius>(value);
@@ -244,7 +242,6 @@ inline winrt::Microsoft::UI::Xaml::CornerRadius to_winrt(CornerRadius const& val
 inline CornerRadius from_winrt(winrt::Microsoft::UI::Xaml::CornerRadius const& value) {
     return std::bit_cast<CornerRadius>(value);
 }
-
 
 // A length of time is wxl's own, because wxl already has one and the whole
 // library speaks it: `core::duration` counts the same 100ns ticks WinRT does,
@@ -278,7 +275,6 @@ inline DateTime from_winrt(winrt::Windows::Foundation::DateTime const& value) {
     return winrt::clock::to_sys(value);
 }
 
-
 // The numerics a composition object is written in. cppwinrt spells these
 // float2 / float3 / float3x2 / float4x4 -- the C++ names of the metadata
 // types Vector2 / Vector3 / Matrix3x2 / Matrix4x4 -- which is the one place
@@ -293,7 +289,6 @@ inline Vector2 from_winrt(winrt::Windows::Foundation::Numerics::float2 const& va
     return std::bit_cast<Vector2>(value);
 }
 
-
 inline winrt::Windows::Foundation::Numerics::float3 to_winrt(Vector3 value) {
     return std::bit_cast<winrt::Windows::Foundation::Numerics::float3>(value);
 }
@@ -302,7 +297,6 @@ inline Vector3 from_winrt(winrt::Windows::Foundation::Numerics::float3 const& va
     return std::bit_cast<Vector3>(value);
 }
 
-
 inline winrt::Windows::Foundation::Numerics::float3x2 to_winrt(Matrix3x2 const& value) {
     return std::bit_cast<winrt::Windows::Foundation::Numerics::float3x2>(value);
 }
@@ -310,7 +304,6 @@ inline winrt::Windows::Foundation::Numerics::float3x2 to_winrt(Matrix3x2 const& 
 inline Matrix3x2 from_winrt(winrt::Windows::Foundation::Numerics::float3x2 const& value) {
     return std::bit_cast<Matrix3x2>(value);
 }
-
 
 inline winrt::Windows::Foundation::Numerics::float4x4 to_winrt(Matrix4x4 const& value) {
     return std::bit_cast<winrt::Windows::Foundation::Numerics::float4x4>(value);

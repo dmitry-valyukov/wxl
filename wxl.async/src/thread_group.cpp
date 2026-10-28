@@ -1,6 +1,6 @@
 module;
 #include "pch.h"
-#include <objbase.h>   // CoInitializeEx/CoUninitialize: WIN32_LEAN_AND_MEAN прячет их с ole2.h
+#include <objbase.h>  // CoInitializeEx/CoUninitialize: WIN32_LEAN_AND_MEAN прячет их с ole2.h
 
 module wxl.async;
 import wxl.core;
@@ -159,9 +159,7 @@ public:
             assert(false && "should never be here");
     }
 
-    bool contains(thread_info* element) const {
-        return container_.contains(element);
-    }
+    bool contains(thread_info* element) const { return container_.contains(element); }
 
     thread_info_ptr find_and_remove_first_finished() {
         for (auto it = container_.begin(), e = container_.end(); it != e; ++it) {
@@ -336,8 +334,7 @@ future<void> thread_group::spawn_named(const core::u8_view thread_name,
 
 future<void> thread_group::spawn_detached_named(const core::u8_view thread_name,
                                                 const std::function<void()>& thread_proc) {
-    std::unique_ptr<thread_starter> starter(
-        new thread_starter(nullptr, thread_name, thread_proc));
+    std::unique_ptr<thread_starter> starter(new thread_starter(nullptr, thread_name, thread_proc));
 
     future<void> result = starter->get_future();
 
@@ -605,8 +602,8 @@ void thread_starter::start_thread() {
 
 namespace {
 struct cleanup_func_node {
-    cleanup_func_node(thread_group::cleanup_func func, thread_group::cleanup_func1 func1,
-                      void* arg, cleanup_func_node* prev)
+    cleanup_func_node(thread_group::cleanup_func func, thread_group::cleanup_func1 func1, void* arg,
+                      cleanup_func_node* prev)
         : cleanup_func_(func), cleanup_func1_(func1), arg_(arg), prev_(prev) {
         assert(func || func1);
     }
@@ -677,8 +674,8 @@ void register_main_thread_cleanup(thread_group::cleanup_func f, thread_group::cl
 
 }  // namespace
 
-void thread_group::at_thread_exit_impl(thread_group::cleanup_func f,
-                                         thread_group::cleanup_func1 f1, void* arg) {
+void thread_group::at_thread_exit_impl(thread_group::cleanup_func f, thread_group::cleanup_func1 f1,
+                                       void* arg) {
     if (core::current_thread_id() == main_thread_id()) {
         register_main_thread_cleanup(f, f1, arg);
         return;

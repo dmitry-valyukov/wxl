@@ -174,8 +174,7 @@ template <>
 struct property_binder<PropertyKey::IsChecked, CheckBox> {
     static constexpr bind_direction direction = bind_direction::both;
     template <class Control>
-    static void bind(Control const& control, core::observable<bool>& model,
-                     bind_direction asked) {
+    static void bind(Control const& control, core::observable<bool>& model, bind_direction asked) {
         apply_bind(control, model, asked);
     }
 };
@@ -188,8 +187,7 @@ template <class Control>
     requires std::derived_from<Control, Selector>
 struct property_binder<PropertyKey::SelectedIndex, Control> {
     static constexpr bind_direction direction = bind_direction::both;
-    static void bind(Selector const& control, core::observable<int>& model,
-                     bind_direction asked) {
+    static void bind(Selector const& control, core::observable<int>& model, bind_direction asked) {
         apply_bind(control, model, asked);
     }
 };
@@ -197,8 +195,7 @@ struct property_binder<PropertyKey::SelectedIndex, Control> {
 template <>
 struct property_binder<PropertyKey::Value, NumberBox> {
     static constexpr bind_direction direction = bind_direction::both;
-    static void bind(NumberBox const& control, core::observable<int>& model,
-                     bind_direction asked) {
+    static void bind(NumberBox const& control, core::observable<int>& model, bind_direction asked) {
         apply_bind(control, model, asked);
     }
     static void bind(NumberBox const& control, core::observable<double>& model,
@@ -219,8 +216,7 @@ struct property_binder<PropertyKey::SelectedIndex, RadioButtons> {
 template <>
 struct property_binder<PropertyKey::Value, Slider> {
     static constexpr bind_direction direction = bind_direction::both;
-    static void bind(Slider const& control, core::observable<double>& model,
-                     bind_direction asked) {
+    static void bind(Slider const& control, core::observable<double>& model, bind_direction asked) {
         apply_bind(control, model, asked);
     }
 };
@@ -264,8 +260,7 @@ struct property_binder<PropertyKey::IsChecked, RadioMenuFlyoutItem> {
 template <>
 struct property_binder<PropertyKey::SelectedPageIndex, PipsPager> {
     static constexpr bind_direction direction = bind_direction::both;
-    static void bind(PipsPager const& control, core::observable<int>& model,
-                     bind_direction asked) {
+    static void bind(PipsPager const& control, core::observable<int>& model, bind_direction asked) {
         apply_bind(control, model, asked);
     }
 };

@@ -15,7 +15,8 @@
 
 namespace wxl {
 
-class KeyedIndexList : public Object {
+class KeyedIndexList : public Object
+{
 public:
     /// An empty keyed list.
     KeyedIndexList();

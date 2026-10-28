@@ -64,8 +64,9 @@ private:
 
 // The list as the control reads it: a bindable vector that says when it was replaced and knows its keys. The items are
 // kept by an ordinary vector of the library, which this delegates to.
-struct KeyedList : winrt::implements<KeyedList, interop::IBindableVector, interop::INotifyCollectionChanged,
-                                     winrt::Microsoft::UI::Xaml::Controls::IKeyIndexMapping> {
+struct KeyedList
+    : winrt::implements<KeyedList, interop::IBindableVector, interop::INotifyCollectionChanged,
+                        winrt::Microsoft::UI::Xaml::Controls::IKeyIndexMapping> {
     // IBindableIterable
     interop::IBindableIterator First() const { return winrt::make<Iterator>(items_); }
 
@@ -88,21 +89,25 @@ struct KeyedList : winrt::implements<KeyedList, interop::IBindableVector, intero
         return false;
     }
     void SetAt(uint32_t index, IInspectable const& value) { items_.at(index) = value; }
-    void InsertAt(uint32_t index, IInspectable const& value) { items_.insert(items_.begin() + index, value); }
+    void InsertAt(uint32_t index, IInspectable const& value) {
+        items_.insert(items_.begin() + index, value);
+    }
     void RemoveAt(uint32_t index) { items_.erase(items_.begin() + index); }
     void Append(IInspectable const& value) { items_.push_back(value); }
     void RemoveAtEnd() { items_.pop_back(); }
     void Clear() { items_.clear(); }
 
     // INotifyCollectionChanged
-    winrt::event_token CollectionChanged(interop::NotifyCollectionChangedEventHandler const& handler) {
+    winrt::event_token CollectionChanged(
+        interop::NotifyCollectionChangedEventHandler const& handler) {
         return changed_.add(handler);
     }
     void CollectionChanged(winrt::event_token token) noexcept { changed_.remove(token); }
 
     // IKeyIndexMapping: the key of an item is the position it holds.
     winrt::hstring KeyFromIndex(int32_t index) const {
-        return winrt::to_hstring(winrt::unbox_value<int64_t>(items_.at(static_cast<size_t>(index))));
+        return winrt::to_hstring(
+            winrt::unbox_value<int64_t>(items_.at(static_cast<size_t>(index))));
     }
     int32_t IndexFromKey(winrt::hstring const& key) const {
         int64_t const wanted = std::wcstoll(key.c_str(), nullptr, 10);
@@ -117,7 +122,9 @@ struct KeyedList : winrt::implements<KeyedList, interop::IBindableVector, intero
     void reset(std::span<int64_t const> positions) {
         items_.clear();
         for (int64_t const position : positions) items_.push_back(winrt::box_value(position));
-        changed_(*this, interop::NotifyCollectionChangedEventArgs{interop::NotifyCollectionChangedAction::Reset, nullptr, nullptr, -1, -1});
+        changed_(*this,
+                 interop::NotifyCollectionChangedEventArgs{
+                     interop::NotifyCollectionChangedAction::Reset, nullptr, nullptr, -1, -1});
     }
 
 private:

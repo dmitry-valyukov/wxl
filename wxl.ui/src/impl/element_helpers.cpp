@@ -82,14 +82,16 @@ void set_fluent_symbol(winrt::Microsoft::UI::Xaml::Controls::SymbolIcon const& i
 
 namespace {
 
-void insert(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, Resource const& entry) {
+void insert(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary,
+            Resource const& entry) {
     winrt::Windows::Foundation::IInspectable boxed = std::visit(
         [](auto const& value) -> winrt::Windows::Foundation::IInspectable {
             using type = std::remove_cvref_t<decltype(value)>;
             if constexpr (std::same_as<type, bool> || std::same_as<type, double>) {
                 return winrt::box_value(value);
             } else if constexpr (std::same_as<type, HorizontalAlignment>) {
-                return winrt::box_value(static_cast<winrt::Microsoft::UI::Xaml::HorizontalAlignment>(value));
+                return winrt::box_value(
+                    static_cast<winrt::Microsoft::UI::Xaml::HorizontalAlignment>(value));
             } else if constexpr (std::same_as<type, Object>) {
                 winrt::Windows::Foundation::IInspectable native{nullptr};
                 winrt::copy_from_abi(native, value.get_abi());
@@ -104,11 +106,13 @@ void insert(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, Re
 
 }  // namespace
 
-void add_resource(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, Resource const& entry) {
+void add_resource(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary,
+                  Resource const& entry) {
     insert(dictionary, entry);
 }
 
-void add_theme_dictionary(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary, ThemeDictionary const& theme) {
+void add_theme_dictionary(winrt::Microsoft::UI::Xaml::ResourceDictionary const& dictionary,
+                          ThemeDictionary const& theme) {
     winrt::Microsoft::UI::Xaml::ResourceDictionary inner;
     for (auto const& entry : theme.entries) {
         insert(inner, entry);

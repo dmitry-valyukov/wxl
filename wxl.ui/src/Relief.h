@@ -89,7 +89,8 @@ struct Relief {
         Direction const t = lamp.direction;
         if (overhead(t)) return {0.5f, 0.5f, 0.5f, 0.5f};
         double const length = impl::root(t.x * t.x + t.y * t.y, 2);
-        float const x = static_cast<float>(0.5 * t.x / length), y = static_cast<float>(0.5 * t.y / length);
+        float const x = static_cast<float>(0.5 * t.x / length),
+                    y = static_cast<float>(0.5 * t.y / length);
         return {0.5f + x, 0.5f + y, 0.5f - x, 0.5f - y};
     }
 
@@ -153,8 +154,8 @@ struct Relief {
     /// distance, the ambient reaches everywhere alike: the tones of a lit
     /// panel, for a radial gradient whose origin is the lamp's foot.
     static constexpr Color under(Color albedo, Light const& lamp, double distance, double height) {
-        Light const here {{0.0, 0.0, 1.0}, ColorHelper::shade(lamp.key, falloff(distance, height)),
-                          lamp.ambient};
+        Light const here{
+            {0.0, 0.0, 1.0}, ColorHelper::shade(lamp.key, falloff(distance, height)), lamp.ambient};
         return Light::illuminate(albedo, here, {0.0, 0.0, 1.0});
     }
 

@@ -2,10 +2,8 @@
 
 #include <crtdbg.h>
 
-
 import std;
 import wxl.core;
-
 
 using namespace wxl::core;
 
@@ -15,25 +13,20 @@ template <typename T>
 class test_object : public T
 {
 public:
-    test_object(bool * const desctructor_flag)
-        : desctructor_flag_(desctructor_flag)
-    {}
+    test_object(bool* const desctructor_flag) : desctructor_flag_(desctructor_flag) {}
 
 protected:
-    ~test_object() override {
-        *desctructor_flag_ = true;
-    };
+    ~test_object() override { *desctructor_flag_ = true; };
 
 private:
-    bool * const desctructor_flag_;
+    bool* const desctructor_flag_;
 };
 
 typedef wxl::core::intrusive_ptr<test_object<refcounted>> test_object_st_ptr;
 typedef wxl::core::intrusive_ptr<test_object<refcounted_mt>> test_object_mt_ptr;
 }
 
-TEST(RefcountedTest, refcounted_st_test)
-{
+TEST(RefcountedTest, refcounted_st_test) {
     bool desctructor_flag = false;
 
     {
@@ -48,8 +41,7 @@ TEST(RefcountedTest, refcounted_st_test)
     EXPECT_TRUE(desctructor_flag);
 }
 
-TEST(RefcountedTest, refcounted_mt_test)
-{
+TEST(RefcountedTest, refcounted_mt_test) {
     bool desctructor_flag = false;
 
     {
@@ -80,8 +72,7 @@ TEST(RefcountedTest, refcounted_mt_test)
 
 namespace {
 
-struct counted_value
-{
+struct counted_value {
     counted_value() = default;
 
     explicit counted_value(int value, bool* destroyed = nullptr)
@@ -98,8 +89,7 @@ struct counted_value
     }
 
     ~counted_value() {
-        if (destroyed != nullptr)
-            *destroyed = true;
+        if (destroyed != nullptr) *destroyed = true;
     }
 
     int value = 0;
@@ -110,8 +100,7 @@ int read(const counted_value& value) { return value.value; }
 
 }  // namespace
 
-TEST(MakeRefcountedTest, PointsAtTheTypeItself)
-{
+TEST(MakeRefcountedTest, PointsAtTheTypeItself) {
     const auto held = make_refcounted<counted_value>(7);
 
     static_assert(std::derived_from<std::remove_reference_t<decltype(*held)>, counted_value>);
@@ -121,24 +110,21 @@ TEST(MakeRefcountedTest, PointsAtTheTypeItself)
     EXPECT_EQ(7, read(*held));  // binds to a counted_value const& as it stands
 }
 
-TEST(MakeRefcountedTest, DefaultConstructsWhenNothingIsPassed)
-{
+TEST(MakeRefcountedTest, DefaultConstructsWhenNothingIsPassed) {
     const auto token = make_refcounted<counted_value>();
     EXPECT_EQ(0, token->value);
 }
 
 // The form this was written for: the value is assigned through the pointer
 // after the fact, which is what a subscription token needs.
-TEST(MakeRefcountedTest, TheValueIsAssignedThroughTheStar)
-{
+TEST(MakeRefcountedTest, TheValueIsAssignedThroughTheStar) {
     const auto token = make_refcounted<counted_value>();
 
     *token = counted_value{42};
     EXPECT_EQ(42, token->value);
 }
 
-TEST(MakeRefcountedTest, EveryHolderSeesTheSameValue)
-{
+TEST(MakeRefcountedTest, EveryHolderSeesTheSameValue) {
     const auto writer = make_refcounted<counted_value>(1);
     const auto reader = writer;
 
@@ -147,8 +133,7 @@ TEST(MakeRefcountedTest, EveryHolderSeesTheSameValue)
     EXPECT_EQ(writer.get(), reader.get());
 }
 
-TEST(MakeRefcountedTest, TheValueGoesWithTheLastHolder)
-{
+TEST(MakeRefcountedTest, TheValueGoesWithTheLastHolder) {
     bool destroyed = false;
     {
         const auto owner = make_refcounted<counted_value>(1, &destroyed);
@@ -165,8 +150,7 @@ TEST(MakeRefcountedTest, TheValueGoesWithTheLastHolder)
 
 // And it comes from the pool, like everything else wxl allocates per
 // subscription. The probe is the debug CRT heap, as in function_tests.
-TEST(MakeRefcountedTest, ComesFromTheStaPool)
-{
+TEST(MakeRefcountedTest, ComesFromTheStaPool) {
     _CrtMemState before{}, after{}, difference{};
 
     // The size class is warmed first: the pool takes a page from the ordinary
@@ -186,8 +170,7 @@ TEST(MakeRefcountedTest, ComesFromTheStaPool)
 
 // Copying copies the value into a fresh object with a count of its own -- the
 // count belongs to the object, not to the value.
-TEST(MakeRefcountedTest, ACopyIsTheValueInANewObjectWithItsOwnCount)
-{
+TEST(MakeRefcountedTest, ACopyIsTheValueInANewObjectWithItsOwnCount) {
     bool first_gone = false;
     const auto first = make_refcounted<counted_value>(3, &first_gone);
 
@@ -208,8 +191,7 @@ TEST(MakeRefcountedTest, ACopyIsTheValueInANewObjectWithItsOwnCount)
     EXPECT_FALSE(first_gone);
 }
 
-TEST(MakeRefcountedTest, AssigningOneToAnotherMovesTheValueAndNotTheCount)
-{
+TEST(MakeRefcountedTest, AssigningOneToAnotherMovesTheValueAndNotTheCount) {
     bool left_gone = false;
     bool right_gone = false;
 
@@ -223,7 +205,6 @@ TEST(MakeRefcountedTest, AssigningOneToAnotherMovesTheValueAndNotTheCount)
     EXPECT_FALSE(left_gone);
     EXPECT_FALSE(right_gone);
 }
-
 
 // make_refcounted over a type that counts its own references: the type is made as
 // it is, and the pointer adopts the reference the object is born with.
@@ -306,11 +287,11 @@ using counters = ::testing::Types<sta_refcounted, refcounted, refcounted_mt>;
 // What a member or a parameter spells is the very type make_refcounted returns:
 // for a type that counts itself the plain intrusive_ptr<T>, final or not, and for
 // any other a pointer to T with the count and the pool mixed in.
-static_assert(std::same_as<decltype(make_refcounted<app_shaped>(nullptr)),
-                           refcounted_ptr<app_shaped>>);
+static_assert(
+    std::same_as<decltype(make_refcounted<app_shaped>(nullptr)), refcounted_ptr<app_shaped>>);
 static_assert(std::same_as<refcounted_ptr<app_shaped>, intrusive_ptr<app_shaped>>);
-static_assert(std::same_as<decltype(make_refcounted<counted_value>()),
-                           refcounted_ptr<counted_value>>);
+static_assert(
+    std::same_as<decltype(make_refcounted<counted_value>()), refcounted_ptr<counted_value>>);
 static_assert(std::derived_from<refcounted_ptr<counted_value>::element_type, counted_value>);
 static_assert(std::derived_from<refcounted_ptr<counted_value>::element_type, sta_refcounted>);
 
@@ -326,8 +307,7 @@ TYPED_TEST_SUITE(MakeRefcountedCountingItselfTest, counters, counter_name);
 
 // Made as it is: the pointer is to the type itself, and the destructor, which
 // nobody outside can call, is no obstacle -- only the count deletes the object.
-TYPED_TEST(MakeRefcountedCountingItselfTest, IsMadeAsItIs)
-{
+TYPED_TEST(MakeRefcountedCountingItselfTest, IsMadeAsItIs) {
     using made = self_counted<TypeParam>;
 
     static_assert(std::same_as<decltype(make_refcounted<made>(0, nullptr)), intrusive_ptr<made>>);
@@ -341,8 +321,7 @@ TYPED_TEST(MakeRefcountedCountingItselfTest, IsMadeAsItIs)
 
 // The reference it is born with is the pointer's, and none is added: one
 // reference, one count, and the object goes once, with the last of them.
-TYPED_TEST(MakeRefcountedCountingItselfTest, IsBornWithOneReferenceAndGoesWithTheLast)
-{
+TYPED_TEST(MakeRefcountedCountingItselfTest, IsBornWithOneReferenceAndGoesWithTheLast) {
     int destructions = 0;
     {
         const auto held = make_refcounted<self_counted<TypeParam>>(7, &destructions);
@@ -360,8 +339,7 @@ TYPED_TEST(MakeRefcountedCountingItselfTest, IsBornWithOneReferenceAndGoesWithTh
     EXPECT_EQ(1, destructions);
 }
 
-TEST(MakeRefcountedTest, AFinalTypeCountingItselfIsMadeToo)
-{
+TEST(MakeRefcountedTest, AFinalTypeCountingItselfIsMadeToo) {
     int destructions = 0;
     {
         const auto app = make_refcounted<app_shaped>(&destructions);
@@ -373,8 +351,7 @@ TEST(MakeRefcountedTest, AFinalTypeCountingItselfIsMadeToo)
 
 // An rvalue arrives as an rvalue -- a move-only argument gets through -- and an
 // lvalue as the very object, which the constructor can write to.
-TEST(MakeRefcountedTest, TheArgumentsReachTheConstructorAsTheyCame)
-{
+TEST(MakeRefcountedTest, TheArgumentsReachTheConstructorAsTheyCame) {
     class with_payload : public refcounted
     {
     public:
@@ -395,8 +372,7 @@ TEST(MakeRefcountedTest, TheArgumentsReachTheConstructorAsTheyCame)
 
 // An sta_refcounted type brings its operator new along, and make_refcounted goes
 // through it: the probe is the debug CRT heap, as above.
-TEST(MakeRefcountedTest, AnStaRefcountedTypeComesFromThePool)
-{
+TEST(MakeRefcountedTest, AnStaRefcountedTypeComesFromThePool) {
     int destructions = 0;
     _CrtMemState before{}, after{}, difference{};
 

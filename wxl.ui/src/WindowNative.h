@@ -35,7 +35,8 @@ struct window_placement_setter;
 
 }  // namespace impl
 
-class WindowNative {
+class WindowNative
+{
 public:
     WindowNative() = delete;
 

@@ -82,9 +82,9 @@ public:
         // The newer of the two: FindExInfoBasic asks the system not to look up
         // the 8.3 name nobody here wants, and LARGE_FETCH lets it hand over more
         // than one entry per trip into the kernel.
-        result.handle_ = ::FindFirstFileExW(pattern, FindExInfoBasic, &result.found_,
-                                            FindExSearchNameMatch, nullptr,
-                                            FIND_FIRST_EX_LARGE_FETCH);
+        result.handle_ =
+            ::FindFirstFileExW(pattern, FindExInfoBasic, &result.found_, FindExSearchNameMatch,
+                               nullptr, FIND_FIRST_EX_LARGE_FETCH);
 
         result.pending_ = result.opened();
 
@@ -109,7 +109,8 @@ public:
 
             out.name = name;
             out.is_directory = (found_.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-            out.size = (static_cast<std::uint64_t>(found_.nFileSizeHigh) << 32) | found_.nFileSizeLow;
+            out.size =
+                (static_cast<std::uint64_t>(found_.nFileSizeHigh) << 32) | found_.nFileSizeLow;
 
             using std::chrono::file_clock;
 
@@ -154,8 +155,7 @@ public:
     ///         caller in this tree means, and a separate answer for "it already
     ///         was" would only be thrown away at each of them.
     inline static bool create(const wchar_t* path) noexcept {
-        return ::CreateDirectoryW(path, nullptr) != 0 ||
-               ::GetLastError() == ERROR_ALREADY_EXISTS;
+        return ::CreateDirectoryW(path, nullptr) != 0 || ::GetLastError() == ERROR_ALREADY_EXISTS;
     }
 
     /// Makes the whole chain, parents first.

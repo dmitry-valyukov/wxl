@@ -15,7 +15,8 @@ namespace wxl::impl {
 // The control behind wxl::HeaderedContentControl: a ContentControl with a header over its content (Toolkit's
 // HeaderedContentControl). Aggregation as in impl/SettingsCardCore.h.
 
-struct HeaderedContentControlCore : winrt::Microsoft::UI::Xaml::Controls::ContentControlT<HeaderedContentControlCore> {
+struct HeaderedContentControlCore
+    : winrt::Microsoft::UI::Xaml::Controls::ContentControlT<HeaderedContentControlCore> {
     HeaderedContentControlCore();
 
     void OnApplyTemplate();
@@ -35,11 +36,13 @@ namespace {
 
 // The header over the content; no header, no room taken for it.
 constexpr wchar_t const* templateText =
-    L"<ControlTemplate TargetType='ContentControl' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' "
+    L"<ControlTemplate TargetType='ContentControl' "
+    L"xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' "
     L"xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>"
     L"<StackPanel Spacing='8'>"
     L"<ContentPresenter x:Name='PART_Header' FontWeight='SemiBold' Visibility='Collapsed'/>"
-    L"<ContentPresenter Content='{TemplateBinding Content}' ContentTemplate='{TemplateBinding ContentTemplate}' "
+    L"<ContentPresenter Content='{TemplateBinding Content}' ContentTemplate='{TemplateBinding "
+    L"ContentTemplate}' "
     L"HorizontalContentAlignment='{TemplateBinding HorizontalContentAlignment}' "
     L"VerticalContentAlignment='{TemplateBinding VerticalContentAlignment}'/>"
     L"</StackPanel></ControlTemplate>";
@@ -71,14 +74,17 @@ namespace wxl {
 
 namespace {
 
-impl::HeaderedContentControlCore* core_of(winrt::Microsoft::UI::Xaml::Controls::ContentControl const& control) {
-    return winrt::get_self<impl::HeaderedContentControlCore>(control.as<winrt::Microsoft::UI::Xaml::Controls::IContentControlOverrides>());
+impl::HeaderedContentControlCore* core_of(
+    winrt::Microsoft::UI::Xaml::Controls::ContentControl const& control) {
+    return winrt::get_self<impl::HeaderedContentControlCore>(
+        control.as<winrt::Microsoft::UI::Xaml::Controls::IContentControlOverrides>());
 }
 
 }  // namespace
 
 HeaderedContentControl::HeaderedContentControl() : ContentControl(new Impl{}) {
-    auto inspectable = winrt::make_self<impl::HeaderedContentControlCore>().as<winrt::Windows::Foundation::IInspectable>();
+    auto inspectable = winrt::make_self<impl::HeaderedContentControlCore>()
+                           .as<winrt::Windows::Foundation::IInspectable>();
     *put_abi() = static_cast<::IInspectable*>(winrt::detach_abi(inspectable));
 }
 

@@ -5,8 +5,6 @@
 import std;
 import wxl.core;
 
-
-
 // The node itself: one virtual call over a capture, owned by whoever asked for
 // it. `function` next door is one way to own it; an event, which links it into
 // a list and deletes it by token, is the other.
@@ -59,7 +57,8 @@ TEST(FuncBodyTest, ForwardsArgumentsByReference) {
 
 TEST(FuncBodyTest, WorksWithMoveOnlyCallables) {
     auto owned = std::make_unique<int>(7);
-    const auto fn = func_body<int()>::create([owned = std::move(owned)]() noexcept { return *owned; });
+    const auto fn =
+        func_body<int()>::create([owned = std::move(owned)]() noexcept { return *owned; });
 
     EXPECT_EQ((*fn)(), 7);
 
@@ -304,16 +303,18 @@ void plain_function(int);
 void nothrow_function(int) noexcept;
 
 static_assert(std::is_same_v<decltype(function{[](int) {}}), function<void(int)>>);
-static_assert(std::is_same_v<decltype(function{[](int) noexcept {}}), function<void(int) noexcept>>);
+static_assert(
+    std::is_same_v<decltype(function{[](int) noexcept {}}), function<void(int) noexcept>>);
 static_assert(std::is_same_v<decltype(function{[](int) { return 1L; }}), function<long(int)>>);
-static_assert(std::is_same_v<decltype(function{[n = 0]() mutable { return ++n; }}), function<int()>>);
+static_assert(
+    std::is_same_v<decltype(function{[n = 0]() mutable { return ++n; }}), function<int()>>);
 static_assert(std::is_same_v<decltype(function{&plain_function}), function<void(int)>>);
 static_assert(std::is_same_v<decltype(function{&nothrow_function}), function<void(int) noexcept>>);
 
 // Copying one deduces what it already is, rather than reading the signature
 // off `function`'s own call operator.
-static_assert(
-    std::is_same_v<decltype(function{std::declval<function<void(int)> const&>()}), function<void(int)>>);
+static_assert(std::is_same_v<decltype(function{std::declval<function<void(int)> const&>()}),
+                             function<void(int)>>);
 
 // The two spellings stay two types here as well.
 static_assert(!std::is_same_v<function<void()>, function<void() noexcept>>);
@@ -330,8 +331,8 @@ static_assert(std::is_constructible_v<function<std::optional<int>(int)>, decltyp
 static_assert(std::is_constructible_v<function<nullable<int>(int)>, decltype([](int) {})>);
 static_assert(std::is_constructible_v<function<std::optional<int>(int) noexcept>,
                                       decltype([](int) noexcept {})>);
-static_assert(!std::is_constructible_v<function<std::optional<int>(int) noexcept>,
-                                       decltype([](int) {})>);
+static_assert(
+    !std::is_constructible_v<function<std::optional<int>(int) noexcept>, decltype([](int) {})>);
 static_assert(!std::is_constructible_v<function<int(int)>, decltype([](int) {})>);
 
 TEST(FunctionTest, AnOptionalResultTakesAValueAnOptionalOrNothing) {

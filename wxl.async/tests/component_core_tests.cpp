@@ -4,22 +4,17 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
 namespace {
 
-class simple_component : public component {
+class simple_component : public component
+{
 public:
-    simple_component()
-        : component("simple")
-    {}
+    simple_component() : component("simple") {}
 
-    ~simple_component() override {
-        dispose();
-    }
+    ~simple_component() override { dispose(); }
 
     int on_starting_calls = 0;
     int on_started_calls = 0;
@@ -79,7 +74,7 @@ TEST(ComponentTest, LifecycleCallbacksFireExactlyOnce) {
     bool started_cb = false;
     bool stopped_cb = false;
     c.subscribe_on_started([&]() noexcept { started_cb = true; });
-    c.subscribe_on_stopped([&](const stop_reason &) noexcept { stopped_cb = true; });
+    c.subscribe_on_stopped([&](const stop_reason&) noexcept { stopped_cb = true; });
 
     c.start_async().get();
     c.stop_async().get();
@@ -102,12 +97,10 @@ TEST(ComponentTest, ASubscriberCanBeMoveOnly) {
 
     // The captured unique_ptr is what makes the lambda move-only; the flag it sets stays on
     // the stack, because the callbacks are dropped as soon as they have been called.
-    c.subscribe_on_started([&started_cb, held = std::make_unique<int>(1)]() noexcept {
-        started_cb = *held == 1;
-    });
-    c.subscribe_on_stopped([&stopped_cb, held = std::make_unique<int>(2)](const stop_reason&) noexcept {
-        stopped_cb = *held == 2;
-    });
+    c.subscribe_on_started(
+        [&started_cb, held = std::make_unique<int>(1)]() noexcept { started_cb = *held == 1; });
+    c.subscribe_on_stopped([&stopped_cb, held = std::make_unique<int>(2)](
+                               const stop_reason&) noexcept { stopped_cb = *held == 2; });
 
     c.start_async().get();
     c.stop_async().get();
@@ -122,21 +115,26 @@ TEST(ComponentTest, EverySubscriberIsCalledInTheOrderItSubscribed) {
 
     c.subscribe_on_started([&order]() noexcept { order.push_back("started 1"); });
     c.subscribe_on_started([&order]() noexcept { order.push_back("started 2"); });
-    c.subscribe_on_stopped([&order](const stop_reason &) noexcept { order.push_back("stopped 1"); });
-    c.subscribe_on_stopped([&order](const stop_reason &) noexcept { order.push_back("stopped 2"); });
+    c.subscribe_on_stopped([&order](const stop_reason&) noexcept { order.push_back("stopped 1"); });
+    c.subscribe_on_stopped([&order](const stop_reason&) noexcept { order.push_back("stopped 2"); });
 
     c.start_async().get();
     c.stop_async().get();
 
-    EXPECT_EQ(order, (std::vector<std::string>{"started 1", "started 2", "stopped 1", "stopped 2"}));
+    EXPECT_EQ(order,
+              (std::vector<std::string>{"started 1", "started 2", "stopped 1", "stopped 2"}));
 }
 
 TEST(ComponentTest, EveryStopSubscriberIsGivenTheReason) {
     simple_component c;
     std::vector<bool> due_to_error;
 
-    c.subscribe_on_stopped([&](const stop_reason & reason) noexcept { due_to_error.push_back(reason.stopped_due_to_error()); });
-    c.subscribe_on_stopped([&](const stop_reason & reason) noexcept { due_to_error.push_back(reason.stopped_due_to_error()); });
+    c.subscribe_on_stopped([&](const stop_reason& reason) noexcept {
+        due_to_error.push_back(reason.stopped_due_to_error());
+    });
+    c.subscribe_on_stopped([&](const stop_reason& reason) noexcept {
+        due_to_error.push_back(reason.stopped_due_to_error());
+    });
 
     c.start_async().get();
     c.stop_async(stop_reason(std::string("boom"))).wait();
@@ -150,7 +148,8 @@ TEST(ComponentTest, ASubscriptionIsCancelledByItsToken) {
     bool stopped_cb = false;
 
     event_token started_token = c.subscribe_on_started([&]() noexcept { started_cb = true; });
-    event_token stopped_token = c.subscribe_on_stopped([&](const stop_reason &) noexcept { stopped_cb = true; });
+    event_token stopped_token =
+        c.subscribe_on_stopped([&](const stop_reason&) noexcept { stopped_cb = true; });
 
     EXPECT_TRUE(c.unsubscribe_on_started(started_token));
     EXPECT_FALSE(static_cast<bool>(started_token));  // emptied by the cancellation
@@ -225,8 +224,7 @@ TEST(ComponentTest, DestructorDisposesUnstoppedComponent) {
 TEST(ComponentTest, ConcurrentStartStopAcrossManyComponents) {
     constexpr int n = 50;
     std::vector<std::unique_ptr<simple_component>> components;
-    for (int i = 0; i < n; ++i)
-        components.push_back(std::make_unique<simple_component>());
+    for (int i = 0; i < n; ++i) components.push_back(std::make_unique<simple_component>());
 
     std::vector<std::thread> threads;
     for (int i = 0; i < n; ++i) {
@@ -235,10 +233,9 @@ TEST(ComponentTest, ConcurrentStartStopAcrossManyComponents) {
             components[i]->stop_async().get();
         });
     }
-    for (auto & t : threads) t.join();
+    for (auto& t : threads) t.join();
 
-    for (auto & c : components)
-        EXPECT_NE(c->stop_reason_ptr(), nullptr);
+    for (auto& c : components) EXPECT_NE(c->stop_reason_ptr(), nullptr);
 }
 
 // Компонент, который так и не стартовал и просто разрушился, обязан разрешить
@@ -260,8 +257,7 @@ TEST(ComponentTest, ANeverStartedComponentBreaksItsStopTicketWhenDestroyed) {
     try {
         stop.get();
         FAIL() << "the ticket of a destroyed component must not report success";
-    }
-    catch (const std::future_error& ex) {
+    } catch (const std::future_error& ex) {
         EXPECT_EQ(std::future_errc::broken_promise, ex.code());
     }
 }

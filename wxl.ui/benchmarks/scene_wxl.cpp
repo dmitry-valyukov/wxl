@@ -44,76 +44,76 @@ constexpr Color packed(uint32_t argb) {
 // of the repeat below, so that the twelve cards are twelve calls to one piece
 // of compiled code -- which is what the loop on the winrt side is too.
 Border card(int index, bench::CardText const& text) {
-    return Border {
+    return Border{
         row = index / bench::columns,
         column = index % bench::columns,
-        background = SolidColorBrush {packed(bench::cardBackground)},
-        borderBrush = SolidColorBrush {packed(bench::cardBorder)},
-        BorderThickness {1},
-        CornerRadius {8},
-        Padding {10},
+        background = SolidColorBrush{packed(bench::cardBackground)},
+        borderBrush = SolidColorBrush{packed(bench::cardBorder)},
+        BorderThickness{1},
+        CornerRadius{8},
+        Padding{10},
 
-        StackPanel {
+        StackPanel{
             spacing = 6.0,
 
-            TextBlock {
+            TextBlock{
                 text.title,
                 fontSize = 15.0,
-                FontWeight {600},
-                foreground = SolidColorBrush {packed(bench::titleInk)},
-                Margin {0, 0, 0, 4},
+                FontWeight{600},
+                foreground = SolidColorBrush{packed(bench::titleInk)},
+                Margin{0, 0, 0, 4},
             },
-            Button {
+            Button{
                 bench::actionA,
                 hAlign.stretch,
-                Padding {8, 4},
+                Padding{8, 4},
                 onClick += [] {},
             },
-            Button {
+            Button{
                 bench::actionB,
                 hAlign.stretch,
-                Padding {8, 4},
+                Padding{8, 4},
                 onClick += [] {},
             },
-            CheckBox {
+            CheckBox{
                 bench::checkLabel,
                 isChecked = index % 2 == 0,
-                Margin {0},
+                Margin{0},
             },
-            RadioButton {
+            RadioButton{
                 bench::firstChoice,
                 groupName = text.group,
                 isChecked = true,
-                Margin {0},
+                Margin{0},
             },
-            RadioButton {
+            RadioButton{
                 bench::secondChoice,
                 groupName = text.group,
-                Margin {0},
+                Margin{0},
             },
-            ToggleSwitch {
+            ToggleSwitch{
                 header = bench::switchHeader,
                 onContent = bench::switchOn,
                 offContent = bench::switchOff,
                 isOn = index % 3 == 0,
                 onToggled += [] {},
             },
-            Slider {
+            Slider{
                 minimum = 0.0,
                 maximum = 100.0,
                 value = bench::sliderValue(index),
                 stepFrequency = 1.0,
             },
-            ProgressBar {
+            ProgressBar{
                 minimum = 0.0,
                 maximum = 100.0,
                 value = bench::progressValue(index),
                 height = 6.0,
             },
-            TextBlock {
+            TextBlock{
                 bench::caption,
                 fontSize = 12.0,
-                foreground = SolidColorBrush {packed(bench::captionInk)},
+                foreground = SolidColorBrush{packed(bench::captionInk)},
                 textWrapping.wrap,
             },
         },
@@ -125,37 +125,37 @@ Border card(int index, bench::CardText const& text) {
 // costs this side a parse the winrt side does not pay, since there the
 // definitions are built as objects.
 Grid page(std::array<bench::CardText, bench::cards> const& texts) {
-    return Grid {
+    return Grid{
         RowDefinitions<u"auto,*">,
         rowSpacing = 12.0,
-        Padding {12},
-        background = SolidColorBrush {packed(bench::pageBackground)},
+        Padding{12},
+        background = SolidColorBrush{packed(bench::pageBackground)},
 
-        Border {
+        Border{
             row = 0,
-            background = SolidColorBrush {packed(bench::headerBackground)},
-            CornerRadius {6},
-            Padding {12, 8},
-            StackPanel {
+            background = SolidColorBrush{packed(bench::headerBackground)},
+            CornerRadius{6},
+            Padding{12, 8},
+            StackPanel{
                 orientation.horizontal,
                 spacing = 12.0,
-                TextBlock {
+                TextBlock{
                     bench::headerTitle,
                     fontSize = 20.0,
-                    FontWeight {600},
-                    foreground = SolidColorBrush {packed(bench::titleInk)},
+                    FontWeight{600},
+                    foreground = SolidColorBrush{packed(bench::titleInk)},
                     vAlign.center,
                 },
-                TextBlock {
+                TextBlock{
                     bench::headerNote,
                     fontSize = 13.0,
-                    foreground = SolidColorBrush {packed(bench::captionInk)},
+                    foreground = SolidColorBrush{packed(bench::captionInk)},
                     vAlign.center,
                 },
             },
         },
 
-        Grid {
+        Grid{
             row = 1,
             cardColumns,
             cardRows,
@@ -455,7 +455,7 @@ wxl::Teardown wxl_launched() {
     // question is asked: from nothing to a window whose content is set,
     // stopped on the line before activate().
     auto const started = bench::clock::now();
-    auto const window = Window {
+    auto const window = Window{
         title = bench::windowTitle,
         page(texts),
     };

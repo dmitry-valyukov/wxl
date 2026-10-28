@@ -28,7 +28,8 @@ namespace impl {
 // the check that the one can call the other, made here once for both
 // spellings of the call below.
 template <typename Obj, typename Member, typename... Params>
-class method_target {
+class method_target
+{
     static_assert(std::is_invocable_v<Member, Obj*, Params...>,
                   "wxl: method() was given a member this object cannot call. Through a pointer to "
                   "const -- `this` inside a const member function -- only a const member can be "
@@ -52,7 +53,8 @@ protected:
 // read the operator's type off its address, so it is kept a concrete
 // spelling, the way wxl.core's `impl::sig` keeps a signature.
 template <typename Obj, typename Member, bool NoExcept, typename... Params>
-class method_call : public method_target<Obj, Member, Params...> {
+class method_call : public method_target<Obj, Member, Params...>
+{
 public:
     using method_target<Obj, Member, Params...>::method_target;
 
@@ -62,7 +64,8 @@ public:
 };
 
 template <typename Obj, typename Member, typename... Params>
-class method_call<Obj, Member, true, Params...> : public method_target<Obj, Member, Params...> {
+class method_call<Obj, Member, true, Params...> : public method_target<Obj, Member, Params...>
+{
 public:
     using method_target<Obj, Member, Params...>::method_target;
 

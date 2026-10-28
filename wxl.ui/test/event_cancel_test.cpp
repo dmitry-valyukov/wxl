@@ -149,7 +149,8 @@ task<> takes_keys_plainly(event_state& event, int& taken) {
 
 /// Takes one key, then cancels its own token while it runs -- nobody is registered with it then --
 /// and waits again.
-task<> cancels_between_waits(event_state& event, cancellation_source& source, std::vector<std::string>& log) {
+task<> cancels_between_waits(event_state& event, cancellation_source& source,
+                             std::vector<std::string>& log) {
     keys_under_token keys{fake_event{&event}, source.token()};
 
     co_await keys;
@@ -177,7 +178,8 @@ protected:
 
     void TearDown() override {
         EXPECT_TRUE(wxl::impl::event_wait::all_drained()) << "a wait was left in a list";
-        EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted()) << "a turn was left in the queue";
+        EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted())
+            << "a turn was left in the queue";
 
         wxl::impl::event_wait_test::set_closing(false);
         wxl::impl::event_wait_test::set_canceled_posted(false);
@@ -464,8 +466,10 @@ void report_failures_to_stderr() {
 }
 
 // The co_await a strict build names sits alone on the line below the one that records it.
+// clang-format off: the test reads the line of the call as its own line + 1
 constexpr std::uint_least32_t line_of_the_wait = std::source_location::current().line() + 1;
 task<> waits_on(plain_keys& keys) { co_await keys; }
+// clang-format on
 
 void two_coroutines_on_one_proxy() {
     report_failures_to_stderr();
@@ -491,7 +495,8 @@ class EventWaitDeathTest : public ::testing::Test
 {
 protected:
     void SetUp() override {
-        if constexpr (!wxl::async::detail::checked) GTEST_SKIP() << "built without coroutine checks";
+        if constexpr (!wxl::async::detail::checked)
+            GTEST_SKIP() << "built without coroutine checks";
     }
 };
 
@@ -510,11 +515,14 @@ TEST_F(EventWaitDeathTest, TwoCoroutinesDoNotWaitOnOneProxy) {
 }
 
 TEST_F(EventWaitDeathTest, AProxyDoesNotOutliveItsWaiter) {
-    EXPECT_DEATH(a_proxy_gone_before_its_waiter(), "an event proxy outlived the coroutine waiting on it");
+    EXPECT_DEATH(a_proxy_gone_before_its_waiter(),
+                 "an event proxy outlived the coroutine waiting on it");
 }
 
 TEST_F(EventWaitStrictDeathTest, TheReportNamesTheCoAwaitOfTheSecondWait) {
-    EXPECT_DEATH(two_coroutines_on_one_proxy(),
-                 std::format("event_cancel_test\\.cpp\\({}\\): wxl: two coroutines waiting on one event proxy",
-                             line_of_the_wait));
+    EXPECT_DEATH(
+        two_coroutines_on_one_proxy(),
+        std::format(
+            "event_cancel_test\\.cpp\\({}\\): wxl: two coroutines waiting on one event proxy",
+            line_of_the_wait));
 }

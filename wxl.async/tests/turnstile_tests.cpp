@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -144,11 +142,9 @@ TEST(TurnstileGuardTest, ClosingEventuallySucceedsUnderConcurrentEntryAttempts) 
     // Make sure the worker has actually been through at least once before racing to close,
     // otherwise try_close() on an untouched turnstile can win before the worker is
     // scheduled.
-    while (passes.load(std::memory_order_relaxed) == 0)
-        std::this_thread::yield();
+    while (passes.load(std::memory_order_relaxed) == 0) std::this_thread::yield();
 
-    while (!gate.try_close())
-        std::this_thread::yield();
+    while (!gate.try_close()) std::this_thread::yield();
 
     stop.store(true, std::memory_order_relaxed);
     worker.join();

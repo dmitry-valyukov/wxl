@@ -49,13 +49,15 @@ struct grid_lengths_access;
 
 // What both RowLengths and ColumnLengths are: a view on the static array the compiler made from a
 // text. Made only by the parse below (grid_lengths_access), so it never views anything shorter-lived.
-class grid_lengths_view {
+class grid_lengths_view
+{
 public:
     constexpr std::span<GridLength const> lengths() const noexcept { return lengths_; }
     constexpr std::size_t size() const noexcept { return lengths_.size(); }
 
 protected:
-    constexpr explicit grid_lengths_view(std::span<GridLength const> lengths) noexcept : lengths_(lengths) {}
+    constexpr explicit grid_lengths_view(std::span<GridLength const> lengths) noexcept
+        : lengths_(lengths) {}
 
 private:
     std::span<GridLength const> lengths_;
@@ -64,13 +66,15 @@ private:
 }  // namespace impl
 
 /// The rows of a Grid: RowDefinitions<u"...">, written unnamed in the Grid's braces.
-class RowLengths : public impl::grid_lengths_view {
+class RowLengths : public impl::grid_lengths_view
+{
     friend struct impl::grid_lengths_access;
     using grid_lengths_view::grid_lengths_view;
 };
 
 /// The columns of a Grid: ColumnDefinitions<u"...">, written unnamed in the Grid's braces.
-class ColumnLengths : public impl::grid_lengths_view {
+class ColumnLengths : public impl::grid_lengths_view
+{
     friend struct impl::grid_lengths_access;
     using grid_lengths_view::grid_lengths_view;
 };
@@ -187,7 +191,8 @@ consteval std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_parse(
 
 // The array itself: a constant of the program, one for each text.
 template <values Text>
-inline constexpr std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_array = grid_lengths_parse<Text>();
+inline constexpr std::array<GridLength, grid_lengths_count<Text>()> grid_lengths_array =
+    grid_lengths_parse<Text>();
 
 struct grid_lengths_access {
     template <typename Lengths, std::size_t Count>
@@ -250,7 +255,8 @@ struct grid_lengths_tag {
         return {lengths};
     }
 
-    constexpr grid_lengths_op<key, Owner> operator=(std::initializer_list<GridLength> lengths) const {
+    constexpr grid_lengths_op<key, Owner> operator=(
+        std::initializer_list<GridLength> lengths) const {
         return {{lengths.begin(), lengths.size()}};
     }
 };

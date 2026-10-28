@@ -3,7 +3,6 @@
 import std;
 import wxl.core;
 
-
 using namespace wxl::core;
 
 namespace {

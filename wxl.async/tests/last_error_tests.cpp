@@ -13,8 +13,7 @@ using namespace wxl::async;
 // Сообщение собирается из трёх частей, и все три обязаны быть на месте: наше
 // объяснение, код -- по коду ошибку ищут в документации -- и объяснение системы,
 // которое дописывает std::system_error.
-TEST(LastErrorTest, MessageCarriesOurTextTheCodeAndTheSystems)
-{
+TEST(LastErrorTest, MessageCarriesOurTextTheCodeAndTheSystems) {
     const last_error ex("Opening the door", ERROR_FILE_NOT_FOUND);
 
     const std::string text = ex.what();
@@ -24,29 +23,28 @@ TEST(LastErrorTest, MessageCarriesOurTextTheCodeAndTheSystems)
 
     // Объяснение системы -- это то, чего в нашем тексте не было; какое именно,
     // зависит от языка Windows, поэтому проверяется лишь его наличие.
-    const std::string ours =
-        std::format("Opening the door (system error code = {}): ", static_cast<int>(ERROR_FILE_NOT_FOUND));
+    const std::string ours = std::format("Opening the door (system error code = {}): ",
+                                         static_cast<int>(ERROR_FILE_NOT_FOUND));
     EXPECT_TRUE(text.starts_with(ours)) << text;
     EXPECT_GT(text.size(), ours.size()) << text;
 }
 
 // Код, которого система не знает, объяснения не получает -- и это не повод
 // потерять ни наш текст, ни сам код.
-TEST(LastErrorTest, AnUnknownCodeStillLeavesAReadableMessage)
-{
+TEST(LastErrorTest, AnUnknownCodeStillLeavesAReadableMessage) {
     const int nonsense_code = 0x1FFFFFFF;
     const last_error ex("Doing the impossible", nonsense_code);
 
     const std::string text = ex.what();
 
     EXPECT_EQ(nonsense_code, ex.code().value());
-    EXPECT_TRUE(text.starts_with(std::format("Doing the impossible (system error code = {})", nonsense_code)))
+    EXPECT_TRUE(text.starts_with(
+        std::format("Doing the impossible (system error code = {})", nonsense_code)))
         << text;
 }
 
 // Код по умолчанию -- последняя ошибка потока, снятая в точке броска.
-TEST(LastErrorTest, TakesTheLastErrorWhenNoneIsGiven)
-{
+TEST(LastErrorTest, TakesTheLastErrorWhenNoneIsGiven) {
     ::SetLastError(ERROR_ACCESS_DENIED);
 
     const last_error ex("Entering the room");
@@ -56,22 +54,21 @@ TEST(LastErrorTest, TakesTheLastErrorWhenNoneIsGiven)
 
 // Объяснение для человека: слова системы на языке потока, фраза без перевода строки в
 // конце и без наших добавок -- ни имени вызова, ни кода.
-TEST(LastErrorTest, TheExplanationIsTheSystemsWordsAlone)
-{
+TEST(LastErrorTest, TheExplanationIsTheSystemsWordsAlone) {
     const last_error ex("Opening the door", ERROR_FILE_NOT_FOUND);
 
     const std::wstring words = ex.explanation();
 
     EXPECT_FALSE(words.empty());
-    EXPECT_FALSE(words.ends_with(L'\n') || words.ends_with(L'\r') || words.ends_with(L' ')) << "[" << words.size() << "]";
+    EXPECT_FALSE(words.ends_with(L'\n') || words.ends_with(L'\r') || words.ends_with(L' '))
+        << "[" << words.size() << "]";
     EXPECT_EQ(words.find(L"Opening the door"), std::wstring::npos);
     EXPECT_EQ(words.find(L"system error code"), std::wstring::npos);
 }
 
 // Код, которого система не знает, объяснения не имеет -- и это пустая строка, а не
 // выдуманная фраза: что показать вместо неё, решает тот, кто показывает.
-TEST(LastErrorTest, AnUnknownCodeHasNoExplanation)
-{
+TEST(LastErrorTest, AnUnknownCodeHasNoExplanation) {
     const last_error ex("Doing the impossible", 0x1FFFFFFF);
 
     EXPECT_TRUE(ex.explanation().empty());
@@ -79,8 +76,7 @@ TEST(LastErrorTest, AnUnknownCodeHasNoExplanation)
 
 // Это std::system_error: ловится как он, и код сравним с std::errc -- категория
 // переводит коды Windows в условия POSIX.
-TEST(LastErrorTest, IsASystemErrorToWhoeverCatchesOne)
-{
+TEST(LastErrorTest, IsASystemErrorToWhoeverCatchesOne) {
     try {
         throw last_error("CreateFileW", ERROR_FILE_NOT_FOUND);
     } catch (const std::system_error& failure) {

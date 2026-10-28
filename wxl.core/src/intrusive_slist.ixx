@@ -29,9 +29,7 @@ struct intrusive_slist_node : public noncopyable {
 template <class Node>
 struct sta_intrusive_slist_node : public intrusive_slist_node<Node> {
     /// Allocates \p size bytes from the STA memory pool.
-    inline static void* operator new(std::size_t size) {
-        return sta_memory_pool::alloc(size);
-    }
+    inline static void* operator new(std::size_t size) { return sta_memory_pool::alloc(size); }
 
     /// Returns \p mem, of \p size bytes, to the STA memory pool. The operator is sized because
     /// the pool returns memory to the size class it was allocated from. The size is that of the
@@ -157,8 +155,9 @@ public:
                 // The node just unlinked was the tail, so the one before it
                 // is -- and the list itself, when there is nothing before it.
                 if (cur == last_)
-                    last_ = prev == static_cast<intrusive_slist_node<Node>*>(this) ? nullptr
-                                                                                 : static_cast<Node*>(prev);
+                    last_ = prev == static_cast<intrusive_slist_node<Node>*>(this)
+                                ? nullptr
+                                : static_cast<Node*>(prev);
 
                 return cur;
             }
@@ -172,7 +171,7 @@ public:
 
     /// Exchanges the contents of two lists. The nodes are not touched -- only which list
     /// they hang from -- so a node's address now names a node of `other`.
-    void swap(intrusive_slist & other) noexcept {
+    void swap(intrusive_slist& other) noexcept {
         std::swap(this->next_, other.next_);
         std::swap(last_, other.last_);
     }

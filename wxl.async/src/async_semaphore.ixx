@@ -84,7 +84,8 @@ private:
     friend class wxl::async::async_semaphore;
 
     /// Where the wait stands beyond its place in the line, which linked() says.
-    enum class stage : std::uint8_t {
+    enum class stage : std::uint8_t
+    {
         /// No turn in line: not begun, standing in the line, or over.
         idle,
         /// Handed a permit by release(); its turn is in line.
@@ -193,9 +194,9 @@ public:
     /// \param max the ceiling release() may never take the permits not held over; unbounded by
     ///        default. `0 <= count <= max`.
     /// \param where the caller's line, for a strict build's report; left to its default.
-    inline explicit async_semaphore(std::ptrdiff_t count,
-                                    std::ptrdiff_t max = std::numeric_limits<std::ptrdiff_t>::max(),
-                                    [[maybe_unused]] detail::site where = detail::site::current()) noexcept
+    inline explicit async_semaphore(
+        std::ptrdiff_t count, std::ptrdiff_t max = std::numeric_limits<std::ptrdiff_t>::max(),
+        [[maybe_unused]] detail::site where = detail::site::current()) noexcept
         : count_(count), handed_(0), max_(max), waiters_() {
         coro_check(core::sta_memory_pool::is_safe(),
                    "async_semaphore: made on a thread other than its coroutines'", where);
@@ -217,7 +218,8 @@ public:
     /// Takes a permit if one is free, and never suspends. A permit handed to a waiter is not
     /// free: while anybody stands in line this answers false.
     /// \param where the caller's line, for a strict build's report; left to its default.
-    inline bool try_acquire([[maybe_unused]] detail::site where = detail::site::current()) noexcept {
+    inline bool try_acquire(
+        [[maybe_unused]] detail::site where = detail::site::current()) noexcept {
         coro_check(core::sta_memory_pool::is_safe(),
                    "async_semaphore: acquired on a thread other than its coroutines'", where);
         return take_free();
@@ -347,17 +349,17 @@ inline void semaphore_wait::abandon() noexcept {
     }
 
     switch (stage_) {
-    case stage::handed:
-        // Out of line first, so that the permit passed on finds the line as it will stay.
-        sta_loop::dequeue_loop_turn(*this);
-        semaphore_.pass_on_handed();
-        break;
-    case stage::canceled:
-        sta_loop::dequeue_loop_turn(*this);
-        break;
-    case stage::idle:
-    case stage::canceled_before_suspend:
-        break;
+        case stage::handed:
+            // Out of line first, so that the permit passed on finds the line as it will stay.
+            sta_loop::dequeue_loop_turn(*this);
+            semaphore_.pass_on_handed();
+            break;
+        case stage::canceled:
+            sta_loop::dequeue_loop_turn(*this);
+            break;
+        case stage::idle:
+        case stage::canceled_before_suspend:
+            break;
     }
 }
 

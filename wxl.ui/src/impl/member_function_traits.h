@@ -28,22 +28,27 @@ struct member_function_parts {
 // The primary is empty: asking it anything is an ordinary substitution failure, so what is not a
 // member function, or is one ref-qualified or volatile, is simply not matched.
 template <typename Member>
-struct member_function_traits {};
+struct member_function_traits {
+};
 
 template <typename R, typename C, typename... P>
-struct member_function_traits<R (C::*)(P...)> : member_function_parts<C, R, false, false, P...> {};
+struct member_function_traits<R (C::*)(P...)> : member_function_parts<C, R, false, false, P...> {
+};
 
 template <typename R, typename C, typename... P>
 struct member_function_traits<R (C::*)(P...) const>
-    : member_function_parts<C, R, true, false, P...> {};
+    : member_function_parts<C, R, true, false, P...> {
+};
 
 template <typename R, typename C, typename... P>
 struct member_function_traits<R (C::*)(P...) noexcept>
-    : member_function_parts<C, R, false, true, P...> {};
+    : member_function_parts<C, R, false, true, P...> {
+};
 
 template <typename R, typename C, typename... P>
 struct member_function_traits<R (C::*)(P...) const noexcept>
-    : member_function_parts<C, R, true, true, P...> {};
+    : member_function_parts<C, R, true, true, P...> {
+};
 
 // The traits of a callable's call operator. A generic lambda's has no address to take, and an
 // overloaded one has no single address: asking for either is a substitution failure too.

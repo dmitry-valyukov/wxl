@@ -32,7 +32,8 @@ struct HWND__;
 
 namespace wxl {
 
-class WindowShade {
+class WindowShade
+{
 public:
     /// Binds to the window whose pixels will fly. The overlay and compositor
     /// are built here, once; a failure to build them is thrown.

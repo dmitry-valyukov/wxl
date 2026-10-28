@@ -15,7 +15,8 @@
 
 namespace wxl {
 
-class HeaderedContentControl : public ContentControl {
+class HeaderedContentControl : public ContentControl
+{
 public:
     HeaderedContentControl();
 

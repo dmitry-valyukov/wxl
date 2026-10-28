@@ -42,7 +42,8 @@ consteval Color rgb(int red, int green, int blue) {
     if (static_cast<unsigned>(red | green | blue) > 255) {
         error::color_component_must_be_within_0_to_255();
     }
-    return {255, static_cast<uint8_t>(red), static_cast<uint8_t>(green), static_cast<uint8_t>(blue)};
+    return {255, static_cast<uint8_t>(red), static_cast<uint8_t>(green),
+            static_cast<uint8_t>(blue)};
 }
 
 /// The same with alpha as CSS writes it, a fraction: rgba(131, 50, 50, 0.2).
@@ -170,8 +171,8 @@ constexpr linear_rgb linearRgb(oklab_color lab) {
 
 constexpr bool displayable(linear_rgb c) {
     constexpr double slack = 1e-6;
-    return c.r >= -slack && c.r <= 1.0 + slack && c.g >= -slack && c.g <= 1.0 + slack
-        && c.b >= -slack && c.b <= 1.0 + slack;
+    return c.r >= -slack && c.r <= 1.0 + slack && c.g >= -slack && c.g <= 1.0 + slack &&
+           c.b >= -slack && c.b <= 1.0 + slack;
 }
 
 // Back to sRGB. A tone the display cannot show at this lightness keeps its
@@ -225,7 +226,6 @@ struct Direction {
     }
 };
 
-
 /// A scene's lighting: the direction direction the lamp, the lamp's colour
 /// (the key light, what a surface facing it receives) and the colour of
 /// the light that reaches every surface from all around (the ambient).
@@ -247,10 +247,11 @@ struct Light {
         double const between = Direction::cosineBetween(normal, light.direction);
         double const facing = between < 0.0 ? 0.0 : between;
         impl::linear_rgb const a = impl::linear(albedo), key = impl::linear(light.key),
-                                 ambient = impl::linear(light.ambient);
-        return impl::encoded({a.r * (ambient.r + key.r * facing), a.g * (ambient.g + key.g * facing),
-                              a.b * (ambient.b + key.b * facing)},
-                             albedo.A);
+                               ambient = impl::linear(light.ambient);
+        return impl::encoded(
+            {a.r * (ambient.r + key.r * facing), a.g * (ambient.g + key.g * facing),
+             a.b * (ambient.b + key.b * facing)},
+            albedo.A);
     }
 };
 
@@ -264,7 +265,6 @@ struct Light {
 /// reached at run time -- from an effect's tags -- the argument is clamped
 /// into range instead.
 struct ColorHelper {
-
     /// The colour moved along perceptual lightness: lightness(graphite, 0.1)
     /// is a step lighter, lightness(graphite, -0.1) the same step darker, and
     /// the two steps look equal whatever the colour -- the move is made in
@@ -318,7 +318,8 @@ struct ColorHelper {
             }
         }
         impl::linear_rgb const c = impl::linear(albedo), l = impl::linear(light);
-        return impl::encoded({c.r + l.r * amount, c.g + l.g * amount, c.b + l.b * amount}, albedo.A);
+        return impl::encoded({c.r + l.r * amount, c.g + l.g * amount, c.b + l.b * amount},
+                             albedo.A);
     }
 };
 

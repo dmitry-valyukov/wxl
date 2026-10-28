@@ -6,8 +6,9 @@ namespace {
 
 // Ступени меню масштаба Chrome и Edge от 50 до 300 %. Две трети -- дробью, а
 // не 0.67: подпись «67 %» округляет, а множитель должен быть точным.
-constexpr double levels[] {AppZoom::minZoomFactor, 2.0 / 3.0, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0,
-                           2.5, AppZoom::maxZoomFactor};
+constexpr double levels[]{
+    AppZoom::minZoomFactor, 2.0 / 3.0, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5,
+    AppZoom::maxZoomFactor};
 
 // Номер ступени 100 %.
 constexpr uint32_t defaultLevel = [] {
@@ -42,9 +43,7 @@ constexpr uint32_t nearestLevel(double factor) {
 
 AppZoom::AppZoom() { set_level(defaultLevel); }
 
-core::intrusive_ptr<AppZoom> AppZoom::make() {
-    return {new AppZoom {}, /*add_ref=*/false};
-}
+core::intrusive_ptr<AppZoom> AppZoom::make() { return {new AppZoom{}, /*add_ref=*/false}; }
 
 void AppZoom::zoomIn() {
     if (level_ + 1 < levelCount) {

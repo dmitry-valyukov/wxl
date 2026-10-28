@@ -39,24 +39,31 @@ struct GaussianBlurEffect::Impl : core::sta_refcounted {
 
 GaussianBlurEffect::GaussianBlurEffect() : impl_{new Impl, /*add_ref=*/false} {}
 GaussianBlurEffect::GaussianBlurEffect(GaussianBlurEffect const& other) noexcept = default;
-GaussianBlurEffect& GaussianBlurEffect::operator=(GaussianBlurEffect const& other) noexcept = default;
+GaussianBlurEffect& GaussianBlurEffect::operator=(GaussianBlurEffect const& other) noexcept =
+    default;
 GaussianBlurEffect::~GaussianBlurEffect() = default;
 
 void GaussianBlurEffect::color(Color value) const { impl_->color = value; }
-void GaussianBlurEffect::blurRadius(double value) const { impl_->blurRadius = static_cast<float>(value); }
+void GaussianBlurEffect::blurRadius(double value) const {
+    impl_->blurRadius = static_cast<float>(value);
+}
 void GaussianBlurEffect::opacity(double value) const {
     impl_->opacity = static_cast<float>(std::clamp(value, 0.0, 1.0));
 }
-void GaussianBlurEffect::gamma(double value) const { impl_->gamma = static_cast<float>(std::max(value, 0.01)); }
+void GaussianBlurEffect::gamma(double value) const {
+    impl_->gamma = static_cast<float>(std::max(value, 0.01));
+}
 void GaussianBlurEffect::zIndex(int32_t value) const { impl_->z = value; }
 
-void GaussianBlurEffect::attach(UIElement const& wrapper, std::function<CompositionBrush()> maskOf) const {
+void GaussianBlurEffect::attach(UIElement const& wrapper,
+                                std::function<CompositionBrush()> maskOf) const {
     auto const element = Object::Impl::as<xaml::UIElement>(wrapper);
     auto const host = xaml::Hosting::ElementCompositionPreview::GetElementVisual(element);
 
     // The layer is made once the element is drawn, and the mask is taken
     // then too: before that there are no glyphs to take the alpha of.
-    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf), impl = impl_](auto const& children) {
+    impl::when_drawn(host.as<composition::ContainerVisual>(), [host, maskOf = std::move(maskOf),
+                                                               impl = impl_](auto const& children) {
         auto const compositor = host.Compositor();
         auto const mask = Object::Impl::as<composition::CompositionBrush>(maskOf());
 

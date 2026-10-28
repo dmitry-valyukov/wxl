@@ -10,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/stopByError --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, stopByError)
-{
+STRESS_TEST_CASE(ThreadedComponent, stopByError) {
     threaded_test_component component(tracer.name());
     const ticket start_ticket = component.start_async();
     start_ticket.get();

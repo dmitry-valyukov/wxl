@@ -286,8 +286,7 @@ class sta_loop
 
     /// What a loop with a dispatcher queue under it does differently from one on the
     /// worker alone, chosen as the loop starts.
-    struct loop_mode
-    {
+    struct loop_mode {
         /// Carries out an orphanable operation: on the worker, or on the system's
         /// thread pool, so that the worker never stands in a call that goes by a name.
         void (*send_orphanable)(async_op&);
@@ -499,8 +498,8 @@ public:
 
         // Held as the base on the way in: async_run() deduces its result type
         // from the pointer, and deduction does not see through a derived class.
-        std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
-            std::forward<Fn>(fn)));
+        std::unique_ptr<async_op_t<result_t>> op(
+            new async_op_f<std::decay_t<Fn>>(std::forward<Fn>(fn)));
 
         return async_run(std::move(op));
     }
@@ -518,12 +517,12 @@ public:
     /// A cancellation is the coroutine's to ask about, as with the form above; the forms with
     /// a token are below.
     template <class Fn>
-    [[nodiscard]] static task<orphanable_result_t<std::decay_t<Fn>>> async_call(
-        orphanable_t, Fn&& fn) {
+    [[nodiscard]] static task<orphanable_result_t<std::decay_t<Fn>>> async_call(orphanable_t,
+                                                                                Fn&& fn) {
         using result_t = orphanable_result_t<std::decay_t<Fn>>;
 
-        std::unique_ptr<async_op_t<result_t>> op(new orphanable_op_f<std::decay_t<Fn>>(
-            std::forward<Fn>(fn)));
+        std::unique_ptr<async_op_t<result_t>> op(
+            new orphanable_op_f<std::decay_t<Fn>>(std::forward<Fn>(fn)));
 
         mode_->send_orphanable(*op);
 
@@ -624,8 +623,8 @@ public:
     [[nodiscard]] static task<std::invoke_result_t<std::decay_t<Fn>&>> call_here(Fn&& fn) {
         using result_t = std::invoke_result_t<std::decay_t<Fn>&>;
 
-        std::unique_ptr<async_op_t<result_t>> op(new async_op_f<std::decay_t<Fn>>(
-            std::forward<Fn>(fn)));
+        std::unique_ptr<async_op_t<result_t>> op(
+            new async_op_f<std::decay_t<Fn>>(std::forward<Fn>(fn)));
 
         op->packaged_execute();
         op->complete_in_place();
@@ -748,12 +747,14 @@ public:
         }
 
         for (;;) {
-            while (loop_turns_) [[unlikely]] resumed += take_loop_turn();
+            while (loop_turns_) [[unlikely]]
+                resumed += take_loop_turn();
 
             for (async_op* op = nullptr; take(op);) resumed += op->complete();
 
             // A continuation resumed above may have cancelled a token and given a turn.
-            if (loop_turns_) [[unlikely]] continue;
+            if (loop_turns_) [[unlikely]]
+                continue;
 
             if (!driven) return resumed;
 
@@ -884,7 +885,7 @@ template <class Fn>
 
     std::unique_ptr<async_op_t<result_t>> op(
         new cancelable_operation<orphanable_op_f<std::decay_t<Fn>>>(std::move(token),
-                                                                     std::forward<Fn>(fn)));
+                                                                    std::forward<Fn>(fn)));
 
     send_orphanable(*op);
 
@@ -903,7 +904,7 @@ task<std::invoke_result_t<std::decay_t<Fn>&>> sta_loop::async_call(Fn&& fn,
 
     std::unique_ptr<async_op_t<result_t>> op(
         new detail::cancelable_operation<async_op_f<std::decay_t<Fn>>>(std::move(token),
-                                                                         std::forward<Fn>(fn)));
+                                                                       std::forward<Fn>(fn)));
 
     return async_run(std::move(op));
 }
@@ -926,15 +927,14 @@ public:
     inline explicit orphanable_wait(cancellation_token token)
         : loop_turn{&orphanable_wait::take_turn}, token_(std::move(token)), registration_(*this) {
         coro_check(!cancellation_state_of(token_)->canceled(),
-                   "orphanable_wait: made under a token cancelled already", detail::site::current());
+                   "orphanable_wait: made under a token cancelled already",
+                   detail::site::current());
 
         registration_.register_with(*cancellation_state_of(token_));
     }
 
     /// Out of the event before the token goes.
-    inline ~orphanable_wait() override {
-        registration_.unregister(*cancellation_state_of(token_));
-    }
+    inline ~orphanable_wait() override { registration_.unregister(*cancellation_state_of(token_)); }
 
     /// The body has been sent: from now on the two are linked.
     inline void attach_body(async_op_t<R>& body) noexcept { body_ = &body; }

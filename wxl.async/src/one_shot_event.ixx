@@ -83,8 +83,7 @@ private:
 
     using handle = HANDLE;
 
-    mutable std::atomic<handle>
-        event_obj_;  ///< the underlying OS waitable object, lazily created.
+    mutable std::atomic<handle> event_obj_;  ///< the underlying OS waitable object, lazily created.
 
     static handle create_event();
     static void destroy_event(handle event_obj);

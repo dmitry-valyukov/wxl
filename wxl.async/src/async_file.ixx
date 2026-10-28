@@ -156,7 +156,7 @@ public:
     /// spell `as_writable_bytes` at every call. Any one-byte trivially
     /// copyable type but `bool`, which is a byte that must not hold 2.
     template <class T, std::size_t N>
-        requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
+        requires(sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
     [[nodiscard]] task<std::size_t> read(T (&into)[N]) {
         return read(std::as_writable_bytes(std::span{into}));
     }
@@ -186,11 +186,13 @@ public:
     static task<async_file> create(const core::path& path, cancellation_token token);
 
     /// Reads the whole of the file at \p path; the operation can be canceled through \p token.
-    [[nodiscard]] static task<std::string> read_all(const core::path& path, cancellation_token token);
+    [[nodiscard]] static task<std::string> read_all(const core::path& path,
+                                                    cancellation_token token);
 
     /// Replaces a file with \p bytes, whole or not at all; the operation can be canceled
     /// through \p token.
-    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes, cancellation_token token);
+    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes,
+                                          cancellation_token token);
 
     /// Tests whether a file exists at \p path; the operation can be canceled through \p token.
     [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token token);
@@ -202,7 +204,7 @@ public:
     /// Reads into an array of byte-sized elements and returns the number of bytes read;
     /// the operation can be canceled through \p token.
     template <class T, std::size_t N>
-        requires (sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
+        requires(sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
     [[nodiscard]] task<std::size_t> read(T (&into)[N], cancellation_token token) {
         return read(std::as_writable_bytes(std::span{into}), std::move(token));
     }

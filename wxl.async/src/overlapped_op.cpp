@@ -8,7 +8,7 @@ import std;
 namespace wxl::async {
 
 overlapped_op::overlapped_op(kind what, HANDLE file, void* data, std::size_t size, std::uint64_t at,
-             bool skips_port) noexcept
+                             bool skips_port) noexcept
     : file_(file),
       data_(static_cast<std::byte*>(data)),
       left_(size),
@@ -110,8 +110,8 @@ bool overlapped_op::advance(DWORD transferred) noexcept {
     left_ -= transferred;
     data_ += transferred;
 
-    const std::uint64_t at = (std::uint64_t{overlapped_.OffsetHigh} << 32 | overlapped_.Offset) +
-                             transferred;
+    const std::uint64_t at =
+        (std::uint64_t{overlapped_.OffsetHigh} << 32 | overlapped_.Offset) + transferred;
 
     overlapped_.Offset = static_cast<DWORD>(at);
     overlapped_.OffsetHigh = static_cast<DWORD>(at >> 32);

@@ -10,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/sharedResources --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, sharedResources)
-{
+STRESS_TEST_CASE(ThreadedComponent, sharedResources) {
     thread_scope manager;
 
     threaded_test_component parent1("SyncRoot:parent1", manager);

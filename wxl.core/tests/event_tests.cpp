@@ -7,14 +7,12 @@ import wxl.core;
 
 #include "sta_box.h"
 
-
-
 namespace {
 
 using wxl::core::as_not_null;
 using wxl::core::event;
-using wxl::core::event_token;
 using wxl::core::event_mt;
+using wxl::core::event_token;
 
 struct Widget {
     int value = 0;
@@ -247,9 +245,7 @@ TEST(EventTest, DestructorFreesCallbacksThatWereNeverExplicitlyRemoved) {
 using order_t = std::vector<int>;
 using slot_t = event_token;
 
-void keep(slot_t& slot, event_token token) noexcept {
-    slot = std::move(token);
-}
+void keep(slot_t& slot, event_token token) noexcept { slot = std::move(token); }
 
 // Counts its own deaths, once per object: a moved-from one dies silently. Captured by a
 // callback, it tells when the event let go of that callback.

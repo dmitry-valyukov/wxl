@@ -45,13 +45,9 @@ struct parked {
     void await_resume() const noexcept {}
 };
 
-__declspec(noinline) task<int> at_once(int i) {
-    co_return i;
-}
+__declspec(noinline) task<int> at_once(int i) { co_return i; }
 
-__declspec(noinline) task<int> at_once_with(int i, cancellation_token) {
-    co_return i;
-}
+__declspec(noinline) task<int> at_once_with(int i, cancellation_token) { co_return i; }
 
 __declspec(noinline) task<int> after_a_pause(std::coroutine_handle<>* slot, int i) {
     co_await parked{slot};
@@ -59,7 +55,7 @@ __declspec(noinline) task<int> after_a_pause(std::coroutine_handle<>* slot, int 
 }
 
 __declspec(noinline) task<int> cancelable_after_a_pause(std::coroutine_handle<>* slot, int i,
-                                                  cancellation_token token) {
+                                                        cancellation_token token) {
     co_await parked{slot};
     token.throw_if_canceled();
     co_return i;
@@ -74,12 +70,12 @@ __declspec(noinline) task<int> first_link(std::coroutine_handle<>* slot, int i) 
 }
 
 __declspec(noinline) task<int> cancelable_second_link(std::coroutine_handle<>* slot, int i,
-                                                cancellation_token token) {
+                                                      cancellation_token token) {
     co_return co_await cancelable_after_a_pause(slot, i, token);
 }
 
 __declspec(noinline) task<int> cancelable_first_link(std::coroutine_handle<>* slot, int i,
-                                               cancellation_token token) {
+                                                     cancellation_token token) {
     co_return co_await cancelable_second_link(slot, i, token);
 }
 
@@ -102,7 +98,7 @@ __declspec(noinline) task<long long> loop_pause(std::coroutine_handle<>* slot, i
 }
 
 __declspec(noinline) task<long long> cancelable_loop_pause(std::coroutine_handle<>* slot, int n,
-                                                     cancellation_token token) {
+                                                           cancellation_token token) {
     long long sum = 0;
     for (int i = 0; i < n; ++i) sum += co_await cancelable_after_a_pause(slot, i, token);
     co_return sum;
@@ -115,7 +111,7 @@ __declspec(noinline) task<long long> loop_links(std::coroutine_handle<>* slot, i
 }
 
 __declspec(noinline) task<long long> cancelable_loop_links(std::coroutine_handle<>* slot, int n,
-                                                     cancellation_token token) {
+                                                           cancellation_token token) {
     long long sum = 0;
     for (int i = 0; i < n; ++i) sum += co_await cancelable_first_link(slot, i, token);
     co_return sum;
@@ -217,7 +213,8 @@ double best_of_ops(Start start) {
 
         if (outer.result() != expected) return -1;
 
-        best = std::min(best, std::chrono::duration<double, std::nano>(to - from).count() / iterations);
+        best = std::min(best,
+                        std::chrono::duration<double, std::nano>(to - from).count() / iterations);
     }
 
     return best;
@@ -237,8 +234,8 @@ double best_of_refused(cancellation_token token) {
 
         if (!outer.done() || outer.result() != refused_iterations) return -1;
 
-        best = std::min(best, std::chrono::duration<double, std::nano>(to - from).count() /
-                                  refused_iterations);
+        best = std::min(
+            best, std::chrono::duration<double, std::nano>(to - from).count() / refused_iterations);
     }
 
     return best;
@@ -258,16 +255,23 @@ int main() {
 
     row("ended at once", best_of([](std::coroutine_handle<>*) { return loop_at_once(iterations); }),
         best_of([&](std::coroutine_handle<>*) { return loop_at_once_with(iterations, token); }));
-    row("after a pause", best_of([](std::coroutine_handle<>* slot) { return loop_pause(slot, iterations); }),
-        best_of([&](std::coroutine_handle<>* slot) { return cancelable_loop_pause(slot, iterations, token); }));
-    row("three links", best_of([](std::coroutine_handle<>* slot) { return loop_links(slot, iterations); }),
-        best_of([&](std::coroutine_handle<>* slot) { return cancelable_loop_links(slot, iterations, token); }));
+    row("after a pause",
+        best_of([](std::coroutine_handle<>* slot) { return loop_pause(slot, iterations); }),
+        best_of([&](std::coroutine_handle<>* slot) {
+            return cancelable_loop_pause(slot, iterations, token);
+        }));
+    row("three links",
+        best_of([](std::coroutine_handle<>* slot) { return loop_links(slot, iterations); }),
+        best_of([&](std::coroutine_handle<>* slot) {
+            return cancelable_loop_links(slot, iterations, token);
+        }));
 
     std::printf("an operation: ns per iteration, plain and under a token\n");
 
     const double plain = best_of_ops([](handed_op** slot) { return loop_op(slot, iterations); });
 
-    row("its own form", plain, best_of_ops([&](handed_op** slot) { return loop_op_with(slot, iterations, token); }));
+    row("its own form", plain,
+        best_of_ops([&](handed_op** slot) { return loop_op_with(slot, iterations, token); }));
 
     cancellation_source canceled;
     canceled.cancel();

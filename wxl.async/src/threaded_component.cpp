@@ -32,8 +32,7 @@ public:
     /// threaded_component because nothing inline calls them -- and because the running
     /// thread then holds the state, which outlives the component, instead of a raw pointer
     /// to the component, which may not.
-    void thread_proc(task_tree_handle thread_starting_task,
-                     task_tree_handle thread_running_task);
+    void thread_proc(task_tree_handle thread_starting_task, task_tree_handle thread_running_task);
 
     /// Completes the start on the component's thread: opens the handle that `dispose()` waits
     /// on, tests whether the start has been canceled or a stop requested, and waits for the
@@ -88,9 +87,10 @@ void threaded_component::on_starting() {
     task_tree_handle thread_running_task = running_task().create_subtask();
 
     try {
-        thread_group::thread_proc run_func =
-            [keeper = core::intrusive_ptr<impl_t>(impl().get()), thread_starting_task,
-             thread_running_task] { keeper->thread_proc(thread_starting_task, thread_running_task); };
+        thread_group::thread_proc run_func = [keeper = core::intrusive_ptr<impl_t>(impl().get()),
+                                              thread_starting_task, thread_running_task] {
+            keeper->thread_proc(thread_starting_task, thread_running_task);
+        };
 
         // The component's name is its own -- given in the source or built by the
         // program, never read from anywhere -- so there is nothing here to check.

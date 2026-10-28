@@ -18,12 +18,16 @@ void set_items_panel_orientation(winrt::Microsoft::UI::Xaml::Controls::ItemsCont
     namespace xaml = winrt::Microsoft::UI::Xaml;
 
     // Both the text and the answer of the loader are short-lived: the control keeps the template.
-    winrt::hstring const text = orientation == Orientation::Vertical
-        ? L"<ItemsPanelTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
-          L"<VirtualizingStackPanel Orientation='Vertical'/></ItemsPanelTemplate>"
-        : L"<ItemsPanelTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
-          L"<VirtualizingStackPanel Orientation='Horizontal'/></ItemsPanelTemplate>";
-    control.ItemsPanel(xaml::Markup::XamlReader::Load(text).as<xaml::Controls::ItemsPanelTemplate>());
+    winrt::hstring const text =
+        orientation == Orientation::Vertical
+            ? L"<ItemsPanelTemplate "
+              L"xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
+              L"<VirtualizingStackPanel Orientation='Vertical'/></ItemsPanelTemplate>"
+            : L"<ItemsPanelTemplate "
+              L"xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
+              L"<VirtualizingStackPanel Orientation='Horizontal'/></ItemsPanelTemplate>";
+    control.ItemsPanel(
+        xaml::Markup::XamlReader::Load(text).as<xaml::Controls::ItemsPanelTemplate>());
 }
 
 void set_element_items(winrt::Microsoft::UI::Xaml::Controls::TreeView const& control, bool on) {
@@ -33,10 +37,12 @@ void set_element_items(winrt::Microsoft::UI::Xaml::Controls::TreeView const& con
         control.ItemTemplate(nullptr);
         return;
     }
-    control.ItemTemplate(xaml::Markup::XamlReader::Load(
-                             L"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
-                             L"<ContentControl Content='{Binding Content}' HorizontalContentAlignment='Left'/></DataTemplate>")
-                             .as<xaml::DataTemplate>());
+    control.ItemTemplate(
+        xaml::Markup::XamlReader::Load(
+            L"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
+            L"<ContentControl Content='{Binding Content}' "
+            L"HorizontalContentAlignment='Left'/></DataTemplate>")
+            .as<xaml::DataTemplate>());
 }
 
 // A SwipeControl has no items until someone gives it some: the collection is
@@ -57,8 +63,9 @@ void set_right_items_mode(controls::SwipeControl const& control, SwipeMode mode)
 
 void set_auto_suggest_box(winrt::Microsoft::UI::Xaml::Controls::NavigationView const& view,
                           core::nullable<AutoSuggestBox> const& box) {
-    view.AutoSuggestBox(box ? Object::Impl::as<winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBox>(*box)
-                            : winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBox{nullptr});
+    view.AutoSuggestBox(
+        box ? Object::Impl::as<winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBox>(*box)
+            : winrt::Microsoft::UI::Xaml::Controls::AutoSuggestBox{nullptr});
 }
 
 void add_file_type(winrt::Microsoft::Windows::Storage::Pickers::FileOpenPicker const& picker,
@@ -70,8 +77,13 @@ void add_file_type_choice(winrt::Microsoft::Windows::Storage::Pickers::FileSaveP
                           FileTypeChoice const& choice) {
     std::vector<winrt::hstring> extensions;
     extensions.reserve(choice.extensions.size());
-    for (auto const& extension : choice.extensions) extensions.push_back(winrt::hstring {std::wstring_view {reinterpret_cast<wchar_t const*>(extension.data()), extension.size()}});
-    picker.FileTypeChoices().Insert(winrt::hstring {std::wstring_view {reinterpret_cast<wchar_t const*>(choice.description.data()), choice.description.size()}}, winrt::single_threaded_vector(std::move(extensions)));
+    for (auto const& extension : choice.extensions)
+        extensions.push_back(winrt::hstring{std::wstring_view{
+            reinterpret_cast<wchar_t const*>(extension.data()), extension.size()}});
+    picker.FileTypeChoices().Insert(winrt::hstring{std::wstring_view{
+                                        reinterpret_cast<wchar_t const*>(choice.description.data()),
+                                        choice.description.size()}},
+                                    winrt::single_threaded_vector(std::move(extensions)));
 }
 
 }  // namespace wxl::impl

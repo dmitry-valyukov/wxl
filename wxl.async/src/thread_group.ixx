@@ -105,8 +105,8 @@ public:
     /// decay-copied into the returned callable, as that binder did.
     template <typename t_func, typename... t_args>
     static thread_proc bind_thread_proc(t_func&& func, t_args&&... args) {
-        return [f = std::forward<t_func>(func),
-                bound = std::tuple<std::decay_t<t_args>...>(std::forward<t_args>(args)...)]() mutable {
+        return [f = std::forward<t_func>(func), bound = std::tuple<std::decay_t<t_args>...>(
+                                                    std::forward<t_args>(args)...)]() mutable {
             std::apply(f, bound);
         };
     }
@@ -126,9 +126,9 @@ public:
         requires std::invocable<t_func&, t_arg&, t_args&...>
     future<void> spawn_named(core::u8_view thread_name, t_func&& func, t_arg&& arg,
                              t_args&&... args) {
-        return spawn_named(thread_name, bind_thread_proc(std::forward<t_func>(func),
-                                                         std::forward<t_arg>(arg),
-                                                         std::forward<t_args>(args)...));
+        return spawn_named(thread_name,
+                           bind_thread_proc(std::forward<t_func>(func), std::forward<t_arg>(arg),
+                                            std::forward<t_args>(args)...));
     }
     /// @}
 
@@ -136,8 +136,7 @@ public:
     template <typename t_func, typename t_arg, typename... t_args>
         requires std::invocable<t_func&, t_arg&, t_args&...>
     static future<void> spawn_detached(t_func&& func, t_arg&& arg, t_args&&... args) {
-        return spawn_detached(bind_thread_proc(std::forward<t_func>(func),
-                                               std::forward<t_arg>(arg),
+        return spawn_detached(bind_thread_proc(std::forward<t_func>(func), std::forward<t_arg>(arg),
                                                std::forward<t_args>(args)...));
     }
 
@@ -145,11 +144,11 @@ public:
     /// arguments.
     template <typename t_func, typename t_arg, typename... t_args>
         requires std::invocable<t_func&, t_arg&, t_args&...>
-    static future<void> spawn_detached_named(core::u8_view thread_name, t_func&& func,
-                                             t_arg&& arg, t_args&&... args) {
-        return spawn_detached_named(thread_name, bind_thread_proc(std::forward<t_func>(func),
-                                                                  std::forward<t_arg>(arg),
-                                                                  std::forward<t_args>(args)...));
+    static future<void> spawn_detached_named(core::u8_view thread_name, t_func&& func, t_arg&& arg,
+                                             t_args&&... args) {
+        return spawn_detached_named(
+            thread_name, bind_thread_proc(std::forward<t_func>(func), std::forward<t_arg>(arg),
+                                          std::forward<t_args>(args)...));
     }
     /// @}
 
@@ -206,8 +205,8 @@ public:
     template <typename t_func, typename... t_args>
         requires std::invocable<t_func&, t_args&...>
     explicit joining_thread(t_func&& func, t_args&&... args)
-        : scope_(), result_(scope_->spawn(std::forward<t_func>(func),
-                                          std::forward<t_args>(args)...)) {}
+        : scope_(),
+          result_(scope_->spawn(std::forward<t_func>(func), std::forward<t_args>(args)...)) {}
 
     /// Waits for the thread here rather than at the end of the scope.
     inline void join() { scope_->join_all(); }

@@ -21,7 +21,8 @@
 
 namespace wxl {
 
-class Rows : public Grid {
+class Rows : public Grid
+{
 public:
     Rows() = default;
 
@@ -53,7 +54,8 @@ protected:
     friend class Object::Impl;
 };
 
-class Columns : public Grid {
+class Columns : public Grid
+{
 public:
     Columns() = default;
 

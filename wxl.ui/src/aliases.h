@@ -30,7 +30,7 @@ inline constexpr struct {
     static constexpr VerticalAlignment stretch = VerticalAlignment::Stretch;
 } vAlign;
 
-//inline constexpr HorizontalAlignmentShortcuts hAlign;
-//inline constexpr VerticalAlignmentShortcuts vAlign;
+// inline constexpr HorizontalAlignmentShortcuts hAlign;
+// inline constexpr VerticalAlignmentShortcuts vAlign;
 
 }  // namespace wxl::dsl

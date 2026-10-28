@@ -9,7 +9,11 @@ export namespace wxl::async {
 /// The order in which a claimed batch is handed out. FIFO costs one walk of the batch to
 /// reverse it; LIFO hands the chain over as the stack built it, which is what a free list
 /// wants -- the warmest element is the one released last.
-enum class drain_order { fifo, lifo };
+enum class drain_order
+{
+    fifo,
+    lifo
+};
 
 // The alignas members below are meant to cost padding: that is what keeps the lines
 // apart. C4324 reports the padding at level 4, and for a template it fires where the

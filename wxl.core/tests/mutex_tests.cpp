@@ -8,9 +8,10 @@ using namespace wxl::core;
 namespace {
 
 /// Holds `m` until told to let go, so that the thread under test finds it taken.
-class holder {
+class holder
+{
 public:
-    explicit holder(mutex & m) : mutex_(m) {
+    explicit holder(mutex& m) : mutex_(m) {
         thread_ = std::thread([this] {
             mutex_.acquire();
             taken_.release();
@@ -27,7 +28,7 @@ public:
     }
 
 private:
-    mutex & mutex_;
+    mutex& mutex_;
     semaphore taken_{0};
     semaphore may_release_{0};
     std::thread thread_;

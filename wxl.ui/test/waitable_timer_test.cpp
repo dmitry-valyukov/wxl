@@ -126,7 +126,8 @@ protected:
 
     void TearDown() override {
         EXPECT_TRUE(wxl::impl::event_wait::all_drained()) << "a wait was left in a list";
-        EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted()) << "a turn was left in the queue";
+        EXPECT_FALSE(wxl::impl::event_wait_test::canceled_posted())
+            << "a turn was left in the queue";
 
         wxl::impl::event_wait_test::set_closing(false);
         wxl::impl::event_wait_test::set_canceled_posted(false);

@@ -32,7 +32,8 @@
 
 namespace wxl {
 
-class SplitPanel : public Panel {
+class SplitPanel : public Panel
+{
     using base_t = Panel;
 
 public:

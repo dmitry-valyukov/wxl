@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -19,22 +17,19 @@ struct shared_semaphore final : refcounted_mt, semaphore {
 typedef intrusive_ptr<shared_semaphore> semaphore_ptr;
 typedef std::vector<semaphore_ptr> semaphores;
 
-void test_thread(countdown_event * event, semaphore_ptr sema)
-{
+void test_thread(countdown_event* event, semaphore_ptr sema) {
     event->signal();
     sema->acquire();
     event->signal();
 }
 
-void launch_one_thread(thread_group * manager, countdown_event * event, semaphores & handles)
-{
+void launch_one_thread(thread_group* manager, countdown_event* event, semaphores& handles) {
     semaphore_ptr sema = make_refcounted<shared_semaphore>();
     manager->spawn(test_thread, event, sema);
     handles.push_back(sema);
 }
 
-void stop_one_thread(semaphores & handles)
-{
+void stop_one_thread(semaphores& handles) {
     semaphore_ptr sema = handles.back();
     handles.pop_back();
     sema->release();
@@ -43,8 +38,7 @@ void stop_one_thread(semaphores & handles)
 }  // namespace
 
 // --run_test=Networking/syncPrimitivesCountdownEventTest --log_level=test_suite
-TEST(CountdownEventTest, countdownEvent)
-{
+TEST(CountdownEventTest, countdownEvent) {
 #ifdef NDEBUG
     const size_t thread_count = 42;
 #else
@@ -60,21 +54,19 @@ TEST(CountdownEventTest, countdownEvent)
     {
         semaphores handles;
 
-        for (size_t i = 0; i < thread_count - 1; ++i)
-            launch_one_thread(manager, &event, handles);
+        for (size_t i = 0; i < thread_count - 1; ++i) launch_one_thread(manager, &event, handles);
 
         EXPECT_FALSE(event.wait_for(small_timeout));
 
         launch_one_thread(manager, &event, handles);
-        EXPECT_TRUE(event.wait_for(big_timeout)); // last
+        EXPECT_TRUE(event.wait_for(big_timeout));  // last
 
         event.reset(thread_count);
 
-        for (size_t i = 0; i < thread_count - 1; ++i)
-            stop_one_thread(handles);
+        for (size_t i = 0; i < thread_count - 1; ++i) stop_one_thread(handles);
 
         EXPECT_FALSE(event.wait_for(small_timeout));
         stop_one_thread(handles);
-        EXPECT_TRUE(event.wait_for(big_timeout)); // last
+        EXPECT_TRUE(event.wait_for(big_timeout));  // last
     }
 }

@@ -71,9 +71,10 @@ TEST_F(AsyncMutexTest, TheNextHolderIsResumedAfterTheUnlockingCodeHasRunOn) {
     // Resumed inside the unlock, the second would have written its line before the first's last.
     // Which turn of the loop resumes it is the loop's own: the sleeping one stops once the first
     // is done, a drain under the dispatcher queue takes every turn in line.
-    EXPECT_EQ(log, (std::vector<std::string>{"first locked", "first after its unlock",
-                                             "second locked"}));
-    EXPECT_TRUE(mutex.try_lock().owns_lock()) << "the guard the co_await gave did not unlock as it went";
+    EXPECT_EQ(
+        log, (std::vector<std::string>{"first locked", "first after its unlock", "second locked"}));
+    EXPECT_TRUE(mutex.try_lock().owns_lock())
+        << "the guard the co_await gave did not unlock as it went";
 }
 
 // The guard unlocks as it goes; one unlocked early does nothing more as it goes; try_lock() owns
@@ -107,7 +108,8 @@ TEST_F(AsyncMutexTest, TheGuardUnlocksOnce) {
     // checks would not stop at it: the second lock would then be let in beside the first.
     const async_mutex::guard held = mutex.try_lock();
     ASSERT_TRUE(held.owns_lock());
-    EXPECT_FALSE(mutex.try_lock().owns_lock()) << "a guard unlocked early unlocked again as it went";
+    EXPECT_FALSE(mutex.try_lock().owns_lock())
+        << "a guard unlocked early unlocked again as it went";
 }
 
 // The lock moves with the guard; the guard assigned over unlocks what it held.

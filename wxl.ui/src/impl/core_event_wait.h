@@ -39,20 +39,22 @@ namespace wxl::impl {
 template <typename Arg>
 concept invocation_answerable =
     !(std::is_lvalue_reference_v<Arg> && std::is_const_v<std::remove_reference_t<Arg>>) ||
-    (std::is_copy_constructible_v<std::remove_cvref_t<Arg>> && !std::is_polymorphic_v<std::remove_cvref_t<Arg>>);
+    (std::is_copy_constructible_v<std::remove_cvref_t<Arg>> &&
+     !std::is_polymorphic_v<std::remove_cvref_t<Arg>>);
 
 /// How the wait hands over one argument: a reference to non-const as it is, the channel
 /// the coroutine answers through; anything else as a value of its own.
 template <typename Arg>
 struct invocation_answer {
-    static_assert(invocation_answerable<Arg>,
-                  "wxl: on_event answers an argument passed as T const& with a copy of T, and this T "
-                  "cannot be copied or would be sliced -- declare the event with T& to get the "
-                  "raiser's object itself, or with T to pass a value");
+    static_assert(
+        invocation_answerable<Arg>,
+        "wxl: on_event answers an argument passed as T const& with a copy of T, and this T "
+        "cannot be copied or would be sliced -- declare the event with T& to get the "
+        "raiser's object itself, or with T to pass a value");
 
-    using type =
-        std::conditional_t<std::is_lvalue_reference_v<Arg> && !std::is_const_v<std::remove_reference_t<Arg>>, Arg,
-                           std::remove_cvref_t<Arg>>;
+    using type = std::conditional_t<std::is_lvalue_reference_v<Arg> &&
+                                        !std::is_const_v<std::remove_reference_t<Arg>>,
+                                    Arg, std::remove_cvref_t<Arg>>;
 };
 
 template <typename Arg>
@@ -101,7 +103,9 @@ public:
     // Declared twice, as every hook that checks how it is used is: a strict build's
     // takes the place of the co_await, any other build's has the signature it always had.
 
-    void await_suspend(std::coroutine_handle<> waiter) requires(!async::detail::strict) {
+    void await_suspend(std::coroutine_handle<> waiter)
+        requires(!async::detail::strict)
+    {
         subscribe();
         arm(waiter);
     }
@@ -126,8 +130,11 @@ public:
         if constexpr (sizeof...(Args) == 1) {
             return answer<std::tuple_element_t<0, std::tuple<Args...>>>(std::get<0>(*args_));
         } else if constexpr (sizeof...(Args) > 1) {
-            return std::apply([](std::remove_reference_t<Args>&... args) { return result_t{answer<Args>(args)...}; },
-                              *args_);
+            return std::apply(
+                [](std::remove_reference_t<Args>&... args) {
+                    return result_t{answer<Args>(args)...};
+                },
+                *args_);
         }
     }
 

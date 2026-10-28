@@ -18,10 +18,12 @@
 
 namespace wxl::impl {
 
-class element_scope final : public sta_com_object<element_scope, winrt::Windows::Foundation::IInspectable>
+class element_scope final
+    : public sta_com_object<element_scope, winrt::Windows::Foundation::IInspectable>
 {
 public:
-    static constexpr winrt::guid own_iid{0x911dcc9a, 0x2056, 0x4b81, {0x84, 0x2a, 0x4e, 0x82, 0x72, 0x39, 0x7e, 0x35}};
+    static constexpr winrt::guid own_iid{
+        0x911dcc9a, 0x2056, 0x4b81, {0x84, 0x2a, 0x4e, 0x82, 0x72, 0x39, 0x7e, 0x35}};
 
     core::binding_scope bindings;
 };

@@ -33,7 +33,8 @@ class observable;
  * it, and no way to destroy a field through it.
  */
 template <class T>
-class observable<T const> {
+class observable<T const>
+{
 public:
     /// The type of the event that notifies the watchers of a change. The signature is
     /// `noexcept`: a watcher is called from inside the call of the event, which walks the whole
@@ -154,7 +155,8 @@ using readonly_observable = observable<T const>;
  * set() and follow().
  */
 template <class T>
-class observable : public impl::readonly_observable<T> {
+class observable : public impl::readonly_observable<T>
+{
     using readonly = impl::readonly_observable<T>;
 
 public:
@@ -193,15 +195,18 @@ public:
     ///
     ///     answer.follow(va, vb, vc, solve).on_change(show);
     template <class... Args>
-        requires (sizeof...(Args) >= 2)
+        requires(sizeof...(Args) >= 2)
     observable& follow(Args&&... args) {
         auto wire = [this]<std::size_t... I>(std::index_sequence<I...>, auto sources_and_fn) {
             auto recompute = [this, fn = std::get<sizeof...(I)>(std::move(sources_and_fn)),
-                              ...sources = &std::get<I>(sources_and_fn)]() noexcept {
+                              ... sources = &std::get<I>(sources_and_fn)]() noexcept {
                 set(fn(sources->get()...));
             };
             recompute();
-            (std::get<I>(sources_and_fn).on_change([recompute](auto const&) noexcept { recompute(); }), ...);
+            (std::get<I>(sources_and_fn).on_change([recompute](auto const&) noexcept {
+                recompute();
+            }),
+             ...);
         };
         wire(std::make_index_sequence<sizeof...(Args) - 1>{},
              std::forward_as_tuple(std::forward<Args>(args)...));
@@ -239,7 +244,8 @@ namespace impl {
 // The class a pointer to member names: the owner whose member a change_watch calls, the Impl
 // level whose interface field Object::get() reads (wxl.ui). And the member's own type.
 template <class Member>
-struct member_owner {};
+struct member_owner {
+};
 
 template <class T, class Owner>
 struct member_owner<T Owner::*> {
@@ -251,7 +257,8 @@ struct member_owner<T Owner::*> {
 // list_change of an observable_list -- read off the event's callback node, as
 // linked_watch reads it, whichever way the event's signature was spelled.
 template <class Body>
-struct change_argument {};
+struct change_argument {
+};
 
 template <class A, template <class> class Base>
 struct change_argument<func_body<void(A) noexcept, Base>> {

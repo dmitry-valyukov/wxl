@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -62,8 +60,7 @@ TEST(OneShotEventTest, StaysSignaledForAllFutureWaiters) {
     one_shot_event ev;
     ev.signal();
 
-    for (int i = 0; i < 5; ++i)
-        EXPECT_TRUE(ev.wait_for(duration::from_ms(1000)));
+    for (int i = 0; i < 5; ++i) EXPECT_TRUE(ev.wait_for(duration::from_ms(1000)));
 }
 
 TEST(OneShotEventTest, MultipleConcurrentWaitersAllWakeOnSignal) {
@@ -77,15 +74,14 @@ TEST(OneShotEventTest, MultipleConcurrentWaitersAllWakeOnSignal) {
         threads.emplace_back([&] {
             sync_point.arrive_and_wait();
 
-            if (ev.wait_for(duration::from_ms(2000)))
-                woken.fetch_add(1);
+            if (ev.wait_for(duration::from_ms(2000))) woken.fetch_add(1);
         });
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     ev.signal();
 
-    for (auto & t : threads) t.join();
+    for (auto& t : threads) t.join();
     EXPECT_EQ(woken.load(), waiter_count);
 }
 

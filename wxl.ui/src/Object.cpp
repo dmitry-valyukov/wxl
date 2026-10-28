@@ -41,12 +41,14 @@ bool Object::is_text() const {
 }
 
 Object Object::from_text(hstring_param const& text) {
-    return copy_from_abi(static_cast<::IInspectable*>(winrt::get_abi(winrt::box_value(impl::to_winrt(text)))));
+    return copy_from_abi(
+        static_cast<::IInspectable*>(winrt::get_abi(winrt::box_value(impl::to_winrt(text)))));
 }
 
 hstring Object::text() const {
     assert(is_text() && "wxl: text() of an object that is not a boxed string");
-    return impl::from_winrt(impl_->inspectable_.as<winrt::Windows::Foundation::IPropertyValue>().GetString());
+    return impl::from_winrt(
+        impl_->inspectable_.as<winrt::Windows::Foundation::IPropertyValue>().GetString());
 }
 
 ::IInspectable* Object::get_abi() const noexcept {

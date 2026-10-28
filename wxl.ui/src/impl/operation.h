@@ -137,7 +137,7 @@ template <class R, class WinrtOp, dispatcher_like Dispatcher, class Convert>
 class winrt_cancelable_operation_producer final
     : public async::detail::pooled<
           winrt_cancelable_operation_producer<R, WinrtOp, Dispatcher, Convert>,
-                                   winrt_operation_producer<R, WinrtOp, Convert>>
+          winrt_operation_producer<R, WinrtOp, Convert>>
 {
     using base = async::detail::pooled<winrt_cancelable_operation_producer,
                                        winrt_operation_producer<R, WinrtOp, Convert>>;
@@ -294,7 +294,7 @@ async::task<> start_winrt_action(WinrtOp operation) {
 /// cancelled already, and then nothing is started.
 template <class R, class Begin, class Convert>
 async::task<R> start_cancelable_winrt_operation(Begin&& begin, Convert convert,
-                                           async::cancellation_token token) {
+                                                async::cancellation_token token) {
     return start_cancelable_winrt_on_dispatcher<R>(
         std::forward<Begin>(begin),
         winrt_dispatcher{winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread()},

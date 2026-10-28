@@ -40,7 +40,8 @@ public:
     FakeControl() : Object(Object::Impl::empty<Object>()) {}
 
     template <typename... Setters>
-        requires(sizeof...(Setters) > 0 && !(std::same_as<std::remove_cvref_t<Setters>, FakeControl> || ...))
+        requires(sizeof...(Setters) > 0 &&
+                 !(std::same_as<std::remove_cvref_t<Setters>, FakeControl> || ...))
     explicit FakeControl(Setters&&... setters) : FakeControl() {
         (wxl::impl::apply_argument(*this, std::forward<Setters>(setters)), ...);
     }
@@ -114,7 +115,7 @@ TEST(EventTokenForm, in_apply_the_token_is_written_and_the_handler_called) {
     FakeControl const control;
     EventToken token;
     int heard = 0;
-    Apply {control, onTest[token] += [&heard] { ++heard; }};
+    Apply{control, onTest[token] += [&heard] { ++heard; }};
 
     EXPECT_TRUE(static_cast<bool>(token));
     control.raise();
@@ -128,7 +129,7 @@ TEST(EventTokenForm, apply_with_minus_takes_the_handler_off_and_empties_the_toke
     control.raise();
     ASSERT_EQ(heard, 1);
 
-    Apply {control, onTest -= token};
+    Apply{control, onTest -= token};
 
     EXPECT_FALSE(static_cast<bool>(token));
     control.raise();
@@ -142,8 +143,8 @@ void remove_twice() {
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
     EventToken token;
     FakeControl const control{onTest[token] += [] {}};
-    Apply {control, onTest -= token};
-    Apply {control, onTest -= token};
+    Apply{control, onTest -= token};
+    Apply{control, onTest -= token};
 }
 
 TEST(EventTokenFormDeathTest, a_second_removal_through_one_token_stops) {

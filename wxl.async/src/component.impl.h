@@ -48,7 +48,6 @@ public:
     /// Requests the stop with \p reason; the same as the form that takes the exception.
     void stop_async_unsafe(const stop_reason& reason);
 
-
     /// Tests whether the component has been disposed of, which is when the state no longer
     /// has an owner.
     bool is_disposed() const noexcept;

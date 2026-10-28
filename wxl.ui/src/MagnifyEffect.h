@@ -100,9 +100,14 @@ namespace wxl {
 
 /// What MagnifyEffect grows: the element it is written on, or only that
 /// element's content while the element follows the pointer.
-enum class MagnifyTarget : uint8_t { Element, Content };
+enum class MagnifyTarget : uint8_t
+{
+    Element,
+    Content
+};
 
-class MagnifyEffect {
+class MagnifyEffect
+{
 public:
     /// Growing to 1.2, no swing.
     MagnifyEffect();
@@ -114,9 +119,9 @@ public:
     /// The tag form: a bare number among the tags is the scale. Numbers alone
     /// are not a tag pack -- one is the constructor above, more do not compile.
     template <typename... Setters>
-        requires(sizeof...(Setters) > 0)
-                && (!(std::is_arithmetic_v<std::remove_cvref_t<Setters>> && ...))
-                && impl::setter_pack<MagnifyEffect, Setters...>
+        requires(sizeof...(Setters) > 0) &&
+                (!(std::is_arithmetic_v<std::remove_cvref_t<Setters>> && ...)) &&
+                impl::setter_pack<MagnifyEffect, Setters...>
     explicit MagnifyEffect(Setters&&... setters) : MagnifyEffect() {
         (impl::apply_argument(*this, std::forward<Setters>(setters)), ...);
     }

@@ -28,7 +28,8 @@ namespace wxl::impl {
 /// other way: a source of its own, made under the token the load was asked under, and what was
 /// asked for. One at a time -- the next cancels the one before it.
 template <class Request>
-class background_load {
+class background_load
+{
 public:
     /// A load as it was asked for: to ask for it again after a replacement of the device.
     struct load_request {
@@ -65,11 +66,14 @@ public:
 
     /// The last load asked for, if the background has not been set some other way since; a copy,
     /// since asking for it again replaces it.
-    std::optional<load_request> last() const { return load_ ? std::optional<load_request>{load_->what} : std::nullopt; }
+    std::optional<load_request> last() const {
+        return load_ ? std::optional<load_request>{load_->what} : std::nullopt;
+    }
 
 private:
     struct load {
-        load(async::cancellation_token const& owner, load_request what) : source(owner), what(std::move(what)) {}
+        load(async::cancellation_token const& owner, load_request what)
+            : source(owner), what(std::move(what)) {}
 
         async::cancellation_source source;
         load_request what;
@@ -88,7 +92,8 @@ private:
 /// (DrawingSurface::DeviceLost) ends the wait quietly, and the owner asks for it again once the
 /// new device stands.
 template <class Loaded, class Show>
-async::task<> show_when_loaded(async::task<Loaded> loading, async::cancellation_token token, Show show) {
+async::task<> show_when_loaded(async::task<Loaded> loading, async::cancellation_token token,
+                               Show show) {
     std::optional<Loaded> loaded;
     try {
         loaded.emplace(co_await std::move(loading));

@@ -10,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/createDestroy  --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, createDestroy)
-{
+STRESS_TEST_CASE(ThreadedComponent, createDestroy) {
     promise<void> delete_promise;
     future<void> delete_fut = delete_promise.get_future();
 

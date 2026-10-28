@@ -20,7 +20,8 @@
 
 namespace wxl {
 
-class FontFamily {
+class FontFamily
+{
 public:
     FontFamily() = default;
 

@@ -10,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/exceptionInThreadScenario --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, exceptionInThreadScenario)
-{
+STRESS_TEST_CASE(ThreadedComponent, exceptionInThreadScenario) {
     thread_scope manager;
     threaded_test_component component(tracer.name(), manager);
     component.throw_before_method_ = component_method::run;

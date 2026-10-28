@@ -2,9 +2,7 @@
 
 #include <gtest/gtest.h>
 
-
 #include "stress_test.h"
-
 
 import std;
 import wxl.core;
@@ -19,36 +17,39 @@ using std::string;
 
 // Test case template for Future<T> specializations
 // where T is int/string/ExceptionPtr
-#define FUTURE_T_TEST_CASE(test_name) \
-    template<typename T> void WXL_TEST_NAME(test_name, body)(); \
-    STRESS_TEST_CASE(future_t, test_name) \
-    { \
-        WXL_TEST_NAME(test_name, body)<int>(); \
-        WXL_TEST_NAME(test_name, body)<string>(); \
+#define FUTURE_T_TEST_CASE(test_name)                         \
+    template <typename T>                                     \
+    void WXL_TEST_NAME(test_name, body)();                    \
+    STRESS_TEST_CASE(future_t, test_name) {                   \
+        WXL_TEST_NAME(test_name, body)<int>();                \
+        WXL_TEST_NAME(test_name, body)<string>();             \
         WXL_TEST_NAME(test_name, body)<std::exception_ptr>(); \
-    } \
-    template<typename T> void WXL_TEST_NAME(test_name, body)()
+    }                                                         \
+    template <typename T>                                     \
+    void WXL_TEST_NAME(test_name, body)()
 
-static std::exception_ptr specific_exception_instance = std::make_exception_ptr(specific_exception());
+static std::exception_ptr specific_exception_instance =
+    std::make_exception_ptr(specific_exception());
 
-template<typename T>
+template <typename T>
 struct test_value {
     static T instance;
 };
 
-template<> int test_value<int>::instance = 42;
-template<> string test_value<string>::instance = "Test string";
-template<> std::exception_ptr test_value<std::exception_ptr>::instance = specific_exception_instance;
+template <>
+int test_value<int>::instance = 42;
+template <>
+string test_value<string>::instance = "Test string";
+template <>
+std::exception_ptr test_value<std::exception_ptr>::instance = specific_exception_instance;
 
-template<typename T>
-const T & get_test_value()
-{
+template <typename T>
+const T& get_test_value() {
     return test_value<T>::instance;
 }
 
 // --run_test=System/FutureT/createWaitAndDispose --log_level=test_suite
-FUTURE_T_TEST_CASE(create_wait_and_dispose)
-{
+FUTURE_T_TEST_CASE(create_wait_and_dispose) {
     future<T> f;
     ASSERT_TRUE(!f.valid());
 
@@ -71,13 +72,11 @@ struct continuation {
     // A copy goes wherever the future keeps its continuations, and the future is let go of on
     // any thread: the count is atomic.
     struct state final : refcounted_mt {
-        bool volatile * run_flag_;
-        bool volatile * delete_flag_;
+        bool volatile* run_flag_;
+        bool volatile* delete_flag_;
 
-        state(bool volatile * run_flag, bool volatile * delete_flag)
-            : run_flag_(run_flag)
-            , delete_flag_(delete_flag)
-        {}
+        state(bool volatile* run_flag, bool volatile* delete_flag)
+            : run_flag_(run_flag), delete_flag_(delete_flag) {}
 
         ~state() override { *delete_flag_ = true; }
     };
@@ -85,17 +84,14 @@ struct continuation {
     continuation(bool volatile* run_flag, bool volatile* delete_flag)
         : state_(make_refcounted<state>(run_flag, delete_flag)) {}
 
-    void operator()() noexcept {
-        *state_->run_flag_ = true;
-    }
+    void operator()() noexcept { *state_->run_flag_ = true; }
 
     intrusive_ptr<state> state_;
 };
 }
 
 // --run_test=System/FutureT/memoryCheck --log_level=test_suite
-FUTURE_T_TEST_CASE(memory_check)
-{
+FUTURE_T_TEST_CASE(memory_check) {
     bool volatile run_flag = false;
     bool volatile delete_flag = false;
 
@@ -119,8 +115,7 @@ FUTURE_T_TEST_CASE(memory_check)
 }
 
 // --run_test=System/FutureT/setValueTest --log_level=test_suite
-FUTURE_T_TEST_CASE(set_value_test)
-{
+FUTURE_T_TEST_CASE(set_value_test) {
     promise<T> p;
     future<T> f = p.get_future();
     p.set_value(get_test_value<T>());
@@ -129,8 +124,7 @@ FUTURE_T_TEST_CASE(set_value_test)
 }
 
 // --run_test=System/FutureT/setValueFromAnotherThread --log_level=test_suite
-FUTURE_T_TEST_CASE(set_value_from_another_thread)
-{
+FUTURE_T_TEST_CASE(set_value_from_another_thread) {
     promise<T> p;
     future<T> f = p.get_future();
 
@@ -142,8 +136,7 @@ FUTURE_T_TEST_CASE(set_value_from_another_thread)
 }
 
 // --run_test=System/FutureT/setExceptionTest --log_level=test_suite
-FUTURE_T_TEST_CASE(set_exception_test)
-{
+FUTURE_T_TEST_CASE(set_exception_test) {
     promise<T> p;
     future<T> f = p.get_future();
 
@@ -156,8 +149,7 @@ FUTURE_T_TEST_CASE(set_exception_test)
 }
 
 // --run_test=System/FutureT/setExceptionFromAnotherThread --log_level=test_suite
-FUTURE_T_TEST_CASE(set_exception_from_another_thread)
-{
+FUTURE_T_TEST_CASE(set_exception_from_another_thread) {
     promise<T> p;
     future<T> f = p.get_future();
 
@@ -167,7 +159,7 @@ FUTURE_T_TEST_CASE(set_exception_from_another_thread)
 }
 
 namespace {
-template<typename T>
+template <typename T>
 class future_tester : public noncopyable
 {
     bool volatile succeeded_;
@@ -182,57 +174,38 @@ class future_tester : public noncopyable
     }
 
     struct when_succeeded_func {
-        future_tester<T> * this_;
-        void operator()(const T & value) noexcept {
-            this_->when_succeeded(value);
-        }
+        future_tester<T>* this_;
+        void operator()(const T& value) noexcept { this_->when_succeeded(value); }
     };
 
-    void when_failed(const std::exception_ptr & ex) {
+    void when_failed(const std::exception_ptr& ex) {
         failed_ = true;
         exception_ = ex;
     }
 
     struct when_failed_func {
-        future_tester<T> * this_;
-        void operator()(const std::exception_ptr & ex) noexcept {
-            this_->when_failed(ex);
-        }
+        future_tester<T>* this_;
+        void operator()(const std::exception_ptr& ex) noexcept { this_->when_failed(ex); }
     };
 
-    void when_ready() {
-        ready_ = true;
-    }
+    void when_ready() { ready_ = true; }
 
     struct when_ready_func {
-        future_tester<T> * this_;
-        void operator()() noexcept {
-            this_->when_ready();
-        }
+        future_tester<T>* this_;
+        void operator()() noexcept { this_->when_ready(); }
     };
 
 public:
-    future_tester() noexcept
-        : succeeded_()
-        , value_()
-        , failed_()
-        , exception_()
-        , ready_()
-    {}
+    future_tester() noexcept : succeeded_(), value_(), failed_(), exception_(), ready_() {}
 
-    future_tester(future<T> & f)
-        : succeeded_()
-        , value_()
-        , failed_()
-        , exception_()
-        , ready_() {
+    future_tester(future<T>& f) : succeeded_(), value_(), failed_(), exception_(), ready_() {
         subscribe(f);
     }
 
     void subscribe(future<T> f) {
-        const when_succeeded_func wd = { this };
-        const when_failed_func wf = { this };
-        const when_ready_func wc = { this };
+        const when_succeeded_func wd = {this};
+        const when_failed_func wf = {this};
+        const when_ready_func wc = {this};
         f.when_succeeded(wd);
         f.when_failed(wf);
         f.when_ready(wc);
@@ -241,15 +214,15 @@ public:
     struct func {
         typedef void result_type;
 
-        future_tester<T> * this_;
-        void operator()(const T & value) noexcept {
+        future_tester<T>* this_;
+        void operator()(const T& value) noexcept {
             this_->when_succeeded(value);
             this_->when_ready();
         }
     };
 
     func make_func() {
-        func f = { this };
+        func f = {this};
         return f;
     }
 
@@ -280,8 +253,7 @@ public:
 }
 
 // --run_test=System/FutureT/whenReadyByValue --log_level=test_suite
-FUTURE_T_TEST_CASE(when_ready_by_value)
-{
+FUTURE_T_TEST_CASE(when_ready_by_value) {
     promise<T> p;
     future<T> f = p.get_future();
 
@@ -293,8 +265,7 @@ FUTURE_T_TEST_CASE(when_ready_by_value)
 }
 
 // --run_test=System/FutureT/whenReadyByException --log_level=test_suite
-FUTURE_T_TEST_CASE(when_ready_by_exception)
-{
+FUTURE_T_TEST_CASE(when_ready_by_exception) {
     promise<T> p;
     future<T> f = p.get_future();
 
@@ -306,8 +277,7 @@ FUTURE_T_TEST_CASE(when_ready_by_exception)
 }
 
 // --run_test=System/FutureT/lateWhenReadyByValue --log_level=test_suite
-FUTURE_T_TEST_CASE(late_when_ready_by_value)
-{
+FUTURE_T_TEST_CASE(late_when_ready_by_value) {
     promise<T> p;
     future<T> f = p.get_future();
 
@@ -319,8 +289,7 @@ FUTURE_T_TEST_CASE(late_when_ready_by_value)
 }
 
 // --run_test=System/FutureT/lateWhenReadyByException --log_level=test_suite
-FUTURE_T_TEST_CASE(late_when_ready_by_exception)
-{
+FUTURE_T_TEST_CASE(late_when_ready_by_exception) {
     promise<T> p;
     future<T> f = p.get_future();
 
@@ -333,8 +302,7 @@ FUTURE_T_TEST_CASE(late_when_ready_by_exception)
 }
 
 // --run_test=System/FutureT/nextCompletedByValue --log_level=test_suite
-FUTURE_T_TEST_CASE(next_completed_by_value)
-{
+FUTURE_T_TEST_CASE(next_completed_by_value) {
     promise<T> p;
     future<T> f1 = p.get_future();
 
@@ -346,13 +314,12 @@ FUTURE_T_TEST_CASE(next_completed_by_value)
     p.set_value(get_test_value<T>());
     tester.assert_value();
 
-    f2.get();   // both should not throw
+    f2.get();  // both should not throw
     f1.get();
 }
 
 // --run_test=System/FutureT/nextCompletedByException1 --log_level=test_suite
-FUTURE_T_TEST_CASE(next_completed_by_exception1)
-{
+FUTURE_T_TEST_CASE(next_completed_by_exception1) {
     promise<T> p;
     future<T> f1 = p.get_future();
 
@@ -369,8 +336,7 @@ FUTURE_T_TEST_CASE(next_completed_by_exception1)
 }
 
 // --run_test=System/FutureT/lateNextCompletedByException --log_level=test_suite
-FUTURE_T_TEST_CASE(late_next_completed_by_exception)
-{
+FUTURE_T_TEST_CASE(late_next_completed_by_exception) {
     promise<T> p;
     future<T> f1 = p.get_future();
 
@@ -392,19 +358,16 @@ FUTURE_T_TEST_CASE(late_next_completed_by_exception)
 }
 
 namespace {
-template<typename T>
+template <typename T>
 struct broken_continuation {
     typedef void result_type;
 
-    void operator()(const T &) {
-        throw specific_exception();
-    }
+    void operator()(const T&) { throw specific_exception(); }
 };
 }
 
 // --run_test=System/FutureT/nextCompletedByException2 --log_level=test_suite
-FUTURE_T_TEST_CASE(next_completed_by_exception2)
-{
+FUTURE_T_TEST_CASE(next_completed_by_exception2) {
     promise<T> p;
     future<T> first_f = p.get_future();
 
@@ -419,8 +382,7 @@ FUTURE_T_TEST_CASE(next_completed_by_exception2)
 }
 
 // --run_test=System/FutureT/nextCompletedByValueAsync --log_level=test_suite
-FUTURE_T_TEST_CASE(next_completed_by_value_async)
-{
+FUTURE_T_TEST_CASE(next_completed_by_value_async) {
 #ifdef NDEBUG
     const unsigned thread_count = 32;
 #else
@@ -428,7 +390,8 @@ FUTURE_T_TEST_CASE(next_completed_by_value_async)
 #endif
 
     struct here {
-        static void next_completed_by_value_async_body(barrier * enter_barrier, barrier * exit_barrier) {
+        static void next_completed_by_value_async_body(barrier* enter_barrier,
+                                                       barrier* exit_barrier) {
             promise<T> p;
             future<T> f1 = p.get_future();
 
@@ -455,16 +418,16 @@ FUTURE_T_TEST_CASE(next_completed_by_value_async)
     for (unsigned i = 0; i < thread_count; i++) {
         const std::string name = "nextCompletedByValueAsync#" + std::to_string(i);
 
-        manager->spawn_named(wxl::core::unicode::assume_valid(name), here::next_completed_by_value_async_body,
-                             &enter_barrier, &exit_barrier);
+        manager->spawn_named(wxl::core::unicode::assume_valid(name),
+                             here::next_completed_by_value_async_body, &enter_barrier,
+                             &exit_barrier);
     }
 
     here::next_completed_by_value_async_body(&enter_barrier, &exit_barrier);
 }
 
 // --run_test=System/FutureT/nextCompletedByExceptionAsync --log_level=test_suite
-FUTURE_T_TEST_CASE(next_completed_by_exception_async)
-{
+FUTURE_T_TEST_CASE(next_completed_by_exception_async) {
     promise<T> p;
     future<T> f1 = p.get_future();
 
@@ -481,28 +444,26 @@ FUTURE_T_TEST_CASE(next_completed_by_exception_async)
 }
 
 namespace {
-template<typename T>
+template <typename T>
 class async_future_tester : public future_tester<T>
 {
     typedef future_tester<T> base;
 
 public:
     struct async_func {
-        async_future_tester<T> * this_;
-        future<void> operator()(const T & value) {
+        async_future_tester<T>* this_;
+        future<void> operator()(const T& value) {
             this_->make_func()(value);
             return this_->async_promise_.get_future();
         }
     };
 
     async_func make_async_func() {
-        async_func f = { this };
+        async_func f = {this};
         return f;
     }
 
-    void set_value() {
-        async_promise_.set_value();
-    }
+    void set_value() { async_promise_.set_value(); }
 
 private:
     promise<void> async_promise_;
@@ -510,8 +471,7 @@ private:
 }
 
 // --run_test=System/FutureT/thenCompletedByValueAsync --log_level=test_suite
-FUTURE_T_TEST_CASE(then_completed_by_value_async)
-{
+FUTURE_T_TEST_CASE(then_completed_by_value_async) {
     promise<T> p1;
     future<T> f1 = p1.get_future();
 
@@ -535,8 +495,7 @@ FUTURE_T_TEST_CASE(then_completed_by_value_async)
 }
 
 // --run_test=System/FutureT/nextCompletedByExceptionAsync --log_level=test_suite
-FUTURE_T_TEST_CASE(then_completed_by_exception_async)
-{
+FUTURE_T_TEST_CASE(then_completed_by_exception_async) {
     promise<T> p1;
     future<T> f1 = p1.get_future();
 
@@ -553,7 +512,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 }
 
 //// --run_test=System/FutureT/whenAllCompletedByValue --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAllCompletedByValue)
+// FUTURE_T_TEST_CASE(whenAllCompletedByValue)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -570,7 +529,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByException1 --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAllCompletedByException1)
+// FUTURE_T_TEST_CASE(whenAllCompletedByException1)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -587,7 +546,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByException2 --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAllCompletedByException2)
+// FUTURE_T_TEST_CASE(whenAllCompletedByException2)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -602,7 +561,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByValueAsync --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAllCompletedByValueAsync)
+// FUTURE_T_TEST_CASE(whenAllCompletedByValueAsync)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -623,7 +582,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByExceptionAsync1 --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAllCompletedByExceptionAsync1)
+// FUTURE_T_TEST_CASE(whenAllCompletedByExceptionAsync1)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -644,7 +603,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByExceptionAsync2 --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAllCompletedByExceptionAsync2)
+// FUTURE_T_TEST_CASE(whenAllCompletedByExceptionAsync2)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -663,7 +622,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByValue --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAnyCompletedByValue)
+// FUTURE_T_TEST_CASE(whenAnyCompletedByValue)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -678,7 +637,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByException --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAnyCompletedByException)
+// FUTURE_T_TEST_CASE(whenAnyCompletedByException)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -693,7 +652,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAnyCompletedByValueAsync --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAnyCompletedByValueAsync)
+// FUTURE_T_TEST_CASE(whenAnyCompletedByValueAsync)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -712,7 +671,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 //
 //// --run_test=System/FutureT/whenAllCompletedByExceptionAsync --log_level=test_suite
-//FUTURE_T_TEST_CASE(whenAnyCompletedByExceptionAsync)
+// FUTURE_T_TEST_CASE(whenAnyCompletedByExceptionAsync)
 //{
 //    Promise<T> p1;
 //    Promise<T> p2;
@@ -732,8 +691,7 @@ FUTURE_T_TEST_CASE(then_completed_by_exception_async)
 //}
 
 // --run_test=System/FutureT/whenAllCompleted_CompletedByValue --log_level=test_suite
-FUTURE_T_TEST_CASE(when_all_completed_completed_by_value)
-{
+FUTURE_T_TEST_CASE(when_all_completed_completed_by_value) {
     promise<T> p1;
     promise<T> p2;
     future<T> f1 = p1.get_future();
@@ -750,8 +708,7 @@ FUTURE_T_TEST_CASE(when_all_completed_completed_by_value)
 }
 
 // --run_test=System/FutureT/whenAllCompleted_CompletedByValueAndException --log_level=test_suite
-FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_and_exception)
-{
+FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_and_exception) {
     promise<T> p1;
     promise<T> p2;
     future<T> f1 = p1.get_future();
@@ -768,7 +725,7 @@ FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_and_exception)
 }
 
 namespace {
-template<typename T>
+template <typename T>
 struct when_all_completed_completed_by_value_async_func {
     promise<T> p1;
     promise<T> p2;
@@ -783,8 +740,7 @@ struct when_all_completed_completed_by_value_async_func {
 }
 
 // --run_test=System/FutureT/whenAllCompleted_CompletedByValueAsync --log_level=test_suite
-FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_async)
-{
+FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_async) {
     promise<T> p1;
     promise<T> p2;
     future<T> f1 = p1.get_future();
@@ -793,7 +749,7 @@ FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_async)
     future<void> result = when_all_ready(f1, f2);
     ASSERT_TRUE(result.wait_for(duration::zero()) == future_status::timeout);
 
-    when_all_completed_completed_by_value_async_func<T> func = { p1, p2, result };
+    when_all_completed_completed_by_value_async_func<T> func = {p1, p2, result};
 
     joining_thread thread(func);
 
@@ -803,7 +759,7 @@ FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_async)
 }
 
 namespace {
-template<typename T>
+template <typename T>
 struct when_all_completed_completed_by_value_and_exception_async_func {
     promise<T> p1;
     promise<T> p2;
@@ -818,8 +774,7 @@ struct when_all_completed_completed_by_value_and_exception_async_func {
 }
 
 // --run_test=System/FutureT/whenAllCompleted_CompletedByValueAndExceptionAsync --log_level=test_suite
-FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_and_exception_async)
-{
+FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_and_exception_async) {
     promise<T> p1;
     promise<T> p2;
     future<T> f1 = p1.get_future();
@@ -828,7 +783,7 @@ FUTURE_T_TEST_CASE(when_all_completed_completed_by_value_and_exception_async)
     future<void> result = when_all_ready(f1, f2);
     ASSERT_TRUE(result.wait_for(duration::zero()) == future_status::timeout);
 
-    when_all_completed_completed_by_value_and_exception_async_func<T> func = { p1, p2, result };
+    when_all_completed_completed_by_value_and_exception_async_func<T> func = {p1, p2, result};
 
     joining_thread thread(func);
 

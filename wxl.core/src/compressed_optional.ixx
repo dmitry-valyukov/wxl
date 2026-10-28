@@ -73,7 +73,8 @@ using nullable = typename optional_selector<T>::nullable;
 /// that the value is present; the storage remains the bare pointer. Constness carries over: a
 /// const optional over `Widget*` gives access through `not_null<const Widget>`.
 template <typename T, sentinel<T> TSentinel>
-class compressed_optional {
+class compressed_optional
+{
     T value_;
 
     template <typename U, sentinel<U> USentinel>
@@ -149,8 +150,8 @@ public:
     template <typename U = T>
         requires(!std::is_same_v<std::remove_cvref_t<U>, compressed_optional>) &&
                 (!std::is_same_v<std::remove_cvref_t<U>, std::in_place_t>) &&
-                (!std::is_same_v<std::remove_cvref_t<U>, std::nullopt_t>) &&
-                (!optional_like<U>) && std::is_constructible_v<T, U>
+                (!std::is_same_v<std::remove_cvref_t<U>, std::nullopt_t>) && (!optional_like<U>) &&
+                std::is_constructible_v<T, U>
     constexpr explicit(!std::is_convertible_v<U, T>)
         compressed_optional(U&& value) noexcept(std::is_nothrow_constructible_v<T, U>)
         : value_(std::forward<U>(value)) {}
@@ -240,9 +241,8 @@ public:
     /// Assigns \p value to the contained value.
     template <typename U = T>
         requires(!std::is_same_v<std::remove_cvref_t<U>, compressed_optional>) &&
-                (!std::is_same_v<std::remove_cvref_t<U>, std::nullopt_t>) &&
-                (!optional_like<U>) && std::is_constructible_v<T, U> &&
-                std::is_assignable_v<T&, std::decay_t<U>>
+                (!std::is_same_v<std::remove_cvref_t<U>, std::nullopt_t>) && (!optional_like<U>) &&
+                std::is_constructible_v<T, U> && std::is_assignable_v<T&, std::decay_t<U>>
     constexpr compressed_optional& operator=(U&& value) noexcept(
         std::is_nothrow_assignable_v<T&, U>) {
         value_ = std::forward<U>(value);
@@ -252,7 +252,8 @@ public:
     /// Assigns the value of \p other, a `compressed_optional` over another value type, or
     /// resets the object when \p other is empty.
     template <typename U, sentinel<U> USentinel>
-        requires std::is_constructible_v<T, const U&> && std::is_assignable_v<T&, std::decay_t<const U&>>
+        requires std::is_constructible_v<T, const U&> &&
+                 std::is_assignable_v<T&, std::decay_t<const U&>>
     constexpr compressed_optional& operator=(
         const compressed_optional<U, USentinel>& other) noexcept {
         if (other.has_value()) [[likely]]
@@ -277,7 +278,8 @@ public:
     /// Assigns the value of \p other, a `std::optional`, or resets the object when \p other is
     /// empty.
     template <typename U>
-        requires std::is_constructible_v<T, const U&> && std::is_assignable_v<T&, std::decay_t<const U&>>
+        requires std::is_constructible_v<T, const U&> &&
+                 std::is_assignable_v<T&, std::decay_t<const U&>>
     constexpr compressed_optional& operator=(const std::optional<U>& other) noexcept {
         if (other.has_value()) [[likely]]
             value_ = *other;
@@ -365,8 +367,10 @@ public:
     /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr const_access_type value() const& {
         if (has_value()) [[likely]] {
-            if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
-            else return value_;
+            if constexpr (is_pointer_type)
+                return not_null<const raw_element_type>(value_);
+            else
+                return value_;
         }
         throw std::bad_optional_access{};
     }
@@ -376,8 +380,10 @@ public:
     /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr access_type value() & {
         if (has_value()) [[likely]] {
-            if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
-            else return value_;
+            if constexpr (is_pointer_type)
+                return not_null<raw_element_type>(value_);
+            else
+                return value_;
         }
         throw std::bad_optional_access{};
     }
@@ -387,8 +393,10 @@ public:
     /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr rvalue_access_type value() && {
         if (has_value()) [[likely]] {
-            if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
-            else return std::move(value_);
+            if constexpr (is_pointer_type)
+                return not_null<raw_element_type>(value_);
+            else
+                return std::move(value_);
         }
         throw std::bad_optional_access{};
     }
@@ -398,8 +406,10 @@ public:
     /// \throw std::bad_optional_access The object is empty.
     [[nodiscard]] constexpr const_rvalue_access_type value() const&& {
         if (has_value()) [[likely]] {
-            if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
-            else return std::move(value_);
+            if constexpr (is_pointer_type)
+                return not_null<const raw_element_type>(value_);
+            else
+                return std::move(value_);
         }
         throw std::bad_optional_access{};
     }
@@ -533,48 +543,60 @@ public:
     /// pointer. The object must hold a value: for a pointer `T` an empty object aborts the
     /// process, and for any other `T` no check is made.
     constexpr pointer_access_type operator->() noexcept {
-        if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
-        else return &value_;
+        if constexpr (is_pointer_type)
+            return not_null<raw_element_type>(value_);
+        else
+            return &value_;
     }
 
     /// Returns a pointer to the const contained value, or a `not_null` over the const element
     /// when `T` is a pointer. The object must hold a value: for a pointer `T` an empty object
     /// aborts the process, and for any other `T` no check is made.
     constexpr const_pointer_access_type operator->() const noexcept {
-        if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
-        else return &value_;
+        if constexpr (is_pointer_type)
+            return not_null<const raw_element_type>(value_);
+        else
+            return &value_;
     }
 
     /// Returns a reference to the contained value, or a `not_null` over the element when `T` is
     /// a pointer. The object must hold a value: for a pointer `T` an empty object aborts the
     /// process, and for any other `T` no check is made.
     constexpr access_type operator*() & noexcept {
-        if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
-        else return value_;
+        if constexpr (is_pointer_type)
+            return not_null<raw_element_type>(value_);
+        else
+            return value_;
     }
 
     /// Returns a const reference to the contained value, or a `not_null` over the const element
     /// when `T` is a pointer. The object must hold a value: for a pointer `T` an empty object
     /// aborts the process, and for any other `T` no check is made.
     constexpr const_access_type operator*() const& noexcept {
-        if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
-        else return value_;
+        if constexpr (is_pointer_type)
+            return not_null<const raw_element_type>(value_);
+        else
+            return value_;
     }
 
     /// Returns an rvalue reference to the contained value, or a `not_null` over the element when
     /// `T` is a pointer. The object must hold a value: for a pointer `T` an empty object aborts
     /// the process, and for any other `T` no check is made.
     constexpr rvalue_access_type operator*() && noexcept {
-        if constexpr (is_pointer_type) return not_null<raw_element_type>(value_);
-        else return std::move(value_);
+        if constexpr (is_pointer_type)
+            return not_null<raw_element_type>(value_);
+        else
+            return std::move(value_);
     }
 
     /// Returns a const rvalue reference to the contained value, or a `not_null` over the const
     /// element when `T` is a pointer. The object must hold a value: for a pointer `T` an empty
     /// object aborts the process, and for any other `T` no check is made.
     constexpr const_rvalue_access_type operator*() const&& noexcept {
-        if constexpr (is_pointer_type) return not_null<const raw_element_type>(value_);
-        else return std::move(value_);
+        if constexpr (is_pointer_type)
+            return not_null<const raw_element_type>(value_);
+        else
+            return std::move(value_);
     }
 
     // --- СРАВНЕНИЯ (МЕЖДУ КОНТЕЙНЕРАМИ) ---
@@ -594,7 +616,9 @@ public:
     /// empty objects are equivalent, and two values compare with the `operator<=>` of `T`.
     [[nodiscard]] friend constexpr auto operator<=>(const compressed_optional& lhs,
                                                     const compressed_optional& rhs) noexcept
-        requires requires(const T& a, const T& b) { { a <=> b }; }
+        requires requires(const T& a, const T& b) {
+            { a <=> b };
+        }
     {
         using ResultType = decltype(std::declval<const T&>() <=> std::declval<const T&>());
 
@@ -635,9 +659,10 @@ public:
     /// compares with the `operator<=>` of `T`.
     [[nodiscard]] friend constexpr auto operator<=>(const compressed_optional& lhs,
                                                     const T& rhs) noexcept
-        requires requires(const T & a, const T & b) { { a <=> b }; }
+        requires requires(const T& a, const T& b) {
+            { a <=> b };
+        }
     {
-
         using ResultType = decltype(std::declval<const T&>() <=> std::declval<const T&>());
 
         if (lhs.has_value()) [[likely]]

@@ -199,7 +199,8 @@ struct SelfRemoving {
         watch.reset();
     }
 
-    using watch_box = wxl::test::sta_box<event_watch<fake_compositor, fake_replaced, &SelfRemoving::deviceReplaced>>;
+    using watch_box = wxl::test::sta_box<
+        event_watch<fake_compositor, fake_replaced, &SelfRemoving::deviceReplaced>>;
     std::unique_ptr<watch_box> watch;
 };
 
@@ -214,9 +215,7 @@ TEST(RenderingDeviceWatch, goes_from_inside_its_own_call) {
     EXPECT_EQ(owner.redraws, 1);
 }
 
-void without_a_dialog() {
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-}
+void without_a_dialog() { _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT); }
 
 // The token is the watch's: whoever takes the handler off by it takes away what the watch's
 // destructor counts on. The list's last token is the watch's: nothing else was added.
@@ -255,7 +254,7 @@ struct fake_backend {
 
     log_t* log;
     std::uint64_t removed = 0;
-    std::size_t posted = 0;   // the turns on the queue
+    std::size_t posted = 0;  // the turns on the queue
 
     device_t make(std::uint64_t generation) {
         log->push_back(std::format("make d{}", generation));
@@ -269,7 +268,9 @@ struct fake_backend {
         device.watched = false;
     }
 
-    void release(device_t& device) noexcept { log->push_back(std::format("release d{}", device.id)); }
+    void release(device_t& device) noexcept {
+        log->push_back(std::format("release d{}", device.id));
+    }
 
     void move(graphics_t graphics, composition_api api, device_t const& device) {
         log->push_back(std::format("move g{} {} to d{}", graphics, name_of(api), device.id));
@@ -347,7 +348,8 @@ TEST(RenderingDevices, a_watch_with_no_surface_yet_is_called_and_nothing_is_move
     log.clear();
 
     all.replace(1);
-    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o2"}));
+    EXPECT_EQ(log,
+              (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "release d1", "watch o2"}));
 }
 
 // A watch that draws on a compositor nobody drew on before: its graphics device is made on the
@@ -357,12 +359,13 @@ TEST(RenderingDevices, what_a_watch_makes_from_its_call_is_on_the_new_device_alr
     fake_devices all{fake_backend{&log}};
     graphics_of(all, 1, composition_api::winui, log);
     bool drawn = false;
-    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        log.push_back("watch o1");
-        if (std::exchange(drawn, true)) return;
-        graphics_of(all, 2, composition_api::winui, log);
-        watch(all, 2, composition_api::winui, log);
-    }));
+    static_cast<void>(
+        all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            log.push_back("watch o1");
+            if (std::exchange(drawn, true)) return;
+            graphics_of(all, 2, composition_api::winui, log);
+            watch(all, 2, composition_api::winui, log);
+        }));
     log.clear();
 
     all.replace(1);
@@ -385,9 +388,10 @@ TEST(RenderingDevices, the_replacements_are_counted_before_the_watches_are_calle
     EXPECT_EQ(all.replacements(), 0u);
 
     std::vector<std::uint64_t> seen;
-    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        seen.push_back(all.replacements());
-    }));
+    static_cast<void>(
+        all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            seen.push_back(all.replacements());
+        }));
     all.replace(1);
     all.replace(2);
     EXPECT_EQ(all.replacements(), 2u);
@@ -402,7 +406,9 @@ TEST(RenderingDevices, a_holder_is_taken_off_its_own_compositor_alone) {
     fake_devices all{fake_backend{&log}};
     // A removal empties the token it is given, so each answer that is not the holder's own is
     // asked with a token made from the same number -- the machinery's factory, for a test alone.
-    auto const same = [](EventToken const& token) { return wxl::core::impl::make_event_token(token.value()); };
+    auto const same = [](EventToken const& token) {
+        return wxl::core::impl::make_event_token(token.value());
+    };
     EventToken unknown = wxl::core::impl::make_event_token(1);
     EXPECT_FALSE(all.remove(1, unknown));
 
@@ -437,7 +443,8 @@ TEST(RenderingDevices, an_answer_for_a_device_replaced_already_replaces_nothing)
     EXPECT_EQ(all.current()->id, 2u);
 
     all.replace(2);
-    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "release d2", "watch o1"}));
+    EXPECT_EQ(log,
+              (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "release d2", "watch o1"}));
 }
 
 // A graphics device asked for while the device in use says it was removed, before the answer of
@@ -455,8 +462,8 @@ TEST(RenderingDevices, a_graphics_device_is_not_made_on_a_lost_device) {
     EXPECT_TRUE(all.holders_told());
 
     EXPECT_EQ(graphics_of(all, 2, composition_api::system, log), 2);
-    EXPECT_EQ(log, (log_t{"keep o2", "unwatch d1", "make d2", "move g1 winui to d2", "release d1", "post",
-                          "graphics g2 on d2"}));
+    EXPECT_EQ(log, (log_t{"keep o2", "unwatch d1", "make d2", "move g1 winui to d2", "release d1",
+                          "post", "graphics g2 on d2"}));
     EXPECT_EQ(all.replacements(), 1u) << "counted with the move";
     EXPECT_FALSE(all.holders_told()) << "draw() skips until the turn";
 
@@ -479,15 +486,17 @@ TEST(RenderingDevices, a_graphics_device_is_not_made_on_a_lost_device) {
 // lost: the listener is not called from inside that, so the graphics device the surface was made on
 // is the one the entry keeps, the listener finds it when its turn comes, and the next replacement
 // moves it.
-TEST(RenderingDevices, a_holder_drawing_on_its_compositor_finds_the_graphics_device_the_entry_keeps) {
+TEST(RenderingDevices,
+     a_holder_drawing_on_its_compositor_finds_the_graphics_device_the_entry_keeps) {
     log_t log;
     fake_devices all{fake_backend{&log}};
     graphics_of(all, 1, composition_api::winui, log);
     int nested = 0;
-    static_cast<void>(all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        log.push_back("watch o2");
-        nested = graphics_of(all, 2, composition_api::winui, log);
-    }));
+    static_cast<void>(
+        all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            log.push_back("watch o2");
+            nested = graphics_of(all, 2, composition_api::winui, log);
+        }));
     all.backend().removed = 1;
     log.clear();
 
@@ -503,8 +512,8 @@ TEST(RenderingDevices, a_holder_drawing_on_its_compositor_finds_the_graphics_dev
 
     log.clear();
     all.replace(2);
-    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "move g2 winui to d3", "release d2",
-                          "watch o2"}));
+    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "move g2 winui to d3",
+                          "release d2", "watch o2"}));
 }
 
 // A holder whose call is the first to draw on another compositor, called by the turn graphics_of
@@ -515,11 +524,12 @@ TEST(RenderingDevices, what_a_holder_makes_from_the_posted_turn_is_kept_and_move
     fake_devices all{fake_backend{&log}};
     graphics_of(all, 1, composition_api::winui, log);
     bool drawn = false;
-    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        log.push_back("watch o1");
-        if (std::exchange(drawn, true)) return;
-        graphics_of(all, 3, composition_api::winui, log);
-    }));
+    static_cast<void>(
+        all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            log.push_back("watch o1");
+            if (std::exchange(drawn, true)) return;
+            graphics_of(all, 3, composition_api::winui, log);
+        }));
     all.backend().removed = 1;
     graphics_of(all, 2, composition_api::winui, log);
     log.clear();
@@ -543,24 +553,27 @@ TEST(RenderingDevices, a_replacement_from_inside_a_holders_call_calls_nobody_and
     graphics_of(all, 1, composition_api::winui, log);
     graphics_of(all, 2, composition_api::winui, log);
     std::vector<bool> told;
-    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        log.push_back("watch o1");
-        told.push_back(all.holders_told());
-        if (all.current()->id == 2) {
-            all.backend().removed = 2;
-            graphics_of(all, 3, composition_api::winui, log);
-        }
-    }));
-    static_cast<void>(all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        log.push_back("watch o2");
-        told.push_back(all.holders_told());
-    }));
+    static_cast<void>(
+        all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            log.push_back("watch o1");
+            told.push_back(all.holders_told());
+            if (all.current()->id == 2) {
+                all.backend().removed = 2;
+                graphics_of(all, 3, composition_api::winui, log);
+            }
+        }));
+    static_cast<void>(
+        all.handlers_of(2, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            log.push_back("watch o2");
+            told.push_back(all.holders_told());
+        }));
     log.clear();
 
     all.replace(1);
-    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "move g2 winui to d2", "release d1",
-                          "watch o1", "keep o3", "unwatch d2", "make d3", "move g1 winui to d3",
-                          "move g2 winui to d3", "release d2", "post", "graphics g3 on d3", "watch o2"}));
+    EXPECT_EQ(log, (log_t{"unwatch d1", "make d2", "move g1 winui to d2", "move g2 winui to d2",
+                          "release d1", "watch o1", "keep o3", "unwatch d2", "make d3",
+                          "move g1 winui to d3", "move g2 winui to d3", "release d2", "post",
+                          "graphics g3 on d3", "watch o2"}));
     EXPECT_EQ(told, (std::vector<bool>{true, false}));
     EXPECT_EQ(all.replacements(), 2u);
 
@@ -578,9 +591,10 @@ TEST(RenderingDevices, the_holders_are_told_before_they_are_called) {
     fake_devices all{fake_backend{&log}};
     graphics_of(all, 1, composition_api::winui, log);
     std::vector<bool> told;
-    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        told.push_back(all.holders_told());
-    }));
+    static_cast<void>(
+        all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            told.push_back(all.holders_told());
+        }));
     all.replace(1);
     all.backend().removed = 2;
     graphics_of(all, 2, composition_api::winui, log);
@@ -596,9 +610,10 @@ TEST(RenderingDevices, the_holders_are_called_once_for_the_device_that_stands) {
     fake_devices all{fake_backend{&log}};
     graphics_of(all, 1, composition_api::winui, log);
     std::vector<std::uint64_t> seen;
-    static_cast<void>(all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
-        seen.push_back(all.current()->id);
-    }));
+    static_cast<void>(
+        all.handlers_of(1, composition_api::winui).add(wxl::impl::next_event_token(), [&] {
+            seen.push_back(all.current()->id);
+        }));
 
     all.backend().removed = 1;
     graphics_of(all, 2, composition_api::winui, log);
@@ -613,7 +628,8 @@ TEST(RenderingDevices, the_holders_are_called_once_for_the_device_that_stands) {
     all.replace(4);
     EXPECT_EQ(seen, (std::vector<std::uint64_t>{3, 5}));
     run_posted(all);
-    EXPECT_EQ(seen, (std::vector<std::uint64_t>{3, 5})) << "the replacement of d4 called them for d5";
+    EXPECT_EQ(seen, (std::vector<std::uint64_t>{3, 5}))
+        << "the replacement of d4 called them for d5";
     EXPECT_TRUE(all.holders_told());
 }
 
@@ -666,7 +682,8 @@ TEST(RenderingDevices, an_entry_emptied_by_a_holders_call_goes_once_the_calls_ar
 
     log.clear();
     all.replace(2);
-    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "release d2", "watch o1", "watch o3"}));
+    EXPECT_EQ(log, (log_t{"unwatch d2", "make d3", "move g1 winui to d3", "release d2", "watch o1",
+                          "watch o3"}));
 }
 
 // A graphics device made already is not made again, lost device or not: nothing is replaced
@@ -719,7 +736,7 @@ TEST(RenderingDevices, a_removal_answer_under_way_at_the_close_replaces_nothing_
     log.clear();
 
     std::mutex queue_lock;
-    std::vector<std::uint64_t> answers;   // the turns the callback posts, by generation
+    std::vector<std::uint64_t> answers;  // the turns the callback posts, by generation
     std::latch closed{1};
     std::uint64_t const generation = all.current()->id;
     std::thread callback{[&, generation] {
@@ -728,7 +745,7 @@ TEST(RenderingDevices, a_removal_answer_under_way_at_the_close_replaces_nothing_
         answers.push_back(generation);
     }};
 
-    all.close();   // returns with the callback still running
+    all.close();  // returns with the callback still running
     EXPECT_EQ(log, (log_t{"unwatch d1"}));
     closed.count_down();
     callback.join();

@@ -12,7 +12,8 @@
 namespace wxl {
 
 template <typename T>
-class VectorView<T>::Impl : public Object::Impl {
+class VectorView<T>::Impl : public Object::Impl
+{
 public:
     using element = impl::vector_element<T>;
     using view_t = winrt::Windows::Foundation::Collections::IVectorView<typename element::winrt_t>;

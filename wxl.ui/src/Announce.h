@@ -19,6 +19,7 @@ namespace wxl {
 void announce(UIElement const& element, hstring_param const& text, hstring_param const& activityId);
 
 /// Something else happened: "Filtered recipes, 12 results".
-void announceOther(UIElement const& element, hstring_param const& text, hstring_param const& activityId);
+void announceOther(UIElement const& element, hstring_param const& text,
+                   hstring_param const& activityId);
 
 }  // namespace wxl

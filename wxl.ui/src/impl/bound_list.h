@@ -70,26 +70,33 @@ void attach_items(ItemsRepeater const& control, bound_list_watch const& source);
 int64_t bound_position(void const* list, Object const& box) noexcept;
 
 template <class Control>
-concept bound_items_control = requires(Control const& control, bound_list_watch const& source) { attach_items(control, source); };
+concept bound_items_control = requires(Control const& control, bound_list_watch const& source) {
+    attach_items(control, source);
+};
 
 /// `itemsSource = BindOutput{list, build}`, applied to the control being built.
 template <class Control, class T, class Build>
 void bind_items(Control const& control, core::observable_list<T const>& list, Build const& build) {
     static_assert(bound_items_control<Control>,
-                  "wxl: a list is bound to the items of a ListView, a GridView, an ItemsView or an ItemsRepeater.");
+                  "wxl: a list is bound to the items of a ListView, a GridView, an ItemsView or an "
+                  "ItemsRepeater.");
     static_assert(std::is_invocable_v<Build const&, T const&>,
-                  "wxl: the function of BindOutput{list, fn} builds the element of one item: it takes the item, "
+                  "wxl: the function of BindOutput{list, fn} builds the element of one item: it "
+                  "takes the item, "
                   "`[](T const& item) { return ...; }`.");
     using element_t = std::remove_cvref_t<std::invoke_result_t<Build const&, T const&>>;
-    static_assert(std::derived_from<element_t, UIElement>,
-                  "wxl: the function of BindOutput{list, fn} returns the element that shows the item.");
+    static_assert(
+        std::derived_from<element_t, UIElement>,
+        "wxl: the function of BindOutput{list, fn} returns the element that shows the item.");
     if constexpr (std::derived_from<Control, ItemsView>) {
-        static_assert(std::derived_from<element_t, ItemContainer>,
-                      "wxl: an ItemsView shows each item in an ItemContainer: the function returns one, "
-                      "`ItemContainer {child = ...}`.");
+        static_assert(
+            std::derived_from<element_t, ItemContainer>,
+            "wxl: an ItemsView shows each item in an ItemContainer: the function returns one, "
+            "`ItemContainer {child = ...}`.");
     }
 
-    bound_list_watch source{&list, list.size(), [&list, build](uint32_t at) -> Object { return build(list[at]); }};
+    bound_list_watch source{&list, list.size(),
+                            [&list, build](uint32_t at) -> Object { return build(list[at]); }};
     attach_items(control, source);
     list.watch_for_binding(std::move(source));
 }

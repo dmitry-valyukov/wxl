@@ -15,7 +15,8 @@
 
 namespace wxl {
 
-class IndexList : public Object {
+class IndexList : public Object
+{
 public:
     /// The numbers 0 ... count - 1: one item per position of the application's own vector.
     explicit IndexList(int64_t count);

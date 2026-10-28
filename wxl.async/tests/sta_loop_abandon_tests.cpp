@@ -188,8 +188,8 @@ private:
 /// The same as above, with another coroutine's operation started between `k` and `b`: it
 /// comes back while this frame is unwinding, and must wait for the unwinding to end.
 task<> fails_while_another_coroutine_is_answered(probe& running, probe& queued,
-                                              std::vector<task<>>& others, int& other_out,
-                                              int& other_out_while_unwinding) {
+                                                 std::vector<task<>>& others, int& other_out,
+                                                 int& other_out_while_unwinding) {
     snapshot_at_exit snapshot(other_out, other_out_while_unwinding);
     frame_witness running_witness(running);
     frame_witness queued_witness(queued);
@@ -218,9 +218,7 @@ task<> reads_into_its_frame(probe& p) {
     ADD_FAILURE() << "resumed after its task was dropped";
 }
 
-task<> fails_through_an_operation() {
-    co_await start_failure();
-}
+task<> fails_through_an_operation() { co_await start_failure(); }
 
 task<std::size_t> answers_with_a_read_into_its_frame(probe& p) {
     frame_witness witness(p);
@@ -300,7 +298,7 @@ private:
 /// Starts an operation that touches nothing of the frame, and gives it up before awaiting
 /// -- once the worker is inside it, so that it has something to finish alone.
 task<> opens_and_changes_its_mind(hevent& started, hevent& gate, release_record& record,
-                                bool changes_its_mind) {
+                                  bool changes_its_mind) {
     auto opening = sta_loop::async_call(orphanable, [&started, &gate, &record] {
         started.set();
         gate.wait();
@@ -337,14 +335,14 @@ private:
 /// Queues an orphan behind a read the worker is held inside, and gives both up: the orphan
 /// before the worker can have reached it.
 task<> queues_an_orphan_and_changes_its_mind(probe& running, std::atomic<bool>& orphan_ran,
-                                           std::atomic<int>& orphan_deleted,
-                                           bool changes_its_mind) {
+                                             std::atomic<int>& orphan_deleted,
+                                             bool changes_its_mind) {
     frame_witness witness(running);
     std::byte buf[16]{};
 
     auto k = start_read(running, buf);
-    auto opening = sta_loop::async_call(
-        orphanable, [&orphan_ran, counter = deletion_counter(orphan_deleted)] {
+    auto opening =
+        sta_loop::async_call(orphanable, [&orphan_ran, counter = deletion_counter(orphan_deleted)] {
             orphan_ran = true;
             return 0;
         });
@@ -501,7 +499,8 @@ TEST(StaLoopAbandonTest, AnOperationNeverAwaitedIsWaitedForByTheFrameThatStarted
     work.result();
 
     EXPECT_EQ(p.canceled.load(), 1);
-    EXPECT_EQ(p.ran.load(), p.ran_with_frame_alive.load()) << "the worker wrote into a frame that was gone";
+    EXPECT_EQ(p.ran.load(), p.ran_with_frame_alive.load())
+        << "the worker wrote into a frame that was gone";
     EXPECT_FALSE(p.frame_alive.load());
 
     take_what_was_given_up();
@@ -537,7 +536,7 @@ TEST(StaLoopAbandonTest, NobodyElseIsResumedWhileAFrameUnwinds) {
     int other_out_while_unwinding = -1;
 
     task<> work = fails_while_another_coroutine_is_answered(running, queued, others, other_out,
-                                                          other_out_while_unwinding);
+                                                            other_out_while_unwinding);
     running.started.wait();
 
     EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
@@ -605,7 +604,8 @@ TEST(StaLoopAbandonTest, ManyOperationsGivenUpInOneUnwindingAllWaitForTheWorker)
     task<> work = fails_with_many_reads_out(p, count);
 
     EXPECT_THROW(sta_loop::run_until(work), std::runtime_error);
-    EXPECT_EQ(p.ran.load(), p.ran_with_frame_alive.load()) << "the worker wrote into a frame that was gone";
+    EXPECT_EQ(p.ran.load(), p.ran_with_frame_alive.load())
+        << "the worker wrote into a frame that was gone";
 
     take_what_was_given_up();
 
@@ -634,7 +634,8 @@ TEST(StaLoopAbandonTest, AnOrphanGivenUpWhileItRunsLetsGoOfWhatItMakesAsSoonAsIt
     unwound.release();
     watchdog.join();
 
-    EXPECT_FALSE(had_to_wait.load()) << "the frame waited for an operation that touches nothing of it";
+    EXPECT_FALSE(had_to_wait.load())
+        << "the frame waited for an operation that touches nothing of it";
     EXPECT_TRUE(work.done());
     EXPECT_THROW(work.result(), std::runtime_error);
     EXPECT_EQ(record.times.load(), 0);
@@ -802,8 +803,8 @@ TEST(StaLoopAbandonTest, AnErrorOfAnOrphanGivenUpIsReleasedAsItIsDeleted) {
         running.started.wait();
 
         {
-            auto opening = sta_loop::async_call(
-                orphanable, [&ran, counter = deletion_counter(deleted)] {
+            auto opening =
+                sta_loop::async_call(orphanable, [&ran, counter = deletion_counter(deleted)] {
                     ran = true;
                     return counted_value{};
                 });
@@ -822,13 +823,15 @@ TEST(StaLoopAbandonTest, AnErrorOfAnOrphanGivenUpIsReleasedAsItIsDeleted) {
     hevent started{true};
 
     {
-        auto opening = sta_loop::async_call(orphanable, [&started](const orphan_state& state) -> counted_value {
-            started.set();
+        auto opening = sta_loop::async_call(orphanable,
+                                            [&started](const orphan_state& state) -> counted_value {
+                                                started.set();
 
-            while (!state.stop_requested()) std::this_thread::yield();
+                                                while (!state.stop_requested())
+                                                    std::this_thread::yield();
 
-            throw counted_failure();
-        });
+                                                throw counted_failure();
+                                            });
 
         started.wait();
     }

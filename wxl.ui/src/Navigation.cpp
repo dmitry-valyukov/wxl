@@ -15,7 +15,8 @@ namespace xaml = winrt::Microsoft::UI::Xaml;
 namespace {
 
 winrt::Windows::UI::Xaml::Interop::TypeName page_type() {
-    return {winrt::hstring{winrt::name_of<xaml::Controls::Page>()}, winrt::Windows::UI::Xaml::Interop::TypeKind::Metadata};
+    return {winrt::hstring{winrt::name_of<xaml::Controls::Page>()},
+            winrt::Windows::UI::Xaml::Interop::TypeKind::Metadata};
 }
 
 Page page_of(xaml::Controls::Frame const& frame) {
@@ -32,7 +33,8 @@ Page navigatePage(Frame const& frame) {
 
 Page navigatePage(Frame const& frame, NavigationTransitionInfo const& info) {
     auto const native = Object::Impl::as<xaml::Controls::Frame>(frame);
-    native.Navigate(page_type(), nullptr, Object::Impl::as<xaml::Media::Animation::NavigationTransitionInfo>(info));
+    native.Navigate(page_type(), nullptr,
+                    Object::Impl::as<xaml::Media::Animation::NavigationTransitionInfo>(info));
     return page_of(native);
 }
 

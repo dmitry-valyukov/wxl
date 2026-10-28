@@ -75,7 +75,8 @@ inline void thread::spin_wait_micro(size_t usec) { spin_wait_nano(usec * 1000); 
 
 inline void thread::spin_wait_nano(size_t nanosec) {
     const core::time_stamp start = core::time_stamp::now();
-    const core::time_span budget = core::time_span::from_ticks(static_cast<int64_t>((nanosec + 99) / 100));
+    const core::time_span budget =
+        core::time_span::from_ticks(static_cast<int64_t>((nanosec + 99) / 100));
 
     bool first_iteration = true;
 

@@ -87,7 +87,8 @@ struct FaceLight : pointer_spot_light {
 
     composition::CompositionBrush face(composition::Compositor const& compositor) {
         if (!brush) {
-            brush = compositor.CreateEffectFactory(glow(diffuse, faceGain), {diffuseProperty}).CreateBrush();
+            brush = compositor.CreateEffectFactory(glow(diffuse, faceGain), {diffuseProperty})
+                        .CreateBrush();
         }
         return brush;
     }
@@ -116,15 +117,17 @@ struct Ring {
 
         surface.draw([&](ID2D1DeviceContext* context) {
             winrt::com_ptr<ID2D1SolidColorBrush> white;
-            winrt::check_hresult(context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), white.put()));
+            winrt::check_hresult(
+                context->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), white.put()));
             // A stroke lies on both sides of its line: the line goes half the
             // stroke inside the outline.
             float const half = thickness * ringScale / 2.0f;
             float const turn = std::max(radius * ringScale - half, 0.0f);
             float const end = static_cast<float>(side) - half;
             context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-            context->DrawRoundedRectangle(D2D1_ROUNDED_RECT{D2D1::RectF(half, half, end, end), turn, turn},
-                                          white.get(), thickness * ringScale);
+            context->DrawRoundedRectangle(
+                D2D1_ROUNDED_RECT{D2D1::RectF(half, half, end, end), turn, turn}, white.get(),
+                thickness * ringScale);
         });
         frame.SetInsets(static_cast<float>(corner));
     }
@@ -155,7 +158,8 @@ struct EdgeLight : pointer_spot_light {
         }
         // A ring no edge wears any more is drawn anew rather than replaced.
         for (Ring& ring : rings) {
-            bool const worn = std::ranges::any_of(edges, [&](Edge const& edge) { return edge.radius == ring.radius; });
+            bool const worn = std::ranges::any_of(
+                edges, [&](Edge const& edge) { return edge.radius == ring.radius; });
             if (worn) continue;
             ring.radius = radius;
             ring.draw(thickness);
@@ -172,8 +176,8 @@ struct EdgeLight : pointer_spot_light {
             factory = compositor.CreateEffectFactory(cut, {diffuseProperty});
         }
 
-        DrawingSurface const surface{Object::Impl::wrap<Compositor>(composition::Compositor{compositor}),
-                                     SizeInt32{0, 0}};
+        DrawingSurface const surface{
+            Object::Impl::wrap<Compositor>(composition::Compositor{compositor}), SizeInt32{0, 0}};
         auto const mask = Object::Impl::as<composition::CompositionSurfaceBrush>(surface.brush());
         mask.Stretch(composition::CompositionStretch::Fill);
 
@@ -195,8 +199,8 @@ struct EdgeLight : pointer_spot_light {
         edge.layer.Brush(ring_of(edge.layer.Compositor(), edge.radius).brush);
     }
 
-    void add(composition::SpriteVisual const& layer, composition::CompositionRoundedRectangleGeometry const& outline,
-             float own) {
+    void add(composition::SpriteVisual const& layer,
+             composition::CompositionRoundedRectangleGeometry const& outline, float own) {
         edges.push_back(Edge{layer, outline, own, corner ? *corner : own});
         dress(edges.back());
     }
@@ -207,7 +211,8 @@ struct EdgeLight : pointer_spot_light {
 
     void set_diffuse(double value) {
         diffuse = static_cast<float>(std::max(value, 0.0));
-        for (Ring const& ring : rings) ring.brush.Properties().InsertScalar(diffuseProperty, diffuse);
+        for (Ring const& ring : rings)
+            ring.brush.Properties().InsertScalar(diffuseProperty, diffuse);
     }
 
     void set_thickness(double value) {
@@ -297,7 +302,8 @@ struct Attachment : core::sta_refcounted, core::sta_weak_linked<Attachment> {
 
 }  // namespace
 
-struct HoverLight::Impl final : FaceLight {};
+struct HoverLight::Impl final : FaceLight {
+};
 
 impl::pointer_spot_light& HoverLight::spot_light() const { return *impl_; }
 
@@ -315,7 +321,8 @@ void HoverLight::color(Color value) const { impl_->set_color(value); }
 void HoverLight::constantAttenuation(double value) const { impl_->set_constant_attenuation(value); }
 void HoverLight::linearAttenuation(double value) const { impl_->set_linear_attenuation(value); }
 
-struct BorderLight::Impl final : EdgeLight {};
+struct BorderLight::Impl final : EdgeLight {
+};
 
 impl::pointer_spot_light& BorderLight::spot_light() const { return *impl_; }
 
@@ -330,10 +337,14 @@ void BorderLight::height(double value) const { impl_->set_height(value); }
 void BorderLight::intensity(double value) const { impl_->set_intensity(value); }
 void BorderLight::diffuseAmount(double value) const { impl_->set_diffuse(value); }
 void BorderLight::color(Color value) const { impl_->set_color(value); }
-void BorderLight::constantAttenuation(double value) const { impl_->set_constant_attenuation(value); }
+void BorderLight::constantAttenuation(double value) const {
+    impl_->set_constant_attenuation(value);
+}
 void BorderLight::linearAttenuation(double value) const { impl_->set_linear_attenuation(value); }
 void BorderLight::strokeThickness(double value) const { impl_->set_thickness(value); }
-void BorderLight::cornerRadius(CornerRadius value) const { impl_->set_corner(static_cast<float>(value.topLeft)); }
+void BorderLight::cornerRadius(CornerRadius value) const {
+    impl_->set_corner(static_cast<float>(value.topLeft));
+}
 
 struct RevealEffect::Impl : core::sta_refcounted {
     HoverLight hover;
@@ -360,7 +371,8 @@ void RevealEffect::attach(FrameworkElement const& wrapper) const {
     impl::attach_while_loaded(element, attachment);
     // A button marks its own press handled; the flash takes it anyway.
     element.AddHandler(xaml::UIElement::PointerPressedEvent(),
-                       winrt::box_value(xaml::Input::PointerEventHandler{[attachment](auto&&, auto&&) { attachment->press(); }}),
+                       winrt::box_value(xaml::Input::PointerEventHandler{
+                           [attachment](auto&&, auto&&) { attachment->press(); }}),
                        true);
 }
 

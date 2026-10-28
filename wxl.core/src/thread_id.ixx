@@ -1,6 +1,5 @@
 module;
 
-
 #include "platform.h"
 #include <intrin.h>
 

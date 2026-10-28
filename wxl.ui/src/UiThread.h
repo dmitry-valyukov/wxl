@@ -55,7 +55,8 @@ struct IInspectable;
 
 namespace wxl {
 
-class UiThread {
+class UiThread
+{
 public:
     /// An empty handle: post() does nothing and says so. Exists so that an
     /// object can hold one before the window is up.
@@ -114,7 +115,8 @@ struct idle_link final : core::sta_refcounted {
 
 }  // namespace impl
 
-class UiThread::Idle : impl::event_wait {
+class UiThread::Idle : impl::event_wait
+{
 public:
     Idle() = default;
     ~Idle();
@@ -156,9 +158,7 @@ private:
     bool skipped_ = false;
 };
 
-inline UiThread::Idle UiThread::onIdle() {
-    return {};
-}
+inline UiThread::Idle UiThread::onIdle() { return {}; }
 
 inline impl::cancelable_event_wait<UiThread::Idle, async::cancellation_token> UiThread::onIdle(
     async::cancellation_token token) {

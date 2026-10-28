@@ -12,7 +12,8 @@
 
 namespace wxl {
 
-class MarkupBlock::Impl : public base_t::Impl {
+class MarkupBlock::Impl : public base_t::Impl
+{
 public:
     using base_t::Impl::Impl;
 

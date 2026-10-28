@@ -204,15 +204,16 @@ struct WindowShade::Impl : core::weak_linked_mt<WindowShade::Impl> {
         if (!overlayClass()) winrt::throw_last_error();
         HWND const made = ::CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | WS_EX_TRANSPARENT |
                                                 WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-                                            kOverlayClass, L"", WS_POPUP, 0, 0, 1, 1, nullptr, nullptr,
-                                            ::GetModuleHandleW(nullptr), nullptr);
+                                            kOverlayClass, L"", WS_POPUP, 0, 0, 1, 1, nullptr,
+                                            nullptr, ::GetModuleHandleW(nullptr), nullptr);
         if (!made) winrt::throw_last_error();
         return made;
     }
 
-    static desktop::DesktopWindowTarget target_of(comp::Compositor const& compositor, HWND overlay) {
-        auto const interop = compositor.as<ABI::Windows::UI::Composition::Desktop::
-                                               ICompositorDesktopInterop>();
+    static desktop::DesktopWindowTarget target_of(comp::Compositor const& compositor,
+                                                  HWND overlay) {
+        auto const interop =
+            compositor.as<ABI::Windows::UI::Composition::Desktop::ICompositorDesktopInterop>();
         ABI::Windows::UI::Composition::Desktop::IDesktopWindowTarget* raw = nullptr;
         winrt::check_hresult(interop->CreateDesktopWindowTarget(overlay, true, &raw));
         desktop::DesktopWindowTarget made{nullptr};
@@ -220,9 +221,7 @@ struct WindowShade::Impl : core::weak_linked_mt<WindowShade::Impl> {
         return made;
     }
 
-    impl::system_compositor identity() const {
-        return {compositor.as<::IUnknown>().get()};
-    }
+    impl::system_compositor identity() const { return {compositor.as<::IUnknown>().get()}; }
 
     /// The graphics device, made with the first snapshot: a shade that never
     /// flies makes none.
@@ -238,10 +237,9 @@ struct WindowShade::Impl : core::weak_linked_mt<WindowShade::Impl> {
     void wear(Snapshot taken) {
         comp::CompositionGraphicsDevice const& device = graphicsDevice();
         shot = std::move(taken);
-        surface = device.CreateDrawingSurface(
-            {float(shot.width), float(shot.height)},
-            directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
-            directx::DirectXAlphaMode::Premultiplied);
+        surface = device.CreateDrawingSurface({float(shot.width), float(shot.height)},
+                                              directx::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                                              directx::DirectXAlphaMode::Premultiplied);
         draw();
 
         auto brush = compositor.CreateSurfaceBrush(surface);

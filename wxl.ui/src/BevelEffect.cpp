@@ -52,7 +52,9 @@ void BevelEffect::setPositional(Relief::Edges ring) const {
     impl_->rings.emplace_back(ring.nearLamp, ring.farFromLamp);
 }
 
-void BevelEffect::strokeThickness(double value) const { impl_->thickness = static_cast<float>(value); }
+void BevelEffect::strokeThickness(double value) const {
+    impl_->thickness = static_cast<float>(value);
+}
 void BevelEffect::blurRadius(double value) const { impl_->softness = static_cast<float>(value); }
 void BevelEffect::offset(double value) const { impl_->past = static_cast<float>(value); }
 void BevelEffect::margin(Thickness value) const { impl_->margin = value; }
@@ -86,7 +88,8 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
     // stroke of its own along a path inset by the rings before it. One pair
     // of colours is one ring: the plain rim.
     std::vector<std::pair<Color, Color>> const rings =
-        impl_->rings.empty() ? std::vector<std::pair<Color, Color>>{{impl_->light, impl_->dark}} : impl_->rings;
+        impl_->rings.empty() ? std::vector<std::pair<Color, Color>>{{impl_->light, impl_->dark}}
+                             : impl_->rings;
     float const width = impl_->thickness / static_cast<float>(rings.size());
 
     // Every ring's geometry, with how far its path lies inside the margin, so
@@ -106,7 +109,8 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
         auto const bind = [&](std::wstring const& formula) {
             auto const expression = compositor.CreateExpressionAnimation(formula);
             expression.SetReferenceParameter(L"h", host);
-            expression.SetVector2Parameter(L"k", {left + right + 2 * inset, top + bottom + 2 * inset});
+            expression.SetVector2Parameter(L"k",
+                                           {left + right + 2 * inset, top + bottom + 2 * inset});
             expression.SetScalarParameter(L"a", impl_->past);
             expression.SetScalarParameter(L"s", impl_->softness);
             return expression;
@@ -122,16 +126,19 @@ void BevelEffect::operator()(UIElement const& wrapper) const {
         // axis is square to that line, and long enough to reach every corner.
         auto const brush = compositor.CreateLinearGradientBrush();
         brush.MappingMode(composition::CompositionMappingMode::Absolute);
-        std::wstring const normal = L"Normalize(" + w + L" >= " + h + L" ? Vector2(" + h + L" - 2 * a, " + w
-                                    + L") : Vector2(" + h + L", " + w + L" - 2 * a))";
+        std::wstring const normal = L"Normalize(" + w + L" >= " + h + L" ? Vector2(" + h +
+                                    L" - 2 * a, " + w + L") : Vector2(" + h + L", " + w +
+                                    L" - 2 * a))";
         std::wstring const centre = L"Vector2(" + w + L" / 2, " + h + L" / 2)";
-        brush.StartAnimation(L"StartPoint", bind(centre + L" - " + normal + L" * " + span + L" * 0.5"));
-        brush.StartAnimation(L"EndPoint", bind(centre + L" + " + normal + L" * " + span + L" * 0.5"));
+        brush.StartAnimation(L"StartPoint",
+                             bind(centre + L" - " + normal + L" * " + span + L" * 0.5"));
+        brush.StartAnimation(L"EndPoint",
+                             bind(centre + L" + " + normal + L" * " + span + L" * 0.5"));
 
         // The softness in pixels, as a share of the axis.
         auto const stop = [&](float offset, Color color, wchar_t const* follows) {
-            auto const at =
-                compositor.CreateColorGradientStop(offset, std::bit_cast<winrt::Windows::UI::Color>(color));
+            auto const at = compositor.CreateColorGradientStop(
+                offset, std::bit_cast<winrt::Windows::UI::Color>(color));
             if (follows) at.StartAnimation(L"Offset", bind(follows));
             brush.ColorStops().Append(at);
         };

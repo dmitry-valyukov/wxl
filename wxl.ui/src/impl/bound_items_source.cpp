@@ -14,7 +14,8 @@ using winrt::Windows::Foundation::Collections::IVectorView;
 class vector_change final : public sta_com_object<vector_change, IVectorChangedEventArgs>
 {
 public:
-    vector_change(CollectionChange change, uint32_t index) noexcept : change_(change), index_(index) {}
+    vector_change(CollectionChange change, uint32_t index) noexcept
+        : change_(change), index_(index) {}
 
     int32_t __stdcall get_CollectionChange(int32_t* change) noexcept final {
         *change = static_cast<int32_t>(change_);
@@ -36,7 +37,9 @@ private:
 class slot_iterator final : public sta_com_object<slot_iterator, IIterator<item_object>>
 {
 public:
-    explicit slot_iterator(bound_items_source& source) noexcept : source_(&source) { source.AddRef(); }
+    explicit slot_iterator(bound_items_source& source) noexcept : source_(&source) {
+        source.AddRef();
+    }
 
     ~slot_iterator() { source_->Release(); }
 
@@ -78,7 +81,8 @@ private:
 
 }  // namespace
 
-bound_items_source::bound_items_source(void const* followed, uint32_t count, bound_list_watch::indexed_item_builder build)
+bound_items_source::bound_items_source(void const* followed, uint32_t count,
+                                       bound_list_watch::indexed_item_builder build)
     : list_(followed), build_(std::move(build)), slots_(count, nullptr) {}
 
 bound_items_source::~bound_items_source() {
@@ -165,14 +169,16 @@ void bound_items_source::reset(uint32_t count) {
 void bound_items_source::raise(CollectionChange change, uint32_t index) noexcept {
     if (handlers_.empty()) return;
     try {
-        core::intrusive_ptr<vector_change> const args{new vector_change{change, index}, /*add_ref=*/false};
+        core::intrusive_ptr<vector_change> const args{new vector_change{change, index},
+                                                      /*add_ref=*/false};
         core::sta_vector<handler_abi*> called;
         called.reserve(handlers_.size());
         for (handler const& each : handlers_) {
             each.delegate->AddRef();
             called.push_back(each.delegate);
         }
-        void* const sender = static_cast<interface_vtable<winrt::Windows::Foundation::Collections::IObservableVector<item_object>>*>(this);
+        void* const sender = static_cast<interface_vtable<
+            winrt::Windows::Foundation::Collections::IObservableVector<item_object>>*>(this);
         void* const what = args->identity();
         for (handler_abi* const delegate : called) {
             static_cast<void>(delegate->Invoke(sender, what));
@@ -242,7 +248,8 @@ int32_t __stdcall bound_items_source::First(void** iterator) noexcept try {
     return winrt::to_hresult();
 }
 
-int32_t __stdcall bound_items_source::add_VectorChanged(void* delegate, winrt::event_token* token) noexcept try {
+int32_t __stdcall bound_items_source::add_VectorChanged(void* delegate,
+                                                        winrt::event_token* token) noexcept try {
     auto* const added = static_cast<handler_abi*>(delegate);
     handlers_.push_back({++last_token_, added});
     added->AddRef();
@@ -262,7 +269,8 @@ int32_t __stdcall bound_items_source::remove_VectorChanged(winrt::event_token to
     return 0;
 }
 
-winrt::Windows::Foundation::IInspectable bound_element(winrt::Windows::Foundation::IInspectable const& item) {
+winrt::Windows::Foundation::IInspectable bound_element(
+    winrt::Windows::Foundation::IInspectable const& item) {
     auto const slot = own_object<bound_slot>(winrt::get_abi(item));
     if (!slot || !slot->source()) return nullptr;
     Object const element = slot->source()->build(slot->index());
@@ -276,7 +284,8 @@ winrt::Windows::Foundation::IInspectable bound_element(winrt::Windows::Foundatio
 bound_list_watch::bound_list_watch(void const* list, uint32_t size, indexed_item_builder build)
     : source_(new bound_items_source{list, size, std::move(build)}) {}
 
-bound_list_watch::bound_list_watch(bound_list_watch&& other) noexcept : source_(std::exchange(other.source_, nullptr)) {}
+bound_list_watch::bound_list_watch(bound_list_watch&& other) noexcept
+    : source_(std::exchange(other.source_, nullptr)) {}
 
 bound_list_watch::~bound_list_watch() {
     if (source_) {

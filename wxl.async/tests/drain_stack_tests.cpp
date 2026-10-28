@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -18,8 +16,7 @@ struct test_node : intrusive_slist_node<test_node> {
 
 std::vector<int> collect_values(test_node* chain) {
     std::vector<int> values;
-    for (test_node* n = chain; n; n = n->next_)
-        values.push_back(n->value);
+    for (test_node* n = chain; n; n = n->next_) values.push_back(n->value);
     return values;
 }
 
@@ -59,14 +56,12 @@ TEST(DrainStackTest, PopAllClaimsEveryNodePushedConcurrentlyExactlyOnce) {
     constexpr int total = producers * per_producer;
 
     std::vector<test_node> nodes(total);
-    for (int i = 0; i < total; ++i)
-        nodes[i].value = i;
+    for (int i = 0; i < total; ++i) nodes[i].value = i;
 
     std::vector<std::thread> threads;
     for (int p = 0; p < producers; ++p) {
         threads.emplace_back([&, p] {
-            for (int i = 0; i < per_producer; ++i)
-                stack.push(&nodes[p * per_producer + i]);
+            for (int i = 0; i < per_producer; ++i) stack.push(&nodes[p * per_producer + i]);
         });
     }
     for (auto& t : threads) t.join();

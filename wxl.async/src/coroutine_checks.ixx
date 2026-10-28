@@ -49,8 +49,6 @@ using site = std::conditional_t<strict, std::source_location, no_site>;
 }
 
 /// Never called: a build without a place is not strict, and its check is assert.
-[[noreturn]] inline void broken(std::string_view why, no_site) noexcept {
-    core::abort(why);
-}
+[[noreturn]] inline void broken(std::string_view why, no_site) noexcept { core::abort(why); }
 
 }  // export namespace wxl::async::detail

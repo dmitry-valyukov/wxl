@@ -108,9 +108,8 @@ HBITMAP load_image(const wchar_t* path, SIZE& size) {
                                             IID_PPV_ARGS(wic.put())));
 
     winrt::com_ptr<IWICBitmapDecoder> decoder;
-    winrt::check_hresult(wic->CreateDecoderFromFilename(path, nullptr, GENERIC_READ,
-                                                        WICDecodeMetadataCacheOnLoad,
-                                                        decoder.put()));
+    winrt::check_hresult(wic->CreateDecoderFromFilename(
+        path, nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, decoder.put()));
     winrt::com_ptr<IWICBitmapFrameDecode> frame;
     winrt::check_hresult(decoder->GetFrame(0, frame.put()));
 
@@ -126,14 +125,18 @@ HBITMAP load_image(const wchar_t* path, SIZE& size) {
 
     // Top-down, so CopyPixels' first row is the bitmap's first row.
     BITMAPINFO info{};
-    info.bmiHeader = {sizeof(BITMAPINFOHEADER), static_cast<LONG>(width),
-                      -static_cast<LONG>(height), 1, 32, BI_RGB};
+    info.bmiHeader = {sizeof(BITMAPINFOHEADER),
+                      static_cast<LONG>(width),
+                      -static_cast<LONG>(height),
+                      1,
+                      32,
+                      BI_RGB};
     void* bits = nullptr;
     HBITMAP const bitmap = ::CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
     if (!bitmap) winrt::throw_last_error();
 
-    winrt::check_hresult(converter->CopyPixels(nullptr, width * 4, width * height * 4,
-                                               static_cast<BYTE*>(bits)));
+    winrt::check_hresult(
+        converter->CopyPixels(nullptr, width * 4, width * height * 4, static_cast<BYTE*>(bits)));
     size = {static_cast<LONG>(width), static_cast<LONG>(height)};
     return bitmap;
 }
@@ -497,9 +500,8 @@ std::u16string_view name_of(placement_state state) {
 }
 
 RECT fit_placement_to_displays(RECT const& wanted) {
-    winrt::Windows::Graphics::RectInt32 const asked{wanted.left, wanted.top,
-                                                    wanted.right - wanted.left,
-                                                    wanted.bottom - wanted.top};
+    winrt::Windows::Graphics::RectInt32 const asked{
+        wanted.left, wanted.top, wanted.right - wanted.left, wanted.bottom - wanted.top};
     auto const display =
         windowing::DisplayArea::GetFromRect(asked, windowing::DisplayAreaFallback::Nearest);
     if (!display) {

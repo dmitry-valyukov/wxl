@@ -37,11 +37,11 @@ wxl::core::nullable<Brush> brush_cache[3][std::size(brush_names)];
 // after the application's Teardown handler, and not left to the destruction
 // of these tables, which comes after it in an order this file does not control.
 wxl::core::module_cleanup const clear_caches{+[] {
-                                                for (auto& slot : style_cache) slot.reset();
-                                                for (auto& row : brush_cache)
-                                                    for (auto& slot : row) slot.reset();
-                                            },
-                                            wxl::core::module_cleanup::cleanup_normal};
+                                                 for (auto& slot : style_cache) slot.reset();
+                                                 for (auto& row : brush_cache)
+                                                     for (auto& slot : row) slot.reset();
+                                             },
+                                             wxl::core::module_cleanup::cleanup_normal};
 
 // The key resolved inside a named theme dictionary. Theme dictionaries hang
 // off the dictionaries that declare them (XamlControlsResources, merged into
@@ -55,8 +55,11 @@ winrt::Windows::Foundation::IInspectable themed_lookup(
     if (auto const themes = dictionary.ThemeDictionaries()) {
         // HasKey first: a dictionary that has no such theme answers the question with an error, not with nothing, and
         // the walk meets dictionaries that declare only some of the themes.
-        if (auto const chosen = themes.HasKey(theme) ? themes.Lookup(theme) : winrt::Windows::Foundation::IInspectable{nullptr}) {
-            if (auto const inner = chosen.try_as<winrt::Microsoft::UI::Xaml::ResourceDictionary>()) {
+        if (auto const chosen = themes.HasKey(theme)
+                                    ? themes.Lookup(theme)
+                                    : winrt::Windows::Foundation::IInspectable{nullptr}) {
+            if (auto const inner =
+                    chosen.try_as<winrt::Microsoft::UI::Xaml::ResourceDictionary>()) {
                 if (inner.HasKey(name)) {
                     return inner.Lookup(name);
                 }
@@ -71,7 +74,6 @@ winrt::Windows::Foundation::IInspectable themed_lookup(
     }
     return nullptr;
 }
-
 
 // A resource under a brush key that is a bare Color rather than a Brush,
 // made into the brush the name promises. The framework has such keys of its

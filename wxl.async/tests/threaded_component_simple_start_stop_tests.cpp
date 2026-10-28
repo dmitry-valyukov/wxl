@@ -10,8 +10,7 @@ using namespace wxl::core;
 using namespace wxl::async;
 
 // --run_test=System/ThreadedComponent/simpleStartStop --log_level=test_suite
-STRESS_TEST_CASE(ThreadedComponent, simpleStartStop)
-{
+STRESS_TEST_CASE(ThreadedComponent, simpleStartStop) {
     threaded_test_component c(tracer.name());
 
     c.start_async().get();

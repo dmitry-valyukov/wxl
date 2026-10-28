@@ -43,7 +43,8 @@ class bound_items_source;
 class bound_slot final : public sta_com_object<bound_slot, winrt::Windows::Foundation::IInspectable>
 {
 public:
-    static constexpr winrt::guid own_iid{0x08c8704b, 0x15b9, 0x4b35, {0xb5, 0xed, 0x83, 0xaf, 0xb1, 0x00, 0x6a, 0x65}};
+    static constexpr winrt::guid own_iid{
+        0x08c8704b, 0x15b9, 0x4b35, {0xb5, 0xed, 0x83, 0xaf, 0xb1, 0x00, 0x6a, 0x65}};
 
     bound_slot(bound_items_source* owner, uint32_t at) noexcept : source_(owner), index_(at) {}
 
@@ -70,9 +71,11 @@ class bound_items_source final
                             winrt::Windows::Foundation::Collections::IIterable<item_object>>
 {
 public:
-    static constexpr winrt::guid own_iid{0xe7205a74, 0x9eb2, 0x42f0, {0xbb, 0x16, 0x3f, 0xea, 0x6d, 0xa6, 0x3b, 0x2b}};
+    static constexpr winrt::guid own_iid{
+        0xe7205a74, 0x9eb2, 0x42f0, {0xbb, 0x16, 0x3f, 0xea, 0x6d, 0xa6, 0x3b, 0x2b}};
 
-    bound_items_source(void const* followed, uint32_t count, bound_list_watch::indexed_item_builder build);
+    bound_items_source(void const* followed, uint32_t count,
+                       bound_list_watch::indexed_item_builder build);
     ~bound_items_source();
 
     /// The list it follows, or null once disarmed.
@@ -115,7 +118,8 @@ public:
     int32_t __stdcall Append(void*) noexcept final { return e_notimpl; }
     int32_t __stdcall RemoveAtEnd() noexcept final { return e_notimpl; }
     int32_t __stdcall Clear() noexcept final { return e_notimpl; }
-    int32_t __stdcall GetMany(uint32_t start, uint32_t capacity, void** items, uint32_t* actual) noexcept final;
+    int32_t __stdcall GetMany(uint32_t start, uint32_t capacity, void** items,
+                              uint32_t* actual) noexcept final;
     int32_t __stdcall ReplaceAll(uint32_t, void**) noexcept final { return e_notimpl; }
 
     // IIterable<IInspectable>
@@ -126,7 +130,8 @@ public:
     int32_t __stdcall remove_VectorChanged(winrt::event_token token) noexcept final;
 
 private:
-    using handler_abi = winrt::impl::abi_t<winrt::Windows::Foundation::Collections::VectorChangedEventHandler<item_object>>;
+    using handler_abi = winrt::impl::abi_t<
+        winrt::Windows::Foundation::Collections::VectorChangedEventHandler<item_object>>;
 
     struct handler {
         int64_t token;
@@ -137,7 +142,8 @@ private:
     void renumber(uint32_t from) noexcept;
     // A slot whose item is gone: it leads nowhere from now on, and the source lets go of it.
     static void drop(bound_slot* slot) noexcept;
-    void raise(winrt::Windows::Foundation::Collections::CollectionChange change, uint32_t index) noexcept;
+    void raise(winrt::Windows::Foundation::Collections::CollectionChange change,
+               uint32_t index) noexcept;
 
     // How the slots lag behind the list inside a run: `count` items of it are still to be
     // told, at the slot `at`. Inserted, they are in the list and not among the slots yet, so
@@ -163,6 +169,7 @@ private:
 /// The element of an item a control asks for, when the item is a slot: built by its
 /// source, inside whatever binding_scope is open. Null for anything else, and for a slot
 /// whose item is gone or whose source is disarmed.
-winrt::Windows::Foundation::IInspectable bound_element(winrt::Windows::Foundation::IInspectable const& item);
+winrt::Windows::Foundation::IInspectable bound_element(
+    winrt::Windows::Foundation::IInspectable const& item);
 
 }  // namespace wxl::impl

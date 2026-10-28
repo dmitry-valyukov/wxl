@@ -87,7 +87,6 @@ char* write_utf8_to(char* out, std::wstring_view utf16) noexcept;
 }  // namespace impl
 
 export {
-
 /// Unicode itself: code points and their encodings, checks and conversions,
 /// letters. The names are the plain words of the subject -- checked, repaired,
 /// code_points -- and a namespace of their own keeps them from taking the same
@@ -192,7 +191,8 @@ constexpr nullable<std::size_t> scan_utf8(std::basic_string_view<CharT> text) no
         char32_t code_point = static_cast<unsigned char>(text[at]) & (0xFFu >> (size + 1));
 
         for (int index = 1; index != size; ++index) {
-            const auto byte = static_cast<unsigned char>(text[at + static_cast<std::size_t>(index)]);
+            const auto byte =
+                static_cast<unsigned char>(text[at + static_cast<std::size_t>(index)]);
 
             if ((byte & 0xC0u) != 0x80u) return at;
 
@@ -238,7 +238,8 @@ constexpr std::size_t floor_utf16_boundary(std::basic_string_view<CharT> text,
                                            std::size_t at) noexcept {
     if (at >= text.size()) return text.size();
 
-    if (at == 0 || !unicode::is_low_surrogate(static_cast<char32_t>(static_cast<std::uint16_t>(text[at]))))
+    if (at == 0 ||
+        !unicode::is_low_surrogate(static_cast<char32_t>(static_cast<std::uint16_t>(text[at]))))
         return at;
 
     const auto before = static_cast<char32_t>(static_cast<std::uint16_t>(text[at - 1]));
@@ -269,7 +270,6 @@ constexpr std::size_t floor_utf8_boundary(std::basic_string_view<CharT> text,
 }  // namespace impl
 
 export {
-
 namespace unicode {
 
 /// The offset of the first unit that breaks UTF-8, or nothing if the whole text
@@ -405,7 +405,6 @@ void push_utf16(String& out, const char32_t code_point) {
 // ---- The type ----------------------------------------------------------------------
 
 export {
-
 /// Well-formed Unicode text, in whichever string type holds it.
 ///
 /// Only the two shapes below exist -- a view of text somebody else owns, and a
@@ -433,7 +432,8 @@ using u16_text = basic_text<std::u16string>;
 /// mid-sequence would leave the guarantee attached to text that no longer
 /// deserves it.
 template <typename CharT, typename Traits>
-class basic_text<std::basic_string_view<CharT, Traits>> {
+class basic_text<std::basic_string_view<CharT, Traits>>
+{
 public:
     /// The type that represents a code unit: `char8_t` for UTF-8, `char16_t` for UTF-16.
     using value_type = CharT;
@@ -507,7 +507,7 @@ public:
     /// by taking the view first, and one this library does not answer by
     /// copying on its own.
     constexpr basic_text substr(const std::size_t at,
-                                  const std::size_t count = plain_type::npos) const {
+                                const std::size_t count = plain_type::npos) const {
         const plain_type part = text_.substr(at, count);
 
         ensure(begins_a_code_point(at) && "checked text may only be cut between code points");
@@ -621,8 +621,7 @@ private:
     /// Whether the unit at that offset starts a code point -- true at the end
     /// of the text too, since that is where a slice may also stop.
     constexpr bool begins_a_code_point(const std::size_t at) const noexcept {
-        if (at == text_.size())
-            return true;
+        if (at == text_.size()) return true;
 
         if constexpr (is_utf8)
             return !unicode::is_continuation(static_cast<char>(text_[at]));
@@ -642,7 +641,8 @@ private:
 /// between code points. As with any string, a change may move the units, and a
 /// view taken before it is not to be read after.
 template <typename CharT, typename Traits, typename Allocator>
-class basic_text<std::basic_string<CharT, Traits, Allocator>> {
+class basic_text<std::basic_string<CharT, Traits, Allocator>>
+{
 public:
     /// The type that represents a code unit: `char8_t` for UTF-8, `char16_t` for UTF-16.
     using value_type = CharT;
@@ -1003,7 +1003,7 @@ inline char* write_utf8(char* out, const u16_view utf16) noexcept {
 /// many bytes it wrote for them. Fewer units taken than the text holds means the
 /// room ran out first.
 struct transcode_result {
-    std::size_t read = 0;  ///< The number of UTF-16 units of the text that were read.
+    std::size_t read = 0;     ///< The number of UTF-16 units of the text that were read.
     std::size_t written = 0;  ///< The number of UTF-8 bytes that were written.
 };
 
@@ -1107,7 +1107,8 @@ std::filesystem::path to_path(u8_view utf8);
 /// around them.
 template <typename View>
     requires(std::same_as<View, u8_view> || std::same_as<View, u16_view>)
-class code_points {
+class code_points
+{
 public:
     /// The type of the underlying view, which carries no guarantee of well-formedness.
     using plain_type = typename View::plain_type;
@@ -1117,7 +1118,8 @@ public:
 
     /// Represents a forward iterator over the code points of the text. Dereferencing
     /// decodes the code point at the current position.
-    class iterator {
+    class iterator
+    {
     public:
         /// The type that identifies the iterator category, `std::forward_iterator_tag`.
         using iterator_category = std::forward_iterator_tag;
@@ -1193,9 +1195,7 @@ public:
 
         /// Tests whether two iterators stand at the same offset. The texts are not
         /// compared.
-        constexpr bool operator==(const iterator& other) const noexcept {
-            return at_ == other.at_;
-        }
+        constexpr bool operator==(const iterator& other) const noexcept { return at_ == other.at_; }
 
     private:
         /// How many units the code point the iterator stands on takes. Its
@@ -1263,11 +1263,11 @@ u8_text basic_text<std::basic_string_view<CharT, Traits>>::to_utf8() const
 {
     std::u8string result;
 
-    result.resize_and_overwrite(
-        impl::utf8_size(wchars()), [this](char8_t* buffer, std::size_t size) {
-            impl::write_utf8_to(reinterpret_cast<char*>(buffer), wchars());
-            return size;
-        });
+    result.resize_and_overwrite(impl::utf8_size(wchars()),
+                                [this](char8_t* buffer, std::size_t size) {
+                                    impl::write_utf8_to(reinterpret_cast<char*>(buffer), wchars());
+                                    return size;
+                                });
 
     return {std::move(result), impl::validated{}};
 }

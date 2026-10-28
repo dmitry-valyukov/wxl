@@ -53,7 +53,8 @@
 
 namespace wxl {
 
-class BevelEffect {
+class BevelEffect
+{
 public:
     /// White at 27 % over black at 38 %.
     BevelEffect();

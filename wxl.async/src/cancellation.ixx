@@ -210,15 +210,17 @@ class cancelable_wait
 {
 public:
     inline bool await_ready(detail::site where = detail::site::current()) {
-        if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]]
+        if (cancellation_state* const state = self().state(); state && state->canceled())
+            [[unlikely]]
             self().awaiter().cancel();
 
         return ready(where);
     }
 
     template <class Promise>
-    inline decltype(auto) await_suspend(std::coroutine_handle<Promise> awaiting,
-                                        [[maybe_unused]] detail::site where = detail::site::current()) {
+    inline decltype(auto) await_suspend(
+        std::coroutine_handle<Promise> awaiting,
+        [[maybe_unused]] detail::site where = detail::site::current()) {
         if (cancellation_state* const state = self().state(); state && !state->canceled()) {
             registration_.register_with(*state);
             registered_ = true;
@@ -230,10 +232,12 @@ public:
             return self().awaiter().await_suspend(awaiting);
     }
 
-    inline decltype(auto) await_resume([[maybe_unused]] detail::site where = detail::site::current()) {
+    inline decltype(auto) await_resume(
+        [[maybe_unused]] detail::site where = detail::site::current()) {
         unregister_from_token();
 
-        if (cancellation_state* const state = self().state(); state && state->canceled()) [[unlikely]] {
+        if (cancellation_state* const state = self().state(); state && state->canceled())
+            [[unlikely]] {
             if constexpr (requires { self().awaiter().await_canceled(); })
                 return self().awaiter().await_canceled();
             else
@@ -445,7 +449,8 @@ private:
     inline static void cancel_held(detail::cancellation_state_ptr held,
                                    [[maybe_unused]] detail::site where) noexcept {
         coro_check(core::sta_memory_pool::is_safe(),
-                   "cancellation_source: cancelled from a thread other than its coroutines'", where);
+                   "cancellation_source: cancelled from a thread other than its coroutines'",
+                   where);
 
         held->cancel();
     }
@@ -494,16 +499,18 @@ template <>
 struct optional_selector<async::cancellation_source> {
     /// The type of an optional source: a `wxl::core::compressed_optional` whose empty value is
     /// the state of a moved-from source.
-    using nullable = compressed_optional<async::cancellation_source,
-                                         async::detail::cancellation_sentinel<async::cancellation_source>>;
+    using nullable =
+        compressed_optional<async::cancellation_source,
+                            async::detail::cancellation_sentinel<async::cancellation_source>>;
 };
 
 // The same for a token: one pointer. A default token -- no source -- has the null state, the same
 // bits as the empty one, so put in a nullable it reads as empty.
 template <>
 struct optional_selector<async::cancellation_token> {
-    using nullable = compressed_optional<async::cancellation_token,
-                                         async::detail::cancellation_sentinel<async::cancellation_token>>;
+    using nullable =
+        compressed_optional<async::cancellation_token,
+                            async::detail::cancellation_sentinel<async::cancellation_token>>;
 };
 
 }  // export namespace wxl::core

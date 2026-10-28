@@ -64,8 +64,7 @@ UINT taskbarCreated() {
 /// The application's own icon, or the system's generic one. Never null: an icon
 /// that failed to load leaves an invisible but clickable gap in the tray.
 HICON applicationIcon() {
-    if (HICON const own = ::LoadIconW(::GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1)))
-        return own;
+    if (HICON const own = ::LoadIconW(::GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1))) return own;
 
     // IDI_APPLICATION is spelled for the character set the translation unit was
     // built for, and this one is not built for UNICODE. What it holds is an
@@ -120,7 +119,8 @@ void fillItems(Collection<MenuFlyoutItemBase> const& into,
 
 // The WinUI wrappers behind the icon's window: the window itself, the content
 // that lends the flyout a XamlRoot, and the flyout currently up.
-class TrayIcon::Impl {
+class TrayIcon::Impl
+{
 public:
     Window window;
     Grid anchor;
@@ -199,16 +199,15 @@ struct TrayIconAccess {
         impl.flyout = MenuFlyout{};
         fillItems(impl.flyout.items(), items);
         // The window has done its job once the flyout is gone: hide it again.
-        impl.flyout.add_onClosed(
-            [appWindow](Object const&, Object const&) { appWindow.hide(); });
+        impl.flyout.add_onClosed([appWindow](Object const&, Object const&) { appWindow.hide(); });
         impl.flyout.showAt(impl.anchor);
     }
 
     // noexcept: an exception must not cross a Win32 callback -- unwinding through the frames
     // of user32 is not supported, and on x64 a call from the kernel may lose it -- so a
     // failure inside is std::terminate, which names it.
-    static LRESULT CALLBACK proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
-                                 UINT_PTR, DWORD_PTR ref) noexcept {
+    static LRESULT CALLBACK proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam, UINT_PTR,
+                                 DWORD_PTR ref) noexcept {
         auto* const icon = reinterpret_cast<TrayIcon*>(ref);
 
         if (message == WM_NCDESTROY)
@@ -253,9 +252,7 @@ struct TrayIconAccess {
 
 TrayIcon::TrayIcon() noexcept = default;
 
-TrayIcon::~TrayIcon() {
-    hide();
-}
+TrayIcon::~TrayIcon() { hide(); }
 
 bool TrayIcon::show(hstring_param const& tooltip) {
     if (window_) return true;
@@ -349,13 +346,9 @@ void TrayIcon::icon(HICON__* icon) {
     ::Shell_NotifyIconW(NIM_MODIFY, &data);
 }
 
-void TrayIcon::menu(MenuBuilder build) {
-    build_ = std::move(build);
-}
+void TrayIcon::menu(MenuBuilder build) { build_ = std::move(build); }
 
-void TrayIcon::onActivated(std::function<void()> handler) {
-    activated_ = std::move(handler);
-}
+void TrayIcon::onActivated(std::function<void()> handler) { activated_ = std::move(handler); }
 
 Rect TrayIcon::iconRect() const {
     if (!window_) return {};
@@ -368,9 +361,9 @@ Rect TrayIcon::iconRect() const {
     RECT rect{};
     if (::Shell_NotifyIconGetRect(&identifier, &rect) != S_OK) return {};
 
-    return {{static_cast<float>(rect.left), static_cast<float>(rect.top)},
-            {static_cast<float>(rect.right - rect.left),
-             static_cast<float>(rect.bottom - rect.top)}};
+    return {
+        {static_cast<float>(rect.left), static_cast<float>(rect.top)},
+        {static_cast<float>(rect.right - rect.left), static_cast<float>(rect.bottom - rect.top)}};
 }
 
 bool TrayIcon::post(std::function<void()> work) const {

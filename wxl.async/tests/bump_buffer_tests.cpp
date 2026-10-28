@@ -4,8 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
-
 using namespace wxl::core;
 using namespace wxl::async;
 
@@ -108,8 +106,7 @@ TEST(BumpBufferTest, ConcurrentAllocRaceGrantsExactlyOneSlotPerThread) {
 
     std::vector<std::thread> threads;
     threads.reserve(cells);
-    for (size_t i = 0; i < cells; ++i)
-        threads.emplace_back(try_allocate);
+    for (size_t i = 0; i < cells; ++i) threads.emplace_back(try_allocate);
 
     for (auto& t : threads) t.join();
 
@@ -128,7 +125,7 @@ TEST(BumpBufferTest, ConcurrentAllocOfMixedSizesNeverHandsOutOverlappingBlocks) 
     constexpr size_t buff_size = sizeof(size_t) * 32;
     constexpr size_t rounds = 10000;
     constexpr size_t refusals_per_round = 8;
-    constexpr std::array sizes{sizeof(size_t) * 1, sizeof(size_t) * 8,  sizeof(size_t) * 2,
+    constexpr std::array sizes{sizeof(size_t) * 1, sizeof(size_t) * 8, sizeof(size_t) * 2,
                                sizeof(size_t) * 5, sizeof(size_t) * 1, sizeof(size_t) * 3,
                                sizeof(size_t) * 2, sizeof(size_t) * 12};
     using test_buffer = bump_buffer<buff_size>;
@@ -180,14 +177,12 @@ TEST(BumpBufferTest, ConcurrentAllocOfMixedSizesNeverHandsOutOverlappingBlocks) 
 
     std::vector<std::thread> workers;
     workers.reserve(threads);
-    for (size_t i = 0; i < threads; ++i)
-        workers.emplace_back(race, i);
+    for (size_t i = 0; i < threads; ++i) workers.emplace_back(race, i);
 
     for (auto& t : workers) t.join();
 
     std::vector<block> all;
-    for (const auto& mine : granted)
-        all.insert(all.end(), mine.begin(), mine.end());
+    for (const auto& mine : granted) all.insert(all.end(), mine.begin(), mine.end());
 
     std::ranges::sort(all, [](const block& a, const block& b) {
         return a.round != b.round ? a.round < b.round : a.begin < b.begin;

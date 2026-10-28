@@ -8,7 +8,8 @@
 
 namespace wxl {
 
-class RsdnBlock::Impl : public base_t::Impl {
+class RsdnBlock::Impl : public base_t::Impl
+{
 public:
     using base_t::Impl::Impl;
 };

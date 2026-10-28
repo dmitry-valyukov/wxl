@@ -39,11 +39,10 @@ concept void_result = requires {
 // check that promise at the subscription instead of leaving it to std::terminate.
 template <class F, class R, class... Args>
 struct invocable_t<F, R(Args...) noexcept>
-    : std::bool_constant<
-          (std::is_nothrow_invocable_r_v<R, F&, Args...> &&
-           (!std::is_void_v<R> || void_result<F, Args...>)) ||
-          (optional_like<R> && std::is_nothrow_invocable_v<F&, Args...> &&
-           void_result<F, Args...>)> {
+    : std::bool_constant<(std::is_nothrow_invocable_r_v<R, F&, Args...> &&
+                          (!std::is_void_v<R> || void_result<F, Args...>)) ||
+                         (optional_like<R> && std::is_nothrow_invocable_v<F&, Args...> &&
+                          void_result<F, Args...>)> {
 };
 
 template <class F, class R, class... Args>
@@ -114,8 +113,7 @@ class func_body;
 // list and let go of by token. `Base` is where they differ and all they
 // differ in.
 template <typename R, typename... T, bool NX, template <class> class Base>
-class func_body<R(T...) noexcept(NX), Base>
-    : public Base<func_body<sig_t<NX, R, T...>, Base>>
+class func_body<R(T...) noexcept(NX), Base> : public Base<func_body<sig_t<NX, R, T...>, Base>>
 {
     using body_type = func_body<sig_t<NX, R, T...>, Base>;
 
@@ -181,7 +179,8 @@ using counted = sta_refcounted;
 // has to be an ordinary substitution failure, so that the deduction guide at
 // the end is passed over rather than hard-erroring on, say, an int.
 template <class M>
-struct signature_from {};
+struct signature_from {
+};
 
 template <class R, class C, class... A, bool NX>
 struct signature_from<R (C::*)(A...) noexcept(NX)> {
@@ -208,11 +207,13 @@ struct signature_from<R (*)(A...) noexcept(NX)> {
 // `function` that promises it too. The two spellings are different types, and
 // deducing the weaker one would quietly drop a promise the author wrote down.
 template <class F, class = void>
-struct declared_signature : signature_from<F> {};
+struct declared_signature : signature_from<F> {
+};
 
 template <class F>
 struct declared_signature<F, std::void_t<decltype(&F::operator())>>
-    : signature_from<decltype(&F::operator())> {};
+    : signature_from<decltype(&F::operator())> {
+};
 
 // Defined below the class it is about: the one thing that may make a function
 // with nothing in it, and the one thing that can tell.
@@ -290,9 +291,7 @@ public:
     /// one of them could not say anything about that body anyway -- and a function
     /// captured by a lambda is const inside it, which is where most of them are
     /// called from.
-    R operator()(T... args) const noexcept(NX) {
-        return (*body_.get())(std::forward<T>(args)...);
-    }
+    R operator()(T... args) const noexcept(NX) { return (*body_.get())(std::forward<T>(args)...); }
 
 private:
     not_null<intrusive_ptr<body_t>> body_;

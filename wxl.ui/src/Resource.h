@@ -32,7 +32,8 @@ namespace wxl {
 class Brush;
 
 struct Resource {
-    using Value = std::variant<bool, double, hstring, Thickness, CornerRadius, Color, HorizontalAlignment, Object>;
+    using Value = std::variant<bool, double, hstring, Thickness, CornerRadius, Color,
+                               HorizontalAlignment, Object>;
 
     hstring key;
     Value value;
@@ -42,7 +43,8 @@ struct Resource {
     Resource(hstring_param const& key, bool value) : key(key), value(value) {}
     Resource(hstring_param const& key, int value) : key(key), value(static_cast<double>(value)) {}
     Resource(hstring_param const& key, double value) : key(key), value(value) {}
-    Resource(hstring_param const& key, hstring_param const& text) : key(key), value(hstring(text)) {}
+    Resource(hstring_param const& key, hstring_param const& text)
+        : key(key), value(hstring(text)) {}
     Resource(hstring_param const& key, Thickness const& value) : key(key), value(value) {}
     Resource(hstring_param const& key, CornerRadius const& value) : key(key), value(value) {}
     Resource(hstring_param const& key, Color value) : key(key), value(value) {}
@@ -61,7 +63,8 @@ struct ThemeDictionary {
     hstring theme;
     std::vector<Resource> entries;
 
-    ThemeDictionary(hstring_param const& theme, std::vector<Resource> entries) : theme(theme), entries(std::move(entries)) {}
+    ThemeDictionary(hstring_param const& theme, std::vector<Resource> entries)
+        : theme(theme), entries(std::move(entries)) {}
 };
 
 // wxl::resourceBrush -- a resource of the application as a brush, by its key.

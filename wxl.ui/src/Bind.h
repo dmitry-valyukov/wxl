@@ -96,9 +96,8 @@ struct bound_field {
                 apply_bind(control, mirror, direction);
             });
         } else if constexpr (direction == bind_direction::input) {
-            bind_transformed_input(*model, fn, [&](core::observable<T>& own) {
-                apply_bind(control, own, direction);
-            });
+            bind_transformed_input(
+                *model, fn, [&](core::observable<T>& own) { apply_bind(control, own, direction); });
         } else {
             static_assert(bind_always_false<Fn>,
                           "wxl: a function on BindOutput{} is written with the property named: "
@@ -185,7 +184,8 @@ struct BindOutput<core::observable_list<T const>, Build> {
 
     explicit BindOutput(core::observable_list<T const>& list) noexcept : model(&list) {}
 
-    BindOutput(core::observable_list<T const>& list, Build build) : model(&list), fn(std::move(build)) {}
+    BindOutput(core::observable_list<T const>& list, Build build)
+        : model(&list), fn(std::move(build)) {}
 
     template <class Control>
     void operator()(Control const& control) const {
@@ -202,9 +202,10 @@ BindOutput(core::observable_list<T>&) -> BindOutput<core::observable_list<T cons
 
 template <class T, class Fn>
 struct Bind<core::observable_list<T const>, Fn> {
-    static_assert(impl::bind_always_false<T>,
-                  "wxl: a list control never writes its items back, so a list is not bound both ways. "
-                  "Write BindOutput{list, [](T const& item) { return ...; }}.");
+    static_assert(
+        impl::bind_always_false<T>,
+        "wxl: a list control never writes its items back, so a list is not bound both ways. "
+        "Write BindOutput{list, [](T const& item) { return ...; }}.");
 
     template <class... Args>
     explicit Bind(Args&&...) noexcept {}
@@ -218,9 +219,10 @@ Bind(core::observable_list<T>&) -> Bind<core::observable_list<T const>>;
 
 template <class T, class Fn>
 struct BindInput<core::observable_list<T const>, Fn> {
-    static_assert(impl::bind_always_false<T>,
-                  "wxl: a list control never writes its items back, so there is nothing to read into a list. "
-                  "Write BindOutput{list, [](T const& item) { return ...; }}.");
+    static_assert(
+        impl::bind_always_false<T>,
+        "wxl: a list control never writes its items back, so there is nothing to read into a list. "
+        "Write BindOutput{list, [](T const& item) { return ...; }}.");
 
     template <class... Args>
     explicit BindInput(Args&&...) noexcept {}

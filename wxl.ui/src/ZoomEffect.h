@@ -28,7 +28,8 @@ namespace wxl {
 
 class CompositionWindow;
 
-class ZoomEffect {
+class ZoomEffect
+{
 public:
     ZoomEffect();
 

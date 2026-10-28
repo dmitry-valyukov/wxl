@@ -4,7 +4,6 @@ import std;
 import wxl.core;
 import wxl.async;
 
-
 namespace wxl::async {
 
 // The test components live in wxl::async and reach for wxl.core names (traceable,
@@ -21,15 +20,13 @@ class sync_component : public component
 
 public:
     explicit sync_component(std::string_view name = "Synchronously started component") noexcept
-        : base(name)
-    {}
+        : base(name) {}
 
 protected:
     void on_starting() override {
         base::on_starting();
 
-        if (stop_requested())
-            throw operation_canceled_exception("Start procedure was cancelled");
+        if (stop_requested()) throw operation_canceled_exception("Start procedure was cancelled");
 
         on_started();
         my_running_subtask_ = running_task().create_subtask();
@@ -39,11 +36,12 @@ protected:
         base::on_stopping();
 
         ticket stopping_ticket = on_stopping_task().get_future();
-        stopping_ticket.when_ready([this, stopping_ticket]() noexcept { set_subtask_ready(stopping_ticket); });
+        stopping_ticket.when_ready(
+            [this, stopping_ticket]() noexcept { set_subtask_ready(stopping_ticket); });
     }
 
 private:
-    void set_subtask_ready(const ticket & stopping_ticket) {
+    void set_subtask_ready(const ticket& stopping_ticket) {
         if (stopping_ticket.has_exception())
             my_running_subtask_.set_failed(stopping_ticket.get_exception_ptr());
         else

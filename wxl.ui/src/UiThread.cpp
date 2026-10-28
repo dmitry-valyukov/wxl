@@ -40,9 +40,7 @@ UiThread::UiThread(UiThread const& other) noexcept : queue_(other.queue_) {
     }
 }
 
-UiThread::UiThread(UiThread&& other) noexcept : queue_(other.queue_) {
-    other.queue_ = nullptr;
-}
+UiThread::UiThread(UiThread&& other) noexcept : queue_(other.queue_) { other.queue_ = nullptr; }
 
 UiThread& UiThread::operator=(UiThread const& other) noexcept {
     if (this != &other) {

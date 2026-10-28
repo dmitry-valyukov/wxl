@@ -18,7 +18,8 @@ namespace impl {
 // empty token was taken off already or never given -- a broken rule, and it stops the process.
 inline EventToken take_token(EventToken& token) {
     if (!token) {
-        core::abort("wxl: a handler taken off by an empty token -- taken off already, or never given");
+        core::abort(
+            "wxl: a handler taken off by an empty token -- taken off already, or never given");
     }
     return std::move(token);
 }
@@ -38,4 +39,4 @@ void checked_remove(Remove const& remove) {
 
 }  // namespace impl
 
-} // namespace wxl
+}  // namespace wxl

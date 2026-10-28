@@ -12,12 +12,12 @@
 // line of the code that broke the rule where the check is given it, else the check's own.
 #include <cassert>
 
-#define coro_check(cond, why, where)                                  \
-    do {                                                              \
-        if constexpr (::wxl::async::detail::strict) {                 \
-            if (!(cond)) [[unlikely]]                                 \
-                ::wxl::async::detail::broken(why, where);             \
-        } else {                                                      \
-            assert((cond) && why);                                    \
-        }                                                             \
+#define coro_check(cond, why, where)                      \
+    do {                                                  \
+        if constexpr (::wxl::async::detail::strict) {     \
+            if (!(cond)) [[unlikely]]                     \
+                ::wxl::async::detail::broken(why, where); \
+        } else {                                          \
+            assert((cond) && why);                        \
+        }                                                 \
     } while (false)

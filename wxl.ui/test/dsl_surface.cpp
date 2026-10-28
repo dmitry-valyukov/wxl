@@ -120,16 +120,16 @@ using namespace wxl::dsl;
 // FocusEffect: attached to the window like ZoomEffect, the look as the bare
 // argument, an element that shows its own focus left out.
 [[maybe_unused]] void focus_effect(UIElement const& tree) {
-    auto const focus = FocusEffect {FocusLook::Lift};
-    CompositionWindow const window {focus};
+    auto const focus = FocusEffect{FocusLook::Lift};
+    CompositionWindow const window{focus};
     focus.look(FocusLook::Glow);
     FocusEffect::exclude(tree);
 }
 
 // CompositionWindow takes the window's material under the island, as Window does.
 [[maybe_unused]] void composition_window_backdrop() {
-    CompositionWindow const window {systemBackdrop = MicaBackdrop {}};
-    window.systemBackdrop(MicaBackdrop {});
+    CompositionWindow const window{systemBackdrop = MicaBackdrop{}};
+    window.systemBackdrop(MicaBackdrop{});
 }
 
 // HtmlBlock: markup as the positional string, styles registered by name --
@@ -143,8 +143,8 @@ using namespace wxl::dsl;
         lineStackingStrategy = LineStackingStrategy::BlockLineHeight,
     };
 
-    markup.registerStyle(L"quote", {.text = {.italic = true},
-                                    .block = {.margin = Thickness{24, 4, 0, 4}}});
+    markup.registerStyle(L"quote",
+                         {.text = {.italic = true}, .block = {.margin = Thickness{24, 4, 0, 4}}});
     markup.registerStyles({
         {L"warn", {.text = {.color = rgb(192, 57, 43), .bold = true}}},
         {L"note", {.text = {.color = rgb(96, 96, 96)}}},
@@ -152,10 +152,10 @@ using namespace wxl::dsl;
     markup.onLink([](zstring_view) {});
     markup.onError([](MarkupError const&) {});
     markup.theme(MarkupTheme{.quoteColor = {rgb(128, 128, 128)},
-                           .preRadius = 6,
-                           .preElevation = 24,
-                           .preBackground = rgb(242, 242, 242),
-                           .listIndent = 32});
+                             .preRadius = 6,
+                             .preElevation = 24,
+                             .preBackground = rgb(242, 242, 242),
+                             .listIndent = 32});
     markup.baseDirectory(LR"(C:\docs)");
     markup.append(L"<p style=\"note\">дописано <i>куском</i></p>");
     markup.html(L"<h1>Заново</h1>");
@@ -189,10 +189,8 @@ using namespace wxl::dsl;
 [[maybe_unused]] void children_list() {
     StackPanel panel{
         hAlign.center,
-        children[
-            TextBlock{L"WinUI 3 in C++ Without XAML!", hAlign.center},
-            Button{content = L"Click"}
-        ],
+        children[TextBlock{L"WinUI 3 in C++ Without XAML!", hAlign.center},
+                 Button{content = L"Click"}],
     };
 }
 
@@ -241,7 +239,8 @@ using namespace wxl::dsl;
         [](iterate<L"789"> key) {
             return Button{
                 key.text(),
-                onClick += [key](Object const&, RoutedEventArgs&) {
+                onClick +=
+                [key](Object const&, RoutedEventArgs&) {
                     wchar_t const pressed = key;
                     (void)pressed;
                 },
@@ -292,9 +291,11 @@ using namespace wxl::dsl;
     Grid fixed{pinned};
     Apply{fixed, RowDefinitions<u"auto">};
 
-    std::vector<GridLength> const counted(static_cast<std::size_t>(columns), GridLength{1.0, GridUnitType::Star});
+    std::vector<GridLength> const counted(static_cast<std::size_t>(columns),
+                                          GridLength{1.0, GridUnitType::Star});
     Grid computed{columnDefinitions = counted};
-    Grid listed{rowDefinitions = {GridLength{1.0, GridUnitType::Auto}, GridLength{2.0, GridUnitType::Star}}};
+    Grid listed{rowDefinitions = {GridLength{1.0, GridUnitType::Auto},
+                                  GridLength{2.0, GridUnitType::Star}}};
     Apply{computed, rowDefinitions = std::span<GridLength const>{counted}};
 
     static constexpr Preset look{RowDefinitions<u"auto,*">};
@@ -313,8 +314,9 @@ using namespace wxl::dsl;
 // RowDefinitions and ColumnDefinitions -- through a template argument, so that the evaluation that
 // fails is the answer of a requires-expression rather than an error on this line.
 template <impl::values Text>
-concept parses_as_grid_lengths =
-    requires { typename std::integral_constant<std::size_t, impl::grid_lengths_parse<Text>().size()>; };
+concept parses_as_grid_lengths = requires {
+    typename std::integral_constant<std::size_t, impl::grid_lengths_parse<Text>().size()>;
+};
 
 static_assert(parses_as_grid_lengths<u"*,2*,auto,120">);
 static_assert(!parses_as_grid_lengths<u"*,2x,auto">);
@@ -403,14 +405,16 @@ struct [[maybe_unused]] grid_in_a_model {
 // and the tags apply to it; its title bar is placed by the window itself, so
 // it is built right in the braces; its own events take the same tags, and a
 // copy captured by a lambda is the same window.
-[[maybe_unused]] void composition_window(TitleBar const& built, Grid const& page, async::cancellation_token token) {
+[[maybe_unused]] void composition_window(TitleBar const& built, Grid const& page,
+                                         async::cancellation_token token) {
     CompositionWindow window{
         title = L"App",
         minSize = {820, 560},
         extendsContentIntoTitleBar = true,
         titleBar = {leftHeader = TextBlock{L"App"}, rightHeader = Button{L"Sign in"}},
         zoomFactor = 1.25,
-        onClosing += [](Object const&, WindowClosingEventArgs& args) { args.cancel(!args.cancel()); },
+        onClosing +=
+        [](Object const&, WindowClosingEventArgs& args) { args.cancel(!args.cancel()); },
         onClosed += [] {},
         onGeometryChanged += [] {},
         onClientSizeChanged += [](Object const&, ClientSize const& client) { (void)client.scale; },
@@ -428,7 +432,8 @@ struct [[maybe_unused]] grid_in_a_model {
     };
     CompositionWindow const coloured{background = rgb(32, 32, 32)};
     // A picture loaded on the way, under the token the exit ends its wait with.
-    tiled.backgroundAsync(BackgroundImage{L"Assets/photo.png", BackgroundFill::None, rgb(0, 0, 0)}, token);
+    tiled.backgroundAsync(BackgroundImage{L"Assets/photo.png", BackgroundFill::None, rgb(0, 0, 0)},
+                          token);
     coloured.backgroundAsync(std::filesystem::path{L"Assets/photo.png"}, token);
 
     auto const closeLater = [window] { window.close(); };
@@ -448,15 +453,15 @@ struct [[maybe_unused]] grid_in_a_model {
 // backgroundAsync takes the token its load is registered with, and has no form without one: the
 // wait for the picture is a frame that has to be over before the exit.
 template <class Image>
-concept loads_background_without_a_token =
-    requires(CompositionWindow const& window, Image const& image) { window.backgroundAsync(image); };
+concept loads_background_without_a_token = requires(
+    CompositionWindow const& window, Image const& image) { window.backgroundAsync(image); };
 
 static_assert(!loads_background_without_a_token<BackgroundImage> &&
               !loads_background_without_a_token<std::filesystem::path>);
 
 // A texture from the cache, under a token as every operation of the platform's.
-[[maybe_unused]] async::task<CompositionDrawingSurface> cached_texture(TextureCache& cache,
-                                                                       async::cancellation_token token) {
+[[maybe_unused]] async::task<CompositionDrawingSurface> cached_texture(
+    TextureCache& cache, async::cancellation_token token) {
     return cache.getAsync(std::filesystem::path{L"C:/Pictures/photo.png"}, std::move(token));
 }
 
@@ -512,7 +517,9 @@ static_assert(impl::iterating<decltype([](repeat<3>) noexcept { return Button{};
 // the owner. A remove of the window answers whether a token was there.
 struct WatchesTheWindow {
     explicit WatchesTheWindow(CompositionWindow const& window)
-        : geometryWatch{window, *this}, sizeWatch{window, *this}, closingWatch{window, *this},
+        : geometryWatch{window, *this},
+          sizeWatch{window, *this},
+          closingWatch{window, *this},
           keyWatch{window, *this} {}
 
     void moved() noexcept {}
@@ -641,17 +648,17 @@ struct WatchesTheWindow {
 // the one carrying a template is a constant object whose template is made
 // at start-up, in the pool that stands from before main().
 namespace library_presets {
-    inline constexpr Preset shape{CornerRadius{12}, translation = {0, 0, 32}};
+inline constexpr Preset shape{CornerRadius{12}, translation = {0, 0, 32}};
 
-    inline Preset const card{
-        shape,
-        background = brushes.Card.BackgroundFillColor.Default,
-        shadow = Template<ThemeShadow>{},
-    };
+inline Preset const card{
+    shape,
+    background = brushes.Card.BackgroundFillColor.Default,
+    shadow = Template<ThemeShadow>{},
+};
 
-    inline Preset const stamp{
-        Template<Button>{content = L"fresh per application"},
-    };
+inline Preset const stamp{
+    Template<Button>{content = L"fresh per application"},
+};
 }
 
 [[maybe_unused]] void deferred_values() {
@@ -686,7 +693,7 @@ namespace library_presets {
 // object a property asks for is a template's to build.
 [[maybe_unused]] void own_preset() {
     constexpr Preset glow{
-        center = Point {0.33, 0.33},
+        center = Point{0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,
@@ -709,7 +716,7 @@ namespace library_presets {
 // the same way it would be written inside the object's.
 [[maybe_unused]] void templates_of_presets() {
     constexpr Preset shape{
-        center = Point {0.33, 0.33},
+        center = Point{0.33, 0.33},
         gradientOrigin = {0.33, 0.33},
         radiusX = 1.1,
         radiusY = 1.3,
@@ -776,8 +783,8 @@ struct BoundModel : core::sta_refcounted {
 
     // Both ways: the control writes the property itself.
     TextBox{text = Bind{model->name}};
-    ToggleSwitch{isOn = Bind{model->busy}};      // named
-    ToggleSwitch{Bind{model->busy}};             // by the data's type
+    ToggleSwitch{isOn = Bind{model->busy}};  // named
+    ToggleSwitch{Bind{model->busy}};         // by the data's type
     ComboBox{selectedIndex = Bind{model->row}};
     NumberBox{value = Bind{model->amount}};
     CheckBox{isChecked = Bind{model->busy}};
@@ -790,10 +797,10 @@ struct BoundModel : core::sta_refcounted {
     Slider{Bind{model->amount}};
 
     // From the field: the control shows, pair or no pair.
-    TextBlock{text = BindOutput{model->title}};  // no pair: the only form a TextBlock's text takes
-    Button{isEnabled = BindOutput{model->busy}}; // named: bool alone could not choose
+    TextBlock{text = BindOutput{model->title}};   // no pair: the only form a TextBlock's text takes
+    Button{isEnabled = BindOutput{model->busy}};  // named: bool alone could not choose
     ProgressRing{isActive = BindOutput{model->busy}};
-    TextBox{text = BindOutput{model->name}};     // a pair, one half: what is typed stays in the box
+    TextBox{text = BindOutput{model->name}};  // a pair, one half: what is typed stays in the box
     NumberBox{value = BindOutput{model->row}};
 
     // Into the field: the control writes, nothing written back.
@@ -825,8 +832,8 @@ struct BoundModel : core::sta_refcounted {
     auto const model = core::make_refcounted<BoundModel>();
 
     TextBox{isFocused = Bind{model->busy}};
-    Border{isFocused = Bind{model->busy}};       // a panel too: UIElement declares the focus
-    Grid{isFocused = BindInput{model->busy}};    // only told
+    Border{isFocused = Bind{model->busy}};     // a panel too: UIElement declares the focus
+    Grid{isFocused = BindInput{model->busy}};  // only told
     Button{isFocused = Bind{model->busy, std::logical_not{}}};
     TextBox{schema::TextBox::isFocused = Bind{model->busy}};  // inherited from UIElement's anchor
     ScrollViewer{verticalOffset = Bind{model->amount}};
@@ -943,8 +950,8 @@ struct BoundModel : core::sta_refcounted {
 // is a call the args make on the pointer, not a property of theirs. Written as
 // exact types rather than as `requires` because a member call rejected for the
 // const-ness of `this` is not a substitution failure in MSVC but an error.
-static_assert(std::is_same_v<decltype(&KeyRoutedEventArgs::key),
-                             VirtualKey (KeyRoutedEventArgs::*)() const>);
+static_assert(
+    std::is_same_v<decltype(&KeyRoutedEventArgs::key), VirtualKey (KeyRoutedEventArgs::*)() const>);
 
 [[maybe_unused]] constexpr auto args_are_read_through_const =
     static_cast<bool (KeyRoutedEventArgs::*)() const>(&KeyRoutedEventArgs::handled);
@@ -1019,7 +1026,6 @@ static_assert(std::is_same_v<decltype(&PointerRoutedEventArgs::getCurrentPoint),
     static_assert(!core::nullable<std::size_t>{}.has_value());
     static_assert(!core::nullable<double>{}.has_value());
 }
-
 
 // The composition surface, which the rich profile added and which is where
 // an application puts drawing of its own.
@@ -1153,7 +1159,8 @@ struct DrawnPage {
 
 void device_replaced(Compositor const& compositor) {
     DrawnPage const page{compositor};
-    static_assert(!std::is_default_constructible_v<RenderingDeviceWatch<&DrawnPage::deviceReplaced>>);
+    static_assert(
+        !std::is_default_constructible_v<RenderingDeviceWatch<&DrawnPage::deviceReplaced>>);
     (void)page;
 }
 
@@ -1185,8 +1192,9 @@ void own_drawing_in_parts(Compositor const& compositor, FrameworkElement const& 
 // the wrapper, and the longest side is a question of the device the surface is on.
 using SurfacePaint = std::function<void(ID2D1DeviceContext*)>;
 static_assert(VirtualDrawingSurface::maxSide == 16777216);
-static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::draw),
-                             bool (VirtualDrawingSurface::*)(RectInt32, SurfacePaint const&) const>);
+static_assert(
+    std::is_same_v<decltype(&VirtualDrawingSurface::draw),
+                   bool (VirtualDrawingSurface::*)(RectInt32, SurfacePaint const&) const>);
 static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::trim),
                              void (VirtualDrawingSurface::*)(std::span<RectInt32 const>) const>);
 static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::maxUpdateSide),
@@ -1197,15 +1205,16 @@ static_assert(std::is_same_v<decltype(&VirtualDrawingSurface::resize),
 // Where a scroller is going, before it is shown there: the view of the next frame and the one
 // a fling comes to rest at -- the parts a VirtualDrawingSurface under the content draws ahead.
 void drawing_ahead_of_the_scroll() {
-    ScrollViewer{onViewChanging += [](ScrollViewer const&, ScrollViewerViewChangingEventArgs& args) {
-        double const next = args.nextView().verticalOffset();
-        double const rest = args.finalView().verticalOffset();
-        bool const flung = args.isInertial();
-        (void)args.nextView().horizontalOffset();
-        (void)next;
-        (void)rest;
-        (void)flung;
-    }};
+    ScrollViewer{onViewChanging +=
+                 [](ScrollViewer const&, ScrollViewerViewChangingEventArgs& args) {
+                     double const next = args.nextView().verticalOffset();
+                     double const rest = args.finalView().verticalOffset();
+                     bool const flung = args.isInertial();
+                     (void)args.nextView().horizontalOffset();
+                     (void)next;
+                     (void)rest;
+                     (void)flung;
+                 }};
 }
 
 // Work handed to the UI thread, both ways round.
@@ -1324,7 +1333,8 @@ inline constexpr Preset tinted{background = colors.white, borderBrush = Color{25
 }
 
 template <typename Value>
-concept background_takes = requires(Border const& border, Value value) { border.background(value); };
+concept background_takes =
+    requires(Border const& border, Value value) { border.background(value); };
 
 static_assert(!std::is_convertible_v<Color, Brush>);
 static_assert(!background_takes<Color>);
@@ -1344,9 +1354,6 @@ static_assert(!background_takes<Color>);
         [](Columns const& self, Object const&) { self.columnSpacing(4); });
 }
 
-
-
-
 // Dressing an object that already exists. The runtime form of a description,
 // written the way a description is: same braces, same commas, target first.
 // Every route the constructor has is here, so a change that drops one of them
@@ -1354,16 +1361,16 @@ static_assert(!background_takes<Color>);
 // this rather than an application.
 [[maybe_unused]] void apply_dresses_what_already_exists(Button const& button,
                                                         StackPanel const& panel) {
-    Apply {button, content = L"Switch", isEnabled = false};
-    Apply {button, Margin {16, 0}, Padding {3}};
-    Apply {button, styles.ButtonBase.TextBlockButton};
-    Apply {button, onClick += [](Button const& self) { self.isEnabled(false); }};
-    Apply {button, Preset{content = L"Switch"}};
-    Apply {panel, TextBlock {L"a child goes in the same way"}};
+    Apply{button, content = L"Switch", isEnabled = false};
+    Apply{button, Margin{16, 0}, Padding{3}};
+    Apply{button, styles.ButtonBase.TextBlockButton};
+    Apply{button, onClick += [](Button const& self) { self.isEnabled(false); }};
+    Apply{button, Preset{content = L"Switch"}};
+    Apply{panel, TextBlock{L"a child goes in the same way"}};
 
     // A pack of one, and a pack of none: both legal, neither special.
-    Apply {button, content = L"Switch"};
-    Apply {button};
+    Apply{button, content = L"Switch"};
+    Apply{button};
 
     static_assert(!std::is_constructible_v<Apply, decltype(content = L"a")>,
                   "the first argument is the target, and only a control may stand there");
@@ -1470,7 +1477,7 @@ concept declares_snaps_to_tag = requires { typename T::SnapsToTag; };
 
     // And it is the same op the bare name produces, so the two forms mix
     // inside one set of braces.
-    Button {
+    Button{
         x::Button::flyout = MenuFlyout{},
         x::ContentControl::content = L"Click me",
         content = L"and the flat name still means the same thing",
@@ -1691,8 +1698,8 @@ static_assert(!std::is_convertible_v<Color const&, SolidColorBrush>,
 // rather than in Color.h, which half of wxl.ui includes.
 static_assert(sizeof(Color) == 4);
 static_assert(alignof(Color) == 1);
-static_assert(offsetof(Color, A) == 0 && offsetof(Color, R) == 1 && offsetof(Color, G) == 2
-              && offsetof(Color, B) == 3);
+static_assert(offsetof(Color, A) == 0 && offsetof(Color, R) == 1 && offsetof(Color, G) == 2 &&
+              offsetof(Color, B) == 3);
 
 // The CSS functions: alpha is a fraction, rounded to the nearest byte.
 static_assert(rgb(131, 50, 50) == Color{255, 131, 50, 50});
@@ -1733,8 +1740,8 @@ static_assert(ColorHelper::highlight(colors.black, colors.white, 1.0) == colors.
 // between get the cosine's share of the key, and a direction's length does
 // not matter.
 namespace {
-constexpr Light lampAbove {{0, 0, 1}, colors.white, colors.black};
-constexpr Light lampAtLeft {{-1, -1, 1.2}, rgb(255, 246, 232), rgb(64, 68, 90)};
+constexpr Light lampAbove{{0, 0, 1}, colors.white, colors.black};
+constexpr Light lampAtLeft{{-1, -1, 1.2}, rgb(255, 246, 232), rgb(64, 68, 90)};
 }  // namespace
 static_assert(Light::illuminate(rgb(200, 60, 30), lampAbove, {0, 0, 1}) == rgb(200, 60, 30));
 static_assert(Light::illuminate(rgb(200, 60, 30), lampAbove, {0, 0, 5}) == rgb(200, 60, 30));
@@ -1754,7 +1761,8 @@ constexpr auto sunkenRed = Relief::sunken(rgb(200, 60, 30), lampAtLeft);
 constexpr auto underhead = Relief::raised(rgb(200, 60, 30), lampAbove);
 }  // namespace
 static_assert(raisedRed.nearLamp == rgb(202, 58, 28) && raisedRed.farFromLamp == rgb(81, 19, 8));
-static_assert(sunkenRed.nearLamp == raisedRed.farFromLamp && sunkenRed.farFromLamp == raisedRed.nearLamp);
+static_assert(sunkenRed.nearLamp == raisedRed.farFromLamp &&
+              sunkenRed.farFromLamp == raisedRed.nearLamp);
 static_assert(Relief::flat(rgb(200, 60, 30), lampAtLeft) == rgb(170, 48, 22));
 static_assert(underhead.nearLamp == rgb(200, 60, 30) && underhead.farFromLamp == rgb(200, 60, 30));
 static_assert(Relief::raised(rgb(200, 60, 30), lampAtLeft, 0.0).nearLamp == rgb(170, 48, 22));
@@ -1763,8 +1771,8 @@ static_assert(Relief::raised(rgb(200, 60, 30), lampAtLeft, 0.0).nearLamp == rgb(
 // cosine, and depends only on the ratio of distance to height; under() puts
 // it on the key and leaves the ambient alone.
 static_assert(Relief::falloff(0.0, 1.0) == 1.0);
-static_assert(Relief::falloff(1.3, 2.0) - Relief::falloff(0.65, 1.0) < 1e-12
-              && Relief::falloff(0.65, 1.0) - Relief::falloff(1.3, 2.0) < 1e-12);
+static_assert(Relief::falloff(1.3, 2.0) - Relief::falloff(0.65, 1.0) < 1e-12 &&
+              Relief::falloff(0.65, 1.0) - Relief::falloff(1.3, 2.0) < 1e-12);
 static_assert(Relief::under(rgb(200, 60, 30), lampAtLeft, 0.0, 1.0) == rgb(205, 59, 28));
 static_assert(Relief::under(rgb(200, 60, 30), lampAtLeft, 0.65, 1.0) == rgb(164, 46, 21));
 static_assert(Relief::under(rgb(200, 60, 30), lampAtLeft, 1.3, 1.0) == rgb(112, 29, 12));
@@ -1779,20 +1787,25 @@ constexpr bool close_to(double value, double expected) {
     return value - expected < 1e-6 && expected - value < 1e-6;
 }
 }  // namespace
-static_assert(close_to(leftUp.x, -0.25) && close_to(leftUp.y, -0.433013) && close_to(leftUp.z, 0.866025));
+static_assert(close_to(leftUp.x, -0.25) && close_to(leftUp.y, -0.433013) &&
+              close_to(leftUp.z, 0.866025));
 static_assert(close_to(overhead.x, 0.0) && close_to(overhead.y, 0.0) && close_to(overhead.z, 1.0));
 
 // across() is the gradient axis of a face under the lamp: from the lamp's
 // side to the far side through the middle, whatever the lamp's height; a
 // lamp overhead leaves both ends in the middle.
 namespace {
-constexpr auto axisLeftUp = Relief::across({Direction::from_angles(120, 60), colors.white, colors.black});
-constexpr auto axisLow = Relief::across({Direction::from_angles(120, 20), colors.white, colors.black});
-constexpr auto axisOverhead = Relief::across({Direction::from_angles(120, 90), colors.white, colors.black});
+constexpr auto axisLeftUp =
+    Relief::across({Direction::from_angles(120, 60), colors.white, colors.black});
+constexpr auto axisLow =
+    Relief::across({Direction::from_angles(120, 20), colors.white, colors.black});
+constexpr auto axisOverhead =
+    Relief::across({Direction::from_angles(120, 90), colors.white, colors.black});
 }  // namespace
-static_assert(close_to(axisLeftUp.startX, 0.25) && close_to(axisLeftUp.startY, 0.5 - 0.4330127)
-              && close_to(axisLeftUp.endX, 0.75) && close_to(axisLeftUp.endY, 0.5 + 0.4330127));
-static_assert(close_to(axisLow.startX, axisLeftUp.startX) && close_to(axisLow.endY, axisLeftUp.endY));
+static_assert(close_to(axisLeftUp.startX, 0.25) && close_to(axisLeftUp.startY, 0.5 - 0.4330127) &&
+              close_to(axisLeftUp.endX, 0.75) && close_to(axisLeftUp.endY, 0.5 + 0.4330127));
+static_assert(close_to(axisLow.startX, axisLeftUp.startX) &&
+              close_to(axisLow.endY, axisLeftUp.endY));
 static_assert(close_to(axisOverhead.startX, 0.5) && close_to(axisOverhead.endY, 0.5));
 
 // cushion() samples the shoulder ring by ring, outermost first: at full rise
@@ -1800,24 +1813,30 @@ static_assert(close_to(axisOverhead.startX, 0.5) && close_to(axisOverhead.endY, 
 // in the ambient, the inner ring is nearly the top; at no rise every ring is
 // the top; a negative rise swaps the sides.
 namespace {
-constexpr Light lampHigh {Direction::from_angles(120, 60), rgb(255, 246, 232), rgb(64, 68, 90)};
+constexpr Light lampHigh{Direction::from_angles(120, 60), rgb(255, 246, 232), rgb(64, 68, 90)};
 constexpr auto cushionRed = Relief::cushion<4>(rgb(200, 60, 30), lampHigh, 1.0);
 constexpr auto flatRed = Relief::cushion<4>(rgb(200, 60, 30), lampHigh, 0.0);
 constexpr auto dentRed = Relief::cushion<4>(rgb(200, 60, 30), lampHigh, -1.0);
 constexpr Color topRed = Relief::flat(rgb(200, 60, 30), lampHigh);
 }  // namespace
 static_assert(topRed == rgb(192, 55, 26));
-static_assert(cushionRed[0].nearLamp == rgb(192, 55, 26) && cushionRed[0].farFromLamp == rgb(48, 9, 4));
-static_assert(cushionRed[1].nearLamp == rgb(204, 59, 28) && cushionRed[1].farFromLamp == rgb(134, 36, 16));
-static_assert(cushionRed[2].nearLamp == rgb(204, 59, 28) && cushionRed[2].farFromLamp == rgb(167, 47, 22));
-static_assert(cushionRed[3].nearLamp == rgb(198, 57, 27) && cushionRed[3].farFromLamp == rgb(186, 53, 25));
-static_assert(flatRed[0].nearLamp == topRed && flatRed[0].farFromLamp == topRed && flatRed[3].nearLamp == topRed
-              && flatRed[3].farFromLamp == topRed);
-static_assert(dentRed[0].nearLamp == cushionRed[0].farFromLamp && dentRed[0].farFromLamp == cushionRed[0].nearLamp
-              && dentRed[2].nearLamp == cushionRed[2].farFromLamp);
+static_assert(cushionRed[0].nearLamp == rgb(192, 55, 26) &&
+              cushionRed[0].farFromLamp == rgb(48, 9, 4));
+static_assert(cushionRed[1].nearLamp == rgb(204, 59, 28) &&
+              cushionRed[1].farFromLamp == rgb(134, 36, 16));
+static_assert(cushionRed[2].nearLamp == rgb(204, 59, 28) &&
+              cushionRed[2].farFromLamp == rgb(167, 47, 22));
+static_assert(cushionRed[3].nearLamp == rgb(198, 57, 27) &&
+              cushionRed[3].farFromLamp == rgb(186, 53, 25));
+static_assert(flatRed[0].nearLamp == topRed && flatRed[0].farFromLamp == topRed &&
+              flatRed[3].nearLamp == topRed && flatRed[3].farFromLamp == topRed);
+static_assert(dentRed[0].nearLamp == cushionRed[0].farFromLamp &&
+              dentRed[0].farFromLamp == cushionRed[0].nearLamp &&
+              dentRed[2].nearLamp == cushionRed[2].farFromLamp);
 
 // Color is a bare aggregate, the way it crosses the ABI.
-static_assert(std::is_aggregate_v<Color> && std::is_trivially_copyable_v<Color> && sizeof(Color) == 4);
+static_assert(std::is_aggregate_v<Color> && std::is_trivially_copyable_v<Color> &&
+              sizeof(Color) == 4);
 
 // What a string parameter takes: whatever carries a zero after its text, in
 // either unit, and an hstring a getter hands back -- so a value read off one
@@ -1869,17 +1888,14 @@ using layout_wait_t = decltype(on_event<EventKey::LayoutUpdated>(std::declval<Te
 // EventKey, two classes, two different args. A subscription made from a key
 // has to land on the right one of them.
 static_assert(std::is_same_v<click_wait_t::args_t, RoutedEventArgs>);
-static_assert(std::is_same_v<split_click_wait_t::args_t,
-                             SplitButtonClickEventArgs>);
+static_assert(std::is_same_v<split_click_wait_t::args_t, SplitButtonClickEventArgs>);
 
 // And they reach the coroutine exactly as they reach a handler: event args
 // proper by non-const reference, since they are a non-copyable view the
 // runtime owns; the events whose args are an ordinary object by const
 // reference, since that one is a wrapper the coroutine must not replace.
-static_assert(
-    std::is_same_v<click_wait_t::args_ref_t, RoutedEventArgs&>);
-static_assert(
-    std::is_same_v<layout_wait_t::args_ref_t, Object const&>);
+static_assert(std::is_same_v<click_wait_t::args_ref_t, RoutedEventArgs&>);
+static_assert(std::is_same_v<layout_wait_t::args_ref_t, Object const&>);
 
 // Neither copied nor moved: the handler it hands the element captures it by
 // address, so a proxy that could travel would leave that handler pointing at
@@ -1897,8 +1913,9 @@ static_assert(std::is_same_v<decltype(on_event<EventKey::Click>(std::declval<But
 // state is a null pointer and therefore costs nothing.
 using key_wait_t = decltype(on_event<EventKey::KeyDown>(std::declval<Button const&>()));
 
-static_assert(std::is_same_v<decltype(std::declval<key_wait_t&>().operator co_await().await_resume()),
-                             KeyRoutedEventArgs&>);
+static_assert(
+    std::is_same_v<decltype(std::declval<key_wait_t&>().operator co_await().await_resume()),
+                   KeyRoutedEventArgs&>);
 static_assert(std::is_same_v<decltype(std::declval<key_wait_t&>().next().await_resume()),
                              std::expected<std::reference_wrapper<KeyRoutedEventArgs>,
                                            core::nullable<std::exception_ptr>>>);
@@ -1911,33 +1928,35 @@ static_assert(sizeof(core::nullable<std::exception_ptr>) == sizeof(std::exceptio
 // Only the positive half is assertable: the const overload is deleted rather
 // than absent, and MSVC reports naming a deleted function as an error where
 // it stands instead of letting a requires-expression answer false.
-static_assert(
-    requires(click_wait_t& proxy) { proxy.operator co_await(); });
+static_assert(requires(click_wait_t& proxy) { proxy.operator co_await(); });
 
 // Under a cancellation token, given last as wxl.async's operations take one.
 // The proxy is a type of its own, so a wait made without a token keeps every
 // byte it had: its awaiter is the pointer and two flags it can be cancelled
 // through, and the idle wait the size it was.
-using cancelable_click_wait_t = decltype(on_event<EventKey::Click>(std::declval<Button const&>(),
-                                                              std::declval<async::cancellation_token>()));
-using cancelable_key_wait_t = decltype(on_event<EventKey::KeyDown>(std::declval<Button const&>(),
-                                                              std::declval<async::cancellation_token>()));
+using cancelable_click_wait_t = decltype(on_event<EventKey::Click>(
+    std::declval<Button const&>(), std::declval<async::cancellation_token>()));
+using cancelable_key_wait_t = decltype(on_event<EventKey::KeyDown>(
+    std::declval<Button const&>(), std::declval<async::cancellation_token>()));
 
-static_assert(std::is_same_v<cancelable_click_wait_t,
-                             impl::cancelable_event_awaitable<impl::keyed_event<EventKey::Click, Button>>>);
+static_assert(
+    std::is_same_v<cancelable_click_wait_t,
+                   impl::cancelable_event_awaitable<impl::keyed_event<EventKey::Click, Button>>>);
 static_assert(std::is_same_v<decltype(onClick(std::declval<Button const&>(),
                                               std::declval<async::cancellation_token>())),
                              cancelable_click_wait_t>);
 static_assert(!std::is_move_constructible_v<cancelable_click_wait_t>);
 
 // The two forms answer as they do without a token.
-static_assert(std::is_same_v<decltype(std::declval<cancelable_key_wait_t&>().operator co_await().await_resume()),
-                             KeyRoutedEventArgs&>);
+static_assert(std::is_same_v<
+              decltype(std::declval<cancelable_key_wait_t&>().operator co_await().await_resume()),
+              KeyRoutedEventArgs&>);
 static_assert(std::is_same_v<decltype(std::declval<cancelable_key_wait_t&>().next().await_resume()),
                              key_wait_t::next_result_t>);
 
 static_assert(sizeof(click_wait_t::awaiter) == 2 * sizeof(void*));
-static_assert(sizeof(cancelable_click_wait_t) == sizeof(click_wait_t) + sizeof(async::cancellation_token));
+static_assert(sizeof(cancelable_click_wait_t) ==
+              sizeof(click_wait_t) + sizeof(async::cancellation_token));
 static_assert(async::detail::cancelable_awaiter<click_wait_t::awaiter>);
 static_assert(async::detail::cancelable_awaiter<UiThread::Idle>);
 static_assert(sizeof(UiThread::Idle) == sizeof(impl::event_wait) +
@@ -1988,8 +2007,8 @@ struct probe_task {
         // The same wait through the tag the braces use -- `onClick += handler`
         // to handle, `onClick(button)` to await -- and through the schema,
         // which also checks that a Button is what the tag was declared on.
-        static_assert(std::is_same_v<decltype(onClick(button)),
-                                     decltype(on_event<EventKey::Click>(button))>);
+        static_assert(
+            std::is_same_v<decltype(onClick(button)), decltype(on_event<EventKey::Click>(button))>);
         RoutedEventArgs& tagged = co_await onClick(button);
         static_cast<void>(tagged);
         RoutedEventArgs& owned = co_await schema::Button::onClick(button);
@@ -2038,7 +2057,8 @@ static_assert(std::is_same_v<decltype(std::declval<ContentDialog const&>().showA
                                  std::declval<async::cancellation_token>())),
                              async::task<ContentDialogResult>>);
 
-[[maybe_unused]] async::task<bool> asking_under_a_token(ContentDialog dialog, async::cancellation_token token) {
+[[maybe_unused]] async::task<bool> asking_under_a_token(ContentDialog dialog,
+                                                        async::cancellation_token token) {
     co_return co_await dialog.showAsync(std::move(token)) == ContentDialogResult::Primary;
 }
 
@@ -2054,20 +2074,23 @@ static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void(int
                                                std::declval<async::cancellation_token>())
                                           .await_resume()),
                              int&>);
-static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void(std::u16string const&, int)>&>(),
-                                               std::declval<async::cancellation_token>())
-                                          .await_resume()),
-                             std::tuple<std::u16string, int>>);
-static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void(std::u16string const&)>&>(),
-                                               std::declval<async::cancellation_token>())
-                                          .await_resume()),
-                             std::u16string>);
+static_assert(
+    std::is_same_v<decltype(on_event(std::declval<core::event<void(std::u16string const&, int)>&>(),
+                                     std::declval<async::cancellation_token>())
+                                .await_resume()),
+                   std::tuple<std::u16string, int>>);
+static_assert(
+    std::is_same_v<decltype(on_event(std::declval<core::event<void(std::u16string const&)>&>(),
+                                     std::declval<async::cancellation_token>())
+                                .await_resume()),
+                   std::u16string>);
 static_assert(std::is_same_v<decltype(on_event(std::declval<core::event<void()>&>(),
                                                std::declval<async::cancellation_token>())
                                           .await_resume()),
                              void>);
 static_assert(!std::is_move_constructible_v<count_wait_t>);
-static_assert(async::detail::cancelable_awaiter<impl::core_event_wait<core::event<void(int)>, int>>);
+static_assert(
+    async::detail::cancelable_awaiter<impl::core_event_wait<core::event<void(int)>, int>>);
 
 // A reference to const comes as a copy, so a type whose copy would be sliced to its static
 // type -- or that has none -- is refused where the wait is made, with a static_assert that says
@@ -2082,10 +2105,10 @@ static_assert(impl::invocation_answerable<std::u16string const&>);
 static_assert(impl::invocation_answerable<sliced_answer&>);
 static_assert(!impl::invocation_answerable<sliced_answer const&>);
 
-[[maybe_unused]] probe_task awaiting_an_event_of_the_model(core::event<void(int)>& counted,
-                                                           core::event<void(std::u16string const&, int) noexcept>& renamed,
-                                                           core::event<void()>& reset,
-                                                           async::cancellation_token token) {
+[[maybe_unused]] probe_task awaiting_an_event_of_the_model(
+    core::event<void(int)>& counted,
+    core::event<void(std::u16string const&, int) noexcept>& renamed, core::event<void()>& reset,
+    async::cancellation_token token) {
     int const count = co_await on_event(counted, token);
     static_cast<void>(count);
 
@@ -2098,34 +2121,42 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 
 // HaloEffect and GaussianBlurEffect -- written by hand, so their schema
 // lines are too.
-[[maybe_unused]] void HaloEffect_color_assigned(::wxl::HaloEffect const& object, ::wxl::Color value) {
+[[maybe_unused]] void HaloEffect_color_assigned(::wxl::HaloEffect const& object,
+                                                ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::color = value);
 }
-[[maybe_unused]] void HaloEffect_blurRadius_assigned(::wxl::HaloEffect const& object, double value) {
+[[maybe_unused]] void HaloEffect_blurRadius_assigned(::wxl::HaloEffect const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::blurRadius = value);
 }
 [[maybe_unused]] void HaloEffect_opacity_assigned(::wxl::HaloEffect const& object, double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::opacity = value);
 }
-[[maybe_unused]] void HaloEffect_offset_assigned(::wxl::HaloEffect const& object, ::wxl::Vector3 value) {
+[[maybe_unused]] void HaloEffect_offset_assigned(::wxl::HaloEffect const& object,
+                                                 ::wxl::Vector3 value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::offset = value);
 }
 [[maybe_unused]] void HaloEffect_zIndex_assigned(::wxl::HaloEffect const& object, int32_t value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HaloEffect::zIndex = value);
 }
-[[maybe_unused]] void GaussianBlurEffect_color_assigned(::wxl::GaussianBlurEffect const& object, ::wxl::Color value) {
+[[maybe_unused]] void GaussianBlurEffect_color_assigned(::wxl::GaussianBlurEffect const& object,
+                                                        ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::color = value);
 }
-[[maybe_unused]] void GaussianBlurEffect_blurRadius_assigned(::wxl::GaussianBlurEffect const& object, double value) {
+[[maybe_unused]] void GaussianBlurEffect_blurRadius_assigned(
+    ::wxl::GaussianBlurEffect const& object, double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::blurRadius = value);
 }
-[[maybe_unused]] void GaussianBlurEffect_opacity_assigned(::wxl::GaussianBlurEffect const& object, double value) {
+[[maybe_unused]] void GaussianBlurEffect_opacity_assigned(::wxl::GaussianBlurEffect const& object,
+                                                          double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::opacity = value);
 }
-[[maybe_unused]] void GaussianBlurEffect_gamma_assigned(::wxl::GaussianBlurEffect const& object, double value) {
+[[maybe_unused]] void GaussianBlurEffect_gamma_assigned(::wxl::GaussianBlurEffect const& object,
+                                                        double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::gamma = value);
 }
-[[maybe_unused]] void GaussianBlurEffect_zIndex_assigned(::wxl::GaussianBlurEffect const& object, int32_t value) {
+[[maybe_unused]] void GaussianBlurEffect_zIndex_assigned(::wxl::GaussianBlurEffect const& object,
+                                                         int32_t value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GaussianBlurEffect::zIndex = value);
 }
 // The braces as a text block writes them: the generic tags, a bare colour,
@@ -2136,17 +2167,18 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
     using namespace ::wxl::dsl;
     HaloEffect const halo{color = rgb(92, 138, 32), blurRadius = 14.0f};
     HaloEffect const bare{rgb(92, 138, 32)};
-    GaussianBlurEffect const glow{rgb(0, 0, 0), blurRadius = 3.0f, gamma = 0.5, opacity = 0.9, zIndex = 1};
+    GaussianBlurEffect const glow{rgb(0, 0, 0), blurRadius = 3.0f, gamma = 0.5, opacity = 0.9,
+                                  zIndex = 1};
     TextBlock{u"0", halo, bare, glow};
 }
 
-
-
 // GlassEffect -- written by hand, so its schema lines are too.
-[[maybe_unused]] void GlassEffect_color_assigned(::wxl::GlassEffect const& object, ::wxl::Color value) {
+[[maybe_unused]] void GlassEffect_color_assigned(::wxl::GlassEffect const& object,
+                                                 ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::color = value);
 }
-[[maybe_unused]] void GlassEffect_blurRadius_assigned(::wxl::GlassEffect const& object, double value) {
+[[maybe_unused]] void GlassEffect_blurRadius_assigned(::wxl::GlassEffect const& object,
+                                                      double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::GlassEffect::blurRadius = value);
 }
 [[maybe_unused]] void GlassEffect_opacity_assigned(::wxl::GlassEffect const& object, double value) {
@@ -2161,85 +2193,113 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 }
 
 // Button3DEffect -- written by hand, so its schema lines are too.
-[[maybe_unused]] void Button3DEffect_foreground_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+[[maybe_unused]] void Button3DEffect_foreground_assigned(::wxl::Button3DEffect const& object,
+                                                         ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::foreground = value);
 }
-[[maybe_unused]] void Button3DEffect_background_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+[[maybe_unused]] void Button3DEffect_background_assigned(::wxl::Button3DEffect const& object,
+                                                         ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::background = value);
 }
-[[maybe_unused]] void Button3DEffect_shadow_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_shadow_assigned(::wxl::Button3DEffect const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::shadow = value);
 }
-[[maybe_unused]] void Button3DEffect_emboss_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_emboss_assigned(::wxl::Button3DEffect const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::emboss = value);
 }
-[[maybe_unused]] void Button3DEffect_specularAmount_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_specularAmount_assigned(::wxl::Button3DEffect const& object,
+                                                             double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::specularAmount = value);
 }
-[[maybe_unused]] void Button3DEffect_specularShine_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_specularShine_assigned(::wxl::Button3DEffect const& object,
+                                                            double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::specularShine = value);
 }
-[[maybe_unused]] void Button3DEffect_rim_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_rim_assigned(::wxl::Button3DEffect const& object,
+                                                  double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::rim = value);
 }
-[[maybe_unused]] void Button3DEffect_slope_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_slope_assigned(::wxl::Button3DEffect const& object,
+                                                    double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::slope = value);
 }
-[[maybe_unused]] void Button3DEffect_rounded_assigned(::wxl::Button3DEffect const& object, bool value) {
+[[maybe_unused]] void Button3DEffect_rounded_assigned(::wxl::Button3DEffect const& object,
+                                                      bool value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::rounded = value);
 }
-[[maybe_unused]] void Button3DEffect_smooth_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_smooth_assigned(::wxl::Button3DEffect const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::smooth = value);
 }
-[[maybe_unused]] void Button3DEffect_rise_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_rise_assigned(::wxl::Button3DEffect const& object,
+                                                   double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::rise = value);
 }
-[[maybe_unused]] void Button3DEffect_travel_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_travel_assigned(::wxl::Button3DEffect const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::travel = value);
 }
-[[maybe_unused]] void Button3DEffect_azimuth_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_azimuth_assigned(::wxl::Button3DEffect const& object,
+                                                      double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::azimuth = value);
 }
-[[maybe_unused]] void Button3DEffect_elevation_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_elevation_assigned(::wxl::Button3DEffect const& object,
+                                                        double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::elevation = value);
 }
-[[maybe_unused]] void Button3DEffect_lampColor_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+[[maybe_unused]] void Button3DEffect_lampColor_assigned(::wxl::Button3DEffect const& object,
+                                                        ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::lampColor = value);
 }
-[[maybe_unused]] void Button3DEffect_ambientColor_assigned(::wxl::Button3DEffect const& object, ::wxl::Color value) {
+[[maybe_unused]] void Button3DEffect_ambientColor_assigned(::wxl::Button3DEffect const& object,
+                                                           ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::ambientColor = value);
 }
-[[maybe_unused]] void Button3DEffect_castBlur_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_castBlur_assigned(::wxl::Button3DEffect const& object,
+                                                       double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::castBlur = value);
 }
-[[maybe_unused]] void Button3DEffect_holeShadow_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_holeShadow_assigned(::wxl::Button3DEffect const& object,
+                                                         double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::holeShadow = value);
 }
-[[maybe_unused]] void Button3DEffect_holeSoftness_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_holeSoftness_assigned(::wxl::Button3DEffect const& object,
+                                                           double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::holeSoftness = value);
 }
-[[maybe_unused]] void Button3DEffect_pressDivesLamp_assigned(::wxl::Button3DEffect const& object, bool value) {
+[[maybe_unused]] void Button3DEffect_pressDivesLamp_assigned(::wxl::Button3DEffect const& object,
+                                                             bool value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressDivesLamp = value);
 }
-[[maybe_unused]] void Button3DEffect_pressFlashes_assigned(::wxl::Button3DEffect const& object, bool value) {
+[[maybe_unused]] void Button3DEffect_pressFlashes_assigned(::wxl::Button3DEffect const& object,
+                                                           bool value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressFlashes = value);
 }
-[[maybe_unused]] void Button3DEffect_pressMovesLabel_assigned(::wxl::Button3DEffect const& object, bool value) {
-    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressMovesLabel = value);
+[[maybe_unused]] void Button3DEffect_pressMovesLabel_assigned(::wxl::Button3DEffect const& object,
+                                                              bool value) {
+    ::wxl::impl::apply_argument(object,
+                                ::wxl::dsl::schema::Button3DEffect::pressMovesLabel = value);
 }
-[[maybe_unused]] void Button3DEffect_pressShades_assigned(::wxl::Button3DEffect const& object, bool value) {
+[[maybe_unused]] void Button3DEffect_pressShades_assigned(::wxl::Button3DEffect const& object,
+                                                          bool value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::pressShades = value);
 }
-[[maybe_unused]] void Button3DEffect_diveDepth_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_diveDepth_assigned(::wxl::Button3DEffect const& object,
+                                                        double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::diveDepth = value);
 }
-[[maybe_unused]] void Button3DEffect_diveGain_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_diveGain_assigned(::wxl::Button3DEffect const& object,
+                                                       double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::diveGain = value);
 }
-[[maybe_unused]] void Button3DEffect_shadeAmount_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_shadeAmount_assigned(::wxl::Button3DEffect const& object,
+                                                          double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::shadeAmount = value);
 }
-[[maybe_unused]] void Button3DEffect_labelShade_assigned(::wxl::Button3DEffect const& object, double value) {
+[[maybe_unused]] void Button3DEffect_labelShade_assigned(::wxl::Button3DEffect const& object,
+                                                         double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::Button3DEffect::labelShade = value);
 }
 // The braces as a button writes them: the generic tags, a colour where the
@@ -2247,8 +2307,8 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 [[maybe_unused]] void Button3DEffect_in_braces() {
     using namespace ::wxl;
     using namespace ::wxl::dsl;
-    Button3DEffect const key{foreground = rgb(237, 239, 242), background = rgba(68, 72, 79, 0.933), shadow = 0.7,
-                             emboss = -1};
+    Button3DEffect const key{foreground = rgb(237, 239, 242), background = rgba(68, 72, 79, 0.933),
+                             shadow = 0.7, emboss = -1};
     Button{u"7", key};
     // The lights over the pointer, written bare: one pair given to two kinds
     // of key, and one light written in place.
@@ -2263,22 +2323,26 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 }
 
 // BevelEffect -- written by hand, so its schema lines are too.
-[[maybe_unused]] void BevelEffect_strokeThickness_assigned(::wxl::BevelEffect const& object, double value) {
+[[maybe_unused]] void BevelEffect_strokeThickness_assigned(::wxl::BevelEffect const& object,
+                                                           double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::strokeThickness = value);
 }
-[[maybe_unused]] void BevelEffect_blurRadius_assigned(::wxl::BevelEffect const& object, double value) {
+[[maybe_unused]] void BevelEffect_blurRadius_assigned(::wxl::BevelEffect const& object,
+                                                      double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::blurRadius = value);
 }
 [[maybe_unused]] void BevelEffect_offset_assigned(::wxl::BevelEffect const& object, double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::offset = value);
 }
-[[maybe_unused]] void BevelEffect_margin_assigned(::wxl::BevelEffect const& object, ::wxl::Thickness value) {
+[[maybe_unused]] void BevelEffect_margin_assigned(::wxl::BevelEffect const& object,
+                                                  ::wxl::Thickness value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::margin = value);
 }
 [[maybe_unused]] void BevelEffect_margin_braced(::wxl::BevelEffect const& object) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::margin = {1, 2});
 }
-[[maybe_unused]] void BevelEffect_cornerRadius_assigned(::wxl::BevelEffect const& object, ::wxl::CornerRadius value) {
+[[maybe_unused]] void BevelEffect_cornerRadius_assigned(::wxl::BevelEffect const& object,
+                                                        ::wxl::CornerRadius value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BevelEffect::cornerRadius = value);
 }
 // The bare forms the braces take: two colours, lit side first, a tagged
@@ -2286,30 +2350,40 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 [[maybe_unused]] void BevelEffect_bare(::wxl::BevelEffect const& object) {
     using namespace ::wxl;
     using namespace ::wxl::dsl;
-    BevelEffect const raised{rgba(255, 255, 255, 0.27), rgba(0, 0, 0, 0.38),
-                             strokeThickness = 2, blurRadius = 1, offset = 2, Margin{1}, CornerRadius{6}};
+    BevelEffect const raised{rgba(255, 255, 255, 0.27),
+                             rgba(0, 0, 0, 0.38),
+                             strokeThickness = 2,
+                             blurRadius = 1,
+                             offset = 2,
+                             Margin{1},
+                             CornerRadius{6}};
     Button const key{u"=", raised};
     (void)object;
     (void)key;
 }
 
 // MagnifyEffect -- written by hand, so its schema lines are too.
-[[maybe_unused]] void MagnifyEffect_scale_assigned(::wxl::MagnifyEffect const& object, ::wxl::Size value) {
+[[maybe_unused]] void MagnifyEffect_scale_assigned(::wxl::MagnifyEffect const& object,
+                                                   ::wxl::Size value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::scale = value);
 }
 [[maybe_unused]] void MagnifyEffect_scale_braced(::wxl::MagnifyEffect const& object) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::scale = {1.3, 1.1});
 }
-[[maybe_unused]] void MagnifyEffect_maximum_assigned(::wxl::MagnifyEffect const& object, double value) {
+[[maybe_unused]] void MagnifyEffect_maximum_assigned(::wxl::MagnifyEffect const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::maximum = value);
 }
-[[maybe_unused]] void MagnifyEffect_minimum_assigned(::wxl::MagnifyEffect const& object, double value) {
+[[maybe_unused]] void MagnifyEffect_minimum_assigned(::wxl::MagnifyEffect const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::minimum = value);
 }
-[[maybe_unused]] void MagnifyEffect_duration_assigned(::wxl::MagnifyEffect const& object, ::wxl::core::duration value) {
+[[maybe_unused]] void MagnifyEffect_duration_assigned(::wxl::MagnifyEffect const& object,
+                                                      ::wxl::core::duration value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::duration = value);
 }
-[[maybe_unused]] void MagnifyEffect_delayTime_assigned(::wxl::MagnifyEffect const& object, ::wxl::core::duration value) {
+[[maybe_unused]] void MagnifyEffect_delayTime_assigned(::wxl::MagnifyEffect const& object,
+                                                       ::wxl::core::duration value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::MagnifyEffect::delayTime = value);
 }
 // What grows is positional, among the scale and the tags.
@@ -2332,16 +2406,21 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 [[maybe_unused]] void HoverLight_intensity_assigned(::wxl::HoverLight const& object, double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::intensity = value);
 }
-[[maybe_unused]] void HoverLight_diffuseAmount_assigned(::wxl::HoverLight const& object, double value) {
+[[maybe_unused]] void HoverLight_diffuseAmount_assigned(::wxl::HoverLight const& object,
+                                                        double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::diffuseAmount = value);
 }
-[[maybe_unused]] void HoverLight_color_assigned(::wxl::HoverLight const& object, ::wxl::Color value) {
+[[maybe_unused]] void HoverLight_color_assigned(::wxl::HoverLight const& object,
+                                                ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::color = value);
 }
-[[maybe_unused]] void HoverLight_constantAttenuation_assigned(::wxl::HoverLight const& object, double value) {
-    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::constantAttenuation = value);
+[[maybe_unused]] void HoverLight_constantAttenuation_assigned(::wxl::HoverLight const& object,
+                                                              double value) {
+    ::wxl::impl::apply_argument(object,
+                                ::wxl::dsl::schema::HoverLight::constantAttenuation = value);
 }
-[[maybe_unused]] void HoverLight_linearAttenuation_assigned(::wxl::HoverLight const& object, double value) {
+[[maybe_unused]] void HoverLight_linearAttenuation_assigned(::wxl::HoverLight const& object,
+                                                            double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HoverLight::linearAttenuation = value);
 }
 [[maybe_unused]] void BorderLight_size_assigned(::wxl::BorderLight const& object, double value) {
@@ -2350,28 +2429,37 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 [[maybe_unused]] void BorderLight_height_assigned(::wxl::BorderLight const& object, double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::height = value);
 }
-[[maybe_unused]] void BorderLight_intensity_assigned(::wxl::BorderLight const& object, double value) {
+[[maybe_unused]] void BorderLight_intensity_assigned(::wxl::BorderLight const& object,
+                                                     double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::intensity = value);
 }
-[[maybe_unused]] void BorderLight_diffuseAmount_assigned(::wxl::BorderLight const& object, double value) {
+[[maybe_unused]] void BorderLight_diffuseAmount_assigned(::wxl::BorderLight const& object,
+                                                         double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::diffuseAmount = value);
 }
-[[maybe_unused]] void BorderLight_color_assigned(::wxl::BorderLight const& object, ::wxl::Color value) {
+[[maybe_unused]] void BorderLight_color_assigned(::wxl::BorderLight const& object,
+                                                 ::wxl::Color value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::color = value);
 }
-[[maybe_unused]] void BorderLight_constantAttenuation_assigned(::wxl::BorderLight const& object, double value) {
-    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::constantAttenuation = value);
+[[maybe_unused]] void BorderLight_constantAttenuation_assigned(::wxl::BorderLight const& object,
+                                                               double value) {
+    ::wxl::impl::apply_argument(object,
+                                ::wxl::dsl::schema::BorderLight::constantAttenuation = value);
 }
-[[maybe_unused]] void BorderLight_linearAttenuation_assigned(::wxl::BorderLight const& object, double value) {
+[[maybe_unused]] void BorderLight_linearAttenuation_assigned(::wxl::BorderLight const& object,
+                                                             double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::linearAttenuation = value);
 }
-[[maybe_unused]] void BorderLight_strokeThickness_assigned(::wxl::BorderLight const& object, double value) {
+[[maybe_unused]] void BorderLight_strokeThickness_assigned(::wxl::BorderLight const& object,
+                                                           double value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::strokeThickness = value);
 }
-[[maybe_unused]] void BorderLight_cornerRadius_assigned(::wxl::BorderLight const& object, ::wxl::CornerRadius value) {
+[[maybe_unused]] void BorderLight_cornerRadius_assigned(::wxl::BorderLight const& object,
+                                                        ::wxl::CornerRadius value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::BorderLight::cornerRadius = value);
 }
-[[maybe_unused]] void RevealEffect_zIndex_assigned(::wxl::RevealEffect const& object, int32_t value) {
+[[maybe_unused]] void RevealEffect_zIndex_assigned(::wxl::RevealEffect const& object,
+                                                   int32_t value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::RevealEffect::zIndex = value);
 }
 // The braces as they are written: the generic tags on each light, whole
@@ -2381,8 +2469,14 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
     using namespace ::wxl;
     using namespace ::wxl::dsl;
     HoverLight const hover{size = 140, height = 120, intensity = 1.0, diffuseAmount = 0.69};
-    BorderLight const border{size = 340, height = 120, intensity = 1.0, diffuseAmount = 1.24, strokeThickness = 1.5,
-                             color = rgb(255, 255, 255), constantAttenuation = 1.0, linearAttenuation = 0.0,
+    BorderLight const border{size = 340,
+                             height = 120,
+                             intensity = 1.0,
+                             diffuseAmount = 1.24,
+                             strokeThickness = 1.5,
+                             color = rgb(255, 255, 255),
+                             constantAttenuation = 1.0,
+                             linearAttenuation = 0.0,
                              CornerRadius{4}};
     RevealEffect const reveal{hover, border, zIndex = 1};
     Button{u"7", reveal};
@@ -2391,7 +2485,8 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 
 // SplitPanel -- written by hand: its orientation and pane placement take the tags
 // of StackPanel and SplitView.
-[[maybe_unused]] void SplitPanel_vertical_trailing(::wxl::UIElement const& top, ::wxl::UIElement const& bottom) {
+[[maybe_unused]] void SplitPanel_vertical_trailing(::wxl::UIElement const& top,
+                                                   ::wxl::UIElement const& bottom) {
     using namespace ::wxl::dsl;
     ::wxl::SplitPanel const split{orientation.vertical, panePlacement.right, openPaneLength = 200.0,
                                   content = top, pane = bottom};
@@ -2422,60 +2517,80 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 }
 
 // SettingsCard -- written by hand, so its schema lines are too.
-[[maybe_unused]] void SettingsCard_header_assigned(::wxl::SettingsCard const& object, ::wxl::Object const& value) {
+[[maybe_unused]] void SettingsCard_header_assigned(::wxl::SettingsCard const& object,
+                                                   ::wxl::Object const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::header = value);
 }
-[[maybe_unused]] void SettingsCard_description_assigned(::wxl::SettingsCard const& object, ::wxl::hstring const& value) {
+[[maybe_unused]] void SettingsCard_description_assigned(::wxl::SettingsCard const& object,
+                                                        ::wxl::hstring const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::description = value);
 }
-[[maybe_unused]] void SettingsCard_headerIcon_assigned(::wxl::SettingsCard const& object, ::wxl::IconElement const& value) {
+[[maybe_unused]] void SettingsCard_headerIcon_assigned(::wxl::SettingsCard const& object,
+                                                       ::wxl::IconElement const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::headerIcon = value);
 }
-[[maybe_unused]] void SettingsCard_actionIcon_assigned(::wxl::SettingsCard const& object, ::wxl::IconElement const& value) {
+[[maybe_unused]] void SettingsCard_actionIcon_assigned(::wxl::SettingsCard const& object,
+                                                       ::wxl::IconElement const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::actionIcon = value);
 }
-[[maybe_unused]] void SettingsCard_isClickEnabled_assigned(::wxl::SettingsCard const& object, bool value) {
+[[maybe_unused]] void SettingsCard_isClickEnabled_assigned(::wxl::SettingsCard const& object,
+                                                           bool value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::isClickEnabled = value);
 }
-[[maybe_unused]] void SettingsCard_isActionIconVisible_assigned(::wxl::SettingsCard const& object, bool value) {
-    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::isActionIconVisible = value);
+[[maybe_unused]] void SettingsCard_isActionIconVisible_assigned(::wxl::SettingsCard const& object,
+                                                                bool value) {
+    ::wxl::impl::apply_argument(object,
+                                ::wxl::dsl::schema::SettingsCard::isActionIconVisible = value);
 }
-[[maybe_unused]] void SettingsCard_contentAlignment_assigned(::wxl::SettingsCard const& object, ::wxl::SettingsCardContentAlignment value) {
+[[maybe_unused]] void SettingsCard_contentAlignment_assigned(
+    ::wxl::SettingsCard const& object, ::wxl::SettingsCardContentAlignment value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsCard::contentAlignment = value);
 }
 // The braces as the settings page writes them: the named members, the setting as the unnamed child, a click.
 [[maybe_unused]] void SettingsCard_in_braces() {
     using namespace ::wxl;
     using namespace ::wxl::dsl;
-    SettingsCard{header = TextBlock{u"App theme"}, description = u"Select which app theme to display", headerIcon = FontIcon{glyph = u"x"},
-                 isClickEnabled = true, contentAlignment = SettingsCardContentAlignment::Vertical,
-                 onClick += [](Object const&, RoutedEventArgs&) {}, Button{u"Setting"}};
+    SettingsCard{header = TextBlock{u"App theme"},
+                 description = u"Select which app theme to display",
+                 headerIcon = FontIcon{glyph = u"x"},
+                 isClickEnabled = true,
+                 contentAlignment = SettingsCardContentAlignment::Vertical,
+                 onClick += [](Object const&, RoutedEventArgs&) {},
+                 Button{u"Setting"}};
 }
 
 // SettingsExpander -- written by hand, so its schema lines are too.
-[[maybe_unused]] void SettingsExpander_header_assigned(::wxl::SettingsExpander const& object, ::wxl::Object const& value) {
+[[maybe_unused]] void SettingsExpander_header_assigned(::wxl::SettingsExpander const& object,
+                                                       ::wxl::Object const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::header = value);
 }
-[[maybe_unused]] void SettingsExpander_description_assigned(::wxl::SettingsExpander const& object, ::wxl::hstring const& value) {
+[[maybe_unused]] void SettingsExpander_description_assigned(::wxl::SettingsExpander const& object,
+                                                            ::wxl::hstring const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::description = value);
 }
-[[maybe_unused]] void SettingsExpander_headerIcon_assigned(::wxl::SettingsExpander const& object, ::wxl::IconElement const& value) {
+[[maybe_unused]] void SettingsExpander_headerIcon_assigned(::wxl::SettingsExpander const& object,
+                                                           ::wxl::IconElement const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::headerIcon = value);
 }
-[[maybe_unused]] void SettingsExpander_isExpanded_assigned(::wxl::SettingsExpander const& object, bool value) {
+[[maybe_unused]] void SettingsExpander_isExpanded_assigned(::wxl::SettingsExpander const& object,
+                                                           bool value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::SettingsExpander::isExpanded = value);
 }
 // The braces as the settings page writes them: the head, its setting as the unnamed child, the cards of the list.
 [[maybe_unused]] void SettingsExpander_in_braces() {
     using namespace ::wxl;
     using namespace ::wxl::dsl;
-    SettingsExpander{header = TextBlock{u"Sound"}, description = u"Audible feedback", isExpanded = true,
-                     onExpanding += [](Object const&, Object const&) {}, ToggleSwitch{},
+    SettingsExpander{header = TextBlock{u"Sound"},
+                     description = u"Audible feedback",
+                     isExpanded = true,
+                     onExpanding += [](Object const&, Object const&) {},
+                     ToggleSwitch{},
                      items[SettingsCard{header = TextBlock{u"Spatial audio"}}]};
 }
 
 // HeaderedContentControl -- written by hand, so its schema line is too.
-[[maybe_unused]] void HeaderedContentControl_header_assigned(::wxl::HeaderedContentControl const& object, ::wxl::Object const& value) {
+[[maybe_unused]] void HeaderedContentControl_header_assigned(
+    ::wxl::HeaderedContentControl const& object, ::wxl::Object const& value) {
     ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::HeaderedContentControl::header = value);
 }
 [[maybe_unused]] void HeaderedContentControl_in_braces() {
@@ -2485,21 +2600,29 @@ static_assert(!impl::invocation_answerable<sliced_answer const&>);
 }
 // AvailableSizeLayout -- written by hand, so its schema lines are too. The two properties are reported, never taken:
 // BindInput is the one form they accept.
-[[maybe_unused]] void AvailableSizeLayout_availableWidth_bound(::wxl::AvailableSizeLayout const& object, ::wxl::core::observable<double>& field) {
-    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::AvailableSizeLayout::availableWidth = ::wxl::BindInput{field});
-    ::wxl::impl::apply_argument(object, ::wxl::dsl::schema::AvailableSizeLayout::availableHeight = ::wxl::BindInput{field});
+[[maybe_unused]] void AvailableSizeLayout_availableWidth_bound(
+    ::wxl::AvailableSizeLayout const& object, ::wxl::core::observable<double>& field) {
+    ::wxl::impl::apply_argument(
+        object, ::wxl::dsl::schema::AvailableSizeLayout::availableWidth = ::wxl::BindInput{field});
+    ::wxl::impl::apply_argument(
+        object, ::wxl::dsl::schema::AvailableSizeLayout::availableHeight = ::wxl::BindInput{field});
 }
-[[maybe_unused]] void AvailableSizeLayout_in_braces(::wxl::core::observable<double>& width, ::wxl::core::observable<double>& height) {
+[[maybe_unused]] void AvailableSizeLayout_in_braces(::wxl::core::observable<double>& width,
+                                                    ::wxl::core::observable<double>& height) {
     using namespace ::wxl;
     using namespace ::wxl::dsl;
-    LayoutPanel{layout = AvailableSizeLayout{availableWidth = BindInput{width}, availableHeight = BindInput{height}}, TextBlock{u"page"}};
+    LayoutPanel{layout = AvailableSizeLayout{availableWidth = BindInput{width},
+                                             availableHeight = BindInput{height}},
+                TextBlock{u"page"}};
 }
 
 // itemContainerStyle -- a synthetic member: the preset every container wears, once, as the control makes it.
 [[maybe_unused]] void ListViewBase_itemContainerStyle_preset() {
     using namespace ::wxl;
     using namespace ::wxl::dsl;
-    GridView{itemContainerStyle = Preset{margin = Thickness{0, 0, 12, 12}, horizontalContentAlignment = HorizontalAlignment::Stretch}, TextBlock{u"item"}};
+    GridView{itemContainerStyle = Preset{margin = Thickness{0, 0, 12, 12},
+                                         horizontalContentAlignment = HorizontalAlignment::Stretch},
+             TextBlock{u"item"}};
     ListView{itemContainerStyle = Preset{padding = Thickness{4}}, TextBlock{u"item"}};
 }
 
@@ -2532,19 +2655,24 @@ struct Board {
     GridView{itemsSource = BindOutput{board.words, row}};
     ItemsRepeater{itemsSource = BindOutput{board.words, row}};
     ItemsView{itemsSource = BindOutput{board.words, [](core::u16_text const& word) {
-                  return ItemContainer{child = TextBlock{text = word}};
-              }}};
-    ListView{BindOutput{board.words, row}};  // unnamed: what a list control binds a list to is its items
+                                           return ItemContainer{child = TextBlock{text = word}};
+                                       }}};
+    ListView{
+        BindOutput{board.words, row}};  // unnamed: what a list control binds a list to is its items
     ItemsRepeater{BindOutput{board.words, row}};
     ListView{itemsSource = BindOutput{board.shown(), row}};  // read-only: only the model changes it
     ListView{schema::ItemsControl::itemsSource = BindOutput{board.words, row}};
 
     ListView{
         isItemClickEnabled = true,
-        itemsSource = BindOutput{board.cards, [](core::intrusive_ptr<BoardCard> const& card) {
-            return StackPanel{TextBlock{text = card->title}, TextBlock{text = BindOutput{card->progress}}};
-        }},
-        onItemClick += [&cards = board.cards](ListView const&, ItemClickEventArgs& args) {
+        itemsSource = BindOutput{board.cards,
+                                 [](core::intrusive_ptr<BoardCard> const& card) {
+                                     return StackPanel{
+                                         TextBlock{text = card->title},
+                                         TextBlock{text = BindOutput{card->progress}}};
+                                 }},
+        onItemClick +=
+        [&cards = board.cards](ListView const&, ItemClickEventArgs& args) {
             if (core::intrusive_ptr<BoardCard> const* card = boundItem(cards, args.clickedItem())) {
                 (*card)->progress.set(core::u16_text{u"opened"});
             }

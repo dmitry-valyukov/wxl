@@ -143,26 +143,26 @@ public:
         // subscription outlives every temporary in the description tree, and
         // the unsubscription below has to have something to unsubscribe from.
         token_ = source_.add(EventHandler<args_t>{[this](Object const&, args_ref_t args) {
-                if (!waiting()) {
-                    // Nobody is waiting, so this event is not ours: it is left
-                    // unhandled and travels on. Deliberately not queued --
-                    // args that carry an answer back to the framework
-                    // (Handled, a cancellable request refused) are worthless
-                    // once the handler has returned, so a queue would hand the
-                    // coroutine something it can no longer answer.
-                    return;
-                }
+            if (!waiting()) {
+                // Nobody is waiting, so this event is not ours: it is left
+                // unhandled and travels on. Deliberately not queued --
+                // args that carry an answer back to the framework
+                // (Handled, a cancellable request refused) are worthless
+                // once the handler has returned, so a queue would hand the
+                // coroutine something it can no longer answer.
+                return;
+            }
 
-                // Valid for exactly as long as the frame below runs inside
-                // this call, which is what the args type says about itself by
-                // being non-copyable. It is left pointing at args afterwards
-                // and that is harmless: the only reader is await_resume, and
-                // every delivery writes it again first.
-                args_ = &args;
+            // Valid for exactly as long as the frame below runs inside
+            // this call, which is what the args type says about itself by
+            // being non-copyable. It is left pointing at args afterwards
+            // and that is harmless: the only reader is await_resume, and
+            // every delivery writes it again first.
+            args_ = &args;
 
-                // Resumes, and touches nothing of ours afterwards -- see
-                // event_wait::deliver.
-                deliver();
+            // Resumes, and touches nothing of ours afterwards -- see
+            // event_wait::deliver.
+            deliver();
         }});
 
         // The element leaving the tree ends the wait, and does so while the
@@ -237,7 +237,9 @@ public:
         // are: a strict build's takes the place of the co_await, any other
         // build's has the signature it always had.
 
-        void await_suspend(std::coroutine_handle<> waiter) noexcept requires(!async::detail::strict) {
+        void await_suspend(std::coroutine_handle<> waiter) noexcept
+            requires(!async::detail::strict)
+        {
             event_->arm(waiter);
             armed_ = true;
         }
@@ -279,7 +281,11 @@ public:
 
         // What the answering form answers when its token was cancelled: an
         // empty error, a plain cancellation.
-        result_t await_canceled() noexcept requires(!Throwing) { return result_t{std::unexpect}; }
+        result_t await_canceled() noexcept
+            requires(!Throwing)
+        {
+            return result_t{std::unexpect};
+        }
 
     private:
         // Ended while suspended, or never suspended because it was already
@@ -356,7 +362,7 @@ public:
 
     template <bool Throwing>
     using awaiter_t = impl::cancelable_event_wait<typename event_t::template awaiter_t<Throwing>,
-                                             async::detail::cancellation_state*>;
+                                                  async::detail::cancellation_state*>;
 
     using awaiter = awaiter_t<true>;
 
@@ -408,9 +414,7 @@ struct member_event {
     Add adder;
     Remove remover;
 
-    EventToken add(EventHandler<args_t> const& handler) const {
-        return (object.*adder)(handler);
-    }
+    EventToken add(EventHandler<args_t> const& handler) const { return (object.*adder)(handler); }
 
     void remove(EventToken& token) const {
         checked_remove([&] { return (object.*remover)(token); });
@@ -501,8 +505,9 @@ template <typename... Args>
 impl::cancelable_event_wait<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
                             async::cancellation_token>
 on_event(core::event<void(Args...) noexcept>& event, async::cancellation_token token) {
-    return impl::cancelable_event_wait<impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
-                                  async::cancellation_token>{std::move(token), event};
+    return impl::cancelable_event_wait<
+        impl::core_event_wait<core::event<void(Args...) noexcept>, Args...>,
+        async::cancellation_token>{std::move(token), event};
 }
 
 /// The keyed wait through its tag: `onClick(button)` is `on_event<EventKey::Click>(button)`.

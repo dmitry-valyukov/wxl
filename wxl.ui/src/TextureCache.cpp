@@ -13,7 +13,7 @@
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Windows.Foundation.h>
-#include <winrt/Windows.Graphics.Imaging.h>   // BitmapSize у CanvasBitmap.SizeInPixels()
+#include <winrt/Windows.Graphics.Imaging.h>  // BitmapSize у CanvasBitmap.SizeInPixels()
 #include <winrt/Windows.Graphics.h>
 
 #include <cstdint>
@@ -48,7 +48,8 @@ struct TextureCache::Impl : core::sta_refcounted {
     explicit Impl(muc::Compositor const& compositor)
         : compositor{compositor},
           device{canvas::CanvasDevice::GetSharedDevice()},
-          graphics_device{canvasui::CanvasComposition::CreateCompositionGraphicsDevice(compositor, device)} {}
+          graphics_device{
+              canvasui::CanvasComposition::CreateCompositionGraphicsDevice(compositor, device)} {}
 
     muc::Compositor const compositor;
     // Меняет follow(): после замены устройства wxl кэш переходит на новое.
@@ -88,7 +89,7 @@ struct TextureCache::Impl : core::sta_refcounted {
     // Только на UI-потоке: трогает компоновщик. Кэшируется по ключу.
     muc::CompositionDrawingSurface surface_for(std::wstring const& key,
                                                canvas::CanvasBitmap const& bitmap) {
-        auto const size = bitmap.SizeInPixels();   // Windows::Graphics::Imaging::BitmapSize
+        auto const size = bitmap.SizeInPixels();  // Windows::Graphics::Imaging::BitmapSize
         muc::CompositionDrawingSurface surface = graphics_device.CreateDrawingSurface2(
             winrt::Windows::Graphics::SizeInt32{static_cast<int32_t>(size.Width),
                                                 static_cast<int32_t>(size.Height)},
@@ -118,7 +119,7 @@ TextureCache::TextureCache(Compositor const& compositor)
 TextureCache::~TextureCache() = default;
 
 async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::path const& image,
-                                                             async::cancellation_token token) {
+                                                              async::cancellation_token token) {
     // До первого co_await: путь -- ссылка вызывающего. Кадр держит кэш: устройство
     // и карта переживают выброшенную обёртку.
     std::wstring const key = image.wstring();
@@ -142,8 +143,8 @@ async::task<CompositionDrawingSurface> TextureCache::getAsync(std::filesystem::p
         canvas::CanvasBitmap bitmap{nullptr};
         try {
             bitmap = co_await impl::start_cancelable_winrt_operation<canvas::CanvasBitmap>(
-                [&] { return canvas::CanvasBitmap::LoadAsync(impl->device, key); },
-                std::identity{}, token);
+                [&] { return canvas::CanvasBitmap::LoadAsync(impl->device, key); }, std::identity{},
+                token);
         } catch (winrt::hresult_error const& failure) {
             // Устройство заменили, пока файл грузился: отказ мог прийти от устройства
             // Win2D, которое кэш покинул (сброс GPU, и ответ загрузки встал в очередь

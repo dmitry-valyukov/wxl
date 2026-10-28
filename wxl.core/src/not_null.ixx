@@ -116,7 +116,9 @@ public:
     /// Constructs a `not_null` that adopts the reference \p ptr already holds instead of adding
     /// a second one: objects derived from `wxl::core::refcounted` or `wxl::core::refcounted_mt`
     /// start with a reference count of 1. A null \p ptr aborts the process in every build.
-    explicit not_null(T* ptr) : ptr_(ptr, false) { ensure(ptr && "not_null was given a null pointer"); }
+    explicit not_null(T* ptr) : ptr_(ptr, false) {
+        ensure(ptr && "not_null was given a null pointer");
+    }
 
     /// Constructs a `not_null` from another `not_null` and adds a reference to the object.
     ///

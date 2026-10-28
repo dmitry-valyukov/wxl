@@ -45,7 +45,8 @@ struct item_template_state : core::sta_refcounted {
 
 // Dresses a container the first time it is seen. Making the containers here instead (ChoosingItemContainer) was
 // tried and refused: the control asks for a container of an item more than once and put the item into both.
-void dress_once(item_template_state& state, xaml::Controls::Primitives::SelectorItem const& container) {
+void dress_once(item_template_state& state,
+                xaml::Controls::Primitives::SelectorItem const& container) {
     if (!state.dress.has_value()) return;
     void* const key = winrt::get_abi(container);
     if (auto const found = state.dressed.find(key); found != state.dressed.end()) {
@@ -93,7 +94,8 @@ core::intrusive_ptr<element_scope> scope_of(xaml::Controls::ContentControl const
 
 // The element of an item, put in its place: the bindings of the element the place showed before are
 // unbound, and those of the new one are collected while it is built.
-void show_item(item_template_state const& state, xaml::Controls::ContentControl const& place, IInspectable const& item) {
+void show_item(item_template_state const& state, xaml::Controls::ContentControl const& place,
+               IInspectable const& item) {
     auto const scope = scope_of(place);
     scope->bindings.unbind();
     place.Content(nullptr);
@@ -117,26 +119,30 @@ core::intrusive_ptr<item_template_state> state_of(xaml::Controls::ListViewBase c
     }
 
     auto const state = core::make_refcounted<item_template_state>(key);
-    state->token = list.ContainerContentChanging([state](xaml::Controls::ListViewBase const&,
-                                                         xaml::Controls::ContainerContentChangingEventArgs const& args) {
-        auto const container = args.ItemContainer().try_as<xaml::Controls::ContentControl>();
-        if (!container) return;
-        if (state->has_margin) container.Margin(state->margin);
-        if (auto const item = container.try_as<xaml::Controls::Primitives::SelectorItem>()) dress_once(*state, item);
-        if (!state->make) return;
-        if (args.InRecycleQueue()) {
-            if (auto const place = place_of(container)) clear_place(place);
-            return;
-        }
-        // The framework puts the item into the container after the first call; the element has to
-        // replace it after that, which is what the callback of the next phase is for.
-        args.RegisterUpdateCallback(1, [state](xaml::Controls::ListViewBase const&,
-                                              xaml::Controls::ContainerContentChangingEventArgs const& later) {
-            auto const target = later.ItemContainer().try_as<xaml::Controls::ContentControl>();
-            if (!target) return;
-            if (auto const place = place_of(target)) show_item(*state, place, later.Item());
+    state->token = list.ContainerContentChanging(
+        [state](xaml::Controls::ListViewBase const&,
+                xaml::Controls::ContainerContentChangingEventArgs const& args) {
+            auto const container = args.ItemContainer().try_as<xaml::Controls::ContentControl>();
+            if (!container) return;
+            if (state->has_margin) container.Margin(state->margin);
+            if (auto const item = container.try_as<xaml::Controls::Primitives::SelectorItem>())
+                dress_once(*state, item);
+            if (!state->make) return;
+            if (args.InRecycleQueue()) {
+                if (auto const place = place_of(container)) clear_place(place);
+                return;
+            }
+            // The framework puts the item into the container after the first call; the element has to
+            // replace it after that, which is what the callback of the next phase is for.
+            args.RegisterUpdateCallback(
+                1, [state](xaml::Controls::ListViewBase const&,
+                           xaml::Controls::ContainerContentChangingEventArgs const& later) {
+                    auto const target =
+                        later.ItemContainer().try_as<xaml::Controls::ContentControl>();
+                    if (!target) return;
+                    if (auto const place = place_of(target)) show_item(*state, place, later.Item());
+                });
         });
-    });
     all[key] = template_entry{winrt::make_weak(list), state.get()};
     return state;
 }
@@ -151,17 +157,21 @@ void set_maker(xaml::Controls::ListViewBase const& list, winrt_item_builder make
     // content control the function fills in when the container is prepared. (An element put straight into
     // the Content of a container made for an item is not shown.)
     if (!list.ItemTemplate()) {
-        list.ItemTemplate(xaml::Markup::XamlReader::Load(
-                              L"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
-                              L"<ContentControl HorizontalContentAlignment='Stretch' VerticalContentAlignment='Stretch'/>"
-                              L"</DataTemplate>")
-                              .as<xaml::DataTemplate>());
+        list.ItemTemplate(
+            xaml::Markup::XamlReader::Load(
+                L"<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>"
+                L"<ContentControl HorizontalContentAlignment='Stretch' "
+                L"VerticalContentAlignment='Stretch'/>"
+                L"</DataTemplate>")
+                .as<xaml::DataTemplate>());
     }
 
     auto const items = list.Items();
     for (uint32_t index = 0; index < items.Size(); ++index) {
-        if (auto const container = list.ContainerFromIndex(index).try_as<xaml::Controls::ContentControl>()) {
-            if (auto const place = place_of(container)) show_item(*state, place, items.GetAt(index));
+        if (auto const container =
+                list.ContainerFromIndex(index).try_as<xaml::Controls::ContentControl>()) {
+            if (auto const place = place_of(container))
+                show_item(*state, place, items.GetAt(index));
         }
     }
 }
@@ -181,13 +191,15 @@ void set_item_margin(xaml::Controls::ListViewBase const& list, Thickness const& 
 
     auto const items = list.Items();
     for (uint32_t index = 0; index < items.Size(); ++index) {
-        if (auto const container = list.ContainerFromIndex(index).try_as<xaml::Controls::ContentControl>()) {
+        if (auto const container =
+                list.ContainerFromIndex(index).try_as<xaml::Controls::ContentControl>()) {
             container.Margin(state->margin);
         }
     }
 }
 
-void set_item_container_style(xaml::Controls::ListViewBase const& list, ItemContainerPreset const& preset) {
+void set_item_container_style(xaml::Controls::ListViewBase const& list,
+                              ItemContainerPreset const& preset) {
     auto const state = state_of(list);
     state->dress = preset.dress();
 
@@ -195,7 +207,8 @@ void set_item_container_style(xaml::Controls::ListViewBase const& list, ItemCont
     // dresses them over it -- the preset adds, nothing takes a value back.
     auto const items = list.Items();
     for (uint32_t index = 0; index < items.Size(); ++index) {
-        if (auto const container = list.ContainerFromIndex(index).try_as<xaml::Controls::Primitives::SelectorItem>()) {
+        if (auto const container =
+                list.ContainerFromIndex(index).try_as<xaml::Controls::Primitives::SelectorItem>()) {
             dress_once(*state, container);
         }
     }

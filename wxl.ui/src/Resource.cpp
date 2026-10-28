@@ -19,7 +19,8 @@ namespace xaml = winrt::Microsoft::UI::Xaml;
 // The resource dictionaries of a theme are not in the dictionary's own keys: a color the system theme defines sits in
 // ThemeDictionaries under the theme's name, and a library's -- the controls' -- in a merged dictionary, so the search
 // goes down through both.
-winrt::Windows::Foundation::IInspectable find(xaml::ResourceDictionary const& dictionary, winrt::Windows::Foundation::IInspectable const& key) {
+winrt::Windows::Foundation::IInspectable find(xaml::ResourceDictionary const& dictionary,
+                                              winrt::Windows::Foundation::IInspectable const& key) {
     if (!dictionary) {
         return nullptr;
     }
@@ -32,7 +33,8 @@ winrt::Windows::Foundation::IInspectable find(xaml::ResourceDictionary const& di
             // TryLookup on a theme dictionary reports a missing theme as an error, not as nothing.
             auto const theme = winrt::box_value(winrt::hstring{name});
             if (themes.HasKey(theme)) {
-                if (auto const found = find(themes.Lookup(theme).try_as<xaml::ResourceDictionary>(), key)) {
+                if (auto const found =
+                        find(themes.Lookup(theme).try_as<xaml::ResourceDictionary>(), key)) {
                     return found;
                 }
             }
@@ -48,7 +50,8 @@ winrt::Windows::Foundation::IInspectable find(xaml::ResourceDictionary const& di
 }
 
 winrt::Windows::Foundation::IInspectable lookup(hstring_param const& key) {
-    auto const found = find(xaml::Application::Current().Resources(), winrt::box_value(impl::to_winrt(key)));
+    auto const found =
+        find(xaml::Application::Current().Resources(), winrt::box_value(impl::to_winrt(key)));
     if (!found) {
         throw winrt::hresult_invalid_argument{L"wxl::resourceBrush: no such resource"};
     }

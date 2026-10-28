@@ -44,7 +44,8 @@ int main() {
             seen = reason;
         };
         check(static_cast<bool>(teardown), "a set Teardown is true");
-        check(!(*teardown)(wxl::TeardownReason::Error), "a handler returning nothing names no code");
+        check(!(*teardown)(wxl::TeardownReason::Error),
+              "a handler returning nothing names no code");
         check(calls == 1, "the handler ran once");
         check(seen == wxl::TeardownReason::Error, "the handler saw its reason");
     }
@@ -67,7 +68,8 @@ int main() {
         wxl::Teardown target = std::move(source);
         check(static_cast<bool>(target), "the move target holds the handler");
         check(!source, "the moved-from source is empty");
-        check((*target)(wxl::TeardownReason::Closed) == 7, "the moved handler still names its code");
+        check((*target)(wxl::TeardownReason::Closed) == 7,
+              "the moved handler still names its code");
         target = {};
         check(!target, "an assigned-away Teardown is empty");
     }
