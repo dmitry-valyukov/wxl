@@ -41,8 +41,9 @@ EXCLUDE_SYMBOLS        = *__unnamed* \
 USE_MDFILE_AS_MAINPAGE = @DOXY_MAINPAGE@
 
 # A README.md is a page of its own, not the documentation of its directory:
-# with the default (YES) Doxygen folds wxl.fmt/README.md into the directory
-# page and leaves a bare "File wxl.fmt/README.md" where the page should be.
+# with the default (YES) Doxygen folds samples/Quadratic/README.md into the
+# directory page and leaves a bare "File samples/Quadratic/README.md" where the
+# page should be.
 # The file keeps its name because GitHub shows a README in the directory view.
 IMPLICIT_DIR_DOCS      = NO
 

@@ -1,7 +1,6 @@
-module wxl.fmt;
+module wxl.core;
 
 import fmt;
-import wxl.core;
 import std;
 
 namespace wxl::core::impl {

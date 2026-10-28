@@ -48,6 +48,11 @@ wxl_add_module_library(wxl.core STATIC
         unicode.ixx
         weak_link.ixx
         zstring_view.ixx
+
+        # fmt: the text buffer, the builder over it and format(), in wxl::core.
+        fmt/text_buffer.ixx
+        fmt/text_builder.ixx
+        fmt/format.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are
         # part of the public interface: a consumer compiles those interfaces
@@ -73,6 +78,8 @@ wxl_add_module_library(wxl.core STATIC
         thread_heap.cpp
         time.cpp
         unicode.cpp
+
+        fmt/format.cpp
 )
 
 # The name consumers use, both in-tree (FetchContent / add_subdirectory) and
@@ -84,6 +91,71 @@ add_library(wxl::core ALIAS wxl.core)
 # split into arguments (CommandLineToArgvW in environment.cpp). PUBLIC because
 # wxl.core is static, so the consumer's link is where the symbol is resolved.
 target_link_libraries(wxl.core PUBLIC shell32.lib)
+
+# fmt is taken as a C++20 module, `import fmt;`, built here from its own
+# sources rather than from the vcpkg port, which builds the library alone. A
+# module is the one shape that sits beside `import std;` without trouble: fmt
+# headers in a global module fragment merge with the std module only as far
+# as MSVC's extern "C++" workaround reaches, and fmt/std.h (thread,
+# filesystem) is past it. With FMT_IMPORT_STD fmt imports std itself and its
+# global module fragment holds C headers alone.
+#
+# Fetched unless a target fmt::module already exists. SOURCE_SUBDIR names a
+# directory fmt does not have, so its own CMakeLists.txt stays out of the
+# build: fmt makes its module target for the plain Ninja generator only, with
+# flags of its own.
+if(NOT TARGET fmt::module)
+    include(FetchContent)
+    FetchContent_Declare(
+        fmt
+        GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+        GIT_TAG 1be298e1bd68957e4cd352e1f676f00e07dcfb57 # 12.2.0
+        SOURCE_SUBDIR sources-only
+    )
+    FetchContent_MakeAvailable(fmt)
+
+    add_library(fmt.module STATIC)
+    add_library(fmt::module ALIAS fmt.module)
+
+    # fmt.cc includes format.cc after the headers when it finds it beside
+    # itself, and that puts the definitions of dragonbox and the locale
+    # helpers into the module. An importer then instantiates them from the
+    # module instead of taking the instances the module holds, and MSVC 14.51
+    # cannot: it loses the template parameter of a definition read back from
+    # the module ("'T': undeclared identifier" in format-inl.h). So the module
+    # unit is compiled from a copy with no format.cc beside it, and format.cc
+    # is an ordinary translation unit of the same library. For the two to
+    # link, the module attaches its declarations to the global module
+    # (FMT_ATTACH_TO_GLOBAL_MODULE: extern "C++" around the headers), which is
+    # what a plain translation unit defines. FMT_OS=0: the file and pipe
+    # wrappers of fmt/os.h have no caller here.
+    set(_fmt_module_dir "${CMAKE_CURRENT_BINARY_DIR}/fmt-module")
+    configure_file("${fmt_SOURCE_DIR}/src/fmt.cc" "${_fmt_module_dir}/fmt.cc" COPYONLY)
+    target_sources(fmt.module
+        PUBLIC
+            FILE_SET fmt TYPE CXX_MODULES
+            BASE_DIRS "${_fmt_module_dir}"
+            FILES "${_fmt_module_dir}/fmt.cc"
+        PRIVATE
+            "${fmt_SOURCE_DIR}/src/format.cc"
+    )
+    set_source_files_properties("${_fmt_module_dir}/fmt.cc" PROPERTIES
+        COMPILE_DEFINITIONS "FMT_IMPORT_STD;FMT_ATTACH_TO_GLOBAL_MODULE"
+    )
+    target_include_directories(fmt.module PRIVATE ${fmt_SOURCE_DIR}/include)
+    target_compile_definitions(fmt.module PRIVATE FMT_OS=0)
+    target_compile_features(fmt.module PUBLIC cxx_std_23)
+    set_target_properties(fmt.module PROPERTIES
+        CXX_MODULE_STD ON
+        CXX_SCAN_FOR_MODULES ON
+    )
+    wxl_set_target_folders(fmt.module)
+endif()
+
+# PUBLIC: text_buffer is fmt::basic_memory_buffer and text_builder::format() is
+# a template, so their bodies are compiled in the consumer, which needs the
+# module for that. Why fmt rather than std::format is in docs/fmt.md.
+target_link_libraries(wxl.core PUBLIC fmt::module)
 
 # `import std;` support (CMake's std module target). Requires C++23 and a
 # toolchain that ships the std module sources (MSVC 17.10+).
@@ -150,7 +222,6 @@ if(WXL_INSTALL)
     )
 endif()
 
-# wxl.core has no third-party dependencies: everything it needs comes from the `std`
-# module. The last Boost use, boost::intrusive_ptr, was replaced by the :intrusive_ptr
-# partition. The text builder over fmt is a module of its own, wxl.fmt, for exactly
-# that reason.
+# Beyond the `std` module, wxl.core depends on fmt alone, taken as a module above
+# for the text buffer, the builder and format(). The last Boost use,
+# boost::intrusive_ptr, was replaced by the :intrusive_ptr partition.

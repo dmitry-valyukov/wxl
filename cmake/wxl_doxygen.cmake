@@ -199,7 +199,8 @@ endfunction()
 # existed.
 #
 # Module READMEs are one-screen cards for GitHub and stay off the site; the
-# articles about the modules live in docs/.
+# articles about the modules live in docs/. The READMEs of the areas of
+# wxl.core lie under its sources, and a pattern keeps them out.
 function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
     # The generated WinUI3 projection is part of the surface, not an
     # implementation detail: wxl::Button and wxl::UIElement are what a
@@ -216,7 +217,6 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         "${root}/samples/Trayed/README.md"
         "${root}/samples/Gallery/README.md"
         "${root}/wxl.core/src"
-        "${root}/wxl.fmt/src"
         "${root}/wxl.async/src"
         "${root}/wxl.logging/src"
         "${root}/wxl.xml/src"
@@ -238,6 +238,7 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         "*/benchmarks/*"
         "*/packaging/*"
         "*/tools/*"
+        "*/wxl.core/src/*/README.md"
         PARENT_SCOPE)
     set(${images_var}
         "${root}/samples/Quadratic"

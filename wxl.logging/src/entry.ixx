@@ -2,7 +2,6 @@ export module wxl.logging:entry;
 
 import :severity;
 import wxl.core;
-import wxl.fmt;
 import std;
 
 export namespace wxl::logging {

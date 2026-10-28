@@ -4,7 +4,6 @@
 #include <string_view>
 
 import wxl.core;
-import wxl.fmt;
 import fmt;
 
 using namespace std::string_view_literals;

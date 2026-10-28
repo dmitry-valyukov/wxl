@@ -59,7 +59,7 @@ endif()
 # program.
 
 # ---- What is built ----
-# The core modules -- wxl.core, wxl.fmt, wxl.async, wxl.logging, wxl.xml,
+# The core modules -- wxl.core, wxl.async, wxl.logging, wxl.xml,
 # wxl.json, wxl.html, wxl.highlight, wxl.bb, wxl.rsdn -- and the helpers of the
 # tests, wxl.test, are always added: they are what a project that adds wxl comes
 # for. The rest has a key of its own. The tree configured on its own builds all
@@ -80,7 +80,7 @@ option(WXL_SANDBOX "Build the sandbox (sandbox/)." ${_wxl_own})
 
 # Off by default: the benchmarks are measurement tools, run deliberately, and an
 # ordinary build has no reason to spend time on them. Those of wxl.core,
-# wxl.async, wxl.fmt and wxl.ui; the two of wxl.xml and wxl.gen.common are built
+# wxl.async and wxl.ui; the two of wxl.xml and wxl.gen.common are built
 # with the tree itself, and in a project that adds wxl with this key.
 option(WXL_BUILD_BENCHMARKS "Build the benchmark executables." OFF)
 
@@ -233,11 +233,6 @@ add_subdirectory(wxl.core)
 # The helpers of the tests -- headers any target may link, the gtest fixture
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
-
-# The text buffer and builder over fmt. Beside wxl.core and not inside it, so
-# that the core keeps depending on the std module alone; the names stay in
-# wxl::core, only the import differs.
-add_subdirectory(wxl.fmt)
 
 # The layer above wxl.core: the future family, the threading machinery, and what
 # is left of the component model built on them -- component and threaded_component.

@@ -15,14 +15,14 @@
 // pool that has been used has free lists, a block from a free list has a
 // neighbour behind it, and only the first buffer in a program's life is on
 // top of the bump. The run that measures it is
-// wxl.fmt/benchmarks/text_builder_benchmark.cpp.
+// wxl.core/benchmarks/fmt/text_builder_benchmark.cpp.
 //
 // Where the text goes is one question. How the format string is read is
 // another, independent of it: a "…"_cf string is parsed at compile time
 // and adds to whatever buffer is underneath. That one is the caller's, made
-// one format string at a time -- see :text_builder.
+// one format string at a time -- see :fmt.text_builder.
 
-export module wxl.fmt:text_buffer;
+export module wxl.core:fmt.text_buffer;
 
 import fmt;
 import std;

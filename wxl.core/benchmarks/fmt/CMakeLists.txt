@@ -5,8 +5,7 @@
 
 add_executable(wxl.fmt.text-builder-benchmark text_builder_benchmark.cpp)
 
-# wxl::core for the STA pool the pooled rows allocate from.
-target_link_libraries(wxl.fmt.text-builder-benchmark PRIVATE wxl::fmt wxl::core)
+target_link_libraries(wxl.fmt.text-builder-benchmark PRIVATE wxl::core)
 
 wxl_target_manifest(wxl.fmt.text-builder-benchmark)
 wxl_set_target_folders(wxl.fmt.text-builder-benchmark)

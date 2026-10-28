@@ -50,3 +50,8 @@ export import :traceable;
 export import :unicode;
 export import :weak_link;
 export import :zstring_view;
+
+// fmt -- the buffer text is assembled in, the builder over it, and format().
+export import :fmt.text_buffer;
+export import :fmt.text_builder;
+export import :fmt.format;

@@ -3,10 +3,7 @@
 #include <string>
 #include <string_view>
 
-// wxl.fmt imports wxl.core without re-exporting it, so the allocator a buffer
-// runs on is the caller's own import.
 import wxl.core;
-import wxl.fmt;
 import fmt;
 
 using namespace std::string_view_literals;

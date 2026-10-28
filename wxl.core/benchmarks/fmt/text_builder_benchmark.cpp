@@ -1,6 +1,6 @@
 // Formatting into a buffer: the ways of doing it, measured against each other.
 //
-// This is the experiment wxl.fmt/doc/fmt.md asks for before any of it is
+// This is the experiment docs/fmt.md asks for before any of it is
 // believed, and its fifth point first: fmt::basic_memory_buffer with a wxl
 // allocator is ready-made, so if text_buffer is no faster there is no reason
 // for text_buffer to exist.
@@ -25,7 +25,6 @@
 #include <string>
 
 import wxl.core;
-import wxl.fmt;
 import fmt;
 
 namespace {

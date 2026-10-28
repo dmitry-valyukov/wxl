@@ -8,9 +8,9 @@
 // it into an error at run time. What one wrote is what one gets: format()
 // formats, append() copies.
 
-export module wxl.fmt:text_builder;
+export module wxl.core:fmt.text_builder;
 
-import :text_buffer;
+import :fmt.text_buffer;
 import fmt;
 import std;
 

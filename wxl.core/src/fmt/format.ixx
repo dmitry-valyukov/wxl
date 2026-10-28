@@ -8,11 +8,11 @@
 // it does not compile. Text from outside goes through checked() first, and
 // arrives here as a u16_view.
 
-export module wxl.fmt:format;
+export module wxl.core:fmt.format;
 
-import :text_buffer;
+import :fmt.text_buffer;
+import :unicode;
 import fmt;
-import wxl.core;
 import std;
 
 namespace wxl::core {

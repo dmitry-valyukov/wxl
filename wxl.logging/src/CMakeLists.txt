@@ -35,7 +35,6 @@ set_target_properties(wxl.logging PROPERTIES
 # of its own, which nobody needs yet.
 target_link_libraries(wxl.logging PUBLIC
     wxl::core
-    wxl::fmt
     wxl::async
 )
 
