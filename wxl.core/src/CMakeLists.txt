@@ -53,12 +53,59 @@ wxl_add_module_library(wxl.core STATIC
         fmt/text_buffer.ixx
         fmt/text_builder.ixx
         fmt/format.ixx
+
+        # async: the future family, task trees, the coroutines and the loop they run
+        # on, threads, and the lock-free primitives underneath them.
+        async/async_directory.ixx
+        async/async_file.ixx
+        async/async_mutex.ixx
+        async/async_op.ixx
+        async/async_semaphore.ixx
+        async/barrier.ixx
+        async/bump_buffer.ixx
+        async/cancellation.ixx
+        async/completion_counter.ixx
+        async/coroutine_checks.ixx
+        async/countdown_event.ixx
+        async/drain_stack.ixx
+        async/future.ixx
+        async/future_shared_state.ixx
+        async/overlapped_op.ixx
+        async/io_port.ixx
+        async/mpsc_channel.ixx
+        async/mpsc_queue.ixx
+        async/one_shot_event.ixx
+        async/pool.ixx
+        async/safe_pool.ixx
+        async/spsc_channel.ixx
+        async/spsc_queue.ixx
+        async/spsc_queue_reference_implementation.ixx
+        async/sta_loop.ixx
+        async/sta_thread.ixx
+        async/task.ixx
+        async/task_tree.ixx
+        async/thread.ixx
+        async/thread_group.ixx
+        async/threaded_allocator.ixx
+        async/turnstile.ixx
+
+        # What is left of the component model: the base, and threaded_component, the one
+        # derivative with callers of its own. The containers, the hosted half and the
+        # apartments are kept outside this tree.
+        # last_error stays because async_file and async_directory throw it.
+        async/component.ixx
+        async/last_error.ixx
+        async/stop_reason.ixx
+        async/threaded_component.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are
         # part of the public interface: a consumer compiles those interfaces
         # itself and would otherwise fail with "cannot open include file".
         abi.h
         platform.h
+        # The coroutine check itself, a macro -- it is assert when the checks are
+        # Debug's -- for the global module fragment of the interfaces that check.
+        async/coroutine_checks.h
     SRC
         pch.h
 
@@ -80,6 +127,30 @@ wxl_add_module_library(wxl.core STATIC
         unicode.cpp
 
         fmt/format.cpp
+
+        async/async_directory.cpp
+        async/async_file.cpp
+        async/async_op.cpp
+        async/future.cpp
+        async/future_shared_state.cpp
+        async/overlapped_op.cpp
+        async/io_port.cpp
+        async/one_shot_event.cpp
+        async/sta_loop.cpp
+        async/sta_queue.cpp
+        async/task_tree.cpp
+        async/thread.cpp
+        async/thread_group.cpp
+        async/threaded_allocator.cpp
+
+        # The private half of component: its state, shared by every component .cpp
+        # that touches it, and included from inside the module purview.
+        async/component.impl.h
+
+        async/component.cpp
+        async/last_error.cpp
+        async/stop_reason.cpp
+        async/threaded_component.cpp
 )
 
 # The name consumers use, both in-tree (FetchContent / add_subdirectory) and
@@ -156,6 +227,23 @@ endif()
 # a template, so their bodies are compiled in the consumer, which needs the
 # module for that. Why fmt rather than std::format is in docs/fmt.md.
 target_link_libraries(wxl.core PUBLIC fmt::module)
+
+# PUBLIC: the module interfaces of the async area read it, and whoever compiles
+# them -- this target, a consumer that builds them in its own tree, the tests
+# that ask what a build checks -- has to get the same answer.
+if(WXL_STRICT_CORO)
+    target_compile_definitions(wxl.core PUBLIC STRICT_CORO)
+endif()
+
+# PRIVATE: every worker thread brings COM up as MTA (async/thread_group.cpp), so
+# a worker body can make WinRT calls off the UI thread -- Win2D, say.
+# CoInitializeEx/CoUninitialize live in ole32.
+target_link_libraries(wxl.core PRIVATE ole32)
+
+# PRIVATE: the thread's dispatcher queue, which start_dispatched() finds or
+# makes -- CreateDispatcherQueueController is coremessaging, the activation
+# factory and the string behind its name are runtimeobject.
+target_link_libraries(wxl.core PRIVATE coremessaging runtimeobject)
 
 # `import std;` support (CMake's std module target). Requires C++23 and a
 # toolchain that ships the std module sources (MSVC 17.10+).

@@ -4,7 +4,6 @@ import :entry;
 import :logger;
 import :output;
 import :severity;
-import wxl.async;
 import wxl.core;
 import std;
 

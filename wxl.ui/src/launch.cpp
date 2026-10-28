@@ -21,11 +21,11 @@
 #include "CompositionWindow.h"
 #include "impl/event_waits.h"
 #include "impl/winrt_helpers.h"
-#include "coroutine_checks.h"
+#include "async/coroutine_checks.h"
 #include "Application.h"
 #include "launch.h"
 
-import wxl.async;
+import wxl.core;
 
 // The private side of the entry point: the XAML application object wxl runs
 // the show through, and the wWinMain that brings everything up around it.

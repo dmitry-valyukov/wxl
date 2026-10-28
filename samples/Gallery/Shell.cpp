@@ -19,7 +19,6 @@
 #include <wxl/Microsoft.Windows.AppNotifications.h>
 #include <wxl/Microsoft.UI.Windowing.h>
 
-import wxl.async;
 import wxl.core;
 
 using namespace wxl;

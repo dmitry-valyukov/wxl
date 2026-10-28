@@ -61,7 +61,6 @@
 // Импорт последним: он несёт модульный std, а обычный заголовок после него
 // MSVC уже не примет. Нужен для wxl::core::append_number -- сборки строки
 // запомненного места окна.
-import wxl.async;
 import wxl.core;
 
 namespace wxl {

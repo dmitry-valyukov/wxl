@@ -12,7 +12,7 @@
 #include <wxl/Windows.UI.Core.Enums.h>
 #include <wxl/Windows.UI.Input.Inking.h>
 
-import wxl.async;
+import wxl.core;
 
 
 using namespace wxl;

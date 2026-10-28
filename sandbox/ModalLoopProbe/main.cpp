@@ -10,7 +10,7 @@
 #include "ui.h"
 #include "launch.h"
 
-import wxl.async;
+import wxl.core;
 
 using namespace wxl;
 using namespace wxl::dsl;

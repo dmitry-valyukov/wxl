@@ -37,7 +37,6 @@
 
 import std;
 import wxl.core;
-import wxl.async;
 
 namespace {
 

@@ -1,0 +1,42 @@
+module;
+
+#include "abi.h"
+
+export module wxl.core:async.barrier;
+
+import :async.future;
+import :async.future_shared_state;
+import wxl.stdint;
+import :noncopyable;
+import std;
+
+export namespace wxl::async {
+
+/// Threads enter the barrier and block until initial_count threads have entered.
+class barrier : public core::noncopyable
+{
+public:
+    /// Constructs a barrier for \p initial_count threads, which must not be zero.
+    inline explicit barrier(size_t initial_count) : counter_(initial_count) {
+        assert(initial_count);
+    }
+
+    inline ~barrier() { assert(counter_.load() == 0); }
+
+    /// The calling thread waits until initial_count threads have entered.
+    inline void enter() {
+        // local copy to make sure the shared state is safe to use until we leave this method.
+        future<void> ready_signal = ready_promise_.get_future();
+
+        if (--counter_ > 0)
+            ready_signal.get();
+        else
+            ready_promise_.set_value();
+    }
+
+private:
+    std::atomic<ssize_t> counter_;
+    promise<void> ready_promise_;
+};
+
+}  // namespace wxl::async

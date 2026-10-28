@@ -4,7 +4,6 @@ module;
 
 module wxl.logging;
 
-import wxl.async;
 import wxl.core;
 import std;
 

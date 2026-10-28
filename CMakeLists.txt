@@ -59,7 +59,7 @@ endif()
 # program.
 
 # ---- What is built ----
-# The core modules -- wxl.core, wxl.async, wxl.logging, wxl.xml,
+# The core modules -- wxl.core, wxl.logging, wxl.xml,
 # wxl.json, wxl.html, wxl.highlight, wxl.bb, wxl.rsdn -- and the helpers of the
 # tests, wxl.test, are always added: they are what a project that adds wxl comes
 # for. The rest has a key of its own. The tree configured on its own builds all
@@ -79,8 +79,8 @@ option(WXL_SAMPLES "Build the samples (samples/)." ${_wxl_own})
 option(WXL_SANDBOX "Build the sandbox (sandbox/)." ${_wxl_own})
 
 # Off by default: the benchmarks are measurement tools, run deliberately, and an
-# ordinary build has no reason to spend time on them. Those of wxl.core,
-# wxl.async and wxl.ui; the two of wxl.xml and wxl.gen.common are built
+# ordinary build has no reason to spend time on them. Those of wxl.core and
+# wxl.ui; the two of wxl.xml and wxl.gen.common are built
 # with the tree itself, and in a project that adds wxl with this key.
 option(WXL_BUILD_BENCHMARKS "Build the benchmark executables." OFF)
 
@@ -197,7 +197,8 @@ endif()
 # configured before it, reads the packages through that list in its tests, and
 # in the step of the build that generates the wrappers. Made when something
 # built needs them: the generator, and wxl.ui with what stands on it, which need
-# the generator; and a benchmark of wxl.async, which measures a WinRT coroutine.
+# the generator; and a benchmark of the async area of wxl.core, which measures a
+# WinRT coroutine.
 # Without them the configure needs no MSBuild and no WinUI workload.
 if(WXL_TOOLS OR WXL_BUILD_BENCHMARKS)
     include(cmake/wxl_packages.cmake)
@@ -234,14 +235,8 @@ add_subdirectory(wxl.core)
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
 
-# The layer above wxl.core: the future family, the threading machinery, and what
-# is left of the component model built on them -- component and threaded_component.
-# The containers, the hosted half and the apartments had no caller and are kept
-# outside this tree.
-add_subdirectory(wxl.async)
-
-# The log: wxl.core's text_builder formats a line, wxl.async supplies the
-# thread the asynchronous half writes it from.
+# The log: wxl.core's text_builder formats a line, its async area supplies
+# the thread the asynchronous half writes it from.
 add_subdirectory(wxl.logging)
 
 add_subdirectory(wxl.xml)

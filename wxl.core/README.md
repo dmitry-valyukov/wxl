@@ -9,3 +9,5 @@ IntelliSense в VS Code для модулей — [«Работа в редак�
 Области модуля, каждая в своём каталоге `src/`:
 
 - [fmt](src/fmt/README.md) — буфер и построитель текста поверх `fmt`, `format`.
+- [async](src/async/README.md) — корутины, `sta_loop`, отмена, `future`, потоки,
+  lock-free очереди и каналы.

@@ -25,18 +25,11 @@ set_target_properties(wxl.logging PROPERTIES
     EXPORT_NAME logging
 )
 
-# All PUBLIC: the module interfaces name types from every one of these, and the
-# calls that matter -- logger::info() and its siblings -- are templates compiled
-# in the consumer's own translation units.
-#
-# The asynchronous half is what brings wxl.async in, and it brings it in for
-# everyone importing wxl.logging: partitions are not separately importable. A
-# consumer that wants the log without the component model would need a module
-# of its own, which nobody needs yet.
-target_link_libraries(wxl.logging PUBLIC
-    wxl::core
-    wxl::async
-)
+# PUBLIC: the module interfaces name wxl.core's types -- those of its async
+# area for the asynchronous half -- and the calls that matter -- logger::info()
+# and its siblings -- are templates compiled in the consumer's own translation
+# units.
+target_link_libraries(wxl.logging PUBLIC wxl::core)
 
 # Writing to an output can throw -- a full disk, a file that went away -- and
 # multicast_output catches it to drop that output rather than the program. MSVC

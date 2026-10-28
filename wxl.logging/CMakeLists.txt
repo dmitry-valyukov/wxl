@@ -6,8 +6,8 @@
 # read, and never interleave two threads' halves of a line -- is kept with a
 # format string, checked while it compiles.
 #
-# It sits on wxl.core for the synchronous half, and on wxl.async
-# for the thread the asynchronous half writes from.
+# It sits on wxl.core: on its fmt area for the synchronous half, and on its
+# async area for the thread the asynchronous half writes from.
 
 add_subdirectory(src)
 

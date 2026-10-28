@@ -3,7 +3,7 @@
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Windows.Foundation.h>
 
-#include "coroutine_checks.h"
+#include "async/coroutine_checks.h"
 #include "dispatcher.h"
 
 #include "../Operation.h"

@@ -69,3 +69,4 @@ gtest_discover_tests(
 
 # The tests of the areas of the module, one directory each.
 add_subdirectory(fmt)
+add_subdirectory(async)

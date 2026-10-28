@@ -217,7 +217,6 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         "${root}/samples/Trayed/README.md"
         "${root}/samples/Gallery/README.md"
         "${root}/wxl.core/src"
-        "${root}/wxl.async/src"
         "${root}/wxl.logging/src"
         "${root}/wxl.xml/src"
         # The other reader, and the arena's second consumer.

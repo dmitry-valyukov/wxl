@@ -314,11 +314,11 @@ target_compile_definitions(wxl.ui PRIVATE NOGDI)
 
 target_link_libraries(wxl.ui
     PUBLIC
+        # Public because the interface names its types, and a consumer writes
+        # coroutines of its own the moment it awaits an event: async::task is
+        # what one of those returns. An application still links wxl::ui and
+        # nothing else.
         wxl::core
-        # Public because a consumer writes coroutines of its own the moment it
-        # awaits an event, and async::task is what one of those returns. An
-        # application still links wxl::ui and nothing else.
-        wxl::async
     PRIVATE
         # The markup parsers behind the family of blocks. Private like the
         # projection: the DOM never crosses a control's public interface --
@@ -471,7 +471,7 @@ if(WXL_TESTS)
     #
     # A wait on an event, asked to end through a cancellation token, is tested
     # over a fake event, with the test standing for the thread's queue: the
-    # coroutines are wxl.async's, and the turn a cancelled wait asks for is a
+    # coroutines are those of wxl.core, and the turn a cancelled wait asks for is a
     # function the test defines, so UiThread.cpp stays out.
     #
     # The task a WinRT asynchronous operation becomes is tested the same way:
@@ -531,7 +531,6 @@ if(WXL_TESTS)
             Microsoft::CppWinRT
             runtimeobject.lib
             wxl::core
-            wxl::async
             wxl::test
     )
     # The sources it builds reach generated headers too (UiThread.h names

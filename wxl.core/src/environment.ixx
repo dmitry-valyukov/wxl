@@ -47,9 +47,8 @@ public:
     /// the reader's language: the thread's, else the user's, the system's, and
     /// only then English; without the line break the system ends the phrase
     /// with. Empty for a code the system does not know: what to show instead is
-    /// the caller's choice. In wxl.core because whatever reports a system
-    /// failure needs the words, a tool without wxl.async among them; and UTF-8
-    /// because std::error_code::message() spells them in the ANSI code page.
+    /// the caller's choice. Here because whatever reports a system failure
+    /// needs the words; and UTF-8 because std::error_code::message() spells them in the ANSI code page.
     static u8_text error_explanation(std::uint32_t code);
 
     /// An error as a person reads it, in UTF-8: what a tool prints and a window

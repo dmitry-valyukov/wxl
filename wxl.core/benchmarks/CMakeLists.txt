@@ -49,3 +49,4 @@ wxl_set_target_folders(wxl.core.transcode-benchmark)
 
 # The benchmarks of the areas of the module, one directory each.
 add_subdirectory(fmt)
+add_subdirectory(async)

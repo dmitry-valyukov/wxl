@@ -20,6 +20,15 @@ set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 # the module-unit interaction is worth being able to bisect out.
 option(WXL_ENABLE_PCH "Use a precompiled header (src/pch.h) for wxl.core." ON)
 
+# Off by default: the checks of how coroutines are used -- a task awaited twice at
+# once, a value read twice, a task dropped while it runs or while somebody joins it,
+# a task used after a move -- are then assert's, a Debug build's alone, and a
+# Release build has neither a byte nor an instruction of them. On, they stay in every
+# build, Release included, and a broken one ends the process through wxl::core::abort,
+# naming the reason and the line of the code that broke the rule where the language
+# gives it (std::source_location).
+option(WXL_STRICT_CORO "Keep the coroutine checks of the async area in every build (defines STRICT_CORO)." OFF)
+
 # Install/export rules. Off by default: a consumer's `cmake --install` should
 # not start dropping wxl's archives and module sources into its prefix unless it
 # asks for it.
