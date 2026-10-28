@@ -5,6 +5,7 @@ module;
 export module wxl.async:cancellation;
 
 import :coroutine_checks;
+import :sta_thread;
 import wxl.core;
 import std;
 
@@ -392,7 +393,7 @@ public:
     /// checks coroutines makes sure.
     inline explicit cancellation_source(
         cancellation_token parent, [[maybe_unused]] detail::site where = detail::site::current()) {
-        coro_check(core::sta_memory_pool::is_safe(),
+        coro_check(sta_thread::is_current(),
                    "cancellation_source: made under a token on a thread other than its coroutines'",
                    where);
 
@@ -448,7 +449,7 @@ private:
     /// that holds this source, and the state then goes once the fire is over.
     inline static void cancel_held(detail::cancellation_state_ptr held,
                                    [[maybe_unused]] detail::site where) noexcept {
-        coro_check(core::sta_memory_pool::is_safe(),
+        coro_check(sta_thread::is_current(),
                    "cancellation_source: cancelled from a thread other than its coroutines'",
                    where);
 

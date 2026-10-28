@@ -27,6 +27,7 @@ wxl_add_module_library(wxl.async STATIC
         spsc_queue.ixx
         spsc_queue_reference_implementation.ixx
         sta_loop.ixx
+        sta_thread.ixx
         task.ixx
         task_tree.ixx
         thread.ixx
