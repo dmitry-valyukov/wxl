@@ -309,7 +309,7 @@ void collect_method(MethodDef const& method, std::string_view field_view, TypeDe
     info.doc_id = factory ? constructor_documentation_id(owner, method, info.composable_constructor ? 2 : 0)
                           : documentation_id(owner, {owner, method}, method.Name());
 
-    // Beside every asynchronous method, its form with a token, taken last as wxl.async's own
+    // Beside every asynchronous method, its form with a token, taken last as wxl::async's own
     // operations take one: cancelled, the operation is asked to stop and the co_await ends with
     // the cancellation (impl/operation.h). The token is a parameter of wxl's alone, so it is
     // named by wxl (cancellation_parameter_name).

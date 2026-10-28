@@ -2,7 +2,7 @@
 //
 // A tolerant parser for foreign, often broken markup -- forum posts, chat
 // messages -- producing a lightweight DOM for one walk. The contract, in
-// full, is the area's design.md; the two rules everything here serves:
+// full, is docs/html.md; the two rules everything here serves:
 //
 //  - the text is sacred, the tags are not: no input ever throws, an unknown
 //    tag disappears and leaves its content standing, a mismatched close

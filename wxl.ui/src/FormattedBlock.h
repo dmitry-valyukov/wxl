@@ -4,7 +4,7 @@
 // vocabulary: the common base every markup control (HtmlBlock, future
 // BB/RSDN blocks) builds its content through, so the parsers differ and the
 // way runs, links and images become XAML text elements is written once. The
-// spec that shaped it is the design.md of the HTML parser.
+// spec that shaped it is docs/html.md.
 //
 // The primitives are deliberately flat: no open-element state survives a
 // call. A parser walks its own tree and says "this text, styled so",
@@ -148,7 +148,7 @@ public:
     void appendScript(hstring_param const& text, double scale, double drop) const;
 
     // An image from a local file or resource URI. The size is required by
-    // design (the HTML parser's design.md): the bitmap loads asynchronously, and a
+    // design (docs/html.md): the bitmap loads asynchronously, and a
     // line that grows after the fact is a jump the reader sees. toolTip
     // doubles as the automation name, same as the toolTip tag everywhere.
     void appendImage(hstring_param const& source, Size size,

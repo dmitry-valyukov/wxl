@@ -1930,7 +1930,7 @@ static_assert(sizeof(core::nullable<std::exception_ptr>) == sizeof(std::exceptio
 // it stands instead of letting a requires-expression answer false.
 static_assert(requires(click_wait_t& proxy) { proxy.operator co_await(); });
 
-// Under a cancellation token, given last as wxl.async's operations take one.
+// Under a cancellation token, given last as wxl::async's operations take one.
 // The proxy is a type of its own, so a wait made without a token keeps every
 // byte it had: its awaiter is the pointer and two flags it can be cancelled
 // through, and the idle wait the size it was.

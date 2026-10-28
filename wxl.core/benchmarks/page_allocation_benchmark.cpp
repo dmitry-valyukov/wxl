@@ -1,6 +1,6 @@
 // What one page of arena-block size costs to take and give back. The size is
 // fixed at 1 MiB because that is the order of what a long document needs
-// (wxl.xml's arena holds 120 bytes per node, and a real document of that
+// (wxl::xml's arena holds 120 bytes per node, and a real document of that
 // length parses to some ten thousand of them), and the question this answers
 // is whether a page that size can be taken per document without thinking
 // about it.

@@ -1,4 +1,4 @@
-// One writer, one reader: what the two channels of wxl.async cost against the textbook
+// One writer, one reader: what the two channels of wxl::async cost against the textbook
 // bounded buffer -- a ring over std::vector, a mutex and condition variables.
 //
 // Two measurements.

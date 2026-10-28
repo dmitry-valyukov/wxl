@@ -44,7 +44,7 @@ inline constexpr std::size_t buffered_capacity = 256;
 /// for growing, which measurement says is a wash, but because that is where
 /// the memory of that thread lives; on the GUI thread it is the one to write.
 /// The default is the ordinary heap, for the threads that own no pool --
-/// wxl.io's and wxl.logging's.
+/// wxl.io's and wxl::logging's.
 template <template <typename> class Allocator = std::allocator>
 using text_buffer = fmt::basic_memory_buffer<char, buffered_capacity, Allocator<char>>;
 

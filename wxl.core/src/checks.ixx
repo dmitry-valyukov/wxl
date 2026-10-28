@@ -40,7 +40,7 @@ void report(std::string_view what,
 // the exception that got there and stops through abort() above. MSVC keeps a terminate
 // handler for each thread, so it is set where wxl starts code on a thread: by wWinMain on
 // the thread of the windows, by the entry of each thread of a thread_group, by each callback
-// wxl hands the thread pool -- wxl.async's work, wxl.ui's wait for a lost rendering device --
+// wxl hands the thread pool -- wxl::async's work, wxl.ui's wait for a lost rendering device --
 // for as long as it runs, and by terminate_with_exception on whichever thread a coroutine
 // nobody holds fails. A thread wxl does not start keeps the runtime's own until then -- and
 // what wxl runs on one without a handler of its own, a completion on a thread of the

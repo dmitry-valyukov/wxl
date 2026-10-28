@@ -25,7 +25,7 @@ void check(const char* what, bool ok) {
     std::printf("%-64s %s\n", what, ok ? "да" : "НЕТ");
 }
 
-// То, чьё уничтожение видно снаружи: то же, что Trace в тестах wxl.async.
+// То, чьё уничтожение видно снаружи: то же, что Trace в тестах wxl::async.
 struct Trace {
     bool* released;
 

@@ -214,7 +214,7 @@ TEST(FunctionTest, TheBodyGoesWithTheLastCopy) {
 //
 // The debug CRT heap is what the probe reads, and it is only there in a debug
 // build -- the same probe, and the same pair of tests, as the coroutine
-// frame's in wxl.async.
+// frame's in wxl::async.
 #ifdef _DEBUG
 
 TEST(FunctionTest, TakesItsBodyFromTheStaPool) {

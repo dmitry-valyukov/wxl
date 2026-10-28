@@ -179,7 +179,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // abort without a word. From here on it names the exception and stops through core::abort,
     // on this thread; a worker thread of wxl sets the same handler for itself, and the namer
     // set here is the one it asks about a winrt::hresult_error. A coroutine nobody holds that
-    // fails ends here too: wxl.async's default hands its exception to this handler. An error
+    // fails ends here too: wxl::async's default hands its exception to this handler. An error
     // XAML records has a way of its own, UnhandledException above.
     wxl::Application::install_terminate_report();
 

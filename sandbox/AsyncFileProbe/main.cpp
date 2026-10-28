@@ -1,4 +1,4 @@
-// Does a file opened and read through wxl.async come back to a coroutine of an
+// Does a file opened and read through wxl::async come back to a coroutine of an
 // application -- under the loop Application::Start runs, with nothing set up by hand?
 // A probe, not a sample: it answers that and exits by itself.
 #include "platform.h"
