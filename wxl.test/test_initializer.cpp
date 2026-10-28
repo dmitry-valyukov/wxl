@@ -77,7 +77,7 @@ int assert_report_hook(int report_type, char * message, int * return_value) {
 }
 
 /**
-* \brief RAII wrapper to initialize the C locale.
+* \brief Sets the C library's locale to the user's (setlocale(LC_ALL, "")) before the tests.
 */
 class test_initializer_environment : public ::testing::Environment
 {
