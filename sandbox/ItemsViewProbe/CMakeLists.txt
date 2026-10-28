@@ -8,7 +8,6 @@ add_executable(sandbox.items-view-probe
 )
 
 target_include_directories(sandbox.items-view-probe PRIVATE
-    ${WXL_CPPWINRT_PROJECTION_DIR}
     ${PROJECT_SOURCE_DIR}/wxl.ui/src
     ${PROJECT_SOURCE_DIR}/wxl.core/src
     ${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/include

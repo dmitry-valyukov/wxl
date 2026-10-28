@@ -6,14 +6,18 @@
 # on each run: the image's 14.51 miscompiles a coroutine whose final_suspend()
 # returns suspend_never in optimized /EHsc code (bugs/coro-report.md), and the
 # /EHa that hides it breaks a death test that expects an access violation to
-# take the process down.
+# take the process down. The same installation gets the workload "WinUI
+# application development build tools" with "C++ WinUI app development build
+# tools": the configure restores the NuGet packages and builds the cppwinrt
+# projection with the MSBuild of that installation (cmake/wxl_packages.cmake).
 #
-# The WinUI half needs what the repository does not carry: the pinned NuGet
-# packages, the cppwinrt projection in generated/ and the wrappers winui-srcgen
-# writes into wxl.ui/src/wxl. The job produces them the way a fresh clone does:
-# restore the packages, generate the projection, seed the wrapper directory
-# with an empty CMakeLists.txt, build the generator, run it with the full
-# profile, configure again and build everything.
+# The WinUI half needs what the repository does not carry: the NuGet packages,
+# the cppwinrt projection and the wrappers winui-srcgen writes into
+# wxl.ui/src/wxl. The job produces them the way a fresh clone does: seed the
+# wrapper directory with an empty CMakeLists.txt, configure (which restores the
+# packages and builds the projection in the build directory), build the
+# generator, run it with the full profile, configure again and build
+# everything.
 #
 # A third row keeps the coroutine checks of wxl.async in the build
 # (WXL_STRICT_CORO): the tests that expect a broken rule to stop the process
@@ -76,13 +80,23 @@ jobs:
     env:
       DEVCMD: C:\BuildToolsInsiders\Common7\Tools\VsDevCmd.bat
       VCVARS: -vcvars_ver=14.53
-      # The scripts, CMake and winui-srcgen all read this variable first.
+      # The restore of the configure, tools/install-runtime.ps1 and winui-srcgen
+      # all read this variable first.
       NUGET_PACKAGES: C:\nuget-packages
+      # MSBuild reads the environment variables as properties, so the restore of
+      # the configure runs in locked mode: it resolves the versions that
+      # tools/packages.lock.json records, and a lock file that does not match
+      # the pins stops the configure instead of being rewritten. NuGet in
+      # locked mode writes a lock file that is not there, so
+      # cmake/wxl_packages.cmake stops a locked configure without one.
+      RestoreLockedMode: true
     steps:
       - uses: actions/checkout@v4
 
       # 3010 is "installed, a reboot is pending": the compiler is usable as is.
-      - name: Install MSVC 14.53
+      # One installation for the toolset and the WinUI build tools, so that
+      # VsDevCmd of it gives both MSVC 14.53 and the MSBuild the configure runs.
+      - name: Install MSVC 14.53 and the WinUI build tools
         shell: pwsh
         run: |
           $boot = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
@@ -90,26 +104,12 @@ jobs:
           $p = Start-Process -FilePath $boot -WorkingDirectory $env:RUNNER_TEMP -Wait -PassThru -ArgumentList @(
             '--installPath', 'C:\BuildToolsInsiders',
             '--add', 'Microsoft.VisualStudio.Component.VC.Preview.Tools.x86.x64',
+            '--add', 'Microsoft.VisualStudio.Workload.UniversalBuildTools',
+            '--add', 'Microsoft.VisualStudio.ComponentGroup.WindowsAppDevelopment.VC.BuildTools',
             '--quiet', '--wait', '--norestart', '--nocache')
           "exit code $($p.ExitCode)"
           Get-ChildItem 'C:\BuildToolsInsiders\VC\Tools\MSVC' | ForEach-Object { $_.Name }
           if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "Build Tools install failed: $($p.ExitCode)" }
-
-      - name: vcpkg port (cppwinrt)
-        shell: pwsh
-        run: vcpkg install cppwinrt:x64-windows-static-md
-
-      - name: Restore NuGet packages
-        shell: pwsh
-        run: pwsh -NoProfile -File tools/restore-packages.ps1
-
-      # projection.ps1 finds cppwinrt.exe through VCPKG_ROOT when vcpkg's own
-      # path file is not there, as on the runner.
-      - name: cppwinrt projection
-        shell: pwsh
-        env:
-          VCPKG_ROOT: C:\vcpkg
-        run: pwsh -NoProfile -File tools/projection.ps1
 
       - name: Seed the wrapper directory
         shell: pwsh
@@ -123,7 +123,7 @@ jobs:
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF ${{ matrix.strict && '-DWXL_STRICT_CORO=ON' || '' }}
+          cmake --preset x64 -DBUILD_TESTING=ON -DWXL_BUILD_DOCS=OFF ${{ matrix.strict && '-DWXL_STRICT_CORO=ON' || '' }}
 
       - name: Build winui-srcgen
         if: ${{ !matrix.strict }}
@@ -142,7 +142,7 @@ jobs:
         shell: cmd
         run: |
           call "%DEVCMD%" -arch=x64 -host_arch=x64 %VCVARS%
-          cmake --preset x64 -DVCPKG_ROOT=C:/vcpkg
+          cmake --preset x64
 
       # -k 0: every compile error of the change at once, not only the first.
       - name: Build
@@ -161,10 +161,11 @@ jobs:
           ctest ${{ matrix.strict && '--test-dir build\x64\wxl.async\tests -C Debug' || format('--preset {0}', matrix.preset) }} --output-on-failure --timeout 300 --output-junit ctest.xml
 
       # No test opens a WinUI window; a sample does. The experimental runtime
-      # the wrappers ask for, then the hello sample for twenty seconds: it has
-      # to start and show its window on the runner's desktop. After a red test
-      # step as well -- the two answer different questions -- but not after a
-      # red build, which left nothing to start.
+      # the wrappers ask for, from the installers the restore of the configure
+      # put into the NuGet package folder, then the hello sample for twenty
+      # seconds: it has to start and show its window on the runner's desktop.
+      # After a red test step as well -- the two answer different questions --
+      # but not after a red build, which left nothing to start.
       - name: Install the experimental Windows App Runtime
         if: (success() || failure()) && steps.build.outcome == 'success' && !matrix.strict
         shell: pwsh
