@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 
@@ -13,13 +14,17 @@
 
 struct model;
 
-// Where generation writes, and which CMake target the generated
-// CMakeLists.txt adds its sources to.
+// Where generation writes, and into how many translation units the
+// out-of-line bodies go: parts/wrapper-00.cpp ... wrapper-<parts-1>.cpp, two
+// digits, so 1 to max_parts of them (gen/parts.cpp).
 struct output {
     std::filesystem::path dir;
-    std::string cmake_target;
+    std::size_t parts = 1;
 };
 
-// Creates `out.dir` and runs every writer, in order, finishing with the
-// CMakeLists.txt that lists everything written.
+inline constexpr std::size_t max_parts = 100;
+
+// Creates `out.dir` and its parts/ and runs every writer, in order, finishing
+// with the parts and the removal of what an earlier run wrote and this one did
+// not.
 void write_all(output const& out, model const& m);

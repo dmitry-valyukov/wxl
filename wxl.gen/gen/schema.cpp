@@ -171,11 +171,8 @@ std::string declare(schema::class_t const& owner, schema::member const& member,
 void write_schema_header(std::filesystem::path const& path, schema const& sch) {
     auto file = open_output(path);
 
-    std::print(file, R"({}#pragma once
-
-#include "Members.h"
-)",
-               banner);
+    std::print(file, "{}#pragma once\n\n", banner);
+    write_include(file, "Members.h");
 
     // Every class the schema covers is named by the anchors that hang on it,
     // and that is a wider set than Members.h includes: the flat vocabulary
@@ -188,7 +185,7 @@ void write_schema_header(std::filesystem::path const& path, schema const& sch) {
         }
     }
     for (auto&& header : headers) {
-        std::print(file, "#include \"{}\"\n", header);
+        write_include(file, header);
     }
 
     std::print(file, R"(
@@ -235,13 +232,11 @@ void write_schema_test(std::filesystem::path const& path, schema const& sch, dsl
                        std::size_t& lines) {
     auto file = open_output(path);
 
-    std::print(file, R"({}#include "../Bind.h"
-#include "schema.h"
-
-namespace {{
-
-)",
-               banner);
+    // In parts/, beside the bodies: "../" before a file of the run.
+    std::print(file, "{}", banner);
+    write_include(file, "../Bind.h", "../");
+    write_include(file, "schema.h", "../");
+    std::print(file, "\nnamespace {{\n\n");
 
     for (auto&& klass : sch.classes) {
         if (klass.members.empty()) {
@@ -333,10 +328,10 @@ void write_schema(output const& out, model const& m, emitted& em) {
         members += klass.members.size();
     }
 
-    auto const test = out.dir / "schema_surface.cpp";
+    auto const test = out.dir / "parts" / "schema_surface.cpp";
     std::size_t lines = 0;
     write_schema_test(test, sch, d, lines);
-    em.add(test, std::format("{}.surface-test", out.cmake_target));
+    em.add(test);
 
     std::print("generated {} ({} classes, {} members)\n",
                wxl::core::unicode::to_utf8(header).chars(), sch.classes.size(), members);

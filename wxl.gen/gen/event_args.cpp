@@ -31,7 +31,7 @@ import wxl.core;
 // An args header names a wrapper type only as a forward declaration. A class
 // header already includes the args headers of the events it declares, so
 // including it back would close a cycle; a declaration is all a signature
-// needs, and the .cpp beside it includes the real thing.
+// needs, and the translation unit of the bodies includes the real thing.
 //
 // gen/classes.cpp leaves *EventArgs classes to this writer: wrapped there as
 // well, they would be emitted twice under the same flat wxl name.
@@ -124,7 +124,8 @@ size_t member_count(std::vector<event_args_info> const& classes) {
 void write_event_args_file(std::filesystem::path const& path, event_args_file const& file) {
     auto out = open_output(path);
 
-    std::print(out, "{}#pragma once\n\n#include \"../events.h\"\n", banner);
+    std::print(out, "{}#pragma once\n\n", banner);
+    write_include(out, "../events.h");
     write_includes(out, file.includes);
     std::print(out, "\nnamespace wxl {{\n");
 
@@ -160,21 +161,26 @@ void write_event_args_file(std::filesystem::path const& path, event_args_file co
     std::print(out, "}} // namespace wxl\n");
 }
 
-void write_event_args_source(std::filesystem::path const& path, std::string_view header,
-                             event_args_file const& file) {
-    auto out = open_output(path);
-
-    // The private headers come first and the args header last, which is the
-    // opposite of the usual order and has to be: every wxl public header
-    // imports wxl.core, and MSVC refuses a standard header first seen after
-    // that import. A private header includes its winrt ones ahead of any wxl
-    // header for the same reason, so leading with them is what gets the
-    // standard headers winrt/base.h needs in ahead of the import.
-    std::print(out, "{}", banner);
-    write_includes(out, file.source_includes);
-    std::print(out, "\n#include \"{}\"\n\nnamespace wxl {{\n", header);
+// The out-of-line members of a namespace's args views (body_file), one entry
+// per view that has members.
+//
+// What a translation unit holding them includes: the private headers first
+// and the args header last, which is the opposite of the usual order and has
+// to be: every wxl public header imports wxl.core, and MSVC refuses a
+// standard header first seen after that import. A private header includes
+// its winrt ones ahead of any wxl header for the same reason, so leading with
+// them is what gets the standard headers winrt/base.h needs in ahead of the
+// import.
+body_file args_bodies(std::string const& header, event_args_file const& file) {
+    body_file bodies{.name = file.ns + ".EventArgs"};
+    bodies.includes.assign(file.source_includes.begin(), file.source_includes.end());
+    bodies.includes.push_back(header);
 
     for (auto&& c : file.classes) {
+        if (c.members.empty()) {
+            continue;
+        }
+        std::ostringstream out;
         for (auto&& member : c.members) {
             auto const& info = member.info;
 
@@ -199,16 +205,23 @@ void write_event_args_source(std::filesystem::path const& path, std::string_view
                        info.returns_void ? "" : "return ",
                        info.returns_void ? call : substitute(info.result.from_winrt, call));
         }
+        bodies.classes.push_back(std::move(out).str());
     }
 
+    // The specializations only an args member names, defined once, after
+    // every body that uses them.
     if (!file.collection_definitions.empty()) {
-        std::print(out, "\n");
+        std::string text = "\n";
         for (auto&& specialization : file.collection_definitions) {
-            std::print(out, "template class {};\n", specialization);
+            text += std::format("template class {};\n", specialization);
+        }
+        if (bodies.classes.empty()) {
+            bodies.classes.push_back(std::move(text));
+        } else {
+            bodies.classes.back() += text;
         }
     }
-
-    std::print(out, "\n}}  // namespace wxl\n");
+    return bodies;
 }
 
 // The headers declaring a wrapped class, which an args header must not
@@ -357,7 +370,8 @@ void analyze_event_args(type_kinds const& kinds, closure const& cl, type_index c
     }
 }
 
-void write_event_args(output const& out, model const& m, emitted& em) {
+void write_event_args(output const& out, model const& m, emitted& em,
+                      std::vector<body_file>& bodies) {
     std::vector<std::string> event_args_files;
     size_t members = 0;
     for (auto&& file : m.event_args_files) {
@@ -371,9 +385,7 @@ void write_event_args(output const& out, model const& m, emitted& em) {
         members += emitted_members;
 
         if (emitted_members != 0) {
-            auto const source = out.dir / metadata_path(file.ns + ".EventArgs.cpp");
-            write_event_args_source(source, filename, file);
-            em.add(source);
+            bodies.push_back(args_bodies(filename, file));
         }
 
         std::print("generated {} ({} EventArgs wrappers, {} members)\n",

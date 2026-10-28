@@ -42,7 +42,7 @@ wxl_add_module_library(wxl.gen STATIC
         gen/dsl.cpp
         gen/schema.cpp
         gen/doc_language.cpp
-        gen/cmake.cpp
+        gen/parts.cpp
 )
 
 source_group("gen" REGULAR_EXPRESSION "gen/.*")

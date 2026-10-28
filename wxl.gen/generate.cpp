@@ -11,15 +11,16 @@ import wxl.core;
 namespace {
 
 // Files the previous run produced but this one didn't: a narrowed profile
-// would otherwise leave stale wrappers lying next to the current ones,
-// compiling (they're on the include path) but listed nowhere. Only files
-// carrying the generator's own banner are removed -- anything a human put
-// in the output directory is left alone.
+// would otherwise leave stale wrappers lying next to the current ones -- a
+// header still on the include path, a part of a larger --parts still beside
+// the ones the build compiles. Only files carrying the generator's own banner
+// are removed -- anything a human put in the output directory is left alone.
 void prune_stale(output const& out, gen::emitted const& em) {
     std::set<std::filesystem::path> const current{em.files().begin(), em.files().end()};
 
-    for (auto&& entry : std::filesystem::directory_iterator{out.dir}) {
-        if (!entry.is_regular_file() || current.contains(entry.path().filename())) {
+    for (auto&& entry : std::filesystem::recursive_directory_iterator{out.dir}) {
+        if (!entry.is_regular_file() ||
+            current.contains(entry.path().lexically_relative(out.dir))) {
             continue;
         }
 
@@ -135,24 +136,26 @@ model analyze(closure const& cl, profile_set const& profiles, type_map const& ty
 }
 
 void write_all(output const& out, model const& m) {
-    std::filesystem::create_directories(out.dir);
+    std::filesystem::create_directories(out.dir / "parts");
 
-    gen::emitted em;
+    gen::emitted em{out.dir};
+    std::vector<gen::body_file> bodies;
     gen::write_key_enums(out, m, em);
     gen::write_tags(out, m, em);
     gen::write_enums_and_structs(out, m, em);
-    gen::write_classes(out, m, em);
+    gen::write_classes(out, m, em, bodies);
     gen::write_dsl(out, m.dsl, em);
     gen::write_schema(out, m, em);
-    gen::write_event_args(out, m, em);
+    gen::write_event_args(out, m, em, bodies);
     gen::write_styles(out, m, em);
     gen::write_brushes(out, m, em);
     gen::write_alias_index(out, m.resources, em);
     gen::write_symbols(out, m, em);
     gen::write_doc_language(out, m, em);
+    gen::write_parts(out, bodies, em);
 
-    // Last: drop whatever a previous run left behind, then list everything
-    // this run produced.
+    // Last: drop whatever a previous run left behind.
     prune_stale(out, em);
-    gen::write_cmake_lists(out, em);
+    std::print("generated {} files in {}\n", em.files().size(),
+               wxl::core::unicode::to_utf8(out.dir).chars());
 }

@@ -6,6 +6,7 @@ wxl_add_gtest(wxl.gen.tests
         generate_test.cpp
         group_namespaces_test.cpp
         map_type_test.cpp
+        parts_test.cpp
     DEPS
         wxl.gen
         # test_directory() for the tests that write the generator's output.
@@ -54,3 +55,19 @@ set_tests_properties(winui-srcgen.no-packages.message PROPERTIES
     PASS_REGULAR_EXPRESSION "--packages <build>/wxl.packages/restored-packages.json")
 add_test(NAME winui-srcgen.no-packages.fails COMMAND ${_wxl_gen_no_packages})
 set_tests_properties(winui-srcgen.no-packages.fails PROPERTIES WILL_FAIL TRUE)
+
+# A number of parts the names cannot carry -- they have two digits -- or no number
+# at all is refused before the profile is read, as the language is.
+set(_wxl_gen_parts
+    winui-srcgen --profile "${CMAKE_CURRENT_SOURCE_DIR}/../profiles/base.winxl-profile"
+    --packages "${_wxl_gen_restored_packages}" --out "${CMAKE_CURRENT_BINARY_DIR}/parts-refused"
+    --parts)
+foreach(_wxl_gen_count IN ITEMS 0 101 eight)
+    add_test(NAME winui-srcgen.parts-${_wxl_gen_count}.message
+        COMMAND ${_wxl_gen_parts} ${_wxl_gen_count})
+    set_tests_properties(winui-srcgen.parts-${_wxl_gen_count}.message PROPERTIES
+        PASS_REGULAR_EXPRESSION "--parts ${_wxl_gen_count}: the number of parts is from 1 to 100")
+    add_test(NAME winui-srcgen.parts-${_wxl_gen_count}.fails
+        COMMAND ${_wxl_gen_parts} ${_wxl_gen_count})
+    set_tests_properties(winui-srcgen.parts-${_wxl_gen_count}.fails PROPERTIES WILL_FAIL TRUE)
+endforeach()

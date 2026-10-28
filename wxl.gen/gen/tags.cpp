@@ -34,7 +34,7 @@ void write_tags(output const& out, model const& m, emitted& em) {
 )",
                banner);
     for (auto&& include : m.tag_includes) {
-        std::print(file, "#include \"{}\"\n", include);
+        write_include(file, include);
     }
 
     std::print(file, "\nnamespace wxl {{\n\n");

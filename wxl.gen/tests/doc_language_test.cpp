@@ -43,7 +43,7 @@ protected:
 
     void TearDown() override { std::filesystem::remove_all(dir_); }
 
-    output out() const { return {dir_, "wxl.ui"}; }
+    output out() const { return {dir_}; }
     std::filesystem::path file() const { return dir_ / "doc_language.txt"; }
 
     static model documented_in(documentation_language const* language) {
@@ -66,7 +66,7 @@ TEST_F(doc_language, names_the_code_and_doxygens_language_under_the_banner) {
     documentation_language const* const traditional = find_documentation_language("zh-hant");
     ASSERT_NE(traditional, nullptr);
 
-    gen::emitted em;
+    gen::emitted em{dir_};
     gen::write_doc_language(out(), documented_in(traditional), em);
 
     EXPECT_EQ(text_of(file()), std::string{gen::banner} + "zh-hant Chinese-Traditional\n");

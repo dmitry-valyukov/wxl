@@ -340,7 +340,7 @@ void write_name_table(output const& out, emitted& em, std::filesystem::path cons
         std::print(table, "    L\"{}\",\n", name);
     }
     std::print(table, "}};\n\n}}  // namespace wxl::impl\n");
-    em.add(file);
+    em.add(out.dir / file);
 }
 
 }  // namespace
@@ -408,8 +408,9 @@ void write_styles(output const& out, model const& m, emitted& em) {
 
     {
         auto header = open_output(out.dir / "styles.h");
-        std::print(header, "{}#pragma once\n\n#include \"resource_lookup.h\"\n\nnamespace wxl::dsl {{\n",
-                   banner);
+        std::print(header, "{}#pragma once\n\n", banner);
+        write_include(header, "../resource_lookup.h");
+        std::print(header, "\nnamespace wxl::dsl {{\n");
 
         for (auto&& [target, members] : groups) {
             std::print(header, "\nstruct {}Styles {{\n", target);
@@ -426,7 +427,7 @@ void write_styles(output const& out, model const& m, emitted& em) {
         }
         std::print(header,
                    "}};\n\ninline constexpr StylePaths styles;\n\n}}  // namespace wxl::dsl\n");
-        em.add("styles.h");
+        em.add(out.dir / "styles.h");
     }
 
     write_name_table(out, em, L"style_names.h", "style_names", names);
@@ -493,8 +494,9 @@ void write_brushes(output const& out, model const& m, emitted& em) {
     std::vector<std::string> names;
     {
         auto header = open_output(out.dir / "brushes.h");
-        std::print(header, "{}#pragma once\n\n#include \"resource_lookup.h\"\n\nnamespace wxl::dsl {{\n",
-                   banner);
+        std::print(header, "{}#pragma once\n\n", banner);
+        write_include(header, "../resource_lookup.h");
+        std::print(header, "\nnamespace wxl::dsl {{\n");
         // One index space over both roots, in the order they are written, so
         // a single name table serves them.
         size_t index = 0;
@@ -502,7 +504,7 @@ void write_brushes(output const& out, model const& m, emitted& em) {
         write_brush_paths(header, "ThemeBrushes", "ThemeBrushPaths", "themeBrushes", theme_stems,
                           generated, index, names);
         std::print(header, "\n}}  // namespace wxl::dsl\n");
-        em.add("brushes.h");
+        em.add(out.dir / "brushes.h");
     }
 
     write_name_table(out, em, L"brush_names.h", "brush_names", names);
@@ -570,7 +572,7 @@ void write_alias_index(output const& out, std::vector<dictionary_resource> const
         }
         std::print(file, "\n");
     }
-    em.add("aliases.txt");
+    em.add(out.dir / "aliases.txt");
 
     std::print("generated {}\\aliases.txt ({} alias keys)\n",
                wxl::core::unicode::to_utf8(out.dir).chars(), aliases.size());
