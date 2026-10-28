@@ -180,12 +180,14 @@ endfunction()
 # What the site of a wxl tree rooted at <root> reads: the prose in docs/, the
 # READMEs of the samples, the sources of every module and, when <wrappers> names
 # one, the directory of the generated wrappers, which lies in a build directory
-# and not under <root> (the WXL_WRAPPERS_DIR of wxl.ui,
-# cmake/wxl_ui_profile.cmake); the patterns that keep tests, benchmarks and
-# tooling out; and the directories images in the prose are resolved against. One list, because two sites read it: wxl's own
-# (docs/CMakeLists.txt) and the copy an application builds from its tree for
-# the sake of the tag file. A second copy of the list drifted once, and the
-# application's site stopped on a directory that no longer existed.
+# and not under <root> (the site's own documented generation, docs/wrappers/wxl
+# of the build, wxl_generate_wrappers in cmake/wxl_ui_profile.cmake); the
+# patterns that keep tests, benchmarks and tooling out; and the directories
+# images in the prose are resolved against. One list, because two sites read
+# it: wxl's own (docs/CMakeLists.txt) and the copy an application builds from
+# its tree for the sake of the tag file. A second copy of the list drifted
+# once, and the application's site stopped on a directory that no longer
+# existed.
 #
 # Module READMEs are one-screen cards for GitHub and stay off the site; the
 # articles about the modules live in docs/.
@@ -260,6 +262,9 @@ endfunction()
 #     [IMAGES <dir>...]       -- where ![](...) in the prose is resolved
 #     [TAGFILE <file>]        -- write one, for other sites to link against
 #     [TAGS <file>=<url>...]  -- read others, turning mentions into links
+#     [INCLUDE <file>]        -- a Doxyfile fragment read last, over the rest; a
+#                                step of the build that writes it is named in
+#                                DEPENDS
 #     [DEPENDS <target>...])
 #
 # The target is never part of ALL: documentation is built when asked for, not on
@@ -267,7 +272,7 @@ endfunction()
 function(wxl_add_doxygen_site target)
     cmake_parse_arguments(A
         ""
-        "PROJECT_NAME;BRIEF;LANGUAGE;MAINPAGE;OUTPUT;TAGFILE"
+        "PROJECT_NAME;BRIEF;LANGUAGE;MAINPAGE;OUTPUT;TAGFILE;INCLUDE"
         "INPUT;EXCLUDE;IMAGES;TAGS;DEPENDS;STRIP_FROM"
         ${ARGN})
 
@@ -300,6 +305,10 @@ function(wxl_add_doxygen_site target)
     set(DOXY_LANGUAGE         "${A_LANGUAGE}")
     set(DOXY_OUTPUT_DIRECTORY "${A_OUTPUT}")
     set(DOXY_MAINPAGE         "${A_MAINPAGE}")
+    set(DOXY_INCLUDE          "")
+    if(A_INCLUDE)
+        set(DOXY_INCLUDE      "@INCLUDE               = \"${A_INCLUDE}\"")
+    endif()
     set(DOXY_GENERATE_TAGFILE "${A_TAGFILE}")
     set(DOXY_HTML_HEADER      "${WXL_DOXYGEN_HTML_HEADER}")
     set(DOXY_MERMAID_JS_URL   "${WXL_DOXYGEN_MERMAID_JS_URL}")

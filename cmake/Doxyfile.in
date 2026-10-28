@@ -147,3 +147,12 @@ QUIET                  = YES
 WARN_LOGFILE           = "@DOXY_WARN_LOGFILE@"
 WARN_IF_INCOMPLETE_DOC = NO
 WARN_AS_ERROR          = FAIL_ON_WARNINGS_PRINT
+
+# ---- Settings written by the build ----
+#
+# Last, so that what the fragment sets wins over the lines above: Doxygen
+# reads its configuration in order, and an include reads the file where it
+# stands. Empty unless the site names a fragment (INCLUDE); the wxl site's is
+# written by a step of the build, which knows the language only once the
+# wrappers it documents are generated (docs/language.cmake).
+@DOXY_INCLUDE@
