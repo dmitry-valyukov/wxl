@@ -27,6 +27,7 @@ export import :spsc_channel;
 export import :spsc_queue;
 export import :spsc_queue_reference_implementation;
 export import :sta_loop;
+export import :sta_thread;
 export import :task;
 export import :task_tree;
 export import :thread;

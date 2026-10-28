@@ -6,6 +6,7 @@ export module wxl.async:task;
 
 import :async_op;
 import :coroutine_checks;
+import :sta_thread;
 import wxl.core;
 import std;
 
@@ -350,8 +351,8 @@ protected:
 
     inline bool ready([[maybe_unused]] site where) const noexcept {
         coro_check(producer_, "task: empty -- default-constructed or moved-from", where);
-        coro_check(core::sta_memory_pool::is_safe(),
-                   "task: awaited from a thread other than its own", where);
+        coro_check(sta_thread::is_current(), "task: awaited from a thread other than its own",
+                   where);
         return producer_->ready();
     }
 

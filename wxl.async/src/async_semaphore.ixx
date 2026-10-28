@@ -7,6 +7,7 @@ export module wxl.async:async_semaphore;
 import :cancellation;
 import :coroutine_checks;
 import :sta_loop;
+import :sta_thread;
 import wxl.core;
 import std;
 
@@ -198,7 +199,7 @@ public:
         std::ptrdiff_t count, std::ptrdiff_t max = std::numeric_limits<std::ptrdiff_t>::max(),
         [[maybe_unused]] detail::site where = detail::site::current()) noexcept
         : count_(count), handed_(0), max_(max), waiters_() {
-        coro_check(core::sta_memory_pool::is_safe(),
+        coro_check(sta_thread::is_current(),
                    "async_semaphore: made on a thread other than its coroutines'", where);
         coro_check(0 <= count && count <= max, "async_semaphore: a count outside [0, max]", where);
     }
@@ -207,7 +208,7 @@ public:
     /// resumed into a semaphore that is gone, and a build that checks stops here rather than
     /// let it. Where a destructor is called nothing gives the line, so the check names its own.
     inline ~async_semaphore() {
-        coro_check(core::sta_memory_pool::is_safe(),
+        coro_check(sta_thread::is_current(),
                    "async_semaphore: destroyed on a thread other than its coroutines'",
                    detail::site::current());
         coro_check(waiters_.empty() && handed_ == 0,
@@ -220,7 +221,7 @@ public:
     /// \param where the caller's line, for a strict build's report; left to its default.
     inline bool try_acquire(
         [[maybe_unused]] detail::site where = detail::site::current()) noexcept {
-        coro_check(core::sta_memory_pool::is_safe(),
+        coro_check(sta_thread::is_current(),
                    "async_semaphore: acquired on a thread other than its coroutines'", where);
         return take_free();
     }
@@ -237,7 +238,7 @@ public:
     /// \param where the caller's line, for a strict build's report; left to its default.
     [[nodiscard]] inline acquire_awaiter acquire(
         cancellation_token token, [[maybe_unused]] detail::site where = detail::site::current()) {
-        coro_check(core::sta_memory_pool::is_safe(),
+        coro_check(sta_thread::is_current(),
                    "async_semaphore: acquired on a thread other than its coroutines'", where);
         return acquire_awaiter(*this, std::move(token));
     }
@@ -249,7 +250,7 @@ public:
     /// \param where the caller's line, for a strict build's report; left to its default.
     inline void release(std::ptrdiff_t n = 1,
                         [[maybe_unused]] detail::site where = detail::site::current()) noexcept {
-        coro_check(core::sta_memory_pool::is_safe(),
+        coro_check(sta_thread::is_current(),
                    "async_semaphore: released on a thread other than its coroutines'", where);
         // Subtracted rather than added: under the unbounded maximum the sum would overflow.
         coro_check(0 <= n && n <= max_ - count_ - handed_,
