@@ -127,6 +127,11 @@ if(WXL_TESTS)
     add_test(NAME docs.language
         COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" --config $<CONFIG>
                 --target docs.language)
-    set_tests_properties(docs.language PROPERTIES FIXTURES_SETUP docs.language)
+    # The build may link winui-srcgen anew, which Windows refuses while the
+    # executable runs: the winui-srcgen.* tests of wxl.gen/tests take the same
+    # lock.
+    set_tests_properties(docs.language PROPERTIES
+        FIXTURES_SETUP docs.language
+        RESOURCE_LOCK winui-srcgen)
     set_tests_properties(docs PROPERTIES FIXTURES_REQUIRED docs.language)
 endif()
