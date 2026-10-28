@@ -10,8 +10,8 @@
 #                    for a test, which links wxl::test.gtest.
 #   wxl::test.gtest  the global fixture of a GoogleTest program (test_initializer.cpp): the C
 #                    library's locale set to the user's before the tests (setlocale(LC_ALL, "")),
-#                    and the call stack, with symbols, printed on a failed CRT debug assertion
-#                    (_ASSERTE). Brings
+#                    and, on a failed CRT debug assertion (_ASSERTE), the call stack printed with
+#                    symbols and the process ended, as assert() of the UCRT ends it. Brings
 #                    wxl::test and GTest::gtest; the program takes its main() from GTest::gtest_main,
 #                    as wxl_add_gtest links it, or defines its own.
 #
