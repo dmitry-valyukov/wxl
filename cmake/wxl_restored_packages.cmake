@@ -139,8 +139,8 @@ endfunction()
 # entry without what a direct entry has, stops the configure with the remedy.
 function(_wxl_packages_read_lock prefix lock json)
     string(CONCAT remedy
-        "Take tools/packages.lock.json back from git, or delete it and run the update, "
-        "tools\\build.ps1 -UpdatePackages, which writes it anew.")
+        "Take tools/packages.lock.json back from git, or run the update, tools\\build.ps1 "
+        "-UpdatePackages, which does not read the file and writes it anew.")
     _wxl_packages_lock_problem(problem "${json}")
     if(NOT problem STREQUAL "")
         message(FATAL_ERROR "The lock file ${lock} ${problem}. ${remedy}")

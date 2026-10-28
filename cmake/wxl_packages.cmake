@@ -37,9 +37,9 @@
 #   - a pin [X] is referenced as it is written, and no configure chooses
 #     another version;
 #   - a stable minimum M.m.p is referenced as M.*, NuGet's floating version of
-#     the stable versions of major M (on the Windows machine 1.* took
-#     WebView2 from 1.0.4078.44 to 1.0.4314.35, the newest stable 1.x, and
-#     passed over prereleases such as 1.0.4312-prerelease);
+#     the stable versions of major M (1.* took WebView2 from 1.0.4078.44 to
+#     1.0.4314.35, the newest stable 1.x, and passed over prereleases such as
+#     1.0.4312-prerelease);
 #   - a prerelease minimum is referenced as the exact version [X]. NuGet has no
 #     floating version of one channel: M.*-<word>* takes the stable versions as
 #     well, and a stable version orders above every prerelease of the same or
@@ -377,9 +377,8 @@ endfunction()
 # the index of the package in the flat container of the NuGet source, which is
 # downloaded into the directory `dir`. The index lists every version the source
 # ever published, unlisted ones included, without saying which are unlisted,
-# and the newest version of it is taken. That this is what NuGet's floating
-# references resolve over as well is an assumption, verified on the Windows
-# machine. What the update chose is reviewed in the versions it prints and in
+# and the newest version of it is taken. NuGet's floating references are
+# assumed to resolve over the same list. What the update chose is reviewed in the versions it prints and in
 # the change of the lock file before it is committed. A failed download, or an
 # index without such a version, stops the configure.
 function(_wxl_packages_newest out id minimum dir)
@@ -563,19 +562,21 @@ function(_wxl_packages)
     # The lock file, read once. Outside the update it gives the versions of the
     # prerelease pins and is checked against the pins; on the update it gives
     # the versions before. A file that is not a lock file stops an ordinary
-    # configure; the update, which writes the file anew, deletes it, so that the
-    # restore does not stop on reading it.
+    # configure. The update, which writes the file anew, leaves it in place and
+    # does not read it: with RestoreForceEvaluate NuGet does not read it either,
+    # and the file stays as it was should the update stop before the restore.
     set(lock_json "")
     set(locked_IDS "")
+    set(before_unknown "none")
     if(EXISTS "${lock}")
         file(READ "${lock}" lock_json)
         _wxl_packages_lock_problem(lock_problem "${lock_json}")
         if(NOT lock_problem STREQUAL "" AND WXL_UPDATE_PACKAGES)
             message(STATUS
-                "NuGet update: the lock file ${lock} ${lock_problem}; it is deleted and written "
-                "anew, and the versions before the update are shown as none.")
-            file(REMOVE "${lock}")
+                "NuGet update: the lock file ${lock} ${lock_problem}; the update writes it anew, "
+                "and the versions before are shown as unreadable.")
             set(lock_json "")
+            set(before_unknown "unreadable")
         else()
             _wxl_packages_read_lock(locked "${lock}" "${lock_json}")
         endif()
@@ -614,7 +615,7 @@ function(_wxl_packages)
                 _wxl_packages_newest(chosen "${id}" "${minimum}" "${helper}/index")
                 set(version "[${chosen}]")
             endif()
-            set(before_${i} "none")
+            set(before_${i} "${before_unknown}")
             if(has_entry)
                 set(before_${i} "${locked_RESOLVED_${lower}}")
             endif()
@@ -685,12 +686,14 @@ function(_wxl_packages)
     # them (RestoreCommand's no-op check reads the hash of the dependency graph
     # and only asks that the lock file exist), so the restore result of the
     # earlier versions would stay. Without the cache file NuGet restores for
-    # real and takes the versions the lock file records; the assumption, to be
-    # verified on the Windows machine, is that it does so from the global
-    # packages folder without the network when the packages are there.
+    # real and takes the versions the lock file records -- from the global
+    # packages folder without the network when the packages are there, it is
+    # assumed.
+    # IS_NEWER_THAN is true for equal times as well, so the test is asked the
+    # other way round: the cache older than the lock file, strictly.
     set(nuget_cache "${helper}/obj/project.nuget.cache")
     if(NOT WXL_UPDATE_PACKAGES AND NOT lock_json STREQUAL "" AND EXISTS "${nuget_cache}"
-       AND "${lock}" IS_NEWER_THAN "${nuget_cache}")
+       AND NOT "${nuget_cache}" IS_NEWER_THAN "${lock}")
         message(STATUS "NuGet packages: ${lock} is newer than the last restore, which runs anew.")
         file(REMOVE "${nuget_cache}")
     endif()
@@ -729,6 +732,14 @@ function(_wxl_packages)
             "tools\\build.ps1 -UpdatePackages without locked mode, writes the lock file anew, and "
             "the changed file is committed together with the pins.\n"
             "${output}\nThe whole log: ${log}")
+    endif()
+    # A restore that wrote the lock file -- the update, or a configure without
+    # one -- writes it after obj/project.nuget.cache, so the lock file would be
+    # newer than the cache and the next configure would take it for one a pull
+    # brought and restore once more for nothing. The cache is touched to put the
+    # two in step.
+    if(WXL_UPDATE_PACKAGES OR lock_json STREQUAL "")
+        file(TOUCH "${nuget_cache}")
     endif()
     if(output MATCHES "warning")
         message(WARNING "MSBuild on ${project} reported warnings (the whole log: ${log}):\n${output}")
