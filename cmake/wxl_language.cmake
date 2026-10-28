@@ -16,16 +16,38 @@
 # module (CMAKE_CXX_MODULE_STD) and with the sources scanned for imports
 # (CMAKE_CXX_SCAN_FOR_MODULES).
 #
-# Why one set for wxl and its consumers: CMake compares the compile options of a
-# target that imports `std` with those of the `std` module target, and gives a
-# target whose options differ a copy of the module synthesized for it. The
-# options are set for the whole directory, so they reach the module target as
-# well, and not as a usage requirement of wxl::core: wxl::core carries /Gw in
-# Release only, so in Debug its consumers use the module as it is and only the
-# Release ones get a copy. With these options on the target too, its consumers
-# would differ from the module in both configurations, and differently in each;
-# CMake 4.4.1 to 4.4.4 under Ninja Multi-Config makes the Debug and the Release
-# copy depend on each other and stops the generate step on the cycle.
+# Why one set for wxl and its consumers: a target that imports `std` gets the
+# module built for what affects its use, and how much that is depends on the
+# CMake release (Source/cmCxxModuleUsageEffects.cxx, read at v4.3.0, v4.4.0,
+# v4.4.1 and v4.4.4):
+#
+#   4.3    the hash of those effects is a constant: one copy of the module for
+#          every consumer.
+#   4.4.x  the hash covers, per configuration, the target's compile options --
+#          its own, its directory's and those it takes from what it links, but
+#          not warning options (/w, /W, /external:) and, from 4.4.1, not
+#          preprocessor ones (/D, /I, /U) -- and its CXX_STANDARD,
+#          CXX_EXTENSIONS and CXX_STANDARD_REQUIRED. Each distinct hash gets a
+#          copy of the module of its own. Compile definitions and
+#          CMAKE_CXX_FLAGS are not hashed.
+#
+# So under 4.4 every target that imports a wxl module hashes the same only when
+# all of them carry the same options and level, which directory options set
+# before the first target give them. Not a usage requirement of wxl::core:
+# wxl::core carries /Gw in Release only, so under 4.4 its consumers hash like
+# any other target in Debug and apart from them in Release. With these options
+# on the target too,
+# its consumers would differ from the rest in both configurations, and
+# differently in each; CMake 4.4.1 to 4.4.4 under Ninja Multi-Config makes the
+# Debug and the Release copy depend on each other and stops the generate step
+# on the cycle.
+#
+# The check verifies the mechanism this file prescribes, the COMPILE_OPTIONS of
+# the directory, and nothing else: options a project carries through
+# CMAKE_CXX_FLAGS (or CMAKE_CXX_FLAGS_INIT) reach the command line but not the
+# hash of 4.4, so such a project is still asked to add them as directory
+# options. The command line then carries them twice, and the directory options
+# are the spelling the comparison of 4.4 sees.
 #
 # /Zc:throwingNew tells the compiler that allocation functions follow the
 # standard: one that is not noexcept never returns null. The pool never does --
@@ -81,25 +103,28 @@ function(wxl_check_language_options)
     endif()
 
     if(NOT CMAKE_CXX_STANDARD STREQUAL "23")
-        string(APPEND missing "\n  CMAKE_CXX_STANDARD: \"${CMAKE_CXX_STANDARD}\", not 23")
+        string(APPEND missing
+            "\n  CMAKE_CXX_STANDARD: \"${CMAKE_CXX_STANDARD}\", which is not 23")
         string(APPEND lines "\n    set(CMAKE_CXX_STANDARD 23)")
     endif()
     if(NOT CMAKE_CXX_STANDARD_REQUIRED)
         string(APPEND missing
-            "\n  CMAKE_CXX_STANDARD_REQUIRED: \"${CMAKE_CXX_STANDARD_REQUIRED}\", not ON")
+            "\n  CMAKE_CXX_STANDARD_REQUIRED: \"${CMAKE_CXX_STANDARD_REQUIRED}\", which is not true")
         string(APPEND lines "\n    set(CMAKE_CXX_STANDARD_REQUIRED ON)")
     endif()
     if(NOT DEFINED CMAKE_CXX_EXTENSIONS OR CMAKE_CXX_EXTENSIONS)
-        string(APPEND missing "\n  CMAKE_CXX_EXTENSIONS: \"${CMAKE_CXX_EXTENSIONS}\", not OFF")
+        string(APPEND missing
+            "\n  CMAKE_CXX_EXTENSIONS: \"${CMAKE_CXX_EXTENSIONS}\", which is not set false")
         string(APPEND lines "\n    set(CMAKE_CXX_EXTENSIONS OFF)")
     endif()
     if(NOT CMAKE_CXX_MODULE_STD)
-        string(APPEND missing "\n  CMAKE_CXX_MODULE_STD: \"${CMAKE_CXX_MODULE_STD}\", not 1")
+        string(APPEND missing
+            "\n  CMAKE_CXX_MODULE_STD: \"${CMAKE_CXX_MODULE_STD}\", which is not true")
         string(APPEND lines "\n    set(CMAKE_CXX_MODULE_STD 1)")
     endif()
     if(NOT CMAKE_CXX_SCAN_FOR_MODULES)
         string(APPEND missing
-            "\n  CMAKE_CXX_SCAN_FOR_MODULES: \"${CMAKE_CXX_SCAN_FOR_MODULES}\", not ON")
+            "\n  CMAKE_CXX_SCAN_FOR_MODULES: \"${CMAKE_CXX_SCAN_FOR_MODULES}\", which is not true")
         string(APPEND lines "\n    set(CMAKE_CXX_SCAN_FOR_MODULES ON)")
     endif()
 
