@@ -897,6 +897,40 @@ std::vector<member_declaration> declarations_of(TypeDef const& type, member_kind
     return found;
 }
 
+namespace {
+
+// A root the metadata does not declare, as a line of the error that stops the
+// walk: what lists it, and which input would have to declare it. A type of
+// Windows is declared by the Windows SDK of the build, read only when a profile
+// asks for it; any other type of a profile by a package of the restore; a root
+// of the type map by whatever the profiles read, which the type map cannot say.
+std::string undeclared_root(std::string_view name, profile_set const& profiles) {
+    auto const listed = profiles.listed_by.find(std::string{name});
+    if (listed == profiles.listed_by.end()) {
+        return std::format("\n  {}, a root of every run in the type map (types.json): no metadata "
+                           "the profiles read declares it",
+                           name);
+    }
+    auto const listing = wxl::core::unicode::to_utf8(listed->second);
+    if (name.starts_with("Windows.")) {
+        return profiles.windows_metadata
+                   ? std::format("\n  {}, listed by {}: the Windows SDK {} of the build does not "
+                                 "declare it; build with a Windows SDK that does, or take the type "
+                                 "out of the profile",
+                                 name, listing.chars(), profiles.sdk.version)
+                   : std::format("\n  {}, listed by {}: a Windows type, and no profile of the set "
+                                 "reads the Windows metadata; say \"windowsMetadata\": true in the "
+                                 "profile",
+                                 name, listing.chars());
+    }
+    return std::format("\n  {}, listed by {}: no package the profiles name declares it at the "
+                       "version the restore resolved; restore a release or a package version "
+                       "that declares it, or take the type out of the profile",
+                       name, listing.chars());
+}
+
+}  // namespace
+
 closure crawl(profile_set const& raw_profiles, type_map const& types, cache const& db) {
     profile_set profiles = raw_profiles;
     for (auto&& root : types.implicit_roots) {
@@ -906,12 +940,7 @@ closure crawl(profile_set const& raw_profiles, type_map const& types, cache cons
     std::string missing;
     for (auto&& [name, filter] : profiles.types) {
         if (!db.find(name)) {
-            auto const listed = profiles.listed_by.find(name);
-            missing += listed == profiles.listed_by.end()
-                           ? std::format("\n  {}, a root of every run in the type map (types.json)",
-                                         name)
-                           : std::format("\n  {}, listed by {}", name,
-                                         wxl::core::unicode::to_utf8(listed->second).chars());
+            missing += undeclared_root(name, profiles);
         }
     }
     if (!missing.empty()) {
@@ -919,9 +948,10 @@ closure crawl(profile_set const& raw_profiles, type_map const& types, cache cons
                                  ? std::format("no {}", windows_app_sdk_id)
                                  : std::format("{} {}", windows_app_sdk_id, profiles.windows_app_sdk);
         throw std::runtime_error(std::format(
-            "the metadata read does not declare these types, with {} in the restore of the build "
-            "({}):{}\nRestore a release that declares them, or take them out of the profiles",
-            release, wxl::core::unicode::to_utf8(profiles.restored_from).chars(), missing));
+            "the metadata read does not declare these types, with {} and Windows SDK {} in the "
+            "restore of the build ({}):{}",
+            release, profiles.sdk.version, wxl::core::unicode::to_utf8(profiles.restored_from).chars(),
+            missing));
     }
 
     crawler cr{profiles, types, db};

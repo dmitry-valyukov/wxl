@@ -26,27 +26,10 @@
 # short.
 #
 # What the restore resolved, and the Windows SDK of the projection, are then
-# written into the list <build>/wxl.packages/restored-packages.json:
-#
-#   {
-#       "packages": [
-#           { "id": "<id>", "version": "<version>", "directory": "<directory>" },
-#           ...
-#       ],
-#       "windowsSdk": {
-#           "version": "<version>",
-#           "metadata": [ "<file>.winmd", ... ]
-#       }
-#   }
-#
-# with every package of obj/project.assets.json -- its id and version as the
-# restore names it, the directory it is in -- and the Windows SDK of the
-# developer environment with the .winmd files the projection of the platform
-# was made from (the -in entries of its response file). Paths are absolute,
-# with / as the separator. winui-srcgen and wxl.gen.ui take the list with
-# --packages and read every package at the version listed and the Windows
-# metadata from those files. The list is written only when its text changes,
-# so that a configure that changes nothing touches no file.
+# written into the list <build>/wxl.packages/restored-packages.json, which
+# winui-srcgen and wxl.gen.ui take with --packages. Its format, the reading of
+# the restore result and the writing of the list are in
+# cmake/wxl_restored_packages.cmake.
 #
 # A project that adds wxl -- as a subdirectory or through FetchContent --
 # restores in locked mode: its configure resolves the versions the lock file of
@@ -64,7 +47,8 @@
 #       restore did not resolve stops the configure.
 #
 #   wxl_restored_packages_file(<variable>)
-#       sets <variable> to the path of the list of the restore described above.
+#       sets <variable> to the path of the list of the restore,
+#       <build>/wxl.packages/restored-packages.json.
 #
 # What this relies on -- the developer environment, the component of the
 # installation, the Windows SDK, the restore result, the response files the
@@ -75,6 +59,8 @@ include_guard(GLOBAL)
 
 set(_WXL_PACKAGES_SCRIPT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 cmake_path(GET _WXL_PACKAGES_SCRIPT_DIR PARENT_PATH _WXL_PACKAGES_TREE)
+
+include("${_WXL_PACKAGES_SCRIPT_DIR}/wxl_restored_packages.cmake")
 
 # The oldest Windows SDK the tree builds against. The developer environment
 # selects the newest installed one, and the configure stops when that is older.
@@ -236,93 +222,6 @@ function(_wxl_packages_check_path what path)
     endif()
 endfunction()
 
-# Reads the restore result: the package folders and the version and directory
-# of every package, which wxl_nuget_package_dir() and the list of the restore
-# give out.
-function(_wxl_packages_read_assets assets out_count)
-    if(NOT EXISTS "${assets}")
-        message(FATAL_ERROR "The restore wrote no ${assets}.")
-    endif()
-    file(READ "${assets}" json)
-    foreach(member packageFolders libraries)
-        string(JSON type ERROR_VARIABLE error TYPE "${json}" ${member})
-        if(error OR NOT type STREQUAL "OBJECT")
-            message(FATAL_ERROR "${assets} has no object \"${member}\".")
-        endif()
-    endforeach()
-    string(JSON folders GET "${json}" packageFolders)
-    string(JSON libraries GET "${json}" libraries)
-    string(JSON folder_count LENGTH "${folders}")
-    string(JSON library_count LENGTH "${libraries}")
-    if(folder_count EQUAL 0 OR library_count EQUAL 0)
-        message(FATAL_ERROR "${assets} names no package folder or no package.")
-    endif()
-
-    set(roots "")
-    math(EXPR last "${folder_count} - 1")
-    foreach(i RANGE ${last})
-        string(JSON folder MEMBER "${folders}" ${i})
-        file(TO_CMAKE_PATH "${folder}" folder)
-        list(APPEND roots "${folder}")
-    endforeach()
-
-    # A member of "libraries" is named <id>/<version>, and its "path" is the
-    # directory of the package relative to one of the package folders.
-    set(count 0)
-    math(EXPR last "${library_count} - 1")
-    foreach(i RANGE ${last})
-        string(JSON key MEMBER "${libraries}" ${i})
-        string(JSON entry GET "${libraries}" "${key}")
-        # A project reference has no package directory; the helper project has
-        # none, and any other type is not one this file knows how to read.
-        string(JSON type ERROR_VARIABLE error GET "${entry}" type)
-        if(error)
-            message(FATAL_ERROR "${assets}: the entry \"${key}\" has no readable type: ${error}")
-        endif()
-        if(type STREQUAL "project")
-            continue()
-        endif()
-        if(NOT type STREQUAL "package")
-            message(FATAL_ERROR "${assets}: the entry \"${key}\" is of type \"${type}\", neither a package nor a project.")
-        endif()
-        string(JSON path ERROR_VARIABLE error GET "${entry}" path)
-        string(FIND "${key}" "/" slash)
-        if(error OR slash LESS 1)
-            message(FATAL_ERROR "${assets}: the package \"${key}\" has no path, or its name is not <id>/<version>.")
-        endif()
-        string(SUBSTRING "${key}" 0 ${slash} id)
-        math(EXPR after "${slash} + 1")
-        string(SUBSTRING "${key}" ${after} -1 version)
-        # Written into the list as they are: neither may carry what JSON reads
-        # as syntax.
-        if(NOT id MATCHES "^[A-Za-z0-9._-]+$" OR NOT version MATCHES "^[A-Za-z0-9.+-]+$")
-            message(FATAL_ERROR "${assets}: \"${key}\" is not a NuGet package id and version.")
-        endif()
-
-        set(dir "")
-        foreach(root IN LISTS roots)
-            cmake_path(APPEND root "${path}" OUTPUT_VARIABLE candidate)
-            if(IS_DIRECTORY "${candidate}")
-                set(dir "${candidate}")
-                break()
-            endif()
-        endforeach()
-        if(dir STREQUAL "")
-            message(FATAL_ERROR "${assets} names ${key} at ${path}, which is in none of its package folders (${roots}).")
-        endif()
-
-        string(TOLOWER "${id}" lower)
-        set_property(GLOBAL PROPERTY _WXL_NUGET_PACKAGE_${lower} "${dir}")
-        set_property(GLOBAL PROPERTY _WXL_NUGET_PACKAGE_ID_${lower} "${id}")
-        set_property(GLOBAL PROPERTY _WXL_NUGET_PACKAGE_VERSION_${lower} "${version}")
-        set_property(GLOBAL APPEND PROPERTY _WXL_NUGET_PACKAGES "${lower}")
-        math(EXPR count "${count} + 1")
-    endforeach()
-
-    set_property(GLOBAL PROPERTY _WXL_NUGET_ASSETS "${assets}")
-    set(${out_count} ${count} PARENT_SCOPE)
-endfunction()
-
 # The response file of a projection target and what it has to name: inputs of
 # the expected kind, and the projection directory as the output.
 function(_wxl_packages_check_response file projection_native)
@@ -348,78 +247,6 @@ function(_wxl_packages_check_response file projection_native)
             message(FATAL_ERROR "${file} passes no ${option} metadata to cppwinrt.")
         endif()
     endforeach()
-endfunction()
-
-# A path as a JSON string writes it. A Windows file name holds neither a
-# control character nor a quote, and CMake spells the path with / for the
-# separator, so none of its characters needs an escape in JSON. A " in one
-# would be JSON syntax and a ; a separator of the CMake list the path is
-# carried in, and either stops the configure.
-function(_wxl_packages_json_path out what path)
-    file(TO_CMAKE_PATH "${path}" path)
-    if(path MATCHES "[\";]")
-        message(FATAL_ERROR "${what} ${path} has a \" or a ;, which the list of the restore cannot carry.")
-    endif()
-    set(${out} "\"${path}\"" PARENT_SCOPE)
-endfunction()
-
-# Writes the list of the restore (see the top of this file) into `file`: the
-# packages _wxl_packages_read_assets() read, by id, and the Windows SDK `sdk`
-# with the -in entries of the response file of the platform projection.
-function(_wxl_packages_write_list file sdk platform_response)
-    file(READ "${platform_response}" response)
-    # A ; is a separator of the CMake list the entries are read into.
-    if(response MATCHES ";")
-        message(FATAL_ERROR
-            "${platform_response} has a ;, which the list of the restore cannot carry.")
-    endif()
-    string(REGEX MATCHALL "-in \"[^\"]+\"" inputs "${response}")
-    set(metadata "")
-    foreach(input IN LISTS inputs)
-        string(REGEX REPLACE "^-in \"(.+)\"$" "\\1" winmd "${input}")
-        file(TO_CMAKE_PATH "${winmd}" winmd)
-        string(TOLOWER "${winmd}" lower)
-        if(NOT lower MATCHES "\\.winmd$" OR NOT EXISTS "${winmd}")
-            message(FATAL_ERROR "${platform_response} reads ${winmd}, which is not a .winmd file on disk.")
-        endif()
-        _wxl_packages_json_path(json "The Windows SDK metadata file" "${winmd}")
-        list(APPEND metadata "${json}")
-    endforeach()
-    if(metadata STREQUAL "")
-        message(FATAL_ERROR "${platform_response} reads no Windows SDK metadata (-in).")
-    endif()
-
-    get_property(packages GLOBAL PROPERTY _WXL_NUGET_PACKAGES)
-    list(SORT packages)
-    set(entries "")
-    foreach(lower IN LISTS packages)
-        get_property(id GLOBAL PROPERTY _WXL_NUGET_PACKAGE_ID_${lower})
-        get_property(version GLOBAL PROPERTY _WXL_NUGET_PACKAGE_VERSION_${lower})
-        get_property(dir GLOBAL PROPERTY _WXL_NUGET_PACKAGE_${lower})
-        _wxl_packages_json_path(json "The directory of ${id}" "${dir}")
-        list(APPEND entries
-            "        { \"id\": \"${id}\", \"version\": \"${version}\", \"directory\": ${json} }")
-    endforeach()
-
-    string(REPLACE ";" ",\n" entries "${entries}")
-    list(TRANSFORM metadata PREPEND "            ")
-    string(REPLACE ";" ",\n" metadata "${metadata}")
-    string(CONCAT text
-        "{\n"
-        "    \"packages\": [\n${entries}\n    ],\n"
-        "    \"windowsSdk\": {\n"
-        "        \"version\": \"${sdk}\",\n"
-        "        \"metadata\": [\n${metadata}\n        ]\n"
-        "    }\n"
-        "}\n")
-
-    set(written "")
-    if(EXISTS "${file}")
-        file(READ "${file}" written)
-    endif()
-    if(NOT written STREQUAL text)
-        file(WRITE "${file}" "${text}")
-    endif()
 endfunction()
 
 function(_wxl_packages)

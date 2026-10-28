@@ -223,10 +223,10 @@ std::filesystem::path sdk_version_folder(std::string_view version) {
 
 }  // namespace
 
-documentation_source::documentation_source(std::vector<std::wstring> languages, std::string_view windows_sdk,
+documentation_source::documentation_source(std::vector<std::wstring> languages, windows_sdk const& sdk,
                                            std::filesystem::path references)
-    : languages_(std::move(languages)), windows_sdk_(sdk_version_folder(windows_sdk)),
-      references_(std::move(references)) {}
+    : languages_(std::move(languages)), windows_sdk_(sdk_version_folder(sdk.version)),
+      windows_metadata_(sdk.metadata.begin(), sdk.metadata.end()), references_(std::move(references)) {}
 
 documentation_source::~documentation_source() = default;
 
@@ -279,12 +279,17 @@ bool documentation_source::parse_some(std::chrono::steady_clock::time_point dead
 // A file is found by the metadata file, and for the metadata of Windows by the
 // contract; each is looked for and read once. An entry is kept only once it is
 // settled -- the file, the error that stops it, or that there is none -- so a
-// lookup that throws halfway leaves nothing behind to pass for an answer.
+// lookup that throws halfway leaves nothing behind to pass for an answer. A
+// metadata file of the Windows SDK has no file beside it looked for: an .xml
+// there would be read in place of the reference in the languages asked for.
 documentation_source::source* documentation_source::source_of(md::TypeDef const& type) {
     auto const& database = type.get_database();
     auto beside = beside_.find(&database);
     if (beside == beside_.end()) {
-        source opened = open(metadata_file(database).replace_extension(L".xml"), app_sdk_image_root);
+        auto file = metadata_file(database);
+        source opened = windows_metadata_.contains(file)
+                            ? source {}
+                            : open(file.replace_extension(L".xml"), app_sdk_image_root);
         beside = beside_.emplace(&database, std::move(opened)).first;
         started(beside->second);
     }

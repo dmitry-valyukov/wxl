@@ -260,6 +260,14 @@ struct type_map {
 // malformed JSON or an entry missing a required key.
 type_map load_type_map(std::filesystem::path const& path);
 
+// The Windows SDK a build projects: its version, which also names the folder of
+// its reference (References\<version>), and the .winmd files the build's C++/WinRT
+// projection of the platform was made from.
+struct windows_sdk {
+    std::string version;                          // "10.0.26100.0"
+    std::vector<std::filesystem::path> metadata;  // the platform's .winmd files
+};
+
 // Several profiles (plus everything they reference, transitively) merged
 // into the single input the crawler actually walks.
 struct profile_set {
@@ -286,11 +294,13 @@ struct profile_set {
 
     // What the set was resolved from, for the steps after the walk: the list of
     // the restore, the Windows App SDK release it resolved (the version of
-    // Microsoft.WindowsAppSDK, empty when it has none), and the version of the
-    // Windows SDK whose metadata the set reads and whose reference documents it.
+    // Microsoft.WindowsAppSDK, empty when it has none), and the Windows SDK of the
+    // build, whose reference documents its metadata -- read into `metadata` when
+    // a profile of the set asks for it ("windowsMetadata", `windows_metadata`).
     std::filesystem::path restored_from;
     std::string windows_app_sdk;
-    std::string windows_sdk_version;
+    windows_sdk sdk;
+    bool windows_metadata = false;
 };
 
 // Reads a single profile file. Throws std::runtime_error with the file
@@ -310,20 +320,21 @@ profile load_profile(std::filesystem::path const& path);
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer);
 
-// A package version, compared the way NuGet compares versions: SemVer 2.0
-// with a fourth numeric part. The numeric parts are compared as numbers, a
-// part not written being 0; a release is above its prereleases; prerelease
-// labels are compared identifier by identifier -- two numeric ones as numbers,
-// a numeric one below any other, the others as text ignoring ASCII case --
-// and of two labels that agree as far as the shorter goes, the shorter is the
-// lower; build metadata takes no part. The order is weak: 1.0.0-A and
-// 1.0.0-a are equivalent and spelled differently.
+// A package version, parsed and compared the way NuGet's NuGetVersion is:
+// SemVer 2.0 with a fourth numeric part. The numeric parts are compared as
+// numbers, a part not written being 0; a release is above its prereleases;
+// prerelease labels are compared identifier by identifier -- an identifier
+// that is an Int32 as a number, a number below any text, text ignoring ASCII
+// case -- and of two labels that agree as far as the shorter goes, the
+// shorter is the lower; build metadata takes no part. The order is weak:
+// 1.0.0-A and 1.0.0-a are equivalent and spelled differently.
 class nuget_version {
 public:
     // The version `text` spells, or nothing when it spells none: one to four
-    // numeric parts separated by dots, then optionally '-' and a label of
-    // dot-separated identifiers of [0-9A-Za-z-], then optionally '+' and
-    // metadata of the same form.
+    // numeric parts separated by dots, each an Int32, then optionally '-' and a
+    // label of dot-separated identifiers of [0-9A-Za-z-], none of them a number
+    // with a leading zero, then optionally '+' and metadata of identifiers of
+    // the same characters. Whitespace is refused.
     static std::optional<nuget_version> parse(std::string_view text);
 
     friend std::weak_ordering operator<=>(nuget_version const& a, nuget_version const& b);
@@ -332,7 +343,7 @@ public:
     }
 
 private:
-    std::array<std::uint64_t, 4> numbers_{};
+    std::array<std::int32_t, 4> numbers_{};
     std::vector<std::string> prerelease_;
 };
 
@@ -354,8 +365,7 @@ struct restored_package {
 struct restored_packages {
     std::filesystem::path source;  // the file, for the messages that name it
     std::vector<restored_package> packages;
-    std::string windows_sdk_version;                     // "10.0.26100.0"
-    std::vector<std::filesystem::path> windows_metadata;  // the platform's .winmd files
+    windows_sdk sdk;
 
     // The package with this id, matched the way NuGet matches ids, ignoring
     // ASCII case; null when the restore has none.
@@ -365,8 +375,8 @@ struct restored_packages {
 // Reads the list of the restore. Throws std::runtime_error naming the file
 // when it is not there -- with how to get it -- on malformed JSON, on an entry
 // missing a key, on a version that is not a NuGet version, on a package
-// listed twice, on a Windows SDK version that is not numbers and dots, and on a
-// Windows SDK without metadata.
+// listed twice, on a Windows SDK version that is not four numbers separated by
+// dots, and on a Windows SDK without metadata.
 restored_packages load_restored_packages(std::filesystem::path const& path);
 
 // Loads every named profile plus, transitively, the profiles they

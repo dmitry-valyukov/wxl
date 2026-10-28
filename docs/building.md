@@ -207,10 +207,12 @@ MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProje
   список ключом `--packages`: каждый пакет профиля они читают в той версии и
   из того каталога, которые названы в списке, а метаданные Windows — из
   файлов этого Windows SDK. Без ключа генератор останавливается с ошибкой, а
-  редактор показывает ошибку; в обеих сказано, откуда взять список. Тесты `wxl.gen` и
-  `wxl.gen.common` получают путь к списку от CMake
+  редактор показывает ошибку; в обеих сказано, откуда взять список. Тесты
+  `wxl.gen` и `wxl.gen.common` получают путь к списку от CMake
   (`wxl_restored_packages_file()`), а `tools/install-runtime.ps1` и
-  `run-gen-ui.cmd` берут список каталога `build/x64`.
+  `run-gen-ui.cmd` берут список каталога `build/x64`. Формат списка и его
+  запись описаны в `cmake/wxl_restored_packages.cmake`, тест записи —
+  `ctest -R restored-packages`.
 - **Что выключено.** Вспомогательный проект выключает интеграцию vcpkg
   (`VcpkgEnabled=false`) и импорт файлов `Directory.Build.props`,
   `Directory.Build.targets` и `Directory.Packages.props` из каталогов выше

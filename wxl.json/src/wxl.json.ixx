@@ -17,9 +17,10 @@
 //
 // Comments are always accepted, and there is no switch for them: wxl's own
 // configuration files (the profiles `wxl.gen/profiles/*.winxl-profile` and the
-// tables beside them) carry comments that explain the settings next to them. Everything else follows RFC 8259 strictly: no
-// trailing comma, no unquoted member name, no leading zero in a number, because
-// misreading a document costs more than rejecting it.
+// tables beside them) carry comments that explain the settings next to them.
+// Everything else follows RFC 8259 strictly: no trailing comma, no unquoted
+// member name, no leading zero in a number, because misreading a document costs
+// more than rejecting it.
 //
 // What a caller has to keep to:
 //

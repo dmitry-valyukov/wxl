@@ -146,7 +146,7 @@ TEST(documentation_ids, an_out_result_is_documented_as_the_result) {
     EXPECT_EQ(get_text.doc_id, "M:Microsoft.UI.Text.ITextRange.GetText(Microsoft.UI.Text.TextGetOptions,System.String@)");
     EXPECT_EQ(gen::parameter_names(get_text), names({"options"}));
 
-    documentation_source docs{{L"en"}, load_restored_packages(restored_packages_file).windows_sdk_version};
+    documentation_source docs{{L"en"}, load_restored_packages(restored_packages_file).sdk};
     gen::document(&docs, type("Microsoft.UI.Text.ITextRange"), get_text);
     EXPECT_FALSE(get_text.doc.summary.empty());
     EXPECT_EQ(get_text.doc.returns, (doc_text {{.text = "The text in the text range."}}));

@@ -29,8 +29,9 @@ std::filesystem::path const profiles_dir{u8"" WXL_GEN_PROFILES_DIR};
 // and the Windows SDK of its projection.
 std::filesystem::path const restored_packages_file{u8"" WXL_RESTORED_PACKAGES};
 
-// The Windows SDK version the references the tests write are laid out under.
-constexpr std::string_view scratch_sdk = "10.0.1.0";
+// The Windows SDK the references the tests write are laid out under, with no
+// metadata file of its own: a .winmd the tests copy is not one of its files.
+windows_sdk const scratch_sdk{"10.0.1.0", {}};
 
 // A path as the errors spell it, and as the metadata reader takes it.
 std::string utf8(std::filesystem::path const& path) {
@@ -93,12 +94,12 @@ std::filesystem::path const& windows_color_file() {
     static std::filesystem::path const file = [] {
         auto const restored = load_restored_packages(restored_packages_file);
         std::vector<std::string> paths;
-        for (auto&& winmd : restored.windows_metadata) {
+        for (auto&& winmd : restored.sdk.metadata) {
             paths.push_back(utf8(winmd));
         }
         md::cache const windows{paths};
         auto const& declaring = windows.find_required("Windows.UI.Color").get_database().path();
-        for (auto&& winmd : restored.windows_metadata) {
+        for (auto&& winmd : restored.sdk.metadata) {
             if (utf8(winmd) == declaring) {
                 return winmd;
             }
@@ -292,15 +293,37 @@ TEST(documentation_source, reads_the_reference_of_the_sdk_version_given) {
     md::cache const db{std::vector<std::string>{utf8(winmd)}};
     auto const color = db.find_required("Windows.UI.Color");
 
-    documentation_source projected{{L"en"}, "10.0.1.0", references};
+    documentation_source projected{{L"en"}, windows_sdk{"10.0.1.0", {}}, references};
     EXPECT_EQ(projected.find(color, "T:Windows.UI.Color")->summary, plain("The projected one."));
 
     // A version with no reference of its own leaves the type undocumented, and says so.
-    documentation_source absent{{L"en"}, "10.0.3.0", references};
+    documentation_source absent{{L"en"}, windows_sdk{"10.0.3.0", {}}, references};
     EXPECT_FALSE(absent.find(color, "T:Windows.UI.Color"));
     EXPECT_EQ(absent.undocumented(), std::set<std::string>{utf8(winmd)});
 
-    EXPECT_THROW((documentation_source {{L"en"}, "", references}), std::invalid_argument);
+    EXPECT_THROW((documentation_source {{L"en"}, windows_sdk{}, references}), std::invalid_argument);
+}
+
+// A metadata file of the Windows SDK is documented by the reference alone: an
+// English .xml beside it does not take the place of the language asked for. The
+// same file, when the SDK does not name it, is documented by the .xml beside it,
+// as a package's is.
+TEST(documentation_source, reads_nothing_beside_the_metadata_of_the_sdk) {
+    auto const references = scratch(L"sdk_beside");
+    write_documentation(references / "10.0.1.0" / "Windows.Foundation.UniversalApiContract" / "1.0.0.0" / "ru" /
+                            "Windows.Foundation.UniversalApiContract.xml",
+                        "T:Windows.UI.Color", "Цвет.");
+    auto const winmd = windows_color_metadata(scratch(L"sdk_beside_metadata"));
+    write_documentation(std::filesystem::path{winmd}.replace_extension(".xml"), "T:Windows.UI.Color", "A color.");
+    md::cache const db{std::vector<std::string>{utf8(winmd)}};
+    auto const color = db.find_required("Windows.UI.Color");
+
+    documentation_source sdk{{L"ru", L"en"}, windows_sdk{"10.0.1.0", {winmd}}, references};
+    EXPECT_EQ(sdk.find(color, "T:Windows.UI.Color")->summary, plain("Цвет."));
+    EXPECT_TRUE(sdk.fell_back().empty());
+
+    documentation_source package{{L"ru", L"en"}, scratch_sdk, references};
+    EXPECT_EQ(package.find(color, "T:Windows.UI.Color")->summary, plain("A color."));
 }
 
 // An image in a description is on the pages of the reference the file belongs

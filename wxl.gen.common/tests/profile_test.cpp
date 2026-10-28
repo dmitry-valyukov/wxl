@@ -65,17 +65,19 @@ std::string listed(std::string_view id, std::string_view version,
 }
 
 // A list of the restore in `directory` with these packages, and a Windows SDK
-// whose one .winmd file is there too (empty: nothing here opens it).
+// of `sdk_version` whose one .winmd file is there too (empty: nothing here opens
+// it).
 std::filesystem::path write_list(std::filesystem::path const& directory,
-                                 std::vector<std::string> const& packages) {
+                                 std::vector<std::string> const& packages,
+                                 std::string_view sdk_version = "10.0.26100.0") {
     auto const winmd = directory / L"sdk" / L"Windows.Foundation.FoundationContract.winmd";
     write(winmd, "");
     std::string text = "{\n    \"packages\": [";
     for (std::size_t at = 0; at != packages.size(); ++at) {
         text += (at ? ",\n        " : "\n        ") + packages[at];
     }
-    text += "\n    ],\n    \"windowsSdk\": {\"version\": \"10.0.26100.0\", \"metadata\": [\"" +
-            json_path(winmd) + "\"]}\n}\n";
+    text += "\n    ],\n    \"windowsSdk\": {\"version\": \"" + std::string{sdk_version} +
+            "\", \"metadata\": [\"" + json_path(winmd) + "\"]}\n}\n";
     auto const file = directory / L"restored-packages.json";
     write(file, text);
     return file;
@@ -115,20 +117,23 @@ std::string stops_with(F&& call) {
 // projects, file for file as the list of the restore names it.
 TEST(profile, the_windows_metadata_is_the_one_the_build_projects) {
     auto const restored = load_restored_packages(restored_packages_file);
-    ASSERT_FALSE(restored.windows_metadata.empty());
+    ASSERT_FALSE(restored.sdk.metadata.empty());
     auto const profiles = resolve_profiles({profiles_dir / "base.winxl-profile"}, restored);
 
-    for (auto&& file : restored.windows_metadata) {
+    for (auto&& file : restored.sdk.metadata) {
         EXPECT_NE(std::ranges::find(profiles.metadata, file), profiles.metadata.end())
             << utf8(file);
     }
 }
 
 // A package is read from the directory the list names, whatever case the profile
-// spells its id in.
+// spells its id in, and in a folder named in Cyrillic -- "пакеты", spelled out so
+// that the source's own encoding does not matter -- whatever the ANSI code page
+// of the machine.
 TEST(profile, reads_a_package_from_the_directory_the_restore_names) {
     auto const directory = scratch(L"package_directory");
-    auto const package = write_package(directory / L"packages" / L"test.package" / L"1.2.0");
+    auto const package = write_package(directory / L"\u043F\u0430\u043A\u0435\u0442\u044B" /
+                                       L"test.package" / L"1.2.0");
     auto const list = write_list(directory, {listed("Test.Package", "1.2.0", package)});
     write(directory / L"p.winxl-profile",
           R"({"packages": [{"id": "test.package", "minimumVersion": "1.2.0-beta"}]})");
@@ -251,9 +256,20 @@ TEST(profile, a_minimum_that_is_not_a_version_is_refused) {
     write(release, R"({"minimumWindowsAppSdk": "latest"})");
     auto const package = directory / L"package.winxl-profile";
     write(package, R"({"packages": [{"id": "Test.Package", "minimumVersion": "[1.0,2.0)"}]})");
+    // A key that is there names a version, and an empty one names none.
+    auto const empty_release = directory / L"empty_release.winxl-profile";
+    write(empty_release, R"({"minimumWindowsAppSdk": ""})");
+    auto const empty_package = directory / L"empty_package.winxl-profile";
+    write(empty_package, R"({"packages": [{"id": "Test.Package", "minimumVersion": ""}]})");
 
     EXPECT_TRUE(says(stops_with([&] { load_profile(release); }), {utf8(release), "latest"}));
     EXPECT_TRUE(says(stops_with([&] { load_profile(package); }), {utf8(package), "[1.0,2.0)"}));
+    EXPECT_TRUE(says(stops_with([&] { load_profile(empty_release); }),
+                     {utf8(empty_release),
+                      "'minimumWindowsAppSdk' is \"\", which is not a NuGet version"}));
+    EXPECT_TRUE(says(stops_with([&] { load_profile(empty_package); }),
+                     {utf8(empty_package),
+                      "'minimumVersion' is \"\", which is not a NuGet version"}));
 
     std::filesystem::remove_all(directory);
 }
@@ -282,6 +298,23 @@ TEST(profile, a_list_that_is_not_there_says_how_to_get_it) {
 
     EXPECT_TRUE(says(stops_with([&] { load_restored_packages(list); }),
                      {utf8(list), "<build>/wxl.packages/restored-packages.json", "configure"}));
+
+    std::filesystem::remove_all(directory);
+}
+
+// The version of the Windows SDK names a folder of its reference, and is held to
+// the form the configure writes: four numbers separated by dots.
+TEST(profile, a_list_with_a_windows_sdk_version_of_another_form_is_refused) {
+    auto const directory = scratch(L"sdk_version");
+    EXPECT_NO_THROW(load_restored_packages(write_list(directory / L"good", {}, "10.0.26100.0")));
+    int at = 0;
+    for (std::string_view const version : {"", "10.0.26100", "10.0.26100.0.1", "10..26100.0",
+                                           "v10.0.26100.0", "10.0.26100.0 ", "..."}) {
+        auto const list = write_list(directory / std::to_wstring(at++), {}, version);
+        EXPECT_TRUE(says(stops_with([&] { load_restored_packages(list); }),
+                         {utf8(list), "'windowsSdk.version'"}))
+            << version;
+    }
 
     std::filesystem::remove_all(directory);
 }

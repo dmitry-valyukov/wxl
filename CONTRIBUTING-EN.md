@@ -64,8 +64,9 @@ request").
   an error.
 - CI restores the NuGet packages in locked mode (`RestoreLockedMode=true`):
   a change of the pins (`tools/packages.json`) comes in one commit with the
-  `tools/packages.lock.json` that the configure wrote. A lock file that does not match the pins stops the NuGet restore,
-  and a missing one stops the configure (`cmake/wxl_packages.cmake`; see
+  `tools/packages.lock.json` that the configure wrote. A lock file that does
+  not match the pins stops the NuGet restore, and a missing one stops the
+  configure (`cmake/wxl_packages.cmake`; see
   [docs/building.md](docs/building.md#пакеты-nuget-и-проекция-cppwinrt)).
 - Required checks: `build (Debug)`, `build (Release)`, `build (Strict)`,
   `build` (the documentation site) and `commits`. A pull request is merged

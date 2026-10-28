@@ -25,7 +25,8 @@ TEST(nuget_version, parses_what_nuget_writes) {
     for (std::string_view const text :
          {"1", "1.2", "1.2.3", "1.2.3.4", "2.5.4-experimental", "2.0.5-experimental2",
           "10.0.26100.4654", "2.0.250303.1", "1.0.0-rc.1+build.5", "1.0.0+20261028",
-          "1.0.0-x-y.z--1", "01.002.0003"}) {
+          "1.0.0-x-y.z--1", "01.002.0003", "2147483647.0", "1.0.0-0", "1.0.0-rc.0",
+          "1.0.0-0a", "1.0.0+001", "1.0.0-rc.99999999999999999999"}) {
         EXPECT_TRUE(nuget_version::parse(text)) << text;
     }
 }
@@ -34,7 +35,8 @@ TEST(nuget_version, refuses_what_is_not_a_version) {
     for (std::string_view const text :
          {"", "1.2.3.4.5", "1..2", ".1", "1.", "a", "1.a", "1.0-", "1.0-a..b", "1.0-a.",
           "1.0+", "1.0+a..b", "1.0.0-a_b", " 1.0", "1.0 ", "-1.0", "[1.0]", "1.0,2.0",
-          "1.0.0-\xC3\xA9", "99999999999999999999999.0"}) {
+          "1.0.0-\xC3\xA9", "99999999999999999999999.0", "2147483648.0", "1.2147483648",
+          "1.0.0-rc.01", "1.0.0-00", "1.0.0-007"}) {
         EXPECT_FALSE(nuget_version::parse(text)) << text;
     }
 }
@@ -72,10 +74,19 @@ TEST(nuget_version, orders_prerelease_labels_identifier_by_identifier) {
 
 TEST(nuget_version, compares_numeric_identifiers_as_numbers_and_below_text) {
     EXPECT_GT(v("1.0.0-rc.10"), v("1.0.0-rc.2"));
-    EXPECT_EQ(v("1.0.0-rc.01"), v("1.0.0-rc.1"));
-    EXPECT_GT(v("1.0.0-rc.123456789012345678901234567890"), v("1.0.0-rc.99999999999999999999"));
+    EXPECT_GT(v("1.0.0-rc.2147483647"), v("1.0.0-rc.3"));
     EXPECT_LT(v("1.0.0-1"), v("1.0.0-a"));
     EXPECT_LT(v("1.0.0-999"), v("1.0.0-0a"));
+    // Int32.TryParse takes a '-' as the sign: the identifier -1 is the number -1.
+    EXPECT_LT(v("1.0.0--1"), v("1.0.0-0"));
+}
+
+// An identifier is a number only as far as Int32 goes; a longer run of digits is
+// compared as text, as NuGet's CompareRelease does.
+TEST(nuget_version, compares_digits_beyond_int32_as_text) {
+    EXPECT_LT(v("1.0.0-rc.3"), v("1.0.0-rc.2147483648"));
+    EXPECT_GT(v("1.0.0-rc.2147483648"), v("1.0.0-rc.10000000000"));
+    EXPECT_LT(v("1.0.0-rc.123456789012345678901234567890"), v("1.0.0-rc.99999999999999999999"));
 }
 
 // Text is compared as text: "experimental10" is below "experimental2", as NuGet

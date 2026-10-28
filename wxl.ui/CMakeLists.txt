@@ -24,6 +24,15 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
 
+# ---- The NuGet packages and the cppwinrt projection ----
+# Restored and built at configure by cmake/wxl_packages.cmake, in the build
+# directory: Microsoft::CppWinRT is the target over the projection of the
+# Windows SDK and of the packages, wxl_nuget_package_dir() gives the directory
+# of a package. The top level of the wxl tree includes the file already; a
+# build that adds this directory on its own gets it here, ahead of the check of
+# the wrappers below, whose remedy names the list of the restore it writes.
+include("${WXL_CMAKE_SCRIPT_DIR}/wxl_packages.cmake")
+
 # ---- The generated wrappers: no library without them ----
 # What winui-srcgen writes into src/wxl -- the wrappers, the property tags, the
 # schema and the CMakeLists.txt that adds them to the targets below -- is not in
@@ -35,13 +44,13 @@ endif()
 # the generator without it.
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/wxl/CMakeLists.txt")
     get_filename_component(_wxl_tree "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+    wxl_restored_packages_file(_wxl_restored_packages)
     message(FATAL_ERROR
         "No generated wrappers in ${CMAKE_CURRENT_SOURCE_DIR}/src/wxl. Generate them in the "
         "wxl tree: build its target winui-srcgen (tools\\build.ps1 -Target winui-srcgen), run "
         "`winui-srcgen --profile ${_wxl_tree}/wxl.gen/profiles/full.winxl-profile --packages "
-        "${_wxl_tree}/build/x64/wxl.packages/restored-packages.json --out "
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/wxl`, then configure again "
-        "(tools\\build.ps1 -Configure in the wxl tree).")
+        "${_wxl_restored_packages} --out ${CMAKE_CURRENT_SOURCE_DIR}/src/wxl`, then configure "
+        "again (tools\\build.ps1 -Configure in the wxl tree).")
 endif()
 
 # ---- wxl.core: refcounted, intrusive_ptr, the STA allocator ----
@@ -51,14 +60,6 @@ endif()
 if(NOT TARGET wxl::core)
     find_package(wxl CONFIG REQUIRED COMPONENTS core)
 endif()
-
-# ---- The NuGet packages and the cppwinrt projection ----
-# Restored and built at configure by cmake/wxl_packages.cmake, in the build
-# directory: Microsoft::CppWinRT is the target over the projection of the
-# Windows SDK and of the packages, wxl_nuget_package_dir() gives the directory
-# of a package. The top level of the wxl tree includes the file already; a
-# build that adds this directory on its own gets it here.
-include("${WXL_CMAKE_SCRIPT_DIR}/wxl_packages.cmake")
 
 # The Windows App Runtime bootstrapper -- wxl owns its own runtime
 # dependencies, so this is wired here

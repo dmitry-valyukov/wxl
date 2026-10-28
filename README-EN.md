@@ -252,8 +252,8 @@ tested on a par with Debug.
 ### Code generation limitations
 
 - **Profile contents.** **wxl** contains only those **WinUI** types and members that
-  are listed in the `wxl.gen/profiles/full.winxl-profile` profile. To add anything
-  missing, extend the profile and regenerate the wrappers.
+  are listed in the `wxl.gen/profiles/full.winxl-profile` profile. To add
+  anything missing, extend the profile and regenerate the wrappers.
 - **Inheritance with overriding (Overrides).** A custom subclass of a **WinUI**
   class that overrides methods through the `I<Class>Overrides` interfaces is
   not supported yet: the COM interface aggregation prototype in

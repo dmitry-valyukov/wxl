@@ -290,11 +290,15 @@ std::map<std::string, replaced_call> read_replaced_calls(value const& entry,
 }
 
 // A minimum version a profile names, checked as it is read: a requirement that
-// does not parse could be compared with nothing. `where` starts the message.
+// does not parse -- an empty one among them -- could be compared with nothing.
+// Empty when the key is not there. `where` starts the message.
 std::string minimum_or_empty(value const& entry, std::filesystem::path const& source,
                              std::string_view key, std::string_view where) {
+    if (!entry.find(key)) {
+        return {};
+    }
     std::string minimum = string_or(entry, source, key, {});
-    if (!minimum.empty() && !nuget_version::parse(minimum)) {
+    if (!nuget_version::parse(minimum)) {
         fail(source, std::format("{}'{}' is \"{}\", which is not a NuGet version", where, key,
                                  minimum));
     }
@@ -424,28 +428,31 @@ bool is_identifier(std::string_view text) {
            });
 }
 
-// Two identifiers of prerelease labels, as NuGet orders them. Numbers are
-// compared by their digits without the leading zeros, the longer being the
-// larger, so that no identifier is too long to compare; text is compared
-// character by character in upper case, which is how NuGet's
-// OrdinalIgnoreCase orders ASCII.
-std::weak_ordering compare_identifiers(std::string_view a, std::string_view b) {
-    bool const a_numeric = is_numeric(a);
-    bool const b_numeric = is_numeric(b);
-    if (a_numeric && b_numeric) {
-        auto const significant = [](std::string_view digits) {
-            auto const first = digits.find_first_not_of('0');
-            return first == std::string_view::npos ? std::string_view{} : digits.substr(first);
-        };
-        auto const x = significant(a);
-        auto const y = significant(b);
-        if (x.size() != y.size()) {
-            return x.size() <=> y.size();
-        }
-        return x <=> y;
+// The whole of `text` as an Int32, or nothing: what Int32.TryParse takes of
+// the characters a version is written in -- digits, after a '-' for a negative
+// number, within the range of Int32.
+std::optional<std::int32_t> int32_of(std::string_view text) {
+    std::int32_t number = 0;
+    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), number);
+    if (error != std::errc{} || end != text.data() + text.size()) {
+        return std::nullopt;
     }
-    if (a_numeric != b_numeric) {
-        return a_numeric ? std::weak_ordering::less : std::weak_ordering::greater;
+    return number;
+}
+
+// Two identifiers of prerelease labels, as NuGet's VersionComparer orders them
+// (CompareRelease): one that Int32.TryParse takes is a number, and two numbers
+// are compared as numbers; a number is below any text; text is compared
+// character by character in upper case, which is how OrdinalIgnoreCase orders
+// ASCII.
+std::weak_ordering compare_identifiers(std::string_view a, std::string_view b) {
+    auto const x_number = int32_of(a);
+    auto const y_number = int32_of(b);
+    if (x_number && y_number) {
+        return *x_number <=> *y_number;
+    }
+    if (x_number || y_number) {
+        return x_number ? std::weak_ordering::less : std::weak_ordering::greater;
     }
     for (std::size_t at = 0; at != std::min(a.size(), b.size()); ++at) {
         auto const x = static_cast<unsigned char>(wxl::core::to_ascii_upper(a[at]));
@@ -469,6 +476,8 @@ std::optional<nuget_version> nuget_version::parse(std::string_view text) {
         text = text.substr(0, plus);
     }
 
+    // The numeric parts are what System.Version parses: Int32 each, a leading
+    // zero allowed.
     nuget_version version;
     auto const dash = text.find('-');
     std::size_t count = 0;
@@ -476,16 +485,18 @@ std::optional<nuget_version> nuget_version::parse(std::string_view text) {
         if (count == version.numbers_.size() || !is_numeric(part)) {
             return std::nullopt;
         }
-        auto const [end, error] =
-            std::from_chars(part.data(), part.data() + part.size(), version.numbers_[count]);
-        if (error != std::errc{} || end != part.data() + part.size()) {
+        auto const number = int32_of(part);
+        if (!number) {
             return std::nullopt;
         }
-        ++count;
+        version.numbers_[count++] = *number;
     }
+    // A numeric identifier of the label has no leading zero: 0 is one, 00 and 01
+    // are not (SemanticVersionFactory.IsValidPart).
     if (dash != std::string_view::npos) {
         for (std::string_view const identifier : wxl::core::split(text.substr(dash + 1), '.')) {
-            if (!is_identifier(identifier)) {
+            if (!is_identifier(identifier) ||
+                (identifier.size() > 1 && identifier.front() == '0' && is_numeric(identifier))) {
                 return std::nullopt;
             }
             version.prerelease_.emplace_back(identifier);
@@ -765,7 +776,8 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
         loader.load(path);
     }
     result.restored_from = restored.source;
-    result.windows_sdk_version = restored.windows_sdk_version;
+    result.sdk = restored.sdk;
+    result.windows_metadata = windows_metadata;
     if (restored_package const* const release = restored.find(windows_app_sdk_id)) {
         result.windows_app_sdk = release->version;
     }
@@ -839,11 +851,11 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
     // those the build's projection of the platform was made from, so a
     // wrapper and the projection it calls see the same Windows SDK.
     if (windows_metadata) {
-        for (auto&& file : restored.windows_metadata) {
+        for (auto&& file : restored.sdk.metadata) {
             if (!std::filesystem::is_regular_file(file)) {
                 fail(restored.source,
                      std::format("Windows SDK {}: no metadata file {}; configure the build again",
-                                 restored.windows_sdk_version,
+                                 restored.sdk.version,
                                  wxl::core::unicode::to_utf8(file).chars()));
             }
             metadata.insert(file);
@@ -908,22 +920,27 @@ restored_packages load_restored_packages(std::filesystem::path const& path) {
         fail(path, "'windowsSdk' must be an object with a string 'version' and an array "
                    "'metadata' of the .winmd files the projection of the platform is made from");
     }
-    restored.windows_sdk_version = text(sdk["version"]);
+    restored.sdk.version = text(sdk["version"]);
     // The name of a folder of the SDK's references as well (References\<version>),
-    // so it is held to the form the SDK gives its versions: numbers and dots.
-    if (auto const& version = restored.windows_sdk_version;
-        version.empty() || !std::ranges::all_of(version, [](char c) {
-            return wxl::core::is_ascii_digit(c) || c == '.';
-        })) {
+    // so it is held to the form the configure writes it in: four numbers
+    // separated by dots, 10.0.26100.0.
+    std::size_t parts = 0;
+    bool numeric = true;
+    for (std::string_view const part :
+         wxl::core::split(std::string_view{restored.sdk.version}, '.')) {
+        ++parts;
+        numeric = numeric && is_numeric(part);
+    }
+    if (parts != 4 || !numeric) {
         fail(path, std::format("'windowsSdk.version' is \"{}\", which is not a Windows SDK "
-                               "version",
-                               restored.windows_sdk_version));
+                               "version of four numbers separated by dots",
+                               restored.sdk.version));
     }
     for (value const& entry : sdk["metadata"].elements()) {
         if (!entry.is_string()) {
             fail(path, "'windowsSdk.metadata' must contain strings only");
         }
-        restored.windows_metadata.push_back(path_of(text(entry)));
+        restored.sdk.metadata.push_back(path_of(text(entry)));
     }
     return restored;
 }

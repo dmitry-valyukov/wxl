@@ -332,14 +332,14 @@ void append_documentation(std::wstring& html, member_documentation const& docume
 }
 
 // Документация метаданных (documentation_source) на языке интерфейса, а без
-// него на английском; справочник — того Windows SDK, из которого прочитаны
-// метаданные Windows (`windowsSdk`, версия из списка восстановления). Открылся
+// него на английском; справочник — того Windows SDK сборки, из которого прочитаны
+// метаданные Windows (`sdk`, из списка восстановления). Открылся
 // файл, где разобрано ещё не всё, — зовётся opened: остальное окно дочитывает в
 // фоне, шагами parseSome().
 class Documentation {
 public:
-    Documentation(std::string_view windowsSdk, wxl::core::function<void()> opened)
-        : opened_(std::move(opened)), source_ {interface_documentation_languages(), windowsSdk} {}
+    Documentation(windows_sdk const& sdk, wxl::core::function<void()> opened)
+        : opened_(std::move(opened)), source_ {interface_documentation_languages(), sdk} {}
 
     // Документация типа или члена под сведениями о нём, а файл, который не
     // читается, — своей ошибкой на её месте: имя файла и что с ним не так.
@@ -474,7 +474,7 @@ std::set<md::TypeDef> unpulled_roots(closure const& walked, std::set<md::TypeDef
 struct Editor::Data {
     Data(profile own, profile_set all, std::vector<std::string> const& files, wxl::core::function<void()> opened)
         : prof(std::move(own)), resolved(std::move(all)), db(files),
-          documentation(resolved.windows_sdk_version, std::move(opened)) {}
+          documentation(resolved.sdk, std::move(opened)) {}
 
     // Отметки — то, что говорит сам файл, без профилей, которые он продолжает.
     profile prof;

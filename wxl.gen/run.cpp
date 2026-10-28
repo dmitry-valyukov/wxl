@@ -108,7 +108,7 @@ void run(profile_set const& profiles, type_map const& types, std::vector<symbol>
         if (code != "en") {
             languages.emplace_back(L"en");
         }
-        docs.emplace(std::move(languages), profiles.windows_sdk_version);
+        docs.emplace(std::move(languages), profiles.sdk);
     }
 
     auto m = analyze(cl, profiles, types, std::move(symbols), docs ? &*docs : nullptr);
