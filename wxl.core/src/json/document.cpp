@@ -1,7 +1,6 @@
-module wxl.json;
+module wxl.core;
 
 import std;
-import wxl.core;
 
 namespace wxl::json {
 namespace {

@@ -1,7 +1,7 @@
 // The exceptions the reader throws, and nothing else. The partition depends only
 // on the standard library, not on the tree or the parser.
 
-export module wxl.json:exception;
+export module wxl.core:json.exception;
 
 import std;
 

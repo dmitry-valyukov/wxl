@@ -6,7 +6,6 @@
 
 import std;
 import wxl.core;
-import wxl.json;
 
 namespace gallery {
 

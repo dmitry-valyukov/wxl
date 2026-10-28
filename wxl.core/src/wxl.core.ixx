@@ -112,3 +112,8 @@ export import :xml.node;
 export import :xml.encoding;
 export import :xml.parser;
 export import :xml.document;
+
+// json -- a JSON reader of the same make, its tree carved from the same arena.
+export import :json.exception;
+export import :json.value;
+export import :json.document;

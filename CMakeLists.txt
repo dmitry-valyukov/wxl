@@ -59,7 +59,7 @@ endif()
 # program.
 
 # ---- What is built ----
-# The core modules -- wxl.core, wxl.json, wxl.html, wxl.highlight, wxl.bb,
+# The core modules -- wxl.core, wxl.html, wxl.highlight, wxl.bb,
 # wxl.rsdn -- and the helpers of the
 # tests, wxl.test, are always added: they are what a project that adds wxl comes
 # for. The rest has a key of its own. The tree configured on its own builds all
@@ -234,10 +234,6 @@ add_subdirectory(wxl.core)
 # The helpers of the tests -- headers any target may link, the gtest fixture
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
-
-# Читатель JSON -- брат wxl.xml с той же схемой хранения: дерево из видов в
-# присвоенный буфер, вырезанное из его же арены.
-add_subdirectory(wxl.json)
 
 # The HTML subset behind HtmlBlock: a tolerant parser for foreign markup,
 # its tree carved from wxl.xml's arena. Specification: wxl.html/design.md.

@@ -13,3 +13,4 @@ IntelliSense в VS Code для модулей — [«Работа в редак�
   lock-free очереди и каналы.
 - [logging](src/logging/README.md) — журнал, где строка — один вызов.
 - [xml](src/xml/README.md) — читатель XML: дерево видов в буфер, узлы в арене.
+- [json](src/json/README.md) — читатель JSON той же конструкции.

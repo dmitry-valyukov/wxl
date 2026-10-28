@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-import wxl.json;
+import wxl.core;
 
 using namespace wxl;
 

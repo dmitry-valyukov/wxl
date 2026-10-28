@@ -1,4 +1,4 @@
-module wxl.json;
+module wxl.core;
 
 import std;
 

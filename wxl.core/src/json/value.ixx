@@ -17,10 +17,10 @@
 // two code paths. The cost is an empty name on each array element, two words
 // per element.
 
-export module wxl.json:value;
+export module wxl.core:json.value;
 
+import :unicode;
 import std;
-import wxl.core;
 
 export namespace wxl::json {
 

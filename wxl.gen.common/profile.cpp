@@ -4,7 +4,6 @@
 
 import std;
 import wxl.core;
-import wxl.json;
 
 using wxl::json::value;
 

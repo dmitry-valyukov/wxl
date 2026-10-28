@@ -125,6 +125,11 @@ wxl_add_module_library(wxl.core STATIC
         # a partition belongs to the module whether or not the primary
         # interface re-exports it.
         xml/arena_pool.ixx
+
+        # json: the JSON reader, of the same make as the XML one and on its arena.
+        json/exception.ixx
+        json/value.ixx
+        json/document.ixx
     HEADERS
         # Included from the global module fragment of the .ixx files, so they are
         # part of the public interface: a consumer compiles those interfaces
@@ -194,6 +199,9 @@ wxl_add_module_library(wxl.core STATIC
         xml/node.cpp
         xml/document.cpp
         xml/parser.cpp
+
+        json/exception.cpp
+        json/document.cpp
 )
 
 # The name consumers use, both in-tree (FetchContent / add_subdirectory) and
@@ -289,7 +297,7 @@ target_link_libraries(wxl.core PRIVATE ole32)
 target_link_libraries(wxl.core PRIVATE coremessaging runtimeobject)
 
 # Errors are reported by throwing: a broken document is an exception of the
-# XML reader; writing to a log output can fail -- a full disk, a file that went
+# XML and JSON readers; writing to a log output can fail -- a full disk, a file that went
 # away -- and multicast_output catches it to drop that output rather than the
 # program. MSVC unwinds nothing without /EHsc: the
 # destructors of everything on the stack between the throw and the catch are
