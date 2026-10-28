@@ -311,7 +311,7 @@ void tree_builder::close(tag_t tag) {
     // A mismatched inline close, browser-fashion: everything above the
     // match is closed with it -- and the formatting elements among it
     // are reopened, so <b>first<i>second</b>third</i> leaves `third`
-    // italic (design.md fixes exactly this example).
+    // italic (docs/html.md fixes exactly this example).
     xml::sta_vector<node*> reopen;
     for (std::size_t i = found + 1; i < open_.size(); ++i) {
         if (is_formatting(open_[i]->tag())) reopen.push_back(open_[i]);

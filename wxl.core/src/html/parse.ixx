@@ -90,7 +90,7 @@ private:
     tree_builder* tree_;
 };
 
-/// Parses the subset (design.md). Never throws on bad markup, whatever it
+/// Parses the subset (docs/html.md). Never throws on bad markup, whatever it
 /// is: unknown tags vanish and leave their content, mismatched closes are
 /// recovered browser-fashion, a lone '<' is a character. What can throw is
 /// only allocation.

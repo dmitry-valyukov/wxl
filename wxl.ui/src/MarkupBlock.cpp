@@ -71,7 +71,7 @@ struct named_color {
 };
 
 // Полный набор CSS-имён цвета — самая дешёвая грамматика: одна таблица
-// (design.md, «Атрибуты»: принято).
+// (docs/html.md, «Атрибуты»: принято).
 constexpr named_color kNamedColors[] = {
     {u"aliceblue", 0xF0F8FF},
     {u"antiquewhite", 0xFAEBD7},

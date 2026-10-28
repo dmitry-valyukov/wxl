@@ -56,7 +56,7 @@ TEST(parse, paragraph_closes_itself) {
 }
 
 TEST(parse, misnested_formatting_reopens) {
-    // The example design.md fixes the rule on: first bold, second bold
+    // The example docs/html.md fixes the rule on: first bold, second bold
     // italic, third italic -- the way browsers recover.
     EXPECT_EQ(parsed(u"<b>first<i>second</b>third</i>"),
               "<b>first<i>second</i></b><i>third</i>");

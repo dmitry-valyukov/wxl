@@ -112,7 +112,7 @@ std::optional<attr_t> attribute_name(std::u16string_view name) noexcept {
     return std::nullopt;
 }
 
-// The named entities of the subset (design.md: the full HTML set is
+// The named entities of the subset (docs/html.md: the full HTML set is
 // deliberately not wanted). An unknown name stays literal text.
 std::optional<char16_t> named_entity(std::u16string_view name) noexcept {
     if (name == u"amp") return u'&';

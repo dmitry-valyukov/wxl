@@ -1,7 +1,7 @@
 // The lightweight DOM the parser hands to the builder: one concrete node
 // type, children on an intrusive list through a field the node itself
 // carries, attributes as a span in the arena -- the storage scheme of
-// the XML reader's tree, taken over deliberately (design.md, "Слои внутри").
+// the XML reader's tree, taken over deliberately (docs/html.md, "Слои внутри").
 //
 // Unlike the XML reader's tree, nothing here is a view into the source: entities
 // and whitespace collapsing rewrite almost every piece of text anyway, so
@@ -73,7 +73,7 @@ enum class tag_t : std::uint8_t {
     span,  // no look of its own: exists to carry style="name" -- a highlighted piece of code
 };
 
-/// The attributes the subset admits (design.md, "Атрибуты"); anything else
+/// The attributes the subset admits (docs/html.md, "Атрибуты"); anything else
 /// in the input is dropped at the parse. `style` holds the *name* of a
 /// registered style, never CSS.
 enum class attr_t : std::uint8_t {
@@ -213,7 +213,7 @@ constexpr bool is_block(tag_t tag) noexcept {
 }
 
 /// Formatting inlines -- the ones a mismatched close reopens, the way
-/// browsers do (design.md, "Ошибки разметки").
+/// browsers do (docs/html.md, "Ошибки разметки").
 constexpr bool is_formatting(tag_t tag) noexcept {
     switch (tag) {
     case tag_t::b:
