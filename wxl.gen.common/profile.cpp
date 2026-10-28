@@ -4,7 +4,6 @@
 
 import std;
 import wxl.core;
-import wxl.json;
 
 using wxl::json::value;
 
@@ -16,7 +15,7 @@ namespace {
 }
 
 // A name a profile or a package spells, as a path: a file, a folder, a version. Each
-// is a copy of a string wxl.json or wxl.xml checked with the whole document, a piece
+// is a copy of a string wxl::json or wxl::xml checked with the whole document, a piece
 // of one cut at an ASCII character, or a literal; the std::string it is kept in no
 // longer says so, and assume_valid() records it here.
 std::filesystem::path path_of(std::string_view name) {
@@ -67,7 +66,7 @@ bool bool_or(value const& entry, std::filesystem::path const& source, std::strin
 
 // Every file this stage reads is JSON with comments allowed: the tables in
 // them are decisions, and a decision that cannot carry its reason beside it
-// loses the reason. wxl.json reads comments always, with no switch to set --
+// loses the reason. wxl::json reads comments always, with no switch to set --
 // these files are half of why it does.
 //
 // The document object belongs to the caller. The tree is views into the
@@ -209,7 +208,7 @@ std::vector<synthetic_member> read_synthetic_members(value const& entry,
     // By name, because the order these reach the output should not be the
     // order someone happened to type them into the profile. The map-backed
     // reader this stage used before sorted them as a side effect of how it
-    // stored an object; wxl.json keeps the document's own order, so the
+    // stored an object; wxl::json keeps the document's own order, so the
     // sorting is said out loud here instead.
     std::ranges::sort(members, {}, &synthetic_member::name);
     return members;

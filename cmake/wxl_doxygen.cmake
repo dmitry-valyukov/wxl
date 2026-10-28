@@ -1,9 +1,9 @@
 # ---- Documentation sites, built by CMake ----
 #
 # Doxygen and nothing layered on top of it. The one fact that decides it is that
-# wxl.core and wxl.async are C++20 modules, Doxygen 1.18 is the
-# only generator that renders them as modules, and every post-processor of its
-# XML -- m.css, sourcey, moxygen, breathe, doxybook2 -- drops kind="module".
+# wxl.core is a C++20 module, Doxygen 1.18 is the only generator that renders
+# it as a module, and every post-processor of its XML -- m.css, sourcey,
+# moxygen, breathe, doxybook2 -- drops kind="module".
 #
 # Two entry points:
 #   wxl_doxygen_bootstrap()   -- resolve the tool and the theme, once per tree
@@ -199,7 +199,8 @@ endfunction()
 # existed.
 #
 # Module READMEs are one-screen cards for GitHub and stay off the site; the
-# articles about the modules live in docs/.
+# articles about the modules live in docs/. The READMEs of the areas of
+# wxl.core lie under its sources, and a pattern keeps them out.
 function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
     # The generated WinUI3 projection is part of the surface, not an
     # implementation detail: wxl::Button and wxl::UIElement are what a
@@ -216,15 +217,8 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         "${root}/samples/Trayed/README.md"
         "${root}/samples/Gallery/README.md"
         "${root}/wxl.core/src"
-        "${root}/wxl.fmt/src"
-        "${root}/wxl.async/src"
-        "${root}/wxl.logging/src"
-        "${root}/wxl.xml/src"
-        # The other reader, and the arena's second consumer.
-        "${root}/wxl.json/src"
-        # The markup family: the HTML subset and the sibling tokenizers over
-        # the shared tree builder.
-        "${root}/wxl.html/src"
+        # The sibling tokenizers of the HTML subset, over its shared tree
+        # builder.
         "${root}/wxl.bb/src"
         "${root}/wxl.rsdn/src"
         "${root}/wxl.highlight/src"
@@ -238,6 +232,7 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         "*/benchmarks/*"
         "*/packaging/*"
         "*/tools/*"
+        "*/wxl.core/src/*/README.md"
         PARENT_SCOPE)
     set(${images_var}
         "${root}/samples/Quadratic"

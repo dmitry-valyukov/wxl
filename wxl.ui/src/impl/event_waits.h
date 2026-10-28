@@ -35,9 +35,9 @@
 
 #include "../core.h"
 
-#include "coroutine_checks.h"
+#include "async/coroutine_checks.h"
 
-import wxl.async;
+import wxl.core;
 
 namespace wxl::impl {
 

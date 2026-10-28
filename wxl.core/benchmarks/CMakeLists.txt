@@ -46,3 +46,8 @@ target_link_libraries(wxl.core.transcode-benchmark PRIVATE wxl::core)
 
 wxl_target_manifest(wxl.core.transcode-benchmark)
 wxl_set_target_folders(wxl.core.transcode-benchmark)
+
+# The benchmarks of the areas of the module, one directory each.
+add_subdirectory(fmt)
+add_subdirectory(async)
+add_subdirectory(xml)

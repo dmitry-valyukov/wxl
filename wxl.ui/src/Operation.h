@@ -11,8 +11,8 @@
 // platform's failure for one that failed -- the same exception any other call of a wrapper throws.
 // Letting the task go before the answer cancels the operation. impl/operation.h makes it.
 //
-// Every such method has its form with a token beside it, the token taken last, as wxl.async's
-// own operations take one:
+// Every such method has its form with a token beside it, the token taken last, as the
+// asynchronous operations of wxl.core take one:
 //
 //     if (co_await dialog.showAsync(token) != ContentDialogResult::Primary) co_return;
 //
@@ -22,10 +22,10 @@
 // platform has answered by then; an answer that got there first is the answer. Under a token
 // cancelled already the call is not made at all.
 //
-// A header of its own, for the import: a generated header that declares such a call includes
-// this one, so wxl.async reaches the headers of those groups and no others -- after core.h, which
-// has seen every standard header first.
+// A header of its own: a generated header that declares such a call includes this one, so what
+// it declares reaches the headers of those groups and no others -- after core.h, which has seen
+// every standard header first.
 
 #include "core.h"
 
-import wxl.async;
+import wxl.core;

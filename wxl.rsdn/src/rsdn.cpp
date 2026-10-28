@@ -5,8 +5,6 @@ module wxl.rsdn;
 import std;
 import wxl.core;
 import wxl.highlight;
-import wxl.html;
-import wxl.xml;
 
 namespace wxl::rsdn {
 

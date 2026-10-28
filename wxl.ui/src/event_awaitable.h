@@ -57,7 +57,7 @@
 //
 // **And a wait can be asked to end**, by whoever holds the source of a
 // cancellation token it was put under -- given last, as the operations of
-// wxl.async take one:
+// wxl::async take one:
 //
 //     auto keys = wxl::on_event<EventKey::KeyDown>(keypad, token);
 //     co_await onClick(button, token);

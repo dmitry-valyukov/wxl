@@ -50,3 +50,75 @@ export import :traceable;
 export import :unicode;
 export import :weak_link;
 export import :zstring_view;
+
+// fmt -- the buffer text is assembled in, the builder over it, and format().
+export import :fmt.text_buffer;
+export import :fmt.text_builder;
+export import :fmt.format;
+
+// async -- the future family, task trees, the coroutines and their loop, threads, lock-free queues.
+export import :async.async_directory;
+export import :async.async_file;
+export import :async.async_mutex;
+export import :async.async_op;
+export import :async.async_semaphore;
+export import :async.barrier;
+export import :async.bump_buffer;
+export import :async.cancellation;
+export import :async.completion_counter;
+export import :async.coroutine_checks;
+export import :async.countdown_event;
+export import :async.drain_stack;
+export import :async.future;
+export import :async.future_shared_state;
+export import :async.overlapped_op;
+export import :async.io_port;
+export import :async.mpsc_channel;
+export import :async.mpsc_queue;
+export import :async.one_shot_event;
+export import :async.pool;
+export import :async.safe_pool;
+export import :async.spsc_channel;
+export import :async.spsc_queue;
+export import :async.spsc_queue_reference_implementation;
+export import :async.sta_loop;
+export import :async.sta_thread;
+export import :async.task;
+export import :async.task_tree;
+export import :async.thread;
+export import :async.thread_group;
+export import :async.threaded_allocator;
+export import :async.turnstile;
+export import :async.component;
+export import :async.stop_reason;
+export import :async.last_error;
+export import :async.threaded_component;
+
+// logging -- a log built around one call per message.
+export import :logging.severity;
+export import :logging.entry;
+export import :logging.facility;
+export import :logging.output;
+export import :logging.console_output;
+export import :logging.file_output;
+export import :logging.logger;
+export import :logging.async_logger;
+
+// xml -- an XML reader whose tree is views into the document it takes over.
+export import :xml.arena;
+export import :xml.core;
+export import :xml.exception;
+export import :xml.node;
+export import :xml.encoding;
+export import :xml.parser;
+export import :xml.document;
+
+// json -- a JSON reader of the same make, its tree carved from the same arena.
+export import :json.exception;
+export import :json.value;
+export import :json.document;
+
+// html -- the HTML subset behind HtmlBlock, a tolerant parser of foreign markup.
+export import :html.node;
+export import :html.builder;
+export import :html.parse;

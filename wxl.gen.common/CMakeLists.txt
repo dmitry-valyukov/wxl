@@ -27,15 +27,12 @@ target_link_libraries(wxl.gen.common
     PUBLIC
         # crawl.h includes the reader, and platform.h ahead of it.
         winmd_reader
+        # And wxl's own readers: the XAML dictionaries and the documentation
+        # files are read with its XML reader; the profiles, the tables beside
+        # them and the list of the restored packages with its JSON reader --
+        # comments and all, which is the shape our settings files are written
+        # in.
         wxl::core
-    PRIVATE
-        # The profiles, the tables beside them and the list of the restored
-        # packages are read with wxl's own JSON reader -- comments and all,
-        # which is the shape our settings files are written in.
-        wxl::json
-        # The XAML dictionaries and the documentation files are read with
-        # wxl's own XML reader.
-        wxl::xml
 )
 
 wxl_set_target_folders(wxl.gen.common)

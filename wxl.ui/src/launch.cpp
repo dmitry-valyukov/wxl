@@ -21,11 +21,11 @@
 #include "CompositionWindow.h"
 #include "impl/event_waits.h"
 #include "impl/winrt_helpers.h"
-#include "coroutine_checks.h"
+#include "async/coroutine_checks.h"
 #include "Application.h"
 #include "launch.h"
 
-import wxl.async;
+import wxl.core;
 
 // The private side of the entry point: the XAML application object wxl runs
 // the show through, and the wWinMain that brings everything up around it.
@@ -179,7 +179,7 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // abort without a word. From here on it names the exception and stops through core::abort,
     // on this thread; a worker thread of wxl sets the same handler for itself, and the namer
     // set here is the one it asks about a winrt::hresult_error. A coroutine nobody holds that
-    // fails ends here too: wxl.async's default hands its exception to this handler. An error
+    // fails ends here too: wxl::async's default hands its exception to this handler. An error
     // XAML records has a way of its own, UnhandledException above.
     wxl::Application::install_terminate_report();
 

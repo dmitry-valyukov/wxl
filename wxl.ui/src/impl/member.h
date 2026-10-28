@@ -428,7 +428,7 @@ struct event_tag {
     auto operator()(Obj const& source) const;
 
     // The same wait under a cancellation token, given last: `co_await
-    // onClick(button, token)`. The token's type is wxl.async's, which this
+    // onClick(button, token)`. The token's type is wxl::async's, which this
     // header does not import; the definition beside the other says which one
     // it takes.
     template <typename Obj, typename Token>

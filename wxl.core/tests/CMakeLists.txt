@@ -66,3 +66,11 @@ gtest_discover_tests(
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     DISCOVERY_MODE PRE_TEST
 )
+
+# The tests of the areas of the module, one directory each.
+add_subdirectory(fmt)
+add_subdirectory(async)
+add_subdirectory(logging)
+add_subdirectory(xml)
+add_subdirectory(json)
+add_subdirectory(html)

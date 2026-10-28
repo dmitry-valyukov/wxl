@@ -1,10 +1,10 @@
 #pragma once
 
 // wxl::FormattedBlock -- a RichTextBlock with a procedural filling
-// vocabulary: the common base every markup control (wxl.html's HtmlBlock,
-// future BB/RSDN blocks) builds its content through, so the parsers differ
-// and the way runs, links and images become XAML text elements is written
-// once. The spec that shaped it is wxl.html/design.md.
+// vocabulary: the common base every markup control (HtmlBlock, future
+// BB/RSDN blocks) builds its content through, so the parsers differ and the
+// way runs, links and images become XAML text elements is written once. The
+// spec that shaped it is docs/html.md.
 //
 // The primitives are deliberately flat: no open-element state survives a
 // call. A parser walks its own tree and says "this text, styled so",
@@ -15,7 +15,7 @@
 // Every text parameter is an hstring_param: the text goes into WinRT as a
 // string reference, with the zero after it that the type promises, and no
 // copy is bought here to insure against the caller. Literals, any
-// basic_string and wxl.html's arena views (zstring_view) satisfy it for free.
+// basic_string and the HTML parser's arena views (zstring_view) satisfy it for free.
 
 #include <cstdint>
 #include <optional>
@@ -148,7 +148,7 @@ public:
     void appendScript(hstring_param const& text, double scale, double drop) const;
 
     // An image from a local file or resource URI. The size is required by
-    // design (wxl.html/design.md): the bitmap loads asynchronously, and a
+    // design (docs/html.md): the bitmap loads asynchronously, and a
     // line that grows after the fact is a jump the reader sees. toolTip
     // doubles as the automation name, same as the toolTip tag everywhere.
     void appendImage(hstring_param const& source, Size size,

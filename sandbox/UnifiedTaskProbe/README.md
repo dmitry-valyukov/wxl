@@ -1,4 +1,4 @@
-# UnifiedTaskProbe: горячие пути wxl.async и цепочки любой глубины
+# UnifiedTaskProbe: горячие пути async в wxl.core и цепочки любой глубины
 
 Проба отвечает на два вопроса.
 

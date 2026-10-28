@@ -1,5 +1,5 @@
 // The eyeball viewer for the markup family: the sample markup from
-// wxl.html/sample, shown by an HtmlBlock -- and, by the BB/RSDN buttons,
+// wxl.core/src/html/sample, shown by an HtmlBlock -- and, by the BB/RSDN buttons,
 // its siblings BbBlock and RsdnBlock over the same MarkupBlock. A button
 // appends a chunk -- the chat-feed motion the spec is built around -- and
 // any .html dropped on the window is loaded in place of the samples.

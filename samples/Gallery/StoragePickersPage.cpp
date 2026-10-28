@@ -11,7 +11,7 @@
 
 #include <wxl/Microsoft.UI.Xaml.Media.Imaging.h>
 
-import wxl.async;
+import wxl.core;
 
 using namespace wxl;
 using namespace wxl::dsl;

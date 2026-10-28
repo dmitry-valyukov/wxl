@@ -15,7 +15,7 @@
 // NuGet packages' metadata to read, which types are the roots of the
 // dependency walk, and which of their members take part in it. See
 // the profile documentation. A profile is a file <name>.winxl-profile, JSON
-// with comments, read by wxl.json; nothing here exposes the reader, so only
+// with comments, read by wxl::json; nothing here exposes the reader, so only
 // profile.cpp imports it.
 //
 // Which version of a package is read, and where it is, a profile does not

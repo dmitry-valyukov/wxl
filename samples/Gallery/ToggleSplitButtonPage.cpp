@@ -4,7 +4,7 @@
 #include "Shell.h"
 #include "event_awaitable.h"
 
-import wxl.async;
+import wxl.core;
 
 using namespace wxl;
 using namespace wxl::dsl;

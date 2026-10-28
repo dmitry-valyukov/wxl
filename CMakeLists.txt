@@ -59,12 +59,12 @@ endif()
 # program.
 
 # ---- What is built ----
-# The core modules -- wxl.core, wxl.fmt, wxl.async, wxl.logging, wxl.xml,
-# wxl.json, wxl.html, wxl.highlight, wxl.bb, wxl.rsdn -- and the helpers of the
-# tests, wxl.test, are always added: they are what a project that adds wxl comes
-# for. The rest has a key of its own. The tree configured on its own builds all
-# of it; a project that adds the tree gets the WinUI backend and the generator it
-# is built with, and not the samples, the sandbox, the site or wxl's own tests.
+# The core modules -- wxl.core, wxl.highlight, wxl.bb, wxl.rsdn -- and the
+# helpers of the tests, wxl.test, are always added: they are what a project
+# that adds wxl comes for. The rest has a key of its own. The tree configured
+# on its own builds all of it; a project that adds the tree gets the WinUI
+# backend and the generator it is built with, and not the samples, the sandbox,
+# the site or wxl's own tests.
 if(PROJECT_IS_TOP_LEVEL)
     set(_wxl_own ON)
 else()
@@ -79,9 +79,9 @@ option(WXL_SAMPLES "Build the samples (samples/)." ${_wxl_own})
 option(WXL_SANDBOX "Build the sandbox (sandbox/)." ${_wxl_own})
 
 # Off by default: the benchmarks are measurement tools, run deliberately, and an
-# ordinary build has no reason to spend time on them. Those of wxl.core,
-# wxl.async, wxl.fmt and wxl.ui; the two of wxl.xml and wxl.gen.common are built
-# with the tree itself, and in a project that adds wxl with this key.
+# ordinary build has no reason to spend time on them. Those of wxl.core and
+# wxl.ui; the two benches of the XML reader in wxl.core and of wxl.gen.common
+# are built with the tree itself, and in a project that adds wxl with this key.
 option(WXL_BUILD_BENCHMARKS "Build the benchmark executables." OFF)
 
 if(WXL_UI AND NOT WXL_TOOLS)
@@ -197,7 +197,8 @@ endif()
 # configured before it, reads the packages through that list in its tests, and
 # in the step of the build that generates the wrappers. Made when something
 # built needs them: the generator, and wxl.ui with what stands on it, which need
-# the generator; and a benchmark of wxl.async, which measures a WinRT coroutine.
+# the generator; and a benchmark of the async area of wxl.core, which measures a
+# WinRT coroutine.
 # Without them the configure needs no MSBuild and no WinUI workload.
 if(WXL_TOOLS OR WXL_BUILD_BENCHMARKS)
     include(cmake/wxl_packages.cmake)
@@ -226,45 +227,21 @@ if(WXL_TOOLS AND NOT TARGET winmd_reader)
     target_include_directories(winmd_reader INTERFACE ${winmd_SOURCE_DIR}/src)
 endif()
 
-# wxl.core first: wxl.ui links wxl::core, and the generated sources it
-# compiles import that module.
+# wxl.core first: the one module of the core, its areas fmt, async, logging,
+# xml, json and html among its partitions (wxl.core/README.md). wxl.ui links
+# wxl::core, and the generated sources it compiles import that module.
 add_subdirectory(wxl.core)
 
 # The helpers of the tests -- headers any target may link, the gtest fixture
 # (wxl.test/CMakeLists.txt): wxl's own, and a project's that adds wxl.
 add_subdirectory(wxl.test)
 
-# The text buffer and builder over fmt. Beside wxl.core and not inside it, so
-# that the core keeps depending on the std module alone; the names stay in
-# wxl::core, only the import differs.
-add_subdirectory(wxl.fmt)
-
-# The layer above wxl.core: the future family, the threading machinery, and what
-# is left of the component model built on them -- component and threaded_component.
-# The containers, the hosted half and the apartments had no caller and are kept
-# outside this tree.
-add_subdirectory(wxl.async)
-
-# The log: wxl.core's text_builder formats a line, wxl.async supplies the
-# thread the asynchronous half writes it from.
-add_subdirectory(wxl.logging)
-
-add_subdirectory(wxl.xml)
-
-# Читатель JSON -- брат wxl.xml с той же схемой хранения: дерево из видов в
-# присвоенный буфер, вырезанное из его же арены.
-add_subdirectory(wxl.json)
-
-# The HTML subset behind HtmlBlock: a tolerant parser for foreign markup,
-# its tree carved from wxl.xml's arena. Specification: wxl.html/design.md.
-add_subdirectory(wxl.html)
-
 # Подсветка синтаксиса: таблицы языков и сканер без регулярных выражений;
 # ею пользуется wxl.rsdn, а зависит она только от std.
 add_subdirectory(wxl.highlight)
 
-# Братья wxl.html: свои токенизаторы (BB и RSDN-разметка форумов) над общим
-# tree_builder семейства и тем же деревом.
+# Братья разбора HTML из wxl.core: свои токенизаторы (BB и RSDN-разметка
+# форумов) над общим tree_builder семейства и тем же деревом.
 add_subdirectory(wxl.bb)
 add_subdirectory(wxl.rsdn)
 

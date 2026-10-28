@@ -10,7 +10,7 @@
 #include <wxl/Windows.Storage.h>
 #include "FileTypeChoice.h"
 
-import wxl.async;
+import wxl.core;
 
 
 using namespace wxl;

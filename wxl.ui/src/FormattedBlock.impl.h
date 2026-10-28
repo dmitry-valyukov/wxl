@@ -2,7 +2,7 @@
 
 // The private side of wxl::FormattedBlock. A header rather than a detail of
 // FormattedBlock.cpp for the same reason every generated X.impl.h is one:
-// the next level down (wxl.html's HtmlBlock) inherits this Impl.
+// the next level down (HtmlBlock) inherits this Impl.
 
 #include <cstdint>
 #include <vector>

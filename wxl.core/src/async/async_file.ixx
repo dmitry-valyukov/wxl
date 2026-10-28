@@ -1,0 +1,241 @@
+module;
+
+#include "abi.h"
+
+export module wxl.core:async.async_file;
+
+import :async.cancellation;
+import :async.sta_loop;
+import :async.task;
+import :file;
+import :path;
+import std;
+
+export namespace wxl::async {
+
+/// A file that never holds the STA thread, and whose every answer comes back to
+/// the coroutine that asked.
+///
+/// The handle is `core::file`'s, opened for overlapped operations and attached
+/// to the loop's port. What is added here is where each call runs:
+///
+/// - **A read starts on the STA thread itself**, which saves the trip to the
+///   worker. One the kernel takes comes back through the port; one the system
+///   chooses to finish inside the call is over there and then, and the
+///   co_await does not suspend.
+/// - **What is known to hold the calling thread goes to the worker**: every
+///   write, since a file made here starts empty and each write grows it; a read
+///   into more than `direct_read_limit` bytes, which served inside the call
+///   would copy that much on the calling thread; any read from a compressed or
+///   encrypted file; flush().
+/// - **size() and close() run on the STA thread**: they take microseconds.
+/// - **Opening and creating go by a name**, which the system may take as long
+///   as it likes over. Under `sta_loop::start_dispatched()` they are carried out
+///   on the system's thread pool and come back through the thread's dispatcher
+///   queue; under the other two modes of the loop, on the worker.
+///
+/// **The position is kept here**, an overlapped handle having none: it moves on
+/// by what was asked for as an operation starts, so that two reads started one
+/// after another ask for two different places. A read that brings less has
+/// reached the end of the file.
+///
+/// **Failures become exceptions here**, carried back inside the operation and
+/// rethrown by the co_await. `last_error` keeps the code the failed call
+/// left behind.
+///
+/// **Which loop is not asked and cannot be told**: there is one, it is the STA
+/// thread's, and `sta_loop` is static from top to bottom.
+///
+/// **Asking an operation to end.** What can be aborted has a second form, with a
+/// `cancellation_token` as its last argument, and the operation is registered with the
+/// token while it lives. Asked, an operation not started is never started, a read or a write the
+/// kernel holds is let go by CancelIoEx, and an opening or a file by name standing in the
+/// system has the synchronous call it stands in cancelled, where the system can cancel it;
+/// read_all() and write_all() stop between their steps. The cancellation is the answer of an
+/// operation aborted or never started; one that got there first answers with its own
+/// result or its own failure -- a file written whole and renamed is written, whenever the
+/// request came, and the co_await says so. Either way the co_await ends once the operation
+/// has let go -- of the frame, and of the file: an operation by name is waited for too,
+/// though it touches nothing of the frame, so that the next operation on the same name never
+/// meets it still holding the file. Under a token cancelled already nothing is started at
+/// all, and the co_await ends with operation_canceled_exception at once. The form without
+/// a token is the same operation and costs what it always did. size(), flush() and close()
+/// have no such form: there is nothing in them to abort, and an aborted flush is a
+/// file that does not survive a power cut.
+///
+/// **Giving an operation up.** Opening and creating own everything they touch,
+/// so a task that goes away before them leaves them to finish alone
+/// (`orphanable`), and the file is let go of at once: one already open is
+/// closed before the task's destructor returns, one being opened has its
+/// opening cancelled where the system can cancel it, and one not reached yet is
+/// never opened. So what handles
+/// the failure may ask for the same file straight away.
+/// Everything else borrows this object and the
+/// caller's buffer, and a task giving one of those up waits until the
+/// operation has come back -- which a read or a write the kernel holds is told
+/// to do at once, by CancelIoEx. Borrowed means what it means for a reference:
+/// the file and the buffer outlive the operation, which a frame unwinding sees
+/// to by itself, locals going in reverse order; closing or moving the file with
+/// an operation not yet awaited is the same mistake as using what a dangling
+/// reference points to.
+///
+/// **The path is copied into the operation, and that is deliberate.** Borrowing
+/// it looks free and is a trap: the operation is handed to the worker inside the
+/// call that starts it, and by the time the coroutine's caller has finished the
+/// statement -- `co_await open_read(dir / name)` written *around* a coroutine
+/// call rather than inside it -- the temporary path is gone while the worker is
+/// still holding the pointer. The copy costs one allocation from the STA pool,
+/// made and released on the STA thread, which is the very thing
+/// `wxl::core::path` exists to make cheap; a use-after-free costs rather more.
+class async_file
+{
+public:
+    /// The largest read started on the STA thread. Copying this much takes about what a
+    /// trip through the worker does; more goes to the worker.
+    static constexpr std::size_t direct_read_limit = 64 * 1024;
+
+    async_file() = default;
+
+    /// Constructs the object by moving the file and the position of another.
+    async_file(async_file&&) noexcept = default;
+    /// Moves the file and the position of another object into this one.
+    async_file& operator=(async_file&&) noexcept = default;
+
+    /// Opens an existing file for reading.
+    /// \throw last_error at the co_await if it could not be opened.
+    static task<async_file> open_read(const core::path& path);
+
+    /// Creates a file for writing, emptying one that is already there.
+    /// \throw last_error at the co_await if it could not be created.
+    static task<async_file> create(const core::path& path);
+
+    /// The whole of a file, by name: opened, measured, read and closed inside one
+    /// operation that owns its buffer. That makes it orphanable -- it runs where
+    /// operations by name run, and a frame that gives it up does not wait for it
+    /// -- and it makes it one round trip for a file of any size, which is the
+    /// cheapest way to read a file whole: a read started from this thread after
+    /// an opening would be a second trip, since a cached read does not complete
+    /// inside the call on the systems this was measured on.
+    ///
+    /// The bytes are bytes: text in them is checked by whoever reads it as text.
+    ///
+    /// \throw last_error at the co_await for whatever failed, with the
+    ///        system's code. A file that is not there is `ERROR_FILE_NOT_FOUND`
+    ///        like any other failure to open: whoever treats absence as the
+    ///        ordinary case -- settings on a first run -- asks the code, and
+    ///        everything else (no right to read, a torn disk) keeps its name.
+    [[nodiscard]] static task<std::string> read_all(const core::path& path);
+
+    /// Replaces a file with these bytes, whole or not at all: written to
+    /// `<path>.tmp` beside it, pushed to the device, then renamed over the
+    /// original with the rename written through -- so a power cut leaves the
+    /// old file or the new one, never a torn one. Directories missing on the way
+    /// are made, and only then: the ordinary save finds them there and pays
+    /// nothing for them. Owns its bytes and the three names, so orphanable.
+    ///
+    /// One writer per file at a time. A second write_all of the same path while
+    /// one is under way fails on the temporary file, `ERROR_SHARING_VIOLATION`,
+    /// rather than racing the first for the rename: a caller whose saves come in
+    /// bursts coalesces them, and the last state wins by construction instead of
+    /// by luck.
+    ///
+    /// \throw last_error at the co_await, naming the call that failed.
+    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes);
+
+    /// \return whether there is a file at this path. A directory there is not a
+    ///         file and answers `false`; the mirror of `async_directory::exists`.
+    [[nodiscard]] static task<bool> exists(const core::path& path);
+
+    /// Reads into the caller's buffer, which has to stay where it is until the
+    /// read has been awaited or given up.
+    /// \return how much was read; less than asked for at the end of the file,
+    ///         and zero past it.
+    [[nodiscard]] task<std::size_t> read(std::span<std::byte> into);
+
+    /// The same read into an array of byte-sized elements -- `char buffer[N]`
+    /// as readily as `std::byte` -- so a caller whose buffer is text does not
+    /// spell `as_writable_bytes` at every call. Any one-byte trivially
+    /// copyable type but `bool`, which is a byte that must not hold 2.
+    template <class T, std::size_t N>
+        requires(sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
+    [[nodiscard]] task<std::size_t> read(T (&into)[N]) {
+        return read(std::as_writable_bytes(std::span{into}));
+    }
+
+    /// \throw last_error if less went out than was asked for.
+    [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from);
+
+    /// \throw last_error if the file's length could not be had.
+    [[nodiscard]] task<std::uint64_t> size();
+
+    /// \throw last_error if the flush failed -- and a failed flush is the
+    ///        difference between a file that survives a power cut and one that
+    ///        does not, so it is not a failure to pass over.
+    [[nodiscard]] task<> flush();
+
+    /// Not required: an async_file left alone closes itself when it is
+    /// destroyed.
+    [[nodiscard]] task<> close();
+
+    /// The operations above under a token, its last argument; see "Asking an operation
+    /// to end" above. Each returns the same task as its form without a token.
+    ///@{
+    static task<async_file> open_read(const core::path& path, cancellation_token token);
+
+    /// Creates a file for writing, emptying one that is already there; the operation can be
+    /// canceled through \p token.
+    static task<async_file> create(const core::path& path, cancellation_token token);
+
+    /// Reads the whole of the file at \p path; the operation can be canceled through \p token.
+    [[nodiscard]] static task<std::string> read_all(const core::path& path,
+                                                    cancellation_token token);
+
+    /// Replaces a file with \p bytes, whole or not at all; the operation can be canceled
+    /// through \p token.
+    [[nodiscard]] static task<> write_all(const core::path& path, std::string bytes,
+                                          cancellation_token token);
+
+    /// Tests whether a file exists at \p path; the operation can be canceled through \p token.
+    [[nodiscard]] static task<bool> exists(const core::path& path, cancellation_token token);
+
+    /// Reads into the caller's buffer \p into and returns the number of bytes read;
+    /// the operation can be canceled through \p token.
+    [[nodiscard]] task<std::size_t> read(std::span<std::byte> into, cancellation_token token);
+
+    /// Reads into an array of byte-sized elements and returns the number of bytes read;
+    /// the operation can be canceled through \p token.
+    template <class T, std::size_t N>
+        requires(sizeof(T) == 1 && std::is_trivially_copyable_v<T> && !std::is_same_v<T, bool>)
+    [[nodiscard]] task<std::size_t> read(T (&into)[N], cancellation_token token) {
+        return read(std::as_writable_bytes(std::span{into}), std::move(token));
+    }
+
+    /// Writes \p from at the current position and returns the number of bytes written;
+    /// the operation can be canceled through \p token.
+    [[nodiscard]] task<std::size_t> write(std::span<const std::byte> from,
+                                          cancellation_token token);
+    ///@}
+
+    /// Tests whether the object holds an open file.
+    inline bool opened() const noexcept { return file_.opened(); }
+
+private:
+    /// Attaches the file to the loop's port and asks what kind it is. Called where
+    /// the file was opened, which is not the STA thread.
+    explicit async_file(core::file&& opened);
+
+    /// The bodies the two forms of open_read() and create() share (async_file.cpp).
+    static auto opening(const core::path& path);
+    static auto creating(const core::path& path);
+
+    core::file file_;
+    std::uint64_t position_ = 0;
+
+    /// What io_port::attach() answered.
+    bool skips_port_ = false;
+
+    /// Compressed or encrypted: its reads are served inside the call that starts them.
+    bool reads_hold_the_caller_ = false;
+};
+
+}  // export namespace wxl::async

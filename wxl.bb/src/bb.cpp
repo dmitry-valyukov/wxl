@@ -1,13 +1,11 @@
 // Токенизатор BB-кода над tree_builder семейства. Здесь только запись
 // тегов и правила переводов строк; дерево, восстановление и пробелы --
-// в wxl.html:builder.
+// в wxl.core:html.builder.
 
 module wxl.bb;
 
 import std;
 import wxl.core;
-import wxl.html;
-import wxl.xml;
 
 namespace wxl::bb {
 

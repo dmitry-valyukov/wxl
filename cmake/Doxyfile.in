@@ -13,7 +13,7 @@ OUTPUT_LANGUAGE        = @DOXY_LANGUAGE@
 #
 # EXTENSION_MAPPING is what makes a module interface unit readable at all:
 # without it Doxygen has no language for .ixx and skips the file. With it,
-# `export module wxl.async;` becomes a module page of its own -- which is the
+# `export module wxl.core;` becomes a module page of its own -- which is the
 # whole reason this tree documents itself with Doxygen and not with any of the
 # post-processors of its XML.
 INPUT                  = @DOXY_INPUT@
@@ -41,8 +41,9 @@ EXCLUDE_SYMBOLS        = *__unnamed* \
 USE_MDFILE_AS_MAINPAGE = @DOXY_MAINPAGE@
 
 # A README.md is a page of its own, not the documentation of its directory:
-# with the default (YES) Doxygen folds wxl.fmt/README.md into the directory
-# page and leaves a bare "File wxl.fmt/README.md" where the page should be.
+# with the default (YES) Doxygen folds samples/Quadratic/README.md into the
+# directory page and leaves a bare "File samples/Quadratic/README.md" where the
+# page should be.
 # The file keeps its name because GitHub shows a README in the directory view.
 IMPLICIT_DIR_DOCS      = NO
 

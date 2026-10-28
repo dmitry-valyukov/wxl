@@ -19,7 +19,7 @@
 #include <wxl/Windows.Storage.Streams.h>
 #include <wxl/Windows.System.h>
 
-import wxl.async;
+import wxl.core;
 
 
 using namespace wxl;

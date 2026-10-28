@@ -1,8 +1,8 @@
 #pragma once
 
 // wxl::HtmlBlock -- rich text from the HTML subset: forum posts, chat
-// messages, help pages. The parser is the module wxl.html (its contract --
-// tolerant to any input, self-contained chunks -- is wxl.html/design.md);
+// messages, help pages. The parser is wxl.core's html::parse() (its contract
+// -- tolerant to any input, self-contained chunks -- is docs/html.md);
 // this control is the join: markup in, the family builder out. The look
 // (theme), the image base directory and the onError sink come from
 // MarkupBlock, shared with the sibling markups BbBlock and RsdnBlock.

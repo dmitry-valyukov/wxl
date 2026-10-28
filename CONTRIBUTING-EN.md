@@ -47,8 +47,8 @@ request").
   on a Windows runner. It builds the tree in the Debug and Release
   configurations, runs all tests and starts the `sample.hello` sample
   ([`samples/HelloHere`](samples/HelloHere)), which must open its window.
-  The `Strict` configuration builds and runs the `wxl.async` tests with
-  coroutine checks enabled (`WXL_STRICT_CORO`). The `commits` job of the
+  The `Strict` configuration builds and runs the async tests
+  (`wxl.core/tests/async`) with coroutine checks enabled (`WXL_STRICT_CORO`). The `commits` job of the
   same workflow checks the commits of the pull request (see "Commits").
 - The Windows build runs in the merge queue and checks the merge candidate:
   the current `main`, the pull requests queued ahead and this pull request.

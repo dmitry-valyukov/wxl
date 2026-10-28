@@ -8,7 +8,7 @@
 #include "launch.h"
 #include "ui.h"
 
-import wxl.fmt;
+import wxl.core;
 
 using namespace wxl;
 using namespace wxl::core;

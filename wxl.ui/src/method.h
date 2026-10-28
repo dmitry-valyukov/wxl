@@ -10,15 +10,14 @@
 // returns has exactly the member's operator, so it takes whichever form the
 // member is written in, and nothing in between has to know about it.
 //
-// Its own header, not events.h: it brings the import of wxl.async, which the
-// files handing members over -- members that start the tasks their objects
-// keep -- use, instead of reaching every translation unit that includes a
-// wrapper.
+// Its own header, not events.h: the files handing members over -- members
+// that start the tasks their objects keep -- include it, instead of it
+// reaching every translation unit that includes a wrapper.
 
 #include "core.h"
 #include "impl/member_function_traits.h"
 
-import wxl.async;
+import wxl.core;
 
 namespace wxl {
 

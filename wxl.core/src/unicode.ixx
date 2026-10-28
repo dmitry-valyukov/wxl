@@ -5,7 +5,7 @@ module;
 // Unicode: the type of checked text, the three encodings, and the traffic
 // between them.
 //
-// UTF-8 is what this tree keeps text in -- wxl.xml and wxl.json parse it and
+// UTF-8 is what this tree keeps text in -- wxl::xml and wxl::json parse it and
 // their trees hold it, and the column of a parse error is counted in its
 // bytes -- and UTF-16 is what Windows speaks, so the pair below is the one
 // that gets used. UTF-32 appears only as char32_t, the type a single code
@@ -28,7 +28,7 @@ module;
 // Three doors in and no others. A literal is checked where it is written --
 // u8"..." and u"..." convert on their own, at compile time. checked() walks
 // text that came from outside. assume_valid() is for text somebody else has
-// already checked -- a document wxl.xml validated whole -- and its name is the
+// already checked -- a document wxl::xml validated whole -- and its name is the
 // word a reader greps for on the day the guarantee turns out to be false.
 //
 // Text assembled piece by piece needs none of the three: a string grows by
@@ -518,7 +518,7 @@ public:
     }
 
     /// The same bytes as a std::string_view -- what fmt, the file APIs and
-    /// wxl.xml take. char8_t and char differ in name alone, and a cast written
+    /// wxl::xml take. char8_t and char differ in name alone, and a cast written
     /// out at every boundary would be a cast nobody reads.
     std::string_view chars() const noexcept
         requires is_utf8
@@ -880,7 +880,7 @@ private:
 
 namespace unicode {
 
-/// Text somebody else has already checked: a document wxl.xml validated before
+/// Text somebody else has already checked: a document wxl::xml validated before
 /// its grammar walked it, a name the file system spelled and the program has
 /// tested another way. Nothing is looked at, which is the whole point -- and
 /// the reason the call has to be written out rather than happening by
