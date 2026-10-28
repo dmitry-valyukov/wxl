@@ -38,7 +38,7 @@ void write_symbols(output const& out, model const& m, emitted& em) {
     }
     std::print(header, "}};\n\n}} // namespace wxl\n");
 
-    em.add("FluentSymbol.h");
+    em.add(out.dir / "FluentSymbol.h");
     std::print("generated {}\\FluentSymbol.h ({} symbols)\n",
                wxl::core::unicode::to_utf8(out.dir).chars(), symbols.size());
 }

@@ -17,8 +17,11 @@ import std;
 //   <Namespace>.impl.h   private -- the matching `Impl` chain, one field
 //                        per surviving interface; not written for a group
 //                        of statics-only classes, which has no `Impl`
-//   <Namespace>.cpp      out-of-line bodies: constructors, members, the
-//                        runtime class names and the explicit instantiations
+//   bodies               out-of-line: constructors, members, the runtime
+//                        class names and the explicit instantiations, one
+//                        entry per class (body_file), which write_parts
+//                        (gen/parts.cpp) spreads over the build's
+//                        translation units, parts/wrapper-NN.cpp
 //
 // Grouping per namespace rather than per class is what the closure's
 // dependency ordering buys: inside one file the classes are already
@@ -678,7 +681,7 @@ public:
 }
 
 // Every non-statics class of a group, for the try_as instantiations the
-// header states and the source defines.
+// header declares; the bodies define them (group_bodies).
 template <typename Line>
 void for_try_as(std::ostream& out, std::vector<class_info> const& classes, Line line) {
     bool announced = false;
@@ -829,7 +832,7 @@ void write_impl_header(std::filesystem::path const& path, std::string_view ns,
     std::print(out, "\n}}  // namespace wxl\n");
 }
 
-// Which of the activation-factory paths a group's source uses: plain or
+// Which of the activation-factory paths a group's bodies use: plain or
 // composable activation, statics, constructors taking arguments.
 struct factory_use {
     bool activation = false;
@@ -841,18 +844,26 @@ struct factory_use {
     bool any() const { return activation || statics || constructors; }
 };
 
+factory_use factory_use_of(class_info const& info) {
+    return {.activation = info.construction == construction_t::PublicActivation ||
+                          info.construction == construction_t::PublicComposition,
+            .statics = !info.statics.empty(),
+            .constructors = !info.constructors.empty()};
+}
+
 factory_use factory_use_of(std::vector<class_info> const& classes) {
     factory_use use;
     for (auto&& info : classes) {
-        use.activation = use.activation || info.construction == construction_t::PublicActivation ||
-                         info.construction == construction_t::PublicComposition;
-        use.statics = use.statics || !info.statics.empty();
-        use.constructors = use.constructors || !info.constructors.empty();
+        auto const own = factory_use_of(info);
+        use.activation = use.activation || own.activation;
+        use.statics = use.statics || own.statics;
+        use.constructors = use.constructors || own.constructors;
     }
     return use;
 }
 
-// What a group's source includes beside its own private header.
+// What a translation unit holding a group's bodies includes beside the group's
+// private header.
 std::set<std::string> source_includes(std::vector<class_info> const& classes, factory_use use) {
     std::set<std::string> includes;
     if (use.activation) {
@@ -897,42 +908,41 @@ std::set<std::string> source_includes(std::vector<class_info> const& classes, fa
     return includes;
 }
 
-// The runtime class names the cached activation factories key on.
-// Deliberately in the source and not in a header: each name is used by
-// exactly one translation unit -- this one -- and a header would make every
-// including TU parse it.
-void write_runtime_class_names(std::ostream& out, std::vector<class_info> const& classes) {
+// The runtime class names the cached activation factories of a class key on.
+// Deliberately beside the class's bodies and not in a header: each name is
+// used by exactly one translation unit -- the one holding the bodies that
+// reach the factory -- and a header would make every including TU parse it.
+// Ahead of those bodies, since a specialization has to precede its first use.
+void write_runtime_class_names(std::ostream& out, class_info const& info) {
     std::print(out, "\nnamespace impl {{\n");
-    for (auto&& info : classes) {
-        auto const name_class = [&out, &info](std::string_view key) {
-            std::print(out, R"(
+    auto const name_class = [&out, &info](std::string_view key) {
+        std::print(out, R"(
 template <>
 struct runtime_class_name_of<{}> {{
     static constexpr wchar_t value[] = L"{}";
 }};
 )",
-                       key, info.metadata_name);
-        };
+                   key, info.metadata_name);
+    };
 
-        if (info.construction == construction_t::PublicActivation ||
-            info.construction == construction_t::PublicComposition) {
-            name_class(info.name);
+    if (info.construction == construction_t::PublicActivation ||
+        info.construction == construction_t::PublicComposition) {
+        name_class(info.name);
+    }
+    // A factory interface is keyed on the same way a statics one is
+    // -- it too is reached through the class's activation factory,
+    // and it too names exactly one class. Once per interface, not
+    // once per constructor: a factory routinely declares several.
+    std::set<std::string> keyed;
+    for (auto&& ctor : info.constructors) {
+        if (keyed.insert(ctor.statics_interface).second) {
+            name_class(ctor.statics_interface);
         }
-        // A factory interface is keyed on the same way a statics one is
-        // -- it too is reached through the class's activation factory,
-        // and it too names exactly one class. Once per interface, not
-        // once per constructor: a factory routinely declares several.
-        std::set<std::string> keyed;
-        for (auto&& ctor : info.constructors) {
-            if (keyed.insert(ctor.statics_interface).second) {
-                name_class(ctor.statics_interface);
-            }
-        }
-        // A statics interface is keyed on directly: it already names
-        // exactly one class, so it needs no marker type of its own.
-        for (auto&& iface : info.statics) {
-            name_class(iface.winrt_type);
-        }
+    }
+    // A statics interface is keyed on directly: it already names
+    // exactly one class, so it needs no marker type of its own.
+    for (auto&& iface : info.statics) {
+        name_class(iface.winrt_type);
     }
     std::print(out, "}}  // namespace impl\n");
 }
@@ -1126,61 +1136,65 @@ void write_member_body(std::ostream& out, class_info const& info, member_info co
                member.returns_void ? call : substitute(member.result.from_winrt, call));
 }
 
-void write_source(std::filesystem::path const& path, std::string_view ns,
-                  std::vector<class_info> const& classes,
-                  std::map<std::string, std::string> const& group_of,
-                  std::set<std::string> const& instantiations) {
-    auto out = open_output(path);
+// The out-of-line bodies of a group (body_file): per class its runtime class
+// names, its constructors and members, and the one body of each try_as the
+// header promised -- the class's own translation unit has what that
+// instantiation needs and a consumer has not: the class's Impl, where try_as
+// reads the WinRT type the wrapper stands for.
+//
+// What a translation unit holding them includes: the group's private header
+// first, then the projection and private headers the bodies name. A group of
+// statics-only classes has no private header, and takes what that header
+// would include instead.
+body_file group_bodies(std::string_view ns, std::vector<class_info> const& classes,
+                       std::map<std::string, std::string> const& group_of,
+                       std::set<std::string> const& instantiations) {
+    body_file file{.name = std::string{ns}};
 
-    auto const use = factory_use_of(classes);
-    auto includes = source_includes(classes, use);
-    if (!has_impl(classes)) {
-        includes.merge(private_includes(ns, classes, group_of));
-        std::print(out, "{}", banner);
-        write_includes(out, includes);
+    auto includes = source_includes(classes, factory_use_of(classes));
+    if (has_impl(classes)) {
+        file.includes.push_back(std::format("{}.impl.h", ns));
     } else {
-        std::print(out, "{}#include \"{}.impl.h\"\n", banner, ns);
-        if (!includes.empty()) {
-            std::print(out, "\n");
-            write_includes(out, includes);
-        }
+        includes.merge(private_includes(ns, classes, group_of));
     }
-
-    std::print(out, "\nnamespace wxl {{\n");
-
-    if (use.any()) {
-        write_runtime_class_names(out, classes);
-    }
+    file.includes.insert(file.includes.end(), includes.begin(), includes.end());
 
     for (auto&& info : classes) {
+        std::ostringstream out;
+        if (factory_use_of(info).any()) {
+            write_runtime_class_names(out, info);
+        }
         write_constructor_bodies(out, info);
         for (auto&& member : info.members) {
             write_member_body(out, info, member);
+        }
+        if (!info.statics_only) {
+            std::print(out, "\ntemplate {0} Object::try_as<{0}>() const;\n", info.name);
+            std::print(out, "template bool Object::is<{0}>() const;\n", info.name);
+        }
+        if (auto text = std::move(out).str(); !text.empty()) {
+            file.classes.push_back(std::move(text));
         }
     }
 
     if (!instantiations.empty()) {
         // The one definition of each specialization in the whole library.
         // Which translation unit gets it is arbitrary but has to be decided
-        // somewhere: it is the first file group that names it, and that file
-        // already includes everything the instantiation needs -- the
-        // element's own Impl, which is where the template reads the WinRT
-        // type it stands for.
-        std::print(out, "\n");
+        // somewhere: it is the first file group that names it, whose includes
+        // already have everything the instantiation needs -- the element's own
+        // Impl, which is where the template reads the WinRT type it stands
+        // for. With the group's last class, after every body that uses it.
+        std::string text = "\n";
         for (auto&& specialization : instantiations) {
-            std::print(out, "template class {};\n", specialization);
+            text += std::format("template class {};\n", specialization);
+        }
+        if (file.classes.empty()) {
+            file.classes.push_back(std::move(text));
+        } else {
+            file.classes.back() += text;
         }
     }
-
-    // The one body of each try_as the header promised. This file has what the
-    // instantiation needs and a consumer has not: the class's own Impl, where
-    // try_as reads the WinRT type the wrapper stands for.
-    for_try_as(out, classes, [&out](class_info const& info) {
-        std::print(out, "template {0} Object::try_as<{0}>() const;\n", info.name);
-        std::print(out, "template bool Object::is<{0}>() const;\n", info.name);
-    });
-
-    std::print(out, "\n}}  // namespace wxl\n");
+    return file;
 }
 
 // Where every wrapped type can be found, once the class grouping is known:
@@ -2088,7 +2102,8 @@ type_index analyze_classes(type_kinds const& kinds, closure const& cl, type_map 
     return index;
 }
 
-void write_classes(output const& out, model const& m, emitted& em) {
+void write_classes(output const& out, model const& m, emitted& em,
+                   std::vector<body_file>& bodies) {
     for (auto&& line : m.class_warnings) {
         std::print(stderr, "warning: {}\n", line);
     }
@@ -2128,7 +2143,6 @@ void write_classes(output const& out, model const& m, emitted& em) {
     size_t members = 0;
     for (auto&& group : m.class_groups) {
         auto const header = out.dir / metadata_path(group.name + ".h");
-        auto const source = out.dir / metadata_path(group.name + ".cpp");
 
         write_public_header(header, group.name, group.classes, m.group_of, group.collections_used,
                             group.dropped);
@@ -2140,8 +2154,8 @@ void write_classes(output const& out, model const& m, emitted& em) {
             em.add(impl_header);
         }
 
-        write_source(source, group.name, group.classes, m.group_of, group.collections_defined);
-        em.add(source);
+        bodies.push_back(
+            group_bodies(group.name, group.classes, m.group_of, group.collections_defined));
 
         classes += group.classes.size();
         for (auto&& info : group.classes) {

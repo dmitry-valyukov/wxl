@@ -220,12 +220,9 @@ void write_tag_objects(std::ostream& file, dsl const& d) {
 void write_dsl(output const& out, dsl const& d, emitted& em) {
     auto const path = out.dir / "Members.h";
     auto file = open_output(path);
-    std::print(file, R"({}#pragma once
-
-#include "../impl/member.h"
-#include "Tags.h"
-)",
-               banner);
+    std::print(file, "{}#pragma once\n\n", banner);
+    write_include(file, "../impl/member.h");
+    write_include(file, "Tags.h");
     write_includes(file, d.includes);
 
     // small is a macro of the Windows SDK (rpcndr.h: #define small char), and the value tags of an

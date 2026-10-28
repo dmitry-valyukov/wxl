@@ -488,13 +488,19 @@ void write_doc(std::ostream& out, std::string_view indent, member_documentation 
     }
 }
 
+void write_include(std::ostream& out, std::string_view name, std::string_view sibling) {
+    if (name.starts_with('<')) {
+        std::print(out, "#include {}\n", name);
+    } else if (name.starts_with("../")) {
+        std::print(out, "#include <{}>\n", name.substr(3));
+    } else {
+        std::print(out, "#include \"{}{}\"\n", sibling, name);
+    }
+}
+
 void write_includes(std::ostream& out, std::set<std::string> const& includes) {
     for (auto&& include : includes) {
-        if (include.starts_with('<')) {
-            std::print(out, "#include {}\n", include);
-        } else {
-            std::print(out, "#include \"{}\"\n", include);
-        }
+        write_include(out, include);
     }
 }
 
@@ -503,33 +509,20 @@ void write_umbrella_file(std::filesystem::path const& path, std::vector<std::str
 
     std::print(out, "{}#pragma once\n\n", banner);
     for (auto&& file : files) {
-        std::print(out, "#include \"{}\"\n", file);
+        write_include(out, file);
     }
 }
 
-void emitted::add(std::filesystem::path const& path, std::string_view target) {
-    files_.push_back(path.filename());
-    targets_.emplace_back(target);
-}
+emitted::emitted(std::filesystem::path dir) : dir_(std::move(dir)) {}
 
-std::vector<std::filesystem::path> emitted::files_of(std::string_view target) const {
-    std::vector<std::filesystem::path> mine;
-    for (std::size_t at = 0; at != files_.size(); ++at) {
-        if (targets_[at] == target) {
-            mine.push_back(files_[at]);
-        }
+void emitted::add(std::filesystem::path const& path) {
+    auto relative = path.lexically_relative(dir_);
+    if (relative.empty() || *relative.begin() == "..") {
+        throw std::logic_error(std::format("{} is recorded as generated, and it is not under {}",
+                                           wxl::core::unicode::to_utf8(path).chars(),
+                                           wxl::core::unicode::to_utf8(dir_).chars()));
     }
-    return mine;
-}
-
-std::vector<std::string> emitted::targets() const {
-    std::vector<std::string> named;
-    for (auto&& target : targets_) {
-        if (std::find(named.begin(), named.end(), target) == named.end()) {
-            named.push_back(target);
-        }
-    }
-    return named;
+    files_.push_back(std::move(relative));
 }
 
 std::map<TypeDef, std::string> build_name_registry(std::vector<TypeDef> const& types) {

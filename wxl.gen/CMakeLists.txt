@@ -42,7 +42,7 @@ wxl_add_module_library(wxl.gen STATIC
         gen/dsl.cpp
         gen/schema.cpp
         gen/doc_language.cpp
-        gen/cmake.cpp
+        gen/parts.cpp
 )
 
 source_group("gen" REGULAR_EXPRESSION "gen/.*")
@@ -77,6 +77,20 @@ target_link_libraries(winui-srcgen PRIVATE wxl.gen)
 # The manifest of wxl's executables, a console tool's included: the same
 # template the applications get, UTF-8 for the process's code page among it.
 wxl_target_manifest(winui-srcgen)
+
+# The generator a step of the build runs (cmake/wxl_ui_profile.cmake): a copy
+# under one name for every configuration, refreshed after each link. The step
+# runs it by that name, so its command is the same in Debug and in Release and a
+# build of the other configuration of one build directory does not run the
+# generator again only because the command names another file. Everything the
+# generator links is static (wxl.gen, wxl.gen.common, wxl.core), and its manifest
+# is embedded, so the executable alone is all there is to copy.
+set(_wxl_gen_shared "${CMAKE_CURRENT_BINARY_DIR}/winui-srcgen${CMAKE_EXECUTABLE_SUFFIX}")
+add_custom_command(TARGET winui-srcgen POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:winui-srcgen>" "${_wxl_gen_shared}"
+    VERBATIM)
+set_property(TARGET winui-srcgen PROPERTY WXL_SHARED_FILE "${_wxl_gen_shared}")
 
 # Before the profiles below, not after: this lays the sources out by directory
 # with source_group(TREE), and the explicit grouping of the profiles has to be

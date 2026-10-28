@@ -15,9 +15,9 @@ namespace {
 constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers from WinUI3 metadata.
 
   winui-srcgen --profile <file.winxl-profile> [--profile <file.winxl-profile>]...
-               --packages <restored-packages.json>
-               [--out <dir>] [--target <cmake target>] [--winmd <file.winmd>]...
-               [--types <file.json>] [--docs [--doc-language <code>]]
+               --packages <restored-packages.json> --out <dir> [--parts <n>]
+               [--winmd <file.winmd>]... [--types <file.json>]
+               [--docs [--doc-language <code>]]
 
   --profile      Input profile; may be repeated. Profiles say which NuGet
                  packages to read, which types are the roots of the
@@ -29,10 +29,17 @@ constexpr std::string_view usage = R"(winui-srcgen -- generates wxl wrappers fro
                  <build>/wxl.packages/restored-packages.json. Each package a
                  profile names is read at the version listed there, and the
                  Windows metadata is that SDK's.
-  --out          Output directory for the generated sources
-                 (default: wxl.ui/src/wxl).
-  --target       CMake target the generated CMakeLists.txt adds its sources
-                 to (default: wxl.ui).
+  --out          Output directory: the headers, included as <wxl/X.h>
+                 through the directory above it, and in parts/ the sources
+                 to compile. The build of the wxl tree generates into
+                 <build>/wxl.ui/<profile>/wxl (cmake/wxl_ui_profile.cmake).
+                 Only files that change are written, and a file an earlier
+                 run wrote and this one does not is removed.
+  --parts        Into how many sources the out-of-line bodies go,
+                 parts/wrapper-00.cpp and on, from 1 to {} (default: 1),
+                 each with about as many classes as the next; beside them
+                 parts/schema_surface.cpp, the compile-only test of
+                 schema.h.
   --winmd        Extra .winmd file to read, on top of what the profiles resolve to.
   --types        What wxl implements itself: the types it supplies by hand,
                  the ones it already has an equivalent of, and the properties
@@ -67,13 +74,24 @@ std::string language_codes() {
     return codes;
 }
 
+// The number --parts names: decimal digits, from 1 to max_parts -- the names of
+// the parts have two digits. Anything else is refused before the run.
+std::size_t parts_value(std::string_view text) {
+    std::size_t parts = 0;
+    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), parts);
+    if (text.empty() || error != std::errc{} || end != text.data() + text.size() || parts < 1 ||
+        parts > max_parts) {
+        throw std::runtime_error(
+            std::format("--parts {}: the number of parts is from 1 to {}", text, max_parts));
+    }
+    return parts;
+}
+
 struct options {
     std::vector<std::filesystem::path> profiles;
     std::vector<std::filesystem::path> extra_metadata;
-    // Default output lands in the library that consumes it; the generated
-    // directory carries its own CMakeLists.txt (see gen/cmake.cpp).
-    std::filesystem::path out_dir{L"wxl.ui/src/wxl"};
-    std::string cmake_target{"wxl.ui"};
+    std::filesystem::path out_dir;
+    std::size_t parts = 1;
     std::filesystem::path packages;
     std::filesystem::path type_map;
     std::filesystem::path symbols;
@@ -122,8 +140,8 @@ options parse_options(int argc, wchar_t** argv) {
             opts.profiles.emplace_back(value(i, argument));
         } else if (argument == L"--out" || argument == L"-o") {
             opts.out_dir = value(i, argument);
-        } else if (argument == L"--target") {
-            opts.cmake_target = text_value(i, argument);
+        } else if (argument == L"--parts") {
+            opts.parts = parts_value(text_value(i, argument));
         } else if (argument == L"--packages") {
             opts.packages = value(i, argument);
         } else if (argument == L"--types") {
@@ -173,7 +191,7 @@ int wmain(int argc, wchar_t** argv) {
     try {
         auto const opts = parse_options(argc, argv);
         if (opts.help || opts.profiles.empty()) {
-            std::print(usage, language_codes());
+            std::print(usage, max_parts, language_codes());
             return opts.help ? 0 : 1;
         }
         // The versions and the directories of the packages are the restore's,
@@ -184,6 +202,14 @@ int wmain(int argc, wchar_t** argv) {
                 "<build>/wxl.packages/restored-packages.json, which the configure of the build "
                 "writes from its NuGet restore (in the wxl tree, tools\\build.ps1 or "
                 "cmake --preset x64 writes build/x64/wxl.packages/restored-packages.json)");
+        }
+
+        // No default: where the output goes is the build's to say, and a guess would leave
+        // wrappers where nothing compiles them.
+        if (opts.out_dir.empty()) {
+            throw std::runtime_error(
+                "no output directory: pass --out <dir> (the build of the wxl tree generates into "
+                "<build>/wxl.ui/<profile>/wxl, see cmake/wxl_ui_profile.cmake)");
         }
 
         auto const types = load_type_map(opts.type_map);
@@ -207,7 +233,7 @@ int wmain(int argc, wchar_t** argv) {
             throw std::runtime_error("no roots to walk: the profiles list no types");
         }
 
-        run(profiles, types, std::move(symbols), output{opts.out_dir, opts.cmake_target},
+        run(profiles, types, std::move(symbols), output{opts.out_dir, opts.parts},
             opts.doc_language);
     } catch (std::exception const& e) {
         // Covers profile loading, metadata reading and file writing alike.

@@ -13,8 +13,7 @@ import wxl.core;
 // language, so the site's own text -- Doxygen's headings and labels -- follows
 // it instead of being chosen a second time; the line carries Doxygen's name
 // for the language too, so the site keeps no table of its own. A text file, so
-// neither the compiler nor Doxygen reads it as a source: the build lists it
-// with the rest, as it does aliases.txt, and compiles nothing of it.
+// neither the compiler nor Doxygen reads it as a source, as aliases.txt is not.
 
 namespace gen {
 

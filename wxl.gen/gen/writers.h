@@ -18,8 +18,10 @@
 // you open matches the output you're changing.
 //
 // A writer takes where to write, its part of the model, and the record of
-// what has been written (which the CMakeLists writer consumes), and reads
-// nothing else. write_all() (generate.cpp) calls them in order.
+// what has been written (which prune_stale keeps), and reads nothing else. A
+// writer of out-of-line bodies hands them over as body_file entries instead of
+// writing a source of its own, and write_parts writes them all. write_all()
+// (generate.cpp) calls them in order.
 
 namespace gen {
 
@@ -35,15 +37,19 @@ void write_enums_and_structs(output const& out, model const& m, emitted& em);
 // generated struct, added to the same overload sets impl/conversions.h
 // opens. Written by gen/enums_structs.cpp alongside the structs themselves.
 
-// One <Namespace>.EventArgs.h per source namespace -- plus a .cpp beside it
-// wherever an args class has members -- and the EventArgs.h umbrella header.
-void write_event_args(output const& out, model const& m, emitted& em);
+// One <Namespace>.EventArgs.h per source namespace -- plus, into `bodies`,
+// the out-of-line members of its args classes wherever one has members -- and
+// the EventArgs.h umbrella header.
+void write_event_args(output const& out, model const& m, emitted& em,
+                      std::vector<body_file>& bodies);
 
-// <Class>.h / <Class>.impl.h / <Class>.cpp for every file group: the
-// public wrapper hierarchy and the matching `Impl` chain.
-void write_classes(output const& out, model const& m, emitted& em);
+// <Group>.h / <Group>.impl.h for every file group -- the public wrapper
+// hierarchy and the matching `Impl` chain -- and, into `bodies`, the group's
+// out-of-line bodies.
+void write_classes(output const& out, model const& m, emitted& em,
+                   std::vector<body_file>& bodies);
 
-// styles.h / styles.cpp -- the framework's named styles as a path,
+// styles.h / style_names.h -- the framework's named styles as a path,
 // `styles.textBlock.title`. Read out of the XAML resource dictionaries the
 // profile names, not out of metadata: a resource has a key and a target
 // type, and no type of its own for the walk to find.
@@ -80,8 +86,8 @@ void write_tags(output const& out, model const& m, emitted& em);
 // none of it per class: the dispatch is a template on the object.
 void write_dsl(output const& out, dsl const& d, emitted& em);
 
-// schema.h -- the per-class vocabulary (schema, gen/model.h) -- and, beside it,
-// schema_surface.cpp: one compile-only line per element of it, which is what
+// schema.h -- the per-class vocabulary (schema, gen/model.h) -- and
+// parts/schema_surface.cpp: one compile-only line per element of it, which is what
 // keeps the schema honest. Every new type and every new member lands in both
 // files by the same run, so coverage cannot drift from the surface. The dsl
 // comes in for the enumerators an anchor of enum type carries, which the test
@@ -98,8 +104,10 @@ void write_schema(output const& out, model const& m, emitted& em);
 // the other stale ones.
 void write_doc_language(output const& out, model const& m, emitted& em);
 
-// CMakeLists.txt adding everything above to the consuming target.
-void write_cmake_lists(output const& out, emitted const& em);
+// parts/wrapper-00.cpp ... parts/wrapper-<N-1>.cpp, N = output::parts: the
+// out-of-line bodies the writers above handed over, spread over a number of
+// translation units the build fixes (gen/parts.cpp).
+void write_parts(output const& out, std::vector<body_file> const& bodies, emitted& em);
 
 // An enum's values the profiles kept (`kept` is the walk's record of members):
 // the member name each is surfaced under and the enumerator's own name.

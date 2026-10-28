@@ -177,28 +177,22 @@ TextBox {
 ### Пошаговое развёртывание
 
 Запустите сеанс `pwsh` из корневой директории склонированного репозитория и
-выполните следующие команды для подготовки окружения, генерации обёрток и
-запуска примера:
+выполните следующие команды для сборки дерева и запуска примера:
 
 ```powershell
-# 1. Настройка дерева и сборка утилиты winui-srcgen без сайта документации.
+# 1. Настройка и сборка всего дерева без сайта документации.
 #    Настройка восстанавливает пакеты NuGet (закрепления — tools/packages.json,
 #    результат — tools/packages.lock.json и список build\x64\wxl.packages\restored-packages.json)
-#    и строит проекцию cppwinrt в каталоге сборки
-tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
+#    и строит проекцию cppwinrt в каталоге сборки; сборка собирает генератор
+#    winui-srcgen, пишет им обёртки WinUI полного профиля в build\x64\wxl.ui\full\wxl
+#    и компилирует их вместе с остальным
+tools\build.ps1 -Define WXL_BUILD_DOCS=OFF
 
 # 2. Развёртывание экспериментальной среды выполнения Windows App Runtime
 #    из пакета, который восстановила настройка
 pwsh -NoProfile -File tools\install-runtime.ps1
 
-# 3. Запуск генератора для построения полного профиля обёрток WinUI
-#    по пакетам, которые восстановила настройка
-build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.winxl-profile --packages build\x64\wxl.packages\restored-packages.json
-
-# 4. Конфигурация CMake и компиляция демонстрационного проекта Quadratic
-tools\build.ps1 -Configure -Target sample.quadratic
-
-# 5. Запуск скомпилированного приложения
+# 3. Запуск демонстрационного приложения Quadratic
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 
@@ -253,7 +247,8 @@ build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 
 - **Состав профиля.** В **wxl** есть только те типы и члены **WinUI**, которые
   перечислены в профиле `wxl.gen/profiles/full.winxl-profile`. Чтобы
-  добавить недостающее, профиль дополняют и перегенерируют обёртки.
+  добавить недостающее, профиль дополняют; следующая сборка генерирует
+  обёртки сама.
 - **Наследование с переопределением (Overrides).** Собственный наследник
   класса **WinUI** с переопределёнными методами через интерфейсы
   `I<Class>Overrides` пока не поддерживается: прототип агрегации

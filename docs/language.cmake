@@ -4,25 +4,29 @@
 # winui-srcgen --docs wrote the wrappers' descriptions in. The generator leaves
 # it beside the wrappers, in doc_language.txt -- its banner, then one line with
 # the code --doc-language named and Doxygen's name for it ("ru Russian"). Which
-# codes there are is the generator's to know, and it refuses any other before
-# it writes anything, so the file is only checked for its form here. No file
-# means no documented wrappers (the pull request check, a tree generated
-# without --docs) and English, the generator's own default.
+# codes there are, and Doxygen's names for them, is the generator's to know,
+# and it refuses any other code before it writes anything, so the file is only
+# checked for its form here. No file, or no wrappers at all -- the pull request
+# check -- means English, the generator's own default.
 #
-# Included by docs/CMakeLists.txt, which reads the file when it configures. Also
-# run as a script before Doxygen, by the site target and by its test, to stop a
-# build whose wrappers were generated again, in another language, after the
-# configure. The whole line is compared, the code and Doxygen's name:
+# Run as a step of the build, after the generation of the wrappers and before
+# Doxygen, by the site target and by the setup of its test: it writes the
+# Doxyfile fragment the site's Doxyfile includes last (wxl_add_doxygen_site
+# INCLUDE), with the language and the brief in it. Not read at configure: the
+# file appears only when the wrappers are generated, and a configure that read
+# it would describe the generation before last. The fragment is written only
+# when its text changes.
 #
-#   cmake "-DWXL_DOCS_LANGUAGE=<code> <name>" -DWXL_DOCS_LANGUAGE_FILE=<file> -P language.cmake
+#   cmake -DWXL_DOCS_LANGUAGE_FILE=<doc_language.txt, or empty>
+#         -DWXL_DOCS_FRAGMENT=<file.doxyfile> -P language.cmake
 
 # wxl_docs_language(<code-var> <doxygen-var> <file>): the code <file> names and
 # Doxygen's name for the language, en and English when there is no file. A file
-# whose line under the banner is not a code and a name stops the configure.
+# whose line under the banner is not a code and a name stops the build.
 function(wxl_docs_language code_var doxygen_var file)
     set(_code en)
     set(_doxygen English)
-    if(EXISTS "${file}")
+    if(NOT file STREQUAL "" AND EXISTS "${file}")
         # The lines under the banner. file(STRINGS) drops the carriage returns
         # of a file written on Windows.
         file(STRINGS "${file}" _lines REGEX "^[^/]")
@@ -41,13 +45,34 @@ function(wxl_docs_language code_var doxygen_var file)
     set(${doxygen_var} "${_doxygen}" PARENT_SCOPE)
 endfunction()
 
-if(CMAKE_SCRIPT_MODE_FILE AND DEFINED WXL_DOCS_LANGUAGE)
-    wxl_docs_language(_now_code _now_doxygen "${WXL_DOCS_LANGUAGE_FILE}")
-    set(_now "${_now_code} ${_now_doxygen}")
-    if(NOT _now STREQUAL WXL_DOCS_LANGUAGE)
-        message(FATAL_ERROR
-            "The wrappers are documented in '${_now}' now (${WXL_DOCS_LANGUAGE_FILE}), and the "
-            "site was configured for '${WXL_DOCS_LANGUAGE}': they were generated again since. "
-            "Configure the site again.")
-    endif()
+if(NOT CMAKE_SCRIPT_MODE_FILE OR NOT DEFINED WXL_DOCS_FRAGMENT)
+    message(FATAL_ERROR
+        "docs/language.cmake is a script: cmake -DWXL_DOCS_LANGUAGE_FILE=<file> "
+        "-DWXL_DOCS_FRAGMENT=<file> -P docs/language.cmake")
 endif()
+
+wxl_docs_language(_code _doxygen "${WXL_DOCS_LANGUAGE_FILE}")
+# The articles stay as they are written, in Russian; the brief of the project
+# follows the language only where it is Russian.
+if(_code STREQUAL "ru")
+    set(_brief "WinUI XAML-Less: декларативный интерфейс на C++23")
+else()
+    set(_brief "WinUI XAML-Less: declarative user interface in C++23")
+endif()
+
+set(_from "${WXL_DOCS_LANGUAGE_FILE}")
+if(_from STREQUAL "")
+    set(_from "no wrappers")
+endif()
+string(CONCAT _text
+    "# Written by docs/language.cmake: ${_from}.\n"
+    "OUTPUT_LANGUAGE        = ${_doxygen}\n"
+    "PROJECT_BRIEF          = \"${_brief}\"\n")
+set(_written "")
+if(EXISTS "${WXL_DOCS_FRAGMENT}")
+    file(READ "${WXL_DOCS_FRAGMENT}" _written)
+endif()
+if(NOT _written STREQUAL _text)
+    file(WRITE "${WXL_DOCS_FRAGMENT}" "${_text}")
+endif()
+message(STATUS "Documentation site language: ${_doxygen}")

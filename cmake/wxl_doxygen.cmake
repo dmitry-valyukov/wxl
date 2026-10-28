@@ -175,19 +175,31 @@ function(_wxl_doxygen_quote out)
     set(${out} "${_result}" PARENT_SCOPE)
 endfunction()
 
-# wxl_doxygen_tree_inputs(<input-var> <exclude-var> <images-var> <root>)
+# wxl_doxygen_tree_inputs(<input-var> <exclude-var> <images-var> <root> [<wrappers>])
 #
 # What the site of a wxl tree rooted at <root> reads: the prose in docs/, the
-# READMEs of the samples, and the sources of every module; the patterns that
-# keep tests, benchmarks and tooling out; and the directories images in the
-# prose are resolved against. One list, because two sites read it: wxl's own
-# (docs/CMakeLists.txt) and the copy an application builds from its tree for
-# the sake of the tag file. A second copy of the list drifted once, and the
-# application's site stopped on a directory that no longer existed.
+# READMEs of the samples, the sources of every module and, when <wrappers> names
+# one, the directory of the generated wrappers, which lies in a build directory
+# and not under <root> (the site's own documented generation, docs/wrappers/wxl
+# of the build, wxl_generate_wrappers in cmake/wxl_ui_profile.cmake); the
+# patterns that keep tests, benchmarks and tooling out; and the directories
+# images in the prose are resolved against. One list, because two sites read
+# it: wxl's own (docs/CMakeLists.txt) and the copy an application builds from
+# its tree for the sake of the tag file. A second copy of the list drifted
+# once, and the application's site stopped on a directory that no longer
+# existed.
 #
 # Module READMEs are one-screen cards for GitHub and stay off the site; the
 # articles about the modules live in docs/.
 function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
+    # The generated WinUI3 projection is part of the surface, not an
+    # implementation detail: wxl::Button and wxl::UIElement are what a
+    # consumer writes, and without them the tag file an application's site
+    # reads resolves nothing.
+    set(_wrappers "")
+    if(ARGC GREATER 4 AND NOT ARGV4 STREQUAL "")
+        set(_wrappers "${ARGV4}")
+    endif()
     set(${input_var}
         "${root}/docs"
         "${root}/samples/README.md"
@@ -207,11 +219,8 @@ function(wxl_doxygen_tree_inputs input_var exclude_var images_var root)
         "${root}/wxl.bb/src"
         "${root}/wxl.rsdn/src"
         "${root}/wxl.highlight/src"
-        # The generated WinUI3 projection is part of the surface, not an
-        # implementation detail: wxl::Button and wxl::UIElement are what a
-        # consumer writes, and without them the tag file an application's
-        # site reads resolves nothing.
         "${root}/wxl.ui/src"
+        ${_wrappers}
         PARENT_SCOPE)
     set(${exclude_var}
         "*/tests/*"
@@ -248,11 +257,14 @@ endfunction()
 
 # wxl_add_doxygen_site(<target>
 #     PROJECT_NAME <name> [BRIEF <text>] [LANGUAGE <Doxygen language>]
-#     INPUT <path>...  [EXCLUDE <pattern>...]  [STRIP_FROM <dir>]
+#     INPUT <path>...  [EXCLUDE <pattern>...]  [STRIP_FROM <dir>...]
 #     [MAINPAGE <file.md>] [OUTPUT <dir>]
 #     [IMAGES <dir>...]       -- where ![](...) in the prose is resolved
 #     [TAGFILE <file>]        -- write one, for other sites to link against
 #     [TAGS <file>=<url>...]  -- read others, turning mentions into links
+#     [INCLUDE <file>]        -- a Doxyfile fragment read last, over the rest; a
+#                                step of the build that writes it is named in
+#                                DEPENDS
 #     [DEPENDS <target>...])
 #
 # The target is never part of ALL: documentation is built when asked for, not on
@@ -260,8 +272,8 @@ endfunction()
 function(wxl_add_doxygen_site target)
     cmake_parse_arguments(A
         ""
-        "PROJECT_NAME;BRIEF;LANGUAGE;STRIP_FROM;MAINPAGE;OUTPUT;TAGFILE"
-        "INPUT;EXCLUDE;IMAGES;TAGS;DEPENDS"
+        "PROJECT_NAME;BRIEF;LANGUAGE;MAINPAGE;OUTPUT;TAGFILE;INCLUDE"
+        "INPUT;EXCLUDE;IMAGES;TAGS;DEPENDS;STRIP_FROM"
         ${ARGN})
 
     wxl_doxygen_bootstrap()
@@ -277,6 +289,7 @@ function(wxl_add_doxygen_site target)
     _wxl_doxygen_quote(DOXY_EXCLUDE_PATTERNS ${A_EXCLUDE})
     _wxl_doxygen_quote(DOXY_TAGFILES ${A_TAGS})
     _wxl_doxygen_quote(DOXY_IMAGE_PATH ${A_IMAGES})
+    _wxl_doxygen_quote(DOXY_STRIP_FROM_PATH ${A_STRIP_FROM})
 
     # The module names are those of the wxl tree this file belongs to, whatever
     # tree the site itself is of: a site that reads wxl's tag file mentions
@@ -291,8 +304,11 @@ function(wxl_add_doxygen_site target)
     set(DOXY_PROJECT_BRIEF    "${A_BRIEF}")
     set(DOXY_LANGUAGE         "${A_LANGUAGE}")
     set(DOXY_OUTPUT_DIRECTORY "${A_OUTPUT}")
-    set(DOXY_STRIP_FROM_PATH  "${A_STRIP_FROM}")
     set(DOXY_MAINPAGE         "${A_MAINPAGE}")
+    set(DOXY_INCLUDE          "")
+    if(A_INCLUDE)
+        set(DOXY_INCLUDE      "@INCLUDE               = \"${A_INCLUDE}\"")
+    endif()
     set(DOXY_GENERATE_TAGFILE "${A_TAGFILE}")
     set(DOXY_HTML_HEADER      "${WXL_DOXYGEN_HTML_HEADER}")
     set(DOXY_MERMAID_JS_URL   "${WXL_DOXYGEN_MERMAID_JS_URL}")

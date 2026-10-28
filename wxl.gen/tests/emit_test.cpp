@@ -36,6 +36,43 @@ TEST(winrt_namespace, spells_the_metadata_namespace_in_cpp) {
     EXPECT_EQ(gen::winrt_namespace("Microsoft.UI.Xaml"), "winrt::Microsoft::UI::Xaml");
 }
 
+// A projection or standard header as it is; a hand-written header of the library,
+// "../" in the writers' notation, through the library's include directory in angle
+// brackets, wherever the including file lies; a file of the run in quotes, from
+// parts/ with "../" before it.
+TEST(write_include, names_a_header_of_the_library_through_its_include_directory) {
+    std::ostringstream out;
+    gen::write_include(out, "<winrt/Windows.Foundation.h>");
+    gen::write_include(out, "../impl/conversions.h");
+    gen::write_include(out, "Microsoft.UI.Xaml.h");
+    gen::write_include(out, "<winrt/Windows.Foundation.h>", "../");
+    gen::write_include(out, "../Object.impl.h", "../");
+    gen::write_include(out, "Microsoft.UI.Xaml.impl.h", "../");
+    EXPECT_EQ(out.str(),
+              "#include <winrt/Windows.Foundation.h>\n"
+              "#include <impl/conversions.h>\n"
+              "#include \"Microsoft.UI.Xaml.h\"\n"
+              "#include <winrt/Windows.Foundation.h>\n"
+              "#include <Object.impl.h>\n"
+              "#include \"../Microsoft.UI.Xaml.impl.h\"\n");
+}
+
+// A file is recorded by its path under the output directory -- a part's with the
+// directory of the parts -- since that is what a listing of the directory is
+// compared with; a path outside it is a writer's mistake.
+TEST(emitted, records_a_file_by_its_path_under_the_output_directory) {
+    std::filesystem::path const dir{L"out"};
+    gen::emitted em{dir};
+    em.add(dir / L"Button.h");
+    em.add(dir / L"parts" / L"wrapper-00.cpp");
+
+    ASSERT_EQ(em.files().size(), 2u);
+    EXPECT_EQ(em.files()[0], std::filesystem::path{L"Button.h"});
+    EXPECT_EQ(em.files()[1], std::filesystem::path{L"parts"} / L"wrapper-00.cpp");
+    EXPECT_THROW(em.add(L"elsewhere.h"), std::logic_error);
+    EXPECT_EQ(em.files().size(), 2u);
+}
+
 namespace {
 
 std::string doc_of(member_documentation const& doc, std::vector<std::string_view> const& params = {},
