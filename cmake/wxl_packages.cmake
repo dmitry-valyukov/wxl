@@ -712,6 +712,21 @@ function(_wxl_packages)
         file(REMOVE "${nuget_cache}")
     endif()
 
+    # A failed update leaves the tree as it was. NuGet writes the lock file at
+    # the end of the restore, and the targets that run after it can still fail
+    # -- the Runtime package's check of the components runs among the initial
+    # targets, before the projection -- so the file as it was before the
+    # update is kept beside the helper project and put back when MSBuild fails.
+    # The copy is removed when the whole update has succeeded; a later stop of
+    # the update leaves it in <build>/wxl.packages.
+    set(lock_before "${helper}/packages.lock.json.before-update")
+    if(WXL_UPDATE_PACKAGES)
+        file(REMOVE "${lock_before}")
+        if(EXISTS "${lock}")
+            file(COPY_FILE "${lock}" "${lock_before}")
+        endif()
+    endif()
+
     message(STATUS "NuGet packages and the C++/WinRT projection: ${project}")
     execute_process(
         COMMAND "${msbuild}" "${project_native}"
@@ -725,16 +740,30 @@ function(_wxl_packages)
         OUTPUT_VARIABLE output
         ERROR_VARIABLE output)
     if(NOT result EQUAL 0 AND WXL_UPDATE_PACKAGES)
+        # The lock file is put back with a new time, so that it is newer than
+        # obj/project.nuget.cache of the failed restore and the next ordinary
+        # configure restores by it (see the rule for a lock file newer than the
+        # last restore above). Without a lock file before, the one the failed
+        # restore wrote is removed.
+        if(EXISTS "${lock_before}")
+            file(COPY_FILE "${lock_before}" "${lock}")
+            file(TOUCH "${lock}")
+            file(REMOVE "${lock_before}")
+        else()
+            file(REMOVE "${lock}")
+        endif()
         message(FATAL_ERROR
             "MSBuild failed (${result}) on ${project} in the update of the NuGet packages, "
-            "restoring the newest versions the pins admit or building the C++/WinRT projection. When a "
-            "satellite of the release (Win2D, WebView2, CppWinRT) needs a Windows App SDK "
-            "component newer than the release has, the check of Microsoft.WindowsAppSDK.Runtime "
-            "(VerifyReferencedWindowsAppSdkComponentVersions) stops the restore. Either hold the "
-            "satellite at the version it had, \"[X]\" in tools/packages.json, and run the update "
-            "again; or take tools/packages.lock.json back from git and configure with "
-            "-DWXL_UPDATE_PACKAGES=OFF -- a failed update leaves WXL_UPDATE_PACKAGES ON in the "
-            "cache, and the next configure would run it again.\n"
+            "restoring the newest versions the pins admit or building the C++/WinRT projection. "
+            "tools/packages.lock.json is put back as it was before the update. If the failure is "
+            "the Runtime package's check of the components "
+            "(VerifyReferencedWindowsAppSdkComponentVersions, a satellite of the release -- "
+            "Win2D, WebView2, CppWinRT -- needing a newer Windows App SDK component than the "
+            "release has), hold the satellite at the version it had, "
+            "\"[X]\" in tools/packages.json, and run the update again; or configure with "
+            "-DWXL_UPDATE_PACKAGES=OFF to keep the versions of the lock file -- a failed update "
+            "leaves WXL_UPDATE_PACKAGES ON in the cache, and the next configure would run it "
+            "again.\n"
             "${output}\nThe whole log: ${log}")
     endif()
     if(NOT result EQUAL 0)
@@ -835,6 +864,7 @@ function(_wxl_packages)
         message(STATUS
             "NuGet update: done. Commit ${lock} if it changed; WXL_UPDATE_PACKAGES is removed from "
             "the cache, and the next configure takes the versions it records.")
+        file(REMOVE "${lock_before}")
         unset(WXL_UPDATE_PACKAGES CACHE)
     endif()
 endfunction()
