@@ -27,6 +27,7 @@
 
 #include "../core.h"
 #include "hresult.h"
+#include "../UiThread.h"
 
 namespace wxl::impl {
 
@@ -73,12 +74,12 @@ public:
     }
 
     uint32_t __stdcall AddRef() noexcept final {
-        core::sta_memory_pool::debug_check_thread();
+        assert(UiThread::isCurrent());
         return ++count_;
     }
 
     uint32_t __stdcall Release() noexcept final {
-        core::sta_memory_pool::debug_check_thread();
+        assert(UiThread::isCurrent());
         uint32_t const left = --count_;
         if (left == 0) delete this;
         return left;
@@ -125,12 +126,12 @@ public:
     }
 
     uint32_t __stdcall AddRef() noexcept final {
-        core::sta_memory_pool::debug_check_thread();
+        assert(UiThread::isCurrent());
         return ++count_;
     }
 
     uint32_t __stdcall Release() noexcept final {
-        core::sta_memory_pool::debug_check_thread();
+        assert(UiThread::isCurrent());
         uint32_t const left = --count_;
         if (left == 0) delete static_cast<Derived*>(this);
         return left;

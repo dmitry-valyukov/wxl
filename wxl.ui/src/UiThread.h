@@ -87,15 +87,16 @@ public:
     [[nodiscard]] static impl::cancelable_event_wait<Idle, async::cancellation_token> onIdle(
         async::cancellation_token token);
 
-    /// Whether the calling thread is the UI thread: the one wxl runs on, whose STA pool it is.
-    static bool isCurrent() noexcept { return core::sta_memory_pool::is_safe(); }
+    /// Whether the calling thread is the UI thread, which is the STA thread
+    /// (async::sta_thread).
+    static bool isCurrent() noexcept { return async::sta_thread::is_current(); }
 
-    /// Stops the process when the calling thread is not the UI thread: a call from another
-    /// thread to what lives on the UI thread is a broken rule. The report names the caller's line.
+    /// Stops the process when the calling thread is not the UI thread, which is the STA
+    /// thread: a call from another thread to what lives on the UI thread is a broken rule. The
+    /// report names the caller's line.
     static void ensureCurrent(
         std::source_location where = std::source_location::current()) noexcept {
-        if (!isCurrent()) [[unlikely]]
-            core::abort("called from a thread other than the UI thread", where);
+        async::sta_thread::ensure_current(where);
     }
 
 private:
