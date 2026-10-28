@@ -205,11 +205,12 @@ options of `wxl` before it (see
 
 | Directory | Description and modules |
 | :--- | :--- |
-| **`wxl.core`** | Library core (the `wxl.core` module): the single-threaded STA memory pool, reference counting, reactive `observable` containers, the event model, grapheme-aware UTF-8/UTF-16 text support, file system access, the optimized `nullable` container. |
-| **`wxl.async`** | Asynchronous subsystem: `task` coroutines, the `sta_loop` dispatcher with non-blocking file I/O, operation cancellation, low-level lock-free queues, data exchange channels and thread synchronization primitives. |
-| **`wxl.fmt`** / **`wxl.logging`** | `text_builder` and string formatting modules built on top of the `fmt` library. Logging subsystem components. |
-| **`wxl.xml`** / **`wxl.json`** | Lightweight parsers for XML and JSON. |
-| **`wxl.html`** / related | Modules for parsing HTML, BB-code and RSDN text markup for the `HtmlBlock`, `BbBlock`, `RsdnBlock` visual components. The `wxl.highlight` syntax highlighting subsystem. |
+| **`wxl.core`** | Library core — one module, `wxl.core`, build target `wxl::core`: the single-threaded STA memory pool, reference counting, reactive `observable` containers, the event model, grapheme-aware UTF-8/UTF-16 text support, file system access, the optimized `nullable` container. The areas of the module lie in subdirectories of `wxl.core/src`, below. |
+| `wxl.core/src/async` | Asynchronous subsystem: `task` coroutines, the `sta_loop` dispatcher with non-blocking file I/O, operation cancellation, low-level lock-free queues, data exchange channels and thread synchronization primitives. |
+| `wxl.core/src/fmt`, `logging` | `text_builder` and string formatting on top of the `fmt` library. The logging subsystem. |
+| `wxl.core/src/xml`, `json` | Lightweight parsers for XML and JSON. |
+| `wxl.core/src/html` | Parsing of the HTML subset for the `HtmlBlock` visual component. |
+| **`wxl.bb`** / **`wxl.rsdn`** / **`wxl.highlight`** | Modules parsing BB-code and RSDN markup into the same tree for `BbBlock`, `RsdnBlock`. The `wxl.highlight` syntax highlighting subsystem. |
 | **`wxl.gen.*`** | Source code of the `winui-srcgen` projection generator (`wxl.gen`, `wxl.gen.common`) and `wxl.gen.ui`, a GUI for visually editing code generation profiles (launched via `run-gen-ui.cmd`). |
 | **`wxl.ui`** | The **WinUI** graphics stack without XAML: public object wrappers, the declarative DSL syntax, window management, data binding and visual effects. |
 | **Auxiliary** | `samples` — sample projects; `sandbox` — isolated experiments with **WinUI** mechanisms; `wxl.test` — unit testing infrastructure; `cmake`, `tools`, `docs` — build and automation scripts and documentation sources. |

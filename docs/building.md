@@ -157,9 +157,9 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 | `WXL_SANDBOX` | `ON`; в проекте, который подключает **wxl**, — `OFF` | Песочница `sandbox/`. Требует `WXL_UI`. |
 | `WXL_BUILD_DOCS` | `ON`; в проекте, который подключает **wxl**, — `OFF` | Включает сайт документации Doxygen: цель `docs`, результат — `build/x64/docs/wxl/html/index.html`. На то, что компилирует библиотека, не влияет. |
 | `WXL_DOC_LANGUAGE` | `en` | Язык сайта и описаний в обёртках, которые генерирует для него цель `docs`: код папки справочника Windows SDK, который сборка передаёт генератору как `--doc-language` (см. «Сайт документации»). |
-| `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui`. Бенчмарки `wxl.xml` и `wxl.gen.common` дерево, настроенное само, собирает всегда, а проект, который подключает **wxl**, — с этим ключом. |
-| `WXL_STRICT_CORO` | `OFF` | Оставляет проверки корутин `wxl.async` в любой конфигурации сборки, а не только в Debug (см. [«Асинхронность»](async.md)). |
-| `WXL_ENABLE_PCH` | `ON` | Включает предкомпилированный заголовок `src/pch.h` у `wxl.core` и `wxl.async`. Модульные единицы из него исключены (MSVC не принимает его перед объявлением модуля), поэтому ключ влияет только на время сборки обычных единиц трансляции. |
+| `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core` (с его областями `fmt` и `async`) и `wxl.ui`. Бенчмарки читателя XML из `wxl.core` (`wxl.xml.bench`) и `wxl.gen.common` дерево, настроенное само, собирает всегда, а проект, который подключает **wxl**, — с этим ключом. |
+| `WXL_STRICT_CORO` | `OFF` | Оставляет проверки корутин области `async` модуля `wxl.core` в любой конфигурации сборки, а не только в Debug (см. [«Асинхронность»](async.md)). |
+| `WXL_ENABLE_PCH` | `ON` | Включает предкомпилированный заголовок `src/pch.h` у `wxl.core`. Модульные единицы из него исключены (MSVC не принимает его перед объявлением модуля), поэтому ключ влияет только на время сборки обычных единиц трансляции. |
 | `WXL_INSTALL` | `OFF`, чтобы `cmake --install` потребителя не переносил файлы **wxl** в его префикс | Включает правила установки и экспорта `wxl.core`. |
 
 Сквозная оптимизация (`/GL`, LTCG) не используется. Это решение принято по
@@ -606,9 +606,10 @@ wxl_target_assets(myapp Assets)
 
 ### Цели и функции
 
-После подключения проекту доступны цели модулей `wxl::core`, `wxl::fmt`,
-`wxl::async`, `wxl::logging`, `wxl::xml`, `wxl::json`, `wxl::html`,
-`wxl::highlight`, `wxl::bb`, `wxl::rsdn`; при `WXL_UI` — `wxl::ui`; при
+После подключения проекту доступны цели модулей `wxl::core` — ядро, один
+модуль `wxl.core` со всеми его областями (`fmt`, `async`, `logging`, `xml`,
+`json`, `html`; подключение — `import wxl.core;`), — `wxl::highlight`,
+`wxl::bb`, `wxl::rsdn`; при `WXL_UI` — `wxl::ui`; при
 `WXL_TOOLS` — `Microsoft::CppWinRT`, проекция C++/WinRT для приложения, которое
 само к ней обращается (`target_link_libraries(<цель> PRIVATE
 Microsoft::CppWinRT)`, как в `sandbox/LightingLab/CMakeLists.txt`). Для тестов — `wxl::test`, заголовки
@@ -629,7 +630,7 @@ wxl_add_executable(sample.quadratic
     main.cpp
 )
 
-target_link_libraries(sample.quadratic PRIVATE wxl::fmt)
+target_link_libraries(sample.quadratic PRIVATE wxl::core)
 
 wxl_target_icon(sample.quadratic app.ico)
 wxl_target_assets(sample.quadratic Assets)

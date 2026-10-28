@@ -1,8 +1,8 @@
 # Lock-free примитивы
 
 Внутренние межпоточные каналы асинхронного диспетчера `wxl::async::sta_loop`
-и подсистемы логирования построены на наборе lock-free примитивов из
-каталогов `wxl.async` и `wxl.core`. Каждая структура спроектирована под
+и подсистемы логирования построены на наборе lock-free примитивов модуля
+`wxl.core`: его собственных и области `async` (`wxl.core/src/async`). Каждая структура спроектирована под
 ограниченный сценарий использования и обладает узким контрактом.
 
 ## Компоненты и структуры данных
@@ -86,7 +86,7 @@
 
 Замеры примитивов выполняют бенчмарки `wxl.async.mpsc-queue-benchmark`,
 `wxl.async.spsc-queues-benchmark`, `wxl.async.channels-benchmark` и другие
-из каталога `wxl.async/benchmarks`.
+из каталога `wxl.core/benchmarks/async`.
 
 Подробный разбор `drain_stack`, `mpsc_queue`, `atomic_trigger` и
 `mpsc_channel` приведён в
