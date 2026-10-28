@@ -2,7 +2,7 @@ auto example = StackPanel {
     TextBlock {Margin {0, 0, 0, 10}, hAlign.left, styles.TextBlock.Caption, textWrapping = TextWrapping::Wrap,
                u"The sample below showcases landmarks. To navigate landmarks in Narrator, press D or Shift+D while in Scan mode."},
     Grid {
-        columnDefinitions = u"200,*,200",
+        ColumnDefinitions<u"200,*,200">,
         // The navigation pane for our app
         StackPanel {
             Padding {6},

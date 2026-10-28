@@ -17,8 +17,8 @@ hstring number(double value) {
 FrameworkElement lab::sliderRow(char16_t const* title, core::observable<double>& field, double low, double high,
                                 double step) {
     return Grid {
-        columnDefinitions = u"*,auto",
-        rowDefinitions = u"auto,auto",
+        ColumnDefinitions<u"*,auto">,
+        RowDefinitions<u"auto,auto">,
         TextBlock {title},
         TextBlock {column = 1, opacity = 0.65, text = BindOutput {field, [](double value) { return number(value); }}},
         Slider {
@@ -62,7 +62,7 @@ FrameworkElement lab::checkRow(char16_t const* title, core::observable<bool>& fi
 
 FrameworkElement lab::colorRow(char16_t const* title, core::observable<Color>& field) {
     return Grid {
-        columnDefinitions = u"*,auto",
+        ColumnDefinitions<u"*,auto">,
         TextBlock {title, vAlign.center},
         SplitButton {
             column = 1,

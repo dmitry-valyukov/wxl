@@ -21,7 +21,7 @@ struct Model {
         selectedIndex = 0,
     };
     Grid root {
-        rowDefinitions = u"32,*",
+        RowDefinitions<u"32,*">,
         TitleBar {
             title = u"SystemBackdrop sample window",
             iconSource = ImageIconSource {imageSource = u"Assets/Tiles/BadgeLogo.png"},

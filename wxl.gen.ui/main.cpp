@@ -406,13 +406,13 @@ wxl::Teardown wxl_launched() {
             places->visit({std::u16string {(resources ? resourcesTab : typesTab).view()}, document->typeName.get()});
         },
         content = Grid {
-            rowDefinitions = u"40,*,auto",
+            RowDefinitions<u"40,*,auto">,
             Card {
                 topPanel,
                 // Панель профиля пока макет: действий на кнопках нет; работает
                 // только отбор показанного.
                 Grid {
-                    columnDefinitions = u"auto,*",
+                    ColumnDefinitions<u"auto,*">,
                     StackPanel {
                         orientation.horizontal,
                         spacing = 4,

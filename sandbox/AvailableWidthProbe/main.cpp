@@ -107,7 +107,7 @@ wxl::Teardown wxl_launched() {
     if (has("struct")) {
         Apply {*host, child = BindOutput {model->wide, [](bool wide) { return TextBlock {wide ? u"wide tree" : u"narrow tree"}; }}};
     }
-    page = Grid {columnDefinitions = u"*,*", rowDefinitions = u"auto,auto,*", *headerText, *options, *host};
+    page = Grid {ColumnDefinitions<u"*,*">, RowDefinitions<u"auto,auto,*">, *headerText, *options, *host};
 
     auto const widthLayout = CustomLayout {
         [](Collection<UIElement> const& children, Size available) {

@@ -69,7 +69,7 @@ auto options = StackPanel {
     TextBlock {FontWeight {600}, u"Window title"},
     model->titleBox,
     TextBlock {FontWeight {600}, u"Window size"},
-    Grid {columnDefinitions = u"auto,auto", model->widthBox, model->heightBox},
+    Grid {ColumnDefinitions<u"auto,auto">, model->widthBox, model->heightBox},
     TextBlock {FontWeight {600}, u"Window postion"},
-    Grid {columnDefinitions = u"auto,auto", model->xBox, model->yBox},
+    Grid {ColumnDefinitions<u"auto,auto">, model->xBox, model->yBox},
 };

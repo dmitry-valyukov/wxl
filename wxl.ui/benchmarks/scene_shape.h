@@ -34,26 +34,6 @@ inline constexpr int columns = 6;
 inline constexpr int rows = 2;
 inline constexpr int cards = columns * rows;
 
-// The same grid, in the spelling wxl parses -- the winrt side builds the
-// definitions as objects instead, because it has no parser to write them for.
-// Pinned to the counts above, so a change to one is a compile error until the
-// other follows.
-inline constexpr const char16_t* cardColumns = u"*,*,*,*,*,*";
-inline constexpr const char16_t* cardRows = u"*,*";
-
-constexpr int definitionCount(std::u16string_view text) {
-    int counted = 1;
-    for (char16_t unit : text) {
-        if (unit == u',') {
-            ++counted;
-        }
-    }
-    return counted;
-}
-
-static_assert(definitionCount(cardColumns) == columns);
-static_assert(definitionCount(cardRows) == rows);
-
 // What one card holds, in order: a title, two buttons, a check box, two radio
 // buttons, a switch, a slider, a progress bar and a caption.
 inline constexpr int controlsPerCard = 10;

@@ -55,7 +55,7 @@ model->view.add_onSelectionChanged([model, objects](auto const&, auto&&...) {
 });
 
 auto example = Grid {
-    rowDefinitions = u"auto,*,auto",
+    RowDefinitions<u"auto,*,auto">,
     RichTextBlock {
         Margin {0, 0, 0, 15},
         textWrapping = TextWrapping::Wrap,

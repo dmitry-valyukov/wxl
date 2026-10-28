@@ -54,7 +54,7 @@ FrameworkElement picture(zstring_view path) {
 
 FrameworkElement heroHeader() {
     return Grid {
-        rowDefinitions = u"auto,auto,*",
+        RowDefinitions<u"auto,auto,*">,
         height = 400,
         Border {
             rowSpan = 3,
@@ -181,7 +181,7 @@ wxl::FrameworkElement gallery::homePage() {
     return ScrollViewer {
         verticalScrollBarVisibility = ScrollBarVisibility::Auto,
         content = Grid {
-            rowDefinitions = u"auto,auto,*",
+            RowDefinitions<u"auto,auto,*">,
             heroHeader(),
             bar,
             body,

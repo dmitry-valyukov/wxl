@@ -76,7 +76,7 @@ VirtualTree::VirtualTree() {
     // Клавиши — у корня: он берёт фокус, когда по дереву щёлкают. Дерево в
     // фокусе метит выбранную строку чертой цвета акцента.
     Apply {root_,
-        columnDefinitions = u"*,auto",
+        ColumnDefinitions<u"*,auto">,
         background = brushes.SubtleFillColor.Transparent,
         isTabStop = true,
         onKeyDown += [this](Grid const&, KeyRoutedEventArgs& args) { key(args); },

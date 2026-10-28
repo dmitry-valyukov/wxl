@@ -38,7 +38,7 @@ auto options = StackPanel {RadioButtons {
 }};
 
 auto example = Grid {
-    rowDefinitions = u"*,auto",
+    RowDefinitions<u"*,auto">,
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"You can add clickable menu items to the footer of your NavigationView that participate in the same selection model as items in "
                u"the main menu. In Top PaneDisplayMode, these items will appear aligned to the right of the NavigationView. In Left PaneDisplayMode, "

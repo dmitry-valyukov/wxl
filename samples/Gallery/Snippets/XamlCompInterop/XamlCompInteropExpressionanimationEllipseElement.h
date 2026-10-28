@@ -24,5 +24,5 @@ auto example = StackPanel {
     height = 200,
     TextBlock {styles.TextBlock.Body, u"Hover over the square to animate its scale. Notice that the ellipse also animates."},
     TextBlock {Margin {0, 0, 0, 12}, u"The scale of the circle is inversely related to the scale of the square."},
-    Grid {vAlign.top, columnDefinitions = u"*,*", rectangle, ellipse},
+    Grid {vAlign.top, ColumnDefinitions<u"*,*">, rectangle, ellipse},
 };

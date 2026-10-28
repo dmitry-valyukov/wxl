@@ -25,6 +25,14 @@ using namespace wxl::dsl;
 
 namespace {
 
+// The grid of scene_shape.h, in the spelling wxl parses when it compiles -- the winrt side builds
+// the definitions as objects instead. Pinned to the counts there, so a change to one is a compile
+// error until the other follows.
+constexpr auto cardColumns = ColumnDefinitions<u"*,*,*,*,*,*">;
+constexpr auto cardRows = RowDefinitions<u"*,*">;
+static_assert(cardColumns.size() == bench::columns);
+static_assert(cardRows.size() == bench::rows);
+
 // The shared scene keeps its colours as packed 0xAARRGGBB numbers, because
 // the WinRT side of the benchmark reads the same table.
 constexpr Color packed(uint32_t argb) {
@@ -118,7 +126,7 @@ Border card(int index, bench::CardText const& text) {
 // definitions are built as objects.
 Grid page(std::array<bench::CardText, bench::cards> const& texts) {
     return Grid{
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         rowSpacing = 12.0,
         Padding{12},
         background = SolidColorBrush{packed(bench::pageBackground)},
@@ -149,8 +157,8 @@ Grid page(std::array<bench::CardText, bench::cards> const& texts) {
 
         Grid{
             row = 1,
-            columnDefinitions = bench::cardColumns,
-            rowDefinitions = bench::cardRows,
+            cardColumns,
+            cardRows,
             rowSpacing = 10.0,
             columnSpacing = 10.0,
             [&](repeat<bench::cards> i) { return card(i, texts[i]); },

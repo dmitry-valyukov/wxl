@@ -113,8 +113,8 @@ FrameworkElement inlineColorPicker(char16_t const* header, core::observable<Colo
     return Grid {
         column = at,
         rowSpan = 2,
-        rowDefinitions = u"auto,auto",
-        columnDefinitions = u"auto,*",
+        RowDefinitions<u"auto,auto">,
+        ColumnDefinitions<u"auto,*">,
         TextBlock {columnSpan = 2, Margin {0, 0, 0, 12}, vAlign.bottom, styles.TextBlock.BodyStrong, header},
         SplitButton {
             row = 1,
@@ -143,7 +143,7 @@ FrameworkElement check(core::observable<bool>& passed, int rowNumber, char16_t c
     return Grid {
         row = rowNumber,
         columnSpacing = 8.0,
-        columnDefinitions = u"auto,auto,*",
+        ColumnDefinitions<u"auto,auto,*">,
         Grid {
             Margin {left, 0, 0, 0},
             Ellipse {width = 30, height = 30, vAlign.center, fill = BindOutput {passed, [](bool ok) { return solid(ok ? passGreen : failRed); }}},
@@ -169,8 +169,8 @@ FrameworkElement gallery::accessibilityColorContrastPage() {
         Padding {8},
         columnSpacing = 8.0,
         rowSpacing = 8.0,
-        rowDefinitions = u"auto,auto,auto",
-        columnDefinitions = u"auto,auto,auto,*",
+        RowDefinitions<u"auto,auto,auto">,
+        ColumnDefinitions<u"auto,auto,auto,*">,
         inlineColorPicker(u"Text Color", model->text, model->textHex, 0),
         inlineColorPicker(u"Background Color", model->backdrop, model->backdropHex, 1),
         TextBlock {column = 3, Margin {12, 0, 0, 0}, vAlign.center, styles.TextBlock.BodyStrong, u"Contrast Ratio"},
@@ -181,11 +181,11 @@ FrameworkElement gallery::accessibilityColorContrastPage() {
             minHeight = 300,
             Margin {12, 0, 12, 12},
             cornerRadius = CornerRadius {4},
-            columnDefinitions = u"*,*",
+            ColumnDefinitions<u"*,*">,
             Grid {
                 Padding {8},
                 background = brushes.Control.FillColor.Default,
-                rowDefinitions = u"*,*,*",
+                RowDefinitions<u"*,*,*">,
                 check(model->normalPass, 0, u"Regular text", u"Requires at least 4.5:1", 12),
                 check(model->largePass, 1, u"Large text (14 pt. bold or 18pt. regular)", u"Requires at least 3:1", 12),
                 check(model->componentsPass, 2, u"Graphical objects and UI components", u"Requires at least 3:1", 10),
@@ -194,7 +194,7 @@ FrameworkElement gallery::accessibilityColorContrastPage() {
                 column = 1,
                 Padding {8},
                 background = BindOutput {model->backdrop, textBrush},
-                rowDefinitions = u"*,*,*",
+                RowDefinitions<u"*,*,*">,
                 TextBlock {Padding {12, 0, 12, 0}, vAlign.center, textWrapping = TextWrapping::WrapWholeWords,
                            foreground = BindOutput {model->text, textBrush}, u"The quick brown fox jumped over the lazy fox."},
                 StackPanel {

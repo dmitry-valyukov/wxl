@@ -388,22 +388,25 @@ public:
         }
 
         const double inner = available - 1;  // левая линия рамки
-        core::sta_u16string spec;
+        pooled_vector<GridLength> lengths;
         if (max_total <= inner) {
-            for (std::size_t c = 0; c < count; ++c) spec += c ? u",auto" : u"auto";
+            lengths.assign(count, GridLength{1.0, GridUnitType::Auto});
         } else {
             const double spare = std::max(0.0, inner - min_total);
             const double room = max_total - min_total;
+            lengths.reserve(count);
             for (std::size_t c = 0; c < count; ++c) {
                 double width = narrowest[c];
                 if (room > 0) width += spare * (widest[c] - narrowest[c]) / room;
-                if (c) spec += u',';
-                append_digits(spec, std::max(1, static_cast<int>(std::floor(width))));
+                lengths.push_back({std::max(1.0, std::floor(width)), GridUnitType::Pixel});
             }
         }
-        if (spec == last_) return;
-        last_ = spec;
-        grid_.columnDefinitions(spec);
+        const auto same = [](const GridLength& left, const GridLength& right) {
+            return left.value == right.value && left.gridUnitType == right.gridUnitType;
+        };
+        if (std::ranges::equal(lengths, last_, same)) return;
+        impl::set_column_definitions(grid_, lengths);
+        last_ = std::move(lengths);
     }
 
     static void append_digits(core::sta_u16string& out, int number) {
@@ -428,7 +431,7 @@ private:
     pooled_vector<core::sta_u16string> words_;
     pooled_vector<bool> bold_;
     pooled_vector<double> narrow_;  // min-content ячейки; −1, пока не измерен
-    core::sta_u16string last_;
+    pooled_vector<GridLength> last_;
 };
 
 class builder
@@ -847,12 +850,11 @@ private:
         const int columns = static_cast<int>(reserved.size());
 
         Grid grid{};
-        core::sta_u16string spec;
-        for (int r = 0; r < rows; ++r) spec += r ? u",auto" : u"auto";
-        grid.rowDefinitions(spec);
-        spec.clear();
-        for (int c = 0; c < columns; ++c) spec += c ? u",auto" : u"auto";
-        grid.columnDefinitions(spec);
+        const pooled_vector<GridLength> autos(static_cast<std::size_t>(std::max(rows, columns)),
+                                              GridLength{1.0, GridUnitType::Auto});
+        impl::set_row_definitions(grid, std::span{autos}.first(static_cast<std::size_t>(rows)));
+        impl::set_column_definitions(grid,
+                                     std::span{autos}.first(static_cast<std::size_t>(columns)));
 
         // Рамка таблицы рисует левую и верхнюю линии, ячейки — правую и
         // нижнюю: каждая линия по одному разу.
@@ -954,8 +956,7 @@ private:
             if (!style.color) report(MarkupErrorKind::BadColor, color);
         }
         if (const zstring_view face = element.attribute_str(attr_t::face); !face.empty()) {
-            const std::u16string_view family = first_face(face);
-            if (!family.empty()) style.fontFamily = FontFamily{hstring{family}};
+            style.fontFamily = FontFamily{hstring{first_face(face)}};
         }
         if (const zstring_view size = element.attribute_str(attr_t::size); !size.empty()) {
             if (const core::nullable<double> scale = parse_font_scale(size)) {

@@ -23,8 +23,8 @@ const Preset field {
 };
 
 auto options = Grid {
-    rowDefinitions = u"*,*,*,*",
-    columnDefinitions = u"auto,auto",
+    RowDefinitions<u"*,*,*,*">,
+    ColumnDefinitions<u"auto,auto">,
     TextBlock {u"Minimum:", row = 0, column = 0},
     NumberBox {
         field, row = 0, column = 1, value = Bind {model->minimum}, automationAccessibilityView = AccessibilityView::Raw, automationName = u"Minimum",

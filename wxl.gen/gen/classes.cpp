@@ -1465,6 +1465,7 @@ void add_synthetic_members(class_source& source, closure const& cl, type_index c
                                /*returns_void=*/true, {{"value", std::move(use)}}};
             member.is_property_setter = true;
             member.synthetic_call = declaration.function;
+            member.positional = declaration.positional;
             info.members.push_back(std::move(member));
         }
     }
@@ -1808,6 +1809,7 @@ private:
             klass_.members.push_back({schema::member::kind_t::Property, member.winrt_name,
                                       member.name, value.value_type});
             klass_.members.back().braced = member.braced;
+            klass_.members.back().positional = member.positional;
         }
         if (member.braced) {
             d.braced.insert(member.winrt_name);
@@ -1833,7 +1835,7 @@ private:
             // literal mean two things. The property keeps its name.
             context_.m.withheld_routes.push_back(std::format(
                 "{}.{}: a string literal is already the text route", info.name, member.name));
-        } else if (value.value_type == member.winrt_name || is_content_element) {
+        } else if (value.value_type == member.winrt_name || is_content_element || member.positional) {
             // A route has to say something. `Object` says nothing --
             // every wrapper is one -- so a property typed that way keeps
             // its name whatever else it is.

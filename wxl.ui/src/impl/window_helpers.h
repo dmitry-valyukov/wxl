@@ -26,6 +26,29 @@ class DesktopAcrylicController;
 
 namespace wxl::impl {
 
+/// A window this code made and owns: destroyed when its owner goes. One the system destroyed
+/// first -- closed by the user, its last message (WM_NCDESTROY) come -- is let go of by release(),
+/// and nothing is destroyed twice. Made from a window that exists: whoever creates it throws on a
+/// failure first.
+class owned_window : core::noncopyable
+{
+public:
+    explicit owned_window(HWND window) noexcept : window_(window) {}
+
+    ~owned_window() {
+        if (window_) ::DestroyWindow(window_);
+    }
+
+    /// The window, or null once it is gone.
+    HWND get() const noexcept { return window_; }
+
+    /// The window is gone without this owner: nothing is left to destroy.
+    void release() noexcept { window_ = nullptr; }
+
+private:
+    HWND window_;
+};
+
 /// The smallest the user may make the window, in the raw pixels AppWindow itself works in. It is
 /// kept on the window's overlapped presenter, three hops from the Window, so wxl declares the
 /// property itself (the profile's syntheticMembers). A zero side is left unbounded, which is what

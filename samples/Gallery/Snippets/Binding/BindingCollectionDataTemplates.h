@@ -32,7 +32,7 @@ auto* const selected = &model->selected;
 auto example = Grid {
     columnSpacing = 16.0,
     minHeight = 250,
-    columnDefinitions = u"200,*",
+    ColumnDefinitions<u"200,*">,
     ListView {
         borderBrush = brushes.Card.StrokeColorDefault,
         BorderThickness {1},

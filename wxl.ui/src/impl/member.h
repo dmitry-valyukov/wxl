@@ -695,7 +695,7 @@ struct collection_tag {
 };
 
 // A collection that can also be given in one value: `rowDefinitions[a, b]` and
-// `rowDefinitions = L"2*,*"` are the same property said two ways. The subscript
+// `rowDefinitions = lengths` are the same property said two ways. The subscript
 // comes from one base and the assignment from the other; the using-declaration
 // keeps the assignment reachable past this type's own copy assignment.
 template <PropertyKey key, typename Value, typename Owner = void>

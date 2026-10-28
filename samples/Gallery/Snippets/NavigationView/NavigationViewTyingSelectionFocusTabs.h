@@ -26,7 +26,7 @@ auto const view = NavigationView {
 view.selectedItem(view.menuItems()[0]);
 
 auto example = Grid {
-    rowDefinitions = u"auto,auto",
+    RowDefinitions<u"auto,auto">,
     TextBlock {Margin {0, 0, 0, 12}, textWrapping = TextWrapping::WrapWholeWords,
                u"For the tabs pattern, ensure that you unify selection and focus by setting the SelectionFollowsFocus property to Enabled. If using "
                u"a Frame to swap out content, then navigating between items shouldn't be recorded into the Frame's navigation stack. Please see "

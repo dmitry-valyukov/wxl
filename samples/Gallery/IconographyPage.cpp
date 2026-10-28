@@ -209,7 +209,7 @@ FrameworkElement gallery::iconographyPage() {
                 Grid {
                     Margin {0, 0, 0, 24},
                     hAlign.stretch,
-                    columnDefinitions = u"auto,*",
+                    ColumnDefinitions<u"auto,*">,
                     Border {Margin {0, 0, 8, 0}, Padding {8}, hAlign.left, background = brushes.Control.FillColor.Default,
                             borderBrush = brushes.Control.StrokeColor.Default, BorderThickness {1}, cornerRadius = CornerRadius {4}, child = model->big},
                     model->warning,
@@ -233,7 +233,7 @@ FrameworkElement gallery::iconographyPage() {
 
     return Grid {
         rowSpacing = 8.0,
-        rowDefinitions = u"auto,auto",
+        RowDefinitions<u"auto,auto">,
         model->box,
         Border {
             row = 1,
@@ -241,7 +241,7 @@ FrameworkElement gallery::iconographyPage() {
             borderBrush = brushes.Card.StrokeColorDefault,
             BorderThickness {1},
             cornerRadius = CornerRadius {8},
-            child = Grid {columnDefinitions = u"*,334", model->view, side},
+            child = Grid {ColumnDefinitions<u"*,334">, model->view, side},
         },
     };
 }

@@ -87,6 +87,10 @@ struct member_info {
     // of a hop into the projection.
     std::string synthetic_call;
 
+    // A synthetic property whose value is also written unnamed (the profile's "positional"):
+    // it claims the class's positional route although its type is not named after it.
+    bool positional = false;
+
     // A method whose call a profile replaces (see ReplacedCall in profile.h): the body
     // calls this hand-written function with the arguments the projection call would
     // get, and the header declaring it belongs to the .cpp side.

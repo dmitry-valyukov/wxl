@@ -13,7 +13,7 @@ auto example = StackPanel {
     spacing = 12.0,
     Grid {
         columnSpacing = 12.0,
-        columnDefinitions = u"auto,auto,auto",
+        ColumnDefinitions<u"auto,auto,auto">,
         StackPanel {
             spacing = 8.0,
             TextBlock {FontWeight {600}, u"OneWay binding"},

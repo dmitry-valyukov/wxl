@@ -288,8 +288,8 @@ lab::Experiment lab::samplePage() {
         hAlign.center,
         vAlign.center,
         background = SolidColorBrush {color = rgb(30, 31, 34)},
-        rowDefinitions = u"*,*",
-        columnDefinitions = u"*,*,*",
+        RowDefinitions<u"*,*">,
+        ColumnDefinitions<u"*,*,*">,
         onLoaded += [model](Grid const& self) { model->connect(self); },
     };
 

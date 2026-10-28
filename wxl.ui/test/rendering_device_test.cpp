@@ -26,8 +26,8 @@
 #include <format>
 #include <functional>
 #include <latch>
+#include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -45,6 +45,7 @@
 #include "impl/rendering_device.h"
 #include "impl/rendering_devices.h"
 #include "impl/event_watch.h"
+#include "sta_box.h"
 
 namespace {
 
@@ -150,33 +151,14 @@ TEST(RenderingDeviceWatch, calls_its_owner_each_time_the_device_is_replaced) {
     fake_compositor compositor;
     Page page;
     replaced_watch watch{compositor, page};
-    EXPECT_TRUE(watch.attached());
 
     replace(compositor);
     replace(compositor);
     EXPECT_EQ(page.redraws, 2);
 }
 
-TEST(RenderingDeviceWatch, starts_empty_and_is_attached_later) {
-    fake_compositor compositor;
-    Page page;
-    replaced_watch watch;
-    EXPECT_FALSE(watch.attached());
-
-    replace(compositor);
-    EXPECT_EQ(page.redraws, 0);
-
-    watch.attach(compositor, page);
-    replace(compositor);
-    EXPECT_EQ(page.redraws, 1);
-}
-
-TEST(RenderingDeviceWatch, an_empty_watch_goes_quietly) {
-    {
-        replaced_watch watch;
-    }
-    SUCCEED();
-}
+// A watch is made on its compositor, and there is none without one.
+static_assert(!std::is_default_constructible_v<replaced_watch>);
 
 // Each owner of surfaces on one compositor hears the replacement; one gone, the other goes
 // on hearing it.
@@ -217,34 +199,23 @@ struct SelfRemoving {
         watch.reset();
     }
 
-    std::optional<event_watch<fake_compositor, fake_replaced, &SelfRemoving::deviceReplaced>> watch;
+    using watch_box = wxl::test::sta_box<
+        event_watch<fake_compositor, fake_replaced, &SelfRemoving::deviceReplaced>>;
+    std::unique_ptr<watch_box> watch;
 };
 
 TEST(RenderingDeviceWatch, goes_from_inside_its_own_call) {
     fake_compositor compositor;
     SelfRemoving owner;
-    owner.watch.emplace(compositor, owner);
+    owner.watch = std::make_unique<SelfRemoving::watch_box>(compositor, owner);
 
     replace(compositor);
-    EXPECT_FALSE(owner.watch.has_value());
+    EXPECT_EQ(owner.watch, nullptr);
     replace(compositor);
     EXPECT_EQ(owner.redraws, 1);
 }
 
 void without_a_dialog() { _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT); }
-
-void attach_twice() {
-    without_a_dialog();
-    fake_compositor first;
-    fake_compositor second;
-    Page page;
-    replaced_watch watch{first, page};
-    watch.attach(second, page);
-}
-
-TEST(RenderingDeviceWatchDeathTest, attaching_twice_stops) {
-    EXPECT_DEATH(attach_twice(), "an event watch is attached twice");
-}
 
 // The token is the watch's: whoever takes the handler off by it takes away what the watch's
 // destructor counts on. The list's last token is the watch's: nothing else was added.

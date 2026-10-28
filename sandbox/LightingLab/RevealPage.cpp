@@ -142,8 +142,8 @@ lab::Experiment lab::revealPage() {
         background = SolidColorBrush {color = rgb(30, 31, 34)},
         CornerRadius {12},
         Padding {10},
-        rowDefinitions = u"*,*,*,*",
-        columnDefinitions = u"*,*,*,*",
+        RowDefinitions<u"*,*,*,*">,
+        ColumnDefinitions<u"*,*,*,*">,
     };
 
     for (int index = 0; index < 16; ++index) {

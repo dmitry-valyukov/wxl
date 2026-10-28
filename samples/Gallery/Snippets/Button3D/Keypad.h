@@ -106,8 +106,8 @@ auto example = Border {
             hAlign.left,
             rowSpacing = 10,
             columnSpacing = 10,
-            rowDefinitions = u"66,66,66,66",
-            columnDefinitions = u"86,86,86,86",
+            RowDefinitions<u"66,66,66,66">,
+            ColumnDefinitions<u"86,86,86,86">,
             [&](iterate<u"789÷456×123−0,=+"> symbol) {
                 return Button {
                     symbol.text(),

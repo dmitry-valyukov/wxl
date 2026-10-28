@@ -16,6 +16,7 @@
 #include "../Object.impl.h"
 #include <wxl/Microsoft.UI.Xaml.Controls.h>
 #include <wxl/Microsoft.UI.Xaml.Controls.impl.h>
+#include <wxl/Structs.impl.h>
 
 // Imports last, after every plain header.
 import wxl.core;
@@ -24,74 +25,48 @@ namespace wxl::impl {
 
 namespace {
 
-using winrt::Microsoft::UI::Xaml::GridLength;
-using winrt::Microsoft::UI::Xaml::GridUnitType;
-
-// "*", "2*", "auto", "120" -- the four forms, in the order they are told
-// apart. A star with no number in front of it is one share.
-std::optional<GridLength> parse_length(std::u16string_view entry) {
-    if (entry.empty()) {
-        return std::nullopt;
+// The one building of a grid's definitions, whether the lengths were parsed from a text or
+// computed: the old ones go, and one definition per length is appended in order.
+void build_rows(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
+                std::span<GridLength const> lengths) {
+    auto const rows = grid.RowDefinitions();
+    rows.Clear();
+    for (GridLength const length : lengths) {
+        winrt::Microsoft::UI::Xaml::Controls::RowDefinition row;
+        row.Height(to_winrt(length));
+        rows.Append(row);
     }
-    if (entry == u"auto" || entry == u"Auto") {
-        return GridLength{1.0, GridUnitType::Auto};
-    }
-
-    bool const star = entry.back() == u'*';
-    if (star) {
-        entry.remove_suffix(1);
-        if (entry.empty()) {
-            return GridLength{1.0, GridUnitType::Star};
-        }
-    }
-
-    // The whole entry has to be the number, read straight out of the view: no
-    // copy to get a terminator, and no locale to decide what a decimal point
-    // is. std::wcstod read the process's LC_NUMERIC, so "1.5*" would have
-    // become 1 wherever that had been set to a comma.
-    // A grid is described on the GUI thread, so the narrowing buffer -- should
-    // an entry ever outgrow its stack half -- comes from that thread's pool.
-    double value = 0;
-    if (!wxl::core::try_parse<wxl::core::sta_allocator>(entry, value)) {
-        return std::nullopt;
-    }
-    return GridLength{value, star ? GridUnitType::Star : GridUnitType::Pixel};
 }
 
-// Each comma-separated entry in turn, as a GridLength.
-template <typename Add>
-void parse_each(std::u16string_view spec, Add add) {
-    for (std::u16string_view const entry : wxl::core::split(spec, u',')) {
-        if (auto const length = parse_length(wxl::core::trim(entry))) {
-            add(*length);
-        }
+void build_columns(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
+                   std::span<GridLength const> lengths) {
+    auto const columns = grid.ColumnDefinitions();
+    columns.Clear();
+    for (GridLength const length : lengths) {
+        winrt::Microsoft::UI::Xaml::Controls::ColumnDefinition column;
+        column.Width(to_winrt(length));
+        columns.Append(column);
     }
 }
 
 }  // namespace
 
 void set_row_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                         hstring_param const& text) {
-    std::u16string_view const spec = text.text().view();
-    auto const rows = grid.RowDefinitions();
-    rows.Clear();
-    parse_each(spec, [&](GridLength const& length) {
-        winrt::Microsoft::UI::Xaml::Controls::RowDefinition row;
-        row.Height(length);
-        rows.Append(row);
-    });
+                         RowLengths const& rows) {
+    build_rows(grid, rows.lengths());
 }
 
 void set_column_definitions(winrt::Microsoft::UI::Xaml::Controls::Grid const& grid,
-                            hstring_param const& text) {
-    std::u16string_view const spec = text.text().view();
-    auto const columns = grid.ColumnDefinitions();
-    columns.Clear();
-    parse_each(spec, [&](GridLength const& length) {
-        winrt::Microsoft::UI::Xaml::Controls::ColumnDefinition column;
-        column.Width(length);
-        columns.Append(column);
-    });
+                            ColumnLengths const& columns) {
+    build_columns(grid, columns.lengths());
+}
+
+void set_row_definitions(Grid const& grid, std::span<GridLength const> lengths) {
+    build_rows(*Object::Impl::get_typed<Grid>(grid), lengths);
+}
+
+void set_column_definitions(Grid const& grid, std::span<GridLength const> lengths) {
+    build_columns(*Object::Impl::get_typed<Grid>(grid), lengths);
 }
 
 namespace {

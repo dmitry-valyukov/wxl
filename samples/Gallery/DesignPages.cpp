@@ -32,7 +32,7 @@ FrameworkElement typographyExample() {
     auto const heading = Grid {
         hAlign.stretch,
         Margin {0, 48, 0, 24},
-        columnDefinitions = u"272,136,112,164",
+        ColumnDefinitions<u"272,136,112,164">,
         gallery::designColumnTitle(u"Example", 0, 16),
         gallery::designColumnTitle(u"Variable Font", 1),
         gallery::designColumnTitle(u"Size/Line height", 2),
@@ -67,7 +67,7 @@ FrameworkElement geometryExample() {
     auto const heading = Grid {
         hAlign.stretch,
         Margin {0, 48, 0, 24},
-        columnDefinitions = u"148,*,112",
+        ColumnDefinitions<u"148,*,112">,
         gallery::designColumnTitle(u"Corner radius", 0, 16),
         gallery::designColumnTitle(u"Usage", 1),
         gallery::designColumnTitle(u"Style", 2),
@@ -94,7 +94,7 @@ FrameworkElement geometryExample() {
 
 Grid spacingRow(char16_t const* value, double size, char16_t const* usage, bool shaded, double top = 0) {
     auto row = gallery::designRow(shaded, Thickness {0, top, 0, 0});
-    row.columnDefinitions(u"86,136,*");
+    row.columnDefinitions(ColumnDefinitions<u"86,136,*">);
     row.children().append(TextBlock {Margin {16, 0, 0, 0}, vAlign.center, value});
     row.children().append(Border {column = 1, width = size, height = 20, hAlign.left, cornerRadius = CornerRadius {4},
                                   background = brushes.Accent.FillColor.Default});
@@ -106,7 +106,7 @@ FrameworkElement spacingExample(char16_t const* title, char16_t const* stem, dou
     return Grid {
         vAlign.top,
         rowSpacing = 12.0,
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         TextBlock {hAlign.center, styles.TextBlock.Subtitle, title},
         Border {row = 1, gallery::themedImage(stem, height)},
     };
@@ -184,7 +184,7 @@ FrameworkElement gallery::spacingPage() {
                     Grid {
                         Margin {16, 0, 0, 0},
                         hAlign.stretch,
-                        columnDefinitions = u"206,*",
+                        ColumnDefinitions<u"206,*">,
                         gallery::designColumnTitle(u"Value"),
                         gallery::designColumnTitle(u"Usage", 1),
                     },

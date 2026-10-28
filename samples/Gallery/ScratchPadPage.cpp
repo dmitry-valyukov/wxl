@@ -91,15 +91,15 @@ FrameworkElement gallery::scratchPadPage() {
 
     return Grid {
         height = 640,
-        rowDefinitions = u"*,*",
+        RowDefinitions<u"*,*">,
         Border {borderBrush = brushes.DividerStrokeColorDefault, BorderThickness {0, 0, 0, 1}, child = model->pad},
         Grid {
             row = 1,
             Padding {12},
             columnSpacing = 12.0,
             rowSpacing = 8.0,
-            rowDefinitions = u"*,auto",
-            columnDefinitions = u"*,auto",
+            RowDefinitions<u"*,auto">,
+            ColumnDefinitions<u"*,auto">,
             model->editor,
             StackPanel {
                 column = 1,

@@ -88,7 +88,7 @@ FrameworkElement card(std::u16string head, std::u16string descr) {
             background = brushes.Card.BackgroundFillColor.Default,
             CornerRadius {4}, Padding {16, 12}, minHeight = 68,
             Grid {
-                columnDefinitions = u"*,auto",
+                ColumnDefinitions<u"*,auto">,
                 StackPanel {TextBlock {head, textWrapping.wrapWholeWords}, TextBlock {descr, textWrapping.wrapWholeWords}},
                 ComboBox {column = 1, ComboBoxItem {content = u"Left"}, ComboBoxItem {content = u"Top"}, selectedIndex = 0},
             },
@@ -181,7 +181,7 @@ FrameworkElement dslPage() {
                                             : FrameworkElement(ScrollViewer {name = u"V", row = 1, Padding {36, 0}, content = stack});
     return Grid {
         name = u"G",
-        rowDefinitions = u"auto,*",
+        RowDefinitions<u"auto,*">,
         TextBlock {u"Settings", Margin {36, 24, 36, 0}, maxWidth = 1064, styles.TextBlock.Title},
         scroller,
     };
@@ -243,7 +243,7 @@ wxl::Teardown wxl_launched() {
     L("nav built"); navigationView = nav;
     mainWindow = Window {
         title = u"Shift probe",
-        content = Grid {rowDefinitions = u"auto,*", TextBlock {u"title bar"}, nav},
+        content = Grid {RowDefinitions<u"auto,*">, TextBlock {u"title bar"}, nav},
     };
     L("window built"); if (!has("resizelate")) mainWindow->appWindow().resize({1280, 800});
     if (!has("late")) {

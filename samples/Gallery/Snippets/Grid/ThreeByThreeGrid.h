@@ -6,8 +6,8 @@ auto grid = Grid {
     width = 240,
     height = 160,
     background = colors.gray,
-    columnDefinitions = u"50,50,50",
-    rowDefinitions = u"50,50,50",
+    ColumnDefinitions<u"50,50,50">,
+    RowDefinitions<u"50,50,50">,
     columnSpacing = 8.0,
     rowSpacing = 8.0,
     red,
@@ -75,8 +75,8 @@ auto redRowSlider = Slider {
 };
 
 auto options = Grid {
-    columnDefinitions = u"auto,auto",
-    rowDefinitions = u"auto,auto,auto,auto",
+    ColumnDefinitions<u"auto,auto">,
+    RowDefinitions<u"auto,auto,auto,auto">,
     columnSpacing = 12.0,
     rowSpacing = 12.0,
     TextBlock {u"Grid"},

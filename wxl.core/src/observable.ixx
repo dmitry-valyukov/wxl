@@ -290,7 +290,9 @@ concept change_listener = requires(Owner& owner, Argument change) {
  *
  * The watch is itself the node in the field's event, so standing there allocates
  * nothing and leaves no token to keep: the destructor takes the node off by its own
- * address. One made empty stands nowhere until attach() puts it on a field, once.
+ * address. There is no watch on nothing: one is made on its field, from the start of its
+ * owner's life, and a watch that has to wait for its field is a part of its owner that
+ * appears then, built whole.
  *
  * The rules are those of any node built into its subscriber, and each one broken
  * stops the process rather than leave the event holding freed memory: the field
@@ -308,44 +310,28 @@ class change_watch final : public Observed::changed_event::func_t
     using owner_t = typename impl::member_owner<decltype(Listener)>::type;
 
 public:
-    /// A watch on no field yet: see attach().
-    change_watch() noexcept = default;
+    /// A watch on `field`, calling the listener on `owner` at each change. The node is put on
+    /// the field last, once the watch is whole.
+    change_watch(Observed& field, owner_t& owner) noexcept : field_(&field), owner_(&owner) {
+        // Checked here and not in the class: the watch is declared inside its owner, which is
+        // not complete there, and a member cannot be called on it yet.
+        static_assert(impl::change_listener<Listener, owner_t, argument_t>,
+                      "wxl: a change_watch calls a member of its owner with the change, from "
+                      "inside the field's event, which has nobody to hand an exception to -- name "
+                      "a noexcept member that takes the change and returns nothing");
+        static_cast<void>(field.on_change(as_not_null<func_t>(this)));
+    }
 
-    /// A watch on `field` from the start, calling `owner`.
-    change_watch(Observed& field, owner_t& owner) noexcept { attach(field, owner); }
-
-    /// Takes the watch off its field, if it is on one.
+    /// Takes the watch off its field. field_ is cleared first, so that the release() the field
+    /// gives in return tells this removal from any other.
     ~change_watch() override {
         Observed* const field = std::exchange(field_, nullptr);
-        if (!field) return;
-
         if (!field->remove_change(static_cast<func_t&>(*this)))
             abort("wxl: a change_watch is no longer on its field");
         // The event lets go of a removed node at once, unless that node's call is under
         // way: then only once the call returns -- into a watch that is gone by then.
         if (owner_) abort("wxl: a change_watch is destroyed from inside its own call");
     }
-
-    /// Puts the watch on `field`: from now on each change calls the listener on
-    /// `owner`. Once -- a watch names one field for its life, and a second attach
-    /// stops the process rather than leave the first field calling the owner or
-    /// move the watch behind the back of whoever put it there.
-    void attach(Observed& field, owner_t& owner) noexcept {
-        // Checked here and not in the class: the watch is declared inside its owner,
-        // which is not complete there, and a member cannot be called on it yet.
-        static_assert(impl::change_listener<Listener, owner_t, argument_t>,
-                      "wxl: a change_watch calls a member of its owner with the change, from "
-                      "inside the field's event, which has nobody to hand an exception to -- name "
-                      "a noexcept member that takes the change and returns nothing");
-
-        if (field_) abort("wxl: a change_watch is attached twice");
-        field_ = &field;
-        owner_ = &owner;
-        static_cast<void>(field.on_change(as_not_null<func_t>(this)));
-    }
-
-    /// Whether the watch is on a field.
-    bool attached() const noexcept { return field_ != nullptr; }
 
 private:
     void operator()(argument_t change) noexcept override { (owner_->*Listener)(change); }
@@ -359,10 +345,11 @@ private:
         owner_ = nullptr;
     }
 
-    Observed* field_ = nullptr;
+    // Cleared by the destructor before it takes the node off.
+    Observed* field_;
     // Cleared when the field lets go of the node: still set after the destructor has
     // taken the node off, it says the release was put off for a call under way.
-    owner_t* owner_ = nullptr;
+    owner_t* owner_;
 };
 
 }  // export namespace wxl::core

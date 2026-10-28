@@ -28,7 +28,7 @@ auto const listPage = [model, objects, items, connectedImage] {
         itemTemplate = [objects](Object const& item) {
             auto const& object = (*objects)[static_cast<size_t>(unboxValue<int64_t>(item))];
             return Grid {Margin {0, 12, 0, 12},
-                         columnDefinitions = u"auto,*",
+                         ColumnDefinitions<u"auto,*">,
                          Image {name = u"connectedElement", maxHeight = 100, minWidth = 150, stretch = Stretch::Fill, source = object.imageLocation},
                          StackPanel {column = 1, Margin {12, 0, 0, 0},
                                      TextBlock {Margin {0, 0, 0, 6}, hAlign.left, styles.TextBlock.Subtitle, object.title},

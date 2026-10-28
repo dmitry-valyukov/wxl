@@ -37,7 +37,7 @@ namespace wxl {
 struct TextStyle {
     core::nullable<Color> color;
     core::nullable<double> fontSize;
-    std::optional<FontFamily> fontFamily;
+    FontFamily fontFamily;  // its own empty value is "inherit": a null FontFamily to WinUI
     core::nullable<bool> bold;
     core::nullable<bool> italic;
     core::nullable<bool> underline;
