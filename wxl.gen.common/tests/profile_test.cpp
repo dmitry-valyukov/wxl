@@ -255,7 +255,8 @@ TEST(profile, a_minimum_that_is_not_a_version_is_refused) {
     auto const release = directory / L"release.winxl-profile";
     write(release, R"({"minimumWindowsAppSdk": "latest"})");
     auto const package = directory / L"package.winxl-profile";
-    write(package, R"json({"packages": [{"id": "Test.Package", "minimumVersion": "[1.0,2.0)"}]})json");
+    write(package,
+          R"json({"packages": [{"id": "Test.Package", "minimumVersion": "[1.0,2.0)"}]})json");
     // A key that is there names a version, and an empty one names none.
     auto const empty_release = directory / L"empty_release.winxl-profile";
     write(empty_release, R"({"minimumWindowsAppSdk": ""})");
