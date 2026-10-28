@@ -484,9 +484,8 @@ function(_wxl_packages)
             "(find_package(cppwinrt) and its package) and link wxl's Microsoft::CppWinRT.")
     endif()
 
-    # The top-level source directory is the wxl tree itself (its root, or
-    # wxl.ui configured on its own), or a project that adds wxl as a
-    # subdirectory or through FetchContent.
+    # The top-level source directory is the wxl tree itself, or a project that
+    # adds wxl as a subdirectory or through FetchContent.
     cmake_path(IS_PREFIX _WXL_PACKAGES_TREE "${CMAKE_SOURCE_DIR}" NORMALIZE wxl_is_top_level)
 
     # The tree is configured without a toolchain file. A cache that still names

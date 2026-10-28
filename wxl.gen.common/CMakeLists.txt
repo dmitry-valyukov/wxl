@@ -40,8 +40,12 @@ target_link_libraries(wxl.gen.common
 
 wxl_set_target_folders(wxl.gen.common)
 
-if(BUILD_TESTING)
+if(WXL_TESTS)
     add_subdirectory(tests)
 endif()
 
-add_subdirectory(bench)
+# Built whenever the tree is the project; in a project that adds wxl, only with
+# the other benchmarks (WXL_BUILD_BENCHMARKS).
+if(PROJECT_IS_TOP_LEVEL OR WXL_BUILD_BENCHMARKS)
+    add_subdirectory(bench)
+endif()

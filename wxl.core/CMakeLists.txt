@@ -1,31 +1,10 @@
 # ---- CMakeList.txt : wxl.core ----
 #
-# Builds both as part of the tree's common top-level project and on its own.
-# Standalone, it has to do the setup the top level otherwise does: open the
-# `import std;` gate, call project(), find the shared dependencies.
-cmake_minimum_required(VERSION 4.3)
+# A subdirectory of the tree's project (the root CMakeLists.txt), which sets the
+# language and includes the helpers before it.
 
 # Every CMake script in this tree is shared, one level up.
 set(WXL_CMAKE_SCRIPT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
-
-if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    set(WXL_CORE_STANDALONE ON)
-
-    # src/CMakeLists.txt sets CXX_MODULE_STD ON, which CMake keeps behind an
-    # experimental gate that only the top-level project can open, and only
-    # before project().
-    include(${WXL_CMAKE_SCRIPT_DIR}/wxl_import_std_gate.cmake)
-
-    project(
-        wxl.core VERSION 0.1.0
-        DESCRIPTION "Winui Xaml-Less library (wxl) -- core runtime"
-        LANGUAGES CXX
-    )
-
-    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-    set(CMAKE_CXX_STANDARD 23)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endif()
 
 # No link-time optimization here either, and for the reason spelled out at the
 # root of the wxl tree: measured, /GL + /LTCG neither shrinks the binaries nor
@@ -34,8 +13,6 @@ endif()
 # order of magnitude larger, since a /GL object holds an intermediate
 # representation rather than machine code.
 
-option(BUILD_TESTING "Build the testing tree." ON)
-
 # Precompiled header built from src/pch.h (platform.h + abi.h -- i.e. <windows.h>
 # and the fixed-width/assert plumbing). Purely a build-speed knob: every source
 # already includes those headers explicitly, so turning it off changes nothing
@@ -43,55 +20,14 @@ option(BUILD_TESTING "Build the testing tree." ON)
 # the module-unit interaction is worth being able to bisect out.
 option(WXL_ENABLE_PCH "Use a precompiled header (src/pch.h) for wxl.core." ON)
 
-# Off by default: the benchmarks are measurement tools, run deliberately, and
-# an ordinary build has no reason to spend time on them.
-option(WXL_BUILD_BENCHMARKS "Build the wxl.core benchmark executables." OFF)
-
-# Install/export rules. Off by default when wxl is a subproject (FetchContent):
-# a consumer's `cmake --install` should not start dropping wxl's archives and
-# module sources into its prefix unless it asks for it.
-option(WXL_INSTALL "Generate install and export rules for wxl." ${WXL_CORE_STANDALONE})
-
-# Refresh .vscode/c_cpp_properties.json after building, so that the editor sees
-# the module interfaces of the configuration just built (see tools/
-# gen-intellisense-config.ps1 and docs/editor.md). Off unless asked for: the step
-# rewrites a file in the source tree, which a build does only on request. It is
-# for wxl.core configured on its own: the script path and the build directory it
-# reads are taken from PROJECT_SOURCE_DIR and PROJECT_BINARY_DIR, which are
-# wxl.core's only when wxl.core is the project. Even then the step is a no-op
-# unless the build was started from an IDE.
-option(WXL_UPDATE_INTELLISENSE
-    "Refresh .vscode/c_cpp_properties.json after an IDE-driven build."
-    OFF)
-
-if(BUILD_TESTING)
-    enable_testing()
-    include(${WXL_CMAKE_SCRIPT_DIR}/wxl_gtest.cmake)
-    find_package(GTest REQUIRED CONFIG)
-    include(GoogleTest)
-endif()
-
-# winmd::reader is a header-only WinMD metadata parsing library, fetched from
-# its upstream repository at a pinned commit.
-include(FetchContent)
-FetchContent_Declare(
-    winmd
-    GIT_REPOSITORY https://github.com/microsoft/winmd.git
-    GIT_TAG a363c851a65c4e15743d6589acc1723e9e21b143 # master, 2026-08
-)
-FetchContent_MakeAvailable(winmd)
-
-include(${WXL_CMAKE_SCRIPT_DIR}/config.cmake)
-
-# The top-level project defines the same target when this is a subproject.
-if(NOT TARGET winmd_reader)
-    add_library(winmd_reader INTERFACE)
-    target_include_directories(winmd_reader INTERFACE ${winmd_SOURCE_DIR}/src)
-endif()
+# Install/export rules. Off by default: a consumer's `cmake --install` should
+# not start dropping wxl's archives and module sources into its prefix unless it
+# asks for it.
+option(WXL_INSTALL "Generate install and export rules for wxl." OFF)
 
 add_subdirectory(src)
 
-if(BUILD_TESTING)
+if(WXL_TESTS)
     add_subdirectory(tests)
 endif()
 
@@ -171,13 +107,4 @@ if(WXL_INSTALL)
         VERSION ${PROJECT_VERSION}
         COMPATIBILITY ExactVersion
     )
-endif()
-
-# Служебный таргет для отображения общих CMake-скриптов в IDE -- только когда
-# wxl.core собирается сам по себе: в общем проекте такой таргет уже создан на
-# верхнем уровне.
-if(WXL_CORE_STANDALONE)
-    file(GLOB_RECURSE _wxl_cmake_scripts CONFIGURE_DEPENDS "${WXL_CMAKE_SCRIPT_DIR}/*.*")
-    add_custom_target(cmake_files SOURCES ${_wxl_cmake_scripts})
-    source_group("cmake" FILES ${_wxl_cmake_scripts})
 endif()
