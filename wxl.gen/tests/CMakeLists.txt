@@ -13,10 +13,13 @@ wxl_add_gtest(wxl.gen.tests
 )
 
 # The type mapping is tested on the generator's real profiles and the metadata
-# they name, which is where the generator's output comes from.
+# they name, which is where the generator's output comes from: the packages and
+# the Windows SDK of this build, as its configure lists them.
+wxl_restored_packages_file(_wxl_gen_restored_packages)
 target_compile_definitions(wxl.gen.tests
     PRIVATE
         WXL_GEN_PROFILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../profiles"
+        WXL_RESTORED_PACKAGES="${_wxl_gen_restored_packages}"
 )
 
 # The arguments are parsed in winui-srcgen itself, not in the library, so the
@@ -25,8 +28,8 @@ target_compile_definitions(wxl.gen.tests
 # PASS_REGULAR_EXPRESSION alone ignores the code, and WILL_FAIL would invert
 # the match. The refusal comes before the profile is read.
 set(_wxl_gen_doc_language
-    winui-srcgen --profile "${CMAKE_CURRENT_SOURCE_DIR}/../profiles/base.json"
-    --docs --doc-language)
+    winui-srcgen --profile "${CMAKE_CURRENT_SOURCE_DIR}/../profiles/base.winxl-profile"
+    --packages "${_wxl_gen_restored_packages}" --docs --doc-language)
 add_test(NAME winui-srcgen.unknown-doc-language.message COMMAND ${_wxl_gen_doc_language} pt)
 set_tests_properties(winui-srcgen.unknown-doc-language.message PROPERTIES
     PASS_REGULAR_EXPRESSION "--doc-language pt is not a language of the reference")
@@ -41,3 +44,13 @@ set_tests_properties(winui-srcgen.empty-doc-language.message PROPERTIES
     PASS_REGULAR_EXPRESSION "--doc-language  is not a language of the reference")
 add_test(NAME winui-srcgen.empty-doc-language.fails COMMAND ${_wxl_gen_doc_language} "")
 set_tests_properties(winui-srcgen.empty-doc-language.fails PROPERTIES WILL_FAIL TRUE)
+
+# A run without the list of the restored packages stops before it reads a
+# profile, and says where the list comes from.
+set(_wxl_gen_no_packages
+    winui-srcgen --profile "${CMAKE_CURRENT_SOURCE_DIR}/../profiles/base.winxl-profile")
+add_test(NAME winui-srcgen.no-packages.message COMMAND ${_wxl_gen_no_packages})
+set_tests_properties(winui-srcgen.no-packages.message PROPERTIES
+    PASS_REGULAR_EXPRESSION "--packages <build>/wxl.packages/restored-packages.json")
+add_test(NAME winui-srcgen.no-packages.fails COMMAND ${_wxl_gen_no_packages})
+set_tests_properties(winui-srcgen.no-packages.fails PROPERTIES WILL_FAIL TRUE)

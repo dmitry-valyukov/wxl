@@ -181,16 +181,17 @@ run a sample:
 
 ```powershell
 # 1. Configure the tree and build the winui-srcgen tool without the documentation site.
-#    The configure restores the NuGet packages (pinned in wxl.gen/profiles/base.json and
-#    tools/packages.json, resolved into tools/packages.lock.json) and builds the cppwinrt
-#    projection in the build directory
+#    The configure restores the NuGet packages (pinned in tools/packages.json, resolved into
+#    tools/packages.lock.json and listed in build\x64\wxl.packages\restored-packages.json)
+#    and builds the cppwinrt projection in the build directory
 tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
 
 # 2. Deploy the experimental Windows App Runtime from the package the configure restored
 pwsh -NoProfile -File tools\install-runtime.ps1
 
 # 3. Run the generator to build the full profile of WinUI wrappers
-build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
+#    from the packages the configure restored
+build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.winxl-profile --packages build\x64\wxl.packages\restored-packages.json
 
 # 4. Configure CMake and build the Quadratic sample project
 tools\build.ps1 -Configure -Target sample.quadratic
@@ -251,8 +252,8 @@ tested on a par with Debug.
 ### Code generation limitations
 
 - **Profile contents.** **wxl** contains only those **WinUI** types and members that
-  are listed in the `wxl.gen/profiles/full.json` profile. To add anything
-  missing, extend the profile and regenerate the wrappers.
+  are listed in the `wxl.gen/profiles/full.winxl-profile` profile. To add
+  anything missing, extend the profile and regenerate the wrappers.
 - **Inheritance with overriding (Overrides).** A custom subclass of a **WinUI**
   class that overrides methods through the `I<Class>Overrides` interfaces is
   not supported yet: the COM interface aggregation prototype in

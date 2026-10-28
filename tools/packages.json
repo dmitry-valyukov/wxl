@@ -1,7 +1,8 @@
 {
-    "comment": "The NuGet packages the tree builds against besides the Windows App SDK release that \"windowsAppSdk\" in wxl.gen/profiles/base.json names. Each version is a minimum: NuGet takes the lowest version that satisfies every reference. cmake/wxl_packages.cmake reads this file at configure: the release (the umbrella package Microsoft.WindowsAppSDK, whose dependencies are the packages of the release) and the \"extra\" packages become the PackageReference items of its helper MSBuild project, whose restore writes what it resolved into tools/packages.lock.json. Microsoft.Windows.CppWinRT carries cppwinrt.exe and the MSBuild targets that build the C++/WinRT projection of the Windows SDK and of the packages.",
+    "comment": "The NuGet packages the tree builds against. Each version is a minimum: NuGet takes the lowest version that satisfies every reference. cmake/wxl_packages.cmake reads this file at configure: every package becomes a PackageReference item of its helper MSBuild project, whose restore writes what it resolved into tools/packages.lock.json and the configure into the list <build>/wxl.packages/restored-packages.json, which winui-srcgen and wxl.gen.ui read their packages from. Microsoft.WindowsAppSDK is the umbrella package of the Windows App SDK release the tree builds against, and its dependencies are the packages of that release. The release is an experimental one: the profile full projects types that the WinUI of the stable releases 2.5.1 and 2.6.4 does not declare (WrapPanel, LayoutPanel, FlowLayout, PagerControl and the ink controls). Microsoft.Windows.CppWinRT carries cppwinrt.exe and the MSBuild targets that build the C++/WinRT projection of the Windows SDK and of the packages.",
 
-    "extra": [
+    "packages": [
+        { "id": "Microsoft.WindowsAppSDK", "version": "2.5.4-experimental" },
         { "id": "Microsoft.Graphics.Win2D", "version": "1.4.0" },
         { "id": "Microsoft.Web.WebView2", "version": "1.0.4078.44" },
         { "id": "Microsoft.Windows.CppWinRT", "version": "2.0.250303.1" }

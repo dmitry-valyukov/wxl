@@ -5,8 +5,6 @@
         "base"
     ],
 
-    "windowsAppSdk": "2.5.4-experimental",
-
     "packages": [
         {
             "id": "Microsoft.WindowsAppSDK.InteractiveExperiences",

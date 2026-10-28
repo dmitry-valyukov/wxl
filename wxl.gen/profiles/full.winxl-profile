@@ -5,7 +5,14 @@
         "rich"
     ],
 
-    "windowsAppSdk": "2.5.4-experimental",
+    // The Windows App SDK release this profile needs at least. It projects types
+    // of Microsoft.UI.Xaml.Controls that the WinUI of the experimental release
+    // 2.5.4-experimental (WinUI 2.3.10-experimental) declares and the WinUI of the
+    // stable releases 2.5.1 and 2.6.4 does not: WrapPanel, LayoutPanel, FlowLayout,
+    // PagerControl, InkCanvas, InkPresenter, InkStrokeContainer, InkToolbar and the
+    // InkToolbar tool buttons. With a release that lacks them the generator stops
+    // and names them.
+    "minimumWindowsAppSdk": "2.5.4-experimental",
     "windowsMetadata": true,
 
     "packages": [
@@ -21,7 +28,7 @@
         },
         {
             "id": "Microsoft.Graphics.Win2D",
-            "version": "1.4.0",
+            "minimumVersion": "1.4.0",
             "metadataDir": "lib/uap10.0",
             "comment": "Lighting: the effect descriptions a composition effect graph is written in (Microsoft.Graphics.Canvas.Effects). Only the descriptions are wrapped -- an effect here is a set of properties the compositor reads, nothing is drawn through Win2D. tools/packages.json pins the same version."
         }

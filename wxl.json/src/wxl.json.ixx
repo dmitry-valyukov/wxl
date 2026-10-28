@@ -16,10 +16,11 @@
 // present in the document as bytes, so such a string is assembled in the arena.
 //
 // Comments are always accepted, and there is no switch for them: wxl's own
-// configuration files (`wxl.gen/profiles/*.json`) carry comments that explain
-// the settings next to them. Everything else follows RFC 8259 strictly: no
-// trailing comma, no unquoted member name, no leading zero in a number, because
-// misreading a document costs more than rejecting it.
+// configuration files (the profiles `wxl.gen/profiles/*.winxl-profile` and the
+// tables beside them) carry comments that explain the settings next to them.
+// Everything else follows RFC 8259 strictly: no trailing comma, no unquoted
+// member name, no leading zero in a number, because misreading a document costs
+// more than rejecting it.
 //
 // What a caller has to keep to:
 //

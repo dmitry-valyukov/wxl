@@ -68,16 +68,21 @@ documentation_language const* find_documentation_language(std::string_view code)
 
 // Where the documentation of a type is, read once per file and kept. The file
 // is the .xml beside the type's .winmd, as Windows App SDK ships it, in
-// English only; the metadata of Windows has nothing beside it, and its
-// documentation is the Windows SDK's reference for the type's contract,
+// English only. The metadata of the Windows SDK of the build is documented by
+// that SDK's reference for the type's contract alone,
 // References\<SDK version>\<contract>\<version>\<language>\<contract>.xml, in
-// the first of the languages that has one. A language is the name of that
-// folder, one of documentation_languages.
+// the first of the languages that has one, whatever lies beside its .winmd
+// files. A language is the name of that folder, one of documentation_languages.
 class documentation_source {
 public:
-    // `references` is the Windows SDK's References directory; empty, it is
-    // found under the SDK's installed root when first needed.
-    explicit documentation_source(std::vector<std::wstring> languages, std::filesystem::path references = {});
+    // `sdk` is the Windows SDK of the build (restored_packages::sdk): its
+    // reference, of that version alone, documents the types of its metadata
+    // files, and a reference of another version installed beside it is not
+    // read. `references` is the Windows SDK's References directory; empty, it
+    // is found under the SDK's installed root when first needed. A version
+    // that is empty or not UTF-8 throws std::invalid_argument.
+    documentation_source(std::vector<std::wstring> languages, windows_sdk const& sdk,
+                         std::filesystem::path references = {});
     documentation_source(documentation_source const&) = delete;
     documentation_source& operator=(documentation_source const&) = delete;
     ~documentation_source();
@@ -128,6 +133,8 @@ private:
     void started(source& opened);  // a file with members to parse joins unfinished_
 
     std::vector<std::wstring> languages_;
+    std::filesystem::path windows_sdk_;  // the folder of the version under references_
+    std::set<std::filesystem::path> windows_metadata_;  // the SDK's .winmd files
     std::filesystem::path references_;
     std::map<winmd::reader::database const*, source> beside_;
     std::map<std::string, reference> contracts_;

@@ -33,6 +33,7 @@
 #include <winrt/Windows.UI.h>
 
 #include <MddBootstrap.h>
+#include <WindowsAppSDK-VersionInfo.h>
 
 namespace mux = winrt::Microsoft::UI::Xaml;
 namespace muxc = winrt::Microsoft::UI::Xaml::Controls;
@@ -536,9 +537,12 @@ struct App : mux::ApplicationT<App, mux::Markup::IXamlMetadataProvider> {
 
 int main() {
     // The framework package first: without it no WinUI3 class can be
-    // activated at all. Release 2 -- the minor version is not consulted -- and
-    // no version tag, matching what wxl's own bootstrap asks for.
-    winrt::check_hresult(::MddBootstrapInitialize(0x00020000, nullptr, {}));
+    // activated at all. The release of the restored Runtime package, by its
+    // major version and version tag, as wxl's own bootstrap asks for it
+    // (impl/bootstrap.cpp).
+    constexpr wchar_t const* tag = WINDOWSAPPSDK_RELEASE_VERSION_TAG_W;
+    winrt::check_hresult(
+        ::MddBootstrapInitialize(WINDOWSAPPSDK_RELEASE_MAJORMINOR, tag[0] ? tag : nullptr, {}));
 
     winrt::init_apartment(winrt::apartment_type::single_threaded);
 

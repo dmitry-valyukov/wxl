@@ -68,6 +68,14 @@ if(BUILD_TESTING)
     find_package(GTest REQUIRED CONFIG)
     include(GoogleTest)
 
+    # The list of the restore that cmake/wxl_restored_packages.cmake writes,
+    # checked on a restore result, a response file and package folders the
+    # script makes up in a directory of its own.
+    add_test(NAME restored-packages
+        COMMAND "${CMAKE_COMMAND}"
+                "-DWXL_TEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/restored-packages-test"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/wxl_restored_packages_test.cmake")
+
     # The narrow interfaces of a path, kept out of the sources: a scan of what
     # git tracks, which cmake/wxl_narrow_paths.cmake describes. A tree copied
     # without its repository has no list of its own sources to scan, and says
@@ -91,9 +99,10 @@ endif()
 
 # The NuGet packages and the C++/WinRT projection over them, made by the MSBuild
 # of the developer environment (cmake/wxl_packages.cmake): the target
-# Microsoft::CppWinRT and wxl_nuget_package_dir(). Here and not in wxl.ui: the
-# generator reads the packages from the NuGet package folder, and a fresh clone
-# configures it before the wrappers, and with them wxl.ui, exist.
+# Microsoft::CppWinRT, wxl_nuget_package_dir() and the list of the restore that
+# wxl_restored_packages_file() names. Here and not in wxl.ui: the generator
+# reads the packages through that list, and a fresh clone configures it before
+# the wrappers, and with them wxl.ui, exist.
 include(cmake/wxl_packages.cmake)
 
 # winmd::reader is a header-only WinMD metadata parsing library, fetched from
@@ -189,13 +198,15 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wxl.ui/src/wxl/CMakeLists.txt")
     # цели не рассыпались.
     add_subdirectory(sandbox)
 else()
+    wxl_restored_packages_file(_wxl_restored_packages)
     message(WARNING
         "No generated wrappers in ${CMAKE_CURRENT_SOURCE_DIR}/wxl.ui/src/wxl: wxl.ui, wxl.gen.ui, "
         "the samples and the sandbox are left out of this configure. Generate the wrappers, "
         "then configure again:\n"
         "  tools\\build.ps1 -Target winui-srcgen\n"
         "  ${CMAKE_BINARY_DIR}/wxl.gen/Debug/winui-srcgen.exe "
-        "--profile ${CMAKE_CURRENT_SOURCE_DIR}/wxl.gen/profiles/full.json "
+        "--profile ${CMAKE_CURRENT_SOURCE_DIR}/wxl.gen/profiles/full.winxl-profile "
+        "--packages ${_wxl_restored_packages} "
         "--out ${CMAKE_CURRENT_SOURCE_DIR}/wxl.ui/src/wxl\n"
         "  tools\\build.ps1 -Configure")
 endif()

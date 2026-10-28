@@ -3,7 +3,8 @@
 # попросить до первого объекта композиции и до XAML. Консольная программа со
 # своим main и без wxl.ui: wxl.ui несёт wWinMain, который поднимает XAML раньше,
 # чем приложению дают слово. Windows App Runtime поднимает загрузчик самой wxl
-# (impl/bootstrap.cpp); тег версии выпуска загрузчику передаёт цель
+# (impl/bootstrap.cpp); выпуск он берёт из WindowsAppSDK-VersionInfo.h
+# восстановленного пакета Runtime, а каталог этого заголовка даёт цель
 # wxl.winappsdk.bootstrap, так же как в wxl.ui.
 add_executable(sandbox.system-engine-probe
     main.cpp

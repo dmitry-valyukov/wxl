@@ -5,3 +5,7 @@
 # архив, — какой бы core.autocrlf ни стоял у того, кто клонирует.
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Профили генератора — JSON с комментариями: GitHub подсвечивает их как
+# JSON with Comments (имя языка в Linguist, пробелы — дефисами).
+*.winxl-profile linguist-language=JSON-with-Comments

@@ -182,9 +182,9 @@ TextBox {
 
 ```powershell
 # 1. Настройка дерева и сборка утилиты winui-srcgen без сайта документации.
-#    Настройка восстанавливает пакеты NuGet (закрепления — wxl.gen/profiles/base.json
-#    и tools/packages.json, результат — tools/packages.lock.json) и строит проекцию
-#    cppwinrt в каталоге сборки
+#    Настройка восстанавливает пакеты NuGet (закрепления — tools/packages.json,
+#    результат — tools/packages.lock.json и список build\x64\wxl.packages\restored-packages.json)
+#    и строит проекцию cppwinrt в каталоге сборки
 tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
 
 # 2. Развёртывание экспериментальной среды выполнения Windows App Runtime
@@ -192,7 +192,8 @@ tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
 pwsh -NoProfile -File tools\install-runtime.ps1
 
 # 3. Запуск генератора для построения полного профиля обёрток WinUI
-build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
+#    по пакетам, которые восстановила настройка
+build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.winxl-profile --packages build\x64\wxl.packages\restored-packages.json
 
 # 4. Конфигурация CMake и компиляция демонстрационного проекта Quadratic
 tools\build.ps1 -Configure -Target sample.quadratic
@@ -251,8 +252,8 @@ build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ### Ограничения кодогенерации
 
 - **Состав профиля.** В **wxl** есть только те типы и члены **WinUI**, которые
-  перечислены в профиле `wxl.gen/profiles/full.json`. Чтобы добавить
-  недостающее, профиль дополняют и перегенерируют обёртки.
+  перечислены в профиле `wxl.gen/profiles/full.winxl-profile`. Чтобы
+  добавить недостающее, профиль дополняют и перегенерируют обёртки.
 - **Наследование с переопределением (Overrides).** Собственный наследник
   класса **WinUI** с переопределёнными методами через интерфейсы
   `I<Class>Overrides` пока не поддерживается: прототип агрегации

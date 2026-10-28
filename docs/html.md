@@ -382,7 +382,7 @@ image/video»: парсер встречает внешний источник �
 
 ## Профиль генератора
 
-Профилю нужен только сам `RichTextBlock` (в `base.json`, рядом с
+Профилю нужен только сам `RichTextBlock` (в `base.winxl-profile`, рядом с
 `TextBlock`). Семейство `Documents` — `Paragraph`, `Run`, `Hyperlink` и
 другие классы — в профиль **не входит**: наполнение выполняется через
 примитивы `FormattedBlock`, а их реализация получает `Documents` из

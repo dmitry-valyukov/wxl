@@ -205,14 +205,18 @@ struct closure {
     // Pre-defined types the walk stopped at; recorded, never emitted.
     std::set<winmd::reader::TypeDef, by_full_name> boundary;
 
-    // Diagnostics: profile entries the metadata doesn't back up. Both are
-    // reported by main(), not thrown -- a stale name shouldn't stop a run.
-    std::vector<std::string> missing_types;    // "Ns.Type" not in the metadata at all
+    // A diagnostic: members a profile names that no type declares, reported by
+    // main(). A type the metadata does not declare stops the walk instead.
     std::vector<std::string> unknown_members;  // "Ns.Type.Member" nothing declares
 };
 
 // The walk from the profiles' roots and the type map's implicit ones; the
 // type map also says where it stops and which keys wxl's own classes add.
+// A root the metadata does not declare -- a type of a profile, or an implicit
+// root of the type map -- stops it with std::runtime_error, which names every
+// such type, the profile that lists it and the Windows App SDK release of the
+// restore: the metadata read is the restore's, and a release that lacks a type
+// the profiles project cannot be projected from.
 closure crawl(profile_set const& profiles, type_map const& types, winmd::reader::cache const& db);
 
 // The kinds of member a profile names. A Constant is an enumerator.

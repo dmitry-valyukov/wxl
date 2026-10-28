@@ -34,15 +34,6 @@ void report(profile_set const& profiles, closure const& cl) {
     }
     std::print("  roots: {}\n", profiles.types.size());
 
-    if (!profiles.missing_windows_metadata.empty()) {
-        std::print(stderr,
-                   "warning: no Windows metadata in {} -- the walk stops at every Windows type\n",
-                   wxl::core::unicode::to_utf8(profiles.missing_windows_metadata).chars());
-    }
-
-    for (auto&& name : cl.missing_types) {
-        std::print(stderr, "warning: profile type not found in metadata: {}\n", name);
-    }
     for (auto&& name : cl.unknown_members) {
         std::print(stderr, "warning: profile names a member the type doesn't declare: {}\n", name);
     }
@@ -107,8 +98,9 @@ void run(profile_set const& profiles, type_map const& types, std::vector<symbol>
     auto const cl = crawl(profiles, types, db);
     report(profiles, cl);
 
-    // The language asked for, and English where the reference has no file in it.
-    // A documentation file that does not read stops the run, naming the file.
+    // The language asked for, and English where the reference has no file in it;
+    // the reference is that of the Windows SDK the metadata of Windows was read
+    // from. A documentation file that does not read stops the run, naming the file.
     std::optional<documentation_source> docs;
     if (doc_language) {
         std::string_view const code = doc_language->code;
@@ -116,7 +108,7 @@ void run(profile_set const& profiles, type_map const& types, std::vector<symbol>
         if (code != "en") {
             languages.emplace_back(L"en");
         }
-        docs.emplace(std::move(languages));
+        docs.emplace(std::move(languages), profiles.sdk);
     }
 
     auto m = analyze(cl, profiles, types, std::move(symbols), docs ? &*docs : nullptr);

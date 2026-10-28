@@ -68,7 +68,8 @@ target_link_libraries(wxl.ui.scene-winrt-benchmark PRIVATE
 )
 
 # The same imported target wxl.ui links: this benchmark stands beside wxl
-# rather than on it, but the bootstrapper it needs is the very same one.
+# rather than on it, but the bootstrapper it needs is the very same one, and so
+# is the WindowsAppSDK-VersionInfo.h the target's include directory gives it.
 if(TARGET wxl.winappsdk.bootstrap)
     target_link_libraries(wxl.ui.scene-winrt-benchmark PRIVATE wxl.winappsdk.bootstrap)
 endif()

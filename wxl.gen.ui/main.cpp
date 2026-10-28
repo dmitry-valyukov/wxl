@@ -5,7 +5,9 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <format>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <string_view>
@@ -36,7 +38,37 @@ namespace {
 // Профиль, который открывается по умолчанию, — из дерева исходников, где
 // лежат профили генератора.
 std::filesystem::path defaultProfile() {
-    return std::filesystem::path {u8"" WXL_GEN_PROFILES} / u8"base.json";
+    return std::filesystem::path {u8"" WXL_GEN_PROFILES} / u8"base.winxl-profile";
+}
+
+// Список пакетов восстановления той сборки, из которой редактор запускают, —
+// ключом --packages, как у генератора. Своих версий и папки пакетов NuGet
+// редактор не ищет: без ключа он показывает, как его запустить.
+std::filesystem::path restoredPackages() {
+    auto const arguments = core::environment::command_line();
+    std::filesystem::path packages;
+    for (std::size_t at = 1; at < arguments.size(); ++at) {
+        std::wstring_view const argument {arguments[at]};
+        if (argument != L"--packages") {
+            throw std::runtime_error(std::format(
+                "unknown argument: {}. wxl.gen.ui takes one, --packages "
+                "<build>/wxl.packages/restored-packages.json",
+                core::unicode::repaired(argument).to_utf8().chars()));
+        }
+        if (++at == arguments.size()) {
+            throw std::runtime_error(
+                "--packages needs a value: <build>/wxl.packages/restored-packages.json");
+        }
+        packages = std::wstring_view {arguments[at]};
+    }
+    if (packages.empty()) {
+        throw std::runtime_error(
+            "wxl.gen.ui reads the packages of a profile from the list of the restored packages of "
+            "a build. Start it with --packages <build>/wxl.packages/restored-packages.json, the "
+            "list the configure of that build writes from its NuGet restore: in the wxl tree, "
+            "run-gen-ui.cmd builds the editor and starts it with the list of build\\x64.");
+    }
+    return packages;
 }
 
 // Знаки кнопок панели — размер 20 шрифта Fluent UI System Icons (Assets):
@@ -120,7 +152,7 @@ struct DocumentationReading {
 wxl::Teardown wxl_launched() {
     core::intrusive_ptr<Editor> document;
     try {
-        document = Editor::open(defaultProfile());
+        document = Editor::open(defaultProfile(), restoredPackages());
     } catch (std::exception const& error) {
         auto window = Window {
             title = u"wxl.gen.ui",

@@ -10,19 +10,12 @@
 #include <vector>
 
 // The generator's XML side. The reader is wxl::xml, imported by xml_input.cpp
-// alone; the profiles and the writers see only the plain declarations below.
+// alone; the writers and the editor see only the plain declarations below.
 //
 // Nothing here interprets what it reads, but for the text of a description: a
 // caller gets the document's own strings and decides what they mean, while the
 // markup inside a description is read once, here, for both the generator and
 // the editor that show it.
-
-// The <dependency> elements of a nuspec, as id/version pairs in document
-// order -- flat or grouped by target framework, which the caller need not
-// care about. Versions come back exactly as written, NuGet range brackets
-// included.
-std::vector<std::pair<std::string, std::string>> nuspec_dependencies(
-    std::filesystem::path const& nuspec);
 
 // One keyed resource of a XAML dictionary, as declared. The reader hands out
 // everything it finds and interprets none of it: what a writer makes of a

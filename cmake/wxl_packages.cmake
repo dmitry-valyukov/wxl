@@ -7,11 +7,11 @@
 #   MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProjections
 #
 # -restore restores the PackageReference items of the project first: the
-# umbrella package Microsoft.WindowsAppSDK at the release "windowsAppSdk" names
-# in wxl.gen/profiles/base.json, whose dependencies are the packages of that
-# release, and the "extra" packages of tools/packages.json. Every version is a
-# minimum: NuGet takes the lowest version that satisfies every reference, and
-# the lock file tools/packages.lock.json records the versions it took. The
+# "packages" of tools/packages.json, among them the umbrella package
+# Microsoft.WindowsAppSDK of the Windows App SDK release the tree builds
+# against, whose dependencies are the packages of that release. Every version
+# is a minimum: NuGet takes the lowest version that satisfies every reference,
+# and the lock file tools/packages.lock.json records the versions it took. The
 # targets are those of the Microsoft.Windows.CppWinRT package.
 # ResolveReferences adds the metadata of the Windows SDK to the references:
 # CppWinRTImplicitlyExpandTargetPlatform is in ResolveReferencesDependsOn, and
@@ -24,6 +24,12 @@
 # the directories of the packages. MSBuild skips a restore that is up to date
 # and the targets whose outputs are up to date, so a repeated configure stays
 # short.
+#
+# What the restore resolved, and the Windows SDK of the projection, are then
+# written into the list <build>/wxl.packages/restored-packages.json, which
+# winui-srcgen and wxl.gen.ui take with --packages. Its format, the reading of
+# the restore result and the writing of the list are in
+# cmake/wxl_restored_packages.cmake.
 #
 # A project that adds wxl -- as a subdirectory or through FetchContent --
 # restores in locked mode: its configure resolves the versions the lock file of
@@ -40,6 +46,10 @@
 #       obj/project.assets.json of the helper project names it. A package the
 #       restore did not resolve stops the configure.
 #
+#   wxl_restored_packages_file(<variable>)
+#       sets <variable> to the path of the list of the restore,
+#       <build>/wxl.packages/restored-packages.json.
+#
 # What this relies on -- the developer environment, the component of the
 # installation, the Windows SDK, the restore result, the response files the
 # CppWinRT targets write and the headers of the projection -- is checked here,
@@ -49,6 +59,8 @@ include_guard(GLOBAL)
 
 set(_WXL_PACKAGES_SCRIPT_DIR "${CMAKE_CURRENT_LIST_DIR}")
 cmake_path(GET _WXL_PACKAGES_SCRIPT_DIR PARENT_PATH _WXL_PACKAGES_TREE)
+
+include("${_WXL_PACKAGES_SCRIPT_DIR}/wxl_restored_packages.cmake")
 
 # The oldest Windows SDK the tree builds against. The developer environment
 # selects the newest installed one, and the configure stops when that is older.
@@ -154,31 +166,25 @@ function(_wxl_packages_environment out_msbuild out_sdk out_vc_tools)
     set(${out_vc_tools} "${vc_tools}" PARENT_SCOPE)
 endfunction()
 
-# The pins as pairs of a package id and its minimum version: the release of
-# base.json as the umbrella package, then the "extra" packages of
-# tools/packages.json. Both files are inputs of the configure.
+# The pins as pairs of a package id and its minimum version: the "packages" of
+# tools/packages.json, an input of the configure.
 function(_wxl_packages_pins out_pins)
-    set(base_file "${_WXL_PACKAGES_TREE}/wxl.gen/profiles/base.json")
-    file(READ "${base_file}" base)
-    if(NOT base MATCHES "\"windowsAppSdk\"[ \t]*:[ \t]*\"([^\"]+)\"")
-        message(FATAL_ERROR "${base_file} names no Windows App SDK release (\"windowsAppSdk\").")
-    endif()
-    set(pins Microsoft.WindowsAppSDK "${CMAKE_MATCH_1}")
-
     set(manifest_file "${_WXL_PACKAGES_TREE}/tools/packages.json")
     file(READ "${manifest_file}" manifest)
-    string(JSON count ERROR_VARIABLE error LENGTH "${manifest}" extra)
+    string(JSON count ERROR_VARIABLE error LENGTH "${manifest}" packages)
     if(error)
-        message(FATAL_ERROR "${manifest_file} has no list \"extra\": ${error}")
+        message(FATAL_ERROR "${manifest_file} has no list \"packages\": ${error}")
     endif()
-    if(count GREATER 0)
-        math(EXPR last "${count} - 1")
-        foreach(i RANGE ${last})
-            string(JSON id GET "${manifest}" extra ${i} id)
-            string(JSON version GET "${manifest}" extra ${i} version)
-            list(APPEND pins "${id}" "${version}")
-        endforeach()
+    if(count EQUAL 0)
+        message(FATAL_ERROR "${manifest_file} lists no packages.")
     endif()
+    set(pins "")
+    math(EXPR last "${count} - 1")
+    foreach(i RANGE ${last})
+        string(JSON id GET "${manifest}" packages ${i} id)
+        string(JSON version GET "${manifest}" packages ${i} version)
+        list(APPEND pins "${id}" "${version}")
+    endforeach()
 
     set(has_cppwinrt FALSE)
     list(LENGTH pins length)
@@ -190,7 +196,7 @@ function(_wxl_packages_pins out_pins)
         # Written into the project as they are: neither may carry what XML or
         # MSBuild reads as syntax.
         if(NOT id MATCHES "^[A-Za-z0-9._-]+$" OR NOT version MATCHES "^[A-Za-z0-9.+-]+$")
-            message(FATAL_ERROR "Not a NuGet package id and version: \"${id}\" \"${version}\" (${manifest_file}, ${base_file}).")
+            message(FATAL_ERROR "Not a NuGet package id and version: \"${id}\" \"${version}\" (${manifest_file}).")
         endif()
         if(id STREQUAL "Microsoft.Windows.CppWinRT")
             set(has_cppwinrt TRUE)
@@ -202,7 +208,7 @@ function(_wxl_packages_pins out_pins)
             "targets of that package.")
     endif()
 
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${base_file}" "${manifest_file}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${manifest_file}")
     set(${out_pins} "${pins}" PARENT_SCOPE)
 endfunction()
 
@@ -214,82 +220,6 @@ function(_wxl_packages_check_path what path)
             "${what} ${path} has a character that MSBuild or XML reads as syntax (% $ @ ; ' \" & < >), "
             "so the helper project of cmake/wxl_packages.cmake cannot name it. Use a path without one.")
     endif()
-endfunction()
-
-# Reads the restore result: the package folders and the directory of every
-# package, which wxl_nuget_package_dir() returns.
-function(_wxl_packages_read_assets assets out_count)
-    if(NOT EXISTS "${assets}")
-        message(FATAL_ERROR "The restore wrote no ${assets}.")
-    endif()
-    file(READ "${assets}" json)
-    foreach(member packageFolders libraries)
-        string(JSON type ERROR_VARIABLE error TYPE "${json}" ${member})
-        if(error OR NOT type STREQUAL "OBJECT")
-            message(FATAL_ERROR "${assets} has no object \"${member}\".")
-        endif()
-    endforeach()
-    string(JSON folders GET "${json}" packageFolders)
-    string(JSON libraries GET "${json}" libraries)
-    string(JSON folder_count LENGTH "${folders}")
-    string(JSON library_count LENGTH "${libraries}")
-    if(folder_count EQUAL 0 OR library_count EQUAL 0)
-        message(FATAL_ERROR "${assets} names no package folder or no package.")
-    endif()
-
-    set(roots "")
-    math(EXPR last "${folder_count} - 1")
-    foreach(i RANGE ${last})
-        string(JSON folder MEMBER "${folders}" ${i})
-        file(TO_CMAKE_PATH "${folder}" folder)
-        list(APPEND roots "${folder}")
-    endforeach()
-
-    # A member of "libraries" is named <id>/<version>, and its "path" is the
-    # directory of the package relative to one of the package folders.
-    set(count 0)
-    math(EXPR last "${library_count} - 1")
-    foreach(i RANGE ${last})
-        string(JSON key MEMBER "${libraries}" ${i})
-        string(JSON entry GET "${libraries}" "${key}")
-        # A project reference has no package directory; the helper project has
-        # none, and any other type is not one this file knows how to read.
-        string(JSON type ERROR_VARIABLE error GET "${entry}" type)
-        if(error)
-            message(FATAL_ERROR "${assets}: the entry \"${key}\" has no readable type: ${error}")
-        endif()
-        if(type STREQUAL "project")
-            continue()
-        endif()
-        if(NOT type STREQUAL "package")
-            message(FATAL_ERROR "${assets}: the entry \"${key}\" is of type \"${type}\", neither a package nor a project.")
-        endif()
-        string(JSON path ERROR_VARIABLE error GET "${entry}" path)
-        string(FIND "${key}" "/" slash)
-        if(error OR slash LESS 1)
-            message(FATAL_ERROR "${assets}: the package \"${key}\" has no path, or its name is not <id>/<version>.")
-        endif()
-        string(SUBSTRING "${key}" 0 ${slash} id)
-
-        set(dir "")
-        foreach(root IN LISTS roots)
-            cmake_path(APPEND root "${path}" OUTPUT_VARIABLE candidate)
-            if(IS_DIRECTORY "${candidate}")
-                set(dir "${candidate}")
-                break()
-            endif()
-        endforeach()
-        if(dir STREQUAL "")
-            message(FATAL_ERROR "${assets} names ${key} at ${path}, which is in none of its package folders (${roots}).")
-        endif()
-
-        string(TOLOWER "${id}" lower)
-        set_property(GLOBAL PROPERTY _WXL_NUGET_PACKAGE_${lower} "${dir}")
-        math(EXPR count "${count} + 1")
-    endforeach()
-
-    set_property(GLOBAL PROPERTY _WXL_NUGET_ASSETS "${assets}")
-    set(${out_count} ${count} PARENT_SCOPE)
 endfunction()
 
 # The response file of a projection target and what it has to name: inputs of
@@ -460,6 +390,9 @@ function(_wxl_packages)
     cmake_path(GET project FILENAME project_file)
     _wxl_packages_check_response("${int}/${project_file}.cppwinrt_plat.rsp" "${WXL_PACKAGES_PROJECTION_DIR}" -in)
     _wxl_packages_check_response("${int}/${project_file}.cppwinrt_ref.rsp" "${WXL_PACKAGES_PROJECTION_DIR}" -in -ref)
+    set(restored_list "${helper}/restored-packages.json")
+    _wxl_packages_write_list("${restored_list}" "${sdk}" "${int}/${project_file}.cppwinrt_plat.rsp")
+    set_property(GLOBAL PROPERTY _WXL_RESTORED_PACKAGES "${restored_list}")
     # The response files are the outputs of the projection targets, so MSBuild
     # skips a projection whose response file is newer than its inputs, whether
     # or not the headers are still there.
@@ -478,7 +411,9 @@ function(_wxl_packages)
         INTERFACE_INCLUDE_DIRECTORIES "${projection}"
         INTERFACE_COMPILE_FEATURES cxx_std_17)
 
-    message(STATUS "NuGet packages: ${count} restored (${lock}); C++/WinRT projection: ${projection}")
+    message(STATUS
+        "NuGet packages: ${count} restored (${lock}), listed in ${restored_list}; C++/WinRT projection: "
+        "${projection}")
 endfunction()
 
 function(wxl_nuget_package_dir variable id)
@@ -488,11 +423,15 @@ function(wxl_nuget_package_dir variable id)
         get_property(assets GLOBAL PROPERTY _WXL_NUGET_ASSETS)
         message(FATAL_ERROR
             "${id} is not among the packages the restore resolved (${assets}). A package reaches the "
-            "restore as a dependency of the pins in wxl.gen/profiles/base.json and "
-            "tools/packages.json, or as a pin of its own in tools/packages.json.")
+            "restore as a pin in tools/packages.json or as a dependency of one.")
     endif()
     get_property(dir GLOBAL PROPERTY _WXL_NUGET_PACKAGE_${lower})
     set(${variable} "${dir}" PARENT_SCOPE)
+endfunction()
+
+function(wxl_restored_packages_file variable)
+    get_property(restored_list GLOBAL PROPERTY _WXL_RESTORED_PACKAGES)
+    set(${variable} "${restored_list}" PARENT_SCOPE)
 endfunction()
 
 _wxl_packages()

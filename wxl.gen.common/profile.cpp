@@ -1,7 +1,6 @@
 #include <format>
 
 #include "profile.h"
-#include "xml_input.h"
 
 import std;
 import wxl.core;
@@ -290,16 +289,47 @@ std::map<std::string, replaced_call> read_replaced_calls(value const& entry,
     return calls;
 }
 
+// A minimum version a profile names, checked as it is read: a requirement that
+// does not parse -- an empty one among them -- could be compared with nothing.
+// Empty when the key is not there. `where` starts the message.
+std::string minimum_or_empty(value const& entry, std::filesystem::path const& source,
+                             std::string_view key, std::string_view where) {
+    if (!entry.find(key)) {
+        return {};
+    }
+    std::string minimum = string_or(entry, source, key, {});
+    if (!nuget_version::parse(minimum)) {
+        fail(source, std::format("{}'{}' is \"{}\", which is not a NuGet version", where, key,
+                                 minimum));
+    }
+    return minimum;
+}
+
 package_ref read_package(value const& entry, std::filesystem::path const& source) {
     if (!entry.is_object() || !entry.find("id")) {
         fail(source, "every 'packages' entry must be an object with an 'id'");
     }
     package_ref package;
     package.id = required_string(entry, source, "id", "package");
-    // Checked against the SDK release below, where it is known whether this
-    // package is one the release ships.
-    package.version = string_or(entry, source, "version", {});
-    package.override_version = string_or(entry, source, "overrideVersion", {});
+    // A profile says what to project; the version read is the one the build's
+    // restore resolved, so a key that names one is a mistake to report.
+    if (entry.find("version")) {
+        fail(source, std::format("package '{}': 'version' is not a key of a package entry: the "
+                                 "package is read at the version the build's NuGet restore "
+                                 "resolves, and a profile whose types need a certain version "
+                                 "names the lowest one they need as 'minimumVersion'",
+                                 package.id));
+    }
+    if (entry.find("overrideVersion")) {
+        fail(source, std::format("package '{}': 'overrideVersion' is not a key of a package "
+                                 "entry: the build's NuGet restore resolves the version of every "
+                                 "package, and a profile whose types need a newer one names the "
+                                 "lowest one they need as 'minimumVersion' of the package, or as "
+                                 "'minimumWindowsAppSdk' for the whole Windows App SDK release",
+                                 package.id));
+    }
+    package.minimum_version = minimum_or_empty(entry, source, "minimumVersion",
+                                               std::format("package '{}': ", package.id));
     package.metadata_dir = string_or(entry, source, "metadataDir", {});
     if (value const* const listed = entry.find("metadata")) {
         auto const names = read_string_set(*listed, source, "metadata");
@@ -312,40 +342,23 @@ package_ref read_package(value const& entry, std::filesystem::path const& source
     return package;
 }
 
-constexpr std::string_view windows_app_sdk_id = "Microsoft.WindowsAppSDK";
-
-// A nuspec dependency version is either plain (2.3.6) or a NuGet range
-// pinning one release ([2.4.0]); both mean the same thing here.
-std::string trim_version_range(std::string_view text) {
-    auto const first = text.find_first_not_of(" \t[(");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    auto const rest = text.substr(first);
-    auto const last = rest.find_first_of(" \t,])");
-    return std::string{last == std::string_view::npos ? rest : rest.substr(0, last)};
+// What the restore of the build is, in a message: the list it is read from.
+std::string restore_of(restored_packages const& restored) {
+    return std::format("the restore of the build ({})",
+                       wxl::core::unicode::to_utf8(restored.source).chars());
 }
 
-// Every package version an SDK release ships, read out of its own nuspec:
-// the umbrella package declares one <dependency> per sub-package, which is
-// what makes a single version number in a profile enough.
-std::map<std::string, std::string> read_sdk_dependencies(std::filesystem::path const& nuspec) {
-    std::map<std::string, std::string> versions;
-    for (auto&& [id, version] : nuspec_dependencies(nuspec)) {
-        versions.emplace(wxl::core::ascii_lower(id), trim_version_range(version));
-    }
-    return versions;
-}
+// The version of a text that has been checked to be one, as it was read.
+nuget_version version_of(std::string_view text) { return nuget_version::parse(text).value(); }
 
-// <nuget root>/<id, lowercased>/<version>/<metadata dir>/<file>.winmd. The
-// directory is "metadata" for the WindowsAppSDK packages, and whatever a
-// package from outside the SDK ships its .winmd in -- Win2D puts it under
-// lib/uap10.0.
+// <package directory>/<metadata dir>/<file>.winmd. The directory is "metadata"
+// for the WindowsAppSDK packages, and whatever a package from outside the SDK
+// ships its .winmd in -- Win2D puts it under lib/uap10.0.
 std::vector<std::filesystem::path> resolve_package(package_ref const& package,
-                                                   std::string_view version,
-                                                   std::filesystem::path const& nuget_root,
+                                                   restored_package const& restored,
                                                    std::filesystem::path const& source) {
-    auto const dir = nuget_root / path_of(wxl::core::ascii_lower(package.id)) / path_of(version) /
+    auto const& version = restored.version;
+    auto const dir = restored.directory /
                      path_of(package.metadata_dir.empty() ? "metadata" : package.metadata_dir);
     if (!std::filesystem::is_directory(dir)) {
         fail(source, std::format("package '{}' {}: no metadata directory at {}", package.id,
@@ -382,10 +395,10 @@ std::vector<std::filesystem::path> resolve_package(package_ref const& package,
 // the metadata directory: a resource dictionary lives wherever the package
 // ships it, not beside the .winmd.
 std::vector<std::filesystem::path> resolve_resources(package_ref const& package,
-                                                     std::string_view version,
-                                                     std::filesystem::path const& nuget_root,
+                                                     restored_package const& restored,
                                                      std::filesystem::path const& source) {
-    auto const root = nuget_root / path_of(wxl::core::ascii_lower(package.id)) / path_of(version);
+    auto const& version = restored.version;
+    auto const& root = restored.directory;
 
     std::vector<std::filesystem::path> files;
     for (auto&& name : package.resources) {
@@ -399,29 +412,114 @@ std::vector<std::filesystem::path> resolve_resources(package_ref const& package,
     return files;
 }
 
-// The projected Windows platform metadata (Windows.Foundation.IReference,
-// IVector<T>, EventHandler<T>, ...). WinUI's own .winmd only *references*
-// those; without them the walk stops at every such edge.
-std::filesystem::path windows_metadata_dir() {
-    std::filesystem::path root{wxl::core::environment::variable(L"SystemRoot")};
-    if (root.empty()) {
-        root = L"C:/Windows";
-    }
-    return root / L"System32" / L"WinMetadata";
+// A numeric identifier, or a numeric part of a version: digits, and at least
+// one of them.
+bool is_numeric(std::string_view text) {
+    return !text.empty() &&
+           std::ranges::all_of(text, [](char c) { return wxl::core::is_ascii_digit(c); });
 }
 
-std::vector<std::filesystem::path> windows_metadata_files(std::filesystem::path const& dir) {
-    std::vector<std::filesystem::path> files;
-    for (auto&& item : std::filesystem::directory_iterator{dir}) {
-        if (item.is_regular_file() && item.path().extension() == ".winmd") {
-            files.push_back(item.path());
+// An identifier of a prerelease label or of build metadata: [0-9A-Za-z-], and
+// at least one of them.
+bool is_identifier(std::string_view text) {
+    return !text.empty() && std::ranges::all_of(text, [](char c) {
+               return wxl::core::is_ascii_digit(c) || (c >= 'A' && c <= 'Z') ||
+                      (c >= 'a' && c <= 'z') || c == '-';
+           });
+}
+
+// The whole of `text` as an Int32, or nothing: what Int32.TryParse takes of
+// the characters a version is written in -- digits, after a '-' for a negative
+// number, within the range of Int32.
+std::optional<std::int32_t> int32_of(std::string_view text) {
+    std::int32_t number = 0;
+    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), number);
+    if (error != std::errc{} || end != text.data() + text.size()) {
+        return std::nullopt;
+    }
+    return number;
+}
+
+// Two identifiers of prerelease labels, as NuGet's VersionComparer orders them
+// (CompareRelease): one that Int32.TryParse takes is a number, and two numbers
+// are compared as numbers; a number is below any text; text is compared
+// character by character in upper case, which is how OrdinalIgnoreCase orders
+// ASCII.
+std::weak_ordering compare_identifiers(std::string_view a, std::string_view b) {
+    auto const x_number = int32_of(a);
+    auto const y_number = int32_of(b);
+    if (x_number && y_number) {
+        return *x_number <=> *y_number;
+    }
+    if (x_number || y_number) {
+        return x_number ? std::weak_ordering::less : std::weak_ordering::greater;
+    }
+    for (std::size_t at = 0; at != std::min(a.size(), b.size()); ++at) {
+        auto const x = static_cast<unsigned char>(wxl::core::to_ascii_upper(a[at]));
+        auto const y = static_cast<unsigned char>(wxl::core::to_ascii_upper(b[at]));
+        if (x != y) {
+            return x <=> y;
         }
     }
-    std::sort(files.begin(), files.end());
-    return files;
+    return a.size() <=> b.size();
 }
 
 }  // namespace
+
+std::optional<nuget_version> nuget_version::parse(std::string_view text) {
+    if (auto const plus = text.find('+'); plus != std::string_view::npos) {
+        for (std::string_view const identifier : wxl::core::split(text.substr(plus + 1), '.')) {
+            if (!is_identifier(identifier)) {
+                return std::nullopt;
+            }
+        }
+        text = text.substr(0, plus);
+    }
+
+    // The numeric parts are what System.Version parses: Int32 each, a leading
+    // zero allowed.
+    nuget_version version;
+    auto const dash = text.find('-');
+    std::size_t count = 0;
+    for (std::string_view const part : wxl::core::split(text.substr(0, dash), '.')) {
+        if (count == version.numbers_.size() || !is_numeric(part)) {
+            return std::nullopt;
+        }
+        auto const number = int32_of(part);
+        if (!number) {
+            return std::nullopt;
+        }
+        version.numbers_[count++] = *number;
+    }
+    // A numeric identifier of the label has no leading zero: 0 is one, 00 and 01
+    // are not (SemanticVersionFactory.IsValidPart).
+    if (dash != std::string_view::npos) {
+        for (std::string_view const identifier : wxl::core::split(text.substr(dash + 1), '.')) {
+            if (!is_identifier(identifier) ||
+                (identifier.size() > 1 && identifier.front() == '0' && is_numeric(identifier))) {
+                return std::nullopt;
+            }
+            version.prerelease_.emplace_back(identifier);
+        }
+    }
+    return version;
+}
+
+std::weak_ordering operator<=>(nuget_version const& a, nuget_version const& b) {
+    if (auto const order = a.numbers_ <=> b.numbers_; order != 0) {
+        return order;
+    }
+    if (a.prerelease_.empty() != b.prerelease_.empty()) {
+        return a.prerelease_.empty() ? std::weak_ordering::greater : std::weak_ordering::less;
+    }
+    for (std::size_t at = 0; at != std::min(a.prerelease_.size(), b.prerelease_.size()); ++at) {
+        if (auto const order = compare_identifiers(a.prerelease_[at], b.prerelease_[at]);
+            order != 0) {
+            return order;
+        }
+    }
+    return a.prerelease_.size() <=> b.prerelease_.size();
+}
 
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer) {
@@ -429,7 +527,7 @@ std::filesystem::path resolve_reference(std::string_view reference,
     if (path.has_extension() || path.has_parent_path()) {
         return path.is_absolute() ? path : referrer.parent_path() / path;
     }
-    path += L".json";
+    path += L".winxl-profile";
     return referrer.parent_path() / path;
 }
 
@@ -493,7 +591,14 @@ profile load_profile(std::filesystem::path const& path) {
         prof.extends.assign(names.begin(), names.end());
     }
 
-    prof.windows_app_sdk = string_or(document, path, "windowsAppSdk", {});
+    // The release read is the one the build's restore resolved, so a key that
+    // names one is a mistake to report.
+    if (document.find("windowsAppSdk")) {
+        fail(path, "'windowsAppSdk' is not a key of a profile: the Windows App SDK release read "
+                   "is the one the build's NuGet restore resolves, and a profile whose types need "
+                   "a certain release names the lowest one they need as 'minimumWindowsAppSdk'");
+    }
+    prof.minimum_windows_app_sdk = minimum_or_empty(document, path, "minimumWindowsAppSdk", {});
 
     if (value const* const packages = document.find("packages")) {
         if (!packages->is_array()) {
@@ -573,7 +678,7 @@ struct profile_loader {
     profile_set& result;
     std::set<std::filesystem::path>& loaded;   // canonical paths, load-once
     std::set<std::filesystem::path>& loading;  // cycle detection
-    std::vector<profile>& with_packages;
+    std::vector<profile>& in_load_order;
     bool& windows_metadata;
 
     // Depth-first so that a referenced profile ("base") is merged before
@@ -594,15 +699,17 @@ struct profile_loader {
             load(resolve_reference(reference, prof.source));
         }
 
-        // Packages wait for the second pass: the SDK release they are taken
-        // from may be named by a profile further up the chain than this one.
-        with_packages.push_back(prof);
+        // Versions and packages wait for the second pass: the release the set
+        // needs is the highest minimum of all its profiles, and the check of
+        // the release comes before the packages of the release are read.
+        in_load_order.push_back(prof);
 
         for (auto&& [name, filter] : prof.types) {
             auto [it, inserted] = result.types.try_emplace(name, filter);
             if (!inserted) {
                 it->second.merge(filter);
             }
+            result.listed_by.try_emplace(name, prof.source);
         }
         // Synthetic members compose the way the rest of a profile does: an
         // extending profile adds to what it extends, and a name declared
@@ -654,124 +761,104 @@ struct profile_loader {
 };
 
 profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
-                             std::filesystem::path const& nuget_root) {
+                             restored_packages const& restored) {
     profile_set result;
 
     std::set<std::filesystem::path> loaded;   // canonical paths, load-once
     std::set<std::filesystem::path> loading;  // cycle detection
     std::set<std::filesystem::path> metadata;
     std::set<std::filesystem::path> resources;
-    std::vector<profile> with_packages;  // resolved once the SDK release is known
+    std::vector<profile> in_load_order;
     bool windows_metadata = false;
 
-    profile_loader loader{result, loaded, loading, with_packages, windows_metadata};
+    profile_loader loader{result, loaded, loading, in_load_order, windows_metadata};
     for (auto&& path : paths) {
         loader.load(path);
     }
-
-    // One SDK release across the whole set. Profiles that name none inherit
-    // it; two that name different ones are asking for a mixture nobody
-    // ships, which is the thing this key exists to prevent.
-    profile const* chose_sdk = nullptr;
-    for (auto&& prof : with_packages) {
-        if (prof.windows_app_sdk.empty()) {
-            continue;
-        }
-        if (chose_sdk && chose_sdk->windows_app_sdk != prof.windows_app_sdk) {
-            fail(prof.source, std::format("asks for {} {}, while {} asks for {}",
-                                          windows_app_sdk_id, prof.windows_app_sdk,
-                                          wxl::core::unicode::to_utf8(chose_sdk->source).chars(),
-                                          chose_sdk->windows_app_sdk));
-        }
-        chose_sdk = &prof;
+    result.restored_from = restored.source;
+    result.sdk = restored.sdk;
+    result.windows_metadata = windows_metadata;
+    if (restored_package const* const release = restored.find(windows_app_sdk_id)) {
+        result.windows_app_sdk = release->version;
     }
 
-    std::map<std::string, std::string> package_versions;
-    if (chose_sdk) {
-        auto const dir = nuget_root / path_of(wxl::core::ascii_lower(windows_app_sdk_id)) /
-                         path_of(chose_sdk->windows_app_sdk);
-        auto const nuspec =
-            dir / path_of(std::format("{}.nuspec", wxl::core::ascii_lower(windows_app_sdk_id)));
-        if (!std::filesystem::is_regular_file(nuspec)) {
-            fail(chose_sdk->source, std::format("{} {} is not in the package root: no {}",
-                                                windows_app_sdk_id, chose_sdk->windows_app_sdk,
-                                                wxl::core::unicode::to_utf8(nuspec).chars()));
+    // The release the set needs is the highest of its minimums, named by the
+    // first profile in load order that asks for it.
+    profile const* needs_release = nullptr;
+    for (auto&& prof : in_load_order) {
+        if (!prof.minimum_windows_app_sdk.empty() &&
+            (!needs_release || version_of(needs_release->minimum_windows_app_sdk) <
+                                   version_of(prof.minimum_windows_app_sdk))) {
+            needs_release = &prof;
         }
-        package_versions = read_sdk_dependencies(nuspec);
-        package_versions.emplace(wxl::core::ascii_lower(windows_app_sdk_id), chose_sdk->windows_app_sdk);
+    }
+    if (needs_release) {
+        auto const& minimum = needs_release->minimum_windows_app_sdk;
+        restored_package const* const release = restored.find(windows_app_sdk_id);
+        if (!release) {
+            fail(needs_release->source,
+                 std::format("'minimumWindowsAppSdk' asks for {} {} or newer, and {} has no {}: "
+                             "add a reference to {} {} or newer to the restore of the build (in "
+                             "the wxl tree, tools/packages.json) and configure it again",
+                             windows_app_sdk_id, minimum, restore_of(restored), windows_app_sdk_id,
+                             windows_app_sdk_id, minimum));
+        }
+        if (version_of(release->version) < version_of(minimum)) {
+            fail(needs_release->source,
+                 std::format("'minimumWindowsAppSdk' asks for {} {} or newer, and {} resolved {} "
+                             "{}: raise the release the build restores (in the wxl tree, {} in "
+                             "tools/packages.json) and configure it again",
+                             windows_app_sdk_id, minimum, restore_of(restored), release->id,
+                             release->version, windows_app_sdk_id));
+        }
     }
 
-    // A version a profile puts in place of the release's own applies to the
-    // package wherever any profile of the set lists it.
-    std::map<std::string, std::string> overridden;
-    for (auto&& prof : with_packages) {
+    for (auto&& prof : in_load_order) {
         for (auto&& package : prof.packages) {
-            if (!package.override_version.empty()) {
-                overridden[wxl::core::ascii_lower(package.id)] = package.override_version;
-            }
-        }
-    }
-
-    for (auto&& prof : with_packages) {
-        for (auto&& package : prof.packages) {
-            auto const shipped = package_versions.find(wxl::core::ascii_lower(package.id));
-            if (auto const over = overridden.find(wxl::core::ascii_lower(package.id));
-                over != overridden.end()) {
-                for (auto&& file : resolve_package(package, over->second, nuget_root, prof.source)) {
-                    metadata.insert(file);
-                }
-                for (auto&& file : resolve_resources(package, over->second, nuget_root, prof.source)) {
-                    resources.insert(file);
-                }
-                continue;
-            }
-
-            // A package the release ships takes its version from the release
-            // and may not name one: a hand-picked version there is the
-            // mixture nobody ships, which is what naming the release once
-            // exists to prevent. A package from outside the release has no
-            // such declaration to read, so its own version is the only
-            // answer -- and the only place the two rules meet is here.
-            if (shipped != package_versions.end() && !package.version.empty()) {
+            restored_package const* const found = restored.find(package.id);
+            if (!found) {
+                auto const wanted = package.minimum_version.empty()
+                                        ? package.id
+                                        : std::format("{} {} or newer", package.id,
+                                                      package.minimum_version);
                 fail(prof.source,
-                     std::format("package '{}' carries a 'version', but {} ships it and declares "
-                                 "{}; the SDK release is named once, as 'windowsAppSdk', and its "
-                                 "packages take their versions from it",
-                                 package.id, windows_app_sdk_id, shipped->second));
+                     std::format("package '{}' is not in {}: add a reference to {} to the restore "
+                                 "of the build (in the wxl tree, tools/packages.json) and "
+                                 "configure it again",
+                                 package.id, restore_of(restored), wanted));
             }
-            if (shipped == package_versions.end() && package.version.empty()) {
+            if (!package.minimum_version.empty() &&
+                version_of(found->version) < version_of(package.minimum_version)) {
                 fail(prof.source,
-                     chose_sdk ? std::format("package '{}' is not one {} {} ships, so it has to "
-                                             "name its own 'version'",
-                                             package.id, windows_app_sdk_id,
-                                             chose_sdk->windows_app_sdk)
-                               : std::format("package '{}' needs a version: either name one "
-                                             "here, or name an SDK release as 'windowsAppSdk' "
-                                             "for it to come from",
-                                             package.id));
+                     std::format("package '{}': 'minimumVersion' asks for {} or newer, and {} "
+                                 "resolved {}: raise the version the build restores (in the wxl "
+                                 "tree, tools/packages.json) and configure it again",
+                                 package.id, package.minimum_version, restore_of(restored),
+                                 found->version));
             }
-
-            std::string version = package.version;
-            if (version.empty()) {
-                version = shipped->second;
-            }
-
-            for (auto&& file : resolve_package(package, version, nuget_root, prof.source)) {
+            for (auto&& file : resolve_package(package, *found, prof.source)) {
                 metadata.insert(file);
             }
-            for (auto&& file : resolve_resources(package, version, nuget_root, prof.source)) {
+            for (auto&& file : resolve_resources(package, *found, prof.source)) {
                 resources.insert(file);
             }
         }
     }
 
+    // The projected Windows platform metadata (Windows.Foundation.IReference,
+    // IVector<T>, EventHandler<T>, ...): WinUI's own .winmd only *references*
+    // those, and without them the walk stops at every such edge. The files are
+    // those the build's projection of the platform was made from, so a
+    // wrapper and the projection it calls see the same Windows SDK.
     if (windows_metadata) {
-        if (auto const dir = windows_metadata_dir(); std::filesystem::is_directory(dir)) {
-            for (auto&& file : windows_metadata_files(dir)) {
-                metadata.insert(file);
+        for (auto&& file : restored.sdk.metadata) {
+            if (!std::filesystem::is_regular_file(file)) {
+                fail(restored.source,
+                     std::format("Windows SDK {}: no metadata file {}; configure the build again",
+                                 restored.sdk.version,
+                                 wxl::core::unicode::to_utf8(file).chars()));
             }
-        } else {
-            result.missing_windows_metadata = dir;
+            metadata.insert(file);
         }
     }
 
@@ -780,54 +867,83 @@ profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
     return result;
 }
 
-// NuGet's own answer to "where is the global packages folder", read out of
-// its configuration: `<add key="globalPackagesFolder" value="..."/>`.
-//
-// Asking the tool rather than guessing from the environment is what makes
-// this work on a machine that moved the cache: the conventional
-// %USERPROFILE%\.nuget\packages usually still exists there, holding an older
-// partial copy, so guessing does not fail loudly -- it silently reads the
-// wrong tree and reports packages as missing that are installed.
-//
-// A targeted scan rather than a parse: one key, one attribute, and the
-// alternative is linking the whole XML reader into the generator for it.
-std::filesystem::path nuget_config_packages_folder() {
-    std::filesystem::path const appdata{wxl::core::environment::variable(L"APPDATA")};
-    if (appdata.empty()) {
-        return {};
+restored_package const* restored_packages::find(std::string_view id) const {
+    for (auto&& package : packages) {
+        if (wxl::core::equal_ignore_ascii_case(std::string_view{package.id}, id)) {
+            return &package;
+        }
     }
-
-    auto const config = appdata / L"NuGet" / L"NuGet.Config";
-    std::ifstream file{config};
-    if (!file) {
-        return {};
-    }
-    std::string const text{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
-
-    auto const key = text.find("globalPackagesFolder");
-    if (key == std::string::npos) {
-        return {};
-    }
-    auto const value = text.find("value=", key);
-    if (value == std::string::npos) {
-        return {};
-    }
-    auto const open = text.find('"', value);
-    auto const close = open == std::string::npos ? std::string::npos : text.find('"', open + 1);
-    if (close == std::string::npos) {
-        return {};
-    }
-    // Checked as any text from outside: a value that is not UTF-8 is said,
-    // rather than passed over for the default it exists to replace.
-    auto const folder =
-        wxl::core::unicode::checked(std::string_view{text}.substr(open + 1, close - open - 1));
-    if (!folder) {
-        throw std::runtime_error(std::format("{}: globalPackagesFolder is not UTF-8",
-                                             wxl::core::unicode::to_utf8(config).chars()));
-    }
-    return wxl::core::unicode::to_path(*folder);
+    return nullptr;
 }
 
+restored_packages load_restored_packages(std::filesystem::path const& path) {
+    // Asked here rather than left to read_json: what is missing is a step of the
+    // build, and the message says which.
+    if (!std::filesystem::is_regular_file(path)) {
+        throw std::runtime_error(std::format(
+            "no list of the restored packages at {}: the configure of a build writes it, as "
+            "<build>/wxl.packages/restored-packages.json, from the result of its NuGet restore; "
+            "configure the build first",
+            wxl::core::unicode::to_utf8(path).chars()));
+    }
+    wxl::json::document file;
+    auto const& document =
+        read_json(file, path, "a list of the restored packages must be a JSON object");
+
+    restored_packages restored;
+    restored.source = path;
+
+    value const& packages = document["packages"];
+    if (!packages.is_array()) {
+        fail(path, "'packages' must be an array");
+    }
+    for (value const& entry : packages.elements()) {
+        if (!entry.is_object()) {
+            fail(path, "every 'packages' entry must be an object");
+        }
+        restored_package package{required_string(entry, path, "id", "package"),
+                                 required_string(entry, path, "version", "package"),
+                                 path_of(required_string(entry, path, "directory", "package"))};
+        if (!nuget_version::parse(package.version)) {
+            fail(path, std::format("package '{}': \"{}\" is not a NuGet version", package.id,
+                                   package.version));
+        }
+        if (restored.find(package.id)) {
+            fail(path, std::format("package '{}' is listed twice", package.id));
+        }
+        restored.packages.push_back(std::move(package));
+    }
+
+    value const& sdk = document["windowsSdk"];
+    if (!sdk.is_object() || !sdk["version"].is_string() || !sdk["metadata"].is_array() ||
+        sdk["metadata"].elements().empty()) {
+        fail(path, "'windowsSdk' must be an object with a string 'version' and an array "
+                   "'metadata' of the .winmd files the projection of the platform is made from");
+    }
+    restored.sdk.version = text(sdk["version"]);
+    // The name of a folder of the SDK's references as well (References\<version>),
+    // so it is held to the form the configure writes it in: four numbers
+    // separated by dots, 10.0.26100.0.
+    std::size_t parts = 0;
+    bool numeric = true;
+    for (std::string_view const part :
+         wxl::core::split(std::string_view{restored.sdk.version}, '.')) {
+        ++parts;
+        numeric = numeric && is_numeric(part);
+    }
+    if (parts != 4 || !numeric) {
+        fail(path, std::format("'windowsSdk.version' is \"{}\", which is not a Windows SDK "
+                               "version of four numbers separated by dots",
+                               restored.sdk.version));
+    }
+    for (value const& entry : sdk["metadata"].elements()) {
+        if (!entry.is_string()) {
+            fail(path, "'windowsSdk.metadata' must contain strings only");
+        }
+        restored.sdk.metadata.push_back(path_of(text(entry)));
+    }
+    return restored;
+}
 
 type_map load_type_map(std::filesystem::path const& path) {
     wxl::json::document file;
@@ -916,20 +1032,6 @@ type_map load_type_map(std::filesystem::path const& path) {
         }
     }
     return map;
-}
-
-std::filesystem::path default_nuget_root() {
-    // The environment first: it is the documented override, and CI sets it.
-    if (std::filesystem::path packages{wxl::core::environment::variable(L"NUGET_PACKAGES")};
-        !packages.empty()) {
-        return packages;
-    }
-    if (auto const configured = nuget_config_packages_folder();
-        !configured.empty() && std::filesystem::is_directory(configured)) {
-        return configured;
-    }
-    return std::filesystem::path{wxl::core::environment::variable(L"USERPROFILE")} / L".nuget" /
-           L"packages";
 }
 
 std::vector<symbol> load_symbol_names(std::filesystem::path const& path) {

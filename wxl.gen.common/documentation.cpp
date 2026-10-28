@@ -209,8 +209,24 @@ documentation_language const* find_documentation_language(std::string_view code)
     return nullptr;
 }
 
-documentation_source::documentation_source(std::vector<std::wstring> languages, std::filesystem::path references)
-    : languages_(std::move(languages)), references_(std::move(references)) {}
+namespace {
+
+// The folder of a Windows SDK version under References, by the version's name.
+std::filesystem::path sdk_version_folder(std::string_view version) {
+    auto const name = wxl::core::unicode::checked(version);
+    if (!name || version.empty()) {
+        throw std::invalid_argument(std::format("not a Windows SDK version: \"{}\"",
+                                                wxl::core::unicode::repaired(version).chars()));
+    }
+    return wxl::core::unicode::to_path(*name);
+}
+
+}  // namespace
+
+documentation_source::documentation_source(std::vector<std::wstring> languages, windows_sdk const& sdk,
+                                           std::filesystem::path references)
+    : languages_(std::move(languages)), windows_sdk_(sdk_version_folder(sdk.version)),
+      windows_metadata_(sdk.metadata.begin(), sdk.metadata.end()), references_(std::move(references)) {}
 
 documentation_source::~documentation_source() = default;
 
@@ -263,12 +279,17 @@ bool documentation_source::parse_some(std::chrono::steady_clock::time_point dead
 // A file is found by the metadata file, and for the metadata of Windows by the
 // contract; each is looked for and read once. An entry is kept only once it is
 // settled -- the file, the error that stops it, or that there is none -- so a
-// lookup that throws halfway leaves nothing behind to pass for an answer.
+// lookup that throws halfway leaves nothing behind to pass for an answer. A
+// metadata file of the Windows SDK has no file beside it looked for: an .xml
+// there would be read in place of the reference in the languages asked for.
 documentation_source::source* documentation_source::source_of(md::TypeDef const& type) {
     auto const& database = type.get_database();
     auto beside = beside_.find(&database);
     if (beside == beside_.end()) {
-        source opened = open(metadata_file(database).replace_extension(L".xml"), app_sdk_image_root);
+        auto file = metadata_file(database);
+        source opened = windows_metadata_.contains(file)
+                            ? source {}
+                            : open(file.replace_extension(L".xml"), app_sdk_image_root);
         beside = beside_.emplace(&database, std::move(opened)).first;
         started(beside->second);
     }
@@ -344,16 +365,12 @@ documentation_source::reference documentation_source::open_reference(std::string
     if (references_.empty()) {
         references_ = sdk_references();
     }
-    // No SDK, or no version of it, or no folder of the contract: no reference, and nothing
-    // wrong -- that is the type undocumented.
+    // No SDK, or no reference of the version, or no folder of the contract in it: no
+    // reference, and nothing wrong -- that is the type undocumented, which is said.
     if (references_.empty()) {
         return {};
     }
-    std::filesystem::path const sdk = newest_version(references_);
-    if (sdk.empty()) {
-        return {};
-    }
-    std::filesystem::path const versions = newest_version(sdk / metadata_path(contract));
+    std::filesystem::path const versions = newest_version(references_ / windows_sdk_ / metadata_path(contract));
     if (versions.empty()) {
         return {};
     }

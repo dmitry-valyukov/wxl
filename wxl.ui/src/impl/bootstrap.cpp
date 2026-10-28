@@ -3,6 +3,9 @@
 #include <mutex>
 
 #include <MddBootstrap.h>
+// After MddBootstrap.h: with the macros of this header defined first,
+// MddBootstrap.h also declares its C++ wrappers, which nothing here calls.
+#include <WindowsAppSDK-VersionInfo.h>
 
 #include "winrt_helpers.h"
 
@@ -11,16 +14,17 @@ namespace wxl::impl {
 void ensure_windows_app_runtime_initialized() {
     static std::once_flag once;
     std::call_once(once, [] {
-        // majorMinorVersion: for release 2.0+, only the major version is
-        // consulted (minor is ignored -- see MddBootstrap.h) -- 0x00020000
-        // selects "release 2". The version tag is that of the Windows App SDK
-        // release wxl.ui is built against, set by hand to match it (see
-        // WXL_WINDOWSAPPSDK_VERSION_TAG in CMakeLists.txt); with the major
-        // version it names the release's framework package ("2-experimentalF"),
+        // The release is the one of the Microsoft.WindowsAppSDK.Runtime package
+        // the build restored. Its WindowsAppSDK-VersionInfo.h gives the major and
+        // minor version in the form MddBootstrapInitialize takes (0xMMMMNNNN; for
+        // release 2.0 and later the minor version is not consulted -- see
+        // MddBootstrap.h) and the version tag, which with the major version names
+        // the release's framework package, Microsoft.WindowsAppRuntime.<major>-<tag>:
         // the one that has the interfaces the release's metadata declares. A
         // stable release has an empty tag. No minimum version floor.
-        constexpr wchar_t const* tag = WXL_WINDOWSAPPSDK_VERSION_TAG;
-        check_hresult(::MddBootstrapInitialize(0x00020000, tag[0] ? tag : nullptr, {}));
+        constexpr wchar_t const* tag = WINDOWSAPPSDK_RELEASE_VERSION_TAG_W;
+        check_hresult(::MddBootstrapInitialize(WINDOWSAPPSDK_RELEASE_MAJORMINOR,
+                                               tag[0] ? tag : nullptr, {}));
     });
 }
 

@@ -1,7 +1,11 @@
 #pragma once
 
+#include <array>
+#include <compare>
+#include <cstdint>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -10,9 +14,14 @@
 // Input side of winui-srcgen: profiles say *what* to generate -- which
 // NuGet packages' metadata to read, which types are the roots of the
 // dependency walk, and which of their members take part in it. See
-// the profile documentation. Profiles are plain JSON with comments,
-// read by wxl.json; nothing here exposes the reader, so only
+// the profile documentation. A profile is a file <name>.winxl-profile, JSON
+// with comments, read by wxl.json; nothing here exposes the reader, so only
 // profile.cpp imports it.
+//
+// Which version of a package is read, and where it is, a profile does not
+// say: the NuGet restore of the build resolves it once, and the configure
+// writes the result into a list (restored_packages below) that every run
+// takes as its input.
 
 // Which members of a type participate in generation -- and therefore in
 // the dependency walk, since a member that isn't generated can't drag its
@@ -119,12 +128,9 @@ struct replaced_call {
 
 // One NuGet package a profile draws metadata from. `metadata` names the
 // .winmd files to read out of `metadata_dir` inside the package; when it's
-// empty, every .winmd found there is read.
-//
-// A package the SDK release ships names no version: the version comes from
-// that release, which declares one for every package in it -- see
-// `windows_app_sdk` below. A package from outside the SDK has no such
-// declaration to read, so it names its own version and must.
+// empty, every .winmd found there is read. The package is read at the version
+// and from the directory the restore of the build resolved
+// (restored_packages).
 struct package_ref {
     std::string id;
     std::vector<std::string> metadata;
@@ -135,16 +141,19 @@ struct package_ref {
     // those: a resource has a name and a target type, not a type of its own.
     std::vector<std::string> resources;
 
-    std::string version;       // empty for a package the SDK release ships
-
-    // A version of a package the SDK release ships, named in place of the one
-    // the release declares -- for every entry of that id in every profile of
-    // the set. The one deliberate departure from "the release's packages are
-    // one consistent set": a package whose other channel declares types the
-    // stable one keeps out, and the profile that asks for them says why.
-    std::string override_version;
+    // The lowest version of the package whose metadata declares what the
+    // profile asks for ("minimumVersion"), or empty when any version does: a
+    // restored version below it stops the run. For a package outside the
+    // Windows App SDK release -- Win2D -- this is the one requirement there
+    // is; a package of the release is usually covered by the release's
+    // minimum (profile::minimum_windows_app_sdk).
+    std::string minimum_version;
     std::string metadata_dir;  // empty means "metadata", the layout the SDK uses
 };
+
+// The umbrella package of a Windows App SDK release: its dependencies are the
+// packages of the release, so its version is the release's.
+inline constexpr std::string_view windows_app_sdk_id = "Microsoft.WindowsAppSDK";
 
 // One profile file, as loaded -- `extends` is not yet resolved here.
 struct profile {
@@ -153,13 +162,13 @@ struct profile {
     std::filesystem::path source;
     std::vector<std::string> extends;
 
-    // The Microsoft.WindowsAppSDK release every package below is taken
-    // from. That package's nuspec declares the exact version of each
-    // sub-package shipped with it, so naming the release once is what
-    // keeps the set consistent -- a hand-picked version per package drifts
-    // into combinations nobody ships. Empty when a profile leaves the
-    // choice to the one it extends.
-    std::string windows_app_sdk;
+    // The lowest Windows App SDK release (the umbrella package
+    // Microsoft.WindowsAppSDK) whose packages declare the types this profile
+    // projects ("minimumWindowsAppSdk"), or empty when the profile does not
+    // constrain the release. For a set of profiles the highest of these is
+    // the requirement, so a profile that extends another can raise it and
+    // never lower it.
+    std::string minimum_windows_app_sdk;
 
     std::vector<package_ref> packages;
     std::map<std::string, member_filter> types;  // "Microsoft.UI.Xaml.Controls.Button" -> filter
@@ -251,6 +260,14 @@ struct type_map {
 // malformed JSON or an entry missing a required key.
 type_map load_type_map(std::filesystem::path const& path);
 
+// The Windows SDK a build projects: its version, which also names the folder of
+// its reference (References\<version>), and the .winmd files the build's C++/WinRT
+// projection of the platform was made from.
+struct windows_sdk {
+    std::string version;                          // "10.0.26100.0"
+    std::vector<std::filesystem::path> metadata;  // the platform's .winmd files
+};
+
 // Several profiles (plus everything they reference, transitively) merged
 // into the single input the crawler actually walks.
 struct profile_set {
@@ -271,35 +288,110 @@ struct profile_set {
 
     member_filter discovered = member_filter::none();
 
-    // The Windows platform metadata directory a profile asked for
-    // ("windowsMetadata") and this machine does not have, or empty. The walk
-    // then stops at every Windows type it reaches, so a run says so.
-    std::filesystem::path missing_windows_metadata;
+    // The profile that lists each type of `types`, the first in load order: a
+    // type the metadata does not declare is reported against it.
+    std::map<std::string, std::filesystem::path> listed_by;
+
+    // What the set was resolved from, for the steps after the walk: the list of
+    // the restore, the Windows App SDK release it resolved (the version of
+    // Microsoft.WindowsAppSDK, empty when it has none), and the Windows SDK of the
+    // build, whose reference documents its metadata -- read into `metadata` when
+    // a profile of the set asks for it ("windowsMetadata", `windows_metadata`).
+    std::filesystem::path restored_from;
+    std::string windows_app_sdk;
+    windows_sdk sdk;
+    bool windows_metadata = false;
 };
 
 // Reads a single profile file. Throws std::runtime_error with the file
-// name on malformed JSON, on an unknown key shape, or on a type that
+// name on malformed JSON, on an unknown key shape, on a type that
 // carries both "members" and "excludeMembers" (mutually exclusive by
-// design -- a member named in both would be a straight contradiction).
+// design -- a member named in both would be a straight contradiction),
+// on a minimum that is not a NuGet version, and on the keys that name a
+// version to read -- "windowsAppSdk", and "version" or "overrideVersion" of
+// a package -- with the key that says what a profile can say instead.
 profile load_profile(std::filesystem::path const& path);
 
 // Where a profile named in `extends` lives. A reference is either a path (has
-// a directory part or a .json suffix), relative to the referring profile's
-// directory, or a bare profile name sitting next to the profile that named it.
-// The reference is a profile's own text, checked UTF-8, as load_profile() puts
-// it in `extends`.
+// a directory part or an extension), relative to the referring profile's
+// directory, or a bare profile name, the file <name>.winxl-profile next to the
+// profile that named it. The reference is a profile's own text, checked UTF-8,
+// as load_profile() puts it in `extends`.
 std::filesystem::path resolve_reference(std::string_view reference,
                                         std::filesystem::path const& referrer);
 
+// A package version, parsed and compared the way NuGet's NuGetVersion is:
+// SemVer 2.0 with a fourth numeric part. The numeric parts are compared as
+// numbers, a part not written being 0; a release is above its prereleases;
+// prerelease labels are compared identifier by identifier -- an identifier
+// that is an Int32 as a number, a number below any text, text ignoring ASCII
+// case -- and of two labels that agree as far as the shorter goes, the
+// shorter is the lower; build metadata takes no part. The order is weak:
+// 1.0.0-A and 1.0.0-a are equivalent and spelled differently.
+class nuget_version {
+public:
+    // The version `text` spells, or nothing when it spells none: one to four
+    // numeric parts separated by dots, each an Int32, then optionally '-' and a
+    // label of dot-separated identifiers of [0-9A-Za-z-], none of them a number
+    // with a leading zero, then optionally '+' and metadata of identifiers of
+    // the same characters. Whitespace is refused.
+    static std::optional<nuget_version> parse(std::string_view text);
+
+    friend std::weak_ordering operator<=>(nuget_version const& a, nuget_version const& b);
+    friend bool operator==(nuget_version const& a, nuget_version const& b) {
+        return (a <=> b) == 0;
+    }
+
+private:
+    std::array<std::int32_t, 4> numbers_{};
+    std::vector<std::string> prerelease_;
+};
+
+// One package the NuGet restore of a build resolved: its id as the restore
+// spells it, the version it resolved, and the directory the package is in.
+struct restored_package {
+    std::string id;
+    std::string version;
+    std::filesystem::path directory;
+};
+
+// What the NuGet restore of a build resolved, and the Windows SDK the build
+// projects: the input every run reads its packages from. The configure of the
+// build writes it into <build>/wxl.packages/restored-packages.json
+// (cmake/wxl_packages.cmake). Nothing here is worked out by the generator:
+// a package is read at the version the restore resolved, and the Windows
+// metadata is the set of .winmd files the build's own C++/WinRT projection of
+// the platform was made from.
+struct restored_packages {
+    std::filesystem::path source;  // the file, for the messages that name it
+    std::vector<restored_package> packages;
+    windows_sdk sdk;
+
+    // The package with this id, matched the way NuGet matches ids, ignoring
+    // ASCII case; null when the restore has none.
+    restored_package const* find(std::string_view id) const;
+};
+
+// Reads the list of the restore. Throws std::runtime_error naming the file
+// when it is not there -- with how to get it -- on malformed JSON, on an entry
+// missing a key, on a version that is not a NuGet version, on a package
+// listed twice, on a Windows SDK version that is not four numbers separated by
+// dots, and on a Windows SDK without metadata.
+restored_packages load_restored_packages(std::filesystem::path const& path);
+
 // Loads every named profile plus, transitively, the profiles they
 // `extends`, and merges them. A profile reference is either a path or a
-// bare name resolved as `<dir of the referencing profile>/<name>.json`.
+// bare name resolved as `<dir of the referencing profile>/<name>.winxl-profile`.
 // Diamonds are loaded once; cycles are an error.
+//
+// Every package a profile names is read from `restored`, at the version the
+// restore resolved. A package the restore does not have, a version below the
+// package's minimumVersion, and a Microsoft.WindowsAppSDK below the highest
+// minimumWindowsAppSdk of the set (or absent while a profile names one) are
+// errors: std::runtime_error naming the profile, the package and both
+// versions, or what the restore has to add.
 profile_set resolve_profiles(std::vector<std::filesystem::path> const& paths,
-                             std::filesystem::path const& nuget_root);
-
-// %NUGET_PACKAGES%, or %USERPROFILE%\.nuget\packages when unset.
-std::filesystem::path default_nuget_root();
+                             restored_packages const& restored);
 
 // One named glyph of the icon font: the name a `FluentSymbol` is written
 // under, and the code point behind it.

@@ -24,6 +24,15 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
 
+# ---- The NuGet packages and the cppwinrt projection ----
+# Restored and built at configure by cmake/wxl_packages.cmake, in the build
+# directory: Microsoft::CppWinRT is the target over the projection of the
+# Windows SDK and of the packages, wxl_nuget_package_dir() gives the directory
+# of a package. The top level of the wxl tree includes the file already; a
+# build that adds this directory on its own gets it here, ahead of the check of
+# the wrappers below, whose remedy names the list of the restore it writes.
+include("${WXL_CMAKE_SCRIPT_DIR}/wxl_packages.cmake")
+
 # ---- The generated wrappers: no library without them ----
 # What winui-srcgen writes into src/wxl -- the wrappers, the property tags, the
 # schema and the CMakeLists.txt that adds them to the targets below -- is not in
@@ -35,12 +44,13 @@ endif()
 # the generator without it.
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/wxl/CMakeLists.txt")
     get_filename_component(_wxl_tree "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+    wxl_restored_packages_file(_wxl_restored_packages)
     message(FATAL_ERROR
         "No generated wrappers in ${CMAKE_CURRENT_SOURCE_DIR}/src/wxl. Generate them in the "
         "wxl tree: build its target winui-srcgen (tools\\build.ps1 -Target winui-srcgen), run "
-        "`winui-srcgen --profile ${_wxl_tree}/wxl.gen/profiles/full.json --out "
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/wxl`, then configure again "
-        "(tools\\build.ps1 -Configure in the wxl tree).")
+        "`winui-srcgen --profile ${_wxl_tree}/wxl.gen/profiles/full.winxl-profile --packages "
+        "${_wxl_restored_packages} --out ${CMAKE_CURRENT_SOURCE_DIR}/src/wxl`, then configure "
+        "again (tools\\build.ps1 -Configure in the wxl tree).")
 endif()
 
 # ---- wxl.core: refcounted, intrusive_ptr, the STA allocator ----
@@ -50,14 +60,6 @@ endif()
 if(NOT TARGET wxl::core)
     find_package(wxl CONFIG REQUIRED COMPONENTS core)
 endif()
-
-# ---- The NuGet packages and the cppwinrt projection ----
-# Restored and built at configure by cmake/wxl_packages.cmake, in the build
-# directory: Microsoft::CppWinRT is the target over the projection of the
-# Windows SDK and of the packages, wxl_nuget_package_dir() gives the directory
-# of a package. The top level of the wxl tree includes the file already; a
-# build that adds this directory on its own gets it here.
-include("${WXL_CMAKE_SCRIPT_DIR}/wxl_packages.cmake")
 
 # The Windows App Runtime bootstrapper -- wxl owns its own runtime
 # dependencies, so this is wired here
@@ -69,8 +71,8 @@ include("${WXL_CMAKE_SCRIPT_DIR}/wxl_packages.cmake")
 # be seen from the sample and sandbox directories. As ordinary cache entries they
 # kept the path of the first configure for good, and a build directory made before
 # a version changed went on building against the old package -- the version is
-# changed in the pins (wxl.gen/profiles/base.json, tools/packages.json) and resolved
-# by the restore, never here.
+# changed in the pins (tools/packages.json) and resolved by the restore, never
+# here.
 wxl_nuget_package_dir(_wxl_foundation_dir Microsoft.WindowsAppSDK.Foundation)
 set(WXL_WINDOWSAPPSDK_FOUNDATION_DIR
     "${_wxl_foundation_dir}"
@@ -381,20 +383,23 @@ target_link_libraries(wxl.ui
         dwmapi.lib
 )
 
-# The version tag of the Windows App SDK release the tree builds against
-# ("windowsAppSdk" in wxl.gen/profiles/base.json). With the major version it names
-# the release's framework package, the one the application starts on: experimentalF
-# names Microsoft.WindowsAppRuntime.2-experimentalF. Every release has its own tag,
-# WINDOWSAPPSDK_RELEASE_VERSION_TAG in include/WindowsAppSDK-VersionInfo.h of its
-# Microsoft.WindowsAppSDK.Runtime package, and a stable release has an empty one.
-# The value is kept here by hand and has to change together with the release. The
-# release is an experimental one because a stable runtime answers a call to
-# WrapPanel, TitleBar.RecomputeDragRegions or the Window size properties with "no
-# such interface"; the installers of its framework package are in the
-# Microsoft.WindowsAppSDK.Runtime package the configure restores, and
-# tools/install-runtime.ps1 installs them.
-set(WXL_WINDOWSAPPSDK_VERSION_TAG "experimentalF"
-    CACHE STRING "Version tag of the Windows App SDK release the tree builds against (WINDOWSAPPSDK_RELEASE_VERSION_TAG of its Runtime package); empty for a stable release")
+# The release an application starts on is the one the restore resolved:
+# impl/bootstrap.cpp includes include/WindowsAppSDK-VersionInfo.h of the restored
+# Microsoft.WindowsAppSDK.Runtime package and hands the bootstrapper the version
+# tag and the major version that name the release's framework package
+# (WINDOWSAPPSDK_RELEASE_VERSION_TAG_W, WINDOWSAPPSDK_RELEASE_MAJORMINOR), so no
+# value of the release is kept here. The installers of that framework package
+# are in the same Runtime package, and tools/install-runtime.ps1 installs them:
+# the release of the tree is an experimental one (tools/packages.json), and a
+# stable runtime answers a call to WrapPanel, TitleBar.RecomputeDragRegions or
+# the Window size properties with "no such interface".
+wxl_nuget_package_dir(_wxl_runtime_dir Microsoft.WindowsAppSDK.Runtime)
+if(NOT EXISTS "${_wxl_runtime_dir}/include/WindowsAppSDK-VersionInfo.h")
+    message(FATAL_ERROR
+        "No include/WindowsAppSDK-VersionInfo.h in ${_wxl_runtime_dir}, the restored "
+        "Microsoft.WindowsAppSDK.Runtime package: the bootstrapper of wxl takes the release it "
+        "starts from that header.")
+endif()
 
 # The bootstrapper as a target, not as a path to its import library: then
 # CMake knows the DLL behind it, and $<TARGET_RUNTIME_DLLS> of an application
@@ -409,9 +414,9 @@ if(EXISTS "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsA
         IMPORTED_IMPLIB
             "${WXL_WINDOWSAPPSDK_FOUNDATION_DIR}/lib/native/x64/Microsoft.WindowsAppRuntime.Bootstrap.lib"
         # Whoever compiles impl/bootstrap.cpp -- wxl.ui, or a sandbox that takes the
-        # file directly -- asks for the same release.
-        INTERFACE_COMPILE_DEFINITIONS
-            "WXL_WINDOWSAPPSDK_VERSION_TAG=L\"${WXL_WINDOWSAPPSDK_VERSION_TAG}\"")
+        # file directly -- asks for the same release, the one of this header.
+        INTERFACE_INCLUDE_DIRECTORIES
+            "${_wxl_runtime_dir}/include")
 
     target_link_libraries(wxl.ui PUBLIC wxl.winappsdk.bootstrap)
 else()

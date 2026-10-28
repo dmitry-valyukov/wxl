@@ -25,7 +25,10 @@ class ResourcesModel;
 class Editor : public wxl::core::sta_refcounted {
 public:
     // Читает профиль, открывает метаданные его пакетов и читает их словари.
-    static wxl::core::intrusive_ptr<Editor> open(std::filesystem::path const& prof);
+    // Пакеты и метаданные Windows — из списка восстановления сборки `packages`
+    // (<сборка>/wxl.packages/restored-packages.json), как у генератора.
+    static wxl::core::intrusive_ptr<Editor> open(std::filesystem::path const& prof,
+                                                 std::filesystem::path const& packages);
 
     ~Editor() override;
 

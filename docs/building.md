@@ -74,21 +74,26 @@
 ```powershell
 tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF   # настройка (пакеты NuGet, проекция) и генератор
 pwsh -NoProfile -File tools\install-runtime.ps1                   # экспериментальная среда Windows App Runtime
-build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.json
+build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.winxl-profile --packages build\x64\wxl.packages\restored-packages.json
 tools\build.ps1 -Configure -Target sample.quadratic
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 
 - **Экспериментальный канал:** дерево собирается по одному выпуску
-  Windows App SDK, который называет ключ `windowsAppSdk` в профилях
-  генератора (`wxl.gen/profiles/base.json`); версии входящих в него пакетов
-  объявляет сам выпуск. Это выпуск экспериментального канала, поскольку в
-  метаданных **WinUI** стабильного канала нет `WrapPanel` и `LayoutPanel`.
-  Среда этого канала устанавливается для текущего пользователя рядом со
-  стабильной; без неё приложение не запустится. Сценарий
-  `tools/install-runtime.ps1` берёт её установщики из пакета
-  `Microsoft.WindowsAppSDK.Runtime`, а этот пакет восстанавливает настройка,
-  поэтому сценарий запускается после настройки.
+  Windows App SDK — зонтичному пакету `Microsoft.WindowsAppSDK` в
+  `tools/packages.json`; версии входящих в него пакетов объявляет сам
+  выпуск. Это выпуск экспериментального канала, поскольку в метаданных
+  **WinUI** стабильного канала нет типов, которые проецирует профиль `full`:
+  `WrapPanel`, `LayoutPanel`, `FlowLayout`, `PagerControl` и элементов
+  рукописного ввода. Среда этого канала устанавливается для текущего
+  пользователя рядом со стабильной; без неё приложение не запустится.
+  Сценарий `tools/install-runtime.ps1` берёт её установщики из пакета
+  `Microsoft.WindowsAppSDK.Runtime`, каталог которого называет список
+  восстановления (`build/x64/wxl.packages/restored-packages.json`), поэтому
+  сценарий запускается после настройки. Метку выпуска и основную версию, по
+  которым приложение запрашивает пакет платформы Windows App Runtime
+  (`Microsoft.WindowsAppRuntime.2-experimentalF`), загрузчик **wxl** берёт из
+  заголовка `WindowsAppSDK-VersionInfo.h` того же пакета.
 - **Отсутствие обёрток:** пока обёртки не сгенерированы, настройка
   пропускает `wxl.ui` и всё, что от неё зависит, и выводит об этом
   предупреждение. Сборка не запускает генератор, поэтому после правки
@@ -129,7 +134,6 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 | `WXL_BUILD_DOCS` | `ON` | Включает сайт документации Doxygen: цель `docs`, результат — `build/x64/docs/wxl/html/index.html`. |
 | `WXL_BUILD_BENCHMARKS` | `OFF` | Включает бенчмарки `wxl.core`, `wxl.async`, `wxl.fmt`, `wxl.ui`. |
 | `WXL_STRICT_CORO` | `OFF` | Оставляет проверки корутин `wxl.async` в любой конфигурации сборки, а не только в Debug (см. [«Асинхронность»](async.md)). |
-| `WXL_WINDOWSAPPSDK_VERSION_TAG` | `experimentalF` | Задаёт тег версии выпуска Windows App SDK, по которому собирается дерево. Вместе с основным номером версии тег называет пакет платформы Windows App Runtime, который запрашивает приложение (`Microsoft.WindowsAppRuntime.2-experimentalF`). У каждого выпуска свой тег, у стабильного выпуска он пустой. Значение ведётся вручную и меняется вместе с выпуском. |
 | `WXL_ENABLE_PCH` | `ON` | Включает предкомпилированный заголовок `src/pch.h` у `wxl.core` и `wxl.async`. Модульные единицы из него исключены (MSVC не принимает его перед объявлением модуля), поэтому ключ влияет только на время сборки обычных единиц трансляции. |
 | `WXL_INSTALL` | `ON` у `wxl.core`, настроенного самостоятельно; в общем дереве — `OFF`, чтобы `cmake --install` потребителя не переносил файлы **wxl** в его префикс | Включает правила установки `wxl.core` (см. ниже, «`wxl.core` отдельно»). |
 | `WXL_UPDATE_INTELLISENSE` | `OFF` | Только у `wxl.core`, настроенного самостоятельно: после сборки из среды разработки обновляет конфигурацию IntelliSense VS Code (см. [«Работа в редакторе»](editor.md)). |
@@ -155,13 +159,12 @@ PowerShell; при запуске из `cmd` (`pwsh -File`) он передаё�
 MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProjections
 ```
 
-- **Закрепления.** Выпуск Windows App SDK называет ключ `windowsAppSdk` в
-  `wxl.gen/profiles/base.json`: проект ссылается на зонтичный пакет
-  `Microsoft.WindowsAppSDK` этого выпуска, зависимости которого — пакеты
-  выпуска.
-  Остальные пакеты перечислены в списке `extra` файла `tools/packages.json`:
-  Win2D, WebView2 и `Microsoft.Windows.CppWinRT`. Каждая версия — минимальная:
-  NuGet берёт наименьшую версию, которая удовлетворяет всем ссылкам.
+- **Закрепления.** Пакеты, на которые ссылается проект, перечислены в
+  списке `packages` файла `tools/packages.json`: зонтичный пакет
+  `Microsoft.WindowsAppSDK` выпуска Windows App SDK, зависимости которого —
+  пакеты выпуска, а также Win2D, WebView2 и `Microsoft.Windows.CppWinRT`.
+  Каждая версия — минимальная: NuGet берёт наименьшую версию, которая
+  удовлетворяет всем ссылкам.
 - **Файл блокировки.** Восстановление записывает выбранные версии в
   `tools/packages.lock.json`, и этот файл входит в репозиторий. CI
   восстанавливает пакеты в режиме блокировки (переменная окружения
@@ -180,6 +183,36 @@ MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProje
   восстановления, файла `wxl.packages/obj/project.assets.json`, функцией
   `wxl_nuget_package_dir()`. Сами пакеты находятся в глобальной папке пакетов
   NuGet, которую задаёт переменная `NUGET_PACKAGES` или конфигурация NuGet.
+- **Список восстановления.** По результату восстановления и файлу ответов
+  проекции платформы (`wxl.packages/int/wxl.packages.vcxproj.cppwinrt_plat.rsp`)
+  настройка записывает список `wxl.packages/restored-packages.json`. В нём
+  перечислены каждый восстановленный пакет — идентификатор, версия, которую
+  выбрало восстановление, и каталог — и Windows SDK проекции — его версия и
+  файлы `.winmd`, из которых построена проекция платформы (записи `-in` файла
+  ответов). Пути абсолютные, с разделителем `/`:
+
+  ```
+  {
+      "packages": [
+          { "id": "Microsoft.WindowsAppSDK", "version": "2.5.4-experimental", "directory": "C:/Users/<имя>/.nuget/packages/microsoft.windowsappsdk/2.5.4-experimental" }
+      ],
+      "windowsSdk": {
+          "version": "10.0.26100.0",
+          "metadata": [ "<путь>/<контракт>.winmd" ]
+      }
+  }
+  ```
+
+  Генератор `winui-srcgen` и редактор профилей `wxl.gen.ui` получают этот
+  список ключом `--packages`: каждый пакет профиля они читают в той версии и
+  из того каталога, которые названы в списке, а метаданные Windows — из
+  файлов этого Windows SDK. Без ключа генератор останавливается с ошибкой, а
+  редактор показывает ошибку; в обеих сказано, откуда взять список. Тесты
+  `wxl.gen` и `wxl.gen.common` получают путь к списку от CMake
+  (`wxl_restored_packages_file()`), а `tools/install-runtime.ps1` и
+  `run-gen-ui.cmd` берут список каталога `build/x64`. Формат списка и его
+  запись описаны в `cmake/wxl_restored_packages.cmake`, тест записи —
+  `ctest -R restored-packages`.
 - **Что выключено.** Вспомогательный проект выключает интеграцию vcpkg
   (`VcpkgEnabled=false`) и импорт файлов `Directory.Build.props`,
   `Directory.Build.targets` и `Directory.Packages.props` из каталогов выше
@@ -189,9 +222,9 @@ MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProje
   свойства, а NuGet — файлы `NuGet.Config` в каталогах выше каталога сборки и
   конфигурацию пользователя и машины.
 - **Повторная настройка.** MSBuild пропускает восстановление и цели, результат
-  которых актуален. Изменение `wxl.gen/profiles/base.json`,
-  `tools/packages.json` или `tools/packages.lock.json` запускает настройку при
-  следующей сборке.
+  которых актуален, а список восстановления записывается, только если его
+  текст изменился. Изменение `tools/packages.json` или
+  `tools/packages.lock.json` запускает настройку при следующей сборке.
 - **Ошибки.** Журнал MSBuild записывается в
   `build/x64/wxl.packages/msbuild.log`. Если MSBuild завершается ошибкой или
   результат не тот, что ожидается (нет файла блокировки, нет пакета, нет
@@ -201,10 +234,11 @@ MSBuild.exe wxl.packages.vcxproj -restore -t:ResolveReferences,CppWinRTMakeProje
   настройку: дерево собирается без файла инструментов, и такой каталог
   настраивается заново, `cmake --preset x64 --fresh`.
 
-Чтобы изменить закрепление, исправьте версию в `tools/packages.json` (или
-выпуск в `wxl.gen/profiles/base.json`), выполните настройку
-(`tools\build.ps1 -Configure`) и зафиксируйте изменённый
-`tools/packages.lock.json` в том же коммите, что и закрепление.
+Чтобы изменить закрепление, исправьте версию в `tools/packages.json`,
+выполните настройку (`tools\build.ps1 -Configure`) и зафиксируйте изменённый
+`tools/packages.lock.json` в том же коммите, что и закрепление. Версия ниже
+минимума, который называет профиль (`minimumWindowsAppSdk`, `minimumVersion`),
+останавливает генератор (см. [«Проекция и генерация кода»](projection.md)).
 
 ## Тесты и бенчмарки
 
