@@ -13,6 +13,10 @@
 # with another value -- stops, and the stop names the lines to add, those and
 # no others. WIN32 is set in the case, so the options are checked on any host.
 
+# A script sets no policies of its own, and if(IN_LIST) in the check needs
+# CMP0057; the cases run through this file as well.
+cmake_minimum_required(VERSION 3.28)
+
 include("${CMAKE_CURRENT_LIST_DIR}/wxl_language.cmake")
 
 if(DEFINED WXL_TEST_OPTIONS)
