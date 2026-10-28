@@ -136,13 +136,8 @@ endif()
 # compiles import that module.
 add_subdirectory(wxl.core)
 
-# Shared test infrastructure (the gtest fixture, the stress-test harness),
-# used by every subproject's test executable.
-if(BUILD_TESTING)
-    add_subdirectory(test-support)
-endif()
-
-# Helpers for the tests and the benchmarks alike (wxl.test/CMakeLists.txt).
+# Helpers for the tests and the benchmarks alike, and the gtest fixture
+# (wxl.test/CMakeLists.txt).
 if(BUILD_TESTING OR WXL_BUILD_BENCHMARKS)
     add_subdirectory(wxl.test)
 endif()
