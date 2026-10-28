@@ -27,6 +27,8 @@ using handler_t = winrt::Microsoft::UI::Dispatching::DispatcherQueueHandler;
 }  // namespace
 
 UiThread::UiThread(DispatcherQueue const& queue) {
+    ensureCurrent();
+
     // A copy of the queue, detached: from here on this class owns a plain COM
     // reference and no wxl wrapper is involved -- which is the whole point,
     // since a wrapper is what may not cross threads.

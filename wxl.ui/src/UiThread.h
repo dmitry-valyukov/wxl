@@ -159,10 +159,14 @@ private:
     bool skipped_ = false;
 };
 
-inline UiThread::Idle UiThread::onIdle() { return {}; }
+inline UiThread::Idle UiThread::onIdle() {
+    ensureCurrent();
+    return {};
+}
 
 inline impl::cancelable_event_wait<UiThread::Idle, async::cancellation_token> UiThread::onIdle(
     async::cancellation_token token) {
+    ensureCurrent();
     return impl::cancelable_event_wait<Idle, async::cancellation_token>{std::move(token)};
 }
 

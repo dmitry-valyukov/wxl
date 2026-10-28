@@ -26,6 +26,7 @@
 
 #include "DrawingSurface.h"
 #include "Object.impl.h"
+#include "UiThread.h"
 #include <wxl/Microsoft.UI.Composition.impl.h>
 #include "impl/composition_interop.h"
 #include "impl/handler_list.h"
@@ -649,9 +650,14 @@ bool system_rendering_device_replaced::remove(system_compositor compositor, Even
 
 std::uint64_t rendering_device::replacements() noexcept { return devices().replacements(); }
 
-void rendering_device::ensure() { static_cast<void>(devices().device()); }
+void rendering_device::ensure() {
+    UiThread::ensureCurrent();
+    static_cast<void>(devices().device());
+}
 
 void rendering_device::signal_removed() {
+    UiThread::ensureCurrent();
+
     // The event the D3D device sets when it is removed is ours, made in device_backend::make:
     // setting it is what the device does, and the wait cannot tell the two apart. Once the
     // queue has begun to shut down there is no event: nothing is replaced any more.
