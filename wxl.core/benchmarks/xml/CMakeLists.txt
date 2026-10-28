@@ -1,8 +1,3 @@
-# The policies of this directory are those of CMake 3.28, and not the root's:
-# the later ones change what its targets compile (CMP0204, for one, defines
-# _MBCS in each target created under it).
-cmake_minimum_required(VERSION 3.28)
-
 add_executable(wxl.xml.bench bench.cpp)
 
 target_link_libraries(wxl.xml.bench PRIVATE wxl::core)
