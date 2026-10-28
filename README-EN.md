@@ -176,27 +176,21 @@ To build the library and the sample projects, you will need:
 ### Step-by-step setup
 
 Start a `pwsh` session in the root directory of the cloned repository and run
-the following commands to prepare the environment, generate the wrappers and
-run a sample:
+the following commands to build the tree and run a sample:
 
 ```powershell
-# 1. Configure the tree and build the winui-srcgen tool without the documentation site.
+# 1. Configure and build the whole tree without the documentation site.
 #    The configure restores the NuGet packages (pinned in tools/packages.json, resolved into
 #    tools/packages.lock.json and listed in build\x64\wxl.packages\restored-packages.json)
-#    and builds the cppwinrt projection in the build directory
-tools\build.ps1 -Target winui-srcgen -Define WXL_BUILD_DOCS=OFF
+#    and builds the cppwinrt projection in the build directory; the build builds the
+#    winui-srcgen generator, writes the WinUI wrappers of the full profile with it into
+#    build\x64\wxl.ui\full\wxl and compiles them with the rest
+tools\build.ps1 -Define WXL_BUILD_DOCS=OFF
 
 # 2. Deploy the experimental Windows App Runtime from the package the configure restored
 pwsh -NoProfile -File tools\install-runtime.ps1
 
-# 3. Run the generator to build the full profile of WinUI wrappers
-#    from the packages the configure restored
-build\x64\wxl.gen\Debug\winui-srcgen.exe --profile wxl.gen\profiles\full.winxl-profile --packages build\x64\wxl.packages\restored-packages.json
-
-# 4. Configure CMake and build the Quadratic sample project
-tools\build.ps1 -Configure -Target sample.quadratic
-
-# 5. Run the built application
+# 3. Run the Quadratic sample application
 build\x64\samples\Quadratic\Debug\sample.quadratic.exe
 ```
 
@@ -253,7 +247,8 @@ tested on a par with Debug.
 
 - **Profile contents.** **wxl** contains only those **WinUI** types and members that
   are listed in the `wxl.gen/profiles/full.winxl-profile` profile. To add
-  anything missing, extend the profile and regenerate the wrappers.
+  anything missing, extend the profile; the next build generates the wrappers
+  itself.
 - **Inheritance with overriding (Overrides).** A custom subclass of a **WinUI**
   class that overrides methods through the `I<Class>Overrides` interfaces is
   not supported yet: the COM interface aggregation prototype in
