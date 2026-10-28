@@ -11,9 +11,10 @@
 # compiler (WindowsSDKVersion): see cmake/wxl_packages.cmake.
 #
 # -UpdatePackages runs the update of the NuGet packages: a configure with
-# WXL_UPDATE_PACKAGES=ON, which takes the newest version every pin of
-# tools/packages.json admits (the same major version and channel as its
-# minimum), writes tools/packages.lock.json anew and prints every pin with its
+# WXL_UPDATE_PACKAGES=ON, which takes the newest version every minimum of
+# tools/packages.json admits (the same major version and channel as the
+# minimum), keeps a package held at one version in brackets ([1.4.0]) at that
+# version, writes tools/packages.lock.json anew and prints every pin with its
 # version before and after. The configure removes the option from the cache
 # when the update succeeds, so the next one is an ordinary configure that takes
 # the versions of the lock file. Review the versions and commit the lock file.

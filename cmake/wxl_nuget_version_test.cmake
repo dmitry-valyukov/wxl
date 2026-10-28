@@ -7,9 +7,12 @@
 # The directory is emptied first. The versions read and their order are those
 # of wxl.gen.common/tests/nuget_version_test.cpp, which tests the same rules in
 # the generator. The index is that of Microsoft.WindowsAppSDK on nuget.org
-# (2026-10-28), its 2.x versions with one below and one above them. A minimum
-# that is not a version stops the comparison; that runs in a cmake process of
-# its own (WXL_TEST_STEP=stop), since a stop ends the script it happens in.
+# (2026-10-28), its 2.x versions with one below and one above them. A pin is
+# a minimum or one version held in brackets, [X]: a held pin is referenced as
+# written and admits that version only, and any other range is no pin. A pin
+# that is neither stops the comparison, and a held pin stops the search of the
+# index; each runs in a cmake process of its own (WXL_TEST_STEP), since a stop
+# ends the script it happens in.
 
 include("${CMAKE_CURRENT_LIST_DIR}/wxl_nuget_version.cmake")
 
@@ -17,8 +20,11 @@ if(NOT WXL_TEST_DIR)
     message(FATAL_ERROR "nuget-version: WXL_TEST_DIR names no directory to work in.")
 endif()
 
-if(WXL_TEST_STEP STREQUAL "stop")
-    wxl_nuget_version_mismatch(mismatch "2.5.4" "2.5.x")
+if(WXL_TEST_STEP STREQUAL "range")
+    wxl_nuget_version_mismatch(mismatch "2.5.4" "[2.5.1, 3.0.0)")
+    return()
+elseif(WXL_TEST_STEP STREQUAL "held")
+    wxl_nuget_newest_of_major(newest "[\"1.4.0\", \"1.5.0\"]" "[1.4.0]")
     return()
 endif()
 
@@ -151,6 +157,35 @@ _wxl_test_equal("1.0.0+a" "1.0.0")
 _wxl_test_equal("1.0.0-rc+x.1" "1.0.0-rc")
 _wxl_test_ascending("1.0.0-rc+zzz" "1.0.0+aaa")
 
+# The forms of a pin: a minimum, one version in brackets, and a range, which
+# is no pin.
+foreach(case
+        "2.5.4-experimental=minimum=2.5.4-experimental" "1.4.0=minimum=1.4.0"
+        "[1.4.0]=exact=1.4.0" "[2.5.4-experimental]=exact=2.5.4-experimental"
+        "[1.4.0, 2.0.0)=range=" "[1.4.0,1.4.0]=range=" "(1.4.0, )=range=" "[1.4.0, )=range="
+        "(1.4.0)=range=" "1.4.0,=range=" "[1.x]=invalid=" "[]=invalid=" "2.*=invalid=")
+    string(REGEX MATCH "^(.*)=([a-z]+)=(.*)$" case "${case}")
+    set(text "${CMAKE_MATCH_1}")
+    set(form "${CMAKE_MATCH_2}")
+    set(version "${CMAKE_MATCH_3}")
+    wxl_nuget_pin(pin "${text}")
+    _wxl_test_expect("the form of the pin ${text}" "${pin_FORM}" "${form}")
+    _wxl_test_expect("the version of the pin ${text}" "${pin_VERSION}" "${version}")
+endforeach()
+
+# What the helper project references: the floating version of the major of a
+# stable minimum, a held pin as it is written, and nothing for a prerelease
+# minimum, whose version is chosen.
+foreach(case
+        "1.4.0=1.*" "02.0.250303.1=2.*" "1.0.4078.44=1.*" "[1.4.0]=[1.4.0]"
+        "[2.5.4-experimental]=[2.5.4-experimental]" "2.5.4-experimental=")
+    string(REGEX MATCH "^([^=]+)=(.*)$" case "${case}")
+    set(text "${CMAKE_MATCH_1}")
+    set(expected "${CMAKE_MATCH_2}")
+    wxl_nuget_pin_reference(reference "${text}")
+    _wxl_test_expect("the reference of the pin ${text}" "${reference}" "${expected}")
+endforeach()
+
 # What keeps a pin from admitting a version. A prerelease pin admits the labels
 # that begin with its word, so that experimentala and experimental9 are on the
 # channel experimental, as the Windows App SDK names its releases.
@@ -172,7 +207,14 @@ foreach(case
         "2.6.0-experimental1 2.5.1 channel"
         "2.6.0-1 2.5.1 channel"
         "2.6 2.5.1 ok"
-        "2.6.x 2.5.1 invalid")
+        "2.6.x 2.5.1 invalid"
+        "1.4.0 [1.4.0] ok"
+        "1.4.0.0+build [1.4.0] ok"
+        "1.4.1 [1.4.0] exact"
+        "1.3.9 [1.4.0] exact"
+        "1.4.0-rc [1.4.0] exact"
+        "2.5.4-Experimental [2.5.4-experimental] ok"
+        "1.x [1.4.0] invalid")
     string(REPLACE " " ";" case "${case}")
     list(GET case 0 version)
     list(GET case 1 minimum)
@@ -241,19 +283,30 @@ endforeach()
 wxl_nuget_newest_of_major(newest "[]" "2.5.1")
 _wxl_test_expect("the newest version of an empty index" "${newest}" "")
 
-# A minimum that is not a version stops the comparison.
-execute_process(
-    COMMAND "${CMAKE_COMMAND}" "-DWXL_TEST_DIR=${WXL_TEST_DIR}" -DWXL_TEST_STEP=stop
-            -P "${CMAKE_CURRENT_LIST_FILE}"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE output
-    ERROR_VARIABLE output)
-if(result EQUAL 0)
-    message(FATAL_ERROR "nuget-version: a minimum that is not a version did not stop the comparison.")
-endif()
-string(FIND "${output}" "The minimum \"2.5.x\" is not a NuGet version." at)
-if(at EQUAL -1)
-    message(FATAL_ERROR "nuget-version: the stop did not name the minimum:\n${output}")
-endif()
+# A range stops the comparison, and a held pin the search of the index, each
+# with what the pin has to be.
+foreach(case
+        "range=is neither a minimum NuGet version nor exactly one version in brackets"
+        "held=holds one version, and a held pin is not searched")
+    string(REGEX MATCH "^([^=]+)=(.*)$" case "${case}")
+    set(step "${CMAKE_MATCH_1}")
+    set(part "${CMAKE_MATCH_2}")
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" "-DWXL_TEST_DIR=${WXL_TEST_DIR}" "-DWXL_TEST_STEP=${step}"
+                -P "${CMAKE_CURRENT_LIST_FILE}"
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE output)
+    if(result EQUAL 0)
+        message(FATAL_ERROR "nuget-version: the step ${step} did not stop.")
+    endif()
+    string(REPLACE "\n" " " output "${output}")
+    string(REGEX REPLACE " +" " " output "${output}")
+    string(FIND "${output}" "${part}" at)
+    if(at EQUAL -1)
+        message(FATAL_ERROR
+            "nuget-version: no \"${part}\" in what the step ${step} said:\n${output}")
+    endif()
+endforeach()
 
 message(STATUS "nuget-version: passed")

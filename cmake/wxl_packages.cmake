@@ -23,13 +23,21 @@
 # and the targets whose outputs are up to date, so a repeated configure stays
 # short.
 #
-# Each version of tools/packages.json is a minimum, and the restore takes the
-# newest version of the minimum's major version on the minimum's channel --
-# cmake/wxl_nuget_version.cmake says which versions a minimum admits. The
-# major version is raised only by hand, by editing the minimum. The lock file
+# A version of tools/packages.json is either a minimum or exactly one version
+# in brackets, [X]. Of a minimum the restore takes the newest version of the
+# minimum's major version on the minimum's channel --
+# cmake/wxl_nuget_version.cmake says which versions a minimum admits -- and
+# the major version is raised only by hand, by editing the minimum. A pin in
+# brackets holds its package at that version: a satellite of the release
+# (Win2D, WebView2, CppWinRT) moves on its own, and a newer one can need a
+# Windows App SDK component newer than the release has, which the Runtime
+# package's check of the referenced components then stops the restore on, so
+# such a package is held until the release moves. The lock file
 # tools/packages.lock.json records the versions the restore took, and a newer
 # version comes only with an update, which writes that file anew:
 #
+#   - a pin [X] is referenced as it is written, and neither the update nor any
+#     other configure chooses another version;
 #   - a stable minimum M.m.p is referenced as M.*, NuGet's floating version of
 #     the stable versions of major M;
 #   - a prerelease minimum is referenced as the exact version [X]. NuGet has no
@@ -41,9 +49,10 @@
 #     of the package in the flat container of the NuGet source,
 #     WXL_NUGET_FLAT_CONTAINER.
 #
-# After the restore the version of every pin is checked against its minimum: of
-# another major version, on another channel or below the minimum, it stops the
-# configure with what to do. An ordinary configure reads the lock file once,
+# After the restore the version of every pin is checked against it: another
+# version than the one a pin holds, or, of a minimum, a version of another
+# major version, on another channel or below the minimum, stops the configure
+# with what to do. An ordinary configure reads the lock file once,
 # and while the file records every prerelease pin it downloads no index; a
 # prerelease pin the file does not record yet is resolved through the source as
 # the update resolves it, unless the restore is locked, which stops on it.
@@ -229,30 +238,34 @@ function(_wxl_packages_pins out_pins)
         message(FATAL_ERROR "${manifest_file} lists no packages.")
     endif()
     set(pins "")
+    set(has_cppwinrt FALSE)
     math(EXPR last "${count} - 1")
     foreach(i RANGE ${last})
         string(JSON id GET "${manifest}" packages ${i} id)
         string(JSON version GET "${manifest}" packages ${i} version)
-        list(APPEND pins "${id}" "${version}")
-    endforeach()
-
-    set(has_cppwinrt FALSE)
-    list(LENGTH pins length)
-    math(EXPR last "${length} - 1")
-    foreach(i RANGE 0 ${last} 2)
-        math(EXPR j "${i} + 1")
-        list(GET pins ${i} id)
-        list(GET pins ${j} version)
-        # Written into the project as they are: neither may carry what XML or
-        # MSBuild reads as syntax.
-        if(NOT id MATCHES "^[A-Za-z0-9._-]+$" OR NOT version MATCHES "^[A-Za-z0-9.+-]+$")
-            message(FATAL_ERROR "Not a NuGet package id and version: \"${id}\" \"${version}\" (${manifest_file}).")
+        # Each is checked before it joins the CMake list of the pins, where a
+        # ; or an unbalanced [ would run into the next element. The id is
+        # written into the project as it is, and may not carry what XML or
+        # MSBuild reads as syntax. The version is written as
+        # wxl_nuget_pin_reference() makes it of a pin, of the characters of a
+        # NuGet version and brackets.
+        if(NOT id MATCHES "^[A-Za-z0-9._-]+$")
+            message(FATAL_ERROR "Not a NuGet package id: \"${id}\" (${manifest_file}).")
         endif()
-        wxl_nuget_version_parse(minimum "${version}")
-        if(NOT minimum_VALID)
+        wxl_nuget_pin(pin "${version}")
+        if(pin_FORM STREQUAL "invalid")
             message(FATAL_ERROR "${manifest_file} pins ${id} at \"${version}\", which is not a NuGet version.")
         endif()
-        if(NOT minimum_LABEL STREQUAL "" AND minimum_CHANNEL STREQUAL "")
+        if(pin_FORM STREQUAL "range")
+            message(FATAL_ERROR
+                "${manifest_file} pins ${id} at \"${version}\", a range. A pin is either a "
+                "minimum, a version such as 1.4.0, of which the restore takes the newest version "
+                "of the same major version and channel, or exactly one version in brackets, such "
+                "as [1.4.0], which holds the package at that version.")
+        endif()
+        wxl_nuget_version_parse(minimum "${pin_VERSION}")
+        if(pin_FORM STREQUAL "minimum" AND NOT minimum_LABEL STREQUAL ""
+           AND minimum_CHANNEL STREQUAL "")
             message(FATAL_ERROR
                 "${manifest_file} pins ${id} at ${version}, a prerelease whose label begins with "
                 "no letter. A prerelease minimum names its channel by the word its label begins with, "
@@ -262,6 +275,7 @@ function(_wxl_packages_pins out_pins)
         if(id STREQUAL "Microsoft.Windows.CppWinRT")
             set(has_cppwinrt TRUE)
         endif()
+        list(APPEND pins "${id}" "${version}")
     endforeach()
     if(NOT has_cppwinrt)
         message(FATAL_ERROR
@@ -294,8 +308,9 @@ function(_wxl_packages_channel out minimum)
 endfunction()
 
 # The version of the pin `id` that the lock file records or the restore resolved
-# (`what` says which), checked against the pin's minimum. A version the
-# minimum does not admit stops the configure with the remedy; `updating` says
+# (`what` says which), checked against the pin, `minimum` -- a minimum or one
+# held version. A version the pin does not admit stops the configure with the
+# remedy; `updating` says
 # whether this configure is the update, which takes the newest versions the
 # NuGet sources hold, so that the update is not the remedy.
 function(_wxl_packages_check_version what id version minimum updating)
@@ -308,6 +323,9 @@ function(_wxl_packages_check_version what id version minimum updating)
     set(own "")
     if(mismatch STREQUAL "invalid")
         set(cause "${id} ${version}, which is not a NuGet version.")
+    elseif(mismatch STREQUAL "exact")
+        set(cause "${id} ${version}, and tools/packages.json holds it at exactly ${minimum}.")
+        set(own "change the version it is held at")
     elseif(mismatch STREQUAL "below")
         set(cause "${pinned}: it is below the minimum.")
         set(own "lower the minimum")
@@ -324,7 +342,10 @@ function(_wxl_packages_check_version what id version minimum updating)
         set(own "write a minimum on the channel you mean to take")
     endif()
 
-    if(updating)
+    if(updating AND mismatch STREQUAL "exact")
+        string(CONCAT remedy
+            "The update does not choose a held version: check the NuGet sources of the restore")
+    elseif(updating)
         string(CONCAT remedy
             "The update takes the newest versions the NuGet sources hold, so they hold none that "
             "the minimum admits: check the minimum and the NuGet sources of the restore")
@@ -532,9 +553,10 @@ function(_wxl_packages)
     endif()
 
     # A stable minimum is referenced as the floating version of its major
-    # version, a prerelease one as the exact version that the lock file records
-    # or the update chooses (see the top of this file). Either is made of what
-    # a NuGet version is written in, as wxl_nuget_version_parse() checks it.
+    # version and a held pin as it is written, by the pin alone; a prerelease
+    # minimum as the exact version that the lock file records or the update
+    # chooses (see the top of this file). Each is made of the characters of a
+    # NuGet version and brackets, as wxl_nuget_version_parse() checks them.
     set(WXL_PACKAGES_REFERENCES "")
     list(LENGTH pins length)
     math(EXPR last "${length} - 1")
@@ -542,14 +564,13 @@ function(_wxl_packages)
         math(EXPR j "${i} + 1")
         list(GET pins ${i} id)
         list(GET pins ${j} minimum)
-        wxl_nuget_version_parse(pin "${minimum}")
+        wxl_nuget_pin_reference(version "${minimum}")
         set(locked_version "")
-        if(NOT lock_json STREQUAL "" AND (WXL_UPDATE_PACKAGES OR NOT pin_LABEL STREQUAL ""))
+        if(NOT lock_json STREQUAL "" AND (WXL_UPDATE_PACKAGES OR version STREQUAL ""))
             _wxl_packages_locked_version(locked_version "${lock}" "${lock_json}" "${id}")
         endif()
-        if(pin_LABEL STREQUAL "")
-            list(GET pin_NUMBERS 0 major)
-            set(version "${major}.*")
+        if(NOT version STREQUAL "")
+            # The pin alone gives the reference: nothing is read or chosen.
         elseif(WXL_UPDATE_PACKAGES)
             _wxl_packages_newest(chosen "${id}" "${minimum}" "${helper}/index")
             set(version "[${chosen}]")

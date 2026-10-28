@@ -16,10 +16,11 @@
 # which the generator compares the versions a profile needs with the restored
 # ones; the two are kept the same.
 #
-# A pin names a minimum version, and the versions it admits have the major
-# version of the minimum, are not below it and are on its channel. A stable
-# minimum (no label) is on the stable channel, which admits the versions
-# without a label. A prerelease minimum names its channel by the word its label
+# A pin is either a minimum version or exactly one version in brackets, [X],
+# NuGet's exact range. A held pin admits that version only. A minimum admits
+# the versions that have the major version of the minimum, are not below it
+# and are on its channel. A stable minimum (no label) is on the stable
+# channel, which admits the versions without a label. A prerelease minimum names its channel by the word its label
 # begins with, the letters before the first character that is not one, and
 # admits the prerelease versions whose label begins with that word, ignoring
 # case -- what NuGet's floating label <word>* matches. The Windows App SDK
@@ -28,6 +29,19 @@
 # all on the channel of 2.5.4-experimental, "experimental".
 #
 # Defined here:
+#
+#   wxl_nuget_pin(<prefix> <text>)
+#       sets <prefix>_FORM to what the pin <text> is: "minimum" (a version),
+#       "exact" (one version in brackets), "range" (any other text with a
+#       bracket, a parenthesis or a comma, which NuGet reads as a range) or
+#       "invalid"; and <prefix>_VERSION to the minimum or the held version.
+#
+#   wxl_nuget_pin_reference(<variable> <pin>)
+#       sets <variable> to the version the helper project references for the
+#       pin <pin> when the pin alone gives it: M.* for a stable minimum of major
+#       M, NuGet's floating version of the stable versions of M, and [X] for a
+#       pin held at X. Empty for a prerelease minimum, whose exact version is
+#       taken from the lock file or chosen out of the index of the source.
 #
 #   wxl_nuget_version_parse(<prefix> <text>)
 #       sets <prefix>_VALID to TRUE when <text> is a version and to FALSE when
@@ -40,16 +54,17 @@
 #       sets <variable> to -1, 0 or 1 as the version <a> is below, equal to or
 #       above <b>. Either one not a version stops the configure.
 #
-#   wxl_nuget_version_mismatch(<variable> <version> <minimum>)
-#       sets <variable> to what keeps the pin <minimum> from admitting
-#       <version>: "invalid" (not a version), "major", "channel" or "below";
-#       empty when the pin admits it. A minimum that is not a version stops the
-#       configure.
+#   wxl_nuget_version_mismatch(<variable> <version> <pin>)
+#       sets <variable> to what keeps the pin <pin> from admitting <version>:
+#       "invalid" (not a version), "exact" (not the version a held pin names),
+#       "major", "channel" or "below"; empty when the pin admits it. A pin
+#       that is neither a minimum nor one held version stops the configure.
 #
 #   wxl_nuget_newest_of_major(<variable> <versions> <minimum>)
 #       sets <variable> to the highest of the versions the JSON array
-#       <versions> lists that the pin <minimum> admits, empty when there is
-#       none. The array is "versions" of the index of a package in NuGet's flat
+#       <versions> lists that the minimum <minimum> admits, empty when there
+#       is none. A held pin is not searched, and passing one stops the
+#       configure. The array is "versions" of the index of a package in NuGet's flat
 #       container (<flat container>/<id in lower case>/index.json). An entry
 #       that is not a version is passed over: the index lists whatever the
 #       source holds, and a pin admits no text this file does not read as a
@@ -146,6 +161,56 @@ function(wxl_nuget_version_parse prefix text)
     set(${prefix}_CHANNEL "${channel}" PARENT_SCOPE)
 endfunction()
 
+function(wxl_nuget_pin prefix text)
+    set(form "invalid")
+    set(version "")
+    if(text MATCHES "^\\[([^],]*)\\]$")
+        set(held "${CMAKE_MATCH_1}")
+        wxl_nuget_version_parse(exact "${held}")
+        if(exact_VALID)
+            set(form "exact")
+            set(version "${held}")
+        endif()
+    elseif(text MATCHES "[][(),]")
+        set(form "range")
+    else()
+        wxl_nuget_version_parse(minimum "${text}")
+        if(minimum_VALID)
+            set(form "minimum")
+            set(version "${text}")
+        endif()
+    endif()
+    set(${prefix}_FORM "${form}" PARENT_SCOPE)
+    set(${prefix}_VERSION "${version}" PARENT_SCOPE)
+endfunction()
+
+# The pin `pin`, read into the variables of the prefix `prefix` of the caller:
+# its form and version as wxl_nuget_pin() sets them, and the parts of the
+# version as wxl_nuget_version_parse() does. A pin that is neither stops the
+# configure, since the pins are checked before anything compares a version
+# with them.
+macro(_wxl_nuget_read_pin prefix pin)
+    wxl_nuget_pin(${prefix} "${pin}")
+    if(NOT ${prefix}_FORM MATCHES "^(minimum|exact)$")
+        message(FATAL_ERROR
+            "The pin \"${pin}\" is neither a minimum NuGet version nor exactly one version in "
+            "brackets.")
+    endif()
+    wxl_nuget_version_parse(${prefix} "${${prefix}_VERSION}")
+endmacro()
+
+function(wxl_nuget_pin_reference out pin)
+    _wxl_nuget_read_pin(wanted "${pin}")
+    set(reference "")
+    if(wanted_FORM STREQUAL "exact")
+        set(reference "[${wanted_VERSION}]")
+    elseif(wanted_LABEL STREQUAL "")
+        list(GET wanted_NUMBERS 0 major)
+        set(reference "${major}.*")
+    endif()
+    set(${out} "${reference}" PARENT_SCOPE)
+endfunction()
+
 # The order of two versions wxl_nuget_version_parse() read into the variables
 # of the prefixes `a` and `b` of the caller: -1, 0 or 1.
 function(_wxl_nuget_order out a b)
@@ -233,12 +298,21 @@ function(wxl_nuget_version_compare out a b)
     set(${out} ${order} PARENT_SCOPE)
 endfunction()
 
-# What keeps the minimum the caller read into the variables of the prefix
+# What keeps the pin the caller read into the variables of the prefix
 # `minimum` from admitting the version read into those of `version`, as
 # wxl_nuget_version_mismatch() names it.
 function(_wxl_nuget_mismatch out version minimum)
     if(NOT ${version}_VALID)
         set(${out} "invalid" PARENT_SCOPE)
+        return()
+    endif()
+    if(${minimum}_FORM STREQUAL "exact")
+        _wxl_nuget_order(order ${version} ${minimum})
+        if(order EQUAL 0)
+            set(${out} "" PARENT_SCOPE)
+        else()
+            set(${out} "exact" PARENT_SCOPE)
+        endif()
         return()
     endif()
     list(GET ${version}_NUMBERS 0 x)
@@ -279,25 +353,20 @@ function(_wxl_nuget_mismatch out version minimum)
     endif()
 endfunction()
 
-# A minimum the caller passes, read into the variables of the prefix `prefix`
-# of the caller; not a version, it stops the configure, since the pins are
-# checked before anything compares a version with them.
-macro(_wxl_nuget_read_minimum prefix minimum)
-    wxl_nuget_version_parse(${prefix} "${minimum}")
-    if(NOT ${prefix}_VALID)
-        message(FATAL_ERROR "The minimum \"${minimum}\" is not a NuGet version.")
-    endif()
-endmacro()
-
-function(wxl_nuget_version_mismatch out version minimum)
-    _wxl_nuget_read_minimum(pin "${minimum}")
+function(wxl_nuget_version_mismatch out version pin)
+    _wxl_nuget_read_pin(pin "${pin}")
     wxl_nuget_version_parse(candidate "${version}")
     _wxl_nuget_mismatch(mismatch candidate pin)
     set(${out} "${mismatch}" PARENT_SCOPE)
 endfunction()
 
 function(wxl_nuget_newest_of_major out versions minimum)
-    _wxl_nuget_read_minimum(pin "${minimum}")
+    _wxl_nuget_read_pin(pin "${minimum}")
+    if(pin_FORM STREQUAL "exact")
+        message(FATAL_ERROR
+            "wxl_nuget_newest_of_major: ${minimum} holds one version, and a held pin is not "
+            "searched.")
+    endif()
     string(JSON type ERROR_VARIABLE error TYPE "${versions}")
     if(error OR NOT type STREQUAL "ARRAY")
         message(FATAL_ERROR "wxl_nuget_newest_of_major: the versions are not a JSON array: ${versions}")
