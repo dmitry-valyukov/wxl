@@ -24,9 +24,9 @@ project(
 )
 
 # Whether the wxl tree is the top-level project or a project adds it (through
-# add_subdirectory or FetchContent): the same test as cmake/wxl_packages.cmake
-# makes, the top-level source directory inside the tree or not.
-cmake_path(IS_PREFIX CMAKE_CURRENT_SOURCE_DIR "${CMAKE_SOURCE_DIR}" NORMALIZE _wxl_top_level)
+# add_subdirectory or FetchContent) is PROJECT_IS_TOP_LEVEL from here on, in
+# this file and in every directory of the tree: none of them calls project() of
+# its own, so the variable is about the project() above.
 
 # ---- The language ----
 # The compile options and the language level every translation unit that
@@ -35,7 +35,7 @@ cmake_path(IS_PREFIX CMAKE_CURRENT_SOURCE_DIR "${CMAKE_SOURCE_DIR}" NORMALIZE _w
 # add_subdirectory, and the check stops its configure with the lines to add when
 # anything is missing.
 include(cmake/wxl_language.cmake)
-if(_wxl_top_level)
+if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
     wxl_apply_language_options()
 else()
@@ -65,7 +65,7 @@ endif()
 # for. The rest has a key of its own. The tree configured on its own builds all
 # of it; a project that adds the tree gets the WinUI backend and the generator it
 # is built with, and not the samples, the sandbox, the site or wxl's own tests.
-if(_wxl_top_level)
+if(PROJECT_IS_TOP_LEVEL)
     set(_wxl_own ON)
 else()
     set(_wxl_own OFF)
@@ -116,7 +116,7 @@ endforeach()
 # a tree configured once without tests gets them with -DBUILD_TESTING=ON). In a
 # project that adds wxl it is OFF unless the project turns it on, and
 # BUILD_TESTING and enable_testing() are the project's own.
-if(_wxl_top_level)
+if(PROJECT_IS_TOP_LEVEL)
     option(BUILD_TESTING "Build the testing tree." OFF)
     include(CMakeDependentOption)
     cmake_dependent_option(WXL_TESTS "Build the tests of wxl." ON "BUILD_TESTING" OFF)
@@ -303,7 +303,7 @@ endif()
 
 # The shared CMake scripts, shown in the IDE tree without being built: in the
 # tree's own IDE, not under a name in the project that adds it.
-if(_wxl_top_level)
+if(PROJECT_IS_TOP_LEVEL)
     file(GLOB_RECURSE _wxl_cmake_scripts CONFIGURE_DEPENDS "cmake/*.*")
     add_custom_target(cmake_files SOURCES ${_wxl_cmake_scripts})
     source_group("cmake" FILES ${_wxl_cmake_scripts})
